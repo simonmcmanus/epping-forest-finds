@@ -1,0 +1,14 @@
+{
+  "name": "forest-finds",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Forest Finds map app with local data tools and Netlify deployment support",
+  "scripts": {
+    "dev": "node server.js",
+    "tunnel": "./start-dev.sh",
+    "regen:landmarks": "python3 scripts/regenerate_local_landmarks.py",
+    "regen:landmarks:js": "node scripts/regenerate-local-landmarks.js",
+    "netlify:dev": "npx netlify dev",
+    "build": "echo \"Static site: no build step required\""
+  }
+}

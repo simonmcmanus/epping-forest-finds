@@ -1,0 +1,3614 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#24382f">
+  <title>Epping Forest Finds</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="tree-icon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17221e;
+      --muted: #5d6a62;
+      --line: #d7ded8;
+      --paper: #eef2ea;
+      --panel: rgba(255, 255, 255, 0.94);
+      --forest: #4f8b62;
+      --buffer: #55a7a0;
+      --tree: #2f6f4e;
+      --selected: #b34f31;
+      --place: #7f4f9f;
+      --landmark: #76702f;
+      --shadow: 0 18px 50px rgba(19, 31, 25, 0.18);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      color: var(--ink);
+      background: var(--paper);
+    }
+
+    button {
+      border: 0;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
+
+    button:focus-visible,
+    a:focus-visible {
+      outline: 3px solid rgba(60, 99, 130, 0.35);
+      outline-offset: 2px;
+    }
+
+    .app {
+      height: 100%;
+    }
+
+    .search-shell {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .search-toggle {
+      min-width: 42px;
+      width: 42px;
+      padding: 0;
+      font-size: 1.1rem;
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      box-shadow: none;
+    }
+
+    .bottom-search {
+      position: absolute;
+      left: 50%;
+      bottom: 14px;
+      transform: translateX(-50%);
+      z-index: 2;
+    }
+
+    .bottom-search .search-toggle {
+      width: auto;
+      min-width: 46px;
+      padding: 0 12px;
+      background: rgba(255, 255, 255, 0.92);
+    }
+
+    .search-panel {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .search-panel[hidden] {
+      display: none;
+    }
+
+    .search-number {
+      min-height: 42px;
+      width: clamp(150px, 18vw, 220px);
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      padding: 0 10px;
+      font: inherit;
+      color: var(--ink);
+      background: #fff;
+    }
+
+    .search-number::placeholder {
+      color: var(--muted);
+    }
+
+    .button {
+      min-height: 42px;
+      padding: 0 14px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-weight: 800;
+      color: #fff;
+      background: var(--tree);
+      box-shadow: 0 10px 22px rgba(20, 36, 28, 0.22);
+      white-space: nowrap;
+    }
+
+    .install {
+      display: none;
+      background: #f3d36b;
+      color: #1f271f;
+    }
+
+    .search-button {
+      background: var(--selected);
+    }
+
+    .icon {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+    }
+
+    .map-stage {
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+      background:
+        linear-gradient(135deg, rgba(229, 236, 226, 0.95), rgba(205, 218, 203, 0.95)),
+        #d8e1d4;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    canvas.dragging {
+      cursor: grabbing;
+    }
+
+    .toolbar,
+    .legend,
+    .status,
+    .inspector {
+      position: absolute;
+      z-index: 2;
+      background: var(--panel);
+      border: 1px solid rgba(36, 56, 47, 0.15);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .toolbar {
+      left: 14px;
+      top: 14px;
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      border-radius: 8px;
+    }
+
+    .filter-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 1rem;
+      font-weight: 900;
+    }
+
+    .filter-toggle.active {
+      background: var(--tree);
+      border-color: var(--tree);
+      color: #fff;
+      box-shadow: 0 10px 20px rgba(20, 36, 28, 0.2);
+    }
+
+    .filter-icon {
+      position: relative;
+      width: 14px;
+      height: 14px;
+      display: inline-block;
+      color: currentColor;
+      pointer-events: none;
+    }
+
+    .filter-count {
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      display: inline-grid;
+      place-items: center;
+      font-size: 0.68rem;
+      font-weight: 900;
+      line-height: 1;
+      border: 1px solid currentColor;
+      background: rgba(255, 255, 255, 0.92);
+      color: inherit;
+    }
+
+    .filter-toggle.active .filter-count {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.65);
+      color: #fff;
+    }
+
+    .filter-icon::before {
+      content: "";
+      position: absolute;
+      top: 1px;
+      left: 1px;
+      right: 1px;
+      height: 4px;
+      border: 1.8px solid currentColor;
+      border-bottom: 0;
+      border-radius: 2px 2px 0 0;
+    }
+
+    .filter-icon::after {
+      content: "";
+      position: absolute;
+      top: 5px;
+      left: 3px;
+      right: 3px;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 7px solid currentColor;
+    }
+
+    .filter-panel {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .filter-panel[hidden] {
+      display: none;
+    }
+
+    .filter-section {
+      flex-basis: 100%;
+      padding: 12px 0;
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .filter-section label {
+      font-size: 0.9rem;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .nearest-items-slider {
+      width: 100%;
+      cursor: pointer;
+      accent-color: #004e2c;
+    }
+
+    .filter-chip {
+      min-height: 34px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 0 10px;
+      font-size: 0.82rem;
+      font-weight: 800;
+      box-shadow: none;
+    }
+
+    .filter-chip.active {
+      background: #e9f1e8;
+      border-color: rgba(47, 111, 78, 0.55);
+      color: #1f3f2e;
+    }
+
+    .tool {
+      width: 42px;
+      height: 42px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      font-size: 1.25rem;
+      font-weight: 900;
+    }
+
+    .legend {
+      left: 14px;
+      bottom: 14px;
+      max-width: min(560px, calc(100vw - 28px));
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: #2d3b34;
+      font-size: 0.78rem;
+      font-weight: 750;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .swatch {
+      width: 14px;
+      height: 10px;
+      border-radius: 2px;
+      background: currentColor;
+      border: 2px solid currentColor;
+      opacity: 0.75;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: currentColor;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px currentColor;
+    }
+
+    .status {
+      left: 14px;
+      top: 78px;
+      max-width: min(440px, calc(100vw - 28px));
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.35;
+    }
+
+    .status:empty {
+      display: none;
+    }
+
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(237, 242, 234, 0.88);
+      backdrop-filter: blur(14px);
+      padding: 24px;
+    }
+
+    .loading-overlay[hidden] {
+      display: none;
+    }
+
+    .loading-card {
+      width: 100%;
+      max-width: 380px;
+      background: var(--panel);
+      border: 1px solid rgba(36, 56, 47, 0.15);
+      box-shadow: var(--shadow);
+      border-radius: 16px;
+      padding: 24px 22px 22px;
+    }
+
+    .loading-brand {
+      font-size: 1.35rem;
+      font-weight: 900;
+      color: var(--ink);
+      margin-bottom: 10px;
+    }
+
+    .loading-intro {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .loading-steps {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 10px;
+    }
+
+    .loading-step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--muted);
+      transition: color 0.2s;
+    }
+
+    .loading-step.loading {
+      color: var(--ink);
+    }
+
+    .loading-step.done {
+      color: var(--tree);
+    }
+
+    .loading-step.error {
+      color: var(--selected);
+    }
+
+    .step-icon {
+      width: 22px;
+      height: 22px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      border: 2px solid currentColor;
+      display: grid;
+      place-items: center;
+      font-size: 0.75rem;
+      font-style: normal;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .loading-step.pending .step-icon::after   { content: "" }
+    .loading-step.loading .step-icon::after   { content: "⋯"; font-size: 1rem; line-height: 1; }
+    .loading-step.done    .step-icon::after   { content: "✓"; font-size: 0.8rem; }
+    .loading-step.done    .step-icon          { background: var(--tree); border-color: var(--tree); color: #fff; }
+    .loading-step.error   .step-icon::after   { content: "!"; font-size: 0.85rem; }
+    .loading-step.error   .step-icon          { background: var(--selected); border-color: var(--selected); color: #fff; }
+
+    @keyframes step-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .version {
+      position: absolute;
+      right: 14px;
+      bottom: 14px;
+      z-index: 2;
+      padding: 7px 9px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(36, 56, 47, 0.15);
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 800;
+      box-shadow: var(--shadow);
+    }
+
+    .inspector {
+      top: 14px;
+      right: 14px;
+      width: min(390px, calc(100vw - 28px));
+      max-height: calc(100% - 28px);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: max-height 0.2s ease;
+    }
+
+    .inspector.minimized {
+      top: auto;
+      bottom: 14px;
+      max-height: 62px;
+      overflow: hidden;
+    }
+
+    .inspector.minimized .inspector-header {
+      border-bottom: 0;
+      padding: 10px 12px;
+    }
+
+    .inspector.minimized .inspector-body {
+      display: none;
+    }
+
+    .inspector-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .inspector-header > div:first-child {
+      min-width: 0;
+    }
+
+    .inspector-actions {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .inspector-tools {
+      display: grid;
+      gap: 8px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .inspector.minimized .inspector-tools {
+      display: none;
+    }
+
+    .inspector h2 {
+      margin: 0;
+      font-size: clamp(1.25rem, 2vw, 1.7rem);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .inspector-title-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .inspector-back {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      display: inline-grid;
+      place-items: center;
+      font-size: 1rem;
+      line-height: 1;
+      flex: 0 0 auto;
+    }
+
+    .inspector-title-emoji {
+      font-size: 1.2rem;
+      line-height: 1;
+      flex: 0 0 auto;
+    }
+
+    .inspector .type {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .close {
+      width: 36px;
+      height: 36px;
+      flex: 0 0 auto;
+      border-radius: 6px;
+      background: #edf2ec;
+      color: var(--ink);
+      font-size: 1.3rem;
+      line-height: 1;
+    }
+
+    button.filter-toggle {
+      width: auto;
+      min-width: 36px;
+      padding: 0 10px;
+    }
+
+    .inspector-body {
+      padding: 14px 16px 16px;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .distance {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 9px;
+      border-radius: 999px;
+      background: #f0efe7;
+      border: 1px solid var(--line);
+      color: #384840;
+      font-size: 0.86rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    dl {
+      margin: 0;
+      display: grid;
+      gap: 0;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 132px 1fr;
+      gap: 12px;
+      padding: 9px 0;
+      border-bottom: 1px solid #edf0eb;
+    }
+
+    dt {
+      color: var(--muted);
+      font-weight: 780;
+    }
+
+    dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .empty {
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .source-note {
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
+
+    .source-note a {
+      color: inherit;
+      font-weight: 800;
+    }
+
+    .named-tree {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #edf0eb;
+    }
+
+    .story-list {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      color: var(--ink);
+      line-height: 1.45;
+    }
+
+    .story-list li {
+      margin: 6px 0;
+    }
+
+    .story-list a {
+      color: inherit;
+      font-weight: 700;
+    }
+
+    .compass-overlay {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 3;
+      min-width: 190px;
+      max-width: min(420px, calc(100vw - 28px));
+      text-align: center;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(36, 56, 47, 0.15);
+      box-shadow: var(--shadow);
+      border-radius: 12px;
+      padding: 8px 12px 10px;
+      backdrop-filter: blur(10px);
+    }
+
+    .compass-overlay[hidden] {
+      display: none;
+    }
+
+    .compass-arrow {
+      font-size: clamp(72px, 12vw, 120px);
+      line-height: 1;
+      color: var(--selected);
+      transform-origin: 50% 50%;
+      transition: transform 120ms linear;
+      user-select: none;
+    }
+
+    .compass-label {
+      margin-top: 4px;
+      color: var(--ink);
+      font-size: 0.88rem;
+      font-weight: 780;
+      line-height: 1.35;
+    }
+
+    .nearest-list {
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 8px;
+    }
+
+    .nearest-item {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      padding: 8px 10px;
+      font: inherit;
+      font-weight: 700;
+      display: grid;
+      gap: 3px;
+    }
+
+    .nearest-main {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .nearest-arrow {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #f7faf6;
+      color: var(--selected);
+      font-size: 1.55rem;
+      line-height: 1;
+      font-weight: 900;
+      transform-origin: 50% 50%;
+      transition: transform 120ms linear;
+      flex: 0 0 auto;
+    }
+
+    .nearest-label {
+      min-width: 0;
+    }
+
+    .nearest-kind {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-right: 4px;
+      color: #2f4a3c;
+      font-weight: 800;
+    }
+
+    .nearest-item small {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    @media (max-width: 760px) {
+      .button {
+        flex: 1;
+      }
+
+      .search-shell {
+        width: 100%;
+      }
+
+      .bottom-search {
+        left: auto;
+        right: 10px;
+        transform: none;
+        bottom: 10px;
+      }
+
+      .search-toggle {
+        flex: 0 0 auto;
+      }
+
+      .search-panel {
+        flex: 1 1 auto;
+      }
+
+      .search-number {
+        flex: 1 1 auto;
+        width: 100%;
+      }
+
+      .inspector {
+        top: auto;
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        width: auto;
+        max-height: 48%;
+      }
+
+      .toolbar {
+        top: 10px;
+        left: 10px;
+      }
+
+      .status {
+        top: 72px;
+        left: 10px;
+        max-width: calc(100vw - 20px);
+      }
+
+      .legend {
+        display: none;
+      }
+
+      .row {
+        grid-template-columns: 1fr;
+        gap: 3px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <main class="map-stage">
+      <canvas id="mapCanvas" aria-label="Interactive map of veteran trees and local landmarks"></canvas>
+
+      <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data">
+        <div class="loading-card">
+          <div class="loading-brand">🌳 Forest Finds</div>
+          <p class="loading-intro">Loading everything needed to work offline — once ready, the map works without internet access.</p>
+          <ul id="loadingSteps" class="loading-steps">
+            <li class="loading-step pending" data-load-step="trees">
+              <span class="step-icon" aria-hidden="true"></span><span>Tree records (veteran register)</span>
+            </li>
+            <li class="loading-step pending" data-load-step="places">
+              <span class="step-icon" aria-hidden="true"></span><span>Local places &amp; landmarks</span>
+            </li>
+            <li class="loading-step pending" data-load-step="forest">
+              <span class="step-icon" aria-hidden="true"></span><span>Forest &amp; buffer boundaries</span>
+            </li>
+            <li class="loading-step pending" data-load-step="cows">
+              <span class="step-icon" aria-hidden="true"></span><span>Live cow positions (Nofence)</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="compassOverlay" class="compass-overlay" aria-live="polite" hidden>
+        <div id="compassArrow" class="compass-arrow">↑</div>
+        <div id="compassLabel" class="compass-label">Pointing to selected location</div>
+      </div>
+
+      <div class="toolbar" aria-label="Map controls">
+        <button id="zoomIn" class="tool" type="button" aria-label="Zoom in">+</button>
+        <button id="zoomOut" class="tool" type="button" aria-label="Zoom out">-</button>
+        <button id="fitMap" class="tool" type="button" aria-label="Show all trees">⌂</button>
+      </div>
+
+      <div id="status" class="status">Loading offline map data...</div>
+      <div id="versionBadge" class="version">v62 loading</div>
+
+      <div class="legend" aria-label="Map legend">
+        <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
+        <span style="color: #9a6a2f;">🐄 Cows</span>
+        <span style="color: var(--place);">🍺 Pubs, bars &amp; restaurants</span>
+        <span style="color: #8b4513;">☕ Cafés &amp; tea huts</span>
+        <span style="color: #dc143c;">🚆 Train links</span>
+        <span style="color: #ff8c00;">🚌 Bus links &amp; stops</span>
+        <span style="color: var(--landmark);">📍 Locations</span>
+      </div>
+
+      <div class="bottom-search">
+        <button id="treeSearchToggle" class="button search-toggle" type="button" aria-label="Show tree search" aria-expanded="false">🔍</button>
+      </div>
+
+      <aside id="inspector" class="inspector" aria-live="polite">
+        <div class="inspector-header">
+          <div>
+            <div class="inspector-title-row">
+              <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back to nearest locations" hidden>←</button>
+              <span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>
+              <h2 id="inspectorTitle">Forest Finds</h2>
+            </div>
+            <p id="inspectorType" class="type"></p>
+          </div>
+          <div class="inspector-actions">
+            <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Show filters" aria-expanded="false" aria-pressed="false" aria-controls="filterPanel"><span class="filter-icon" aria-hidden="true"></span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
+            <button id="resetInspector" class="close" type="button" aria-label="Return to initial view">⌂</button>
+            <button id="closeInspector" class="close" type="button" aria-label="Minimize details">—</button>
+          </div>
+        </div>
+        <div class="inspector-tools">
+          <div id="filterPanel" class="filter-panel" hidden>
+            <button class="filter-chip" type="button" data-overview-filter="all">All</button>
+            <button class="filter-chip" type="button" data-overview-filter="trees">🌳 Trees</button>
+            <button class="filter-chip" type="button" data-overview-filter="cows">🐄 Cows</button>
+            <button class="filter-chip" type="button" data-overview-filter="pubs">🍺 Pubs &amp; food</button>
+            <button class="filter-chip" type="button" data-overview-filter="cafes">☕ Cafés</button>
+            <button class="filter-chip" type="button" data-overview-filter="transport">🚌 Transport</button>
+            <button class="filter-chip" type="button" data-overview-filter="locations">📍 Locations</button>
+          </div>
+          <div id="treeSearchPanel" class="search-panel" hidden>
+            <input id="treeSearchInput" class="search-number" type="search" inputmode="text" autocomplete="off" placeholder="Search tree number" aria-label="Search by tree number">
+            <button id="treeSearchButton" class="button search-button" type="button">Find</button>
+          </div>
+          <div class="search-shell">
+            <button id="locateButton" class="button" type="button" disabled hidden>Use my location</button>
+            <button id="installButton" class="button install" type="button">Install</button>
+          </div>
+        </div>
+        <div id="inspectorBody" class="inspector-body">
+          <p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const TREE_URL = "Veteran_Tree_Register.json";
+    const TREE_ENRICHED_URL = "Veteran_Tree_Register.enriched.with_named_trees.json";
+    const LANDMARK_URL = "data/local-landmarks.geojson";
+    const COW_PROXY_URL_BASE = "/api/cows?center=";
+    const COW_SOURCE_URL_BASE = "https://account.nofence.no/api/open/data/?center=";
+    const COW_DATA_CACHE_KEY = "forest-finds-cow-data-v1";
+    const COW_REFRESH_MS = 5 * 60 * 1000;
+    const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
+    const FEATURE_LAYERS = [
+      { key: "forest", label: "Epping Forest land", url: "data/epping-forest-land.geojson" },
+      { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
+    ];
+    const EARTH_RADIUS_METRES = 6371008.8;
+    const APP_VERSION = "v62";
+
+    const state = {
+      trees: [],
+      landmarks: [],
+      layers: [],
+      bounds: null,
+      namedTreeStoriesByName: new Map(),
+      fitScale: 1,
+      baseFitScale: 1,
+      viewport: { scale: 1, tx: 0, ty: 0 },
+      selected: null,
+      userLocation: null,
+      userInMapArea: false,
+      nearestTree: null,
+      nearestCow: null,
+      nearestPub: null,
+      nearestLandmark: null,
+      nearestPlace: null,
+      cows: [],
+      cowPastures: [],
+      cowLastUpdatedAt: null,
+      cowRefreshTimerId: null,
+      cowFetchInFlight: false,
+      overviewFilters: [],
+      nearestItemsCount: 3,
+      suppressHashChange: false,
+      compassHeading: null,
+      compassHeadingTarget: null,
+      compassPermission: "unknown",
+      locationWatchId: null,
+      dragging: false,
+      moved: false,
+      dragStart: null,
+      installPrompt: null,
+      animationFrame: null,
+      compassAnimationFrame: null,
+      compassAnimationTime: null,
+      compassArrowAngle: null,
+      viewportAnimationFrame: null,
+      viewportAnimationFrom: null,
+      viewportAnimationTo: null,
+      viewportAnimationStartTime: null,
+      viewportAnimationDuration: 0,
+    };
+
+    const els = {
+      canvas: document.getElementById("mapCanvas"),
+      toolbar: document.querySelector(".toolbar"),
+      compassOverlay: document.getElementById("compassOverlay"),
+      compassArrow: document.getElementById("compassArrow"),
+      compassLabel: document.getElementById("compassLabel"),
+      filterToggle: document.getElementById("filterToggle"),
+      filterCount: document.getElementById("filterCount"),
+      filterPanel: document.getElementById("filterPanel"),
+      locateButton: document.getElementById("locateButton"),
+      installButton: document.getElementById("installButton"),
+      zoomIn: document.getElementById("zoomIn"),
+      zoomOut: document.getElementById("zoomOut"),
+      fitMap: document.getElementById("fitMap"),
+      status: document.getElementById("status"),
+      versionBadge: document.getElementById("versionBadge"),
+      loadingOverlay: document.getElementById("loadingOverlay"),
+      inspector: document.getElementById("inspector"),
+      inspectorBack: document.getElementById("inspectorBack"),
+      inspectorTitleEmoji: document.getElementById("inspectorTitleEmoji"),
+      inspectorTitle: document.getElementById("inspectorTitle"),
+      inspectorType: document.getElementById("inspectorType"),
+      inspectorBody: document.getElementById("inspectorBody"),
+      resetInspector: document.getElementById("resetInspector"),
+      closeInspector: document.getElementById("closeInspector"),
+      treeSearchToggle: document.getElementById("treeSearchToggle"),
+      treeSearchPanel: document.getElementById("treeSearchPanel"),
+      treeSearchInput: document.getElementById("treeSearchInput"),
+      treeSearchButton: document.getElementById("treeSearchButton"),
+    };
+
+    boot();
+
+    function setLoadStep(key, status) {
+      const el = document.querySelector(`[data-load-step="${key}"]`);
+      if (!el) return;
+      el.classList.remove("pending", "loading", "done", "error");
+      el.classList.add(status);
+    }
+
+    async function boot() {
+      setupPwa();
+      setupUiZoomLock();
+      setupInteractions();
+      resizeCanvas();
+      draw();
+
+      try {
+        // Kick off all fetches in parallel, updating step states as each resolves
+        setLoadStep("trees", "loading");
+        setLoadStep("places", "loading");
+        setLoadStep("forest", "loading");
+
+        const treePromise = fetch(TREE_ENRICHED_URL)
+          .catch(() => fetch(TREE_URL))
+          .then(async (r) => {
+            if (!r.ok) throw new Error(`Tree data HTTP ${r.status}`);
+            const data = await r.json();
+            setLoadStep("trees", "done");
+            return data;
+          })
+          .catch((err) => { setLoadStep("trees", "error"); throw err; });
+
+        const landmarkPromise = fetch(LANDMARK_URL)
+          .then(async (r) => {
+            if (!r.ok) throw new Error(`Landmark data HTTP ${r.status}`);
+            const data = await r.json();
+            setLoadStep("places", "done");
+            return data;
+          })
+          .catch((err) => { setLoadStep("places", "error"); throw err; });
+
+        const layerPromises = FEATURE_LAYERS.map((layer) =>
+          fetch(layer.url)
+            .then(async (r) => {
+              if (!r.ok) throw new Error(`${layer.label} HTTP ${r.status}`);
+              return { ...layer, data: await r.json() };
+            })
+        );
+
+        const [treeData, landmarkData, ...resolvedLayers] = await Promise.all([
+          treePromise,
+          landmarkPromise,
+          ...layerPromises,
+        ]);
+        setLoadStep("forest", "done");
+
+        state.layers = resolvedLayers;
+
+        state.trees = treeData.trees
+          .filter((tree) => tree.location && tree.location.wgs84)
+          .map((tree) => ({
+            ...tree,
+            latitude: Number(tree.location.wgs84.latitude),
+            longitude: Number(tree.location.wgs84.longitude),
+            point: projectLonLat(Number(tree.location.wgs84.longitude), Number(tree.location.wgs84.latitude)),
+          }));
+
+        state.namedTreeStoriesByName = buildNamedTreeStoryIndex(treeData.historicalNamedTreeEnrichment);
+
+        state.landmarks = landmarkData.features
+          .filter((feature) => feature.geometry && feature.geometry.type === "Point")
+          .map((feature) => {
+            const longitude = Number(feature.geometry.coordinates[0]);
+            const latitude = Number(feature.geometry.coordinates[1]);
+            return {
+              ...feature.properties,
+              latitude,
+              longitude,
+              point: projectLonLat(longitude, latitude),
+            };
+          });
+
+        state.bounds = calculateBounds();
+        applyCachedCowData();
+        setLoadStep("cows", "loading");
+        await refreshCowData({ force: true });
+        setLoadStep("cows", state.cows.length > 0 ? "done" : "error");
+        scheduleCowRefresh();
+        fitToBounds();
+        els.locateButton.disabled = false;
+        updateLocateButtonVisibility();
+        els.versionBadge.textContent = `${APP_VERSION} · ${state.trees.length.toLocaleString()} trees · ${state.landmarks.length.toLocaleString()} places`;
+
+        // Brief pause so user can see all steps complete before overlay dismisses
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        if (els.loadingOverlay) els.loadingOverlay.hidden = true;
+        setStatus("Offline map data loaded.");
+        selectOverview();
+        draw();
+        applySelectionFromHash();
+        locateUser({ initial: true });
+      } catch (error) {
+        console.error(error);
+        if (els.loadingOverlay) els.loadingOverlay.hidden = true;
+        setStatus("Could not load local map data. Start a local server from this folder and refresh.");
+      }
+    }
+
+    function setupPwa() {
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("sw.js").catch(console.error);
+      }
+
+      window.addEventListener("beforeinstallprompt", (event) => {
+        event.preventDefault();
+        state.installPrompt = event;
+        els.installButton.style.display = "inline-flex";
+      });
+
+      els.installButton.addEventListener("click", async () => {
+        if (!state.installPrompt) return;
+        state.installPrompt.prompt();
+        await state.installPrompt.userChoice;
+        state.installPrompt = null;
+        els.installButton.style.display = "none";
+      });
+    }
+
+    function setupUiZoomLock() {
+      window.addEventListener("wheel", (event) => {
+        if (event.ctrlKey) event.preventDefault();
+      }, { passive: false });
+
+      document.addEventListener("gesturestart", (event) => event.preventDefault(), { passive: false });
+      document.addEventListener("gesturechange", (event) => event.preventDefault(), { passive: false });
+      document.addEventListener("gestureend", (event) => event.preventDefault(), { passive: false });
+
+      let lastTouchEnd = 0;
+      document.addEventListener("touchend", (event) => {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 320) {
+          event.preventDefault();
+        }
+        lastTouchEnd = now;
+      }, { passive: false });
+    }
+
+    function setupInteractions() {
+      setupCompassListeners();
+      updateMapControlVisibility();
+      updateFilterUi();
+
+      window.addEventListener("resize", () => {
+        updateMapControlVisibility();
+        resizeCanvas();
+        if (state.bounds) {
+          if (state.userLocation && selectedCompassTarget()) ensureUserAndSelectionVisible();
+          else fitToBounds(false);
+        }
+        requestDraw();
+      });
+
+      els.zoomIn.addEventListener("click", () => zoomAt(1.55, centerPoint()));
+      els.zoomOut.addEventListener("click", () => zoomAt(1 / 1.55, centerPoint()));
+      els.fitMap.addEventListener("click", () => {
+        fitToBounds(true, { animate: true });
+      });
+      els.closeInspector.addEventListener("click", () => {
+        setInspectorMinimized(!els.inspector.classList.contains("minimized"));
+      });
+
+      els.resetInspector.addEventListener("click", () => {
+        goToInitialView();
+      });
+
+      els.inspectorBack.addEventListener("click", () => {
+        goToInitialView();
+      });
+
+      els.inspector.addEventListener("click", (event) => {
+        if (!els.inspector.classList.contains("minimized")) return;
+        if (event.target === els.closeInspector) return;
+        setInspectorMinimized(false);
+      });
+
+      els.locateButton.addEventListener("click", () => {
+        locateUser({ initial: false });
+      });
+
+      els.filterToggle.addEventListener("click", () => {
+        if (els.inspector.classList.contains("minimized")) {
+          setInspectorMinimized(false);
+        }
+        if (state.overviewFilters.length > 0) {
+          els.filterPanel.hidden = false;
+          els.filterToggle.setAttribute("aria-expanded", "true");
+        } else {
+          const willOpen = els.filterPanel.hidden;
+          els.filterPanel.hidden = !willOpen;
+          els.filterToggle.setAttribute("aria-expanded", String(willOpen));
+        }
+        updateFilterUi();
+      });
+
+      // Slider is now part of the overview UI, so we attach listener in selectOverview()
+      document.addEventListener("input", (event) => {
+        if (event.target.id === "nearestItemsSlider") {
+          state.nearestItemsCount = parseInt(event.target.value, 10);
+          selectOverview();
+          if (state.userLocation) {
+            const { latitude, longitude } = state.userLocation;
+            const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
+            state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
+            ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+            requestDraw();
+          }
+        }
+      }, true);
+
+      els.filterPanel.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-overview-filter]");
+        if (!button) return;
+        const next = button.dataset.overviewFilter;
+        setOverviewFilter(next);
+      });
+
+      els.treeSearchToggle.addEventListener("click", () => {
+        const isOpen = !els.treeSearchPanel.hidden;
+        els.treeSearchPanel.hidden = isOpen;
+        els.treeSearchToggle.setAttribute("aria-expanded", String(!isOpen));
+        if (!isOpen) {
+          setInspectorMinimized(false);
+          els.treeSearchInput.focus();
+        }
+      });
+
+      els.treeSearchButton.addEventListener("click", () => {
+        searchTreeByNumber();
+      });
+
+      els.treeSearchInput.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        searchTreeByNumber();
+      });
+
+      document.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (els.treeSearchPanel.hidden) return;
+        if (target.closest("#treeSearchPanel") || target.closest("#treeSearchToggle")) return;
+        els.treeSearchPanel.hidden = true;
+        els.treeSearchToggle.setAttribute("aria-expanded", "false");
+      });
+
+      document.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (els.filterPanel.hidden) return;
+        if (target.closest("#filterPanel") || target.closest("#filterToggle")) return;
+        if (state.overviewFilters.length > 0) return;
+        els.filterPanel.hidden = true;
+        els.filterToggle.setAttribute("aria-expanded", "false");
+        updateFilterUi();
+      });
+
+      window.addEventListener("hashchange", () => {
+        if (state.suppressHashChange) return;
+        if (!window.location.hash) {
+          goToInitialView(false);
+          return;
+        }
+        applySelectionFromHash(false);
+      });
+
+      els.inspectorBody.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-overview-type][data-overview-key]");
+        if (!button) return;
+        focusOverviewItem(button.dataset.overviewType, button.dataset.overviewKey);
+      });
+
+      els.canvas.addEventListener("pointerdown", (event) => {
+        stopViewportAnimation();
+        els.canvas.setPointerCapture(event.pointerId);
+        state.dragging = true;
+        state.moved = false;
+        state.dragStart = {
+          x: event.clientX,
+          y: event.clientY,
+          tx: state.viewport.tx,
+          ty: state.viewport.ty,
+        };
+        els.canvas.classList.add("dragging");
+      });
+
+      els.canvas.addEventListener("pointermove", (event) => {
+        if (!state.dragging) return;
+        if (shouldAutoRepositionSelection()) {
+          ensureUserAndSelectionVisible();
+          return;
+        }
+        const dx = event.clientX - state.dragStart.x;
+        const dy = event.clientY - state.dragStart.y;
+        if (Math.abs(dx) + Math.abs(dy) > 4) state.moved = true;
+        state.viewport.tx = state.dragStart.tx + dx;
+        state.viewport.ty = state.dragStart.ty + dy;
+        requestDraw();
+      });
+
+      els.canvas.addEventListener("pointerup", (event) => {
+        els.canvas.releasePointerCapture(event.pointerId);
+        els.canvas.classList.remove("dragging");
+        const wasClick = !state.moved;
+        state.dragging = false;
+        if (wasClick) handleMapClick(event);
+      });
+
+      els.canvas.addEventListener("pointercancel", () => {
+        state.dragging = false;
+        els.canvas.classList.remove("dragging");
+      });
+
+      els.canvas.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        const factor = event.deltaY < 0 ? 1.22 : 1 / 1.22;
+        zoomAt(factor, canvasPoint(event));
+      }, { passive: false });
+    }
+
+    function locateUser({ initial }) {
+      if (!navigator.geolocation) {
+        if (!initial) setStatus("This browser does not support location access.");
+        return;
+      }
+
+      els.locateButton.disabled = true;
+      setStatus(initial ? "Finding your location..." : "Getting your location...");
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          els.locateButton.disabled = false;
+          const { latitude, longitude, accuracy } = position.coords;
+            const point = projectLonLat(longitude, latitude);
+            state.userLocation = { latitude, longitude, accuracy, point };
+            updateLocateButtonVisibility();
+            state.userInMapArea = pointInsideBounds(point, state.bounds);
+            const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
+            state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
+            state.nearestCow = nearestCowTo(latitude, longitude);
+            state.nearestPub = nearestPlaceByFilter(latitude, longitude, (place) => isPubCategory(place));
+            state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isCafeCategory(place) && !isTransportCategory(place));
+            state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+            state.selected = null;
+            ensureLocationWatch();
+            selectOverview();
+            ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+            if (!initial) {
+              const nearestPlaceText = state.nearestPlace
+                ? ` Nearest place: ${placeTitle(state.nearestPlace.place)} (${formatDistance(state.nearestPlace.metres)}).`
+                : "";
+              setStatus(`Nearest tree: ${formatDistance(state.nearestTree.metres)} away.${nearestPlaceText}`);
+            } else {
+              setStatus("");
+            }
+            updateCompassOverlay();
+            requestDraw();
+        },
+        (error) => {
+          els.locateButton.disabled = false;
+          setStatus(initial
+            ? "Location was not available yet. Use the button when you are ready."
+            : error.message || "Location access was not available.");
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+      );
+    }
+
+    function resizeCanvas() {
+      const rect = els.canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      els.canvas.width = Math.max(1, Math.round(rect.width * dpr));
+      els.canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      els.canvas.dataset.dpr = String(dpr);
+    }
+
+    function calculateBounds() {
+      const points = [];
+      for (const tree of state.trees) points.push(tree.point);
+      for (const layer of state.layers) {
+        forEachGeojsonCoordinate(layer.data, ([longitude, latitude]) => {
+          points.push(projectLonLat(longitude, latitude));
+        });
+      }
+      return points.reduce((bounds, point) => ({
+        minX: Math.min(bounds.minX, point.x),
+        minY: Math.min(bounds.minY, point.y),
+        maxX: Math.max(bounds.maxX, point.x),
+        maxY: Math.max(bounds.maxY, point.y),
+      }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+    }
+
+    function fitToBounds(announce = true, options = {}) {
+      if (!state.bounds) return;
+      applyBoundsToViewport(state.bounds, options);
+      state.baseFitScale = state.fitScale;
+      requestDraw();
+    }
+
+    function fitToBoundsIncluding(extraPoints, announce = true, options = {}) {
+      if (!state.bounds) return;
+      const included = extraPoints.filter((point) => pointInsideBounds(point, state.bounds));
+      const bounds = included.reduce((next, point) => expandBounds(next, point), { ...state.bounds });
+      applyBoundsToViewport(bounds, options);
+      if (announce) setStatus("Showing your location and all registered trees.");
+      requestDraw();
+    }
+
+    function fitToPoints(points, announce = true, options = {}) {
+      if (!points.length) return fitToBounds(announce);
+      const bounds = points.reduce((next, point) => expandBounds(next, point), {
+        minX: Infinity,
+        minY: Infinity,
+        maxX: -Infinity,
+        maxY: -Infinity,
+      });
+      applyBoundsToViewport(bounds, options);
+      if (announce) setStatus("Showing nearby trees and boundaries.");
+      requestDraw();
+    }
+
+    function applyBoundsToViewport(bounds, options = {}) {
+      const padding = 54 * pixelRatio();
+      const width = els.canvas.width;
+      const height = els.canvas.height;
+      const focusRect = options.focusVisibleArea
+        ? bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) })
+        : { x: 0, y: 0, width, height };
+      const viewportWidth = Math.max(1, focusRect.width);
+      const viewportHeight = Math.max(1, focusRect.height);
+      const rangeX = Math.max(0.0001, bounds.maxX - bounds.minX);
+      const rangeY = Math.max(0.0001, bounds.maxY - bounds.minY);
+      state.fitScale = Math.min((viewportWidth - padding * 2) / rangeX, (viewportHeight - padding * 2) / rangeY);
+
+      const targetScale = state.fitScale;
+      const targetTx = focusRect.x + (viewportWidth - rangeX * targetScale) / 2 - bounds.minX * targetScale;
+      const targetTy = focusRect.y + (viewportHeight - rangeY * targetScale) / 2 - bounds.minY * targetScale;
+
+      if (options.animate) {
+        animateViewportTo({ scale: targetScale, tx: targetTx, ty: targetTy }, options.durationMs || 480);
+        return;
+      }
+
+      stopViewportAnimation();
+      state.viewport.scale = targetScale;
+      state.viewport.tx = targetTx;
+      state.viewport.ty = targetTy;
+    }
+
+    function stopViewportAnimation() {
+      if (state.viewportAnimationFrame != null) {
+        cancelAnimationFrame(state.viewportAnimationFrame);
+      }
+      state.viewportAnimationFrame = null;
+      state.viewportAnimationFrom = null;
+      state.viewportAnimationTo = null;
+      state.viewportAnimationStartTime = null;
+      state.viewportAnimationDuration = 0;
+    }
+
+    function animateViewportTo(targetViewport, durationMs) {
+      const safeDuration = Math.max(180, Number(durationMs) || 480);
+      stopViewportAnimation();
+
+      const from = {
+        scale: state.viewport.scale,
+        tx: state.viewport.tx,
+        ty: state.viewport.ty,
+      };
+
+      if (
+        Math.abs(from.scale - targetViewport.scale) < 0.000001
+        && Math.abs(from.tx - targetViewport.tx) < 0.5
+        && Math.abs(from.ty - targetViewport.ty) < 0.5
+      ) {
+        state.viewport.scale = targetViewport.scale;
+        state.viewport.tx = targetViewport.tx;
+        state.viewport.ty = targetViewport.ty;
+        requestDraw();
+        return;
+      }
+
+      state.viewportAnimationFrom = from;
+      state.viewportAnimationTo = targetViewport;
+      state.viewportAnimationDuration = safeDuration;
+
+      const tick = (timestamp) => {
+        if (!state.viewportAnimationFrom || !state.viewportAnimationTo) {
+          stopViewportAnimation();
+          return;
+        }
+
+        if (state.viewportAnimationStartTime == null) {
+          state.viewportAnimationStartTime = timestamp;
+        }
+
+        const elapsed = timestamp - state.viewportAnimationStartTime;
+        const progress = clamp(elapsed / state.viewportAnimationDuration, 0, 1);
+        const eased = Math.pow(progress, 2.1);
+
+        state.viewport.scale = state.viewportAnimationFrom.scale + (state.viewportAnimationTo.scale - state.viewportAnimationFrom.scale) * eased;
+        state.viewport.tx = state.viewportAnimationFrom.tx + (state.viewportAnimationTo.tx - state.viewportAnimationFrom.tx) * eased;
+        state.viewport.ty = state.viewportAnimationFrom.ty + (state.viewportAnimationTo.ty - state.viewportAnimationFrom.ty) * eased;
+        requestDraw();
+
+        if (progress >= 1) {
+          state.viewport.scale = state.viewportAnimationTo.scale;
+          state.viewport.tx = state.viewportAnimationTo.tx;
+          state.viewport.ty = state.viewportAnimationTo.ty;
+          stopViewportAnimation();
+          requestDraw();
+          return;
+        }
+
+        state.viewportAnimationFrame = requestAnimationFrame(tick);
+      };
+
+      state.viewportAnimationFrame = requestAnimationFrame(tick);
+    }
+
+    function bestVisibleCanvasRect({ assumeInspectorOpen = false } = {}) {
+      const width = els.canvas.width;
+      const height = els.canvas.height;
+      const full = { x: 0, y: 0, width, height };
+      const overlap = inspectorCanvasOverlapRect({ assumeInspectorOpen });
+      if (!overlap) return full;
+
+      const candidates = [
+        { x: 0, y: 0, width, height: overlap.y },
+        { x: 0, y: 0, width: overlap.x, height },
+        { x: overlap.x + overlap.width, y: 0, width: width - (overlap.x + overlap.width), height },
+        { x: 0, y: overlap.y + overlap.height, width, height: height - (overlap.y + overlap.height) },
+      ]
+        .map((rect) => ({
+          x: Math.max(0, rect.x),
+          y: Math.max(0, rect.y),
+          width: Math.max(0, rect.width),
+          height: Math.max(0, rect.height),
+        }))
+        .filter((rect) => rect.width >= 80 && rect.height >= 80);
+
+      if (!candidates.length) return full;
+      return candidates.sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+    }
+
+    function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
+      if (!els.inspector || els.inspector.hidden) return null;
+
+      const wasMinimized = els.inspector.classList.contains("minimized");
+      if (assumeInspectorOpen && wasMinimized) {
+        els.inspector.classList.remove("minimized");
+      }
+
+      const canvasRect = els.canvas.getBoundingClientRect();
+      const inspectorRect = els.inspector.getBoundingClientRect();
+
+      if (assumeInspectorOpen && wasMinimized) {
+        els.inspector.classList.add("minimized");
+      }
+
+      const overlapLeft = Math.max(canvasRect.left, inspectorRect.left);
+      const overlapTop = Math.max(canvasRect.top, inspectorRect.top);
+      const overlapRight = Math.min(canvasRect.right, inspectorRect.right);
+      const overlapBottom = Math.min(canvasRect.bottom, inspectorRect.bottom);
+
+      if (overlapRight <= overlapLeft || overlapBottom <= overlapTop) return null;
+
+      const dpr = pixelRatio();
+      return {
+        x: (overlapLeft - canvasRect.left) * dpr,
+        y: (overlapTop - canvasRect.top) * dpr,
+        width: (overlapRight - overlapLeft) * dpr,
+        height: (overlapBottom - overlapTop) * dpr,
+      };
+    }
+
+    function centerOn(worldPoint, targetScale) {
+      stopViewportAnimation();
+      const maxScale = state.fitScale * 180;
+      const scale = clamp(targetScale, state.fitScale * 0.7, maxScale);
+      state.viewport.scale = scale;
+      state.viewport.tx = els.canvas.width / 2 - worldPoint.x * scale;
+      state.viewport.ty = els.canvas.height / 2 - worldPoint.y * scale;
+    }
+
+    function zoomAt(factor, screenPoint) {
+      if (!state.bounds) return;
+      stopViewportAnimation();
+      if (shouldAutoRepositionSelection()) {
+        ensureUserAndSelectionVisible();
+        return;
+      }
+      const before = screenToWorld(screenPoint.x, screenPoint.y);
+      state.viewport.scale = clamp(state.viewport.scale * factor, state.fitScale * 0.65, state.fitScale * 220);
+      state.viewport.tx = screenPoint.x - before.x * state.viewport.scale;
+      state.viewport.ty = screenPoint.y - before.y * state.viewport.scale;
+      requestDraw();
+    }
+
+    function draw() {
+      state.animationFrame = null;
+      const ctx = els.canvas.getContext("2d");
+      const width = els.canvas.width;
+      const height = els.canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      drawBase(ctx, width, height);
+
+      if (!state.bounds) {
+        drawLoading(ctx);
+        return;
+      }
+
+      for (const layer of state.layers) drawLayer(ctx, layer);
+      drawCowPastures(ctx);
+      drawOverviewRoutes(ctx);
+      drawSelectedRoute(ctx);
+      drawTrees(ctx);
+      drawLandmarks(ctx);
+      drawCows(ctx);
+      drawUser(ctx);
+    }
+
+    function drawCowPastures(ctx) {
+      if (!state.cowPastures.length) return;
+      const dpr = pixelRatio();
+      ctx.save();
+      ctx.fillStyle = "rgba(154, 106, 47, 0.10)";
+      ctx.strokeStyle = "rgba(154, 106, 47, 0.35)";
+      ctx.lineWidth = 1.3 * dpr;
+
+      for (const pasture of state.cowPastures) {
+        const polygons = pasture.geometry.type === "Polygon"
+          ? [pasture.geometry.coordinates]
+          : pasture.geometry.coordinates;
+        for (const polygon of polygons) {
+          ctx.beginPath();
+          for (const ring of polygon) {
+            ring.forEach(([longitude, latitude], index) => {
+              const point = worldToScreen(projectLonLat(longitude, latitude));
+              if (index === 0) ctx.moveTo(point.x, point.y);
+              else ctx.lineTo(point.x, point.y);
+            });
+          }
+          ctx.fill("evenodd");
+          ctx.stroke();
+        }
+      }
+
+      ctx.restore();
+    }
+
+    function drawOverviewRoutes(ctx) {
+      if (!state.userLocation || state.selected) return;
+
+      const targets = overviewRouteTargets();
+      if (!targets.length) return;
+
+      const dpr = pixelRatio();
+      const from = worldToScreen(state.userLocation.point);
+
+      ctx.save();
+      ctx.lineWidth = 2.2 * dpr;
+      ctx.setLineDash([8 * dpr, 7 * dpr]);
+
+      for (const target of targets) {
+        const to = worldToScreen(target.point);
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.strokeStyle = target.color;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawSelectedRoute(ctx) {
+      const target = selectedCompassTarget();
+      if (!state.userLocation || !target) return;
+
+      const dpr = pixelRatio();
+      const from = worldToScreen(state.userLocation.point);
+      const to = worldToScreen(target.point);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.strokeStyle = "rgba(179, 79, 49, 0.9)";
+      ctx.lineWidth = 3 * dpr;
+      ctx.setLineDash([10 * dpr, 8 * dpr]);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function overviewRouteTargets() {
+      const values = overviewItemsForActiveFilter(state.nearestItemsCount).map((entry) => ({
+        point: entry.item.point,
+        color: entry.kind === "tree"
+          ? "rgba(47, 111, 78, 0.85)"
+          : entry.kind === "pub"
+            ? "rgba(127, 79, 159, 0.85)"
+            : entry.kind === "cafe"
+              ? "rgba(139, 69, 19, 0.85)"
+              : entry.kind === "transport"
+                ? (entry.transportType === "train" ? "rgba(220, 20, 60, 0.85)" : "rgba(255, 140, 0, 0.85)")
+                : "rgba(118, 112, 47, 0.85)",
+      }));
+
+      const seen = new Set();
+      return values.filter((target) => {
+        const key = `${target.point.x.toFixed(6)},${target.point.y.toFixed(6)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    function drawBase(ctx, width, height) {
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, "#edf2e9");
+      gradient.addColorStop(1, "#cfdccb");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.strokeStyle = "rgba(42, 64, 55, 0.11)";
+      ctx.lineWidth = 1.2 * pixelRatio();
+
+      if (!state.bounds) {
+        const gap = 86 * pixelRatio();
+        for (let x = -gap; x < width + gap; x += gap) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.bezierCurveTo(x + gap * 0.6, height * 0.28, x - gap * 0.25, height * 0.62, x + gap * 0.8, height);
+          ctx.stroke();
+        }
+        for (let y = gap * 0.45; y < height; y += gap) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.bezierCurveTo(width * 0.25, y - gap * 0.55, width * 0.58, y + gap * 0.55, width, y - gap * 0.18);
+          ctx.stroke();
+        }
+        return;
+      }
+
+      const worldTopLeft = screenToWorld(0, 0);
+      const worldBottomRight = screenToWorld(width, height);
+      const minWorldX = Math.min(worldTopLeft.x, worldBottomRight.x);
+      const maxWorldX = Math.max(worldTopLeft.x, worldBottomRight.x);
+      const minWorldY = Math.min(worldTopLeft.y, worldBottomRight.y);
+      const maxWorldY = Math.max(worldTopLeft.y, worldBottomRight.y);
+
+      const worldRangeX = Math.max(0.0001, state.bounds.maxX - state.bounds.minX);
+      const worldRangeY = Math.max(0.0001, state.bounds.maxY - state.bounds.minY);
+      const worldGap = Math.max(1, Math.min(worldRangeX, worldRangeY) / 11.5);
+      const startX = Math.floor((minWorldX - worldGap) / worldGap) * worldGap;
+      const endX = maxWorldX + worldGap;
+      const startY = Math.floor((minWorldY - worldGap) / worldGap) * worldGap;
+      const endY = maxWorldY + worldGap;
+
+      for (let x = startX; x <= endX; x += worldGap) {
+        const p0 = worldToScreen({ x, y: minWorldY - worldGap });
+        const p1 = worldToScreen({ x: x + worldGap * 0.6, y: minWorldY + (maxWorldY - minWorldY) * 0.28 });
+        const p2 = worldToScreen({ x: x - worldGap * 0.25, y: minWorldY + (maxWorldY - minWorldY) * 0.62 });
+        const p3 = worldToScreen({ x: x + worldGap * 0.8, y: maxWorldY + worldGap });
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+        ctx.stroke();
+      }
+
+      for (let y = startY; y <= endY; y += worldGap) {
+        const p0 = worldToScreen({ x: minWorldX - worldGap, y });
+        const p1 = worldToScreen({ x: minWorldX + (maxWorldX - minWorldX) * 0.25, y: y - worldGap * 0.55 });
+        const p2 = worldToScreen({ x: minWorldX + (maxWorldX - minWorldX) * 0.58, y: y + worldGap * 0.55 });
+        const p3 = worldToScreen({ x: maxWorldX + worldGap, y: y - worldGap * 0.18 });
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+        ctx.stroke();
+      }
+    }
+
+    function drawLoading(ctx) {
+      ctx.fillStyle = "#526158";
+      ctx.font = `${24 * pixelRatio()}px system-ui`;
+      ctx.fillText("Loading offline map data...", 24 * pixelRatio(), 48 * pixelRatio());
+    }
+
+    function drawLayer(ctx, layer) {
+      const style = layer.key === "buffer"
+        ? { fill: "rgba(85, 167, 160, 0.24)", stroke: "rgba(20, 110, 105, 0.82)", width: 1.8 }
+        : { fill: "rgba(79, 139, 98, 0.29)", stroke: "rgba(21, 96, 56, 0.9)", width: 2.1 };
+
+      ctx.save();
+      ctx.fillStyle = style.fill;
+      ctx.strokeStyle = style.stroke;
+      ctx.lineWidth = style.width * pixelRatio();
+
+      for (const feature of layer.data.features) {
+        const geometry = feature.geometry;
+        if (!geometry) continue;
+        const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+        for (const polygon of polygons) {
+          ctx.beginPath();
+          for (const ring of polygon) {
+            ring.forEach(([longitude, latitude], index) => {
+              const point = worldToScreen(projectLonLat(longitude, latitude));
+              if (index === 0) ctx.moveTo(point.x, point.y);
+              else ctx.lineTo(point.x, point.y);
+            });
+          }
+          ctx.fill("evenodd");
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawTrees(ctx) {
+      const dpr = pixelRatio();
+      const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
+      const radius = clamp(4.6 + zoomLevel * 0.55, 4.6, 7.4) * dpr;
+
+      ctx.save();
+      for (const tree of state.trees) {
+        const point = worldToScreen(tree.point);
+        if (!isNearCanvas(point, 10 * dpr)) continue;
+        ctx.globalAlpha = markerOpacityFor("tree", tree);
+
+        ctx.fillStyle = "rgba(0, 78, 44, 0.95)";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      if (state.nearestTree) {
+        drawTreeMarker(ctx, state.nearestTree.tree, "#3c6382", 7 * dpr, false);
+      }
+      if (state.selected && state.selected.type === "tree") {
+        drawTreeMarker(ctx, state.selected.item, "#b34f31", 10 * dpr, true);
+      }
+      ctx.restore();
+    }
+
+    function drawTreeMarker(ctx, tree, color, radius, showBorder = false) {
+      const point = worldToScreen(tree.point);
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      if (showBorder) {
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 3 * pixelRatio();
+        ctx.stroke();
+      }
+    }
+
+    function getMarkerPulseOpacity(minOpacity = 0.3, maxOpacity = 0.8) {
+      const now = Date.now();
+      const cycle = (now % 2000) / 2000; // 2 second pulse cycle
+      const pulse = Math.sin(cycle * Math.PI * 2) * 0.5 + 0.5; // oscillates 0 to 1
+      return minOpacity + (maxOpacity - minOpacity) * pulse;
+    }
+
+    function drawMapEmoji(ctx, emoji, x, y, sizePx) {
+      ctx.save();
+      ctx.font = `${sizePx}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#111";
+      ctx.shadowColor = "rgba(255, 255, 255, 0.75)";
+      ctx.shadowBlur = Math.max(1, sizePx * 0.16);
+      ctx.fillText(emoji, x, y);
+      ctx.restore();
+    }
+
+    function drawLandmarks(ctx) {
+      const dpr = pixelRatio();
+      const candidates = state.landmarks;
+      ctx.save();
+      for (const place of candidates) {
+        const point = worldToScreen(place.point);
+        if (!isNearCanvas(point, 16 * dpr)) continue;
+        ctx.globalAlpha = markerOpacityFor("landmark", place);
+        const isPub = isPubCategory(place);
+        const isCafe = isCafeCategory(place);
+        const isTransport = isTransportCategory(place);
+        
+        if (isPub) {
+          // Pubs: emoji with pulsing gradient background
+          const radius = 10 * dpr;
+          const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
+          const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
+          gradient.addColorStop(0, `rgba(127, 79, 159, ${pulseOpacity})`);
+          gradient.addColorStop(1, `rgba(127, 79, 159, ${pulseOpacity * 0.2})`);
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          drawMapEmoji(ctx, "🍺", point.x, point.y, 24 * dpr);
+        } else if (isCafe) {
+          // Cafés: emoji with pulsing gradient background
+          const radius = 10 * dpr;
+          const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
+          const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
+          gradient.addColorStop(0, `rgba(139, 69, 19, ${pulseOpacity})`);
+          gradient.addColorStop(1, `rgba(139, 69, 19, ${pulseOpacity * 0.2})`);
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          drawMapEmoji(ctx, "☕", point.x, point.y, 24 * dpr);
+        } else if (isTransport) {
+          // Transport: different icons for trains/buses
+          const transportType = getTransportType(place);
+          const radius = 10 * dpr;
+          const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
+          const color = transportType === "train" ? "rgba(220, 20, 60, " : "rgba(255, 140, 0, ";
+          const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
+          gradient.addColorStop(0, `${color}${pulseOpacity})`);
+          gradient.addColorStop(1, `${color}${pulseOpacity * 0.2})`);
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          const emoji = transportType === "train" ? "🚆" : "🚌";
+          drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr);
+        } else {
+          // Other landmarks: still get a simple circle
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 5.8 * dpr, 0, Math.PI * 2);
+          ctx.fillStyle = "#76702f";
+          ctx.fill();
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 2 * dpr;
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      if (state.selected && state.selected.type === "landmark") {
+        const point = worldToScreen(state.selected.item.point);
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 10 * dpr, 0, Math.PI * 2);
+        ctx.strokeStyle = "#b34f31";
+        ctx.lineWidth = 3 * dpr;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawCows(ctx) {
+      if (!state.cows.length) return;
+      const dpr = pixelRatio();
+
+      ctx.save();
+      for (const cow of state.cows) {
+        const point = worldToScreen(cow.point);
+        if (!isNearCanvas(point, 18 * dpr)) continue;
+        ctx.globalAlpha = markerOpacityFor("cow", cow);
+        // Emoji with pulsing gradient background
+        const radius = 11 * dpr;
+        const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
+        const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
+        gradient.addColorStop(0, `rgba(154, 106, 47, ${pulseOpacity})`);
+        gradient.addColorStop(1, `rgba(154, 106, 47, ${pulseOpacity * 0.2})`);
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr);
+      }
+      ctx.globalAlpha = 1;
+
+      if (state.selected && state.selected.type === "cow") {
+        const point = worldToScreen(state.selected.item.point);
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 10 * dpr, 0, Math.PI * 2);
+        ctx.strokeStyle = "#b34f31";
+        ctx.lineWidth = 3 * dpr;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawUser(ctx) {
+      if (!state.userLocation || !state.userInMapArea) return;
+      const dpr = pixelRatio();
+      const point = worldToScreen(state.userLocation.point);
+      drawUserRadar(ctx, point, dpr);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 12 * dpr, 0, Math.PI * 2);
+      ctx.fillStyle = "#1f5eff";
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 4 * dpr;
+      ctx.stroke();
+      ctx.fillStyle = "#14211d";
+      ctx.font = `800 ${14 * dpr}px system-ui`;
+      ctx.fillText("You", point.x + 17 * dpr, point.y + 5 * dpr);
+      ctx.restore();
+    }
+
+    function drawUserRadar(ctx, point, dpr) {
+      if (!Number.isFinite(state.compassHeading)) return;
+
+      const headingRad = toRadians(normalizeDegrees(state.compassHeading) - 90);
+      const spread = toRadians(26);
+      const baselineScale = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
+      const zoomRatio = baselineScale > 0 ? state.viewport.scale / baselineScale : 1;
+      const radarScale = clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.38), 0.42, 1.22);
+      const innerRadius = 24 * dpr * radarScale;
+      const outerRadius = 88 * dpr * radarScale;
+
+      ctx.save();
+
+      const radarGradient = ctx.createRadialGradient(point.x, point.y, innerRadius * 0.2, point.x, point.y, outerRadius);
+      radarGradient.addColorStop(0, "rgba(31, 94, 255, 0.30)");
+      radarGradient.addColorStop(1, "rgba(31, 94, 255, 0.02)");
+
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y);
+      ctx.arc(point.x, point.y, outerRadius, headingRad - spread, headingRad + spread);
+      ctx.closePath();
+      ctx.fillStyle = radarGradient;
+      ctx.fill();
+
+      ctx.lineWidth = 2 * dpr;
+      ctx.strokeStyle = "rgba(31, 94, 255, 0.55)";
+      for (const ratio of [0.4, 0.7, 1]) {
+        const radius = outerRadius * ratio;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, radius, headingRad - spread, headingRad + spread);
+        ctx.stroke();
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y);
+      ctx.lineTo(point.x + Math.cos(headingRad) * outerRadius, point.y + Math.sin(headingRad) * outerRadius);
+      ctx.lineWidth = 2.6 * dpr;
+      ctx.strokeStyle = "rgba(31, 94, 255, 0.82)";
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function handleMapClick(event) {
+      if (!state.trees.length) return;
+      setInspectorMinimized(false);
+      const screen = canvasPoint(event);
+      const world = screenToWorld(screen.x, screen.y);
+      const lonLat = unprojectPoint(world);
+      const hit = findHit(screen, lonLat);
+
+      if (hit.type === "tree") {
+        state.selected = { type: "tree", item: hit.item };
+        syncHashFromSelection();
+        showTreeDetails(hit.item, distanceFromUser(hit.item), "Tree record");
+        setInspectorMinimized(true);
+        startCompassNavigation();
+        ensureUserAndSelectionVisible({ animate: true, force: true });
+      } else if (hit.type === "cow") {
+        state.selected = { type: "cow", item: hit.item };
+        syncHashFromSelection();
+        showCowDetails(hit.item, distanceFromUser(hit.item));
+        setInspectorMinimized(true);
+        startCompassNavigation();
+        ensureUserAndSelectionVisible({ animate: true, force: true });
+      } else if (hit.type === "landmark") {
+        state.selected = { type: "landmark", item: hit.item };
+        syncHashFromSelection();
+        showLandmarkDetails(hit.item, distanceFromUser(hit.item));
+        setInspectorMinimized(true);
+        startCompassNavigation();
+        ensureUserAndSelectionVisible({ animate: true, force: true });
+      } else if (hit.type === "area") {
+        state.selected = { type: "area", item: hit.item };
+        syncHashFromSelection();
+        showAreaDetails(hit.item);
+        updateCompassOverlay();
+      } else {
+        goToInitialView();
+        return;
+      }
+      requestDraw();
+    }
+
+    function findHit(screen, lonLat) {
+      const dpr = pixelRatio();
+      let bestPlace = null;
+      for (const place of state.landmarks) {
+        const point = worldToScreen(place.point);
+        const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
+        if (distance < 15 * dpr && (!bestPlace || distance < bestPlace.distance)) {
+          bestPlace = { type: "landmark", item: place, distance };
+        }
+      }
+      if (bestPlace) return bestPlace;
+
+      let bestCow = null;
+      for (const cow of state.cows) {
+        const point = worldToScreen(cow.point);
+        const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
+        if (distance < 15 * dpr && (!bestCow || distance < bestCow.distance)) {
+          bestCow = { type: "cow", item: cow, distance };
+        }
+      }
+      if (bestCow) return bestCow;
+
+      let bestTree = null;
+      for (const tree of state.trees) {
+        const point = worldToScreen(tree.point);
+        if (!isNearCanvas(point, 20 * dpr)) continue;
+        const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
+        if (distance < 13 * dpr && (!bestTree || distance < bestTree.distance)) {
+          bestTree = { type: "tree", item: tree, distance };
+        }
+      }
+      if (bestTree) return bestTree;
+
+      for (const layer of state.layers) {
+        const feature = findContainingFeature(layer, lonLat);
+        if (feature) return { type: "area", item: { layer, feature } };
+      }
+      return { type: "none" };
+    }
+
+    function showTreeDetails(tree, distance, label) {
+      setInspectorSelectionChrome({ emoji: "🌳", showBack: true });
+      els.inspectorTitle.textContent = tree.commonName || "Unknown tree";
+      els.inspectorType.textContent = `${label}${tree.latinName ? ` · ${tree.latinName}` : ""}`;
+      const rows = [
+        ["Distance", distance == null ? null : formatDistance(distance), "distance"],
+        ["Walking time", distance == null ? null : formatWalkTime(distance), "walktime"],
+        ["Direction", directionLabelFor(tree)],
+        ["Tag number", tree.tagNumber],
+        ["National tag", tree.nationalDatabaseTagNumber],
+        ["Common name", tree.commonName],
+        ["Latin name", tree.latinName],
+        ["Tree form", tree.treeForm],
+        ["Status", tree.status],
+        ["Girth", tree.girthMetres == null ? null : `${tree.girthMetres} m`],
+        ["GPS date", tree.dateGpsd],
+        ["Compartment", tree.compartmentNumber],
+        ["Comments", tree.comments],
+        ["Easting", tree.location.britishNationalGrid.easting],
+        ["Northing", tree.location.britishNationalGrid.northing],
+        ["Record number", tree.recordNumber],
+      ];
+      const namedTreeHtml = namedTreeDetailsHtml(tree);
+      els.inspectorBody.innerHTML = detailsHtml(rows) + namedTreeHtml;
+    }
+
+    function showLandmarkDetails(place, distance) {
+      const emoji = isPubCategory(place)
+        ? "🍺"
+        : isCafeCategory(place)
+          ? "☕"
+          : isTransportCategory(place)
+            ? (getTransportType(place) === "train" ? "🚆" : "🚌")
+            : "📍";
+      setInspectorSelectionChrome({ emoji, showBack: true });
+      els.inspectorTitle.textContent = place.name || "Local place";
+      els.inspectorType.textContent = place.categoryLabel || "Landmark";
+      const rows = [
+        ["Distance", distance == null ? null : formatDistance(distance), "distance"],
+        ["Walking time", distance == null ? null : formatWalkTime(distance), "walktime"],
+        ["Direction", directionLabelFor(place)],
+        ["Category", place.categoryLabel],
+        ["Address", place.address],
+        ["Website", place.website],
+        ["Phone", place.phone],
+        ["Source", place.id ? `OpenStreetMap ${place.id}` : "OpenStreetMap"],
+      ];
+      els.inspectorBody.innerHTML = detailsHtml(rows) + (isOpenStreetMapPlace(place) ? osmNote() : "");
+    }
+
+    function showCowDetails(cow, distance) {
+      setInspectorSelectionChrome({ emoji: "🐄", showBack: true });
+      const kind = cow.type === "small" ? "Small ruminant" : "Cattle";
+      els.inspectorTitle.textContent = `Cow ${displayValue(cow.serialNo)}`;
+      els.inspectorType.textContent = kind;
+      const rows = [
+        ["Distance", distance == null ? null : formatDistance(distance), "distance"],
+        ["Walking time", distance == null ? null : formatWalkTime(distance), "walktime"],
+        ["Direction", directionLabelFor(cow)],
+        ["Serial", cow.serialNo],
+        ["Type", cow.type],
+        ["Latitude", cow.latitude == null ? null : cow.latitude.toFixed(6)],
+        ["Longitude", cow.longitude == null ? null : cow.longitude.toFixed(6)],
+        ["Last update", state.cowLastUpdatedAt ? new Date(state.cowLastUpdatedAt).toLocaleTimeString() : "Not recorded"],
+        ["Source", "Nofence open data"],
+      ];
+      els.inspectorBody.innerHTML = detailsHtml(rows);
+    }
+
+    function focusOverviewItem(type, key) {
+      if (!state.userLocation) {
+        setStatus("Use my location first.");
+        return;
+      }
+
+      if (type === "tree") {
+        const tree = findTreeByHashKey(key);
+        if (!tree) return;
+        const metres = distanceFromUser(tree);
+        state.selected = { type: "tree", item: tree };
+        syncHashFromSelection();
+        showTreeDetails(tree, metres, "Nearest tree");
+        setInspectorMinimized(true);
+        startCompassNavigation();
+        ensureUserAndSelectionVisible({ animate: true, force: true });
+        requestDraw();
+        return;
+      }
+
+      if (type === "landmark") {
+        const place = findPlaceByHashKey(key);
+        if (!place) return;
+        const metres = distanceFromUser(place);
+        state.selected = { type: "landmark", item: place };
+        syncHashFromSelection();
+        showLandmarkDetails(place, metres);
+        setInspectorMinimized(true);
+        startCompassNavigation();
+        ensureUserAndSelectionVisible({ animate: true, force: true });
+        requestDraw();
+        return;
+      }
+
+      if (type === "cow") {
+        const cow = findCowByKey(key);
+        if (!cow) return;
+        const metres = distanceFromUser(cow);
+        state.selected = { type: "cow", item: cow };
+        syncHashFromSelection();
+        showCowDetails(cow, metres);
+        setInspectorMinimized(true);
+        startCompassNavigation();
+        ensureUserAndSelectionVisible({ animate: true, force: true });
+        requestDraw();
+      }
+    }
+
+    function showAreaDetails(area) {
+      setInspectorSelectionChrome({ emoji: "", showBack: false });
+      els.inspectorTitle.textContent = area.layer.label;
+      els.inspectorType.textContent = "Offline boundary feature";
+      const rows = Object.entries(area.feature.properties || {}).map(([key, value]) => [key, value]);
+      els.inspectorBody.innerHTML = detailsHtml(rows.length ? rows : [["Details", "No extra attributes recorded"]]);
+    }
+
+    function selectOverview() {
+      setInspectorSelectionChrome({ emoji: "", showBack: false });
+      els.inspectorTitle.textContent = "Forest Finds";
+      els.inspectorType.textContent = "";
+      if (state.overviewFilters.length > 0) {
+        els.filterPanel.hidden = false;
+        els.filterToggle.setAttribute("aria-expanded", "true");
+      }
+      const nearestSummary = overviewNearestHtml();
+      els.inspectorBody.innerHTML = nearestSummary;
+      updateOverviewDirectionArrows();
+    }
+
+    function isOverviewScreenActive() {
+      return !state.selected;
+    }
+
+    function setInspectorSelectionChrome({ emoji, showBack }) {
+      els.inspectorBack.hidden = !showBack;
+      els.inspectorTitleEmoji.hidden = !emoji;
+      els.inspectorTitleEmoji.textContent = emoji || "";
+      const isLocationSelected = Boolean(state.selected && ["tree", "landmark", "cow"].includes(state.selected.type));
+      if (els.filterToggle) {
+        els.filterToggle.hidden = isLocationSelected;
+      }
+      if (isLocationSelected) {
+        els.filterPanel.hidden = true;
+        els.filterToggle.setAttribute("aria-expanded", "false");
+      }
+    }
+
+    function markerOpacityFor(kind, item) {
+      const locationSelected = state.selected && ["tree", "landmark", "cow"].includes(state.selected.type);
+      if (locationSelected) {
+        if (state.selected.type === kind && state.selected.item === item) return 1;
+        // When something is selected, reduce other markers significantly
+        if (kind === "tree") return 0.1; // Trees become very faint when non-tree is selected
+        return 0.5;
+      }
+
+      // No location selected - use default opacities
+      if (!state.overviewFilters.length) {
+        // Default opacity for trees is 0.5 unless filters indicate otherwise
+        if (kind === "tree") return 0.5;
+        return 1;
+      }
+
+      if (kind === "tree") {
+        return state.overviewFilters.includes("trees") ? 0.5 : 0.1;
+      }
+      if (kind === "cow") {
+        return state.overviewFilters.includes("cows") ? 1 : 0.5;
+      }
+
+      const pubsSelected = state.overviewFilters.includes("pubs");
+      const cafesSelected = state.overviewFilters.includes("cafes");
+      const transportSelected = state.overviewFilters.includes("transport");
+      const locationsSelected = state.overviewFilters.includes("locations");
+      const activeFilters = [pubsSelected, cafesSelected, transportSelected, locationsSelected].filter(Boolean).length;
+      
+      if (activeFilters === 0) return 0.5;
+      
+      const isPub = isPubCategory(item);
+      const isCafe = isCafeCategory(item);
+      const isTransport = isTransportCategory(item);
+      
+      if (pubsSelected && isPub) return 1;
+      if (cafesSelected && isCafe) return 1;
+      if (transportSelected && isTransport) return 1;
+      if (locationsSelected && !isPub && !isCafe && !isTransport) return 1;
+      return 0.3;
+    }
+
+    function setOverviewFilter(nextFilter) {
+      const normalized = ["all", "trees", "cows", "pubs", "cafes", "transport", "locations"].includes(nextFilter) ? nextFilter : "all";
+      if (normalized === "all") {
+        state.overviewFilters = [];
+      } else {
+        const current = new Set(state.overviewFilters);
+        if (current.has(normalized)) current.delete(normalized);
+        else current.add(normalized);
+        state.overviewFilters = Array.from(current);
+      }
+      if (state.overviewFilters.length > 0) {
+        els.filterPanel.hidden = false;
+        els.filterToggle.setAttribute("aria-expanded", "true");
+      }
+      updateFilterUi();
+      if (isOverviewScreenActive()) {
+        selectOverview();
+        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+      }
+      requestDraw();
+    }
+
+    function updateFilterUi() {
+      const filterButtons = els.filterPanel.querySelectorAll("[data-overview-filter]");
+      for (const button of filterButtons) {
+        const filter = button.dataset.overviewFilter;
+        const active = filter === "all"
+          ? state.overviewFilters.length === 0
+          : state.overviewFilters.includes(filter);
+        button.classList.toggle("active", active);
+      }
+      if (els.filterToggle) {
+        const hasActiveFilter = state.overviewFilters.length > 0;
+        const selectedCount = state.overviewFilters.length;
+        const locationSelected = Boolean(state.selected && ["tree", "landmark", "cow"].includes(state.selected.type));
+        if (hasActiveFilter && !locationSelected) {
+          els.filterPanel.hidden = false;
+          els.filterToggle.setAttribute("aria-expanded", "true");
+        }
+        els.filterToggle.classList.toggle("active", hasActiveFilter);
+        els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
+        if (els.filterCount) {
+          els.filterCount.hidden = !hasActiveFilter;
+          els.filterCount.textContent = String(selectedCount);
+        }
+        els.filterToggle.setAttribute("aria-label", hasActiveFilter
+          ? `${selectedCount} filter${selectedCount === 1 ? "" : "s"} selected`
+          : (els.filterPanel.hidden ? "Show filters" : "Hide filters"));
+      }
+    }
+
+    function isPubCategory(place) {
+      return ["pub", "bar", "restaurant"].includes(place.category);
+    }
+
+    function isCafeCategory(place) {
+      return ["cafe", "tea"].includes(place.category);
+    }
+
+    function isTransportCategory(place) {
+      return ["bus_station", "bus_stop", "taxi", "train_station", "station", "halt", "tram_stop"].includes(place.category);
+    }
+
+    function getTransportType(place) {
+      if (["train_station", "station", "halt", "tram_stop"].includes(place.category)) return "train";
+      if (["bus_station", "bus_stop"].includes(place.category)) return "bus";
+      return "other";
+    }
+
+    function isTreeVisibleForFilter() {
+      return state.overviewFilters.length === 0 || state.overviewFilters.includes("trees");
+    }
+
+    function isCowVisibleForFilter() {
+      return state.overviewFilters.length === 0 || state.overviewFilters.includes("cows");
+    }
+
+    function isPlaceVisibleForFilter(place) {
+      if (state.overviewFilters.length === 0) return true;
+      if (state.overviewFilters.includes("cows") && state.overviewFilters.length === 1) return false;
+      const pubsSelected = state.overviewFilters.includes("pubs");
+      const cafesSelected = state.overviewFilters.includes("cafes");
+      const transportSelected = state.overviewFilters.includes("transport");
+      const locationsSelected = state.overviewFilters.includes("locations");
+      if (!pubsSelected && !cafesSelected && !transportSelected && !locationsSelected) return false;
+      if (pubsSelected && cafesSelected && transportSelected && locationsSelected) return true;
+      if (pubsSelected) return isPubCategory(place);
+      if (cafesSelected) return isCafeCategory(place);
+      if (transportSelected) return isTransportCategory(place);
+      if (locationsSelected) return !isPubCategory(place) && !isCafeCategory(place) && !isTransportCategory(place);
+      return true;
+    }
+
+    function overviewItemsForActiveFilter(limit = 3) {
+      if (!state.userLocation) return [];
+      const { latitude, longitude } = state.userLocation;
+
+      const hasFilters = state.overviewFilters.length > 0;
+      if (hasFilters) {
+        const selectedFilterCount = state.overviewFilters.length;
+        const multiFilterMode = selectedFilterCount > 1;
+        const perFilterLimit = multiFilterMode ? limit : Math.max(limit, 24);
+        const selectedEntries = [];
+        if (state.overviewFilters.includes("trees")) {
+          selectedEntries.push(
+            ...nearbyTreesTo(latitude, longitude, perFilterLimit).map(({ tree, metres }) => ({
+              kind: "tree",
+              type: "tree",
+              item: tree,
+              metres,
+            }))
+          );
+        }
+        if (state.overviewFilters.includes("cows")) {
+          selectedEntries.push(
+            ...nearestCowsTo(latitude, longitude, perFilterLimit).map(({ cow, metres }) => ({
+              kind: "cow",
+              type: "cow",
+              item: cow,
+              metres,
+            }))
+          );
+        }
+        if (state.overviewFilters.includes("pubs")) {
+          selectedEntries.push(
+            ...nearestPlacesByFilter(latitude, longitude, (place) => isPubCategory(place), perFilterLimit).map(({ place, metres }) => ({
+              kind: "pub",
+              type: "landmark",
+              item: place,
+              metres,
+            }))
+          );
+        }
+        if (state.overviewFilters.includes("cafes")) {
+          selectedEntries.push(
+            ...nearestPlacesByFilter(latitude, longitude, (place) => isCafeCategory(place), perFilterLimit).map(({ place, metres }) => ({
+              kind: "cafe",
+              type: "landmark",
+              item: place,
+              metres,
+            }))
+          );
+        }
+        if (state.overviewFilters.includes("transport")) {
+          selectedEntries.push(
+            ...nearestPlacesByFilter(latitude, longitude, (place) => isTransportCategory(place), perFilterLimit).map(({ place, metres }) => ({
+              kind: "transport",
+              type: "landmark",
+              item: place,
+              metres,
+              transportType: getTransportType(place),
+            }))
+          );
+        }
+        if (state.overviewFilters.includes("locations")) {
+          selectedEntries.push(
+            ...nearestPlacesByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isCafeCategory(place) && !isTransportCategory(place), perFilterLimit).map(({ place, metres }) => ({
+              kind: "landmark",
+              type: "landmark",
+              item: place,
+              metres,
+            }))
+          );
+        }
+
+        const unique = new Map();
+        for (const entry of selectedEntries) {
+          const key = entry.type === "tree"
+            ? `tree:${treeHashKey(entry.item)}`
+            : entry.type === "cow"
+              ? `cow:${cowKey(entry.item)}`
+              : `place:${placeHashKey(entry.item)}`;
+          const existing = unique.get(key);
+          if (!existing || entry.metres < existing.metres) unique.set(key, entry);
+        }
+
+        const sortedEntries = Array.from(unique.values())
+          .sort((a, b) => a.metres - b.metres);
+
+        if (multiFilterMode) return sortedEntries;
+        return sortedEntries.slice(0, limit);
+      }
+
+      const entries = [];
+      if (state.nearestTree && state.nearestTree.tree) {
+        entries.push({ kind: "tree", type: "tree", item: state.nearestTree.tree, metres: state.nearestTree.metres });
+      }
+      if (state.nearestCow && state.nearestCow.cow) {
+        entries.push({ kind: "cow", type: "cow", item: state.nearestCow.cow, metres: state.nearestCow.metres });
+      }
+      if (state.nearestPub && state.nearestPub.place) {
+        entries.push({ kind: "pub", type: "landmark", item: state.nearestPub.place, metres: state.nearestPub.metres });
+      }
+      if (state.nearestLandmark && state.nearestLandmark.place) {
+        entries.push({ kind: "landmark", type: "landmark", item: state.nearestLandmark.place, metres: state.nearestLandmark.metres });
+      }
+      return entries.slice(0, limit);
+    }
+
+    function overviewNearestHtml() {
+      if (!state.userLocation) {
+        return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
+      }
+
+      const entries = overviewItemsForActiveFilter(state.nearestItemsCount);
+      if (!entries.length) {
+        if (state.overviewFilters.includes("trees") && state.overviewFilters.length === 1) return `<p class="empty">No nearby trees found.</p>`;
+        if (state.overviewFilters.includes("cows") && state.overviewFilters.length === 1) return `<p class="empty">No nearby cows found.</p>`;
+        if (state.overviewFilters.includes("pubs") && state.overviewFilters.length === 1) return `<p class="empty">No nearby pubs or restaurants found.</p>`;
+        if (state.overviewFilters.includes("cafes") && state.overviewFilters.length === 1) return `<p class="empty">No nearby cafés found.</p>`;
+        if (state.overviewFilters.includes("transport") && state.overviewFilters.length === 1) return `<p class="empty">No nearby transport links found.</p>`;
+        if (state.overviewFilters.includes("locations") && state.overviewFilters.length === 1) return `<p class="empty">No nearby locations found.</p>`;
+        return `<p class="empty">No nearby places found.</p>`;
+      }
+
+      const onlyTrees = state.overviewFilters.length === 1 && state.overviewFilters.includes("trees");
+      const onlyCows = state.overviewFilters.length === 1 && state.overviewFilters.includes("cows");
+      const onlyPubs = state.overviewFilters.length === 1 && state.overviewFilters.includes("pubs");
+      const onlyCafes = state.overviewFilters.length === 1 && state.overviewFilters.includes("cafes");
+      const onlyTransport = state.overviewFilters.length === 1 && state.overviewFilters.includes("transport");
+      const onlyLocations = state.overviewFilters.length === 1 && state.overviewFilters.includes("locations");
+      const heading = onlyTrees
+        ? "Nearest trees around you"
+        : onlyCows
+          ? "Nearest cows around you"
+        : onlyPubs
+          ? "Nearest pubs and restaurants around you"
+          : onlyCafes
+            ? "Nearest cafés around you"
+            : onlyTransport
+              ? "Nearest transport links around you"
+          : onlyLocations
+            ? "Nearest locations around you"
+            : state.overviewFilters.length > 0
+              ? "Nearest selected filters around you"
+              : "Nearest around you";
+
+      const itemsHtml = entries.map((entry) => {
+        const name = entry.type === "tree"
+          ? displayValue(entry.item.commonName || entry.item.tagNumber || entry.item.recordNumber)
+          : entry.type === "cow"
+            ? `Cow ${displayValue(entry.item.serialNo)}`
+          : placeTitle(entry.item);
+        const emoji = entry.kind === "tree"
+          ? "🌳"
+          : entry.kind === "cow"
+            ? "🐄"
+            : entry.kind === "pub"
+              ? "🍺"
+              : entry.kind === "cafe"
+                ? "☕"
+                : entry.kind === "transport"
+                  ? (entry.transportType === "train" ? "🚆" : "🚌")
+                  : "📍";
+        const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : placeHashKey(entry.item);
+        const subtitle = `${formatDistance(entry.metres)} · ${formatWalkTime(entry.metres)}`;
+        return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label">${emoji} ${escapeHtml(name)}</span></span><small>${escapeHtml(subtitle)}</small></button></li>`;
+      }).join("");
+
+      const sliderSection = `<div class="filter-section"><label for="nearestItemsSlider">Show nearest items: <span id="nearestItemsValue">${state.nearestItemsCount}</span></label><input id="nearestItemsSlider" type="range" min="1" max="10" value="${state.nearestItemsCount}" class="nearest-items-slider"></div>`;
+      return `<p class="source-note"><strong>${heading}</strong></p><ul class="nearest-list">${itemsHtml}</ul>${sliderSection}<p class="source-note">App version: ${APP_VERSION}</p>`;
+    }
+
+    function detailsHtml(rows) {
+      return `<dl>${rows.map(([label, value, liveKey]) => {
+        const shown = displayValue(value);
+        const liveAttr = liveKey ? ` data-live-field="${escapeHtml(liveKey)}"` : "";
+        return `<div class="row"><dt>${escapeHtml(label)}</dt><dd${liveAttr}>${escapeHtml(shown)}</dd></div>`;
+      }).join("")}</dl>`;
+    }
+
+    function namedTreeDetailsHtml(tree) {
+      const matches = Array.isArray(tree.namedTreeMatches) ? tree.namedTreeMatches : [];
+      if (!matches.length) return "";
+
+      const sections = matches.map((match) => {
+        const storyName = match.historicalNamedTreeEnrichmentName || match.name;
+        const story = storyName ? state.namedTreeStoriesByName.get(normalizeStoryName(storyName)) : null;
+        const folklore = Array.isArray(story && story.historicalSignificance)
+          ? story.historicalSignificance
+          : [];
+        const sources = Array.isArray(story && story.sources)
+          ? story.sources
+          : [];
+        const aliases = Array.isArray(story && story.alternateNames)
+          ? story.alternateNames
+          : [];
+
+        const detailRows = [
+          ["Named tree", match.name || storyName],
+          ["Match status", match.matchStatus],
+          ["Confidence", match.confidence],
+          ["Distance to source", match.distanceFromSourceCoordinateMetres == null ? null : formatDistance(match.distanceFromSourceCoordinateMetres)],
+          ["Matched by", Array.isArray(match.matchedBy) ? match.matchedBy.join(", ") : match.matchedBy],
+          ["Verification", story && story.verificationStatus],
+          ["Also known as", aliases.length ? aliases.join(", ") : null],
+        ];
+
+        const folkloreHtml = folklore.length
+          ? `<p class="source-note"><strong>Folklore & history</strong></p><ul class="story-list">${folklore.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+          : "";
+
+        const sourcesHtml = sources.length
+          ? `<p class="source-note"><strong>Sources</strong></p><ul class="story-list">${sources.map((source) => {
+            const title = source && source.title ? String(source.title) : "Source";
+            const url = source && source.url ? String(source.url) : "";
+            if (!url) return `<li>${escapeHtml(title)}</li>`;
+            return `<li><a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(title)}</a></li>`;
+          }).join("")}</ul>`
+          : "";
+
+        return `<section class="named-tree">${detailsHtml(detailRows)}${folkloreHtml}${sourcesHtml}</section>`;
+      });
+
+      return `<p class="source-note"><strong>Named tree & folklore</strong></p>${sections.join("")}`;
+    }
+
+    function buildNamedTreeStoryIndex(historicalNamedTreeEnrichment) {
+      const index = new Map();
+      if (!historicalNamedTreeEnrichment) return index;
+      const stories = Array.isArray(historicalNamedTreeEnrichment.namedTreeStories)
+        ? historicalNamedTreeEnrichment.namedTreeStories
+        : [];
+      for (const story of stories) {
+        if (!story || !story.name) continue;
+        index.set(normalizeStoryName(story.name), story);
+      }
+      return index;
+    }
+
+    function normalizeStoryName(value) {
+      return String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    }
+
+    function placeTitle(place) {
+      return place.name || place.categoryLabel || "Local place";
+    }
+
+    function directionLabelFor(item) {
+      if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return "Not recorded";
+      const bearing = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
+      const arrow = bearingArrow(bearing);
+      const cardinal = bearingCardinal(bearing);
+      return `${arrow} ${cardinal} (${Math.round(bearing)}°)`;
+    }
+
+    function directionTextFor(item) {
+      if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return "Not recorded";
+      const bearing = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
+      return `${bearingCardinal(bearing)} (${Math.round(bearing)}°)`;
+    }
+
+    function bearingForItem(item) {
+      if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return null;
+      return bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
+    }
+
+    async function startCompassNavigation() {
+      if (!selectedCompassTarget()) {
+        updateCompassOverlay();
+        return;
+      }
+
+      ensureLocationWatch();
+
+      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function" && state.compassPermission === "unknown") {
+        try {
+          const permission = await DeviceOrientationEvent.requestPermission();
+          state.compassPermission = permission === "granted" ? "granted" : "denied";
+        } catch {
+          state.compassPermission = "denied";
+        }
+      }
+
+      updateCompassOverlay();
+    }
+
+    function setupCompassListeners() {
+      window.addEventListener("deviceorientationabsolute", onDeviceOrientation, true);
+      window.addEventListener("deviceorientation", onDeviceOrientation, true);
+    }
+
+    function onDeviceOrientation(event) {
+      const heading = extractCompassHeading(event);
+      if (!Number.isFinite(heading)) return;
+      if (!Number.isFinite(state.compassHeading)) state.compassHeading = heading;
+      state.compassHeadingTarget = heading;
+      startCompassSmoothing();
+    }
+
+    function startCompassSmoothing() {
+      if (state.compassAnimationFrame != null) return;
+
+      const tick = (timestamp) => {
+        if (!Number.isFinite(state.compassHeadingTarget) || !Number.isFinite(state.compassHeading)) {
+          state.compassAnimationFrame = null;
+          state.compassAnimationTime = null;
+          return;
+        }
+
+        const previousTime = state.compassAnimationTime == null ? timestamp : state.compassAnimationTime;
+        const dt = Math.min(0.05, Math.max(0.001, (timestamp - previousTime) / 1000));
+        state.compassAnimationTime = timestamp;
+
+        const delta = shortestCompassDelta(state.compassHeading, state.compassHeadingTarget);
+        const maxStep = 280 * dt;
+        const step = Math.sign(delta) * Math.min(Math.abs(delta), maxStep);
+        const easedStep = step * 0.82;
+        const nextHeading = state.compassHeading + easedStep;
+        state.compassHeading = nextHeading;
+
+        updateOverviewDirectionArrows();
+        updateCompassOverlay();
+        requestDraw();
+
+        const remaining = Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget));
+        if (remaining < 0.2) {
+          state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
+          updateOverviewDirectionArrows();
+          updateCompassOverlay();
+          requestDraw();
+          state.compassAnimationFrame = null;
+          state.compassAnimationTime = null;
+          return;
+        }
+
+        state.compassAnimationFrame = requestAnimationFrame(tick);
+      };
+
+      state.compassAnimationFrame = requestAnimationFrame(tick);
+    }
+
+    function shortestCompassDelta(fromHeading, toHeading) {
+      const raw = normalizeDegrees(toHeading) - normalizeDegrees(fromHeading);
+      if (raw > 180) return raw - 360;
+      if (raw < -180) return raw + 360;
+      return raw;
+    }
+
+    function extractCompassHeading(event) {
+      if (!event) return null;
+      if (Number.isFinite(event.webkitCompassHeading)) return normalizeDegrees(event.webkitCompassHeading);
+      if (Number.isFinite(event.alpha)) return normalizeDegrees(360 - event.alpha);
+      return null;
+    }
+
+    function ensureLocationWatch() {
+      if (!navigator.geolocation || state.locationWatchId != null) return;
+      state.locationWatchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          const point = projectLonLat(longitude, latitude);
+          state.userLocation = { latitude, longitude, accuracy, point };
+          updateLocateButtonVisibility();
+          state.userInMapArea = pointInsideBounds(point, state.bounds);
+          const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
+          state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
+          state.nearestCow = nearestCowTo(latitude, longitude);
+          state.nearestPub = nearestPlaceByFilter(latitude, longitude, (place) => isPubCategory(place));
+          state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isCafeCategory(place) && !isTransportCategory(place));
+          state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+          if (isOverviewScreenActive()) {
+            selectOverview();
+            ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+          }
+          updateOverviewDirectionArrows();
+          updateSelectedDetailFields();
+          ensureUserAndSelectionVisible();
+          updateCompassOverlay();
+          requestDraw();
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 1500 }
+      );
+    }
+
+    function selectedCompassTarget() {
+      if (!state.selected) return null;
+      if (state.selected.type === "tree" || state.selected.type === "landmark" || state.selected.type === "cow") return state.selected.item;
+      return null;
+    }
+
+    function shouldAutoRepositionSelection() {
+      return Boolean(state.userLocation && selectedCompassTarget() && !els.inspector.classList.contains("minimized"));
+    }
+
+    function ensureUserAndSelectionVisible(options = {}) {
+      const target = selectedCompassTarget();
+      if (!target || !state.userLocation) return;
+      if (!options.force && els.inspector.classList.contains("minimized")) return;
+      fitToPoints(
+        [state.userLocation.point, target.point],
+        false,
+        {
+          focusVisibleArea: true,
+          assumeInspectorOpen: true,
+          animate: Boolean(options.animate),
+          durationMs: options.durationMs || 480,
+        }
+      );
+    }
+
+    function centerViewportOnPointsKeepScale(points, options = {}) {
+      if (!Array.isArray(points) || points.length === 0) return;
+      const validPoints = points.filter((point) => point && Number.isFinite(point.x) && Number.isFinite(point.y));
+      if (!validPoints.length) return;
+
+      const bounds = validPoints.reduce((next, point) => expandBounds(next, point), {
+        minX: Infinity,
+        minY: Infinity,
+        maxX: -Infinity,
+        maxY: -Infinity,
+      });
+
+      const centerWorld = {
+        x: (bounds.minX + bounds.maxX) / 2,
+        y: (bounds.minY + bounds.maxY) / 2,
+      };
+
+      const focusRect = options.focusVisibleArea
+        ? bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) })
+        : { x: 0, y: 0, width: els.canvas.width, height: els.canvas.height };
+      const focusCenter = {
+        x: focusRect.x + focusRect.width / 2,
+        y: focusRect.y + focusRect.height / 2,
+      };
+
+      const targetViewport = {
+        scale: state.viewport.scale,
+        tx: focusCenter.x - centerWorld.x * state.viewport.scale,
+        ty: focusCenter.y - centerWorld.y * state.viewport.scale,
+      };
+
+      if (options.animate) {
+        animateViewportTo(targetViewport, options.durationMs || 420);
+        return;
+      }
+
+      stopViewportAnimation();
+      state.viewport.tx = targetViewport.tx;
+      state.viewport.ty = targetViewport.ty;
+      requestDraw();
+    }
+
+    function ensureOverviewTargetsVisible(options = {}) {
+      if (!state.userLocation) return;
+      if (state.selected) return;
+      setInspectorMinimized(false);
+
+      const points = [state.userLocation.point];
+      const overviewEntries = overviewItemsForActiveFilter(state.nearestItemsCount);
+      for (const entry of overviewEntries) {
+        points.push(entry.item.point);
+      }
+
+      if (points.length >= 2) {
+        fitToPoints(points, false, {
+          focusVisibleArea: true,
+          assumeInspectorOpen: true,
+          animate: Boolean(options.animate),
+          durationMs: options.durationMs || 520,
+        });
+      }
+    }
+
+    function syncHashFromSelection() {
+      const selection = state.selected;
+      if (!selection || !selection.item) {
+        setHashFromSelection("");
+        return;
+      }
+      if (selection.type === "tree") {
+        const params = new URLSearchParams();
+        params.set("tree", treeHashKey(selection.item));
+        setHashFromSelection(params.toString());
+        return;
+      }
+      if (selection.type === "landmark") {
+        const params = new URLSearchParams();
+        params.set("place", placeHashKey(selection.item));
+        setHashFromSelection(params.toString());
+        return;
+      }
+      setHashFromSelection("");
+    }
+
+    function setHashFromSelection(value) {
+      const nextHash = value ? `#${value}` : "";
+      if (window.location.hash === nextHash) return;
+      state.suppressHashChange = true;
+      if (!nextHash) {
+        history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+      } else {
+        window.location.hash = value;
+      }
+      setTimeout(() => {
+        state.suppressHashChange = false;
+      }, 0);
+    }
+
+    function applySelectionFromHash(announceMissing = true) {
+      const raw = window.location.hash.replace(/^#/, "").trim();
+      if (!raw) return false;
+
+      const params = new URLSearchParams(raw);
+      const treeKey = params.get("tree");
+      const placeKey = params.get("place");
+
+      if (treeKey) {
+        const tree = findTreeByHashKey(treeKey);
+        if (tree) {
+          state.selected = { type: "tree", item: tree };
+          showTreeDetails(tree, distanceFromUser(tree), "Tree link");
+          setInspectorMinimized(true);
+          startCompassNavigation();
+          if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true });
+          else fitToPoints([tree.point], false, { animate: true });
+          requestDraw();
+          return true;
+        }
+      }
+
+      if (placeKey) {
+        const place = findPlaceByHashKey(placeKey);
+        if (place) {
+          state.selected = { type: "landmark", item: place };
+          showLandmarkDetails(place, distanceFromUser(place));
+          setInspectorMinimized(true);
+          startCompassNavigation();
+          if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true });
+          else fitToPoints([place.point], false, { animate: true });
+          requestDraw();
+          return true;
+        }
+      }
+
+      if (announceMissing) setStatus("Linked location was not found in this dataset.");
+      return false;
+    }
+
+    function treeHashKey(tree) {
+      return normalizeTreeNumber(tree.id || tree.tagNumber || tree.nationalDatabaseTagNumber || tree.recordNumber || "");
+    }
+
+    function placeHashKey(place) {
+      if (place.id !== null && place.id !== undefined && place.id !== "") {
+        return `id:${String(place.id)}`;
+      }
+      return `ll:${Number(place.latitude).toFixed(6)},${Number(place.longitude).toFixed(6)}`;
+    }
+
+    function findTreeByHashKey(key) {
+      const normalized = normalizeTreeNumber(key);
+      for (const tree of state.trees) {
+        if (treeHashKey(tree) === normalized) return tree;
+      }
+      return null;
+    }
+
+    function findPlaceByHashKey(key) {
+      const probe = String(key).trim().toLowerCase();
+      for (const place of state.landmarks) {
+        if (placeHashKey(place).toLowerCase() === probe) return place;
+      }
+      return null;
+    }
+
+    function cowKey(cow) {
+      return `cow:${String(cow.serialNo)}`;
+    }
+
+    function findCowByKey(key) {
+      const probe = String(key).trim().toLowerCase().replace(/^cow:/, "");
+      for (const cow of state.cows) {
+        if (String(cow.serialNo).toLowerCase() === probe) return cow;
+      }
+      return null;
+    }
+
+    function updateCompassOverlay() {
+      const target = selectedCompassTarget();
+      if (!target || !state.userLocation) {
+        els.compassOverlay.hidden = true;
+        state.compassArrowAngle = null;
+        return;
+      }
+
+      const bearingToTarget = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, target.latitude, target.longitude);
+      const hasHeading = Number.isFinite(state.compassHeading);
+      const relative = hasHeading ? shortestCompassDelta(state.compassHeading, bearingToTarget) : bearingToTarget;
+      state.compassArrowAngle = unwrapAngle(state.compassArrowAngle, relative);
+
+      els.compassOverlay.hidden = false;
+      els.compassArrow.style.transform = `rotate(${state.compassArrowAngle}deg)`;
+
+      const title = state.selected.type === "tree"
+        ? displayValue(target.commonName || target.tagNumber || target.recordNumber)
+        : placeTitle(target);
+      els.compassLabel.textContent = `${title} · ${formatDistance(distanceFromUser(target))}`;
+    }
+
+    function updateOverviewDirectionArrows() {
+      if (state.selected || !state.userLocation || !els.inspectorBody) return;
+      const arrows = els.inspectorBody.querySelectorAll(".nearest-arrow[data-bearing]");
+      if (!arrows.length) return;
+
+      for (const arrow of arrows) {
+        const bearing = Number(arrow.dataset.bearing);
+        if (!Number.isFinite(bearing)) continue;
+        const relative = Number.isFinite(state.compassHeading)
+          ? shortestCompassDelta(state.compassHeading, bearing)
+          : bearing;
+        const previousAngle = Number(arrow.dataset.currentAngle);
+        const nextAngle = unwrapAngle(previousAngle, relative);
+        arrow.dataset.currentAngle = String(nextAngle);
+        arrow.style.transform = `rotate(${nextAngle}deg)`;
+      }
+    }
+
+    function unwrapAngle(previous, target) {
+      if (!Number.isFinite(target)) return previous;
+      if (!Number.isFinite(previous)) return target;
+      return previous + shortestCompassDelta(previous, target);
+    }
+
+    function normalizeDegrees(value) {
+      const normalized = value % 360;
+      return normalized < 0 ? normalized + 360 : normalized;
+    }
+
+    function bearingDegrees(lat1, lon1, lat2, lon2) {
+      const phi1 = toRadians(lat1);
+      const phi2 = toRadians(lat2);
+      const lambda1 = toRadians(lon1);
+      const lambda2 = toRadians(lon2);
+      const y = Math.sin(lambda2 - lambda1) * Math.cos(phi2);
+      const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(lambda2 - lambda1);
+      const brng = Math.atan2(y, x) * 180 / Math.PI;
+      return (brng + 360) % 360;
+    }
+
+    function bearingArrow(degrees) {
+      const arrows = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
+      const index = Math.round(degrees / 45) % 8;
+      return arrows[index];
+    }
+
+    function bearingCardinal(degrees) {
+      const labels = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+      const index = Math.round(degrees / 45) % 8;
+      return labels[index];
+    }
+
+    function cowCenterForRequest() {
+      return { ...DEFAULT_COW_CENTER };
+    }
+
+    function cowEndpointUrl(center) {
+      return `${COW_PROXY_URL_BASE}${Number(center.longitude)},${Number(center.latitude)}`;
+    }
+
+    function normalizeCowApiData(payload) {
+      const collars = Array.isArray(payload && payload.collars) ? payload.collars : [];
+      const cows = collars
+        .map((collar) => {
+          const coords = collar && collar.position && Array.isArray(collar.position.coordinates)
+            ? collar.position.coordinates
+            : [];
+          const longitude = Number(coords[0]);
+          const latitude = Number(coords[1]);
+          if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null;
+          return {
+            serialNo: collar.serialNo,
+            type: collar.type || "cattle",
+            latitude,
+            longitude,
+            point: projectLonLat(longitude, latitude),
+          };
+        })
+        .filter(Boolean);
+
+      const pastures = Array.isArray(payload && payload.pastures)
+        ? payload.pastures.filter((pasture) => pasture && pasture.geometry && Array.isArray(pasture.geometry.coordinates))
+        : [];
+
+      return { cows, pastures };
+    }
+
+    function applyCowData(cows, pastures, updatedAt, { persist } = { persist: true }) {
+      state.cows = cows;
+      state.cowPastures = pastures;
+      state.cowLastUpdatedAt = updatedAt;
+
+      if (state.userLocation) {
+        state.nearestCow = nearestCowTo(state.userLocation.latitude, state.userLocation.longitude);
+      }
+
+      if (persist) {
+        try {
+          localStorage.setItem(COW_DATA_CACHE_KEY, JSON.stringify({
+            updatedAt,
+            cows: cows.map((cow) => ({
+              serialNo: cow.serialNo,
+              type: cow.type,
+              latitude: cow.latitude,
+              longitude: cow.longitude,
+            })),
+            pastures,
+          }));
+        } catch {}
+      }
+
+      if (isOverviewScreenActive()) selectOverview();
+      requestDraw();
+    }
+
+    function applyCachedCowData() {
+      try {
+        const raw = localStorage.getItem(COW_DATA_CACHE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const cows = Array.isArray(parsed && parsed.cows)
+          ? parsed.cows.map((cow) => ({
+            ...cow,
+            point: projectLonLat(Number(cow.longitude), Number(cow.latitude)),
+          }))
+          : [];
+        const pastures = Array.isArray(parsed && parsed.pastures) ? parsed.pastures : [];
+        applyCowData(cows, pastures, parsed && parsed.updatedAt ? parsed.updatedAt : null, { persist: false });
+      } catch {}
+    }
+
+    async function refreshCowData(options = {}) {
+      if (state.cowFetchInFlight && !options.force) return;
+      state.cowFetchInFlight = true;
+      try {
+        const center = cowCenterForRequest();
+        const response = await fetch(cowEndpointUrl(center), { cache: "no-store" });
+        if (!response.ok) throw new Error(`Cow data HTTP ${response.status}`);
+        const payload = await response.json();
+        const { cows, pastures } = normalizeCowApiData(payload);
+        applyCowData(cows, pastures, Date.now(), { persist: true });
+      } catch {
+      } finally {
+        state.cowFetchInFlight = false;
+      }
+    }
+
+    function scheduleCowRefresh() {
+      if (state.cowRefreshTimerId != null) return;
+      state.cowRefreshTimerId = window.setInterval(() => {
+        refreshCowData();
+      }, COW_REFRESH_MS);
+    }
+
+    function nearestTreeTo(latitude, longitude) {
+      let best = null;
+      for (const tree of state.trees) {
+        const metres = distanceMetres(latitude, longitude, tree.latitude, tree.longitude);
+        if (!best || metres < best.metres) best = { tree, metres };
+      }
+      return best;
+    }
+
+    function nearestCowTo(latitude, longitude) {
+      let best = null;
+      for (const cow of state.cows) {
+        const metres = distanceMetres(latitude, longitude, cow.latitude, cow.longitude);
+        if (!best || metres < best.metres) best = { cow, metres };
+      }
+      return best;
+    }
+
+    function nearestTreesTo(latitude, longitude, limit) {
+      return state.trees
+        .map((tree) => ({
+          tree,
+          metres: distanceMetres(latitude, longitude, tree.latitude, tree.longitude),
+        }))
+        .sort((a, b) => a.metres - b.metres)
+        .slice(0, limit);
+    }
+
+    function nearestCowsTo(latitude, longitude, limit) {
+      return state.cows
+        .map((cow) => ({
+          cow,
+          metres: distanceMetres(latitude, longitude, cow.latitude, cow.longitude),
+        }))
+        .sort((a, b) => a.metres - b.metres)
+        .slice(0, limit);
+    }
+
+    function nearestPlacesTo(latitude, longitude, limit) {
+      return state.landmarks
+        .map((place) => ({
+          place,
+          metres: distanceMetres(latitude, longitude, place.latitude, place.longitude),
+        }))
+        .sort((a, b) => a.metres - b.metres)
+        .slice(0, limit);
+    }
+
+    function nearestPlaceByFilter(latitude, longitude, filter) {
+      let best = null;
+      for (const place of state.landmarks) {
+        if (!filter(place)) continue;
+        const metres = distanceMetres(latitude, longitude, place.latitude, place.longitude);
+        if (!best || metres < best.metres) best = { place, metres };
+      }
+      return best;
+    }
+
+    function nearestPlacesByFilter(latitude, longitude, filter, limit) {
+      return state.landmarks
+        .filter((place) => filter(place))
+        .map((place) => ({
+          place,
+          metres: distanceMetres(latitude, longitude, place.latitude, place.longitude),
+        }))
+        .sort((a, b) => a.metres - b.metres)
+        .slice(0, limit);
+    }
+
+    function searchTreeByNumber() {
+      const query = (els.treeSearchInput.value || "").trim();
+      if (!query) {
+        setStatus("Enter a tree number to search.");
+        return;
+      }
+
+      const tree = findTreeByNumber(query);
+      if (!tree) {
+        setStatus(`No tree found for number \"${query}\".`);
+        return;
+      }
+
+      const nearby = nearbyTreesTo(tree.latitude, tree.longitude, 24);
+      const nearbyPoints = nearby.map(({ tree: item }) => item.point);
+      state.selected = { type: "tree", item: tree };
+      syncHashFromSelection();
+      startCompassNavigation();
+
+      const focusPoints = [
+        tree.point,
+        ...nearbyPoints,
+      ];
+      if (state.userLocation && state.userInMapArea) {
+        focusPoints.push(state.userLocation.point);
+      }
+
+      fitToPoints(focusPoints, false, { animate: true });
+      ensureUserAndSelectionVisible({ animate: true });
+      showTreeDetails(tree, distanceFromUser(tree), "Tree search result");
+      setInspectorMinimized(true);
+      setStatus(`Found tree ${displayValue(tree.tagNumber || tree.nationalDatabaseTagNumber || tree.recordNumber)}.`);
+      requestDraw();
+    }
+
+    function setInspectorMinimized(minimized) {
+      const wasMinimized = els.inspector.classList.contains("minimized");
+      els.inspector.classList.toggle("minimized", minimized);
+      els.closeInspector.textContent = minimized ? "▴" : "—";
+      els.closeInspector.setAttribute("aria-label", minimized ? "Expand details" : "Minimize details");
+      if (wasMinimized && !minimized && state.userLocation && selectedCompassTarget()) {
+        centerViewportOnPointsKeepScale(
+          [state.userLocation.point, selectedCompassTarget().point],
+          { animate: true, durationMs: 480, focusVisibleArea: true, assumeInspectorOpen: true }
+        );
+      }
+    }
+
+    function goToInitialView(updateHash = true) {
+      state.selected = null;
+      selectOverview();
+      setInspectorMinimized(false);
+      ensureOverviewTargetsVisible({ animate: true, durationMs: 520 });
+      if (!state.userLocation) fitToBounds(false);
+      updateCompassOverlay();
+      if (updateHash) setHashFromSelection();
+      requestDraw();
+    }
+
+    function findTreeByNumber(value) {
+      const normalized = normalizeTreeNumber(value);
+      for (const tree of state.trees) {
+        const candidates = [tree.tagNumber, tree.nationalDatabaseTagNumber, tree.recordNumber]
+          .filter((item) => item !== null && item !== undefined && item !== "")
+          .map((item) => normalizeTreeNumber(item));
+        if (candidates.includes(normalized)) return tree;
+      }
+      return null;
+    }
+
+    function normalizeTreeNumber(value) {
+      return String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    }
+
+    function nearbyTreesTo(latitude, longitude, limit) {
+      return state.trees
+        .map((tree) => ({
+          tree,
+          metres: distanceMetres(latitude, longitude, tree.latitude, tree.longitude),
+        }))
+        .sort((a, b) => a.metres - b.metres)
+        .slice(0, limit);
+    }
+
+    function nearestToViewport(items, limit) {
+      const center = screenToWorld(els.canvas.width / 2, els.canvas.height / 2);
+      return items
+        .map((item) => ({ item, distance: Math.hypot(item.point.x - center.x, item.point.y - center.y) }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, limit)
+        .map(({ item }) => item);
+    }
+
+    function pointInsideBounds(point, bounds) {
+      if (!bounds) return false;
+      const padX = (bounds.maxX - bounds.minX) * 0.08;
+      const padY = (bounds.maxY - bounds.minY) * 0.08;
+      return point.x >= bounds.minX - padX
+        && point.x <= bounds.maxX + padX
+        && point.y >= bounds.minY - padY
+        && point.y <= bounds.maxY + padY;
+    }
+
+    function expandBounds(bounds, point) {
+      return {
+        minX: Math.min(bounds.minX, point.x),
+        minY: Math.min(bounds.minY, point.y),
+        maxX: Math.max(bounds.maxX, point.x),
+        maxY: Math.max(bounds.maxY, point.y),
+      };
+    }
+
+    function distanceFromUser(item) {
+      if (!state.userLocation) return null;
+      return distanceMetres(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
+    }
+
+    function findContainingFeature(layer, lonLat) {
+      for (const feature of layer.data.features) {
+        const geometry = feature.geometry;
+        if (!geometry) continue;
+        const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+        for (const polygon of polygons) {
+          if (pointInPolygon([lonLat.longitude, lonLat.latitude], polygon)) return feature;
+        }
+      }
+      return null;
+    }
+
+    function pointInPolygon(point, polygon) {
+      if (!polygon.length || !pointInRing(point, polygon[0])) return false;
+      for (let i = 1; i < polygon.length; i++) {
+        if (pointInRing(point, polygon[i])) return false;
+      }
+      return true;
+    }
+
+    function pointInRing(point, ring) {
+      const [x, y] = point;
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i][0], yi = ring[i][1];
+        const xj = ring[j][0], yj = ring[j][1];
+        const intersect = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function forEachGeojsonCoordinate(collection, visit) {
+      for (const feature of collection.features || []) {
+        walkCoordinates(feature.geometry && feature.geometry.coordinates, visit);
+      }
+    }
+
+    function walkCoordinates(value, visit) {
+      if (!Array.isArray(value)) return;
+      if (typeof value[0] === "number" && typeof value[1] === "number") {
+        visit(value);
+        return;
+      }
+      for (const item of value) walkCoordinates(item, visit);
+    }
+
+    function projectLonLat(longitude, latitude) {
+      const clamped = clamp(latitude, -85, 85);
+      const rad = clamped * Math.PI / 180;
+      return {
+        x: longitude,
+        y: -Math.log(Math.tan(Math.PI / 4 + rad / 2)) * 180 / Math.PI,
+      };
+    }
+
+    function unprojectPoint(point) {
+      const latitude = (2 * Math.atan(Math.exp((-point.y) * Math.PI / 180)) - Math.PI / 2) * 180 / Math.PI;
+      return { longitude: point.x, latitude };
+    }
+
+    function worldToScreen(point) {
+      return {
+        x: point.x * state.viewport.scale + state.viewport.tx,
+        y: point.y * state.viewport.scale + state.viewport.ty,
+      };
+    }
+
+    function screenToWorld(x, y) {
+      return {
+        x: (x - state.viewport.tx) / state.viewport.scale,
+        y: (y - state.viewport.ty) / state.viewport.scale,
+      };
+    }
+
+    function canvasPoint(event) {
+      const rect = els.canvas.getBoundingClientRect();
+      const dpr = pixelRatio();
+      return {
+        x: (event.clientX - rect.left) * dpr,
+        y: (event.clientY - rect.top) * dpr,
+      };
+    }
+
+    function centerPoint() {
+      return { x: els.canvas.width / 2, y: els.canvas.height / 2 };
+    }
+
+    function isNearCanvas(point, margin) {
+      return point.x >= -margin && point.y >= -margin && point.x <= els.canvas.width + margin && point.y <= els.canvas.height + margin;
+    }
+
+    function pinchZoomLikelyAvailable() {
+      return (navigator.maxTouchPoints || 0) >= 2 || window.matchMedia("(pointer: coarse)").matches;
+    }
+
+    function updateMapControlVisibility() {
+      if (!els.toolbar) return;
+      els.toolbar.style.display = pinchZoomLikelyAvailable() ? "none" : "flex";
+    }
+
+    function requestDraw() {
+      if (state.animationFrame) return;
+      state.animationFrame = requestAnimationFrame(draw);
+    }
+
+    function setStatus(message) {
+      els.status.textContent = message;
+    }
+
+    function updateLocateButtonVisibility() {
+      const geolocationAvailable = typeof navigator !== "undefined" && Boolean(navigator.geolocation);
+      els.locateButton.hidden = !geolocationAvailable || Boolean(state.userLocation);
+    }
+
+    function distanceMetres(lat1, lon1, lat2, lon2) {
+      const phi1 = toRadians(lat1);
+      const phi2 = toRadians(lat2);
+      const dPhi = toRadians(lat2 - lat1);
+      const dLambda = toRadians(lon2 - lon1);
+      const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+      return 2 * EARTH_RADIUS_METRES * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function toRadians(value) {
+      return value * Math.PI / 180;
+    }
+
+    function formatDistance(metres) {
+      if (!Number.isFinite(metres)) return "Not recorded";
+      if (metres < 1000) return `${Math.round(metres)} m`;
+      return `${(metres / 1000).toFixed(metres < 10000 ? 2 : 1)} km`;
+    }
+
+    function formatWalkTime(metres) {
+      if (!Number.isFinite(metres)) return "Not recorded";
+      // Assume 3.5 km/h — a leisurely walking pace
+      const minutes = metres / (3500 / 60);
+      if (minutes < 1) return "Under 1 min";
+      if (minutes < 60) return `~${Math.round(minutes)} min`;
+      const hours = Math.floor(minutes / 60);
+      const mins = Math.round(minutes % 60);
+      return mins > 0 ? `~${hours} hr ${mins} min` : `~${hours} hr`;
+    }
+
+    function updateSelectedDetailFields() {
+      if (!state.selected || !state.userLocation) return;
+      const item = selectedCompassTarget();
+      if (!item) return;
+      const metres = distanceFromUser(item);
+      const distEl = els.inspectorBody.querySelector('[data-live-field="distance"]');
+      const walkEl = els.inspectorBody.querySelector('[data-live-field="walktime"]');
+      if (distEl) distEl.textContent = metres == null ? "Not recorded" : formatDistance(metres);
+      if (walkEl) walkEl.textContent = metres == null ? "Not recorded" : formatWalkTime(metres);
+    }
+
+    function displayValue(value) {
+      if (value === null || value === undefined || value === "") return "Not recorded";
+      return String(value);
+    }
+
+    function osmNote() {
+      return `<p class="source-note">Local places use © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors.</p>`;
+    }
+
+    function isOpenStreetMapPlace(place) {
+      if (!place || typeof place !== "object") return false;
+      if (place.id !== null && place.id !== undefined && place.id !== "") return true;
+      const source = String(place.source || "").toLowerCase();
+      return source.includes("openstreetmap") || source.includes("osm");
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function pixelRatio() {
+      return Number(els.canvas.dataset.dpr || window.devicePixelRatio || 1);
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+  </script>
+</body>
+</html>

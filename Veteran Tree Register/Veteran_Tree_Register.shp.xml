@@ -1,0 +1,801 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata xml:lang="en">
+	<Esri>
+		<CreaDate>20260513</CreaDate>
+		<CreaTime>08464200</CreaTime>
+		<ArcGISFormat>1.0</ArcGISFormat>
+		<ArcGISstyle>ISO 19139 Metadata Implementation Specification</ArcGISstyle>
+		<SyncOnce>FALSE</SyncOnce>
+		<DataProperties>
+			<itemProps>
+				<itemName Sync="TRUE">SY_OSD_EPPING.NaturalAspect_VeteranTree</itemName>
+				<itemLocation>
+					<linkage Sync="TRUE">Server=dgisp; Service=sde:oracle11g:dgisp; User=sde; Version=SDE.DEFAULT</linkage>
+					<protocol Sync="TRUE">ArcSDE Connection</protocol>
+				</itemLocation>
+				<nativeExtBox>
+					<westBL Sync="TRUE">0.000000</westBL>
+					<eastBL Sync="TRUE">548109.500000</eastBL>
+					<southBL Sync="TRUE">0.000000</southBL>
+					<northBL Sync="TRUE">203534.720000</northBL>
+					<exTypeCode Sync="TRUE">1</exTypeCode>
+				</nativeExtBox>
+				<imsContentType Sync="TRUE">002</imsContentType>
+			</itemProps>
+			<coordRef>
+				<type Sync="TRUE">Projected</type>
+				<geogcsn Sync="TRUE">GCS_OSGB_1936</geogcsn>
+				<csUnits Sync="TRUE">Linear Unit: Meter (1.000000)</csUnits>
+				<projcsn Sync="TRUE">British_National_Grid</projcsn>
+				<peXml Sync="TRUE">&lt;ProjectedCoordinateSystem xsi:type='typens:ProjectedCoordinateSystem' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xmlns:xs='http://www.w3.org/2001/XMLSchema' xmlns:typens='http://www.esri.com/schemas/ArcGIS/10.5'&gt;&lt;WKT&gt;PROJCS[&amp;quot;British_National_Grid&amp;quot;,GEOGCS[&amp;quot;GCS_OSGB_1936&amp;quot;,DATUM[&amp;quot;D_OSGB_1936&amp;quot;,SPHEROID[&amp;quot;Airy_1830&amp;quot;,6377563.396,299.3249646]],PRIMEM[&amp;quot;Greenwich&amp;quot;,0.0],UNIT[&amp;quot;Degree&amp;quot;,0.0174532925199433]],PROJECTION[&amp;quot;Transverse_Mercator&amp;quot;],PARAMETER[&amp;quot;False_Easting&amp;quot;,400000.0],PARAMETER[&amp;quot;False_Northing&amp;quot;,-100000.0],PARAMETER[&amp;quot;Central_Meridian&amp;quot;,-2.0],PARAMETER[&amp;quot;Scale_Factor&amp;quot;,0.9996012717],PARAMETER[&amp;quot;Latitude_Of_Origin&amp;quot;,49.0],UNIT[&amp;quot;Meter&amp;quot;,1.0],AUTHORITY[&amp;quot;EPSG&amp;quot;,27700]]&lt;/WKT&gt;&lt;XOrigin&gt;-5220400&lt;/XOrigin&gt;&lt;YOrigin&gt;-15524400&lt;/YOrigin&gt;&lt;XYScale&gt;10000&lt;/XYScale&gt;&lt;ZOrigin&gt;0&lt;/ZOrigin&gt;&lt;ZScale&gt;1&lt;/ZScale&gt;&lt;MOrigin&gt;0&lt;/MOrigin&gt;&lt;MScale&gt;1&lt;/MScale&gt;&lt;XYTolerance&gt;0.001&lt;/XYTolerance&gt;&lt;ZTolerance&gt;0.001&lt;/ZTolerance&gt;&lt;MTolerance&gt;0.001&lt;/MTolerance&gt;&lt;HighPrecision&gt;true&lt;/HighPrecision&gt;&lt;WKID&gt;27700&lt;/WKID&gt;&lt;LatestWKID&gt;27700&lt;/LatestWKID&gt;&lt;/ProjectedCoordinateSystem&gt;</peXml>
+			</coordRef>
+			<lineage>
+				<Process ToolSource="c:\Program Files\ArcGIS\Desktop10.0\ArcToolbox\Toolboxes\Conversion Tools.tbx\FeatureClassToFeatureClass" Date="20140605" Time="122053">FeatureClassToFeatureClass "H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp" "H:\Maps\ArcGIS Project\Shapefiles\fileGdb\EppingForest1.gdb" NaturalAspect_VeteranTreeTable # "TREE_ID "TREE_ID" true true false 31 Double 15 30 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,TREE_ID,-1,-1;TAG_NUMBER "TAG_NUMBER" true true false 10 Text 0 0 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,TAG_NUMBER,-1,-1;_2ND_TAG_N "_2ND_TAG_N" true true false 11 Text 0 0 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,_2ND_TAG_N,-1,-1;LATIN_NAME "LATIN_NAME" true true false 18 Text 0 0 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,LATIN_NAME,-1,-1;COM_NAME "COM_NAME" true true false 12 Text 0 0 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,COM_NAME,-1,-1;TREE_FORM "TREE_FORM" true true false 25 Text 0 0 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,TREE_FORM,-1,-1;DATE_GPSD "DATE_GPSD" true true false 10 Text 0 0 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,DATE_GPSD,-1,-1;GIRTH "GIRTH" true true false 10 Text 0 0 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,GIRTH,-1,-1;COMMENTS "COMMENTS" true true false 171 Text 0 0 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,COMMENTS,-1,-1;EASTING "EASTING" true true false 31 Double 15 30 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,EASTING,-1,-1;NORTHING "NORTHING" true true false 31 Double 15 30 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,NORTHING,-1,-1;COMP_NO "COMP_NO" true true false 12 Text 0 0 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,COMP_NO,-1,-1;EXTRA_INFO "EXTRA_INFO" true true false 41 Text 0 0 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,EXTRA_INFO,-1,-1;DEAD_ALIVE "DEAD_ALIVE" true true false 5 Text 0 0 ,First,#,H:\Maps\ArcGIS Project\Shapefiles\NaturalAspect_VeteranTreeTable1.shp,DEAD_ALIVE,-1,-1" #</Process>
+				<Process ToolSource="c:\Program Files\ArcGIS\Desktop10.0\ArcToolbox\Toolboxes\Data Management Tools.tbx\MigrateStorage" Date="20160311" Time="170430">MigrateStorage C:\Temp\Connections\DGISP_SY_OSD_EPPING.sde\SY_OSD_EPPING.NaturalAspect_VeteranTree ST_GEOMETRY</Process>
+				<Process ToolSource="c:\program files (x86)\arcgis\desktop10.2\ArcToolbox\Toolboxes\Data Management Tools.tbx\EnableEditorTracking" Date="20190111" Time="155417">EnableEditorTracking "Database Connections\GIS_DEPARTMENTS_UPDATE.sde\SY_OSD_EPPING.NaturalAspect_VeteranTree" CREATED_USER CREATED_DATE_UTC_TIME LAST_EDITED_USER LAST_EDITED_DATE_UTC_TIME ADD_FIELDS UTC</Process>
+				<Process ToolSource="c:\program files (x86)\arcgis\desktop10.2\ArcToolbox\Toolboxes\Data Management Tools.tbx\DeleteIdentical" Date="20191014" Time="103148">DeleteIdentical "Veteran Tree Table" EASTING;NORTHING # 0</Process>
+				<Process ToolSource="c:\program files (x86)\arcgis\desktop10.2\ArcToolbox\Toolboxes\Data Management Tools.tbx\CalculateField" Date="20200114" Time="171049">CalculateField "Veteran Tree Table" COMMENTS_ [COMMENTS] VB #</Process>
+				<Process ToolSource="c:\program files (x86)\arcgis\desktop10.2\ArcToolbox\Toolboxes\Data Management Tools.tbx\CalculateField" Date="20200127" Time="143718">CalculateField "Veteran Tree Table" TREE_FORM_ [TREE_FORM] VB #</Process>
+			</lineage>
+		</DataProperties>
+		<SyncDate>20251119</SyncDate>
+		<SyncTime>11452300</SyncTime>
+		<ModDate>20251119</ModDate>
+		<ModTime>11452300</ModTime>
+	</Esri>
+	<GEMINI_Metadata>
+		<IdentificationInfo>
+			<spatialRepresentationType codeList="001"/>
+			<extent>
+				<geographicElement>
+					<westBoundLongitude>-7.776520</westBoundLongitude>
+					<eastBoundLongitude>0.143962</eastBoundLongitude>
+					<northBoundLatitude>51.730070</northBoundLatitude>
+					<southBoundLatitude>49.766185</southBoundLatitude>
+				</geographicElement>
+			</extent>
+		</IdentificationInfo>
+		<dateStamp>20200116</dateStamp>
+		<metadataStandardName>UK GEMINI Standard</metadataStandardName>
+		<metadataStandardVersion>1.0</metadataStandardVersion>
+		<referenceSystemInfo>
+			<referenceSystemIdentifier>
+				<code>001</code>
+			</referenceSystemIdentifier>
+		</referenceSystemInfo>
+	</GEMINI_Metadata>
+	<eainfo>
+		<detailed Name="SY_OSD_EPPING.NaturalAspect_VeteranTree">
+			<enttyp>
+				<enttypl Sync="TRUE">SY_OSD_EPPING.NaturalAspect_VeteranTree</enttypl>
+				<enttypt Sync="TRUE">Feature Class</enttypt>
+				<enttypc Sync="TRUE">24907</enttypc>
+			</enttyp>
+			<attr>
+				<attrlabl Sync="TRUE">OBJECTID</attrlabl>
+				<attalias Sync="TRUE">OBJECTID</attalias>
+				<attrtype Sync="TRUE">OID</attrtype>
+				<attwidth Sync="TRUE">4</attwidth>
+				<atprecis Sync="TRUE">10</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+				<attrdef Sync="TRUE">Internal feature number.</attrdef>
+				<attrdefs Sync="TRUE">ESRI</attrdefs>
+				<attrdomv>
+					<udom Sync="TRUE">Sequential unique whole numbers that are automatically generated.</udom>
+				</attrdomv>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">Shape</attrlabl>
+				<attalias Sync="TRUE">Shape</attalias>
+				<attrtype Sync="TRUE">Geometry</attrtype>
+				<attwidth Sync="TRUE">4</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+				<attrdef Sync="TRUE">Feature geometry.</attrdef>
+				<attrdefs Sync="TRUE">ESRI</attrdefs>
+				<attrdomv>
+					<udom Sync="TRUE">Coordinates defining the features.</udom>
+				</attrdomv>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">TREE_ID</attrlabl>
+				<attalias Sync="TRUE">TREE_ID</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">8</attwidth>
+				<atprecis Sync="TRUE">38</atprecis>
+				<attscale Sync="TRUE">8</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">ND_TAG_N</attrlabl>
+				<attalias Sync="TRUE">_2ND_TAG_N</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">11</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">TAG_NUMBER</attrlabl>
+				<attalias Sync="TRUE">TAG_NUMBER</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">10</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">LATIN_NAME</attrlabl>
+				<attalias Sync="TRUE">LATIN_NAME</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">18</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">COM_NAME</attrlabl>
+				<attalias Sync="TRUE">COM_NAME</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">12</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">DATE_GPSD</attrlabl>
+				<attalias Sync="TRUE">DATE_GPSD</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">10</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">GIRTH</attrlabl>
+				<attalias Sync="TRUE">GIRTH</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">10</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">EASTING</attrlabl>
+				<attalias Sync="TRUE">EASTING</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">8</attwidth>
+				<atprecis Sync="TRUE">38</atprecis>
+				<attscale Sync="TRUE">8</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">NORTHING</attrlabl>
+				<attalias Sync="TRUE">NORTHING</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">8</attwidth>
+				<atprecis Sync="TRUE">38</atprecis>
+				<attscale Sync="TRUE">8</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">COMP_NO</attrlabl>
+				<attalias Sync="TRUE">COMP_NO</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">12</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">EXTRA_INFO</attrlabl>
+				<attalias Sync="TRUE">EXTRA_INFO</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">41</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">DEAD_ALIVE</attrlabl>
+				<attalias Sync="TRUE">DEAD_ALIVE</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">5</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">CREATED_USER</attrlabl>
+				<attalias Sync="TRUE">CREATED_USER</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">255</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">CREATED_DATE_UTC_TIME</attrlabl>
+				<attalias Sync="TRUE">CREATED_DATE_UTC_TIME</attalias>
+				<attrtype Sync="TRUE">Date</attrtype>
+				<attwidth Sync="TRUE">8</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">LAST_EDITED_USER</attrlabl>
+				<attalias Sync="TRUE">LAST_EDITED_USER</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">255</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">LAST_EDITED_DATE_UTC_TIME</attrlabl>
+				<attalias Sync="TRUE">LAST_EDITED_DATE_UTC_TIME</attalias>
+				<attrtype Sync="TRUE">Date</attrtype>
+				<attwidth Sync="TRUE">8</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">COMMENTS_</attrlabl>
+				<attalias Sync="TRUE">COMMENTS_</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">500</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">TREE_FORM_</attrlabl>
+				<attalias Sync="TRUE">TREE_FORM_</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">200</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+		</detailed>
+	</eainfo>
+	<gmd:GEMINI_Metadata xmlns:gmd="http://www.isotc211.org/2005/gmd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gco="http://www.isotc211.org/2005/gco" xmlns:srv="http://www.isotc211.org/2005/srv" xmlns:gts="http://www.isotc211.org/2005/gts" xmlns:gml="http://www.opengis.net/gml" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
+		<gmd:hierarchyLevel>
+			<gmd:MD_ScopeCode codeList="http://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_19139_Schemas/resources/Codelist/gmxCodelists.xml#MD_ScopeCode" codeListValue="dataset">Dataset</gmd:MD_ScopeCode>
+		</gmd:hierarchyLevel>
+		<gmd:dateStamp>
+			<gco:Date>2014-06-05</gco:Date>
+		</gmd:dateStamp>
+		<gmd:language>
+			<gmd:LanguageCode codeList="http://www.loc.gov/standards/iso639-2/php/code_list.php" codeListValue="eng">English</gmd:LanguageCode>
+		</gmd:language>
+		<gmd:identificationInfo>
+			<gmd:MD_DataIdentification>
+				<gmd:language>
+					<gmd:LanguageCode codeList="http://www.loc.gov/standards/iso639-2/php/code_list.php" codeListValue="eng">English</gmd:LanguageCode>
+				</gmd:language>
+				<gmd:abstract>
+					<gco:CharacterString>This dataset shows the location of veteran pollarded trees in Epping Forest. Epping Forest is one of City of London Open Spaces. A veteran tree is one that has generally reached maturity and supports a rich and diverse range of wildlife including important habitat features such as dead wood, hollowing, loose bark and holes.</gco:CharacterString>
+				</gmd:abstract>
+				<gmd:spatialResolution>
+					<gmd:MD_Resolution>
+						<gmd:distance>
+							<gco:Distance uom="Meters">0.5</gco:Distance>
+						</gmd:distance>
+					</gmd:MD_Resolution>
+				</gmd:spatialResolution>
+				<gmd:citation>
+					<gmd:CI_Citation>
+						<gmd:title>
+							<gco:CharacterString>Veteran Tree Table</gco:CharacterString>
+						</gmd:title>
+						<gmd:date>
+							<gmd:CI_Date>
+								<gmd:date>
+									<gco:Date>2014-06-05</gco:Date>
+								</gmd:date>
+								<gmd:dateType>
+									<gmd:CI_DateTypeCode codeList="http://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_19139_Schemas/resources/Codelist/gmxCodelists.xml#CI_DateTypeCode" codeListValue="publication">Publication</gmd:CI_DateTypeCode>
+								</gmd:dateType>
+							</gmd:CI_Date>
+						</gmd:date>
+						<gmd:date>
+							<gmd:CI_Date>
+								<gmd:date>
+									<gco:Date>2014-06-05</gco:Date>
+								</gmd:date>
+								<gmd:dateType>
+									<gmd:CI_DateTypeCode codeList="http://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_19139_Schemas/resources/Codelist/gmxCodelists.xml#CI_DateTypeCode" codeListValue="creation">Creation</gmd:CI_DateTypeCode>
+								</gmd:dateType>
+							</gmd:CI_Date>
+						</gmd:date>
+						<gmd:date>
+							<gmd:CI_Date>
+								<gmd:date>
+									<gco:Date>2014-06-05</gco:Date>
+								</gmd:date>
+								<gmd:dateType>
+									<gmd:CI_DateTypeCode codeList="http://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_19139_Schemas/resources/Codelist/gmxCodelists.xml#CI_DateTypeCode" codeListValue="revision">Revision</gmd:CI_DateTypeCode>
+								</gmd:dateType>
+							</gmd:CI_Date>
+						</gmd:date>
+						<gmd:identifier>
+							<gmd:RS_Identifier>
+								<gmd:code>
+									<gco:CharacterString>0000</gco:CharacterString>
+								</gmd:code>
+								<gmd:codeSpace>
+									<gco:CharacterString>uk.gov.cityoflondon</gco:CharacterString>
+								</gmd:codeSpace>
+							</gmd:RS_Identifier>
+						</gmd:identifier>
+					</gmd:CI_Citation>
+				</gmd:citation>
+				<gmd:descriptiveKeywords>
+					<gmd:MD_Keywords>
+						<gmd:keyword>
+							<gco:CharacterString>Veteran Tree</gco:CharacterString>
+						</gmd:keyword>
+						<gmd:keyword>
+							<gco:CharacterString>Epping Forest</gco:CharacterString>
+						</gmd:keyword>
+						<gmd:keyword>
+							<gco:CharacterString>Open Spaces</gco:CharacterString>
+						</gmd:keyword>
+						<gmd:keyword>
+							<gco:CharacterString>City of London</gco:CharacterString>
+						</gmd:keyword>
+						<gmd:keyword>
+							<gco:CharacterString>CoL</gco:CharacterString>
+						</gmd:keyword>
+						<gmd:thesaurusName>
+							<gmd:CI_Citation>
+								<gmd:title>
+									<gco:CharacterString>Tree</gco:CharacterString>
+								</gmd:title>
+								<gmd:date>
+									<gmd:CI_Date>
+										<gmd:date>
+											<gco:Date>2014-06-09</gco:Date>
+										</gmd:date>
+										<gmd:dateType>
+											<gmd:CI_DateTypeCode codeList="http://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_19139_Schemas/resources/Codelist/gmxCodelists.xml#CI_DateTypeCode" codeListValue="publication">Publication</gmd:CI_DateTypeCode>
+										</gmd:dateType>
+									</gmd:CI_Date>
+								</gmd:date>
+							</gmd:CI_Citation>
+						</gmd:thesaurusName>
+						<gmd:type>
+							<gmd:MD_KeywordTypeCode codeList="http://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_19139_Schemas/resources/Codelist/gmxCodelists.xml#MD_KeywordTypeCode" codeListValue="theme">Theme</gmd:MD_KeywordTypeCode>
+						</gmd:type>
+					</gmd:MD_Keywords>
+				</gmd:descriptiveKeywords>
+				<gmd:extent>
+					<gmd:EX_Extent>
+						<gmd:geographicElement>
+							<gmd:EX_GeographicDescription>
+								<gmd:geographicIdentifier>
+									<gmd:RS_Identifier>
+										<gmd:code>
+											<gco:CharacterString>GB-LND</gco:CharacterString>
+										</gmd:code>
+									</gmd:RS_Identifier>
+								</gmd:geographicIdentifier>
+							</gmd:EX_GeographicDescription>
+						</gmd:geographicElement>
+						<gmd:geographicElement>
+							<gmd:EX_GeographicBoundingBox>
+								<gmd:westBoundLongitude>
+									<gco:Decimal>-0.071216</gco:Decimal>
+								</gmd:westBoundLongitude>
+								<gmd:eastBoundLongitude>
+									<gco:Decimal>0.188247</gco:Decimal>
+								</gmd:eastBoundLongitude>
+								<gmd:southBoundLatitude>
+									<gco:Decimal>51.539800</gco:Decimal>
+								</gmd:southBoundLatitude>
+								<gmd:northBoundLatitude>
+									<gco:Decimal>51.756607</gco:Decimal>
+								</gmd:northBoundLatitude>
+							</gmd:EX_GeographicBoundingBox>
+						</gmd:geographicElement>
+						<gmd:temporalElement>
+							<gmd:EX_TemporalExtent>
+								<gmd:extent>
+									<gml:TimePeriod>
+										<gml:beginPosition>2014-06-05</gml:beginPosition>
+										<gml:endPosition/>
+									</gml:TimePeriod>
+								</gmd:extent>
+							</gmd:EX_TemporalExtent>
+						</gmd:temporalElement>
+						<gmd:verticalElement>
+							<gmd:EX_VerticalExtent>
+								<gmd:minimumValue>
+									<gco:Real>0.00</gco:Real>
+								</gmd:minimumValue>
+								<gmd:maximumValue>
+									<gco:Real>9007199254740990.00</gco:Real>
+								</gmd:maximumValue>
+								<gmd:verticalCRS xlink:href=""/>
+							</gmd:EX_VerticalExtent>
+						</gmd:verticalElement>
+					</gmd:EX_Extent>
+				</gmd:extent>
+				<gmd:pointOfContact>
+					<gmd:CI_ResponsibleParty>
+						<gmd:individualName>
+							<gco:CharacterString>GIS Officer</gco:CharacterString>
+						</gmd:individualName>
+						<gmd:organisationName>
+							<gco:CharacterString>City of London Corporation - Open Spaces</gco:CharacterString>
+						</gmd:organisationName>
+						<gmd:positionName>
+							<gco:CharacterString>GIS Officer</gco:CharacterString>
+						</gmd:positionName>
+						<gmd:contactInfo>
+							<gmd:CI_Contact>
+								<gmd:address>
+									<gmd:CI_Address>
+										<gmd:deliveryPoint>
+											<gco:CharacterString>The Warren, Nursery Road</gco:CharacterString>
+										</gmd:deliveryPoint>
+										<gmd:city>
+											<gco:CharacterString>Loughton</gco:CharacterString>
+										</gmd:city>
+										<gmd:administrativeArea>
+											<gco:CharacterString>Essex</gco:CharacterString>
+										</gmd:administrativeArea>
+										<gmd:postalCode>
+											<gco:CharacterString>IG10 4RW</gco:CharacterString>
+										</gmd:postalCode>
+										<gmd:electronicMailAddress>
+											<gco:CharacterString>EppingForest@cityoflondon.gov.uk</gco:CharacterString>
+										</gmd:electronicMailAddress>
+										<gmd:country>
+											<gmd:Country codeList="http://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_19139_Schemas/resources/Codelist/ML_gmxCodelists.xml#Country" codeListValue="GBR">United Kingdom of Great Britain &amp; N. Ireland</gmd:Country>
+										</gmd:country>
+									</gmd:CI_Address>
+								</gmd:address>
+								<gmd:phone>
+									<gmd:CI_Telephone>
+										<gmd:voice>
+											<gco:CharacterString>02085321010</gco:CharacterString>
+										</gmd:voice>
+									</gmd:CI_Telephone>
+								</gmd:phone>
+								<gmd:onLine>
+									<gmd:CI_OnLineResource>
+										<gmd:linkage>
+											<gmd:URL>http://www.cityoflondon.gov.uk/eppingforest</gmd:URL>
+										</gmd:linkage>
+									</gmd:CI_OnLineResource>
+								</gmd:onLine>
+							</gmd:CI_Contact>
+						</gmd:contactInfo>
+						<gmd:role>
+							<gmd:CI_RoleCode codeList="http://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_19139_Schemas/resources/Codelist/gmxCodelists.xml#MD_ScopeCode" codeListValue="pointOfContact">Point of contact</gmd:CI_RoleCode>
+						</gmd:role>
+					</gmd:CI_ResponsibleParty>
+				</gmd:pointOfContact>
+				<gmd:resourceConstraints>
+					<gmd:MD_Constraints>
+						<gmd:useLimitation>
+							<gco:CharacterString>
+							Public Sector INSPIRE WMS End User Licence
+						</gco:CharacterString>
+						</gmd:useLimitation>
+					</gmd:MD_Constraints>
+				</gmd:resourceConstraints>
+				<gmd:resourceMaintenance>
+					<gmd:MD_MaintenanceInformation>
+						<gmd:maintenanceAndUpdateFrequency>
+							<gmd:MD_MaintenanceFrequencyCode codeList="http://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_19139_Schemas/resources/Codelist/gmxCodelists.xml#MD_MaintenanceFrequencyCode" codeListValue="asNeeded">As needed</gmd:MD_MaintenanceFrequencyCode>
+						</gmd:maintenanceAndUpdateFrequency>
+					</gmd:MD_MaintenanceInformation>
+				</gmd:resourceMaintenance>
+			</gmd:MD_DataIdentification>
+		</gmd:identificationInfo>
+		<gmd:distributionInfo>
+			<gmd:MD_Distribution>
+				<gmd:transferOptions>
+					<gmd:MD_DigitalTransferOptions>
+						<gmd:onLine>
+							<gmd:CI_OnlineResource>
+								<gmd:linkage>
+									<gmd:URL>WMS - http://www.mapping2.cityoflondon.gov.uk/arcgis/services/INSPIRE/MapServer/WMSServer?request=GetCapabilities&amp;service=WMS</gmd:URL>
+								</gmd:linkage>
+							</gmd:CI_OnlineResource>
+						</gmd:onLine>
+						<gmd:onLine>
+							<gmd:CI_OnlineResource>
+								<gmd:linkage>
+									<gmd:URL>WFS - ​http://www.mapping2.cityoflondon.gov.uk/arcgis/services/INSPIRE/MapServer/WFSServer?request=GetCapabilities&amp;service=WFS</gmd:URL>
+								</gmd:linkage>
+							</gmd:CI_OnlineResource>
+						</gmd:onLine>
+					</gmd:MD_DigitalTransferOptions>
+				</gmd:transferOptions>
+				<gmd:distributionFormat>
+					<gmd:MD_Format>
+						<gmd:name>
+							<gco:CharacterString>WMS</gco:CharacterString>
+						</gmd:name>
+					</gmd:MD_Format>
+				</gmd:distributionFormat>
+				<gmd:distributionFormat>
+					<gmd:MD_Format>
+						<gmd:name>
+							<gco:CharacterString>WFS</gco:CharacterString>
+						</gmd:name>
+					</gmd:MD_Format>
+				</gmd:distributionFormat>
+			</gmd:MD_Distribution>
+		</gmd:distributionInfo>
+		<gmd:dataQualityInfo>
+			<gmd:DQ_DataQuality>
+				<gmd:lineage>
+					<gmd:LI_Lineage>
+						<gmd:statement>
+							<gco:CharacterString>This dataset was created by capturing location of trees by GPS.</gco:CharacterString>
+						</gmd:statement>
+					</gmd:LI_Lineage>
+				</gmd:lineage>
+			</gmd:DQ_DataQuality>
+		</gmd:dataQualityInfo>
+		<gmd:referenceSystemInfo>
+			<gmd:MD_ReferenceSystem>
+				<gmd:referenceSystemIdentifier>
+					<gmd:RS_Identifier>
+						<gmd:code>
+							<gco:CharacterString>Great Britain National Grid</gco:CharacterString>
+						</gmd:code>
+					</gmd:RS_Identifier>
+				</gmd:referenceSystemIdentifier>
+			</gmd:MD_ReferenceSystem>
+		</gmd:referenceSystemInfo>
+		<gmd:contact>
+			<gmd:CI_ResponsibleParty>
+				<gmd:individualName>
+					<gco:CharacterString>GIS Officer</gco:CharacterString>
+				</gmd:individualName>
+				<gmd:organisationName>
+					<gco:CharacterString>City of London Corporation - Open Spaces</gco:CharacterString>
+				</gmd:organisationName>
+				<gmd:positionName>
+					<gco:CharacterString>GIS Officer</gco:CharacterString>
+				</gmd:positionName>
+				<gmd:contactInfo>
+					<gmd:CI_Contact>
+						<gmd:address>
+							<gmd:CI_Address>
+								<gmd:deliveryPoint>
+									<gco:CharacterString>The Warren, Nursery Road</gco:CharacterString>
+								</gmd:deliveryPoint>
+								<gmd:city>
+									<gco:CharacterString>Loughton</gco:CharacterString>
+								</gmd:city>
+								<gmd:administrativeArea>
+									<gco:CharacterString>Essex</gco:CharacterString>
+								</gmd:administrativeArea>
+								<gmd:postalCode>
+									<gco:CharacterString>IG10 4RW</gco:CharacterString>
+								</gmd:postalCode>
+								<gmd:electronicMailAddress>
+									<gco:CharacterString>EppingForest@cityoflondon.gov.uk</gco:CharacterString>
+								</gmd:electronicMailAddress>
+								<gmd:country>
+									<gmd:Country codeList="http://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_19139_Schemas/resources/Codelist/ML_gmxCodelists.xml#Country" codeListValue="GBR">United Kingdom of Great Britain &amp; N. Ireland</gmd:Country>
+								</gmd:country>
+							</gmd:CI_Address>
+						</gmd:address>
+						<gmd:phone>
+							<gmd:CI_Telephone>
+								<gmd:voice>
+									<gco:CharacterString>02085321010</gco:CharacterString>
+								</gmd:voice>
+								<gmd:facsimile>
+									<gco:CharacterString/>
+								</gmd:facsimile>
+							</gmd:CI_Telephone>
+						</gmd:phone>
+						<gmd:onLine>
+							<gmd:CI_OnLineResource>
+								<gmd:linkage>
+									<gmd:URL>http://www.cityoflondon.gov.uk/eppingforest</gmd:URL>
+								</gmd:linkage>
+							</gmd:CI_OnLineResource>
+						</gmd:onLine>
+					</gmd:CI_Contact>
+				</gmd:contactInfo>
+				<gmd:role>
+					<gmd:CI_RoleCode codeList="http://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_19139_Schemas/resources/Codelist/gmxCodelists.xml#MD_ScopeCode" codeListValue="pointOfContact">Point of contact</gmd:CI_RoleCode>
+				</gmd:role>
+			</gmd:CI_ResponsibleParty>
+		</gmd:contact>
+	</gmd:GEMINI_Metadata>
+	<mdFileID>773334e9858d0cffaf78f4c0ea744349</mdFileID>
+	<mdLang>
+		<languageCode value="eng"/>
+		<countryCode value="GBR" Sync="TRUE"/>
+	</mdLang>
+	<mdChar>
+		<CharSetCd value="004"/>
+	</mdChar>
+	<mdHrLv>
+		<ScopeCd value="005"/>
+	</mdHrLv>
+	<mdHrLvName Sync="TRUE">dataset</mdHrLvName>
+	<mdContact>
+		<rpIndName>GIS Officer</rpIndName>
+		<rpOrgName>City of London Corporation - Open Spaces</rpOrgName>
+		<rpPosName>GIS Officer</rpPosName>
+		<rpCntInfo>
+			<cntPhone>
+				<voiceNum>02085321010</voiceNum>
+			</cntPhone>
+			<cntAddress>
+				<delPoint>The Warren, Nursery Road</delPoint>
+				<city>Loughton</city>
+				<adminArea>Essex</adminArea>
+				<postCode>IG10 4RW</postCode>
+				<country>GB</country>
+				<eMailAdd>EppingForest@cityoflondon.gov.uk</eMailAdd>
+			</cntAddress>
+		</rpCntInfo>
+		<role>
+			<RoleCd value="007"/>
+		</role>
+	</mdContact>
+	<mdDateSt Sync="TRUE">20251119</mdDateSt>
+	<mdStanName>ArcGIS Metadata</mdStanName>
+	<mdStanVer>1.0</mdStanVer>
+	<distInfo>
+		<distFormat>
+			<formatName Sync="TRUE">SDE Feature Class</formatName>
+			<formatVer>10.2.2</formatVer>
+		</distFormat>
+		<distTranOps/>
+	</distInfo>
+	<dataIdInfo>
+		<idCitation>
+			<resTitle Sync="FALSE">Veteran Tree Table</resTitle>
+			<resAltTitle/>
+			<date>
+				<createDate>2014-06-05T00:00:00</createDate>
+				<pubDate>2014-06-05T00:00:00</pubDate>
+				<reviseDate>2025-04-01T11:33:33</reviseDate>
+			</date>
+			<citId>
+				<identCode>773334e9858d0cffaf78f4c0ea744349</identCode>
+			</citId>
+			<presForm>
+				<PresFormCd value="005" Sync="TRUE"/>
+			</presForm>
+		</idCitation>
+		<idAbs>This dataset shows the location of veteran pollarded trees in Epping Forest. Epping Forest is one of City of London Open Spaces. A veteran tree is one that has generally reached maturity and supports a rich and diverse range of wildlife including important habitat features such as dead wood, hollowing, loose bark and holes.</idAbs>
+		<idPoC>
+			<rpIndName>GIS Officer</rpIndName>
+			<rpOrgName>City of London Corporation - Open Spaces</rpOrgName>
+			<rpPosName>GIS Officer</rpPosName>
+			<rpCntInfo>
+				<cntPhone>
+					<voiceNum>02085321010</voiceNum>
+				</cntPhone>
+				<cntAddress>
+					<delPoint>The Warren, Nursery Road</delPoint>
+					<city>Loughton</city>
+					<adminArea>Essex</adminArea>
+					<postCode>IG10 4RW</postCode>
+					<country>GB</country>
+					<eMailAdd>EppingForest@cityoflondon.gov.uk</eMailAdd>
+				</cntAddress>
+			</rpCntInfo>
+			<role>
+				<RoleCd value="007"/>
+			</role>
+		</idPoC>
+		<resMaint>
+			<maintFreq>
+				<MaintFreqCd value="009"/>
+			</maintFreq>
+		</resMaint>
+		<themeKeys>
+			<keyword>Open Spaces</keyword>
+			<keyword>Epping Forest</keyword>
+			<keyword>City of London</keyword>
+			<keyword>CoL</keyword>
+			<keyword>Veteran Tree</keyword>
+			<thesaName>
+				<resTitle>Tree</resTitle>
+				<resAltTitle/>
+				<date>
+					<pubDate>2014-06-09T00:00:00</pubDate>
+				</date>
+				<date>
+					<createDate>2008-06-01T00:00:00</createDate>
+				</date>
+			</thesaName>
+		</themeKeys>
+		<searchKeys>
+			<keyword>Open Spaces</keyword>
+			<keyword>Epping Forest</keyword>
+			<keyword>City of London</keyword>
+			<keyword>CoL</keyword>
+			<keyword>Veteran Tree</keyword>
+		</searchKeys>
+		<resConst>
+			<Consts>
+				<useLimit>Public Sector INSPIRE WMS End User Licence</useLimit>
+			</Consts>
+		</resConst>
+		<dataScale>
+			<scaleDist>
+				<value uom="urn:ogc:def:uom:EPSG::9001">0.5</value>
+			</scaleDist>
+		</dataScale>
+		<dataLang>
+			<languageCode value="eng"/>
+			<countryCode value="GBR" Sync="TRUE"/>
+		</dataLang>
+		<dataExt>
+			<geoEle>
+				<GeoBndBox>
+					<westBL>-0.071216</westBL>
+					<eastBL>0.188247</eastBL>
+					<southBL>51.5398</southBL>
+					<northBL>51.756607</northBL>
+				</GeoBndBox>
+			</geoEle>
+			<geoEle>
+				<GeoDesc/>
+			</geoEle>
+			<tempEle>
+				<TempExtent>
+					<exTemp/>
+				</TempExtent>
+			</tempEle>
+		</dataExt>
+		<suppInfo/>
+		<envirDesc Sync="TRUE"> Version 6.2 (Build 9200) ; Esri ArcGIS 10.5.1.7333</envirDesc>
+		<spatRpType>
+			<SpatRepTypCd value="001" Sync="TRUE"/>
+		</spatRpType>
+		<dataExt>
+			<geoEle>
+				<GeoBndBox esriExtentType="search">
+					<exTypeCode Sync="TRUE">1</exTypeCode>
+					<westBL Sync="TRUE">-7.776520</westBL>
+					<eastBL Sync="TRUE">0.143963</eastBL>
+					<northBL Sync="TRUE">51.730071</northBL>
+					<southBL Sync="TRUE">49.766186</southBL>
+				</GeoBndBox>
+			</geoEle>
+		</dataExt>
+	</dataIdInfo>
+	<dqInfo>
+		<dqScope>
+			<scpLvl>
+				<ScopeCd value="005"/>
+			</scpLvl>
+		</dqScope>
+		<dataLineage>
+			<statement>This dataset was created by capturing location of trees by GPS.</statement>
+		</dataLineage>
+		<report type="DQDomConsis" dimension="">
+			<measResult>
+				<ConResult>
+					<conSpec>
+						<resTitle>Commission Regulation (EU) No 1089/2010 of 23 November 2010 implementing Directive 2007/2/EC of the European Parliament and of the Council as regards interoperability of spatial data sets and services</resTitle>
+						<date>
+							<pubDate>2010-12-08T00:00:00</pubDate>
+						</date>
+					</conSpec>
+					<conPass>1</conPass>
+				</ConResult>
+			</measResult>
+		</report>
+	</dqInfo>
+	<refSysInfo>
+		<RefSystem>
+			<refSysID>
+				<identCode code="urn:ogc:def:crs:EPSG:27700"/>
+				<idCodeSpace Sync="TRUE">EPSG</idCodeSpace>
+				<idVersion Sync="TRUE">6.7(3.0.1)</idVersion>
+			</refSysID>
+		</RefSystem>
+	</refSysInfo>
+	<spatRepInfo>
+		<VectSpatRep><geometObjs Name="SY_OSD_EPPING.NaturalAspect_VeteranTree"><geoObjTyp><GeoObjTypCd value="004" Sync="TRUE"></GeoObjTypCd></geoObjTyp><geoObjCnt Sync="TRUE">24907</geoObjCnt></geometObjs><topLvl><TopoLevCd value="001" Sync="TRUE"></TopoLevCd></topLvl></VectSpatRep></spatRepInfo>
+	<spdoinfo>
+		<ptvctinf><esriterm Name="SY_OSD_EPPING.NaturalAspect_VeteranTree"><efeatyp Sync="TRUE">Simple</efeatyp><efeageom code="1" Sync="TRUE"></efeageom><esritopo Sync="TRUE">FALSE</esritopo><efeacnt Sync="TRUE">24907</efeacnt><spindex Sync="TRUE">TRUE</spindex><linrefer Sync="TRUE">FALSE</linrefer></esriterm></ptvctinf></spdoinfo>
+	<mdMaint>
+		<maintFreq>
+			<MaintFreqCd value="009"/>
+		</maintFreq>
+	</mdMaint>
+</metadata>

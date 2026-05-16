@@ -1,0 +1,12 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/cows"
+  to = "/.netlify/functions/cows"
+  status = 200
+  force = true
