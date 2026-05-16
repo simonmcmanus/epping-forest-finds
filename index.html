@@ -399,6 +399,47 @@
       display: none;
     }
 
+    .location-gate {
+      position: absolute;
+      inset: 0;
+      z-index: 110;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--paper);
+      padding: 24px;
+    }
+
+    .location-gate[hidden] {
+      display: none;
+    }
+
+    .location-gate-card {
+      width: 100%;
+      max-width: 420px;
+      background: #fff;
+      border: 1px solid rgba(36, 56, 47, 0.15);
+      box-shadow: var(--shadow);
+      border-radius: 16px;
+      padding: 24px 22px;
+      text-align: center;
+      display: grid;
+      gap: 12px;
+    }
+
+    .location-gate-title {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 900;
+      color: var(--ink);
+    }
+
+    .location-gate-text {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
     .loading-card {
       width: 100%;
       max-width: 380px;
@@ -882,6 +923,14 @@
         </div>
       </div>
 
+      <div id="locationGate" class="location-gate" aria-live="polite" hidden>
+        <div class="location-gate-card">
+          <h2 class="location-gate-title">Location required</h2>
+          <p id="locationGateMessage" class="location-gate-text">You need to enable location to continue.</p>
+          <button id="locationGateButton" class="button" type="button">Enable location to continue</button>
+        </div>
+      </div>
+
       <div id="compassOverlay" class="compass-overlay" aria-live="polite" hidden>
         <div id="compassArrow" class="compass-arrow">↑</div>
         <div id="compassLabel" class="compass-label">Pointing to selected location</div>
@@ -893,7 +942,7 @@
       </div>
 
       <div id="status" class="status">Loading offline map data...</div>
-      <div id="versionBadge" class="version">v62 loading</div>
+      <div id="versionBadge" class="version">v63 loading</div>
 
       <div class="legend" aria-label="Map legend">
         <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
@@ -964,7 +1013,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v62";
+    const APP_VERSION = "v63";
 
     const state = {
       trees: [],
@@ -1026,6 +1075,9 @@
       status: document.getElementById("status"),
       versionBadge: document.getElementById("versionBadge"),
       loadingOverlay: document.getElementById("loadingOverlay"),
+      locationGate: document.getElementById("locationGate"),
+      locationGateMessage: document.getElementById("locationGateMessage"),
+      locationGateButton: document.getElementById("locationGateButton"),
       inspector: document.getElementById("inspector"),
       inspectorBack: document.getElementById("inspectorBack"),
       inspectorTitleEmoji: document.getElementById("inspectorTitleEmoji"),
@@ -1135,6 +1187,7 @@
         // Brief pause so user can see all steps complete before overlay dismisses
         await new Promise((resolve) => setTimeout(resolve, 600));
         if (els.loadingOverlay) els.loadingOverlay.hidden = true;
+        setLocationGateVisible(!state.userLocation);
         setStatus("Offline map data loaded.");
         selectOverview();
         draw();
@@ -1220,6 +1273,12 @@
       els.locateButton.addEventListener("click", () => {
         locateUser({ initial: false });
       });
+
+      if (els.locationGateButton) {
+        els.locationGateButton.addEventListener("click", () => {
+          locateUser({ initial: false });
+        });
+      }
 
       els.filterToggle.addEventListener("click", () => {
         if (els.inspector.classList.contains("minimized")) {
@@ -1363,6 +1422,7 @@
 
     function locateUser({ initial }) {
       if (!navigator.geolocation) {
+        setLocationGateVisible(true, "You need to enable location to continue.");
         if (!initial) setStatus("This browser does not support location access.");
         return;
       }
@@ -1375,6 +1435,7 @@
           const { latitude, longitude, accuracy } = position.coords;
             const point = projectLonLat(longitude, latitude);
             state.userLocation = { latitude, longitude, accuracy, point };
+            setLocationGateVisible(false);
             updateLocateButtonVisibility();
             state.userInMapArea = pointInsideBounds(point, state.bounds);
             const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
@@ -1400,6 +1461,11 @@
         },
         (error) => {
           els.locateButton.disabled = false;
+          const denied = error && error.code === 1;
+          const gateMessage = denied
+            ? "You need to enable location to continue. On iPhone: Settings → Safari → Location → Allow, then reopen this app."
+            : "You need to enable location to continue.";
+          setLocationGateVisible(true, gateMessage);
           setStatus(initial
             ? "Location was not available yet. Use the button when you are ready."
             : error.message || "Location access was not available.");
@@ -3523,6 +3589,14 @@
     function updateLocateButtonVisibility() {
       const geolocationAvailable = typeof navigator !== "undefined" && Boolean(navigator.geolocation);
       els.locateButton.hidden = !geolocationAvailable || Boolean(state.userLocation);
+    }
+
+    function setLocationGateVisible(visible, message) {
+      if (!els.locationGate) return;
+      els.locationGate.hidden = !visible;
+      if (message && els.locationGateMessage) {
+        els.locationGateMessage.textContent = message;
+      }
     }
 
     function distanceMetres(lat1, lon1, lat2, lon2) {
