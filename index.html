@@ -1265,7 +1265,7 @@
             if (state.compassPermission === "granted") {
               setLocationGateVisible(false);
               updateCompassOverlay();
-            } else if (selectedCompassTarget()) {
+            } else if (compassPermissionCanBeRequested()) {
               showCompassAccessPrompt();
             }
           }
@@ -1438,6 +1438,11 @@
             state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
             state.selected = null;
             ensureLocationWatch();
+            if (compassPermissionCanBeRequested() && state.compassPermission !== "granted") {
+              showCompassAccessPrompt();
+            } else {
+              setLocationGateVisible(false);
+            }
             selectOverview();
             ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
             if (!initial) {
@@ -2862,9 +2867,13 @@
       setLocationGateVisible(true, message, "Enable compass and location");
     }
 
+    function compassPermissionCanBeRequested() {
+      return typeof DeviceOrientationEvent !== "undefined"
+        && typeof DeviceOrientationEvent.requestPermission === "function";
+    }
+
     function setupCompassPermissionPrimer() {
-      if (typeof DeviceOrientationEvent === "undefined") return;
-      if (typeof DeviceOrientationEvent.requestPermission !== "function") return;
+      if (!compassPermissionCanBeRequested()) return;
 
       const onFirstGesture = async () => {
         await requestCompassPermissionIfNeeded({ fromGesture: true });
@@ -2878,7 +2887,7 @@
 
     async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
       if (typeof DeviceOrientationEvent === "undefined") {
-        if (fromGesture && selectedCompassTarget()) {
+        if (fromGesture) {
           const message = "Compass is not available on this device/browser. You can still use the map without compass guidance.";
           setLocationGateVisible(true, message, "Continue without compass");
         }
@@ -2894,12 +2903,12 @@
       try {
         const permission = await DeviceOrientationEvent.requestPermission();
         state.compassPermission = permission === "granted" ? "granted" : "denied";
-        if (state.compassPermission !== "granted" && selectedCompassTarget()) {
+        if (state.compassPermission !== "granted") {
           showCompassAccessPrompt();
         }
       } catch {
         state.compassPermission = "denied";
-        if (selectedCompassTarget()) showCompassAccessPrompt();
+        showCompassAccessPrompt();
       }
     }
 
