@@ -482,6 +482,7 @@
       width: 22px;
       height: 22px;
       flex: 0 0 auto;
+      position: relative;
       border-radius: 999px;
       border: 2px solid currentColor;
       display: grid;
@@ -492,7 +493,17 @@
     }
 
     .loading-step.pending .step-icon::after   { content: "" }
-    .loading-step.loading .step-icon::after   { content: "⋯"; font-size: 1rem; line-height: 1; }
+    .loading-step.loading .step-icon::after   { content: ""; }
+    .loading-step.loading .step-icon::before  {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: 999px;
+      border: 2px solid rgba(23, 34, 30, 0.2);
+      border-top-color: currentColor;
+      border-right-color: currentColor;
+      animation: step-spin 0.9s linear infinite;
+    }
     .loading-step.done    .step-icon::after   { content: "✓"; font-size: 0.8rem; }
     .loading-step.done    .step-icon          { background: var(--tree); border-color: var(--tree); color: #fff; }
     .loading-step.error   .step-icon::after   { content: "!"; font-size: 0.85rem; }
