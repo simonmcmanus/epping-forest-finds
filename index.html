@@ -923,10 +923,10 @@
         </div>
       </div>
 
-      <div id="locationGate" class="location-gate" aria-live="polite" hidden>
+      <div id="locationGate" class="location-gate" aria-live="polite">
         <div class="location-gate-card">
           <h2 class="location-gate-title">Location required</h2>
-          <p id="locationGateMessage" class="location-gate-text">You need to enable location to continue.</p>
+          <p id="locationGateMessage" class="location-gate-text">You need to enable location to continue. Map data is loading in the background.</p>
           <button id="locationGateButton" class="button" type="button">Enable location to continue</button>
         </div>
       </div>
@@ -942,7 +942,7 @@
       </div>
 
       <div id="status" class="status">Loading offline map data...</div>
-      <div id="versionBadge" class="version">v65 loading</div>
+      <div id="versionBadge" class="version">v67 loading</div>
 
       <div class="legend" aria-label="Map legend">
         <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
@@ -969,16 +969,16 @@
             <p id="inspectorType" class="type"></p>
           </div>
           <div class="inspector-actions">
-            <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Show filters" aria-expanded="false" aria-pressed="false" aria-controls="filterPanel"><span class="filter-icon" aria-hidden="true"></span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
+            <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Hide filters" aria-expanded="true" aria-pressed="false" aria-controls="filterPanel"><span class="filter-icon" aria-hidden="true"></span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
             <button id="closeInspector" class="close" type="button" aria-label="Minimize details">—</button>
           </div>
         </div>
         <div class="inspector-tools">
-          <div id="filterPanel" class="filter-panel" hidden>
+          <div id="filterPanel" class="filter-panel">
             <button class="filter-chip" type="button" data-overview-filter="all">All</button>
             <button class="filter-chip" type="button" data-overview-filter="trees">🌳 Trees</button>
             <button class="filter-chip" type="button" data-overview-filter="cows">🐄 Cows</button>
-            <button class="filter-chip" type="button" data-overview-filter="pubs">🍺 Pubs &amp; food</button>
+            <button class="filter-chip" type="button" data-overview-filter="pubs">🍺 Pubs</button>
             <button class="filter-chip" type="button" data-overview-filter="cafes">☕ Cafés</button>
             <button class="filter-chip" type="button" data-overview-filter="transport">🚌 Transport</button>
             <button class="filter-chip" type="button" data-overview-filter="locations">📍 Locations</button>
@@ -1013,7 +1013,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v65";
+    const APP_VERSION = "v67";
 
     const state = {
       trees: [],
@@ -1450,10 +1450,13 @@
             selectOverview();
             ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
             if (!initial) {
+              const nearestTreeText = state.nearestTree
+                ? formatDistance(state.nearestTree.metres)
+                : "Not recorded";
               const nearestPlaceText = state.nearestPlace
                 ? ` Nearest place: ${placeTitle(state.nearestPlace.place)} (${formatDistance(state.nearestPlace.metres)}).`
                 : "";
-              setStatus(`Nearest tree: ${formatDistance(state.nearestTree.metres)} away.${nearestPlaceText}`);
+              setStatus(`Nearest tree: ${nearestTreeText} away.${nearestPlaceText}`);
             } else {
               setStatus("");
             }
