@@ -942,7 +942,7 @@
       </div>
 
       <div id="status" class="status">Loading offline map data...</div>
-      <div id="versionBadge" class="version">v64 loading</div>
+      <div id="versionBadge" class="version">v65 loading</div>
 
       <div class="legend" aria-label="Map legend">
         <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
@@ -1013,7 +1013,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v64";
+    const APP_VERSION = "v65";
 
     const state = {
       trees: [],
@@ -1192,7 +1192,6 @@
         selectOverview();
         draw();
         applySelectionFromHash();
-        locateUser({ initial: true });
       } catch (error) {
         console.error(error);
         if (els.loadingOverlay) els.loadingOverlay.hidden = true;
@@ -1270,7 +1269,8 @@
         setInspectorMinimized(false);
       });
 
-      els.locateButton.addEventListener("click", () => {
+      els.locateButton.addEventListener("click", async () => {
+        await requestCompassPermissionIfNeeded();
         locateUser({ initial: false });
       });
 
