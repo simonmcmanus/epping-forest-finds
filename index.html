@@ -901,7 +901,7 @@
         </div>
       </div>
 
-      <div id="locationGate" class="location-gate" aria-live="polite">
+      <div id="locationGate" class="location-gate" aria-live="polite" hidden>
         <div class="location-gate-card">
           <h2 class="location-gate-title">Location required</h2>
           <p id="locationGateMessage" class="location-gate-text">You need to enable location to continue. Map data is loading in the background.</p>
@@ -1163,7 +1163,12 @@
         // Brief pause so user can see all steps complete before overlay dismisses
         await new Promise((resolve) => setTimeout(resolve, 600));
         if (els.loadingOverlay) els.loadingOverlay.hidden = true;
-        setLocationGateVisible(!state.userLocation);
+        if (!navigator.geolocation) {
+          setLocationGateVisible(true, "You need to enable location to continue.");
+        } else {
+          setLocationGateVisible(false);
+          locateUser({ initial: true });
+        }
         setStatus("Offline map data loaded.");
         selectOverview();
         draw();
@@ -1442,10 +1447,12 @@
         (error) => {
           els.locateButton.disabled = false;
           const denied = error && error.code === 1;
-          const gateMessage = denied
-            ? "You need to enable location to continue. On iPhone: Settings → Safari → Location → Allow, then reopen this app."
-            : "You need to enable location to continue.";
-          setLocationGateVisible(true, gateMessage);
+          if (denied) {
+            const gateMessage = "You need to enable location to continue. On iPhone: Settings → Safari → Location → Allow, then reopen this app.";
+            setLocationGateVisible(true, gateMessage);
+          } else {
+            setLocationGateVisible(false);
+          }
           setStatus(initial
             ? "Location was not available yet. Use the button when you are ready."
             : error.message || "Location access was not available.");
@@ -1700,12 +1707,13 @@
 
       for (const layer of state.layers) drawLayer(ctx, layer);
       drawCowPastures(ctx);
-      drawOverviewRoutes(ctx);
-      drawSelectedRoute(ctx);
       drawTrees(ctx);
       drawLandmarks(ctx);
       drawCows(ctx);
+      drawOverviewRoutes(ctx);
+      drawSelectedRoute(ctx);
       drawUser(ctx);
+      drawSelectedOverlay(ctx);
     }
 
     function drawCowPastures(ctx) {
@@ -1745,9 +1753,12 @@
 
       const dpr = pixelRatio();
       const from = worldToScreen(state.userLocation.point);
+      const routeLineWidth = 2.2 * dpr;
+      const haloLineWidth = routeLineWidth + 2.6 * dpr;
 
       ctx.save();
-      ctx.lineWidth = 2.2 * dpr;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
       ctx.setLineDash([8 * dpr, 7 * dpr]);
 
       for (const target of targets) {
@@ -1755,6 +1766,10 @@
         ctx.beginPath();
         ctx.moveTo(from.x, from.y);
         ctx.lineTo(to.x, to.y);
+        ctx.lineWidth = haloLineWidth;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+        ctx.stroke();
+        ctx.lineWidth = routeLineWidth;
         ctx.strokeStyle = target.color;
         ctx.stroke();
       }
@@ -1769,14 +1784,21 @@
       const dpr = pixelRatio();
       const from = worldToScreen(state.userLocation.point);
       const to = worldToScreen(target.point);
+      const routeLineWidth = 3 * dpr;
+      const haloLineWidth = routeLineWidth + 3 * dpr;
 
       ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
       ctx.lineTo(to.x, to.y);
-      ctx.strokeStyle = "rgba(179, 79, 49, 0.9)";
-      ctx.lineWidth = 3 * dpr;
       ctx.setLineDash([10 * dpr, 8 * dpr]);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+      ctx.lineWidth = haloLineWidth;
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(179, 79, 49, 0.9)";
+      ctx.lineWidth = routeLineWidth;
       ctx.stroke();
       ctx.restore();
     }
@@ -2090,6 +2112,42 @@
       ctx.fillStyle = "#14211d";
       ctx.font = `800 ${14 * dpr}px system-ui`;
       ctx.fillText("You", point.x + 17 * dpr, point.y + 5 * dpr);
+      ctx.restore();
+    }
+
+    function drawSelectedOverlay(ctx) {
+      if (!state.selected || !state.selected.item) return;
+
+      const dpr = pixelRatio();
+
+      if (state.selected.type === "tree") {
+        drawTreeMarker(ctx, state.selected.item, "#b34f31", 10 * dpr, true);
+        return;
+      }
+
+      const point = worldToScreen(state.selected.item.point);
+      if (!isNearCanvas(point, 24 * dpr)) return;
+
+      if (state.selected.type === "cow") {
+        drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr);
+      } else if (state.selected.type === "landmark") {
+        const selectedPlace = state.selected.item;
+        const emoji = isPubCategory(selectedPlace)
+          ? "🍺"
+          : isCafeCategory(selectedPlace)
+            ? "☕"
+            : isTransportCategory(selectedPlace)
+              ? (getTransportType(selectedPlace) === "train" ? "🚆" : "🚌")
+              : "📍";
+        drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr);
+      }
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 10 * dpr, 0, Math.PI * 2);
+      ctx.strokeStyle = "#b34f31";
+      ctx.lineWidth = 3 * dpr;
+      ctx.stroke();
       ctx.restore();
     }
 
