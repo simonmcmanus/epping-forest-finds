@@ -2419,10 +2419,8 @@
       setInspectorSelectionChrome({ emoji: "", showBack: false });
       els.inspectorTitle.textContent = "Epping Forest Finds";
       els.inspectorType.textContent = "";
-      if (state.overviewFilters.length > 0) {
-        els.filterPanel.hidden = false;
-        els.filterToggle.setAttribute("aria-expanded", "true");
-      }
+      els.filterPanel.hidden = false;
+      els.filterToggle.setAttribute("aria-expanded", "true");
       const nearestSummary = overviewNearestHtml();
       els.inspectorBody.innerHTML = nearestSummary;
       updateOverviewDirectionArrows();
