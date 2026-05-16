@@ -890,7 +890,6 @@
       <div class="toolbar" aria-label="Map controls">
         <button id="zoomIn" class="tool" type="button" aria-label="Zoom in">+</button>
         <button id="zoomOut" class="tool" type="button" aria-label="Zoom out">-</button>
-        <button id="fitMap" class="tool" type="button" aria-label="Show all trees">⌂</button>
       </div>
 
       <div id="status" class="status">Loading offline map data...</div>
@@ -922,7 +921,6 @@
           </div>
           <div class="inspector-actions">
             <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Show filters" aria-expanded="false" aria-pressed="false" aria-controls="filterPanel"><span class="filter-icon" aria-hidden="true"></span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
-            <button id="resetInspector" class="close" type="button" aria-label="Return to initial view">⌂</button>
             <button id="closeInspector" class="close" type="button" aria-label="Minimize details">—</button>
           </div>
         </div>
@@ -1025,7 +1023,6 @@
       installButton: document.getElementById("installButton"),
       zoomIn: document.getElementById("zoomIn"),
       zoomOut: document.getElementById("zoomOut"),
-      fitMap: document.getElementById("fitMap"),
       status: document.getElementById("status"),
       versionBadge: document.getElementById("versionBadge"),
       loadingOverlay: document.getElementById("loadingOverlay"),
@@ -1035,7 +1032,6 @@
       inspectorTitle: document.getElementById("inspectorTitle"),
       inspectorType: document.getElementById("inspectorType"),
       inspectorBody: document.getElementById("inspectorBody"),
-      resetInspector: document.getElementById("resetInspector"),
       closeInspector: document.getElementById("closeInspector"),
       treeSearchToggle: document.getElementById("treeSearchToggle"),
       treeSearchPanel: document.getElementById("treeSearchPanel"),
@@ -1207,15 +1203,8 @@
 
       els.zoomIn.addEventListener("click", () => zoomAt(1.55, centerPoint()));
       els.zoomOut.addEventListener("click", () => zoomAt(1 / 1.55, centerPoint()));
-      els.fitMap.addEventListener("click", () => {
-        fitToBounds(true, { animate: true });
-      });
       els.closeInspector.addEventListener("click", () => {
         setInspectorMinimized(!els.inspector.classList.contains("minimized"));
-      });
-
-      els.resetInspector.addEventListener("click", () => {
-        goToInitialView();
       });
 
       els.inspectorBack.addEventListener("click", () => {
