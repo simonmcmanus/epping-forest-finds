@@ -177,7 +177,6 @@
 
     .toolbar,
     .legend,
-    .status,
     .inspector {
       position: absolute;
       z-index: 2;
@@ -366,21 +365,6 @@
       background: currentColor;
       border: 2px solid #fff;
       box-shadow: 0 0 0 1px currentColor;
-    }
-
-    .status {
-      left: 14px;
-      top: 78px;
-      max-width: min(440px, calc(100vw - 28px));
-      padding: 10px 12px;
-      border-radius: 8px;
-      color: var(--muted);
-      font-size: 0.9rem;
-      line-height: 1.35;
-    }
-
-    .status:empty {
-      display: none;
     }
 
     .loading-overlay {
@@ -880,12 +864,6 @@
         left: 10px;
       }
 
-      .status {
-        top: 72px;
-        left: 10px;
-        max-width: calc(100vw - 20px);
-      }
-
       .legend {
         display: none;
       }
@@ -904,7 +882,7 @@
 
       <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data">
         <div class="loading-card">
-          <div class="loading-brand">🌳 Forest Finds</div>
+          <div class="loading-brand">🌳 Epping Forest Finds</div>
           <p class="loading-intro">Loading everything needed to work offline — once ready, the map works without internet access.</p>
           <ul id="loadingSteps" class="loading-steps">
             <li class="loading-step pending" data-load-step="trees">
@@ -941,7 +919,6 @@
         <button id="zoomOut" class="tool" type="button" aria-label="Zoom out">-</button>
       </div>
 
-      <div id="status" class="status">Loading offline map data...</div>
       <div id="versionBadge" class="version">v67 loading</div>
 
       <div class="legend" aria-label="Map legend">
@@ -964,7 +941,7 @@
             <div class="inspector-title-row">
               <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back to nearest locations" hidden>←</button>
               <span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>
-              <h2 id="inspectorTitle">Forest Finds</h2>
+              <h2 id="inspectorTitle">Epping Forest Finds</h2>
             </div>
             <p id="inspectorType" class="type"></p>
           </div>
@@ -1072,7 +1049,6 @@
       installButton: document.getElementById("installButton"),
       zoomIn: document.getElementById("zoomIn"),
       zoomOut: document.getElementById("zoomOut"),
-      status: document.getElementById("status"),
       versionBadge: document.getElementById("versionBadge"),
       loadingOverlay: document.getElementById("loadingOverlay"),
       locationGate: document.getElementById("locationGate"),
@@ -2368,7 +2344,7 @@
 
     function selectOverview() {
       setInspectorSelectionChrome({ emoji: "", showBack: false });
-      els.inspectorTitle.textContent = "Forest Finds";
+      els.inspectorTitle.textContent = "Epping Forest Finds";
       els.inspectorType.textContent = "";
       if (state.overviewFilters.length > 0) {
         els.filterPanel.hidden = false;
@@ -3596,8 +3572,7 @@
       state.animationFrame = requestAnimationFrame(draw);
     }
 
-    function setStatus(message) {
-      els.status.textContent = message;
+    function setStatus(_message) {
     }
 
     function updateLocateButtonVisibility() {
