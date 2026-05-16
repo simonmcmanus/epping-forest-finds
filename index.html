@@ -1221,6 +1221,7 @@
 
     function setupInteractions() {
       setupCompassListeners();
+      setupCompassPermissionPrimer();
       updateMapControlVisibility();
       updateFilterUi();
 
@@ -1251,13 +1252,13 @@
       });
 
       els.locateButton.addEventListener("click", async () => {
-        await requestCompassPermissionIfNeeded();
+        await requestCompassPermissionIfNeeded({ fromGesture: true });
         locateUser({ initial: false });
       });
 
       if (els.locationGateButton) {
         els.locationGateButton.addEventListener("click", async () => {
-          await requestCompassPermissionIfNeeded();
+          await requestCompassPermissionIfNeeded({ fromGesture: true });
           locateUser({ initial: false });
         });
       }
@@ -2843,19 +2844,34 @@
       updateCompassOverlay();
     }
 
-    async function requestCompassPermissionIfNeeded() {
+    function setupCompassPermissionPrimer() {
+      if (typeof DeviceOrientationEvent === "undefined") return;
+      if (typeof DeviceOrientationEvent.requestPermission !== "function") return;
+
+      const onFirstGesture = async () => {
+        await requestCompassPermissionIfNeeded({ fromGesture: true });
+        window.removeEventListener("pointerdown", onFirstGesture, true);
+        window.removeEventListener("touchstart", onFirstGesture, true);
+      };
+
+      window.addEventListener("pointerdown", onFirstGesture, true);
+      window.addEventListener("touchstart", onFirstGesture, true);
+    }
+
+    async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
       if (typeof DeviceOrientationEvent === "undefined") return;
       if (typeof DeviceOrientationEvent.requestPermission !== "function") {
         if (state.compassPermission === "unknown") state.compassPermission = "granted";
         return;
       }
-      if (state.compassPermission !== "unknown") return;
+      if (state.compassPermission === "granted") return;
+      if (!fromGesture && state.compassPermission === "denied") return;
 
       try {
         const permission = await DeviceOrientationEvent.requestPermission();
         state.compassPermission = permission === "granted" ? "granted" : "denied";
       } catch {
-        state.compassPermission = "denied";
+        state.compassPermission = fromGesture ? "denied" : "unknown";
       }
     }
 
