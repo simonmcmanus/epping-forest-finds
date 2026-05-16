@@ -1259,7 +1259,16 @@
       if (els.locationGateButton) {
         els.locationGateButton.addEventListener("click", async () => {
           await requestCompassPermissionIfNeeded({ fromGesture: true });
-          locateUser({ initial: false });
+          if (!state.userLocation) {
+            locateUser({ initial: false });
+          } else {
+            if (state.compassPermission === "granted") {
+              setLocationGateVisible(false);
+              updateCompassOverlay();
+            } else if (selectedCompassTarget()) {
+              showCompassAccessPrompt();
+            }
+          }
         });
       }
 
@@ -2841,7 +2850,16 @@
 
       await requestCompassPermissionIfNeeded();
 
+      if (state.compassPermission !== "granted") {
+        showCompassAccessPrompt();
+      }
+
       updateCompassOverlay();
+    }
+
+    function showCompassAccessPrompt() {
+      const message = "Compass access is needed for direction guidance. Tap below to enable compass (and location if needed). On iPhone: Settings → Safari → Motion & Orientation Access → On.";
+      setLocationGateVisible(true, message, "Enable compass and location");
     }
 
     function setupCompassPermissionPrimer() {
@@ -2859,19 +2877,29 @@
     }
 
     async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
-      if (typeof DeviceOrientationEvent === "undefined") return;
+      if (typeof DeviceOrientationEvent === "undefined") {
+        if (fromGesture && selectedCompassTarget()) {
+          const message = "Compass is not available on this device/browser. You can still use the map without compass guidance.";
+          setLocationGateVisible(true, message, "Continue without compass");
+        }
+        return;
+      }
       if (typeof DeviceOrientationEvent.requestPermission !== "function") {
         if (state.compassPermission === "unknown") state.compassPermission = "granted";
         return;
       }
       if (state.compassPermission === "granted") return;
-      if (!fromGesture && state.compassPermission === "denied") return;
+      if (!fromGesture) return;
 
       try {
         const permission = await DeviceOrientationEvent.requestPermission();
         state.compassPermission = permission === "granted" ? "granted" : "denied";
+        if (state.compassPermission !== "granted" && selectedCompassTarget()) {
+          showCompassAccessPrompt();
+        }
       } catch {
-        state.compassPermission = fromGesture ? "denied" : "unknown";
+        state.compassPermission = "denied";
+        if (selectedCompassTarget()) showCompassAccessPrompt();
       }
     }
 
@@ -3654,11 +3682,14 @@
       els.locateButton.hidden = !geolocationAvailable || Boolean(state.userLocation);
     }
 
-    function setLocationGateVisible(visible, message) {
+    function setLocationGateVisible(visible, message, buttonLabel) {
       if (!els.locationGate) return;
       els.locationGate.hidden = !visible;
       if (message && els.locationGateMessage) {
         els.locationGateMessage.textContent = message;
+      }
+      if (els.locationGateButton) {
+        els.locationGateButton.textContent = buttonLabel || "Enable location to continue";
       }
     }
 
