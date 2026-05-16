@@ -942,7 +942,7 @@
       </div>
 
       <div id="status" class="status">Loading offline map data...</div>
-      <div id="versionBadge" class="version">v63 loading</div>
+      <div id="versionBadge" class="version">v64 loading</div>
 
       <div class="legend" aria-label="Map legend">
         <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
@@ -1013,7 +1013,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v63";
+    const APP_VERSION = "v64";
 
     const state = {
       trees: [],
@@ -1248,7 +1248,7 @@
         updateMapControlVisibility();
         resizeCanvas();
         if (state.bounds) {
-          if (state.userLocation && selectedCompassTarget()) ensureUserAndSelectionVisible();
+          if (state.userLocation && selectedCompassTarget()) ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
           else fitToBounds(false);
         }
         requestDraw();
@@ -1275,7 +1275,8 @@
       });
 
       if (els.locationGateButton) {
-        els.locationGateButton.addEventListener("click", () => {
+        els.locationGateButton.addEventListener("click", async () => {
+          await requestCompassPermissionIfNeeded();
           locateUser({ initial: false });
         });
       }
@@ -1389,7 +1390,7 @@
       els.canvas.addEventListener("pointermove", (event) => {
         if (!state.dragging) return;
         if (shouldAutoRepositionSelection()) {
-          ensureUserAndSelectionVisible();
+          ensureUserAndSelectionVisible({ animate: true, durationMs: 300 });
           return;
         }
         const dx = event.clientX - state.dragStart.x;
@@ -1695,7 +1696,7 @@
       if (!state.bounds) return;
       stopViewportAnimation();
       if (shouldAutoRepositionSelection()) {
-        ensureUserAndSelectionVisible();
+        ensureUserAndSelectionVisible({ animate: true, durationMs: 320 });
         return;
       }
       const before = screenToWorld(screenPoint.x, screenPoint.y);
@@ -2800,16 +2801,25 @@
 
       ensureLocationWatch();
 
-      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function" && state.compassPermission === "unknown") {
-        try {
-          const permission = await DeviceOrientationEvent.requestPermission();
-          state.compassPermission = permission === "granted" ? "granted" : "denied";
-        } catch {
-          state.compassPermission = "denied";
-        }
-      }
+      await requestCompassPermissionIfNeeded();
 
       updateCompassOverlay();
+    }
+
+    async function requestCompassPermissionIfNeeded() {
+      if (typeof DeviceOrientationEvent === "undefined") return;
+      if (typeof DeviceOrientationEvent.requestPermission !== "function") {
+        if (state.compassPermission === "unknown") state.compassPermission = "granted";
+        return;
+      }
+      if (state.compassPermission !== "unknown") return;
+
+      try {
+        const permission = await DeviceOrientationEvent.requestPermission();
+        state.compassPermission = permission === "granted" ? "granted" : "denied";
+      } catch {
+        state.compassPermission = "denied";
+      }
     }
 
     function setupCompassListeners() {
@@ -2902,7 +2912,7 @@
           }
           updateOverviewDirectionArrows();
           updateSelectedDetailFields();
-          ensureUserAndSelectionVisible();
+          ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
           updateCompassOverlay();
           requestDraw();
         },
@@ -2925,13 +2935,14 @@
       const target = selectedCompassTarget();
       if (!target || !state.userLocation) return;
       if (!options.force && els.inspector.classList.contains("minimized")) return;
+      const shouldAnimate = options.animate !== false;
       fitToPoints(
         [state.userLocation.point, target.point],
         false,
         {
           focusVisibleArea: true,
           assumeInspectorOpen: true,
-          animate: Boolean(options.animate),
+          animate: shouldAnimate,
           durationMs: options.durationMs || 480,
         }
       );
@@ -3412,7 +3423,7 @@
       selectOverview();
       setInspectorMinimized(false);
       ensureOverviewTargetsVisible({ animate: true, durationMs: 520 });
-      if (!state.userLocation) fitToBounds(false);
+      if (!state.userLocation) fitToBounds(false, { animate: true, durationMs: 520 });
       updateCompassOverlay();
       if (updateHash) setHashFromSelection();
       requestDraw();
