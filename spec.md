@@ -22,6 +22,8 @@ Provide a fast, mobile-first field map that still works in poor signal condition
 - `data/epping-forest-land.geojson`
 - `data/epping-buffer-land.geojson`
 - `data/local-landmarks.geojson`
+- `data/local-paths.geojson`
+- `data/local-environment.geojson`
 
 ### Local landmarks extraction (OpenStreetMap via Overpass)
 
@@ -32,7 +34,30 @@ Includes:
 - pubs/bars
 - cafés/tea huts
 - transport links: train-related points, bus stations, bus stops, taxi points
-- named tourism/historic places
+- access infrastructure: gates, entrances, parking, toilets, benches, cycle parking
+- named tourism/historic places (including monuments where tagged)
+
+### Paths and bridleways extraction (OpenStreetMap via Overpass)
+
+Query file: `data/local-paths.overpassql`
+
+Includes:
+
+- paths and footways
+- bridleways
+- byways and permissive paths
+- waymarked trails where OSM tags are present
+- cycleways and tracks
+- named trails/paths where OSM has names/refs
+
+### Environment extraction (OpenStreetMap via Overpass)
+
+Query file: `data/local-environment.overpassql`
+
+Includes:
+
+- hydrology lines and water/wetland areas
+- nature designations and protected areas
 
 ### Live data
 
@@ -68,6 +93,8 @@ Rendered layers/features:
 - Buffer land polygons
 - Veteran trees
 - Local places/landmarks
+- Paths, trails, and bridleways
+- Hydrology and nature designations
 - Cows and pasture polygons
 - User location marker
 

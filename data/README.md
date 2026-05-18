@@ -19,7 +19,19 @@ This folder stores local GeoJSON files used by the PWA when offline.
 - `local-landmarks.geojson`
   - Source: OpenStreetMap via Overpass API.
   - Query: `local-landmarks.overpassql`
-  - Contents: pubs, bars, cafés/tea huts, transport links (train/bus/taxi), and named tourism/historic landmarks around the Epping Forest tree dataset extent.
+  - Contents: pubs, bars, cafés/tea huts, transport links (train/bus/taxi), access infrastructure (gates, entrances, parking, toilets, cycle parking, benches), and historic/tourism landmarks around the Epping Forest tree dataset extent.
+  - Licence: OpenStreetMap data is available under the Open Data Commons Open Database License (ODbL). Attribute OpenStreetMap contributors when using this layer.
+
+- `local-paths.geojson`
+  - Source: OpenStreetMap via Overpass API.
+  - Query: `local-paths.overpassql`
+  - Contents: paths, footways, bridleways, byways, permissive paths, waymarked trails, cycleways, and tracks in the Epping Forest area, including names/refs where available.
+  - Licence: OpenStreetMap data is available under the Open Data Commons Open Database License (ODbL). Attribute OpenStreetMap contributors when using this layer.
+
+- `local-environment.geojson`
+  - Source: OpenStreetMap via Overpass API.
+  - Query: `local-environment.overpassql`
+  - Contents: hydrology features (streams, rivers, ditches, water areas/wetlands) and nature designation polygons (protected areas, nature reserves, SSSI-related tags).
   - Licence: OpenStreetMap data is available under the Open Data Commons Open Database License (ODbL). Attribute OpenStreetMap contributors when using this layer.
 
 Source endpoint:

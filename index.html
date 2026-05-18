@@ -617,7 +617,7 @@
     }
 
     .inspector-title-emoji {
-      font-size: 1.2rem;
+      font-size: 2.4rem;
       line-height: 1;
       flex: 0 0 auto;
     }
@@ -687,6 +687,13 @@
     dd {
       margin: 0;
       overflow-wrap: anywhere;
+    }
+
+    .details-description {
+      margin: 0 0 12px;
+      color: var(--ink);
+      font-size: 1rem;
+      line-height: 1.45;
     }
 
     .empty {
@@ -781,7 +788,7 @@
       border-radius: 8px;
       background: #fff;
       color: var(--ink);
-      padding: 8px 10px;
+      padding: 10px 12px;
       font: inherit;
       font-weight: 700;
       display: grid;
@@ -791,7 +798,7 @@
     .nearest-main {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       min-width: 0;
     }
 
@@ -813,7 +820,16 @@
     }
 
     .nearest-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       min-width: 0;
+    }
+
+    .nearest-emoji {
+      font-size: 2em;
+      line-height: 1;
+      flex: 0 0 auto;
     }
 
     .nearest-kind {
@@ -827,9 +843,17 @@
 
     .nearest-item small {
       display: block;
-      margin-top: 3px;
+      margin-top: 5px;
       color: var(--muted);
       font-weight: 600;
+    }
+
+    @media (min-width: 761px) {
+      .toolbar,
+      .legend,
+      .bottom-search {
+        display: none;
+      }
     }
 
     @media (max-width: 760px) {
@@ -930,16 +954,22 @@
         <button id="zoomOut" class="tool" type="button" aria-label="Zoom out">-</button>
       </div>
 
-      <div id="versionBadge" class="version">v67 loading</div>
+      <div id="versionBadge" class="version">v70 loading</div>
 
       <div class="legend" aria-label="Map legend">
         <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
+        <span style="color: #2f72b2;">💧 Hydrology</span>
+        <span style="color: #488241;">🌿 Nature designations</span>
+        <span style="color: #3a5c45;">🥾 Paths &amp; trails</span>
         <span style="color: #9a6a2f;">🐄 Cows</span>
         <span style="color: var(--place);">🍺 Pubs, bars &amp; restaurants</span>
         <span style="color: #8b4513;">☕ Cafés</span>
         <span style="color: #dc143c;">🚆 Trains</span>
         <span style="color: #ff8c00;">🚌 Buses</span>
         <span style="color: var(--landmark);">📍 Locations</span>
+        <span style="color: #4e5d87;">🪧 Plaques</span>
+        <span style="color: #6d5c3a;">📜 History</span>
+        <span style="color: #6f4d8c;">✨ Legends</span>
       </div>
 
       <div class="bottom-search">
@@ -958,7 +988,6 @@
           </div>
           <div class="inspector-actions">
             <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Hide filters" aria-expanded="true" aria-pressed="false" aria-controls="filterPanel"><span class="filter-icon" aria-hidden="true"></span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
-            <button id="closeInspector" class="close" type="button" aria-label="Minimize details">—</button>
           </div>
         </div>
         <div class="inspector-tools">
@@ -970,6 +999,13 @@
             <button class="filter-chip" type="button" data-overview-filter="cafes">☕ Cafés</button>
             <button class="filter-chip" type="button" data-overview-filter="transport">🚌 Transport</button>
             <button class="filter-chip" type="button" data-overview-filter="locations">📍 Locations</button>
+            <button class="filter-chip" type="button" data-overview-filter="plaques">🪧 Plaques</button>
+            <button class="filter-chip" type="button" data-overview-filter="blue_plaques">🔵 Blue Plaques</button>
+            <button class="filter-chip" type="button" data-overview-filter="film_tv">🎬 Film/TV</button>
+            <button class="filter-chip" type="button" data-overview-filter="ww2">🪖 WWII</button>
+            <button class="filter-chip" type="button" data-overview-filter="royal">👑 Royal</button>
+            <button class="filter-chip" type="button" data-overview-filter="history">📜 History</button>
+            <button class="filter-chip" type="button" data-overview-filter="legends">✨ Legends</button>
           </div>
           <div id="treeSearchPanel" class="search-panel" hidden>
             <input id="treeSearchInput" class="search-number" type="search" inputmode="text" autocomplete="off" placeholder="Search tree number" aria-label="Search by tree number">
@@ -991,6 +1027,9 @@
     const TREE_URL = "Veteran_Tree_Register.json";
     const TREE_ENRICHED_URL = "Veteran_Tree_Register.enriched.with_named_trees.json";
     const LANDMARK_URL = "data/local-landmarks.geojson";
+    const FOLKLORE_URL = "data/epping_forest_folklore_locations_v14_external_links.json";
+    const PATHS_URL = "data/local-paths.geojson";
+    const ENVIRONMENT_URL = "data/local-environment.geojson";
     const COW_PROXY_URL_BASE = "/api/cows?center=";
     const COW_SOURCE_URL_BASE = "https://account.nofence.no/api/open/data/?center=";
     const COW_DATA_CACHE_KEY = "forest-finds-cow-data-v1";
@@ -1001,11 +1040,13 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v67";
+    const APP_VERSION = "v70";
 
     const state = {
       trees: [],
       landmarks: [],
+      paths: [],
+      environmentFeatures: [],
       layers: [],
       bounds: null,
       namedTreeStoriesByName: new Map(),
@@ -1026,7 +1067,7 @@
       cowRefreshTimerId: null,
       cowFetchInFlight: false,
       overviewFilters: [],
-      nearestItemsCount: 3,
+      nearestItemsCount: 10,
       suppressHashChange: false,
       compassHeading: null,
       compassHeadingTarget: null,
@@ -1045,6 +1086,7 @@
       viewportAnimationTo: null,
       viewportAnimationStartTime: null,
       viewportAnimationDuration: 0,
+      emojiScaleAnimated: null,
     };
 
     const els = {
@@ -1100,15 +1142,24 @@
         setLoadStep("places", "loading");
         setLoadStep("forest", "loading");
 
-        const treePromise = fetch(TREE_ENRICHED_URL)
-          .catch(() => fetch(TREE_URL))
-          .then(async (r) => {
-            if (!r.ok) throw new Error(`Tree data HTTP ${r.status}`);
-            const data = await r.json();
+        const loadTreeDataset = async (url) => {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`Tree data HTTP ${response.status}`);
+          const data = await response.json();
+          if (!data || !Array.isArray(data.trees)) throw new Error("Tree data format invalid");
+          return data;
+        };
+
+        const treePromise = loadTreeDataset(TREE_ENRICHED_URL)
+          .catch(() => loadTreeDataset(TREE_URL))
+          .then((data) => {
             setLoadStep("trees", "done");
             return data;
           })
-          .catch((err) => { setLoadStep("trees", "error"); throw err; });
+          .catch(() => {
+            setLoadStep("trees", "error");
+            return { trees: [], historicalNamedTreeEnrichment: null };
+          });
 
         const landmarkPromise = fetch(LANDMARK_URL)
           .then(async (r) => {
@@ -1117,7 +1168,31 @@
             setLoadStep("places", "done");
             return data;
           })
-          .catch((err) => { setLoadStep("places", "error"); throw err; });
+          .catch(() => {
+            setLoadStep("places", "error");
+            return { features: [] };
+          });
+
+        const folklorePromise = fetch(FOLKLORE_URL)
+          .then(async (r) => {
+            if (!r.ok) throw new Error(`Folklore data HTTP ${r.status}`);
+            return r.json();
+          })
+          .catch(() => ({ locations: [] }));
+
+        const pathsPromise = fetch(PATHS_URL)
+          .then(async (r) => {
+            if (!r.ok) throw new Error(`Paths data HTTP ${r.status}`);
+            return r.json();
+          })
+          .catch(() => ({ features: [] }));
+
+        const environmentPromise = fetch(ENVIRONMENT_URL)
+          .then(async (r) => {
+            if (!r.ok) throw new Error(`Environment data HTTP ${r.status}`);
+            return r.json();
+          })
+          .catch(() => ({ features: [] }));
 
         const layerPromises = FEATURE_LAYERS.map((layer) =>
           fetch(layer.url)
@@ -1125,11 +1200,15 @@
               if (!r.ok) throw new Error(`${layer.label} HTTP ${r.status}`);
               return { ...layer, data: await r.json() };
             })
+            .catch(() => ({ ...layer, data: { type: "FeatureCollection", features: [] } }))
         );
 
-        const [treeData, landmarkData, ...resolvedLayers] = await Promise.all([
+        const [treeData, landmarkData, folkloreData, pathsData, environmentData, ...resolvedLayers] = await Promise.all([
           treePromise,
           landmarkPromise,
+          folklorePromise,
+          pathsPromise,
+          environmentPromise,
           ...layerPromises,
         ]);
         setLoadStep("forest", "done");
@@ -1147,7 +1226,7 @@
 
         state.namedTreeStoriesByName = buildNamedTreeStoryIndex(treeData.historicalNamedTreeEnrichment);
 
-        state.landmarks = landmarkData.features
+        const osmLandmarks = (landmarkData.features || [])
           .filter((feature) => feature.geometry && feature.geometry.type === "Point")
           .map((feature) => {
             const longitude = Number(feature.geometry.coordinates[0]);
@@ -1160,11 +1239,20 @@
             };
           });
 
+        const folkloreLandmarks = normalizeFolkloreLocations(folkloreData);
+        state.landmarks = [...osmLandmarks, ...folkloreLandmarks];
+
+        state.paths = (pathsData.features || [])
+          .map(toPathFeature)
+          .filter(Boolean);
+
+        state.environmentFeatures = (environmentData.features || []).filter((feature) => feature && feature.geometry && feature.properties);
+
         state.bounds = calculateBounds();
         applyCachedCowData();
         setLoadStep("cows", "loading");
-        await refreshCowData({ force: true });
-        setLoadStep("cows", state.cows.length > 0 ? "done" : "error");
+        const cowBootstrapOk = await refreshCowData({ force: true, timeoutMs: 7000 });
+        setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error");
         scheduleCowRefresh();
         fitToBounds();
         els.locateButton.disabled = false;
@@ -1187,6 +1275,10 @@
       } catch (error) {
         console.error(error);
         if (els.loadingOverlay) els.loadingOverlay.hidden = true;
+        if (els.versionBadge) els.versionBadge.textContent = `${APP_VERSION} · load error`;
+        if (els.inspectorBody) {
+          els.inspectorBody.innerHTML = `<p class="empty">Could not fully load map data. Try a hard refresh. If running locally, make sure the server is started from this folder.</p>`;
+        }
         setStatus("Could not load local map data. Start a local server from this folder and refresh.");
       }
     }
@@ -1248,9 +1340,11 @@
 
       els.zoomIn.addEventListener("click", () => zoomAt(1.55, centerPoint()));
       els.zoomOut.addEventListener("click", () => zoomAt(1 / 1.55, centerPoint()));
-      els.closeInspector.addEventListener("click", () => {
-        setInspectorMinimized(!els.inspector.classList.contains("minimized"));
-      });
+      if (els.closeInspector) {
+        els.closeInspector.addEventListener("click", () => {
+          setInspectorMinimized(!els.inspector.classList.contains("minimized"));
+        });
+      }
 
       els.inspectorBack.addEventListener("click", () => {
         goToInitialView();
@@ -1258,7 +1352,7 @@
 
       els.inspector.addEventListener("click", (event) => {
         if (!els.inspector.classList.contains("minimized")) return;
-        if (event.target === els.closeInspector) return;
+        if (els.closeInspector && event.target === els.closeInspector) return;
         setInspectorMinimized(false);
       });
 
@@ -1498,10 +1592,18 @@
     function calculateBounds() {
       const points = [];
       for (const tree of state.trees) points.push(tree.point);
+      for (const place of state.landmarks) points.push(place.point);
       for (const layer of state.layers) {
         forEachGeojsonCoordinate(layer.data, ([longitude, latitude]) => {
           points.push(projectLonLat(longitude, latitude));
         });
+      }
+      if (!points.length) {
+        const fallback = [
+          projectLonLat(-0.03, 51.55),
+          projectLonLat(0.13, 51.73),
+        ];
+        points.push(...fallback);
       }
       return points.reduce((bounds, point) => ({
         minX: Math.min(bounds.minX, point.x),
@@ -1723,6 +1825,8 @@
       const ctx = els.canvas.getContext("2d");
       const width = els.canvas.width;
       const height = els.canvas.height;
+      const animatedEmojiScale = updateAnimatedEmojiScale();
+      const nearbyIconLookup = buildNearbyIconLookup();
       ctx.clearRect(0, 0, width, height);
       drawBase(ctx, width, height);
 
@@ -1733,13 +1837,23 @@
 
       for (const layer of state.layers) drawLayer(ctx, layer);
       drawCowPastures(ctx);
-      drawTrees(ctx);
-      drawLandmarks(ctx);
-      drawCows(ctx);
+      drawEnvironment(ctx);
+      drawPaths(ctx);
       drawOverviewRoutes(ctx);
       drawSelectedRoute(ctx);
+      drawTrees(ctx, nearbyIconLookup);
+      drawLandmarks(ctx, nearbyIconLookup);
+      drawCows(ctx, nearbyIconLookup);
       drawUser(ctx);
       drawSelectedOverlay(ctx);
+
+      if (Math.abs(animatedEmojiScale.target - animatedEmojiScale.value) > 0.001) {
+        requestDraw();
+      }
+
+      if (state.selected && ["tree", "landmark", "cow"].includes(state.selected.type)) {
+        requestDraw();
+      }
     }
 
     function drawCowPastures(ctx) {
@@ -1769,6 +1883,292 @@
       }
 
       ctx.restore();
+    }
+
+    function drawPaths(ctx) {
+      if (!state.paths.length) return;
+
+      const dpr = pixelRatio();
+      const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
+      const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+      const baseWidth = clamp(1.35 + zoomLevel * 0.18, 1.35, isCoarsePointer ? 2.5 : 2.2) * dpr;
+      const namedLabels = [];
+      const worldTopLeft = screenToWorld(0, 0);
+      const worldBottomRight = screenToWorld(els.canvas.width, els.canvas.height);
+      const minWorldX = Math.min(worldTopLeft.x, worldBottomRight.x);
+      const maxWorldX = Math.max(worldTopLeft.x, worldBottomRight.x);
+      const minWorldY = Math.min(worldTopLeft.y, worldBottomRight.y);
+      const maxWorldY = Math.max(worldTopLeft.y, worldBottomRight.y);
+      const margin = (maxWorldX - minWorldX) * 0.05;
+
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      for (const path of state.paths) {
+        if (path.bbox) {
+          if (path.bbox.maxX < minWorldX - margin || path.bbox.minX > maxWorldX + margin) continue;
+          if (path.bbox.maxY < minWorldY - margin || path.bbox.minY > maxWorldY + margin) continue;
+        }
+
+        const pathColor = path.pathType === "bridleway"
+          ? "rgba(113, 77, 35, 0.9)"
+          : path.pathType === "byway"
+            ? "rgba(72, 61, 139, 0.92)"
+            : path.pathType === "permissive"
+              ? "rgba(57, 90, 138, 0.88)"
+              : path.pathType === "waymarked_trail"
+                ? "rgba(109, 68, 140, 0.9)"
+                : "rgba(41, 82, 59, 0.86)";
+        const dash = path.pathType === "bridleway"
+          ? [7 * dpr, 4.5 * dpr]
+          : path.pathType === "byway"
+            ? [2 * dpr, 3 * dpr]
+            : path.pathType === "permissive"
+              ? [4 * dpr, 3 * dpr]
+              : path.pathType === "waymarked_trail"
+                ? [9 * dpr, 5 * dpr]
+                : [];
+
+        for (const segment of path.segments) {
+          if (!segment || segment.length < 2) continue;
+          ctx.beginPath();
+          for (let i = 0; i < segment.length; i += 1) {
+            const screenPoint = worldToScreen(segment[i]);
+            if (i === 0) ctx.moveTo(screenPoint.x, screenPoint.y);
+            else ctx.lineTo(screenPoint.x, screenPoint.y);
+          }
+
+          ctx.setLineDash(dash);
+          ctx.lineWidth = baseWidth + 1.9 * dpr;
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.82)";
+          ctx.stroke();
+
+          ctx.lineWidth = baseWidth;
+          ctx.strokeStyle = pathColor;
+          ctx.stroke();
+        }
+
+        if (path.name && zoomLevel >= (isCoarsePointer ? 1.45 : 1.15)) {
+          const anchor = pathLabelAnchor(path);
+          if (anchor) namedLabels.push({ path, anchor, score: path.totalLength || 0 });
+        }
+      }
+
+      if (namedLabels.length) {
+        namedLabels.sort((a, b) => b.score - a.score);
+        const limitedLabels = namedLabels.slice(0, isCoarsePointer ? 24 : 42);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `700 ${Math.max(isCoarsePointer ? 9 : 10, Math.round((isCoarsePointer ? 9 : 10) * dpr))}px system-ui`;
+        for (const item of limitedLabels) {
+          const point = worldToScreen(item.anchor);
+          if (!isNearCanvas(point, 28 * dpr)) continue;
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+          ctx.lineWidth = 3 * dpr;
+          ctx.strokeText(item.path.name, point.x, point.y);
+          ctx.fillStyle = "rgba(45, 59, 52, 0.95)";
+          ctx.fillText(item.path.name, point.x, point.y);
+        }
+      }
+
+      ctx.restore();
+    }
+
+    function drawEnvironment(ctx) {
+      if (!state.environmentFeatures.length) return;
+
+      const dpr = pixelRatio();
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      for (const feature of state.environmentFeatures) {
+        const geometry = feature.geometry || {};
+        const type = feature.properties && feature.properties.featureType;
+
+        if (type === "hydrology_area") {
+          drawEnvironmentPolygon(ctx, geometry, {
+            fill: "rgba(88, 151, 212, 0.22)",
+            stroke: "rgba(47, 114, 178, 0.62)",
+            width: 1.1 * dpr,
+          });
+          continue;
+        }
+
+        if (type === "nature_designation") {
+          drawEnvironmentPolygon(ctx, geometry, {
+            fill: "rgba(105, 163, 94, 0.12)",
+            stroke: "rgba(72, 130, 65, 0.46)",
+            width: 1.1 * dpr,
+          });
+          continue;
+        }
+
+        if (type === "hydrology_line") {
+          drawEnvironmentLines(ctx, geometry, {
+            stroke: "rgba(47, 114, 178, 0.72)",
+            width: 1.5 * dpr,
+          });
+        }
+      }
+
+      ctx.restore();
+    }
+
+    function drawEnvironmentLines(ctx, geometry, style) {
+      const segments = lineSegmentsFromGeometry(geometry);
+      for (const segment of segments) {
+        if (!Array.isArray(segment) || segment.length < 2) continue;
+        ctx.beginPath();
+        for (let i = 0; i < segment.length; i += 1) {
+          const point = worldToScreen(projectLonLat(Number(segment[i][0]), Number(segment[i][1])));
+          if (i === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        }
+        ctx.strokeStyle = style.stroke;
+        ctx.lineWidth = style.width;
+        ctx.stroke();
+      }
+    }
+
+    function drawEnvironmentPolygon(ctx, geometry, style) {
+      const polygons = polygonRingsFromGeometry(geometry);
+      for (const polygon of polygons) {
+        if (!Array.isArray(polygon) || !polygon.length) continue;
+        ctx.beginPath();
+        for (const ring of polygon) {
+          if (!Array.isArray(ring) || ring.length < 3) continue;
+          for (let i = 0; i < ring.length; i += 1) {
+            const point = worldToScreen(projectLonLat(Number(ring[i][0]), Number(ring[i][1])));
+            if (i === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
+          }
+        }
+        ctx.fillStyle = style.fill;
+        ctx.fill("evenodd");
+        ctx.strokeStyle = style.stroke;
+        ctx.lineWidth = style.width;
+        ctx.stroke();
+      }
+    }
+
+    function pathLabelAnchor(path) {
+      let bestSegment = null;
+      let bestLength = 0;
+
+      for (const segment of path.segments) {
+        let length = 0;
+        for (let i = 1; i < segment.length; i += 1) {
+          const prev = segment[i - 1];
+          const next = segment[i];
+          length += Math.hypot(next.x - prev.x, next.y - prev.y);
+        }
+        if (length > bestLength) {
+          bestLength = length;
+          bestSegment = segment;
+        }
+      }
+
+      if (!bestSegment || bestSegment.length < 2 || bestLength <= 0.001) return null;
+
+      const halfway = bestLength / 2;
+      let walked = 0;
+      for (let i = 1; i < bestSegment.length; i += 1) {
+        const prev = bestSegment[i - 1];
+        const next = bestSegment[i];
+        const length = Math.hypot(next.x - prev.x, next.y - prev.y);
+        if (walked + length >= halfway) {
+          const ratio = (halfway - walked) / Math.max(0.000001, length);
+          return {
+            x: prev.x + (next.x - prev.x) * ratio,
+            y: prev.y + (next.y - prev.y) * ratio,
+          };
+        }
+        walked += length;
+      }
+
+      return bestSegment[Math.floor(bestSegment.length / 2)] || null;
+    }
+
+    function toPathFeature(feature) {
+      if (!feature || !feature.geometry) return null;
+
+      const tags = feature.properties || {};
+      const name = tags.name || tags.ref || null;
+      const highway = tags.highway || null;
+      const designation = String(tags.designation || "").toLowerCase();
+      const horse = tags.horse || null;
+      const foot = tags.foot || null;
+      const access = tags.access || null;
+
+      const pathType = highway === "bridleway"
+        || designation.includes("bridleway")
+        || horse === "designated"
+        ? "bridleway"
+        : (designation.includes("byway") || highway === "byway")
+          ? "byway"
+          : (access === "permissive" || foot === "permissive" || horse === "permissive")
+            ? "permissive"
+            : (tags.osmcSymbol || tags.trailVisibility)
+              ? "waymarked_trail"
+              : "trail";
+
+      const segments = lineSegmentsFromGeometry(feature.geometry)
+        .map((segment) => segment
+          .map(([longitude, latitude]) => projectLonLat(Number(longitude), Number(latitude)))
+          .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y)))
+        .filter((segment) => segment.length >= 2);
+
+      if (!segments.length) return null;
+
+      const bbox = {
+        minX: Infinity,
+        minY: Infinity,
+        maxX: -Infinity,
+        maxY: -Infinity,
+      };
+      let totalLength = 0;
+
+      for (const segment of segments) {
+        for (let i = 0; i < segment.length; i += 1) {
+          const point = segment[i];
+          bbox.minX = Math.min(bbox.minX, point.x);
+          bbox.minY = Math.min(bbox.minY, point.y);
+          bbox.maxX = Math.max(bbox.maxX, point.x);
+          bbox.maxY = Math.max(bbox.maxY, point.y);
+          if (i > 0) {
+            const prev = segment[i - 1];
+            totalLength += Math.hypot(point.x - prev.x, point.y - prev.y);
+          }
+        }
+      }
+
+      return {
+        name,
+        pathType,
+        highway,
+        foot,
+        horse,
+        access,
+        segments,
+        bbox,
+        totalLength,
+      };
+    }
+
+    function lineSegmentsFromGeometry(geometry) {
+      if (!geometry) return [];
+      if (geometry.type === "LineString") return [geometry.coordinates || []];
+      if (geometry.type === "MultiLineString") return geometry.coordinates || [];
+      return [];
+    }
+
+    function polygonRingsFromGeometry(geometry) {
+      if (!geometry) return [];
+      if (geometry.type === "Polygon") return [geometry.coordinates || []];
+      if (geometry.type === "MultiPolygon") return geometry.coordinates || [];
+      return [];
     }
 
     function drawOverviewRoutes(ctx) {
@@ -1840,6 +2240,20 @@
               ? "rgba(139, 69, 19, 0.85)"
               : entry.kind === "transport"
                 ? (entry.transportType === "train" ? "rgba(220, 20, 60, 0.85)" : "rgba(255, 140, 0, 0.85)")
+                : entry.kind === "plaque"
+                  ? "rgba(78, 93, 135, 0.85)"
+                  : entry.kind === "blue_plaque"
+                    ? "rgba(62, 103, 196, 0.85)"
+                    : entry.kind === "film_tv"
+                      ? "rgba(134, 74, 162, 0.85)"
+                      : entry.kind === "ww2"
+                        ? "rgba(114, 108, 66, 0.85)"
+                        : entry.kind === "royal"
+                          ? "rgba(156, 118, 41, 0.85)"
+                  : entry.kind === "history"
+                    ? "rgba(109, 92, 58, 0.85)"
+                    : entry.kind === "legend"
+                      ? "rgba(111, 77, 140, 0.85)"
                 : "rgba(118, 112, 47, 0.85)",
       }));
 
@@ -1953,30 +2367,26 @@
       ctx.restore();
     }
 
-    function drawTrees(ctx) {
+    function drawTrees(ctx, nearbyIconLookup) {
       const dpr = pixelRatio();
-      const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
-      const radius = clamp(4.6 + zoomLevel * 0.55, 4.6, 7.4) * dpr;
+      const mapScale = mapEmojiScale();
+      const treeEmojiSize = 24 * dpr * mapScale;
+      const emojiCirclePadding = 5.6 * dpr * mapScale;
 
       ctx.save();
       for (const tree of state.trees) {
         const point = worldToScreen(tree.point);
         if (!isNearCanvas(point, 10 * dpr)) continue;
-        ctx.globalAlpha = markerOpacityFor("tree", tree);
-
-        ctx.fillStyle = "rgba(0, 78, 44, 0.95)";
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-        ctx.fill();
+        if (!shouldDrawMapIcon("tree", tree, nearbyIconLookup)) continue;
+        ctx.globalAlpha = 1;
+        drawMapEmoji(ctx, "🌳", point.x, point.y, treeEmojiSize, {
+          backgroundColor: "#fff",
+          borderColor: "#1f5b3a",
+          borderWidth: 2 * dpr * mapScale,
+          paddingPx: emojiCirclePadding,
+        });
       }
       ctx.globalAlpha = 1;
-
-      if (state.nearestTree) {
-        drawTreeMarker(ctx, state.nearestTree.tree, "#3c6382", 7 * dpr, false);
-      }
-      if (state.selected && state.selected.type === "tree") {
-        drawTreeMarker(ctx, state.selected.item, "#b34f31", 10 * dpr, true);
-      }
       ctx.restore();
     }
 
@@ -2000,8 +2410,32 @@
       return minOpacity + (maxOpacity - minOpacity) * pulse;
     }
 
-    function drawMapEmoji(ctx, emoji, x, y, sizePx) {
+    function drawMapEmoji(ctx, emoji, x, y, sizePx, options = {}) {
+      const {
+        backgroundColor = null,
+        borderColor = null,
+        borderWidth = 0,
+        paddingPx = 0,
+      } = options;
       ctx.save();
+      if (backgroundColor || borderColor) {
+        const radius = Math.max((sizePx * 0.65) + paddingPx, sizePx * 0.65);
+        if (backgroundColor) {
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
+          ctx.fillStyle = backgroundColor;
+          ctx.fill();
+        }
+        if (borderColor) {
+          const lineWidth = borderWidth || Math.max(2, sizePx * 0.08);
+          const strokeRadius = radius + (lineWidth * 0.5);
+          ctx.beginPath();
+          ctx.arc(x, y, strokeRadius, 0, Math.PI * 2);
+          ctx.strokeStyle = borderColor;
+          ctx.lineWidth = lineWidth;
+          ctx.stroke();
+        }
+      }
       ctx.font = `${sizePx}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -2012,18 +2446,56 @@
       ctx.restore();
     }
 
-    function drawLandmarks(ctx) {
+    function selectedIconScale(minScale = 1.05, maxScale = 1.17, cycleMs = 1200) {
+      const now = Date.now();
+      const cycle = (now % cycleMs) / cycleMs;
+      const pulse = Math.sin(cycle * Math.PI * 2) * 0.5 + 0.5;
+      return minScale + (maxScale - minScale) * pulse;
+    }
+
+    function buildNearbyIconLookup() {
+      const tree = new Set();
+      const landmark = new Set();
+      const cow = new Set();
+      for (const entry of overviewItemsForActiveFilter(state.nearestItemsCount)) {
+        if (!entry || !entry.item) continue;
+        if (entry.type === "tree") tree.add(entry.item);
+        else if (entry.type === "landmark") landmark.add(entry.item);
+        else if (entry.type === "cow") cow.add(entry.item);
+      }
+      return { tree, landmark, cow };
+    }
+
+    function shouldDrawMapIcon(type, item, nearbyIconLookup) {
+      if (state.selected && state.selected.type === type && state.selected.item === item) return false;
+      const typeSet = nearbyIconLookup && nearbyIconLookup[type];
+      return Boolean(typeSet && typeSet.has(item));
+    }
+
+    function drawLandmarks(ctx, nearbyIconLookup) {
       const dpr = pixelRatio();
+      const mapScale = mapEmojiScale();
+      const emojiBadge = {
+        backgroundColor: "#fff",
+        borderColor: "#1f5b3a",
+        borderWidth: 2 * dpr * mapScale,
+        paddingPx: 5.6 * dpr * mapScale,
+      };
       const candidates = state.landmarks;
       ctx.save();
       for (const place of candidates) {
         const point = worldToScreen(place.point);
         if (!isNearCanvas(point, 16 * dpr)) continue;
         ctx.globalAlpha = markerOpacityFor("landmark", place);
+        const showIcon = shouldDrawMapIcon("landmark", place, nearbyIconLookup);
         const isPub = isPubCategory(place);
         const isCafe = isCafeCategory(place);
         const isTransport = isTransportCategory(place);
-        
+
+        if (!showIcon) {
+          continue;
+        }
+
         if (isPub) {
           // Pubs: emoji with pulsing gradient background
           const radius = 10 * dpr;
@@ -2035,7 +2507,7 @@
           ctx.beginPath();
           ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
           ctx.fill();
-          drawMapEmoji(ctx, "🍺", point.x, point.y, 24 * dpr);
+          drawMapEmoji(ctx, "🍺", point.x, point.y, 24 * dpr * mapScale, emojiBadge);
         } else if (isCafe) {
           // Cafés: emoji with pulsing gradient background
           const radius = 10 * dpr;
@@ -2047,7 +2519,7 @@
           ctx.beginPath();
           ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
           ctx.fill();
-          drawMapEmoji(ctx, "☕", point.x, point.y, 24 * dpr);
+          drawMapEmoji(ctx, "☕", point.x, point.y, 24 * dpr * mapScale, emojiBadge);
         } else if (isTransport) {
           // Transport: different icons for trains/buses
           const transportType = getTransportType(place);
@@ -2062,40 +2534,44 @@
           ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
           ctx.fill();
           const emoji = transportType === "train" ? "🚆" : "🚌";
-          drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr);
+          drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale, emojiBadge);
         } else {
-          // Other landmarks: still get a simple circle
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, 5.8 * dpr, 0, Math.PI * 2);
-          ctx.fillStyle = "#76702f";
-          ctx.fill();
-          ctx.strokeStyle = "#fff";
-          ctx.lineWidth = 2 * dpr;
-          ctx.stroke();
+          const emoji = landmarkEmoji(place);
+          if (emoji !== "📍") {
+            drawMapEmoji(ctx, emoji, point.x, point.y, 22 * dpr * mapScale, emojiBadge);
+          } else {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 5.8 * dpr, 0, Math.PI * 2);
+            ctx.fillStyle = "#76702f";
+            ctx.fill();
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 2 * dpr;
+            ctx.stroke();
+          }
         }
       }
       ctx.globalAlpha = 1;
-
-      if (state.selected && state.selected.type === "landmark") {
-        const point = worldToScreen(state.selected.item.point);
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, 10 * dpr, 0, Math.PI * 2);
-        ctx.strokeStyle = "#b34f31";
-        ctx.lineWidth = 3 * dpr;
-        ctx.stroke();
-      }
       ctx.restore();
     }
 
-    function drawCows(ctx) {
+    function drawCows(ctx, nearbyIconLookup) {
       if (!state.cows.length) return;
       const dpr = pixelRatio();
+      const mapScale = mapEmojiScale();
+      const emojiBadge = {
+        backgroundColor: "#fff",
+        borderColor: "#1f5b3a",
+        borderWidth: 2 * dpr * mapScale,
+        paddingPx: 5.6 * dpr * mapScale,
+      };
 
       ctx.save();
       for (const cow of state.cows) {
         const point = worldToScreen(cow.point);
         if (!isNearCanvas(point, 18 * dpr)) continue;
         ctx.globalAlpha = markerOpacityFor("cow", cow);
+        const showIcon = shouldDrawMapIcon("cow", cow, nearbyIconLookup);
+        if (!showIcon) continue;
         // Emoji with pulsing gradient background
         const radius = 11 * dpr;
         const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
@@ -2106,18 +2582,9 @@
         ctx.beginPath();
         ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
         ctx.fill();
-        drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr);
+        drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr * mapScale, emojiBadge);
       }
       ctx.globalAlpha = 1;
-
-      if (state.selected && state.selected.type === "cow") {
-        const point = worldToScreen(state.selected.item.point);
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, 10 * dpr, 0, Math.PI * 2);
-        ctx.strokeStyle = "#b34f31";
-        ctx.lineWidth = 3 * dpr;
-        ctx.stroke();
-      }
 
       ctx.restore();
     }
@@ -2145,9 +2612,20 @@
       if (!state.selected || !state.selected.item) return;
 
       const dpr = pixelRatio();
+      const mapScale = mapEmojiScale();
+      const selectedScale = selectedIconScale();
+      const selectedEmojiPadding = 4.2 * dpr * mapScale;
 
       if (state.selected.type === "tree") {
-        drawTreeMarker(ctx, state.selected.item, "#b34f31", 10 * dpr, true);
+        const point = worldToScreen(state.selected.item.point);
+        if (isNearCanvas(point, 24 * dpr)) {
+          drawMapEmoji(ctx, "🌳", point.x, point.y, 24 * dpr * mapScale * selectedScale, {
+            backgroundColor: "#fff",
+            borderColor: "#1f5b3a",
+            borderWidth: 2.5 * dpr * mapScale,
+            paddingPx: selectedEmojiPadding,
+          });
+        }
         return;
       }
 
@@ -2155,26 +2633,50 @@
       if (!isNearCanvas(point, 24 * dpr)) return;
 
       if (state.selected.type === "cow") {
-        drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr);
+        drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr * mapScale * selectedScale, {
+          backgroundColor: "#fff",
+          borderColor: "#1f5b3a",
+          borderWidth: 2.5 * dpr * mapScale,
+          paddingPx: selectedEmojiPadding,
+        });
       } else if (state.selected.type === "landmark") {
         const selectedPlace = state.selected.item;
-        const emoji = isPubCategory(selectedPlace)
-          ? "🍺"
-          : isCafeCategory(selectedPlace)
-            ? "☕"
-            : isTransportCategory(selectedPlace)
-              ? (getTransportType(selectedPlace) === "train" ? "🚆" : "🚌")
-              : "📍";
-        drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr);
+        const emoji = landmarkEmoji(selectedPlace);
+        if (emoji === "📍") {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 7.6 * dpr * selectedScale, 0, Math.PI * 2);
+          ctx.fillStyle = "#76702f";
+          ctx.fill();
+          ctx.restore();
+        } else {
+          drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * selectedScale, {
+            backgroundColor: "#fff",
+            borderColor: "#1f5b3a",
+            borderWidth: 2.5 * dpr * mapScale,
+            paddingPx: selectedEmojiPadding,
+          });
+        }
       }
+    }
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, 10 * dpr, 0, Math.PI * 2);
-      ctx.strokeStyle = "#b34f31";
-      ctx.lineWidth = 3 * dpr;
-      ctx.stroke();
-      ctx.restore();
+    function zoomEmojiScaleTarget() {
+      const baselineScale = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
+      const zoomRatio = baselineScale > 0 ? state.viewport.scale / baselineScale : 1;
+      return clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.18), 0.72, 1.08);
+    }
+
+    function updateAnimatedEmojiScale() {
+      const target = zoomEmojiScaleTarget();
+      const current = Number.isFinite(state.emojiScaleAnimated) ? state.emojiScaleAnimated : target;
+      const next = current + (target - current) * 0.22;
+      const snapped = Math.abs(target - next) < 0.001 ? target : next;
+      state.emojiScaleAnimated = snapped;
+      return { value: snapped, target };
+    }
+
+    function mapEmojiScale() {
+      return Number.isFinite(state.emojiScaleAnimated) ? state.emojiScaleAnimated : zoomEmojiScaleTarget();
     }
 
     function drawUserRadar(ctx, point, dpr) {
@@ -2305,9 +2807,11 @@
       setInspectorSelectionChrome({ emoji: "🌳", showBack: true });
       els.inspectorTitle.textContent = tree.commonName || "Unknown tree";
       els.inspectorType.textContent = `${label}${tree.latinName ? ` · ${tree.latinName}` : ""}`;
+      const estimatedAge = estimateTreeAgeFromGirth(tree);
       const rows = [
         ["Distance", distance == null ? null : formatDistance(distance), "distance"],
         ["Walking time", distance == null ? null : formatWalkTime(distance), "walktime"],
+        ["Estimated age", estimatedAge],
         ["Direction", directionLabelFor(tree)],
         ["Tag number", tree.tagNumber],
         ["National tag", tree.nationalDatabaseTagNumber],
@@ -2328,27 +2832,26 @@
     }
 
     function showLandmarkDetails(place, distance) {
-      const emoji = isPubCategory(place)
-        ? "🍺"
-        : isCafeCategory(place)
-          ? "☕"
-          : isTransportCategory(place)
-            ? (getTransportType(place) === "train" ? "🚆" : "🚌")
-            : "📍";
+      const emoji = landmarkEmoji(place);
       setInspectorSelectionChrome({ emoji, showBack: true });
       els.inspectorTitle.textContent = place.name || "Local place";
       els.inspectorType.textContent = place.categoryLabel || "Landmark";
+      const description = place.folkloreSummary || place.description || place.summary || null;
       const rows = [
         ["Distance", distance == null ? null : formatDistance(distance), "distance"],
         ["Walking time", distance == null ? null : formatWalkTime(distance), "walktime"],
         ["Direction", directionLabelFor(place)],
         ["Category", place.categoryLabel],
+        ["Type", place.type],
+        ["Area", place.area],
+        ["Confidence", place.confidence],
         ["Address", place.address],
         ["Website", place.website],
         ["Phone", place.phone],
-        ["Source", place.id ? `OpenStreetMap ${place.id}` : "OpenStreetMap"],
+        ["Source", isFolklorePlace(place) ? "Epping Forest folklore dataset" : (place.id ? `OpenStreetMap ${place.id}` : "OpenStreetMap")],
       ];
-      els.inspectorBody.innerHTML = detailsHtml(rows) + (isOpenStreetMapPlace(place) ? osmNote() : "");
+      const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
+      els.inspectorBody.innerHTML = descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : (isOpenStreetMapPlace(place) ? osmNote() : ""));
     }
 
     function showCowDetails(cow, distance) {
@@ -2364,7 +2867,7 @@
         ["Type", cow.type],
         ["Latitude", cow.latitude == null ? null : cow.latitude.toFixed(6)],
         ["Longitude", cow.longitude == null ? null : cow.longitude.toFixed(6)],
-        ["Last update", state.cowLastUpdatedAt ? new Date(state.cowLastUpdatedAt).toLocaleTimeString() : "Not recorded"],
+        ["Last update", state.cowLastUpdatedAt ? new Date(state.cowLastUpdatedAt).toLocaleTimeString() : null],
         ["Source", "Nofence open data"],
       ];
       els.inspectorBody.innerHTML = detailsHtml(rows);
@@ -2456,24 +2959,19 @@
     }
 
     function markerOpacityFor(kind, item) {
+      if (kind === "tree") return 1;
       const locationSelected = state.selected && ["tree", "landmark", "cow"].includes(state.selected.type);
       if (locationSelected) {
         if (state.selected.type === kind && state.selected.item === item) return 1;
         // When something is selected, reduce other markers significantly
-        if (kind === "tree") return 0.1; // Trees become very faint when non-tree is selected
         return 0.5;
       }
 
       // No location selected - use default opacities
       if (!state.overviewFilters.length) {
-        // Default opacity for trees is 0.5 unless filters indicate otherwise
-        if (kind === "tree") return 0.5;
         return 1;
       }
 
-      if (kind === "tree") {
-        return state.overviewFilters.includes("trees") ? 0.5 : 0.1;
-      }
       if (kind === "cow") {
         return state.overviewFilters.includes("cows") ? 1 : 0.5;
       }
@@ -2482,23 +2980,44 @@
       const cafesSelected = state.overviewFilters.includes("cafes");
       const transportSelected = state.overviewFilters.includes("transport");
       const locationsSelected = state.overviewFilters.includes("locations");
-      const activeFilters = [pubsSelected, cafesSelected, transportSelected, locationsSelected].filter(Boolean).length;
+      const plaquesSelected = state.overviewFilters.includes("plaques");
+      const bluePlaquesSelected = state.overviewFilters.includes("blue_plaques");
+      const filmTvSelected = state.overviewFilters.includes("film_tv");
+      const ww2Selected = state.overviewFilters.includes("ww2");
+      const royalSelected = state.overviewFilters.includes("royal");
+      const historySelected = state.overviewFilters.includes("history");
+      const legendsSelected = state.overviewFilters.includes("legends");
+      const activeFilters = [pubsSelected, cafesSelected, transportSelected, locationsSelected, plaquesSelected, bluePlaquesSelected, filmTvSelected, ww2Selected, royalSelected, historySelected, legendsSelected].filter(Boolean).length;
       
       if (activeFilters === 0) return 0.5;
       
       const isPub = isPubCategory(item);
       const isCafe = isCafeCategory(item);
       const isTransport = isTransportCategory(item);
+      const isPlaque = isPlaqueCategory(item);
+      const isBluePlaque = isBluePlaqueCategory(item);
+      const isFilmTv = isFilmTvCategory(item);
+      const isWw2 = isWw2Category(item);
+      const isRoyal = isRoyalCategory(item);
+      const isHistory = isHistoryCategory(item);
+      const isLegend = isLegendCategory(item);
       
       if (pubsSelected && isPub) return 1;
       if (cafesSelected && isCafe) return 1;
       if (transportSelected && isTransport) return 1;
+      if (plaquesSelected && isPlaque) return 1;
+      if (bluePlaquesSelected && isBluePlaque) return 1;
+      if (filmTvSelected && isFilmTv) return 1;
+      if (ww2Selected && isWw2) return 1;
+      if (royalSelected && isRoyal) return 1;
+      if (historySelected && isHistory) return 1;
+      if (legendsSelected && isLegend) return 1;
       if (locationsSelected && !isPub && !isCafe && !isTransport) return 1;
       return 0.3;
     }
 
     function setOverviewFilter(nextFilter) {
-      const normalized = ["all", "trees", "cows", "pubs", "cafes", "transport", "locations"].includes(nextFilter) ? nextFilter : "all";
+      const normalized = ["all", "trees", "cows", "pubs", "cafes", "transport", "locations", "plaques", "blue_plaques", "film_tv", "ww2", "royal", "history", "legends"].includes(nextFilter) ? nextFilter : "all";
       if (normalized === "all") {
         state.overviewFilters = [];
       } else {
@@ -2560,6 +3079,40 @@
       return ["bus_station", "bus_stop", "taxi", "train_station", "station", "halt", "tram_stop"].includes(place.category);
     }
 
+    function isPlaqueCategory(place) {
+      return place && (place.folkloreCategory === "plaque" || place.category === "plaque") && !isBluePlaqueCategory(place);
+    }
+
+    function hasFolkloreTopic(place, topic) {
+      return place
+        && Array.isArray(place.folkloreTopics)
+        && place.folkloreTopics.includes(topic);
+    }
+
+    function isBluePlaqueCategory(place) {
+      return hasFolkloreTopic(place, "blue_plaque");
+    }
+
+    function isFilmTvCategory(place) {
+      return hasFolkloreTopic(place, "film_tv");
+    }
+
+    function isWw2Category(place) {
+      return hasFolkloreTopic(place, "ww2");
+    }
+
+    function isRoyalCategory(place) {
+      return hasFolkloreTopic(place, "royal");
+    }
+
+    function isHistoryCategory(place) {
+      return place && (place.folkloreCategory === "history" || place.category === "history");
+    }
+
+    function isLegendCategory(place) {
+      return place && (place.folkloreCategory === "legend" || place.category === "legend");
+    }
+
     function getTransportType(place) {
       if (["train_station", "station", "halt", "tram_stop"].includes(place.category)) return "train";
       if (["bus_station", "bus_stop"].includes(place.category)) return "bus";
@@ -2581,13 +3134,29 @@
       const cafesSelected = state.overviewFilters.includes("cafes");
       const transportSelected = state.overviewFilters.includes("transport");
       const locationsSelected = state.overviewFilters.includes("locations");
-      if (!pubsSelected && !cafesSelected && !transportSelected && !locationsSelected) return false;
-      if (pubsSelected && cafesSelected && transportSelected && locationsSelected) return true;
-      if (pubsSelected) return isPubCategory(place);
-      if (cafesSelected) return isCafeCategory(place);
-      if (transportSelected) return isTransportCategory(place);
-      if (locationsSelected) return !isPubCategory(place) && !isCafeCategory(place) && !isTransportCategory(place);
-      return true;
+      const plaquesSelected = state.overviewFilters.includes("plaques");
+      const bluePlaquesSelected = state.overviewFilters.includes("blue_plaques");
+      const filmTvSelected = state.overviewFilters.includes("film_tv");
+      const ww2Selected = state.overviewFilters.includes("ww2");
+      const royalSelected = state.overviewFilters.includes("royal");
+      const historySelected = state.overviewFilters.includes("history");
+      const legendsSelected = state.overviewFilters.includes("legends");
+      if (!pubsSelected && !cafesSelected && !transportSelected && !locationsSelected && !plaquesSelected && !bluePlaquesSelected && !filmTvSelected && !ww2Selected && !royalSelected && !historySelected && !legendsSelected) return false;
+
+      const match =
+        (pubsSelected && isPubCategory(place))
+        || (cafesSelected && isCafeCategory(place))
+        || (transportSelected && isTransportCategory(place))
+        || (plaquesSelected && isPlaqueCategory(place))
+        || (bluePlaquesSelected && isBluePlaqueCategory(place))
+        || (filmTvSelected && isFilmTvCategory(place))
+        || (ww2Selected && isWw2Category(place))
+        || (royalSelected && isRoyalCategory(place))
+        || (historySelected && isHistoryCategory(place))
+        || (legendsSelected && isLegendCategory(place))
+        || (locationsSelected && !isPubCategory(place) && !isCafeCategory(place) && !isTransportCategory(place));
+
+      return match;
     }
 
     function overviewItemsForActiveFilter(limit = 3) {
@@ -2661,6 +3230,76 @@
             }))
           );
         }
+        if (state.overviewFilters.includes("plaques")) {
+          selectedEntries.push(
+            ...nearestPlacesByFilter(latitude, longitude, (place) => isPlaqueCategory(place), perFilterLimit).map(({ place, metres }) => ({
+              kind: "plaque",
+              type: "landmark",
+              item: place,
+              metres,
+            }))
+          );
+        }
+        if (state.overviewFilters.includes("blue_plaques")) {
+          selectedEntries.push(
+            ...nearestPlacesByFilter(latitude, longitude, (place) => isBluePlaqueCategory(place), perFilterLimit).map(({ place, metres }) => ({
+              kind: "blue_plaque",
+              type: "landmark",
+              item: place,
+              metres,
+            }))
+          );
+        }
+        if (state.overviewFilters.includes("film_tv")) {
+          selectedEntries.push(
+            ...nearestPlacesByFilter(latitude, longitude, (place) => isFilmTvCategory(place), perFilterLimit).map(({ place, metres }) => ({
+              kind: "film_tv",
+              type: "landmark",
+              item: place,
+              metres,
+            }))
+          );
+        }
+        if (state.overviewFilters.includes("ww2")) {
+          selectedEntries.push(
+            ...nearestPlacesByFilter(latitude, longitude, (place) => isWw2Category(place), perFilterLimit).map(({ place, metres }) => ({
+              kind: "ww2",
+              type: "landmark",
+              item: place,
+              metres,
+            }))
+          );
+        }
+        if (state.overviewFilters.includes("royal")) {
+          selectedEntries.push(
+            ...nearestPlacesByFilter(latitude, longitude, (place) => isRoyalCategory(place), perFilterLimit).map(({ place, metres }) => ({
+              kind: "royal",
+              type: "landmark",
+              item: place,
+              metres,
+            }))
+          );
+        }
+        if (state.overviewFilters.includes("history")) {
+          selectedEntries.push(
+            ...nearestPlacesByFilter(latitude, longitude, (place) => isHistoryCategory(place), perFilterLimit).map(({ place, metres }) => ({
+              kind: "history",
+              type: "landmark",
+              item: place,
+              metres,
+            }))
+          );
+        }
+        if (state.overviewFilters.includes("legends")) {
+          selectedEntries.push(
+            ...nearestPlacesByFilter(latitude, longitude, (place) => isLegendCategory(place), perFilterLimit).map(({ place, metres }) => ({
+              kind: "legend",
+              type: "landmark",
+              item: place,
+              metres,
+            }))
+          );
+        }
 
         const unique = new Map();
         for (const entry of selectedEntries) {
@@ -2709,6 +3348,13 @@
         if (state.overviewFilters.includes("cafes") && state.overviewFilters.length === 1) return `<p class="empty">No nearby cafés found.</p>`;
         if (state.overviewFilters.includes("transport") && state.overviewFilters.length === 1) return `<p class="empty">No nearby transport links found.</p>`;
         if (state.overviewFilters.includes("locations") && state.overviewFilters.length === 1) return `<p class="empty">No nearby locations found.</p>`;
+        if (state.overviewFilters.includes("plaques") && state.overviewFilters.length === 1) return `<p class="empty">No nearby plaques found.</p>`;
+        if (state.overviewFilters.includes("blue_plaques") && state.overviewFilters.length === 1) return `<p class="empty">No nearby blue plaques found.</p>`;
+        if (state.overviewFilters.includes("film_tv") && state.overviewFilters.length === 1) return `<p class="empty">No nearby film or TV locations found.</p>`;
+        if (state.overviewFilters.includes("ww2") && state.overviewFilters.length === 1) return `<p class="empty">No nearby WWII locations found.</p>`;
+        if (state.overviewFilters.includes("royal") && state.overviewFilters.length === 1) return `<p class="empty">No nearby royal-history locations found.</p>`;
+        if (state.overviewFilters.includes("history") && state.overviewFilters.length === 1) return `<p class="empty">No nearby history locations found.</p>`;
+        if (state.overviewFilters.includes("legends") && state.overviewFilters.length === 1) return `<p class="empty">No nearby legends found.</p>`;
         return `<p class="empty">No nearby places found.</p>`;
       }
 
@@ -2718,6 +3364,13 @@
       const onlyCafes = state.overviewFilters.length === 1 && state.overviewFilters.includes("cafes");
       const onlyTransport = state.overviewFilters.length === 1 && state.overviewFilters.includes("transport");
       const onlyLocations = state.overviewFilters.length === 1 && state.overviewFilters.includes("locations");
+      const onlyPlaques = state.overviewFilters.length === 1 && state.overviewFilters.includes("plaques");
+      const onlyBluePlaques = state.overviewFilters.length === 1 && state.overviewFilters.includes("blue_plaques");
+      const onlyFilmTv = state.overviewFilters.length === 1 && state.overviewFilters.includes("film_tv");
+      const onlyWw2 = state.overviewFilters.length === 1 && state.overviewFilters.includes("ww2");
+      const onlyRoyal = state.overviewFilters.length === 1 && state.overviewFilters.includes("royal");
+      const onlyHistory = state.overviewFilters.length === 1 && state.overviewFilters.includes("history");
+      const onlyLegends = state.overviewFilters.length === 1 && state.overviewFilters.includes("legends");
       const heading = onlyTrees
         ? "Nearest trees around you"
         : onlyCows
@@ -2730,6 +3383,20 @@
               ? "Nearest transport links around you"
           : onlyLocations
             ? "Nearest locations around you"
+            : onlyPlaques
+              ? "Nearest plaques around you"
+                : onlyBluePlaques
+                  ? "Nearest blue plaques around you"
+                  : onlyFilmTv
+                    ? "Nearest film and TV locations around you"
+                    : onlyWw2
+                      ? "Nearest WWII locations around you"
+                      : onlyRoyal
+                        ? "Nearest royal-history locations around you"
+              : onlyHistory
+                ? "Nearest history locations around you"
+                : onlyLegends
+                  ? "Nearest legends around you"
             : state.overviewFilters.length > 0
               ? "Nearest selected filters around you"
               : "Nearest around you";
@@ -2738,7 +3405,7 @@
         const name = entry.type === "tree"
           ? displayValue(entry.item.commonName || entry.item.tagNumber || entry.item.recordNumber)
           : entry.type === "cow"
-            ? `Cow ${displayValue(entry.item.serialNo)}`
+            ? "Cow"
           : placeTitle(entry.item);
         const emoji = entry.kind === "tree"
           ? "🌳"
@@ -2750,18 +3417,27 @@
                 ? "☕"
                 : entry.kind === "transport"
                   ? (entry.transportType === "train" ? "🚆" : "🚌")
-                  : "📍";
+                  : entry.kind === "blue_plaque"
+                    ? "🔵"
+                    : entry.kind === "film_tv"
+                      ? "🎬"
+                      : entry.kind === "ww2"
+                        ? "🪖"
+                        : entry.kind === "royal"
+                          ? "👑"
+                  : landmarkEmoji(entry.item);
         const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : placeHashKey(entry.item);
         const subtitle = `${formatDistance(entry.metres)} · ${formatWalkTime(entry.metres)}`;
-        return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label">${emoji} ${escapeHtml(name)}</span></span><small>${escapeHtml(subtitle)}</small></button></li>`;
+        return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label"><span class="nearest-emoji" aria-hidden="true">${emoji}</span><span>${escapeHtml(name)}</span></span></span><small>${escapeHtml(subtitle)}</small></button></li>`;
       }).join("");
 
-      const sliderSection = `<div class="filter-section"><label for="nearestItemsSlider">Show nearest items: <span id="nearestItemsValue">${state.nearestItemsCount}</span></label><input id="nearestItemsSlider" type="range" min="1" max="10" value="${state.nearestItemsCount}" class="nearest-items-slider"></div>`;
+      const sliderSection = `<div class="filter-section"><label for="nearestItemsSlider">Show nearest items: <span id="nearestItemsValue">${state.nearestItemsCount}</span></label><input id="nearestItemsSlider" type="range" min="1" max="25" value="${state.nearestItemsCount}" class="nearest-items-slider"></div>`;
       return `<p class="source-note"><strong>${heading}</strong></p><ul class="nearest-list">${itemsHtml}</ul>${sliderSection}<p class="source-note">App version: ${APP_VERSION}</p>`;
     }
 
     function detailsHtml(rows) {
-      return `<dl>${rows.map(([label, value, liveKey]) => {
+      const visibleRows = rows.filter(([, value]) => value !== null && value !== undefined && value !== "");
+      return `<dl>${visibleRows.map(([label, value, liveKey]) => {
         const shown = displayValue(value);
         const liveAttr = liveKey ? ` data-live-field="${escapeHtml(liveKey)}"` : "";
         return `<div class="row"><dt>${escapeHtml(label)}</dt><dd${liveAttr}>${escapeHtml(shown)}</dd></div>`;
@@ -2835,8 +3511,22 @@
       return place.name || place.categoryLabel || "Local place";
     }
 
+    function landmarkEmoji(place) {
+      if (isPubCategory(place)) return "🍺";
+      if (isCafeCategory(place)) return "☕";
+      if (isTransportCategory(place)) return getTransportType(place) === "train" ? "🚆" : "🚌";
+      if (isBluePlaqueCategory(place)) return "🔵";
+      if (isFilmTvCategory(place)) return "🎬";
+      if (isWw2Category(place)) return "🪖";
+      if (isRoyalCategory(place)) return "👑";
+      if (isPlaqueCategory(place)) return "🪧";
+      if (isHistoryCategory(place)) return "📜";
+      if (isLegendCategory(place)) return "✨";
+      return "📍";
+    }
+
     function directionLabelFor(item) {
-      if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return "Not recorded";
+      if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return null;
       const bearing = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
       const arrow = bearingArrow(bearing);
       const cardinal = bearingCardinal(bearing);
@@ -2844,7 +3534,7 @@
     }
 
     function directionTextFor(item) {
-      if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return "Not recorded";
+      if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return null;
       const bearing = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
       return `${bearingCardinal(bearing)} (${Math.round(bearing)}°)`;
     }
@@ -3380,15 +4070,26 @@
     async function refreshCowData(options = {}) {
       if (state.cowFetchInFlight && !options.force) return;
       state.cowFetchInFlight = true;
+      let timeoutId = null;
       try {
         const center = cowCenterForRequest();
-        const response = await fetch(cowEndpointUrl(center), { cache: "no-store" });
+        const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 7000;
+        const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+        timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+        const response = await fetch(cowEndpointUrl(center), {
+          cache: "no-store",
+          ...(controller ? { signal: controller.signal } : {}),
+        });
+        if (timeoutId != null) clearTimeout(timeoutId);
         if (!response.ok) throw new Error(`Cow data HTTP ${response.status}`);
         const payload = await response.json();
         const { cows, pastures } = normalizeCowApiData(payload);
         applyCowData(cows, pastures, Date.now(), { persist: true });
+        return true;
       } catch {
+        return false;
       } finally {
+        if (timeoutId != null) clearTimeout(timeoutId);
         state.cowFetchInFlight = false;
       }
     }
@@ -3506,10 +4207,8 @@
 
     function setInspectorMinimized(minimized) {
       const wasMinimized = els.inspector.classList.contains("minimized");
-      els.inspector.classList.toggle("minimized", minimized);
-      els.closeInspector.textContent = minimized ? "▴" : "—";
-      els.closeInspector.setAttribute("aria-label", minimized ? "Expand details" : "Minimize details");
-      if (wasMinimized && !minimized && state.userLocation && selectedCompassTarget()) {
+      els.inspector.classList.remove("minimized");
+      if (wasMinimized && state.userLocation && selectedCompassTarget()) {
         centerViewportOnPointsKeepScale(
           [state.userLocation.point, selectedCompassTarget().point],
           { animate: true, durationMs: 480, focusVisibleArea: true, assumeInspectorOpen: true }
@@ -3734,11 +4433,11 @@
       if (!Number.isFinite(metres)) return "Not recorded";
       // Assume 3.5 km/h — a leisurely walking pace
       const minutes = metres / (3500 / 60);
-      if (minutes < 1) return "Under 1 min";
-      if (minutes < 60) return `~${Math.round(minutes)} min`;
+      if (minutes < 1) return "Under 1 min walk";
+      if (minutes < 60) return `~${Math.round(minutes)} mins walk`;
       const hours = Math.floor(minutes / 60);
       const mins = Math.round(minutes % 60);
-      return mins > 0 ? `~${hours} hr ${mins} min` : `~${hours} hr`;
+      return mins > 0 ? `~${hours} hr ${mins} mins walk` : `~${hours} hr walk`;
     }
 
     function updateSelectedDetailFields() {
@@ -3757,15 +4456,211 @@
       return String(value);
     }
 
+    function estimateTreeAgeFromGirth(tree) {
+      const girthMetres = Number(tree && tree.girthMetres);
+      if (!Number.isFinite(girthMetres) || girthMetres <= 0) return null;
+
+      const girthCentimetres = girthMetres * 100;
+      const growthModel = growthModelForTree(tree);
+      const estimatedYearsAtMeasurement = Math.max(1, Math.round(girthCentimetres / growthModel.cmPerYear));
+      const gpsDate = parseLooseDate(tree && tree.dateGpsd);
+      const today = new Date();
+
+      let estimatedYearsToday = estimatedYearsAtMeasurement;
+      if (gpsDate) {
+        const elapsedYears = Math.max(0, (today.getTime() - gpsDate.getTime()) / (365.2425 * 24 * 60 * 60 * 1000));
+        estimatedYearsToday = Math.max(1, Math.round(estimatedYearsAtMeasurement + elapsedYears));
+      }
+
+      const estimatedStartYear = today.getFullYear() - estimatedYearsToday;
+      return `~${estimatedYearsToday} years (c.${estimatedStartYear})`;
+    }
+
+    function growthModelForTree(tree) {
+      const speciesText = [
+        tree && tree.commonName,
+        tree && tree.latinName,
+        tree && tree.treeForm,
+      ].filter(Boolean).join(" ").toLowerCase();
+
+      const growthRates = [
+        { tokens: ["yew", "taxus"], cmPerYear: 1.5 },
+        { tokens: ["oak", "quercus"], cmPerYear: 2.5 },
+        { tokens: ["beech", "fagus"], cmPerYear: 2.3 },
+        { tokens: ["hornbeam", "carpinus"], cmPerYear: 2.4 },
+        { tokens: ["lime", "tilia"], cmPerYear: 2.7 },
+        { tokens: ["ash", "fraxinus"], cmPerYear: 2.8 },
+        { tokens: ["chestnut", "castanea", "aesculus"], cmPerYear: 3.0 },
+        { tokens: ["sycamore", "acer pseudoplatanus"], cmPerYear: 3.2 },
+        { tokens: ["maple", "acer"], cmPerYear: 3.0 },
+        { tokens: ["elm", "ulmus"], cmPerYear: 2.9 },
+        { tokens: ["birch", "betula"], cmPerYear: 3.5 },
+        { tokens: ["alder", "alnus"], cmPerYear: 3.6 },
+        { tokens: ["willow", "salix"], cmPerYear: 4.2 },
+        { tokens: ["poplar", "populus"], cmPerYear: 4.8 },
+      ];
+
+      for (const model of growthRates) {
+        if (model.tokens.some((token) => speciesText.includes(token))) {
+          return model;
+        }
+      }
+
+      return { cmPerYear: 2.9 };
+    }
+
+    function parseLooseDate(value) {
+      if (!value) return null;
+      if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+
+      if (typeof value === "number") {
+        const fromNumber = new Date(value);
+        return Number.isNaN(fromNumber.getTime()) ? null : fromNumber;
+      }
+
+      const text = String(value).trim();
+      if (!text) return null;
+
+      const direct = new Date(text);
+      if (!Number.isNaN(direct.getTime())) return direct;
+
+      const dayMonthYear = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      if (!dayMonthYear) return null;
+
+      const day = Number(dayMonthYear[1]);
+      const month = Number(dayMonthYear[2]);
+      const rawYear = Number(dayMonthYear[3]);
+      const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+      const parsed = new Date(year, month - 1, day);
+      if (Number.isNaN(parsed.getTime())) return null;
+      if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
+      return parsed;
+    }
+
     function osmNote() {
       return `<p class="source-note">Local places use © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors.</p>`;
     }
 
+    function folkloreNote(place, options = {}) {
+      const includeSummary = options.includeSummary !== false;
+      const summary = includeSummary && place.folkloreSummary ? `<p class="source-note">${escapeHtml(place.folkloreSummary)}</p>` : "";
+      const sourceLinks = Array.isArray(place.sourceLinks) ? place.sourceLinks : [];
+      const externalLinks = Array.isArray(place.externalLinks) ? place.externalLinks : [];
+
+      const sourceList = sourceLinks.length
+        ? `<p class="source-note"><strong>Sources</strong></p><ul class="story-list">${sourceLinks.map((url) => `<li><a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a></li>`).join("")}</ul>`
+        : "";
+
+      const externalList = externalLinks.length
+        ? `<p class="source-note"><strong>External links</strong></p><ul class="story-list">${externalLinks.map((link) => {
+          if (!link || typeof link !== "object") return "";
+          const url = link.url ? String(link.url) : "";
+          const title = link.title ? String(link.title) : url;
+          if (!url) return "";
+          return `<li><a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(title)}</a></li>`;
+        }).join("")}</ul>`
+        : "";
+
+      return `${summary}${sourceList}${externalList}`;
+    }
+
+    function isFolklorePlace(place) {
+      if (!place || typeof place !== "object") return false;
+      return place.dataSource === "folklore" || String(place.source || "").toLowerCase().includes("folklore");
+    }
+
     function isOpenStreetMapPlace(place) {
       if (!place || typeof place !== "object") return false;
+      if (isFolklorePlace(place)) return false;
       if (place.id !== null && place.id !== undefined && place.id !== "") return true;
       const source = String(place.source || "").toLowerCase();
       return source.includes("openstreetmap") || source.includes("osm");
+    }
+
+    function normalizeFolkloreLocations(data) {
+      const input = Array.isArray(data && data.locations) ? data.locations : [];
+      return input
+        .filter((item) => !isGenericFolkloreLocation(item))
+        .map((item, index) => {
+          const coords = parseFolkloreCoordinates(item && item.coordinates);
+          if (!coords) return null;
+          const folkloreCategory = classifyFolkloreCategory(item);
+          const folkloreTopics = classifyFolkloreTopics(item);
+          const summary = item.folklore_summary || item.story_summary || item.story || "";
+          return {
+            id: item.id || `folklore-${index + 1}`,
+            name: item.name || "Folklore location",
+            category: folkloreCategory,
+            folkloreCategory,
+            folkloreTopics,
+            categoryLabel: `Folklore · ${folkloreCategory.charAt(0).toUpperCase()}${folkloreCategory.slice(1)}`,
+            type: item.type || null,
+            area: item.area || item.location_description || null,
+            confidence: item.confidence || null,
+            address: item.address || null,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            point: projectLonLat(coords.longitude, coords.latitude),
+            folkloreSummary: summary,
+            sourceLinks: Array.isArray(item.source_links) ? item.source_links : [],
+            externalLinks: Array.isArray(item.external_links) ? item.external_links : [],
+            source: "Folklore dataset",
+            dataSource: "folklore",
+          };
+        })
+        .filter(Boolean);
+    }
+
+    function isGenericFolkloreLocation(item) {
+      const blob = [
+        item && item.type,
+        item && item.name,
+        Array.isArray(item && item.category) ? item.category.join(" ") : item && item.category,
+        item && item.location_description,
+        item && item.notes,
+      ].filter(Boolean).join(" ").toLowerCase();
+      const precision = String(item && item.location_precision || "").toLowerCase();
+      return blob.includes("generic location")
+        || precision.startsWith("general_")
+        || blob.includes("general location credit");
+    }
+
+    function parseFolkloreCoordinates(coordinates) {
+      if (!coordinates || typeof coordinates !== "object") return null;
+      const latitude = Number(coordinates.lat ?? coordinates.latitude);
+      const longitude = Number(coordinates.lng ?? coordinates.lon ?? coordinates.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+      return { latitude, longitude };
+    }
+
+    function classifyFolkloreCategory(item) {
+      const blob = [
+        item && item.type,
+        item && item.name,
+        Array.isArray(item && item.category) ? item.category.join(" ") : item && item.category,
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (blob.includes("plaque")) return "plaque";
+      if (blob.includes("legend") || blob.includes("folklore") || blob.includes("ghost") || blob.includes("haunt")) return "legend";
+      return "history";
+    }
+
+    function classifyFolkloreTopics(item) {
+      const blob = [
+        item && item.type,
+        item && item.name,
+        item && item.folklore_summary,
+        item && item.story_summary,
+        item && item.story,
+        item && item.historical_status,
+        Array.isArray(item && item.category) ? item.category.join(" ") : item && item.category,
+      ].filter(Boolean).join(" ").toLowerCase();
+
+      const topics = [];
+      if (blob.includes("blue plaque")) topics.push("blue_plaque");
+      if (blob.includes("film") || blob.includes("television") || blob.includes("tv") || blob.includes("netflix") || blob.includes("filming") || blob.includes("imdb")) topics.push("film_tv");
+      if (blob.includes("second world war") || blob.includes("ww2") || blob.includes("wwii") || blob.includes("wartime") || blob.includes("anti-aircraft") || blob.includes("v2") || blob.includes("pow camp") || blob.includes("bomb")) topics.push("ww2");
+      if (blob.includes("royal") || blob.includes("queen victoria") || blob.includes("queen elizabeth") || blob.includes("henry viii") || blob.includes("hunting lodge") || blob.includes("forest law")) topics.push("royal");
+      return topics;
     }
 
     function escapeHtml(value) {

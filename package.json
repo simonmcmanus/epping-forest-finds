@@ -8,6 +8,9 @@
     "tunnel": "./start-dev.sh",
     "regen:landmarks": "python3 scripts/regenerate_local_landmarks.py",
     "regen:landmarks:js": "node scripts/regenerate-local-landmarks.js",
+    "regen:paths": "python3 scripts/regenerate_local_paths.py",
+    "regen:paths:js": "node scripts/regenerate-local-paths.js",
+    "regen:environment": "python3 scripts/regenerate_local_environment.py",
     "netlify:dev": "npx netlify dev",
     "build": "echo \"Static site: no build step required\""
   }

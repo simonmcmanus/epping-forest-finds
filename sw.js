@@ -1,4 +1,4 @@
-const CACHE_NAME = "veteran-tree-finder-v67";
+const CACHE_NAME = "veteran-tree-finder-v70";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -8,7 +8,10 @@ const APP_SHELL = [
   "./Veteran_Tree_Register.enriched.with_named_trees.json",
   "./data/epping-forest-land.geojson",
   "./data/epping-buffer-land.geojson",
-  "./data/local-landmarks.geojson"
+  "./data/local-landmarks.geojson",
+  "./data/epping_forest_folklore_locations_v14_external_links.json",
+  "./data/local-paths.geojson",
+  "./data/local-environment.geojson"
 ];
 
 self.addEventListener("install", (event) => {
