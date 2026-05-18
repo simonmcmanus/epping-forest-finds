@@ -1031,8 +1031,12 @@
     const PATHS_URL = "data/local-paths.geojson";
     const ENVIRONMENT_URL = "data/local-environment.geojson";
     const COW_PROXY_URL_BASE = "/api/cows?center=";
+    const TRACKING_API_URL = "/api/track";
     const COW_SOURCE_URL_BASE = "https://account.nofence.no/api/open/data/?center=";
     const COW_DATA_CACHE_KEY = "forest-finds-cow-data-v1";
+    const TRACKING_USER_ID_KEY = "forest-finds-tracking-user-id-v1";
+    const LOCATION_TRACK_MIN_INTERVAL_MS = 2 * 60 * 1000;
+    const LOCATION_TRACK_MIN_DISTANCE_METRES = 25;
     const COW_REFRESH_MS = 5 * 60 * 1000;
     const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
     const FEATURE_LAYERS = [
@@ -1087,6 +1091,10 @@
       viewportAnimationStartTime: null,
       viewportAnimationDuration: 0,
       emojiScaleAnimated: null,
+      trackingUserId: null,
+      trackingSessionId: null,
+      lastTrackedLocationAt: 0,
+      lastTrackedLocation: null,
     };
 
     const els = {
@@ -1131,6 +1139,7 @@
 
     async function boot() {
       setupPwa();
+      initializeTrackingState();
       setupUiZoomLock();
       setupInteractions();
       resizeCanvas();
@@ -1281,6 +1290,137 @@
         }
         setStatus("Could not load local map data. Start a local server from this folder and refresh.");
       }
+    }
+
+    function initializeTrackingState() {
+      state.trackingUserId = getOrCreateTrackingUserId();
+      state.trackingSessionId = createTrackingId();
+    }
+
+    function getOrCreateTrackingUserId() {
+      try {
+        const existing = localStorage.getItem(TRACKING_USER_ID_KEY);
+        if (existing) return existing;
+        const next = createTrackingId();
+        localStorage.setItem(TRACKING_USER_ID_KEY, next);
+        return next;
+      } catch {
+        return createTrackingId();
+      }
+    }
+
+    function createTrackingId() {
+      if (typeof crypto !== "undefined") {
+        if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+        if (typeof crypto.getRandomValues === "function") {
+          const bytes = new Uint8Array(16);
+          crypto.getRandomValues(bytes);
+          bytes[6] = (bytes[6] & 0x0f) | 0x40;
+          bytes[8] = (bytes[8] & 0x3f) | 0x80;
+          const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0"));
+          return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
+        }
+      }
+      return `ff-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+
+    function roundCoordinate(value) {
+      return Math.round(Number(value) * 1000000) / 1000000;
+    }
+
+    function trackingLocationSnapshot() {
+      if (!state.userLocation) return null;
+      return {
+        latitude: roundCoordinate(state.userLocation.latitude),
+        longitude: roundCoordinate(state.userLocation.longitude),
+        accuracy: Number.isFinite(state.userLocation.accuracy) ? Math.round(state.userLocation.accuracy) : null,
+      };
+    }
+
+    function postTrackingEvent(eventType, payload) {
+      if (!state.trackingUserId) return;
+      const body = JSON.stringify({
+        eventType,
+        userId: state.trackingUserId,
+        sessionId: state.trackingSessionId,
+        appVersion: APP_VERSION,
+        page: window.location.pathname || "/",
+        recordedAt: new Date().toISOString(),
+        ...payload,
+      });
+
+      fetch(TRACKING_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body,
+        keepalive: true,
+      }).catch(() => {});
+    }
+
+    function maybeTrackUserLocation(coords, reason = "update") {
+      const latitude = Number(coords && coords.latitude);
+      const longitude = Number(coords && coords.longitude);
+      const accuracy = Number(coords && coords.accuracy);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+      const now = Date.now();
+      const previous = state.lastTrackedLocation;
+      const elapsed = now - state.lastTrackedLocationAt;
+      const movedMetres = previous
+        ? distanceMetres(previous.latitude, previous.longitude, latitude, longitude)
+        : Infinity;
+      const shouldTrack = reason === "initial"
+        || !previous
+        || elapsed >= LOCATION_TRACK_MIN_INTERVAL_MS
+        || movedMetres >= LOCATION_TRACK_MIN_DISTANCE_METRES;
+
+      if (!shouldTrack) return;
+
+      state.lastTrackedLocationAt = now;
+      state.lastTrackedLocation = { latitude, longitude };
+      postTrackingEvent("location", {
+        reason,
+        location: {
+          latitude: roundCoordinate(latitude),
+          longitude: roundCoordinate(longitude),
+          accuracy: Number.isFinite(accuracy) ? Math.round(accuracy) : null,
+        },
+      });
+    }
+
+    function trackingItemName(type, item) {
+      if (!item) return null;
+      if (type === "tree") return item.commonName || item.tagNumber || item.recordNumber || "Tree";
+      if (type === "cow") return `Cow ${displayValue(item.serialNo)}`;
+      if (type === "landmark") return placeTitle(item);
+      if (type === "area") return item.feature && item.feature.properties && (item.feature.properties.name || item.feature.properties.Name) || "Area";
+      return null;
+    }
+
+    function trackingItemKey(type, item) {
+      if (!item) return null;
+      if (type === "tree") return treeHashKey(item);
+      if (type === "cow") return cowKey(item);
+      if (type === "landmark") return placeHashKey(item);
+      if (type === "area") {
+        const layerKey = item.layer && item.layer.key ? item.layer.key : "area";
+        const featureName = item.feature && item.feature.properties && (item.feature.properties.name || item.feature.properties.Name || item.feature.properties.id);
+        return `${layerKey}:${featureName || "feature"}`;
+      }
+      return null;
+    }
+
+    function trackSelectionEvent(source, type, item, distance) {
+      postTrackingEvent("click", {
+        source,
+        itemType: type,
+        itemKey: trackingItemKey(type, item),
+        itemName: trackingItemName(type, item),
+        distanceMetres: Number.isFinite(distance) ? Math.round(distance) : null,
+        userLocation: trackingLocationSnapshot(),
+      });
     }
 
     function setupPwa() {
@@ -1532,6 +1672,7 @@
           const { latitude, longitude, accuracy } = position.coords;
             const point = projectLonLat(longitude, latitude);
             state.userLocation = { latitude, longitude, accuracy, point };
+            maybeTrackUserLocation({ latitude, longitude, accuracy }, initial ? "initial" : "manual");
             setLocationGateVisible(false);
             updateLocateButtonVisibility();
             state.userInMapArea = pointInsideBounds(point, state.bounds);
@@ -2732,6 +2873,7 @@
 
       if (hit.type === "tree") {
         state.selected = { type: "tree", item: hit.item };
+        trackSelectionEvent("map", "tree", hit.item, distanceFromUser(hit.item));
         syncHashFromSelection();
         showTreeDetails(hit.item, distanceFromUser(hit.item), "Tree record");
         setInspectorMinimized(true);
@@ -2739,6 +2881,7 @@
         ensureUserAndSelectionVisible({ animate: true, force: true });
       } else if (hit.type === "cow") {
         state.selected = { type: "cow", item: hit.item };
+        trackSelectionEvent("map", "cow", hit.item, distanceFromUser(hit.item));
         syncHashFromSelection();
         showCowDetails(hit.item, distanceFromUser(hit.item));
         setInspectorMinimized(true);
@@ -2746,6 +2889,7 @@
         ensureUserAndSelectionVisible({ animate: true, force: true });
       } else if (hit.type === "landmark") {
         state.selected = { type: "landmark", item: hit.item };
+        trackSelectionEvent("map", "landmark", hit.item, distanceFromUser(hit.item));
         syncHashFromSelection();
         showLandmarkDetails(hit.item, distanceFromUser(hit.item));
         setInspectorMinimized(true);
@@ -2753,6 +2897,7 @@
         ensureUserAndSelectionVisible({ animate: true, force: true });
       } else if (hit.type === "area") {
         state.selected = { type: "area", item: hit.item };
+        trackSelectionEvent("map", "area", hit.item, null);
         syncHashFromSelection();
         showAreaDetails(hit.item);
         updateCompassOverlay();
@@ -2884,6 +3029,7 @@
         if (!tree) return;
         const metres = distanceFromUser(tree);
         state.selected = { type: "tree", item: tree };
+        trackSelectionEvent("overview", "tree", tree, metres);
         syncHashFromSelection();
         showTreeDetails(tree, metres, "Nearest tree");
         setInspectorMinimized(true);
@@ -2898,6 +3044,7 @@
         if (!place) return;
         const metres = distanceFromUser(place);
         state.selected = { type: "landmark", item: place };
+        trackSelectionEvent("overview", "landmark", place, metres);
         syncHashFromSelection();
         showLandmarkDetails(place, metres);
         setInspectorMinimized(true);
@@ -2912,6 +3059,7 @@
         if (!cow) return;
         const metres = distanceFromUser(cow);
         state.selected = { type: "cow", item: cow };
+        trackSelectionEvent("overview", "cow", cow, metres);
         syncHashFromSelection();
         showCowDetails(cow, metres);
         setInspectorMinimized(true);
@@ -3687,6 +3835,7 @@
           const { latitude, longitude, accuracy } = position.coords;
           const point = projectLonLat(longitude, latitude);
           state.userLocation = { latitude, longitude, accuracy, point };
+          maybeTrackUserLocation({ latitude, longitude, accuracy }, "watch");
           updateLocateButtonVisibility();
           state.userInMapArea = pointInsideBounds(point, state.bounds);
           const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
@@ -4186,6 +4335,7 @@
       const nearby = nearbyTreesTo(tree.latitude, tree.longitude, 24);
       const nearbyPoints = nearby.map(({ tree: item }) => item.point);
       state.selected = { type: "tree", item: tree };
+      trackSelectionEvent("search", "tree", tree, distanceFromUser(tree));
       syncHashFromSelection();
       startCompassNavigation();
 
