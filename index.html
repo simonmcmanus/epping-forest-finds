@@ -1311,7 +1311,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v71";
+    const APP_VERSION = "v72";
     const FILTER_GROUPS = [
       {
         key: "nature",
@@ -1322,6 +1322,7 @@
           { key: "paths", label: "🥾 Paths", title: "paths" },
           { key: "hydrology", label: "💧 Hydrology", title: "water features" },
           { key: "nature_designations", label: "🌱 Nature designations", title: "nature designations" },
+          { key: "buildings", label: "🏘️ Buildings", title: "buildings" },
         ],
       },
       {
@@ -1383,7 +1384,7 @@
     );
     const FILTER_SUBFILTERS_BY_KEY = new Map(FILTER_SUBFILTERS.map((subfilter) => [subfilter.key, subfilter]));
     const ALL_OVERVIEW_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key));
-    const LAYER_FILTER_KEYS = new Set(["paths", "hydrology", "nature_designations"]);
+    const LAYER_FILTER_KEYS = new Set(["paths", "hydrology", "nature_designations", "buildings"]);
     const TREE_FILTER_KEYS = new Set(["trees"]);
     const COW_FILTER_KEYS = new Set(["cows"]);
     const PLACE_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key).filter((key) => !LAYER_FILTER_KEYS.has(key) && !TREE_FILTER_KEYS.has(key) && !COW_FILTER_KEYS.has(key)));
@@ -2596,6 +2597,14 @@
           drawEnvironmentLines(ctx, geometry, {
             stroke: "rgba(47, 114, 178, 0.72)",
             width: 1.5 * dpr,
+          });
+        }
+
+        if (type === "building" && isLayerVisibleForFilter("buildings")) {
+          drawEnvironmentPolygon(ctx, geometry, {
+            fill: "rgba(120, 120, 120, 0.15)",
+            stroke: "rgba(80, 80, 80, 0.35)",
+            width: 0.8 * dpr,
           });
         }
       }

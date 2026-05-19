@@ -29,6 +29,8 @@ def classify_feature(tags):
         return "hydrology_area"
     if tags.get("leisure") == "nature_reserve" or tags.get("boundary") == "protected_area" or "sssi" in designation or "nature reserve" in designation or "ancient woodland" in designation:
         return "nature_designation"
+    if tags.get("building"):
+        return "building"
     return "environment"
 
 
