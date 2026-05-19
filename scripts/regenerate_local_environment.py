@@ -29,6 +29,10 @@ def classify_feature(tags):
         return "hydrology_area"
     if tags.get("leisure") == "nature_reserve" or tags.get("boundary") == "protected_area" or "sssi" in designation or "nature reserve" in designation or "ancient woodland" in designation:
         return "nature_designation"
+    if tags.get("leisure") in {"garden", "park"}:
+        return "garden"
+    if tags.get("railway") in {"rail", "light_rail", "subway", "tram"}:
+        return "railway"
     if tags.get("building"):
         return "building"
     return "environment"
@@ -120,6 +124,14 @@ for element in parsed.get("elements", []):
             "landuse": tags.get("landuse"),
             "leisure": tags.get("leisure"),
             "boundary": tags.get("boundary"),
+            "railway": tags.get("railway"),
+            "operator": tags.get("operator"),
+            "service": tags.get("service"),
+            "usage": tags.get("usage"),
+            "gauge": tags.get("gauge"),
+            "electrified": tags.get("electrified"),
+            "voltage": tags.get("voltage"),
+            "frequency": tags.get("frequency"),
         },
     })
 

@@ -70,6 +70,7 @@ def convert_to_geojson(overpass_data):
                 'osmId': element['id'],
                 'name': name,
                 'highway': highway_type,
+                'service': tags.get('service'),
                 'ref': tags.get('ref'),
                 'maxspeed': tags.get('maxspeed'),
                 'surface': tags.get('surface'),

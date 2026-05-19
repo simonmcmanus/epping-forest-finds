@@ -1320,7 +1320,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v72";
+    const APP_VERSION = "v74";
     const FILTER_GROUPS = [
       {
         key: "nature",
@@ -1331,6 +1331,7 @@
           { key: "paths", label: "🥾 Paths", title: "paths" },
           { key: "hydrology", label: "💧 Hydrology", title: "water features" },
           { key: "nature_designations", label: "🌱 Nature designations", title: "nature designations" },
+          { key: "gardens", label: "🌻 Gardens & Parks", title: "gardens and parks" },
           { key: "buildings", label: "🏘️ Buildings", title: "buildings" },
         ],
       },
@@ -1393,7 +1394,7 @@
     );
     const FILTER_SUBFILTERS_BY_KEY = new Map(FILTER_SUBFILTERS.map((subfilter) => [subfilter.key, subfilter]));
     const ALL_OVERVIEW_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key));
-    const LAYER_FILTER_KEYS = new Set(["paths", "hydrology", "nature_designations", "buildings"]);
+    const LAYER_FILTER_KEYS = new Set(["paths", "hydrology", "nature_designations", "buildings", "gardens"]);
     const TREE_FILTER_KEYS = new Set(["trees"]);
     const COW_FILTER_KEYS = new Set(["cows"]);
     const PLACE_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key).filter((key) => !LAYER_FILTER_KEYS.has(key) && !TREE_FILTER_KEYS.has(key) && !COW_FILTER_KEYS.has(key)));
@@ -2563,6 +2564,10 @@
             roadColor = "rgba(255, 255, 255, 0.35)";
             roadWidth = clamp(1.2 + zoomLevel * 0.1, 0.8, 2) * dpr;
             break;
+          case "alley":
+            roadColor = "rgba(255, 255, 255, 0.25)";
+            roadWidth = clamp(0.8 + zoomLevel * 0.08, 0.6, 1.5) * dpr;
+            break;
           default:
             roadColor = "rgba(255, 255, 255, 0.4)";
             roadWidth = clamp(1.5 + zoomLevel * 0.15, 1, 2.5) * dpr;
@@ -2630,6 +2635,23 @@
           });
         }
 
+        if (type === "railway") {
+          drawRailwayLines(ctx, geometry, feature.properties, {
+            stroke: "rgba(60, 60, 60, 0.85)",
+            casing: "rgba(255, 255, 255, 0.45)",
+            width: 2.5 * dpr,
+            casingWidth: 4.5 * dpr,
+          });
+        }
+
+        if (type === "garden" && isLayerVisibleForFilter("gardens")) {
+          drawEnvironmentPolygon(ctx, geometry, {
+            fill: "rgba(120, 175, 90, 0.18)",
+            stroke: "rgba(90, 140, 70, 0.45)",
+            width: 1.2 * dpr,
+          });
+        }
+
         if (type === "building" && isLayerVisibleForFilter("buildings")) {
           drawEnvironmentPolygon(ctx, geometry, {
             fill: "rgba(120, 120, 120, 0.15)",
@@ -2676,6 +2698,44 @@
         ctx.strokeStyle = style.stroke;
         ctx.lineWidth = style.width;
         ctx.stroke();
+      }
+    }
+
+    function drawRailwayLines(ctx, geometry, properties, style) {
+      const segments = lineSegmentsFromGeometry(geometry);
+      const railwayType = properties && properties.railway;
+      
+      for (const segment of segments) {
+        if (!Array.isArray(segment) || segment.length < 2) continue;
+        
+        ctx.beginPath();
+        for (let i = 0; i < segment.length; i += 1) {
+          const point = worldToScreen(projectLonLat(Number(segment[i][0]), Number(segment[i][1])));
+          if (i === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        }
+        
+        // Draw casing (lighter outline for contrast)
+        if (style.casing) {
+          ctx.strokeStyle = style.casing;
+          ctx.lineWidth = style.casingWidth;
+          ctx.stroke();
+        }
+        
+        // Draw railway line
+        ctx.strokeStyle = style.stroke;
+        ctx.lineWidth = style.width;
+        ctx.stroke();
+        
+        // For Underground/subway, add dashed overlay to indicate underground
+        if (railwayType === "subway") {
+          ctx.save();
+          ctx.setLineDash([6, 4]);
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+          ctx.lineWidth = style.width * 0.6;
+          ctx.stroke();
+          ctx.restore();
+        }
       }
     }
 
@@ -2789,6 +2849,7 @@
       const tags = feature.properties || {};
       const name = tags.name || tags.ref || null;
       const highway = tags.highway || null;
+      const service = tags.service || null;
       const ref = tags.ref || null;
 
       const roadType = highway === "motorway" || highway === "motorway_link"
@@ -2803,9 +2864,11 @@
                 ? "tertiary"
                 : highway === "residential"
                   ? "residential"
-                  : highway === "service"
-                    ? "service"
-                    : "unclassified";
+                  : highway === "service" && service === "alley"
+                    ? "alley"
+                    : highway === "service"
+                      ? "service"
+                      : "unclassified";
 
       const segments = lineSegmentsFromGeometry(feature.geometry)
         .map((segment) => segment
@@ -2836,6 +2899,7 @@
         ref,
         roadType,
         highway,
+        service,
         segments,
         bbox,
       };
@@ -3544,6 +3608,11 @@
         const distance = distanceFromUserToRoad(hit.item);
         showRoadDetails(hit.item, distance);
         updateCompassOverlay();
+      } else if (hit.type === "railway") {
+        state.selected = { type: "railway", item: hit.item };
+        syncHashFromSelection();
+        showRailwayDetails(hit.item);
+        updateCompassOverlay();
       } else {
         goToInitialView();
         return;
@@ -3611,6 +3680,28 @@
         }
       }
       if (bestRoad) return bestRoad;
+
+      // Check for railways
+      let bestRailway = null;
+      const railwayClickRadius = 15 * dpr; // Slightly larger than roads for easier clicking
+      for (const envFeature of state.environmentFeatures) {
+        const props = envFeature.properties || {};
+        if (props.featureType !== "railway") continue;
+        if (!envFeature.geometry || envFeature.geometry.type !== "LineString") continue;
+        
+        const coords = envFeature.geometry.coordinates || [];
+        for (let i = 1; i < coords.length; i++) {
+          const p1World = projectLonLat(coords[i - 1][0], coords[i - 1][1]);
+          const p2World = projectLonLat(coords[i][0], coords[i][1]);
+          const p1 = worldToScreen(p1World);
+          const p2 = worldToScreen(p2World);
+          const dist = distanceToSegment(screen.x, screen.y, p1.x, p1.y, p2.x, p2.y);
+          if (dist < railwayClickRadius && (!bestRailway || dist < bestRailway.distance)) {
+            bestRailway = { type: "railway", item: envFeature, distance: dist };
+          }
+        }
+      }
+      if (bestRailway) return bestRailway;
 
       for (const envFeature of state.environmentFeatures) {
         if (envFeature.geometry && envFeature.geometry.type && envFeature.geometry.type.includes("Polygon")) {
@@ -3748,6 +3839,44 @@
         ["Name", road.name],
         ["Reference", road.ref],
         ["Highway tag", road.highway],
+        ["Source", "OpenStreetMap"],
+      ].filter(([key, value]) => value != null && value !== "");
+      
+      els.inspectorBody.innerHTML = detailsHtml(rows);
+    }
+
+    function showRailwayDetails(railway) {
+      const props = railway.properties || {};
+      const railwayType = props.railway;
+      
+      const railwayEmoji = railwayType === "subway" ? "🚇"
+        : railwayType === "tram" ? "🚊"
+        : railwayType === "light_rail" ? "🚈"
+        : "🚂";
+      
+      setInspectorSelectionChrome({ emoji: railwayEmoji, showBack: true });
+      els.inspectorTools.hidden = true;
+      
+      const railwayTypeLabel = railwayType === "rail" ? "Railway Line"
+        : railwayType === "subway" ? "Underground/Subway Line"
+        : railwayType === "light_rail" ? "Light Rail"
+        : railwayType === "tram" ? "Tram Line"
+        : "Rail Track";
+      
+      const displayName = props.name || "Unnamed railway line";
+      els.inspectorTitle.textContent = displayName;
+      els.inspectorType.textContent = railwayTypeLabel;
+      
+      const rows = [
+        ["Type", railwayTypeLabel],
+        ["Name", props.name],
+        ["Operator", props.operator],
+        ["Usage", props.usage],
+        ["Gauge", props.gauge ? `${props.gauge}` : null],
+        ["Electrified", props.electrified === "yes" ? "Yes" : props.electrified === "no" ? "No" : props.electrified],
+        ["Voltage", props.voltage ? `${props.voltage}` : null],
+        ["Frequency", props.frequency ? `${props.frequency} Hz` : null],
+        ["Service", props.service],
         ["Source", "OpenStreetMap"],
       ].filter(([key, value]) => value != null && value !== "");
       
