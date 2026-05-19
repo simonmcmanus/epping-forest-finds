@@ -15,6 +15,7 @@
     "build": "echo \"Static site: no build step required\""
   },
   "dependencies": {
-    "@netlify/blobs": "^10.7.8"
+    "@netlify/blobs": "^10.7.8",
+    "simple-icons": "^16.20.0"
   }
 }

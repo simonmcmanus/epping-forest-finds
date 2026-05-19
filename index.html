@@ -265,12 +265,215 @@
     }
 
     .filter-panel {
-      display: inline-flex;
-      gap: 6px;
-      flex-wrap: wrap;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
 
     .filter-panel[hidden] {
+      display: none;
+    }
+
+    .filter-group-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 6px;
+      align-items: start;
+      width: 100%;
+      max-width: 100%;
+    }
+
+    .filter-group {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+      max-width: 100%;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .filter-group.expanded {
+      grid-column: 1 / -1;
+      width: 100%;
+      max-width: 100%;
+      min-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .filter-chip-group {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      text-align: left;
+      padding: 0 10px;
+      min-height: 32px;
+      box-sizing: border-box;
+    }
+
+    .filter-group-label {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .filter-group.expanded .filter-chip-group {
+      width: 100%;
+      min-width: 100%;
+      max-width: 100%;
+      flex: 0 0 100%;
+      overflow: hidden;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      padding-right: 8px;
+    }
+
+    .filter-group.expanded .filter-group-label {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .filter-chip-group.active {
+      background: #dfeee2;
+      border-color: rgba(47, 111, 78, 0.62);
+      color: #173626;
+    }
+
+    .filter-group-summary {
+      flex-shrink: 0;
+      margin-left: auto;
+      font-size: 0.68rem;
+      font-weight: 900;
+      color: #466252;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(47, 111, 78, 0.18);
+      border-radius: 999px;
+      padding: 1px 7px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .filter-subfilters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: nowrap;
+      padding: 26px 6px 12px 8px;
+      margin-top: -27px;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      position: relative;
+      box-sizing: border-box;
+      max-height: none;
+      opacity: 1;
+      transform: translateY(0);
+      z-index: 1;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(241, 247, 240, 0.9);
+      transition: max-height 220ms ease, opacity 140ms ease 90ms, transform 180ms ease 90ms;
+    }
+
+    .filter-subfilters.is-scrollable {
+      --edge-fade: 24px;
+      -webkit-mask-image: linear-gradient(to right,
+        #000 0,
+        #000 calc(100% - var(--edge-fade)),
+        transparent 100%);
+      mask-image: linear-gradient(to right,
+        #000 0,
+        #000 calc(100% - var(--edge-fade)),
+        transparent 100%);
+    }
+
+    .filter-subfilters.is-scrollable:not(.is-scroll-start):not(.is-scroll-end) {
+      -webkit-mask-image: linear-gradient(to right,
+        transparent 0,
+        #000 var(--edge-fade),
+        #000 calc(100% - var(--edge-fade)),
+        transparent 100%);
+      mask-image: linear-gradient(to right,
+        transparent 0,
+        #000 var(--edge-fade),
+        #000 calc(100% - var(--edge-fade)),
+        transparent 100%);
+    }
+
+    .filter-subfilters.is-scrollable.is-scroll-end {
+      -webkit-mask-image: linear-gradient(to right,
+        transparent 0,
+        #000 var(--edge-fade),
+        #000 100%);
+      mask-image: linear-gradient(to right,
+        transparent 0,
+        #000 var(--edge-fade),
+        #000 100%);
+    }
+
+    .filter-chip-group.active + .filter-subfilters {
+      border-color: rgba(47, 111, 78, 0.62);
+    }
+
+    .filter-subfilters.animating {
+      pointer-events: none;
+    }
+
+    .filter-subfilters .filter-chip {
+      flex: 0 0 auto;
+    }
+
+    .filter-chip-sub {
+      min-height: 30px;
+      padding: 0 11px;
+      font-size: 0.78rem;
+      font-weight: 750;
+      border-color: rgba(47, 111, 78, 0.3);
+      background: rgba(255, 255, 255, 0.9);
+      color: #234234;
+    }
+
+    .filter-chip-sub.active {
+      background: #d6ead8;
+      border-color: rgba(47, 111, 78, 0.72);
+      color: #183525;
+    }
+
+    .filter-subfilters::after {
+      content: "";
+      position: sticky;
+      right: 0;
+      align-self: stretch;
+      width: 30px;
+      margin-left: -30px;
+      background: linear-gradient(to right, rgba(241, 247, 240, 0), rgba(241, 247, 240, 0.97) 62%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 120ms ease;
+    }
+
+    .filter-subfilters.is-scrollable:not(.is-scroll-end)::after {
+      opacity: 1;
+    }
+
+    .filter-subfilters[hidden] {
       display: none;
     }
 
@@ -307,6 +510,7 @@
       font-size: 0.82rem;
       font-weight: 800;
       box-shadow: none;
+      box-sizing: border-box;
     }
 
     .filter-chip.active {
@@ -493,16 +697,30 @@
     }
 
     .loading-step.pending .step-icon::after   { content: "" }
-    .loading-step.loading .step-icon::after   { content: ""; }
+    .loading-step.loading .step-icon {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(23, 34, 30, 0.26);
+      box-shadow: 0 0 0 1px rgba(23, 34, 30, 0.08);
+    }
     .loading-step.loading .step-icon::before  {
       content: "";
       position: absolute;
       inset: -2px;
       border-radius: 999px;
-      border: 2px solid rgba(23, 34, 30, 0.2);
+      border: 3px solid rgba(23, 34, 30, 0.14);
       border-top-color: currentColor;
+      border-left-color: currentColor;
+      animation: step-spin 0.72s linear infinite;
+    }
+    .loading-step.loading .step-icon::after   {
+      content: "";
+      position: absolute;
+      inset: 4px;
+      border-radius: 999px;
+      border: 2px solid rgba(23, 34, 30, 0.12);
       border-right-color: currentColor;
-      animation: step-spin 0.9s linear infinite;
+      border-bottom-color: currentColor;
+      animation: step-spin-reverse 1.05s linear infinite;
     }
     .loading-step.done    .step-icon::after   { content: "✓"; font-size: 0.8rem; }
     .loading-step.done    .step-icon          { background: var(--tree); border-color: var(--tree); color: #fff; }
@@ -511,6 +729,10 @@
 
     @keyframes step-spin {
       to { transform: rotate(360deg); }
+    }
+
+    @keyframes step-spin-reverse {
+      to { transform: rotate(-360deg); }
     }
 
     .version {
@@ -991,22 +1213,7 @@
           </div>
         </div>
         <div class="inspector-tools">
-          <div id="filterPanel" class="filter-panel">
-            <button class="filter-chip" type="button" data-overview-filter="all">All</button>
-            <button class="filter-chip" type="button" data-overview-filter="trees">🌳 Trees</button>
-            <button class="filter-chip" type="button" data-overview-filter="cows">🐄 Cows</button>
-            <button class="filter-chip" type="button" data-overview-filter="pubs">🍺 Pubs</button>
-            <button class="filter-chip" type="button" data-overview-filter="cafes">☕ Cafés</button>
-            <button class="filter-chip" type="button" data-overview-filter="transport">🚌 Transport</button>
-            <button class="filter-chip" type="button" data-overview-filter="locations">📍 Locations</button>
-            <button class="filter-chip" type="button" data-overview-filter="plaques">🪧 Plaques</button>
-            <button class="filter-chip" type="button" data-overview-filter="blue_plaques">🔵 Blue Plaques</button>
-            <button class="filter-chip" type="button" data-overview-filter="film_tv">🎬 Film/TV</button>
-            <button class="filter-chip" type="button" data-overview-filter="ww2">🪖 WWII</button>
-            <button class="filter-chip" type="button" data-overview-filter="royal">👑 Royal</button>
-            <button class="filter-chip" type="button" data-overview-filter="history">📜 History</button>
-            <button class="filter-chip" type="button" data-overview-filter="legends">✨ Legends</button>
-          </div>
+          <div id="filterPanel" class="filter-panel"></div>
           <div id="treeSearchPanel" class="search-panel" hidden>
             <input id="treeSearchInput" class="search-number" type="search" inputmode="text" autocomplete="off" placeholder="Search tree number" aria-label="Search by tree number">
             <button id="treeSearchButton" class="button search-button" type="button">Find</button>
@@ -1031,12 +1238,8 @@
     const PATHS_URL = "data/local-paths.geojson";
     const ENVIRONMENT_URL = "data/local-environment.geojson";
     const COW_PROXY_URL_BASE = "/api/cows?center=";
-    const TRACKING_API_URL = "/api/track";
     const COW_SOURCE_URL_BASE = "https://account.nofence.no/api/open/data/?center=";
     const COW_DATA_CACHE_KEY = "forest-finds-cow-data-v1";
-    const TRACKING_USER_ID_KEY = "forest-finds-tracking-user-id-v1";
-    const LOCATION_TRACK_MIN_INTERVAL_MS = 2 * 60 * 1000;
-    const LOCATION_TRACK_MIN_DISTANCE_METRES = 25;
     const COW_REFRESH_MS = 5 * 60 * 1000;
     const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
     const FEATURE_LAYERS = [
@@ -1045,6 +1248,105 @@
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
     const APP_VERSION = "v70";
+    const FILTER_GROUPS = [
+      {
+        key: "nature",
+        label: "🌿 Nature",
+        subfilters: [
+          { key: "trees", label: "🌳 Trees", title: "trees" },
+          { key: "cows", label: "🐄 Cows", title: "cows" },
+          { key: "paths", label: "🥾 Paths", title: "paths" },
+          { key: "hydrology", label: "💧 Hydrology", title: "water features" },
+          { key: "nature_designations", label: "🌱 Nature designations", title: "nature designations" },
+        ],
+      },
+      {
+        key: "food",
+        label: "🍽️ Food",
+        subfilters: [
+          { key: "pubs", label: "🍺 Pubs", title: "pubs and restaurants" },
+          { key: "cafes", label: "☕ Cafés", title: "cafés" },
+        ],
+      },
+      {
+        key: "transport",
+        label: "🚌 Transport",
+        subfilters: [
+          { key: "bus", label: "🚌 Bus stops", title: "bus stops" },
+          { key: "underground", label: "Ⓤ Underground", title: "Underground stations" },
+          { key: "national_rail", label: "⇄ National Rail", title: "National Rail / overground stations" },
+        ],
+      },
+      {
+        key: "history",
+        label: "📜 History",
+        subfilters: [
+          { key: "history_general", label: "🏛️ Historic places", title: "historic places" },
+          { key: "royal", label: "👑 Royal", title: "royal-history places" },
+          { key: "ww2", label: "🪖 WWII", title: "WWII places" },
+          { key: "social_history", label: "🧺 Social history", title: "social history places" },
+          { key: "plaques", label: "🪧 Plaques", title: "plaques" },
+          { key: "blue_plaques", label: "🔵 Blue plaques", title: "blue plaques" },
+        ],
+      },
+      {
+        key: "locations",
+        label: "📍 Locations",
+        subfilters: [
+          { key: "celebrity_association", label: "⭐ Celebrity", title: "celebrity links" },
+          { key: "science", label: "🔭 Science", title: "science places" },
+          { key: "education", label: "🎓 Education", title: "education places" },
+          { key: "medicine", label: "⚕️ Medicine", title: "medicine places" },
+          { key: "literature", label: "📚 Literature", title: "literary places" },
+          { key: "theatre", label: "🎭 Theatre", title: "theatre places" },
+          { key: "politics", label: "🏛️ Politics", title: "politics places" },
+          { key: "art", label: "🎨 Art", title: "art places" },
+          { key: "church", label: "⛪ Church", title: "churches" },
+        ],
+      },
+      {
+        key: "stories",
+        label: "✨ Stories",
+        subfilters: [
+          { key: "legends", label: "✨ Legends", title: "legends" },
+          { key: "film_tv", label: "🎬 Film/TV", title: "film and TV locations" },
+        ],
+      },
+    ];
+    const FILTER_GROUPS_BY_KEY = new Map(FILTER_GROUPS.map((group) => [group.key, group]));
+    const FILTER_SUBFILTERS = FILTER_GROUPS.flatMap((group) =>
+      group.subfilters.map((subfilter) => ({ ...subfilter, groupKey: group.key, groupLabel: group.label }))
+    );
+    const FILTER_SUBFILTERS_BY_KEY = new Map(FILTER_SUBFILTERS.map((subfilter) => [subfilter.key, subfilter]));
+    const ALL_OVERVIEW_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key));
+    const LAYER_FILTER_KEYS = new Set(["paths", "hydrology", "nature_designations"]);
+    const TREE_FILTER_KEYS = new Set(["trees"]);
+    const COW_FILTER_KEYS = new Set(["cows"]);
+    const PLACE_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key).filter((key) => !LAYER_FILTER_KEYS.has(key) && !TREE_FILTER_KEYS.has(key) && !COW_FILTER_KEYS.has(key)));
+    const PLACE_FILTER_PRIORITY = [
+      "pubs",
+      "cafes",
+      "bus",
+      "underground",
+      "national_rail",
+      "blue_plaques",
+      "plaques",
+      "film_tv",
+      "royal",
+      "ww2",
+      "social_history",
+      "history_general",
+      "celebrity_association",
+      "science",
+      "education",
+      "medicine",
+      "literature",
+      "theatre",
+      "politics",
+      "art",
+      "church",
+      "legends",
+    ];
 
     const state = {
       trees: [],
@@ -1071,6 +1373,8 @@
       cowRefreshTimerId: null,
       cowFetchInFlight: false,
       overviewFilters: [],
+      overviewExpandedGroups: [],
+      initialUserRevealDone: false,
       nearestItemsCount: 10,
       suppressHashChange: false,
       compassHeading: null,
@@ -1091,10 +1395,6 @@
       viewportAnimationStartTime: null,
       viewportAnimationDuration: 0,
       emojiScaleAnimated: null,
-      trackingUserId: null,
-      trackingSessionId: null,
-      lastTrackedLocationAt: 0,
-      lastTrackedLocation: null,
     };
 
     const els = {
@@ -1139,7 +1439,6 @@
 
     async function boot() {
       setupPwa();
-      initializeTrackingState();
       setupUiZoomLock();
       setupInteractions();
       resizeCanvas();
@@ -1242,6 +1541,7 @@
             const latitude = Number(feature.geometry.coordinates[1]);
             return {
               ...feature.properties,
+              categoryTags: buildOsmCategoryTags(feature.properties),
               latitude,
               longitude,
               point: projectLonLat(longitude, latitude),
@@ -1292,146 +1592,18 @@
       }
     }
 
-    function initializeTrackingState() {
-      state.trackingUserId = getOrCreateTrackingUserId();
-      state.trackingSessionId = createTrackingId();
-    }
-
-    function getOrCreateTrackingUserId() {
-      try {
-        const existing = localStorage.getItem(TRACKING_USER_ID_KEY);
-        if (existing) return existing;
-        const next = createTrackingId();
-        localStorage.setItem(TRACKING_USER_ID_KEY, next);
-        return next;
-      } catch {
-        return createTrackingId();
-      }
-    }
-
-    function createTrackingId() {
-      if (typeof crypto !== "undefined") {
-        if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
-        if (typeof crypto.getRandomValues === "function") {
-          const bytes = new Uint8Array(16);
-          crypto.getRandomValues(bytes);
-          bytes[6] = (bytes[6] & 0x0f) | 0x40;
-          bytes[8] = (bytes[8] & 0x3f) | 0x80;
-          const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0"));
-          return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
-        }
-      }
-      return `ff-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-    }
-
-    function roundCoordinate(value) {
-      return Math.round(Number(value) * 1000000) / 1000000;
-    }
-
-    function trackingLocationSnapshot() {
-      if (!state.userLocation) return null;
-      return {
-        latitude: roundCoordinate(state.userLocation.latitude),
-        longitude: roundCoordinate(state.userLocation.longitude),
-        accuracy: Number.isFinite(state.userLocation.accuracy) ? Math.round(state.userLocation.accuracy) : null,
-      };
-    }
-
-    function postTrackingEvent(eventType, payload) {
-      if (!state.trackingUserId) return;
-      const body = JSON.stringify({
-        eventType,
-        userId: state.trackingUserId,
-        sessionId: state.trackingSessionId,
-        appVersion: APP_VERSION,
-        page: window.location.pathname || "/",
-        recordedAt: new Date().toISOString(),
-        ...payload,
-      });
-
-      fetch(TRACKING_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body,
-        keepalive: true,
-      }).catch(() => {});
-    }
-
-    function maybeTrackUserLocation(coords, reason = "update") {
-      const latitude = Number(coords && coords.latitude);
-      const longitude = Number(coords && coords.longitude);
-      const accuracy = Number(coords && coords.accuracy);
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-
-      const now = Date.now();
-      const previous = state.lastTrackedLocation;
-      const elapsed = now - state.lastTrackedLocationAt;
-      const movedMetres = previous
-        ? distanceMetres(previous.latitude, previous.longitude, latitude, longitude)
-        : Infinity;
-      const shouldTrack = reason === "initial"
-        || !previous
-        || elapsed >= LOCATION_TRACK_MIN_INTERVAL_MS
-        || movedMetres >= LOCATION_TRACK_MIN_DISTANCE_METRES;
-
-      if (!shouldTrack) return;
-
-      state.lastTrackedLocationAt = now;
-      state.lastTrackedLocation = { latitude, longitude };
-      postTrackingEvent("location", {
-        reason,
-        location: {
-          latitude: roundCoordinate(latitude),
-          longitude: roundCoordinate(longitude),
-          accuracy: Number.isFinite(accuracy) ? Math.round(accuracy) : null,
-        },
-      });
-    }
-
-    function trackingItemName(type, item) {
-      if (!item) return null;
-      if (type === "tree") return item.commonName || item.tagNumber || item.recordNumber || "Tree";
-      if (type === "cow") return `Cow ${displayValue(item.serialNo)}`;
-      if (type === "landmark") return placeTitle(item);
-      if (type === "area") return item.feature && item.feature.properties && (item.feature.properties.name || item.feature.properties.Name) || "Area";
-      return null;
-    }
-
-    function trackingItemKey(type, item) {
-      if (!item) return null;
-      if (type === "tree") return treeHashKey(item);
-      if (type === "cow") return cowKey(item);
-      if (type === "landmark") return placeHashKey(item);
-      if (type === "area") {
-        const layerKey = item.layer && item.layer.key ? item.layer.key : "area";
-        const featureName = item.feature && item.feature.properties && (item.feature.properties.name || item.feature.properties.Name || item.feature.properties.id);
-        return `${layerKey}:${featureName || "feature"}`;
-      }
-      return null;
-    }
-
-    function trackSelectionEvent(source, type, item, distance) {
-      postTrackingEvent("click", {
-        source,
-        itemType: type,
-        itemKey: trackingItemKey(type, item),
-        itemName: trackingItemName(type, item),
-        distanceMetres: Number.isFinite(distance) ? Math.round(distance) : null,
-        userLocation: trackingLocationSnapshot(),
-      });
-    }
-
     function setupPwa() {
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("sw.js").catch(console.error);
       }
 
+      if (els.installButton) {
+        els.installButton.hidden = true;
+      }
+
       window.addEventListener("beforeinstallprompt", (event) => {
         event.preventDefault();
         state.installPrompt = event;
-        els.installButton.style.display = "inline-flex";
       });
 
       els.installButton.addEventListener("click", async () => {
@@ -1439,7 +1611,6 @@
         state.installPrompt.prompt();
         await state.installPrompt.userChoice;
         state.installPrompt = null;
-        els.installButton.style.display = "none";
       });
     }
 
@@ -1466,10 +1637,12 @@
       setupCompassListeners();
       setupCompassPermissionPrimer();
       updateMapControlVisibility();
+      renderOverviewFilterPanel();
       updateFilterUi();
 
       window.addEventListener("resize", () => {
         updateMapControlVisibility();
+        updateSubfilterScrollHints();
         resizeCanvas();
         if (state.bounds) {
           if (state.userLocation && selectedCompassTarget()) ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
@@ -1548,10 +1721,22 @@
       }, true);
 
       els.filterPanel.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-overview-filter]");
-        if (!button) return;
-        const next = button.dataset.overviewFilter;
-        setOverviewFilter(next);
+        const expandButton = event.target.closest("[data-filter-group-expand]");
+        if (expandButton) {
+          toggleOverviewGroupExpansion(expandButton.dataset.filterGroupExpand);
+          return;
+        }
+
+        const subfilterButton = event.target.closest("[data-filter-subfilter]");
+        if (subfilterButton) {
+          toggleOverviewSubfilter(subfilterButton.dataset.filterSubfilter);
+          return;
+        }
+
+        const groupButton = event.target.closest("[data-filter-group]");
+        if (groupButton) {
+          toggleOverviewFilterGroup(groupButton.dataset.filterGroup);
+        }
       });
 
       els.treeSearchToggle.addEventListener("click", () => {
@@ -1581,17 +1766,6 @@
         if (target.closest("#treeSearchPanel") || target.closest("#treeSearchToggle")) return;
         els.treeSearchPanel.hidden = true;
         els.treeSearchToggle.setAttribute("aria-expanded", "false");
-      });
-
-      document.addEventListener("click", (event) => {
-        const target = event.target;
-        if (!(target instanceof Element)) return;
-        if (els.filterPanel.hidden) return;
-        if (target.closest("#filterPanel") || target.closest("#filterToggle")) return;
-        if (state.overviewFilters.length > 0) return;
-        els.filterPanel.hidden = true;
-        els.filterToggle.setAttribute("aria-expanded", "false");
-        updateFilterUi();
       });
 
       window.addEventListener("hashchange", () => {
@@ -1672,7 +1846,6 @@
           const { latitude, longitude, accuracy } = position.coords;
             const point = projectLonLat(longitude, latitude);
             state.userLocation = { latitude, longitude, accuracy, point };
-            maybeTrackUserLocation({ latitude, longitude, accuracy }, initial ? "initial" : "manual");
             setLocationGateVisible(false);
             updateLocateButtonVisibility();
             state.userInMapArea = pointInsideBounds(point, state.bounds);
@@ -1690,7 +1863,11 @@
               setLocationGateVisible(false);
             }
             selectOverview();
-            ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+            if (initial) {
+              revealUserLocationSmooth();
+            } else {
+              ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+            }
             if (!initial) {
               const nearestTreeText = state.nearestTree
                 ? formatDistance(state.nearestTree.metres)
@@ -2027,7 +2204,7 @@
     }
 
     function drawPaths(ctx) {
-      if (!state.paths.length) return;
+      if (!state.paths.length || !isLayerVisibleForFilter("paths")) return;
 
       const dpr = pixelRatio();
       const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
@@ -2128,7 +2305,7 @@
         const geometry = feature.geometry || {};
         const type = feature.properties && feature.properties.featureType;
 
-        if (type === "hydrology_area") {
+        if (type === "hydrology_area" && isLayerVisibleForFilter("hydrology")) {
           drawEnvironmentPolygon(ctx, geometry, {
             fill: "rgba(88, 151, 212, 0.22)",
             stroke: "rgba(47, 114, 178, 0.62)",
@@ -2137,7 +2314,7 @@
           continue;
         }
 
-        if (type === "nature_designation") {
+        if (type === "nature_designation" && isLayerVisibleForFilter("nature_designations")) {
           drawEnvironmentPolygon(ctx, geometry, {
             fill: "rgba(105, 163, 94, 0.12)",
             stroke: "rgba(72, 130, 65, 0.46)",
@@ -2146,7 +2323,7 @@
           continue;
         }
 
-        if (type === "hydrology_line") {
+        if (type === "hydrology_line" && isLayerVisibleForFilter("hydrology")) {
           drawEnvironmentLines(ctx, geometry, {
             stroke: "rgba(47, 114, 178, 0.72)",
             width: 1.5 * dpr,
@@ -2373,29 +2550,7 @@
     function overviewRouteTargets() {
       const values = overviewItemsForActiveFilter(state.nearestItemsCount).map((entry) => ({
         point: entry.item.point,
-        color: entry.kind === "tree"
-          ? "rgba(47, 111, 78, 0.85)"
-          : entry.kind === "pub"
-            ? "rgba(127, 79, 159, 0.85)"
-            : entry.kind === "cafe"
-              ? "rgba(139, 69, 19, 0.85)"
-              : entry.kind === "transport"
-                ? (entry.transportType === "train" ? "rgba(220, 20, 60, 0.85)" : "rgba(255, 140, 0, 0.85)")
-                : entry.kind === "plaque"
-                  ? "rgba(78, 93, 135, 0.85)"
-                  : entry.kind === "blue_plaque"
-                    ? "rgba(62, 103, 196, 0.85)"
-                    : entry.kind === "film_tv"
-                      ? "rgba(134, 74, 162, 0.85)"
-                      : entry.kind === "ww2"
-                        ? "rgba(114, 108, 66, 0.85)"
-                        : entry.kind === "royal"
-                          ? "rgba(156, 118, 41, 0.85)"
-                  : entry.kind === "history"
-                    ? "rgba(109, 92, 58, 0.85)"
-                    : entry.kind === "legend"
-                      ? "rgba(111, 77, 140, 0.85)"
-                : "rgba(118, 112, 47, 0.85)",
+        color: filterKindColor(entry.kind),
       }));
 
       const seen = new Set();
@@ -2557,6 +2712,7 @@
         borderColor = null,
         borderWidth = 0,
         paddingPx = 0,
+        yOffsetPx = 0,
       } = options;
       ctx.save();
       if (backgroundColor || borderColor) {
@@ -2583,7 +2739,7 @@
       ctx.fillStyle = "#111";
       ctx.shadowColor = "rgba(255, 255, 255, 0.75)";
       ctx.shadowBlur = Math.max(1, sizePx * 0.16);
-      ctx.fillText(emoji, x, y);
+      ctx.fillText(emoji, x, y + yOffsetPx);
       ctx.restore();
     }
 
@@ -2662,11 +2818,15 @@
           ctx.fill();
           drawMapEmoji(ctx, "☕", point.x, point.y, 24 * dpr * mapScale, emojiBadge);
         } else if (isTransport) {
-          // Transport: different icons for trains/buses
+          // Transport: different icons for bus/underground/rail
           const transportType = getTransportType(place);
           const radius = 10 * dpr;
           const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
-          const color = transportType === "train" ? "rgba(220, 20, 60, " : "rgba(255, 140, 0, ";
+          const color = transportType === "underground"
+            ? "rgba(201, 24, 24, "
+            : transportType === "national_rail"
+              ? "rgba(0, 47, 167, "
+              : "rgba(255, 140, 0, ";
           const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
           gradient.addColorStop(0, `${color}${pulseOpacity})`);
           gradient.addColorStop(1, `${color}${pulseOpacity * 0.2})`);
@@ -2674,7 +2834,11 @@
           ctx.beginPath();
           ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
           ctx.fill();
-          const emoji = transportType === "train" ? "🚆" : "🚌";
+          const emoji = transportType === "underground"
+            ? "Ⓤ"
+            : transportType === "national_rail"
+              ? "⇄"
+              : "🚌";
           drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale, emojiBadge);
         } else {
           const emoji = landmarkEmoji(place);
@@ -2755,7 +2919,8 @@
       const dpr = pixelRatio();
       const mapScale = mapEmojiScale();
       const selectedScale = selectedIconScale();
-      const selectedEmojiPadding = 4.2 * dpr * mapScale;
+      const selectedEmojiPadding = 2.94 * dpr * mapScale;
+      const selectedEmojiYOffset = 1.1 * dpr * mapScale;
 
       if (state.selected.type === "tree") {
         const point = worldToScreen(state.selected.item.point);
@@ -2765,6 +2930,7 @@
             borderColor: "#1f5b3a",
             borderWidth: 2.5 * dpr * mapScale,
             paddingPx: selectedEmojiPadding,
+            yOffsetPx: selectedEmojiYOffset,
           });
         }
         return;
@@ -2779,6 +2945,7 @@
           borderColor: "#1f5b3a",
           borderWidth: 2.5 * dpr * mapScale,
           paddingPx: selectedEmojiPadding,
+          yOffsetPx: selectedEmojiYOffset,
         });
       } else if (state.selected.type === "landmark") {
         const selectedPlace = state.selected.item;
@@ -2796,6 +2963,7 @@
             borderColor: "#1f5b3a",
             borderWidth: 2.5 * dpr * mapScale,
             paddingPx: selectedEmojiPadding,
+            yOffsetPx: selectedEmojiYOffset,
           });
         }
       }
@@ -2873,7 +3041,6 @@
 
       if (hit.type === "tree") {
         state.selected = { type: "tree", item: hit.item };
-        trackSelectionEvent("map", "tree", hit.item, distanceFromUser(hit.item));
         syncHashFromSelection();
         showTreeDetails(hit.item, distanceFromUser(hit.item), "Tree record");
         setInspectorMinimized(true);
@@ -2881,7 +3048,6 @@
         ensureUserAndSelectionVisible({ animate: true, force: true });
       } else if (hit.type === "cow") {
         state.selected = { type: "cow", item: hit.item };
-        trackSelectionEvent("map", "cow", hit.item, distanceFromUser(hit.item));
         syncHashFromSelection();
         showCowDetails(hit.item, distanceFromUser(hit.item));
         setInspectorMinimized(true);
@@ -2889,7 +3055,6 @@
         ensureUserAndSelectionVisible({ animate: true, force: true });
       } else if (hit.type === "landmark") {
         state.selected = { type: "landmark", item: hit.item };
-        trackSelectionEvent("map", "landmark", hit.item, distanceFromUser(hit.item));
         syncHashFromSelection();
         showLandmarkDetails(hit.item, distanceFromUser(hit.item));
         setInspectorMinimized(true);
@@ -2897,7 +3062,6 @@
         ensureUserAndSelectionVisible({ animate: true, force: true });
       } else if (hit.type === "area") {
         state.selected = { type: "area", item: hit.item };
-        trackSelectionEvent("map", "area", hit.item, null);
         syncHashFromSelection();
         showAreaDetails(hit.item);
         updateCompassOverlay();
@@ -3029,7 +3193,6 @@
         if (!tree) return;
         const metres = distanceFromUser(tree);
         state.selected = { type: "tree", item: tree };
-        trackSelectionEvent("overview", "tree", tree, metres);
         syncHashFromSelection();
         showTreeDetails(tree, metres, "Nearest tree");
         setInspectorMinimized(true);
@@ -3044,7 +3207,6 @@
         if (!place) return;
         const metres = distanceFromUser(place);
         state.selected = { type: "landmark", item: place };
-        trackSelectionEvent("overview", "landmark", place, metres);
         syncHashFromSelection();
         showLandmarkDetails(place, metres);
         setInspectorMinimized(true);
@@ -3059,7 +3221,6 @@
         if (!cow) return;
         const metres = distanceFromUser(cow);
         state.selected = { type: "cow", item: cow };
-        trackSelectionEvent("overview", "cow", cow, metres);
         syncHashFromSelection();
         showCowDetails(cow, metres);
         setInspectorMinimized(true);
@@ -3096,14 +3257,6 @@
       els.inspectorBack.hidden = !showBack;
       els.inspectorTitleEmoji.hidden = !emoji;
       els.inspectorTitleEmoji.textContent = emoji || "";
-      const isLocationSelected = Boolean(state.selected && ["tree", "landmark", "cow"].includes(state.selected.type));
-      if (els.filterToggle) {
-        els.filterToggle.hidden = isLocationSelected;
-      }
-      if (isLocationSelected) {
-        els.filterPanel.hidden = true;
-        els.filterToggle.setAttribute("aria-expanded", "false");
-      }
     }
 
     function markerOpacityFor(kind, item) {
@@ -3121,59 +3274,192 @@
       }
 
       if (kind === "cow") {
-        return state.overviewFilters.includes("cows") ? 1 : 0.5;
+        return isSubfilterActive("cows") ? 1 : 0.5;
       }
 
-      const pubsSelected = state.overviewFilters.includes("pubs");
-      const cafesSelected = state.overviewFilters.includes("cafes");
-      const transportSelected = state.overviewFilters.includes("transport");
-      const locationsSelected = state.overviewFilters.includes("locations");
-      const plaquesSelected = state.overviewFilters.includes("plaques");
-      const bluePlaquesSelected = state.overviewFilters.includes("blue_plaques");
-      const filmTvSelected = state.overviewFilters.includes("film_tv");
-      const ww2Selected = state.overviewFilters.includes("ww2");
-      const royalSelected = state.overviewFilters.includes("royal");
-      const historySelected = state.overviewFilters.includes("history");
-      const legendsSelected = state.overviewFilters.includes("legends");
-      const activeFilters = [pubsSelected, cafesSelected, transportSelected, locationsSelected, plaquesSelected, bluePlaquesSelected, filmTvSelected, ww2Selected, royalSelected, historySelected, legendsSelected].filter(Boolean).length;
-      
-      if (activeFilters === 0) return 0.5;
-      
-      const isPub = isPubCategory(item);
-      const isCafe = isCafeCategory(item);
-      const isTransport = isTransportCategory(item);
-      const isPlaque = isPlaqueCategory(item);
-      const isBluePlaque = isBluePlaqueCategory(item);
-      const isFilmTv = isFilmTvCategory(item);
-      const isWw2 = isWw2Category(item);
-      const isRoyal = isRoyalCategory(item);
-      const isHistory = isHistoryCategory(item);
-      const isLegend = isLegendCategory(item);
-      
-      if (pubsSelected && isPub) return 1;
-      if (cafesSelected && isCafe) return 1;
-      if (transportSelected && isTransport) return 1;
-      if (plaquesSelected && isPlaque) return 1;
-      if (bluePlaquesSelected && isBluePlaque) return 1;
-      if (filmTvSelected && isFilmTv) return 1;
-      if (ww2Selected && isWw2) return 1;
-      if (royalSelected && isRoyal) return 1;
-      if (historySelected && isHistory) return 1;
-      if (legendsSelected && isLegend) return 1;
-      if (locationsSelected && !isPub && !isCafe && !isTransport) return 1;
+      const activePlaceFilters = getActivePlaceFilterKeys();
+      if (!activePlaceFilters.length) return 0.3;
+      if (activePlaceFilters.some((filterKey) => matchesPlaceFilter(item, filterKey))) return 1;
       return 0.3;
     }
 
-    function setOverviewFilter(nextFilter) {
-      const normalized = ["all", "trees", "cows", "pubs", "cafes", "transport", "locations", "plaques", "blue_plaques", "film_tv", "ww2", "royal", "history", "legends"].includes(nextFilter) ? nextFilter : "all";
-      if (normalized === "all") {
-        state.overviewFilters = [];
-      } else {
-        const current = new Set(state.overviewFilters);
-        if (current.has(normalized)) current.delete(normalized);
-        else current.add(normalized);
-        state.overviewFilters = Array.from(current);
+    function renderOverviewFilterPanel() {
+      els.filterPanel.innerHTML = `
+        <div class="filter-group-list">
+          ${FILTER_GROUPS.map((group) => `
+            <section class="filter-group" data-filter-group-section="${escapeHtml(group.key)}">
+              <button class="filter-chip filter-chip-group" type="button" data-filter-group="${escapeHtml(group.key)}" aria-expanded="false">
+                <span class="filter-group-label">${escapeHtml(group.label)}</span>
+                <span class="filter-group-summary" data-filter-group-expand="${escapeHtml(group.key)}">${group.subfilters.length}/${group.subfilters.length}</span>
+              </button>
+              <div class="filter-subfilters" data-filter-group-panel="${escapeHtml(group.key)}" hidden>
+                ${group.subfilters.map((subfilter) => `<button class="filter-chip filter-chip-sub" type="button" data-filter-subfilter="${escapeHtml(subfilter.key)}">${escapeHtml(subfilter.label)}</button>`).join("")}
+              </div>
+            </section>
+          `).join("")}
+        </div>
+      `;
+
+      const subfilterRows = els.filterPanel.querySelectorAll(".filter-subfilters");
+      for (const row of subfilterRows) {
+        row.addEventListener("scroll", () => {
+          updateSingleSubfilterScrollHint(row);
+        }, { passive: true });
       }
+      updateSubfilterScrollHints();
+    }
+
+    function updateSingleSubfilterScrollHint(row) {
+      if (!row) return;
+      const maxScrollLeft = row.scrollWidth - row.clientWidth;
+      const isScrollable = maxScrollLeft > 6;
+      const isAtStart = !isScrollable || row.scrollLeft <= 2;
+      const isAtEnd = !isScrollable || row.scrollLeft >= maxScrollLeft - 2;
+      row.classList.toggle("is-scrollable", isScrollable);
+      row.classList.toggle("is-scroll-start", isAtStart);
+      row.classList.toggle("is-scroll-end", isAtEnd);
+    }
+
+    function updateSubfilterScrollHints() {
+      const rows = els.filterPanel ? els.filterPanel.querySelectorAll(".filter-subfilters") : [];
+      for (const row of rows) {
+        updateSingleSubfilterScrollHint(row);
+      }
+    }
+
+    function prefersReducedMotion() {
+      return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    }
+
+    function setSubfilterPanelExpanded(panel, expanded) {
+      if (!panel) return;
+
+      const wasExpanded = panel.dataset.expanded === "true";
+
+      if (wasExpanded === expanded && panel.dataset.animating !== "true") {
+        panel.hidden = !expanded;
+        if (!expanded) {
+          panel.style.maxHeight = "";
+          panel.style.opacity = "";
+          panel.style.transform = "";
+        } else {
+          updateSubfilterScrollHints();
+        }
+        return;
+      }
+
+      panel.dataset.expanded = expanded ? "true" : "false";
+
+      if (prefersReducedMotion()) {
+        panel.hidden = !expanded;
+        panel.classList.remove("animating");
+        panel.style.maxHeight = "";
+        panel.style.opacity = "";
+        panel.style.transform = "";
+        updateSubfilterScrollHints();
+        return;
+      }
+
+      if (expanded) {
+        if (panel.dataset.animating === "true") return;
+        panel.hidden = false;
+        panel.classList.add("animating");
+        panel.dataset.animating = "true";
+        panel.style.maxHeight = "0px";
+        panel.style.opacity = "0";
+        panel.style.transform = "translateY(-12px)";
+
+        requestAnimationFrame(() => {
+          panel.style.maxHeight = `${panel.scrollHeight}px`;
+          panel.style.opacity = "1";
+          panel.style.transform = "translateY(0)";
+        });
+
+        const onExpandDone = () => {
+          panel.classList.remove("animating");
+          panel.dataset.animating = "false";
+          panel.style.maxHeight = "";
+          panel.style.opacity = "";
+          panel.style.transform = "";
+          updateSubfilterScrollHints();
+        };
+
+        panel.addEventListener("transitionend", onExpandDone, { once: true });
+        return;
+      }
+
+      if (panel.hidden) return;
+      if (panel.dataset.animating === "true") return;
+
+      panel.classList.add("animating");
+      panel.dataset.animating = "true";
+      panel.style.maxHeight = `${panel.scrollHeight}px`;
+      panel.style.opacity = "1";
+      panel.style.transform = "translateY(0)";
+
+      requestAnimationFrame(() => {
+        panel.style.maxHeight = "0px";
+        panel.style.opacity = "0";
+        panel.style.transform = "translateY(-10px)";
+      });
+
+      const onCollapseDone = () => {
+        panel.hidden = true;
+        panel.classList.remove("animating");
+        panel.dataset.animating = "false";
+        panel.style.maxHeight = "";
+        panel.style.opacity = "";
+        panel.style.transform = "";
+        updateSubfilterScrollHints();
+      };
+
+      panel.addEventListener("transitionend", onCollapseDone, { once: true });
+    }
+
+    function sanitizeOverviewFilters(filters) {
+      return Array.from(new Set((Array.isArray(filters) ? filters : []).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key))));
+    }
+
+    function sanitizeExpandedGroups(groups) {
+      return Array.from(new Set((Array.isArray(groups) ? groups : []).filter((key) => FILTER_GROUPS_BY_KEY.has(key))));
+    }
+
+    function activeOverviewFilterSet() {
+      return new Set(sanitizeOverviewFilters(state.overviewFilters));
+    }
+
+    function activeOverviewExpandedSet() {
+      return new Set(sanitizeExpandedGroups(state.overviewExpandedGroups));
+    }
+
+    function getActiveSubfiltersForGroup(groupKey, currentSet = activeOverviewFilterSet()) {
+      const group = FILTER_GROUPS_BY_KEY.get(groupKey);
+      if (!group) return [];
+      return group.subfilters.map((subfilter) => subfilter.key).filter((key) => currentSet.has(key));
+    }
+
+    function isGroupActive(groupKey, currentSet = activeOverviewFilterSet()) {
+      return getActiveSubfiltersForGroup(groupKey, currentSet).length > 0;
+    }
+
+    function isSubfilterActive(filterKey, currentSet = activeOverviewFilterSet()) {
+      return currentSet.has(filterKey);
+    }
+
+    function getActiveGroupKeys(currentSet = activeOverviewFilterSet()) {
+      return FILTER_GROUPS.filter((group) => isGroupActive(group.key, currentSet)).map((group) => group.key);
+    }
+
+    function getActivePlaceFilterKeys(currentSet = activeOverviewFilterSet()) {
+      return Array.from(currentSet).filter((key) => PLACE_FILTER_KEYS.has(key));
+    }
+
+    function getActivePointFilterKeys(currentSet = activeOverviewFilterSet()) {
+      return Array.from(currentSet).filter((key) => !LAYER_FILTER_KEYS.has(key));
+    }
+
+    function setOverviewFilters(nextFilters) {
+      state.overviewFilters = sanitizeOverviewFilters(nextFilters);
       if (state.overviewFilters.length > 0) {
         els.filterPanel.hidden = false;
         els.filterToggle.setAttribute("aria-expanded", "true");
@@ -3186,18 +3472,70 @@
       requestDraw();
     }
 
+    function setOverviewExpandedGroups(nextGroups) {
+      state.overviewExpandedGroups = sanitizeExpandedGroups(nextGroups);
+      updateFilterUi();
+    }
+
+    function toggleOverviewGroupExpansion(groupKey) {
+      if (!FILTER_GROUPS_BY_KEY.has(groupKey)) return;
+      const expanded = activeOverviewExpandedSet();
+      if (expanded.has(groupKey)) expanded.delete(groupKey);
+      else expanded.add(groupKey);
+      setOverviewExpandedGroups(Array.from(expanded));
+    }
+
+    function toggleOverviewFilterGroup(groupKey) {
+      const group = FILTER_GROUPS_BY_KEY.get(groupKey);
+      if (!group) return;
+      const current = activeOverviewFilterSet();
+      const keys = group.subfilters.map((subfilter) => subfilter.key);
+      const groupIsActive = keys.some((key) => current.has(key));
+      if (groupIsActive) keys.forEach((key) => current.delete(key));
+      else keys.forEach((key) => current.add(key));
+      setOverviewFilters(Array.from(current));
+    }
+
+    function toggleOverviewSubfilter(filterKey) {
+      if (!ALL_OVERVIEW_FILTER_KEYS.has(filterKey)) return;
+      const current = activeOverviewFilterSet();
+      if (current.has(filterKey)) current.delete(filterKey);
+      else current.add(filterKey);
+      setOverviewFilters(Array.from(current));
+    }
+
     function updateFilterUi() {
-      const filterButtons = els.filterPanel.querySelectorAll("[data-overview-filter]");
-      for (const button of filterButtons) {
-        const filter = button.dataset.overviewFilter;
-        const active = filter === "all"
-          ? state.overviewFilters.length === 0
-          : state.overviewFilters.includes(filter);
-        button.classList.toggle("active", active);
+      const currentSet = activeOverviewFilterSet();
+      const expandedSet = activeOverviewExpandedSet();
+
+      const groupButtons = els.filterPanel.querySelectorAll("[data-filter-group]");
+      for (const button of groupButtons) {
+        const groupKey = button.dataset.filterGroup;
+        const activeSubfilters = getActiveSubfiltersForGroup(groupKey, currentSet);
+        const groupActive = activeSubfilters.length > 0;
+        const groupExpanded = expandedSet.has(groupKey);
+        button.classList.toggle("active", groupActive);
+        button.setAttribute("aria-expanded", String(groupExpanded));
+        const summary = button.querySelector(".filter-group-summary");
+        const total = FILTER_GROUPS_BY_KEY.get(groupKey)?.subfilters.length || 0;
+        if (summary) summary.textContent = `${activeSubfilters.length}/${total}`;
+        const panel = els.filterPanel.querySelector(`[data-filter-group-panel="${groupKey}"]`);
+        setSubfilterPanelExpanded(panel, groupExpanded);
+        const groupSection = button.closest(".filter-group");
+        if (groupSection) groupSection.classList.toggle("expanded", groupExpanded);
       }
+
+      const subfilterButtons = els.filterPanel.querySelectorAll("[data-filter-subfilter]");
+      for (const button of subfilterButtons) {
+        const filterKey = button.dataset.filterSubfilter;
+        button.classList.toggle("active", currentSet.has(filterKey));
+      }
+
+      updateSubfilterScrollHints();
+
       if (els.filterToggle) {
-        const hasActiveFilter = state.overviewFilters.length > 0;
-        const selectedCount = state.overviewFilters.length;
+        const activeGroupCount = getActiveGroupKeys(currentSet).length;
+        const hasActiveFilter = activeGroupCount > 0;
         const locationSelected = Boolean(state.selected && ["tree", "landmark", "cow"].includes(state.selected.type));
         if (hasActiveFilter && !locationSelected) {
           els.filterPanel.hidden = false;
@@ -3207,12 +3545,21 @@
         els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
         if (els.filterCount) {
           els.filterCount.hidden = !hasActiveFilter;
-          els.filterCount.textContent = String(selectedCount);
+          els.filterCount.textContent = String(activeGroupCount);
         }
         els.filterToggle.setAttribute("aria-label", hasActiveFilter
-          ? `${selectedCount} filter${selectedCount === 1 ? "" : "s"} selected`
+          ? `${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
           : (els.filterPanel.hidden ? "Show filters" : "Hide filters"));
       }
+    }
+
+    function filterMeta(filterKey) {
+      return FILTER_SUBFILTERS_BY_KEY.get(filterKey) || null;
+    }
+
+    function isLayerVisibleForFilter(layerKey) {
+      if (!state.overviewFilters.length) return true;
+      return isSubfilterActive(layerKey);
     }
 
     function isPubCategory(place) {
@@ -3223,8 +3570,32 @@
       return ["cafe", "tea"].includes(place.category);
     }
 
+    function isBusCategory(place) {
+      return ["bus_station", "bus_stop"].includes(place.category);
+    }
+
+    function isTrainCategory(place) {
+      return ["train_station", "station", "halt", "tram_stop"].includes(place.category);
+    }
+
+    function normalizePlaceName(place) {
+      return String((place && place.name) || "").trim().toLowerCase();
+    }
+
+    function isUndergroundCategory(place) {
+      if (!isTrainCategory(place)) return false;
+      const name = normalizePlaceName(place);
+      if (!name) return false;
+      if (name.includes("underground") || name.includes("tube")) return true;
+      return ["buckhurst hill", "roding valley", "theydon bois", "loughton", "epping", "debden"].includes(name);
+    }
+
+    function isNationalRailCategory(place) {
+      return isTrainCategory(place) && !isUndergroundCategory(place);
+    }
+
     function isTransportCategory(place) {
-      return ["bus_station", "bus_stop", "taxi", "train_station", "station", "halt", "tram_stop"].includes(place.category);
+      return isBusCategory(place) || isTrainCategory(place) || place.category === "taxi";
     }
 
     function isPlaqueCategory(place) {
@@ -3254,57 +3625,134 @@
     }
 
     function isHistoryCategory(place) {
-      return place && (place.folkloreCategory === "history" || place.category === "history");
+      return Boolean(place) && (
+        place.folkloreCategory === "history"
+        || place.category === "history"
+        || ["historic", "memorial", "monument", "archaeological_site", "ruins", "castle", "boundary_stone", "roman_road", "museum", "folly"].includes(place.category)
+        || hasPlaceTag(place, "historic_site")
+        || hasPlaceTag(place, "war_history")
+        || hasPlaceTag(place, "local_history")
+        || hasPlaceTag(place, "royal_history")
+      );
+    }
+
+    function isSocialHistoryCategory(place) {
+      return hasFolkloreTopic(place, "social_history")
+        || hasPlaceTag(place, "social_history")
+        || hasPlaceTag(place, "victorian_history")
+        || hasPlaceTag(place, "public_access")
+        || hasPlaceTag(place, "public_health")
+        || hasPlaceTag(place, "recreation")
+        || hasPlaceTag(place, "historic_building");
     }
 
     function isLegendCategory(place) {
-      return place && (place.folkloreCategory === "legend" || place.category === "legend");
+      return Boolean(place) && (
+        place.folkloreCategory === "legend"
+        || place.category === "legend"
+        || hasPlaceTag(place, "local_legend")
+        || hasPlaceTag(place, "folklore")
+        || hasPlaceTag(place, "ghost_story")
+        || hasPlaceTag(place, "paranormal")
+      );
+    }
+
+    function isCelebrityAssociationCategory(place) {
+      return hasPlaceTag(place, "celebrity_association");
+    }
+
+    function isScienceCategory(place) {
+      return hasPlaceTag(place, "science")
+        || hasPlaceTag(place, "natural_history")
+        || hasPlaceTag(place, "ecology");
+    }
+
+    function isEducationCategory(place) {
+      return hasPlaceTag(place, "education")
+        || hasPlaceTag(place, "school_connection")
+        || hasPlaceTag(place, "public_institution");
+    }
+
+    function isMedicineCategory(place) {
+      return hasPlaceTag(place, "medicine") || hasPlaceTag(place, "public_health");
+    }
+
+    function isLiteratureCategory(place) {
+      return hasPlaceTag(place, "literature") || hasPlaceTag(place, "poetry");
+    }
+
+    function isTheatreCategory(place) {
+      return hasPlaceTag(place, "theatre");
+    }
+
+    function isPoliticsCategory(place) {
+      return hasPlaceTag(place, "politics") || hasPlaceTag(place, "legal_history");
+    }
+
+    function isArtCategory(place) {
+      return hasPlaceTag(place, "art") || hasPlaceTag(place, "music");
+    }
+
+    function isChurchCategory(place) {
+      return place?.category === "place_of_worship"
+        || hasPlaceTag(place, "church")
+        || hasPlaceTag(place, "church_history");
+    }
+
+    function matchesPlaceFilter(place, filterKey) {
+      switch (filterKey) {
+        case "pubs": return isPubCategory(place);
+        case "cafes": return isCafeCategory(place);
+        case "bus": return isBusCategory(place);
+        case "underground": return isUndergroundCategory(place);
+        case "national_rail": return isNationalRailCategory(place);
+        case "plaques": return isPlaqueCategory(place);
+        case "blue_plaques": return isBluePlaqueCategory(place);
+        case "film_tv": return isFilmTvCategory(place);
+        case "ww2": return isWw2Category(place);
+        case "royal": return isRoyalCategory(place);
+        case "history_general":
+          return isHistoryCategory(place)
+            && !isRoyalCategory(place)
+            && !isWw2Category(place)
+            && !isSocialHistoryCategory(place)
+            && !isPlaqueCategory(place)
+            && !isBluePlaqueCategory(place);
+        case "social_history": return isSocialHistoryCategory(place);
+        case "celebrity_association": return isCelebrityAssociationCategory(place);
+        case "science": return isScienceCategory(place);
+        case "education": return isEducationCategory(place);
+        case "medicine": return isMedicineCategory(place);
+        case "literature": return isLiteratureCategory(place);
+        case "theatre": return isTheatreCategory(place);
+        case "politics": return isPoliticsCategory(place);
+        case "art": return isArtCategory(place);
+        case "church": return isChurchCategory(place);
+        case "legends": return isLegendCategory(place);
+        default: return false;
+      }
     }
 
     function getTransportType(place) {
-      if (["train_station", "station", "halt", "tram_stop"].includes(place.category)) return "train";
-      if (["bus_station", "bus_stop"].includes(place.category)) return "bus";
+      if (isUndergroundCategory(place)) return "underground";
+      if (isNationalRailCategory(place)) return "national_rail";
+      if (isBusCategory(place)) return "bus";
       return "other";
     }
 
     function isTreeVisibleForFilter() {
-      return state.overviewFilters.length === 0 || state.overviewFilters.includes("trees");
+      return state.overviewFilters.length === 0 || isSubfilterActive("trees");
     }
 
     function isCowVisibleForFilter() {
-      return state.overviewFilters.length === 0 || state.overviewFilters.includes("cows");
+      return state.overviewFilters.length === 0 || isSubfilterActive("cows");
     }
 
     function isPlaceVisibleForFilter(place) {
       if (state.overviewFilters.length === 0) return true;
-      if (state.overviewFilters.includes("cows") && state.overviewFilters.length === 1) return false;
-      const pubsSelected = state.overviewFilters.includes("pubs");
-      const cafesSelected = state.overviewFilters.includes("cafes");
-      const transportSelected = state.overviewFilters.includes("transport");
-      const locationsSelected = state.overviewFilters.includes("locations");
-      const plaquesSelected = state.overviewFilters.includes("plaques");
-      const bluePlaquesSelected = state.overviewFilters.includes("blue_plaques");
-      const filmTvSelected = state.overviewFilters.includes("film_tv");
-      const ww2Selected = state.overviewFilters.includes("ww2");
-      const royalSelected = state.overviewFilters.includes("royal");
-      const historySelected = state.overviewFilters.includes("history");
-      const legendsSelected = state.overviewFilters.includes("legends");
-      if (!pubsSelected && !cafesSelected && !transportSelected && !locationsSelected && !plaquesSelected && !bluePlaquesSelected && !filmTvSelected && !ww2Selected && !royalSelected && !historySelected && !legendsSelected) return false;
-
-      const match =
-        (pubsSelected && isPubCategory(place))
-        || (cafesSelected && isCafeCategory(place))
-        || (transportSelected && isTransportCategory(place))
-        || (plaquesSelected && isPlaqueCategory(place))
-        || (bluePlaquesSelected && isBluePlaqueCategory(place))
-        || (filmTvSelected && isFilmTvCategory(place))
-        || (ww2Selected && isWw2Category(place))
-        || (royalSelected && isRoyalCategory(place))
-        || (historySelected && isHistoryCategory(place))
-        || (legendsSelected && isLegendCategory(place))
-        || (locationsSelected && !isPubCategory(place) && !isCafeCategory(place) && !isTransportCategory(place));
-
-      return match;
+      const activePlaceFilters = getActivePlaceFilterKeys();
+      if (!activePlaceFilters.length) return false;
+      return activePlaceFilters.some((filterKey) => matchesPlaceFilter(place, filterKey));
     }
 
     function overviewItemsForActiveFilter(limit = 3) {
@@ -3313,135 +3761,40 @@
 
       const hasFilters = state.overviewFilters.length > 0;
       if (hasFilters) {
-        const selectedFilterCount = state.overviewFilters.length;
+        const activePointFilters = getActivePointFilterKeys();
+        if (!activePointFilters.length) return [];
+        const selectedFilterCount = activePointFilters.length;
         const multiFilterMode = selectedFilterCount > 1;
         const perFilterLimit = multiFilterMode ? limit : Math.max(limit, 24);
         const selectedEntries = [];
-        if (state.overviewFilters.includes("trees")) {
+        for (const filterKey of activePointFilters) {
+          if (filterKey === "trees") {
+            selectedEntries.push(
+              ...nearbyTreesTo(latitude, longitude, perFilterLimit).map(({ tree, metres }) => ({
+                kind: "tree",
+                type: "tree",
+                item: tree,
+                metres,
+              }))
+            );
+            continue;
+          }
+
+          if (filterKey === "cows") {
+            selectedEntries.push(
+              ...nearestCowsTo(latitude, longitude, perFilterLimit).map(({ cow, metres }) => ({
+                kind: "cow",
+                type: "cow",
+                item: cow,
+                metres,
+              }))
+            );
+            continue;
+          }
+
           selectedEntries.push(
-            ...nearbyTreesTo(latitude, longitude, perFilterLimit).map(({ tree, metres }) => ({
-              kind: "tree",
-              type: "tree",
-              item: tree,
-              metres,
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("cows")) {
-          selectedEntries.push(
-            ...nearestCowsTo(latitude, longitude, perFilterLimit).map(({ cow, metres }) => ({
-              kind: "cow",
-              type: "cow",
-              item: cow,
-              metres,
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("pubs")) {
-          selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => isPubCategory(place), perFilterLimit).map(({ place, metres }) => ({
-              kind: "pub",
-              type: "landmark",
-              item: place,
-              metres,
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("cafes")) {
-          selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => isCafeCategory(place), perFilterLimit).map(({ place, metres }) => ({
-              kind: "cafe",
-              type: "landmark",
-              item: place,
-              metres,
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("transport")) {
-          selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => isTransportCategory(place), perFilterLimit).map(({ place, metres }) => ({
-              kind: "transport",
-              type: "landmark",
-              item: place,
-              metres,
-              transportType: getTransportType(place),
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("locations")) {
-          selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isCafeCategory(place) && !isTransportCategory(place), perFilterLimit).map(({ place, metres }) => ({
-              kind: "landmark",
-              type: "landmark",
-              item: place,
-              metres,
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("plaques")) {
-          selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => isPlaqueCategory(place), perFilterLimit).map(({ place, metres }) => ({
-              kind: "plaque",
-              type: "landmark",
-              item: place,
-              metres,
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("blue_plaques")) {
-          selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => isBluePlaqueCategory(place), perFilterLimit).map(({ place, metres }) => ({
-              kind: "blue_plaque",
-              type: "landmark",
-              item: place,
-              metres,
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("film_tv")) {
-          selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => isFilmTvCategory(place), perFilterLimit).map(({ place, metres }) => ({
-              kind: "film_tv",
-              type: "landmark",
-              item: place,
-              metres,
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("ww2")) {
-          selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => isWw2Category(place), perFilterLimit).map(({ place, metres }) => ({
-              kind: "ww2",
-              type: "landmark",
-              item: place,
-              metres,
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("royal")) {
-          selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => isRoyalCategory(place), perFilterLimit).map(({ place, metres }) => ({
-              kind: "royal",
-              type: "landmark",
-              item: place,
-              metres,
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("history")) {
-          selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => isHistoryCategory(place), perFilterLimit).map(({ place, metres }) => ({
-              kind: "history",
-              type: "landmark",
-              item: place,
-              metres,
-            }))
-          );
-        }
-        if (state.overviewFilters.includes("legends")) {
-          selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => isLegendCategory(place), perFilterLimit).map(({ place, metres }) => ({
-              kind: "legend",
+            ...nearestPlacesByFilter(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey), perFilterLimit).map(({ place, metres }) => ({
+              kind: filterKey,
               type: "landmark",
               item: place,
               metres,
@@ -3489,65 +3842,23 @@
       }
 
       const entries = overviewItemsForActiveFilter(state.nearestItemsCount);
+      const activePointFilters = getActivePointFilterKeys();
       if (!entries.length) {
-        if (state.overviewFilters.includes("trees") && state.overviewFilters.length === 1) return `<p class="empty">No nearby trees found.</p>`;
-        if (state.overviewFilters.includes("cows") && state.overviewFilters.length === 1) return `<p class="empty">No nearby cows found.</p>`;
-        if (state.overviewFilters.includes("pubs") && state.overviewFilters.length === 1) return `<p class="empty">No nearby pubs or restaurants found.</p>`;
-        if (state.overviewFilters.includes("cafes") && state.overviewFilters.length === 1) return `<p class="empty">No nearby cafés found.</p>`;
-        if (state.overviewFilters.includes("transport") && state.overviewFilters.length === 1) return `<p class="empty">No nearby transport links found.</p>`;
-        if (state.overviewFilters.includes("locations") && state.overviewFilters.length === 1) return `<p class="empty">No nearby locations found.</p>`;
-        if (state.overviewFilters.includes("plaques") && state.overviewFilters.length === 1) return `<p class="empty">No nearby plaques found.</p>`;
-        if (state.overviewFilters.includes("blue_plaques") && state.overviewFilters.length === 1) return `<p class="empty">No nearby blue plaques found.</p>`;
-        if (state.overviewFilters.includes("film_tv") && state.overviewFilters.length === 1) return `<p class="empty">No nearby film or TV locations found.</p>`;
-        if (state.overviewFilters.includes("ww2") && state.overviewFilters.length === 1) return `<p class="empty">No nearby WWII locations found.</p>`;
-        if (state.overviewFilters.includes("royal") && state.overviewFilters.length === 1) return `<p class="empty">No nearby royal-history locations found.</p>`;
-        if (state.overviewFilters.includes("history") && state.overviewFilters.length === 1) return `<p class="empty">No nearby history locations found.</p>`;
-        if (state.overviewFilters.includes("legends") && state.overviewFilters.length === 1) return `<p class="empty">No nearby legends found.</p>`;
+        if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
+          return `<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
+        }
+        if (activePointFilters.length === 1) {
+          const meta = filterMeta(activePointFilters[0]);
+          return `<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
+        }
         return `<p class="empty">No nearby places found.</p>`;
       }
 
-      const onlyTrees = state.overviewFilters.length === 1 && state.overviewFilters.includes("trees");
-      const onlyCows = state.overviewFilters.length === 1 && state.overviewFilters.includes("cows");
-      const onlyPubs = state.overviewFilters.length === 1 && state.overviewFilters.includes("pubs");
-      const onlyCafes = state.overviewFilters.length === 1 && state.overviewFilters.includes("cafes");
-      const onlyTransport = state.overviewFilters.length === 1 && state.overviewFilters.includes("transport");
-      const onlyLocations = state.overviewFilters.length === 1 && state.overviewFilters.includes("locations");
-      const onlyPlaques = state.overviewFilters.length === 1 && state.overviewFilters.includes("plaques");
-      const onlyBluePlaques = state.overviewFilters.length === 1 && state.overviewFilters.includes("blue_plaques");
-      const onlyFilmTv = state.overviewFilters.length === 1 && state.overviewFilters.includes("film_tv");
-      const onlyWw2 = state.overviewFilters.length === 1 && state.overviewFilters.includes("ww2");
-      const onlyRoyal = state.overviewFilters.length === 1 && state.overviewFilters.includes("royal");
-      const onlyHistory = state.overviewFilters.length === 1 && state.overviewFilters.includes("history");
-      const onlyLegends = state.overviewFilters.length === 1 && state.overviewFilters.includes("legends");
-      const heading = onlyTrees
-        ? "Nearest trees around you"
-        : onlyCows
-          ? "Nearest cows around you"
-        : onlyPubs
-          ? "Nearest pubs and restaurants around you"
-          : onlyCafes
-            ? "Nearest cafés around you"
-            : onlyTransport
-              ? "Nearest transport links around you"
-          : onlyLocations
-            ? "Nearest locations around you"
-            : onlyPlaques
-              ? "Nearest plaques around you"
-                : onlyBluePlaques
-                  ? "Nearest blue plaques around you"
-                  : onlyFilmTv
-                    ? "Nearest film and TV locations around you"
-                    : onlyWw2
-                      ? "Nearest WWII locations around you"
-                      : onlyRoyal
-                        ? "Nearest royal-history locations around you"
-              : onlyHistory
-                ? "Nearest history locations around you"
-                : onlyLegends
-                  ? "Nearest legends around you"
-            : state.overviewFilters.length > 0
-              ? "Nearest selected filters around you"
-              : "Nearest around you";
+      const heading = activePointFilters.length === 1
+        ? `Nearest ${filterMeta(activePointFilters[0])?.title || "items"} around you`
+        : state.overviewFilters.length > 0
+          ? "Nearest selected filters around you"
+          : "Nearest around you";
 
       const itemsHtml = entries.map((entry) => {
         const name = entry.type === "tree"
@@ -3555,25 +3866,7 @@
           : entry.type === "cow"
             ? "Cow"
           : placeTitle(entry.item);
-        const emoji = entry.kind === "tree"
-          ? "🌳"
-          : entry.kind === "cow"
-            ? "🐄"
-            : entry.kind === "pub"
-              ? "🍺"
-              : entry.kind === "cafe"
-                ? "☕"
-                : entry.kind === "transport"
-                  ? (entry.transportType === "train" ? "🚆" : "🚌")
-                  : entry.kind === "blue_plaque"
-                    ? "🔵"
-                    : entry.kind === "film_tv"
-                      ? "🎬"
-                      : entry.kind === "ww2"
-                        ? "🪖"
-                        : entry.kind === "royal"
-                          ? "👑"
-                  : landmarkEmoji(entry.item);
+        const emoji = filterKindEmoji(entry.kind) || landmarkEmoji(entry.item);
         const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : placeHashKey(entry.item);
         const subtitle = `${formatDistance(entry.metres)} · ${formatWalkTime(entry.metres)}`;
         return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label"><span class="nearest-emoji" aria-hidden="true">${emoji}</span><span>${escapeHtml(name)}</span></span></span><small>${escapeHtml(subtitle)}</small></button></li>`;
@@ -3660,16 +3953,11 @@
     }
 
     function landmarkEmoji(place) {
-      if (isPubCategory(place)) return "🍺";
-      if (isCafeCategory(place)) return "☕";
-      if (isTransportCategory(place)) return getTransportType(place) === "train" ? "🚆" : "🚌";
-      if (isBluePlaqueCategory(place)) return "🔵";
-      if (isFilmTvCategory(place)) return "🎬";
-      if (isWw2Category(place)) return "🪖";
-      if (isRoyalCategory(place)) return "👑";
-      if (isPlaqueCategory(place)) return "🪧";
-      if (isHistoryCategory(place)) return "📜";
-      if (isLegendCategory(place)) return "✨";
+      for (const filterKey of PLACE_FILTER_PRIORITY) {
+        if (matchesPlaceFilter(place, filterKey)) {
+          return filterKindEmoji(filterKey) || "📍";
+        }
+      }
       return "📍";
     }
 
@@ -3835,7 +4123,6 @@
           const { latitude, longitude, accuracy } = position.coords;
           const point = projectLonLat(longitude, latitude);
           state.userLocation = { latitude, longitude, accuracy, point };
-          maybeTrackUserLocation({ latitude, longitude, accuracy }, "watch");
           updateLocateButtonVisibility();
           state.userInMapArea = pointInsideBounds(point, state.bounds);
           const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
@@ -3846,7 +4133,6 @@
           state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
           if (isOverviewScreenActive()) {
             selectOverview();
-            ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
           }
           updateOverviewDirectionArrows();
           updateSelectedDetailFields();
@@ -3884,6 +4170,33 @@
           durationMs: options.durationMs || 480,
         }
       );
+    }
+
+    function revealUserLocationSmooth() {
+      if (!state.userLocation || !isOverviewScreenActive()) return;
+      if (state.initialUserRevealDone) return;
+
+      const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+      const focusCenter = {
+        x: focusRect.x + focusRect.width / 2,
+        y: focusRect.y + focusRect.height / 2,
+      };
+
+      const subtleScale = state.viewport.scale * 1.08;
+      const minimumScale = Math.max(0.000001, state.fitScale * 0.9);
+      const maximumScale = Math.max(minimumScale, state.fitScale * 2.2);
+      const targetScale = clamp(subtleScale, minimumScale, maximumScale);
+
+      animateViewportTo(
+        {
+          scale: targetScale,
+          tx: focusCenter.x - state.userLocation.point.x * targetScale,
+          ty: focusCenter.y - state.userLocation.point.y * targetScale,
+        },
+        560
+      );
+
+      state.initialUserRevealDone = true;
     }
 
     function centerViewportOnPointsKeepScale(points, options = {}) {
@@ -4335,7 +4648,6 @@
       const nearby = nearbyTreesTo(tree.latitude, tree.longitude, 24);
       const nearbyPoints = nearby.map(({ tree: item }) => item.point);
       state.selected = { type: "tree", item: tree };
-      trackSelectionEvent("search", "tree", tree, distanceFromUser(tree));
       syncHashFromSelection();
       startCompassNavigation();
 
@@ -4741,6 +5053,7 @@
             id: item.id || `folklore-${index + 1}`,
             name: item.name || "Folklore location",
             category: folkloreCategory,
+            categoryTags: buildFolkloreCategoryTags(item),
             folkloreCategory,
             folkloreTopics,
             categoryLabel: `Folklore · ${folkloreCategory.charAt(0).toUpperCase()}${folkloreCategory.slice(1)}`,
@@ -4810,7 +5123,135 @@
       if (blob.includes("film") || blob.includes("television") || blob.includes("tv") || blob.includes("netflix") || blob.includes("filming") || blob.includes("imdb")) topics.push("film_tv");
       if (blob.includes("second world war") || blob.includes("ww2") || blob.includes("wwii") || blob.includes("wartime") || blob.includes("anti-aircraft") || blob.includes("v2") || blob.includes("pow camp") || blob.includes("bomb")) topics.push("ww2");
       if (blob.includes("royal") || blob.includes("queen victoria") || blob.includes("queen elizabeth") || blob.includes("henry viii") || blob.includes("hunting lodge") || blob.includes("forest law")) topics.push("royal");
+      if (blob.includes("social history") || blob.includes("victorian history") || blob.includes("public access") || blob.includes("recreation") || blob.includes("day-tripper") || blob.includes("epping forest act")) topics.push("social_history");
       return topics;
+    }
+
+    function normalizeTag(value) {
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replaceAll("&", " and ")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+    }
+
+    function addExpandedTag(set, value) {
+      const tag = normalizeTag(value);
+      if (!tag) return;
+      set.add(tag);
+      if (tag === "place_of_worship") set.add("church");
+      if (tag === "blue_plaque") set.add("plaque");
+      if (tag === "heritage_plaque") set.add("plaque");
+      if (tag === "royal_history") set.add("royal");
+      if (tag === "social_history") set.add("social_history");
+      if (tag === "victorian_history") set.add("social_history");
+      if (tag === "public_access") set.add("social_history");
+      if (tag === "public_health") set.add("medicine");
+      if (tag === "poetry") set.add("literature");
+      if (tag === "music") set.add("art");
+      if (tag === "natural_history") set.add("science");
+      if (tag === "ecology") set.add("science");
+      if (tag === "church_history") set.add("church");
+      if (tag === "local_legend" || tag === "ghost_story" || tag === "paranormal") set.add("folklore");
+    }
+
+    function buildFolkloreCategoryTags(item) {
+      const tags = new Set();
+      const rawCategories = Array.isArray(item && item.category)
+        ? item.category
+        : item && item.category
+          ? [item.category]
+          : [];
+      rawCategories.forEach((value) => addExpandedTag(tags, value));
+      if (Array.isArray(item && item.notable_people) && item.notable_people.length) addExpandedTag(tags, "celebrity_association");
+      if (item && item.address && item.plaque && item.plaque.public_location) addExpandedTag(tags, "plaque");
+      return Array.from(tags);
+    }
+
+    function buildOsmCategoryTags(properties) {
+      const tags = new Set();
+      [
+        properties && properties.category,
+        properties && properties.categoryLabel,
+        properties && properties.amenity,
+        properties && properties.tourism,
+        properties && properties.historic,
+        properties && properties.railway,
+      ].forEach((value) => addExpandedTag(tags, value));
+      return Array.from(tags);
+    }
+
+    function hasPlaceTag(place, tag) {
+      if (!place) return false;
+      const normalized = normalizeTag(tag);
+      return Array.isArray(place.categoryTags) && place.categoryTags.includes(normalized);
+    }
+
+    function filterKindEmoji(kind) {
+      switch (kind) {
+        case "tree": return "🌳";
+        case "cow": return "🐄";
+        case "pub":
+        case "pubs": return "🍺";
+        case "cafe":
+        case "cafes": return "☕";
+        case "bus": return "🚌";
+        case "underground": return "Ⓤ";
+        case "national_rail": return "⇄";
+        case "landmark": return "📍";
+        case "plaques": return "🪧";
+        case "blue_plaques": return "🔵";
+        case "film_tv": return "🎬";
+        case "ww2": return "🪖";
+        case "royal": return "👑";
+        case "history_general": return "📜";
+        case "social_history": return "🧺";
+        case "celebrity_association": return "⭐";
+        case "science": return "🔭";
+        case "education": return "🎓";
+        case "medicine": return "⚕️";
+        case "literature": return "📚";
+        case "theatre": return "🎭";
+        case "politics": return "🏛️";
+        case "art": return "🎨";
+        case "church": return "⛪";
+        case "legends": return "✨";
+        default: return null;
+      }
+    }
+
+    function filterKindColor(kind) {
+      switch (kind) {
+        case "tree": return "rgba(47, 111, 78, 0.85)";
+        case "cow": return "rgba(154, 106, 47, 0.85)";
+        case "pub":
+        case "pubs": return "rgba(127, 79, 159, 0.85)";
+        case "cafe":
+        case "cafes": return "rgba(139, 69, 19, 0.85)";
+        case "bus": return "rgba(255, 140, 0, 0.85)";
+        case "underground": return "rgba(201, 24, 24, 0.85)";
+        case "national_rail": return "rgba(0, 47, 167, 0.85)";
+        case "landmark": return "rgba(118, 112, 47, 0.85)";
+        case "plaques": return "rgba(78, 93, 135, 0.85)";
+        case "blue_plaques": return "rgba(62, 103, 196, 0.85)";
+        case "film_tv": return "rgba(134, 74, 162, 0.85)";
+        case "ww2": return "rgba(114, 108, 66, 0.85)";
+        case "royal": return "rgba(156, 118, 41, 0.85)";
+        case "history_general": return "rgba(109, 92, 58, 0.85)";
+        case "social_history": return "rgba(150, 108, 74, 0.85)";
+        case "celebrity_association": return "rgba(164, 127, 38, 0.85)";
+        case "science": return "rgba(54, 113, 176, 0.85)";
+        case "education": return "rgba(69, 109, 146, 0.85)";
+        case "medicine": return "rgba(39, 135, 118, 0.85)";
+        case "literature": return "rgba(122, 86, 48, 0.85)";
+        case "theatre": return "rgba(155, 84, 124, 0.85)";
+        case "politics": return "rgba(79, 91, 134, 0.85)";
+        case "art": return "rgba(198, 108, 52, 0.85)";
+        case "church": return "rgba(111, 121, 89, 0.85)";
+        case "legends": return "rgba(111, 77, 140, 0.85)";
+        default: return "rgba(118, 112, 47, 0.85)";
+      }
     }
 
     function escapeHtml(value) {
