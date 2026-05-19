@@ -1202,6 +1202,15 @@
             <li class="loading-step pending" data-load-step="places">
               <span class="step-icon" aria-hidden="true"></span><span class="step-label">Local places &amp; landmarks</span><span class="step-count" data-step-count="places"></span>
             </li>
+            <li class="loading-step pending" data-load-step="paths">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Paths &amp; trails</span><span class="step-count" data-step-count="paths"></span>
+            </li>
+            <li class="loading-step pending" data-load-step="roads">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Roads &amp; streets</span><span class="step-count" data-step-count="roads"></span>
+            </li>
+            <li class="loading-step pending" data-load-step="environment">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Environment (buildings, water, nature)</span><span class="step-count" data-step-count="environment"></span>
+            </li>
             <li class="loading-step pending" data-load-step="forest">
               <span class="step-icon" aria-hidden="true"></span><span class="step-label">Forest &amp; buffer boundaries</span><span class="step-count" data-step-count="forest"></span>
             </li>
@@ -1530,6 +1539,9 @@
         // Kick off all fetches in parallel, updating step states as each resolves
         setLoadStep("trees", "loading");
         setLoadStep("places", "loading");
+        setLoadStep("paths", "loading");
+        setLoadStep("roads", "loading");
+        setLoadStep("environment", "loading");
         setLoadStep("forest", "loading");
 
         const loadTreeDataset = async (url) => {
@@ -1574,23 +1586,41 @@
         const pathsPromise = fetch(PATHS_URL)
           .then(async (r) => {
             if (!r.ok) throw new Error(`Paths data HTTP ${r.status}`);
-            return r.json();
+            const data = await r.json();
+            const count = data.features ? data.features.length : 0;
+            setLoadStep("paths", "done", count);
+            return data;
           })
-          .catch(() => ({ features: [] }));
+          .catch(() => {
+            setLoadStep("paths", "error");
+            return { features: [] };
+          });
 
         const roadsPromise = fetch(ROADS_URL)
           .then(async (r) => {
             if (!r.ok) throw new Error(`Roads data HTTP ${r.status}`);
-            return r.json();
+            const data = await r.json();
+            const count = data.features ? data.features.length : 0;
+            setLoadStep("roads", "done", count);
+            return data;
           })
-          .catch(() => ({ features: [] }));
+          .catch(() => {
+            setLoadStep("roads", "error");
+            return { features: [] };
+          });
 
         const environmentPromise = fetch(ENVIRONMENT_URL)
           .then(async (r) => {
             if (!r.ok) throw new Error(`Environment data HTTP ${r.status}`);
-            return r.json();
+            const data = await r.json();
+            const count = data.features ? data.features.length : 0;
+            setLoadStep("environment", "done", count);
+            return data;
           })
-          .catch(() => ({ features: [] }));
+          .catch(() => {
+            setLoadStep("environment", "error");
+            return { features: [] };
+          });
 
         const layerPromises = FEATURE_LAYERS.map((layer) =>
           fetch(layer.url)
