@@ -661,13 +661,19 @@
     }
 
     .loading-step {
-      display: flex;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
       align-items: center;
       gap: 10px;
       font-size: 0.9rem;
       font-weight: 700;
       color: var(--muted);
       transition: color 0.2s;
+    }
+
+    .step-label {
+      flex: 1;
+      min-width: 0;
     }
 
     .loading-step.loading {
@@ -726,6 +732,17 @@
     .loading-step.done    .step-icon          { background: var(--tree); border-color: var(--tree); color: #fff; }
     .loading-step.error   .step-icon::after   { content: "!"; font-size: 0.85rem; }
     .loading-step.error   .step-icon          { background: var(--selected); border-color: var(--selected); color: #fff; }
+
+    .step-count {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--tree);
+      white-space: nowrap;
+    }
+
+    .step-count:empty {
+      display: none;
+    }
 
     @keyframes step-spin {
       to { transform: rotate(360deg); }
@@ -1180,16 +1197,16 @@
           <p class="loading-intro">Loading everything needed to work offline — once ready, the map works without internet access.</p>
           <ul id="loadingSteps" class="loading-steps">
             <li class="loading-step pending" data-load-step="trees">
-              <span class="step-icon" aria-hidden="true"></span><span>Tree records (veteran register)</span>
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Tree records (veteran register)</span><span class="step-count" data-step-count="trees"></span>
             </li>
             <li class="loading-step pending" data-load-step="places">
-              <span class="step-icon" aria-hidden="true"></span><span>Local places &amp; landmarks</span>
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Local places &amp; landmarks</span><span class="step-count" data-step-count="places"></span>
             </li>
             <li class="loading-step pending" data-load-step="forest">
-              <span class="step-icon" aria-hidden="true"></span><span>Forest &amp; buffer boundaries</span>
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Forest &amp; buffer boundaries</span><span class="step-count" data-step-count="forest"></span>
             </li>
             <li class="loading-step pending" data-load-step="cows">
-              <span class="step-icon" aria-hidden="true"></span><span>Live cow positions (Nofence)</span>
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Live cow positions (Nofence)</span><span class="step-count" data-step-count="cows"></span>
             </li>
           </ul>
         </div>
@@ -1200,6 +1217,14 @@
           <h2 class="location-gate-title">Location required</h2>
           <p id="locationGateMessage" class="location-gate-text">You need to enable location to continue. Map data is loading in the background.</p>
           <button id="locationGateButton" class="button" type="button">Enable location to continue</button>
+        </div>
+      </div>
+
+      <div id="distanceWarning" class="location-gate" aria-live="polite" hidden>
+        <div class="location-gate-card">
+          <h2 class="location-gate-title">You're far from the forest</h2>
+          <p id="distanceWarningMessage" class="location-gate-text">You're currently over 15 minutes walk from Epping Forest. This app will be most useful when you're closer to the forest, but all the map data has been downloaded and is ready for when you visit.</p>
+          <button id="distanceWarningButton" class="button" type="button">Continue anyway</button>
         </div>
       </div>
 
@@ -1286,7 +1311,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v70";
+    const APP_VERSION = "v71";
     const FILTER_GROUPS = [
       {
         key: "nature",
@@ -1416,6 +1441,7 @@
       overviewExpandedGroups: [],
       filterPanelCollapsed: false,
       initialUserRevealDone: false,
+      distanceWarningShown: false,
       nearestItemsCount: 10,
       suppressHashChange: false,
       compassHeading: null,
@@ -1459,6 +1485,9 @@
       locationGate: document.getElementById("locationGate"),
       locationGateMessage: document.getElementById("locationGateMessage"),
       locationGateButton: document.getElementById("locationGateButton"),
+      distanceWarning: document.getElementById("distanceWarning"),
+      distanceWarningMessage: document.getElementById("distanceWarningMessage"),
+      distanceWarningButton: document.getElementById("distanceWarningButton"),
       inspector: document.getElementById("inspector"),
       inspectorBack: document.getElementById("inspectorBack"),
       inspectorTitleEmoji: document.getElementById("inspectorTitleEmoji"),
@@ -1475,11 +1504,18 @@
 
     boot();
 
-    function setLoadStep(key, status) {
+    function setLoadStep(key, status, count) {
       const el = document.querySelector(`[data-load-step="${key}"]`);
       if (!el) return;
       el.classList.remove("pending", "loading", "done", "error");
       el.classList.add(status);
+      
+      if (count != null) {
+        const countEl = document.querySelector(`[data-step-count="${key}"]`);
+        if (countEl) {
+          countEl.textContent = count.toLocaleString();
+        }
+      }
     }
 
     async function boot() {
@@ -1506,7 +1542,7 @@
         const treePromise = loadTreeDataset(TREE_ENRICHED_URL)
           .catch(() => loadTreeDataset(TREE_URL))
           .then((data) => {
-            setLoadStep("trees", "done");
+            setLoadStep("trees", "done", data.trees.length);
             return data;
           })
           .catch(() => {
@@ -1518,7 +1554,8 @@
           .then(async (r) => {
             if (!r.ok) throw new Error(`Landmark data HTTP ${r.status}`);
             const data = await r.json();
-            setLoadStep("places", "done");
+            const count = data.features ? data.features.length : 0;
+            setLoadStep("places", "done", count);
             return data;
           })
           .catch(() => {
@@ -1572,7 +1609,12 @@
           environmentPromise,
           ...layerPromises,
         ]);
-        setLoadStep("forest", "done");
+        
+        // Count all features in layers
+        const layerFeatureCount = resolvedLayers.reduce((sum, layer) => {
+          return sum + (layer.data.features ? layer.data.features.length : 0);
+        }, 0);
+        setLoadStep("forest", "done", layerFeatureCount);
 
         state.layers = resolvedLayers;
 
@@ -1603,6 +1645,9 @@
 
         const folkloreLandmarks = normalizeFolkloreLocations(folkloreData);
         state.landmarks = [...osmLandmarks, ...folkloreLandmarks];
+        
+        // Update places count with final combined total
+        setLoadStep("places", "done", state.landmarks.length);
 
         state.paths = (pathsData.features || [])
           .map(toPathFeature)
@@ -1618,7 +1663,7 @@
         applyCachedCowData();
         setLoadStep("cows", "loading");
         const cowBootstrapOk = await refreshCowData({ force: true, timeoutMs: 7000 });
-        setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error");
+        setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
         scheduleCowRefresh();
         fitToBounds();
         els.locateButton.disabled = false;
@@ -1744,6 +1789,13 @@
               showCompassAccessPrompt();
             }
           }
+        });
+      }
+
+      if (els.distanceWarningButton) {
+        els.distanceWarningButton.addEventListener("click", () => {
+          if (els.distanceWarning) els.distanceWarning.hidden = true;
+          state.distanceWarningShown = true;
         });
       }
 
@@ -1918,6 +1970,10 @@
             } else {
               setLocationGateVisible(false);
             }
+            
+            // Check if user is far from forest
+            checkDistanceToForest(latitude, longitude);
+            
             selectOverview();
             ensureOverviewTargetsVisible({ animate: true, durationMs: initial ? 700 : 420 });
             if (!initial) {
@@ -1949,6 +2005,81 @@
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
       );
+    }
+
+    function checkDistanceToForest(latitude, longitude) {
+      // Don't show warning if already shown
+      if (state.distanceWarningShown) return;
+      
+      // Find the forest layer
+      const forestLayer = state.layers.find(layer => layer.key === "forest");
+      if (!forestLayer || !forestLayer.data || !forestLayer.data.features) return;
+      
+      // Calculate minimum distance to forest boundary
+      const minDistance = getMinDistanceToForest(latitude, longitude, forestLayer);
+      
+      // 15 minutes walk at 5 km/h = ~1250 meters
+      const FIFTEEN_MIN_WALK_METRES = 1250;
+      
+      if (minDistance > FIFTEEN_MIN_WALK_METRES) {
+        const distanceKm = (minDistance / 1000).toFixed(1);
+        const walkMins = Math.ceil(minDistance / 80); // 80m/min walking speed
+        
+        if (els.distanceWarningMessage) {
+          els.distanceWarningMessage.textContent = `You're currently about ${distanceKm}km (${walkMins} minutes walk) from Epping Forest. This app will be most useful when you're closer to the forest, but all the map data has been downloaded and is ready for when you visit.`;
+        }
+        
+        if (els.distanceWarning) {
+          els.distanceWarning.hidden = false;
+        }
+      }
+    }
+
+    function getMinDistanceToForest(userLat, userLon, forestLayer) {
+      let minDistance = Infinity;
+      
+      for (const feature of forestLayer.data.features) {
+        const geometry = feature.geometry;
+        if (!geometry) continue;
+        
+        const polygons = geometry.type === "Polygon" 
+          ? [geometry.coordinates] 
+          : geometry.coordinates;
+        
+        for (const polygon of polygons) {
+          // Check exterior ring
+          if (polygon.length > 0) {
+            const ring = polygon[0];
+            const distance = getMinDistanceToRing(userLat, userLon, ring);
+            minDistance = Math.min(minDistance, distance);
+          }
+        }
+      }
+      
+      return minDistance;
+    }
+
+    function getMinDistanceToRing(userLat, userLon, ring) {
+      let minDistance = Infinity;
+      
+      // Check distance to each segment of the ring
+      for (let i = 0; i < ring.length - 1; i++) {
+        const [lon1, lat1] = ring[i];
+        const [lon2, lat2] = ring[i + 1];
+        
+        const distance = distanceToLineSegment(userLat, userLon, lat1, lon1, lat2, lon2);
+        minDistance = Math.min(minDistance, distance);
+      }
+      
+      // Also check distance to first and last point to close the ring
+      if (ring.length > 0) {
+        const [lon1, lat1] = ring[0];
+        const [lon2, lat2] = ring[ring.length - 1];
+        const distance = distanceToLineSegment(userLat, userLon, lat1, lon1, lat2, lon2);
+        minDistance = Math.min(minDistance, distance);
+      }
+      
+      return minDistance;
     }
 
     function resizeCanvas() {

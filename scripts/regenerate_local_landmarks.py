@@ -13,7 +13,7 @@ OVERPASS_JSON_PATH = DATA / "local-landmarks.overpass.json"
 GEOJSON_PATH = DATA / "local-landmarks.geojson"
 FOREST_BOUNDARY_PATH = DATA / "epping-forest-land.geojson"
 WALKING_SPEED_M_PER_MIN = 3500 / 60  # 3.5 km/h
-MAX_WALK_MINUTES_FROM_BOUNDARY = 8
+MAX_WALK_MINUTES_FROM_BOUNDARY = 25
 MAX_DISTANCE_FROM_BOUNDARY_METRES = WALKING_SPEED_M_PER_MIN * MAX_WALK_MINUTES_FROM_BOUNDARY
 OVERPASS_URLS = [
     "https://overpass-api.de/api/interpreter",
