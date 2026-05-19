@@ -1253,6 +1253,7 @@
         <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
         <span style="color: #2f72b2;">💧 Hydrology</span>
         <span style="color: #488241;">🌿 Nature designations</span>
+        <span style="color: #5aaf46;">🌻 Gardens &amp; parks</span>
         <span style="color: #3a5c45;">🥾 Paths &amp; trails</span>
         <span style="color: #9a6a2f;">🐄 Cows</span>
         <span style="color: var(--place);">🍺 Pubs, bars &amp; restaurants</span>
@@ -1320,7 +1321,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v74";
+    const APP_VERSION = "v77";
     const FILTER_GROUPS = [
       {
         key: "nature",
@@ -1331,7 +1332,6 @@
           { key: "paths", label: "🥾 Paths", title: "paths" },
           { key: "hydrology", label: "💧 Hydrology", title: "water features" },
           { key: "nature_designations", label: "🌱 Nature designations", title: "nature designations" },
-          { key: "gardens", label: "🌻 Gardens & Parks", title: "gardens and parks" },
           { key: "buildings", label: "🏘️ Buildings", title: "buildings" },
         ],
       },
@@ -1394,7 +1394,7 @@
     );
     const FILTER_SUBFILTERS_BY_KEY = new Map(FILTER_SUBFILTERS.map((subfilter) => [subfilter.key, subfilter]));
     const ALL_OVERVIEW_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key));
-    const LAYER_FILTER_KEYS = new Set(["paths", "hydrology", "nature_designations", "buildings", "gardens"]);
+    const LAYER_FILTER_KEYS = new Set(["paths", "hydrology", "nature_designations", "buildings"]);
     const TREE_FILTER_KEYS = new Set(["trees"]);
     const COW_FILTER_KEYS = new Set(["cows"]);
     const PLACE_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key).filter((key) => !LAYER_FILTER_KEYS.has(key) && !TREE_FILTER_KEYS.has(key) && !COW_FILTER_KEYS.has(key)));
@@ -2644,19 +2644,19 @@
           });
         }
 
-        if (type === "garden" && isLayerVisibleForFilter("gardens")) {
-          drawEnvironmentPolygon(ctx, geometry, {
-            fill: "rgba(120, 175, 90, 0.18)",
-            stroke: "rgba(90, 140, 70, 0.45)",
-            width: 1.2 * dpr,
-          });
-        }
-
         if (type === "building" && isLayerVisibleForFilter("buildings")) {
           drawEnvironmentPolygon(ctx, geometry, {
             fill: "rgba(120, 120, 120, 0.15)",
             stroke: "rgba(80, 80, 80, 0.35)",
             width: 0.8 * dpr,
+          });
+        }
+
+        if (type === "garden") {
+          drawEnvironmentPolygon(ctx, geometry, {
+            fill: "rgba(120, 175, 90, 0.18)",
+            stroke: "rgba(90, 140, 70, 0.45)",
+            width: 1.2 * dpr,
           });
         }
       }
