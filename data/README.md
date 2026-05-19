@@ -28,6 +28,12 @@ This folder stores local GeoJSON files used by the PWA when offline.
   - Contents: paths, footways, bridleways, byways, permissive paths, waymarked trails, cycleways, and tracks in the Epping Forest area, including names/refs where available.
   - Licence: OpenStreetMap data is available under the Open Data Commons Open Database License (ODbL). Attribute OpenStreetMap contributors when using this layer.
 
+- `local-roads.geojson`
+  - Source: OpenStreetMap via Overpass API.
+  - Query: `local-roads.overpassql`
+  - Contents: roads around Epping Forest including motorways, primary, secondary, tertiary, residential, and service roads.
+  - Licence: OpenStreetMap data is available under the Open Data Commons Open Database License (ODbL). Attribute OpenStreetMap contributors when using this layer.
+
 - `local-environment.geojson`
   - Source: OpenStreetMap via Overpass API.
   - Query: `local-environment.overpassql`

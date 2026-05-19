@@ -762,6 +762,34 @@
       transition: max-height 0.2s ease;
     }
 
+    .inspector-drag-handle {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 20px;
+      cursor: grab;
+      touch-action: none;
+      z-index: 10;
+      justify-content: center;
+      align-items: center;
+      padding-top: 4px;
+    }
+
+    .inspector-drag-handle::before {
+      content: '';
+      display: block;
+      width: 36px;
+      height: 4px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 2px;
+    }
+
+    .inspector-drag-handle.dragging {
+      cursor: grabbing;
+    }
+
     .inspector.minimized {
       top: auto;
       bottom: 14px;
@@ -1113,7 +1141,16 @@
         right: 10px;
         bottom: 10px;
         width: auto;
-        max-height: 48%;
+        max-height: var(--inspector-height, 48%);
+        transition: max-height 0s;
+      }
+
+      .inspector-drag-handle {
+        display: flex;
+      }
+
+      .inspector-header {
+        padding-top: 24px;
       }
 
       .toolbar {
@@ -1199,6 +1236,7 @@
       </div>
 
       <aside id="inspector" class="inspector" aria-live="polite">
+        <div id="inspectorDragHandle" class="inspector-drag-handle" aria-label="Drag to resize"></div>
         <div class="inspector-header">
           <div>
             <div class="inspector-title-row">
@@ -1236,6 +1274,7 @@
     const LANDMARK_URL = "data/local-landmarks.geojson";
     const FOLKLORE_URL = "data/epping_forest_folklore_locations_v14_external_links.json";
     const PATHS_URL = "data/local-paths.geojson";
+    const ROADS_URL = "data/local-roads.geojson";
     const ENVIRONMENT_URL = "data/local-environment.geojson";
     const COW_PROXY_URL_BASE = "/api/cows?center=";
     const COW_SOURCE_URL_BASE = "https://account.nofence.no/api/open/data/?center=";
@@ -1273,7 +1312,7 @@
         label: "🚌 Transport",
         subfilters: [
           { key: "bus", label: "🚌 Bus stops", title: "bus stops" },
-          { key: "underground", label: "Ⓤ Underground", title: "Underground stations" },
+          { key: "underground", label: "🔴 Underground", title: "Underground stations" },
           { key: "national_rail", label: "⇄ National Rail", title: "National Rail / overground stations" },
         ],
       },
@@ -1352,6 +1391,7 @@
       trees: [],
       landmarks: [],
       paths: [],
+      roads: [],
       environmentFeatures: [],
       layers: [],
       bounds: null,
@@ -1395,6 +1435,9 @@
       viewportAnimationStartTime: null,
       viewportAnimationDuration: 0,
       emojiScaleAnimated: null,
+      inspectorDragging: false,
+      inspectorDragStart: null,
+      inspectorHeightPercent: null,
     };
 
     const els = {
@@ -1421,6 +1464,7 @@
       inspectorTitle: document.getElementById("inspectorTitle"),
       inspectorType: document.getElementById("inspectorType"),
       inspectorBody: document.getElementById("inspectorBody"),
+      inspectorTools: document.querySelector(".inspector-tools"),
       closeInspector: document.getElementById("closeInspector"),
       treeSearchToggle: document.getElementById("treeSearchToggle"),
       treeSearchPanel: document.getElementById("treeSearchPanel"),
@@ -1495,6 +1539,13 @@
           })
           .catch(() => ({ features: [] }));
 
+        const roadsPromise = fetch(ROADS_URL)
+          .then(async (r) => {
+            if (!r.ok) throw new Error(`Roads data HTTP ${r.status}`);
+            return r.json();
+          })
+          .catch(() => ({ features: [] }));
+
         const environmentPromise = fetch(ENVIRONMENT_URL)
           .then(async (r) => {
             if (!r.ok) throw new Error(`Environment data HTTP ${r.status}`);
@@ -1511,11 +1562,12 @@
             .catch(() => ({ ...layer, data: { type: "FeatureCollection", features: [] } }))
         );
 
-        const [treeData, landmarkData, folkloreData, pathsData, environmentData, ...resolvedLayers] = await Promise.all([
+        const [treeData, landmarkData, folkloreData, pathsData, roadsData, environmentData, ...resolvedLayers] = await Promise.all([
           treePromise,
           landmarkPromise,
           folklorePromise,
           pathsPromise,
+          roadsPromise,
           environmentPromise,
           ...layerPromises,
         ]);
@@ -1553,6 +1605,10 @@
 
         state.paths = (pathsData.features || [])
           .map(toPathFeature)
+          .filter(Boolean);
+
+        state.roads = (roadsData.features || [])
+          .map(toRoadFeature)
           .filter(Boolean);
 
         state.environmentFeatures = (environmentData.features || []).filter((feature) => feature && feature.geometry && feature.properties);
@@ -1689,6 +1745,8 @@
           }
         });
       }
+
+      setupInspectorDragResize();
 
       els.filterToggle.addEventListener("click", () => {
         if (els.inspector.classList.contains("minimized")) {
@@ -1863,11 +1921,7 @@
               setLocationGateVisible(false);
             }
             selectOverview();
-            if (initial) {
-              revealUserLocationSmooth();
-            } else {
-              ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
-            }
+            ensureOverviewTargetsVisible({ animate: true, durationMs: initial ? 700 : 420 });
             if (!initial) {
               const nearestTreeText = state.nearestTree
                 ? formatDistance(state.nearestTree.metres)
@@ -2156,6 +2210,7 @@
       for (const layer of state.layers) drawLayer(ctx, layer);
       drawCowPastures(ctx);
       drawEnvironment(ctx);
+      drawRoads(ctx);
       drawPaths(ctx);
       drawOverviewRoutes(ctx);
       drawSelectedRoute(ctx);
@@ -2164,12 +2219,13 @@
       drawCows(ctx, nearbyIconLookup);
       drawUser(ctx);
       drawSelectedOverlay(ctx);
+      drawSelectedRoadOverlay(ctx);
 
       if (Math.abs(animatedEmojiScale.target - animatedEmojiScale.value) > 0.001) {
         requestDraw();
       }
 
-      if (state.selected && ["tree", "landmark", "cow"].includes(state.selected.type)) {
+      if (state.selected && ["tree", "landmark", "cow", "road"].includes(state.selected.type)) {
         requestDraw();
       }
     }
@@ -2287,6 +2343,90 @@
           ctx.strokeText(item.path.name, point.x, point.y);
           ctx.fillStyle = "rgba(45, 59, 52, 0.95)";
           ctx.fillText(item.path.name, point.x, point.y);
+        }
+      }
+
+      ctx.restore();
+    }
+
+    function drawRoads(ctx) {
+      if (!state.roads.length) return;
+
+      const dpr = pixelRatio();
+      const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
+      const worldTopLeft = screenToWorld(0, 0);
+      const worldBottomRight = screenToWorld(els.canvas.width, els.canvas.height);
+      const minWorldX = Math.min(worldTopLeft.x, worldBottomRight.x);
+      const maxWorldX = Math.max(worldTopLeft.x, worldBottomRight.x);
+      const minWorldY = Math.min(worldTopLeft.y, worldBottomRight.y);
+      const maxWorldY = Math.max(worldTopLeft.y, worldBottomRight.y);
+      const margin = (maxWorldX - minWorldX) * 0.05;
+
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      for (const road of state.roads) {
+        if (road.bbox) {
+          if (road.bbox.maxX < minWorldX - margin || road.bbox.minX > maxWorldX + margin) continue;
+          if (road.bbox.maxY < minWorldY - margin || road.bbox.minY > maxWorldY + margin) continue;
+        }
+
+        // Color and width based on road type
+        let roadColor, roadWidth;
+        switch (road.roadType) {
+          case "motorway":
+            roadColor = "rgba(229, 105, 82, 0.75)";
+            roadWidth = clamp(3.5 + zoomLevel * 0.35, 2.5, 5) * dpr;
+            break;
+          case "trunk":
+            roadColor = "rgba(245, 161, 80, 0.7)";
+            roadWidth = clamp(3 + zoomLevel * 0.3, 2, 4.5) * dpr;
+            break;
+          case "primary":
+            roadColor = "rgba(252, 214, 112, 0.65)";
+            roadWidth = clamp(2.5 + zoomLevel * 0.25, 1.8, 4) * dpr;
+            break;
+          case "secondary":
+            roadColor = "rgba(244, 250, 191, 0.6)";
+            roadWidth = clamp(2 + zoomLevel * 0.2, 1.5, 3.5) * dpr;
+            break;
+          case "tertiary":
+            roadColor = "rgba(255, 255, 255, 0.55)";
+            roadWidth = clamp(1.8 + zoomLevel * 0.18, 1.3, 3) * dpr;
+            break;
+          case "residential":
+            roadColor = "rgba(255, 255, 255, 0.45)";
+            roadWidth = clamp(1.5 + zoomLevel * 0.15, 1, 2.5) * dpr;
+            break;
+          case "service":
+            roadColor = "rgba(255, 255, 255, 0.35)";
+            roadWidth = clamp(1.2 + zoomLevel * 0.1, 0.8, 2) * dpr;
+            break;
+          default:
+            roadColor = "rgba(255, 255, 255, 0.4)";
+            roadWidth = clamp(1.5 + zoomLevel * 0.15, 1, 2.5) * dpr;
+        }
+
+        for (const segment of road.segments) {
+          if (segment.length < 2) continue;
+
+          ctx.beginPath();
+          for (let i = 0; i < segment.length; i += 1) {
+            const point = worldToScreen(segment[i]);
+            if (i === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
+          }
+
+          // Draw casing (darker outline)
+          ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
+          ctx.lineWidth = roadWidth + (1.5 * dpr);
+          ctx.stroke();
+
+          // Draw road
+          ctx.strokeStyle = roadColor;
+          ctx.lineWidth = roadWidth;
+          ctx.stroke();
         }
       }
 
@@ -2472,6 +2612,64 @@
         segments,
         bbox,
         totalLength,
+      };
+    }
+
+    function toRoadFeature(feature) {
+      if (!feature || !feature.geometry) return null;
+
+      const tags = feature.properties || {};
+      const name = tags.name || tags.ref || null;
+      const highway = tags.highway || null;
+      const ref = tags.ref || null;
+
+      const roadType = highway === "motorway" || highway === "motorway_link"
+        ? "motorway"
+        : highway === "trunk" || highway === "trunk_link"
+          ? "trunk"
+          : highway === "primary" || highway === "primary_link"
+            ? "primary"
+            : highway === "secondary" || highway === "secondary_link"
+              ? "secondary"
+              : highway === "tertiary" || highway === "tertiary_link"
+                ? "tertiary"
+                : highway === "residential"
+                  ? "residential"
+                  : highway === "service"
+                    ? "service"
+                    : "unclassified";
+
+      const segments = lineSegmentsFromGeometry(feature.geometry)
+        .map((segment) => segment
+          .map(([longitude, latitude]) => projectLonLat(Number(longitude), Number(latitude)))
+          .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y)))
+        .filter((segment) => segment.length >= 2);
+
+      if (!segments.length) return null;
+
+      const bbox = {
+        minX: Infinity,
+        minY: Infinity,
+        maxX: -Infinity,
+        maxY: -Infinity,
+      };
+
+      for (const segment of segments) {
+        for (const point of segment) {
+          bbox.minX = Math.min(bbox.minX, point.x);
+          bbox.minY = Math.min(bbox.minY, point.y);
+          bbox.maxX = Math.max(bbox.maxX, point.x);
+          bbox.maxY = Math.max(bbox.maxY, point.y);
+        }
+      }
+
+      return {
+        name,
+        ref,
+        roadType,
+        highway,
+        segments,
+        bbox,
       };
     }
 
@@ -2706,6 +2904,19 @@
       return minOpacity + (maxOpacity - minOpacity) * pulse;
     }
 
+    function drawUndergroundRoundel(ctx, x, y, sizePx) {
+      const scale = sizePx / 24;
+      ctx.save();
+      ctx.translate(x - 12 * scale, y - 12 * scale);
+      ctx.scale(scale, scale);
+      
+      ctx.fillStyle = "#C9181E";
+      const path = new Path2D("M12 2.25a9.73 9.73 0 0 0-9.49 7.5H0v4.5h2.51a9.73 9.73 0 0 0 9.49 7.5c4.62 0 8.48-3.2 9.49-7.5H24v-4.5h-2.51A9.73 9.73 0 0 0 12 2.25zM12 6c2.5 0 4.66 1.56 5.56 3.75H6.44A6.02 6.02 0 0 1 12 6zm-5.56 8.25h11.12A6.02 6.02 0 0 1 12 18a6.02 6.02 0 0 1-5.56-3.75Z");
+      ctx.fill(path);
+      
+      ctx.restore();
+    }
+
     function drawMapEmoji(ctx, emoji, x, y, sizePx, options = {}) {
       const {
         backgroundColor = null,
@@ -2747,7 +2958,14 @@
       const now = Date.now();
       const cycle = (now % cycleMs) / cycleMs;
       const pulse = Math.sin(cycle * Math.PI * 2) * 0.5 + 0.5;
-      return minScale + (maxScale - minScale) * pulse;
+      const baseScale = minScale + (maxScale - minScale) * pulse;
+      
+      // Adjust pulse intensity based on zoom level
+      const zoomScale = mapEmojiScale();
+      // When zoomed out (zoomScale ~0.45), reduce the pulse; when zoomed in (zoomScale ~1.15), keep it
+      const zoomFactor = 0.7 + (zoomScale * 0.3);
+      
+      return baseScale * zoomFactor;
     }
 
     function buildNearbyIconLookup() {
@@ -2820,26 +3038,28 @@
         } else if (isTransport) {
           // Transport: different icons for bus/underground/rail
           const transportType = getTransportType(place);
-          const radius = 10 * dpr;
-          const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
-          const color = transportType === "underground"
-            ? "rgba(201, 24, 24, "
-            : transportType === "national_rail"
+          
+          if (transportType === "underground") {
+            // Draw London Underground roundel
+            drawUndergroundRoundel(ctx, point.x, point.y, 24 * dpr * mapScale);
+          } else {
+            const radius = 10 * dpr;
+            const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
+            const color = transportType === "national_rail"
               ? "rgba(0, 47, 167, "
               : "rgba(255, 140, 0, ";
-          const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-          gradient.addColorStop(0, `${color}${pulseOpacity})`);
-          gradient.addColorStop(1, `${color}${pulseOpacity * 0.2})`);
-          ctx.fillStyle = gradient;
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-          ctx.fill();
-          const emoji = transportType === "underground"
-            ? "Ⓤ"
-            : transportType === "national_rail"
+            const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
+            gradient.addColorStop(0, `${color}${pulseOpacity})`);
+            gradient.addColorStop(1, `${color}${pulseOpacity * 0.2})`);
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            const emoji = transportType === "national_rail"
               ? "⇄"
               : "🚌";
-          drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale, emojiBadge);
+            drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale, emojiBadge);
+          }
         } else {
           const emoji = landmarkEmoji(place);
           if (emoji !== "📍") {
@@ -2957,6 +3177,9 @@
           ctx.fillStyle = "#76702f";
           ctx.fill();
           ctx.restore();
+        } else if (isTransportCategory(selectedPlace) && getTransportType(selectedPlace) === "underground") {
+          // Draw selected underground station
+          drawUndergroundRoundel(ctx, point.x, point.y, 26 * dpr * mapScale * selectedScale);
         } else {
           drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * selectedScale, {
             backgroundColor: "#fff",
@@ -2969,10 +3192,60 @@
       }
     }
 
+    function drawSelectedRoadOverlay(ctx) {
+      if (!state.selected || state.selected.type !== "road" || !state.selected.item) return;
+
+      const road = state.selected.item;
+      const dpr = pixelRatio();
+      const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
+
+      // Calculate highlight width (slightly thicker than the road itself)
+      let highlightWidth;
+      switch (road.roadType) {
+        case "motorway":
+          highlightWidth = clamp(4 + zoomLevel * 0.4, 3, 6) * dpr;
+          break;
+        case "trunk":
+          highlightWidth = clamp(3.5 + zoomLevel * 0.35, 2.5, 5.5) * dpr;
+          break;
+        case "primary":
+          highlightWidth = clamp(3 + zoomLevel * 0.3, 2.3, 5) * dpr;
+          break;
+        default:
+          highlightWidth = clamp(2.5 + zoomLevel * 0.25, 2, 4.5) * dpr;
+      }
+
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      for (const segment of road.segments) {
+        if (segment.length < 2) continue;
+
+        ctx.beginPath();
+        for (let i = 0; i < segment.length; i += 1) {
+          const point = worldToScreen(segment[i]);
+          if (i === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        }
+
+        // Draw animated pulse effect
+        const now = Date.now();
+        const pulse = (Math.sin(now / 400) * 0.5 + 0.5);
+        const alpha = 0.5 + pulse * 0.3;
+
+        ctx.strokeStyle = `rgba(31, 94, 255, ${alpha})`;
+        ctx.lineWidth = highlightWidth;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
     function zoomEmojiScaleTarget() {
       const baselineScale = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
       const zoomRatio = baselineScale > 0 ? state.viewport.scale / baselineScale : 1;
-      return clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.18), 0.72, 1.08);
+      return clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.35), 0.45, 1.15);
     }
 
     function updateAnimatedEmojiScale() {
@@ -3065,6 +3338,11 @@
         syncHashFromSelection();
         showAreaDetails(hit.item);
         updateCompassOverlay();
+      } else if (hit.type === "road") {
+        state.selected = { type: "road", item: hit.item };
+        syncHashFromSelection();
+        showRoadDetails(hit.item);
+        updateCompassOverlay();
       } else {
         goToInitialView();
         return;
@@ -3076,6 +3354,8 @@
       const dpr = pixelRatio();
       let bestPlace = null;
       for (const place of state.landmarks) {
+        const opacity = markerOpacityFor("landmark", place);
+        if (opacity < 0.5) continue; // Skip filtered out landmarks
         const point = worldToScreen(place.point);
         const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
         if (distance < 15 * dpr && (!bestPlace || distance < bestPlace.distance)) {
@@ -3086,6 +3366,8 @@
 
       let bestCow = null;
       for (const cow of state.cows) {
+        const opacity = markerOpacityFor("cow", cow);
+        if (opacity < 0.5) continue; // Skip filtered out cows
         const point = worldToScreen(cow.point);
         const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
         if (distance < 15 * dpr && (!bestCow || distance < bestCow.distance)) {
@@ -3105,15 +3387,51 @@
       }
       if (bestTree) return bestTree;
 
+      // Check for roads
+      let bestRoad = null;
+      const roadClickRadius = 12 * dpr;
+      for (const road of state.roads) {
+        if (road.bbox) {
+          const margin = roadClickRadius * 2;
+          const worldMargin = margin / state.viewport.scale;
+          if (world.x < road.bbox.minX - worldMargin || world.x > road.bbox.maxX + worldMargin) continue;
+          if (world.y < road.bbox.minY - worldMargin || world.y > road.bbox.maxY + worldMargin) continue;
+        }
+
+        for (const segment of road.segments) {
+          for (let i = 1; i < segment.length; i++) {
+            const p1 = worldToScreen(segment[i - 1]);
+            const p2 = worldToScreen(segment[i]);
+            const dist = distanceToSegment(screen.x, screen.y, p1.x, p1.y, p2.x, p2.y);
+            if (dist < roadClickRadius && (!bestRoad || dist < bestRoad.distance)) {
+              bestRoad = { type: "road", item: road, distance: dist };
+            }
+          }
+        }
+      }
+      if (bestRoad) return bestRoad;
+
+      for (const envFeature of state.environmentFeatures) {
+        if (envFeature.geometry && envFeature.geometry.type && envFeature.geometry.type.includes("Polygon")) {
+          const polygons = envFeature.geometry.type === "Polygon" ? [envFeature.geometry.coordinates] : envFeature.geometry.coordinates;
+          for (const polygon of polygons) {
+            if (pointInPolygon([lonLat.longitude, lonLat.latitude], polygon)) {
+              return { type: "area", item: { source: "environment", feature: envFeature } };
+            }
+          }
+        }
+      }
+
       for (const layer of state.layers) {
         const feature = findContainingFeature(layer, lonLat);
-        if (feature) return { type: "area", item: { layer, feature } };
+        if (feature) return { type: "area", item: { source: "layer", layer, feature } };
       }
       return { type: "none" };
     }
 
     function showTreeDetails(tree, distance, label) {
       setInspectorSelectionChrome({ emoji: "🌳", showBack: true });
+      els.inspectorTools.hidden = true;
       els.inspectorTitle.textContent = tree.commonName || "Unknown tree";
       els.inspectorType.textContent = `${label}${tree.latinName ? ` · ${tree.latinName}` : ""}`;
       const estimatedAge = estimateTreeAgeFromGirth(tree);
@@ -3143,6 +3461,7 @@
     function showLandmarkDetails(place, distance) {
       const emoji = landmarkEmoji(place);
       setInspectorSelectionChrome({ emoji, showBack: true });
+      els.inspectorTools.hidden = true;
       els.inspectorTitle.textContent = place.name || "Local place";
       els.inspectorType.textContent = place.categoryLabel || "Landmark";
       const description = place.folkloreSummary || place.description || place.summary || null;
@@ -3165,6 +3484,7 @@
 
     function showCowDetails(cow, distance) {
       setInspectorSelectionChrome({ emoji: "🐄", showBack: true });
+      els.inspectorTools.hidden = true;
       const kind = cow.type === "small" ? "Small ruminant" : "Cattle";
       els.inspectorTitle.textContent = `Cow ${displayValue(cow.serialNo)}`;
       els.inspectorType.textContent = kind;
@@ -3179,6 +3499,55 @@
         ["Last update", state.cowLastUpdatedAt ? new Date(state.cowLastUpdatedAt).toLocaleTimeString() : null],
         ["Source", "Nofence open data"],
       ];
+      els.inspectorBody.innerHTML = detailsHtml(rows);    }
+
+    function distanceToSegment(px, py, x1, y1, x2, y2) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const lengthSquared = dx * dx + dy * dy;
+      
+      if (lengthSquared === 0) {
+        return Math.hypot(px - x1, py - y1);
+      }
+      
+      let t = ((px - x1) * dx + (py - y1) * dy) / lengthSquared;
+      t = Math.max(0, Math.min(1, t));
+      
+      const nearestX = x1 + t * dx;
+      const nearestY = y1 + t * dy;
+      
+      return Math.hypot(px - nearestX, py - nearestY);
+    }
+
+    function showRoadDetails(road) {
+      const roadEmoji = road.roadType === "motorway" ? "🛣️"
+        : road.roadType === "trunk" || road.roadType === "primary" ? "🛤️"
+        : "🚙";
+      
+      setInspectorSelectionChrome({ emoji: roadEmoji, showBack: true });
+      els.inspectorTools.hidden = true;
+      
+      const roadTypeLabel = road.roadType === "motorway" ? "Motorway"
+        : road.roadType === "trunk" ? "Trunk Road"
+        : road.roadType === "primary" ? "Primary Road"
+        : road.roadType === "secondary" ? "Secondary Road"
+        : road.roadType === "tertiary" ? "Tertiary Road"
+        : road.roadType === "residential" ? "Residential Road"
+        : road.roadType === "service" ? "Service Road"
+        : "Road";
+      
+      const displayName = road.name || road.ref || "Unnamed road";
+      els.inspectorTitle.textContent = displayName;
+      els.inspectorType.textContent = roadTypeLabel;
+      
+      const rows = [
+        ["Road type", roadTypeLabel],
+        ["Name", road.name],
+        ["Reference", road.ref],
+        ["Highway tag", road.highway],
+        ["Source", "OpenStreetMap"],
+      ].filter(([key, value]) => value != null && value !== "");
+      
       els.inspectorBody.innerHTML = detailsHtml(rows);
     }
 
@@ -3231,15 +3600,61 @@
     }
 
     function showAreaDetails(area) {
-      setInspectorSelectionChrome({ emoji: "", showBack: false });
-      els.inspectorTitle.textContent = area.layer.label;
-      els.inspectorType.textContent = "Offline boundary feature";
-      const rows = Object.entries(area.feature.properties || {}).map(([key, value]) => [key, value]);
-      els.inspectorBody.innerHTML = detailsHtml(rows.length ? rows : [["Details", "No extra attributes recorded"]]);
+      els.inspectorTools.hidden = true;
+      
+      if (area.source === "environment") {
+        const props = area.feature.properties || {};
+        const featureType = props.featureType || "unknown";
+        const name = props.name || "Unnamed area";
+        
+        let emoji = "🗺️";
+        let typeLabel = "Area";
+        
+        if (featureType === "hydrology_line" || featureType === "hydrology_area") {
+          emoji = "💧";
+          typeLabel = featureType === "hydrology_line" ? "Waterway" : "Water body";
+        } else if (featureType === "nature_designation") {
+          emoji = "🌳";
+          typeLabel = "Nature designation";
+        }
+        
+        setInspectorSelectionChrome({ emoji, showBack: true });
+        els.inspectorTitle.textContent = name;
+        els.inspectorType.textContent = typeLabel;
+        
+        const rows = [
+          ["Feature type", featureType],
+          ["Designation", props.designation],
+          ["Waterway", props.waterway],
+          ["Natural", props.natural],
+          ["Water", props.water],
+          ["Landuse", props.landuse],
+          ["Leisure", props.leisure],
+          ["Boundary", props.boundary],
+          ["OSM ID", props.id],
+        ].filter(([key, value]) => value != null && value !== "");
+        
+        els.inspectorBody.innerHTML = detailsHtml(rows.length ? rows : [["Details", "No additional information available"]]);
+      } else {
+        const emoji = area.layer.key === "forest" ? "🌲" : "🟢";
+        setInspectorSelectionChrome({ emoji, showBack: true });
+        els.inspectorTitle.textContent = area.layer.label;
+        els.inspectorType.textContent = "Forest boundary";
+        
+        const props = area.feature.properties || {};
+        const rows = [
+          ["Area", props["SHAPE.AREA"] ? `${props["SHAPE.AREA"].toFixed(2)} sq m` : null],
+          ["Object ID", props.OBJECTID],
+          ["Global ID", props.GLOBALID],
+        ].filter(([key, value]) => value != null);
+        
+        els.inspectorBody.innerHTML = detailsHtml(rows.length ? rows : [["Details", "No additional information available"]]);
+      }
     }
 
     function selectOverview() {
       setInspectorSelectionChrome({ emoji: "", showBack: false });
+      els.inspectorTools.hidden = false;
       els.inspectorTitle.textContent = "Nearby";
       els.inspectorType.textContent = "";
       els.filterPanel.hidden = false;
@@ -3256,7 +3671,11 @@
     function setInspectorSelectionChrome({ emoji, showBack }) {
       els.inspectorBack.hidden = !showBack;
       els.inspectorTitleEmoji.hidden = !emoji;
-      els.inspectorTitleEmoji.textContent = emoji || "";
+      if (emoji && emoji.includes('<svg')) {
+        els.inspectorTitleEmoji.innerHTML = emoji;
+      } else {
+        els.inspectorTitleEmoji.textContent = emoji || "";
+      }
     }
 
     function markerOpacityFor(kind, item) {
@@ -4678,6 +5097,75 @@
       }
     }
 
+    function setupInspectorDragResize() {
+      const dragHandle = document.getElementById("inspectorDragHandle");
+      if (!dragHandle) return;
+
+      function isMobileLayout() {
+        return window.innerWidth <= 850;
+      }
+
+      function setInspectorHeight(percent) {
+        if (!isMobileLayout()) return;
+        const clamped = Math.max(20, Math.min(85, percent));
+        state.inspectorHeightPercent = clamped;
+        els.inspector.style.setProperty("--inspector-height", `${clamped}%`);
+      }
+
+      function recentMapForInspectorChange() {
+        if (!state.userLocation) return;
+        if (state.selected && selectedCompassTarget()) {
+          centerViewportOnPointsKeepScale(
+            [state.userLocation.point, selectedCompassTarget().point],
+            { animate: false, focusVisibleArea: true, assumeInspectorOpen: true }
+          );
+        } else if (isOverviewScreenActive()) {
+          ensureOverviewTargetsVisible({ animate: false });
+        }
+      }
+
+      dragHandle.addEventListener("pointerdown", (event) => {
+        if (!isMobileLayout()) return;
+        event.preventDefault();
+        dragHandle.setPointerCapture(event.pointerId);
+        state.inspectorDragging = true;
+        state.inspectorDragStart = {
+          y: event.clientY,
+          heightPercent: state.inspectorHeightPercent || 48,
+        };
+        dragHandle.classList.add("dragging");
+      });
+
+      dragHandle.addEventListener("pointermove", (event) => {
+        if (!state.inspectorDragging) return;
+        const deltaY = state.inspectorDragStart.y - event.clientY;
+        const viewportHeight = window.innerHeight;
+        const deltaPercent = (deltaY / viewportHeight) * 100;
+        const newPercent = state.inspectorDragStart.heightPercent + deltaPercent;
+        setInspectorHeight(newPercent);
+      });
+
+      dragHandle.addEventListener("pointerup", (event) => {
+        if (!state.inspectorDragging) return;
+        state.inspectorDragging = false;
+        dragHandle.classList.remove("dragging");
+        recentMapForInspectorChange();
+      });
+
+      dragHandle.addEventListener("pointercancel", () => {
+        if (!state.inspectorDragging) return;
+        state.inspectorDragging = false;
+        dragHandle.classList.remove("dragging");
+      });
+
+      window.addEventListener("resize", () => {
+        if (!isMobileLayout() && state.inspectorHeightPercent !== null) {
+          els.inspector.style.removeProperty("--inspector-height");
+          state.inspectorHeightPercent = null;
+        }
+      });
+    }
+
     function goToInitialView(updateHash = true) {
       state.selected = null;
       selectOverview();
@@ -5197,7 +5685,7 @@
         case "cafe":
         case "cafes": return "☕";
         case "bus": return "🚌";
-        case "underground": return "Ⓤ";
+        case "underground": return '<svg width="1em" height="1em" viewBox="0 0 24 24" style="vertical-align: middle; display: inline-block;"><path fill="#C9181E" d="M12 2.25a9.73 9.73 0 0 0-9.49 7.5H0v4.5h2.51a9.73 9.73 0 0 0 9.49 7.5c4.62 0 8.48-3.2 9.49-7.5H24v-4.5h-2.51A9.73 9.73 0 0 0 12 2.25zM12 6c2.5 0 4.66 1.56 5.56 3.75H6.44A6.02 6.02 0 0 1 12 6zm-5.56 8.25h11.12A6.02 6.02 0 0 1 12 18a6.02 6.02 0 0 1-5.56-3.75Z"/></svg>';
         case "national_rail": return "⇄";
         case "landmark": return "📍";
         case "plaques": return "🪧";
