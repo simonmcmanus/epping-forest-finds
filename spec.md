@@ -23,7 +23,9 @@ Provide a fast, mobile-first field map that still works in poor signal condition
 - `data/epping-buffer-land.geojson`
 - `data/local-landmarks.geojson`
 - `data/local-paths.geojson`
+- `data/local-roads.geojson`
 - `data/local-environment.geojson`
+- `data/epping_forest_folklore_locations_v14_external_links.json` (enriched historical/cultural data)
 
 ### Local landmarks extraction (OpenStreetMap via Overpass)
 
@@ -31,11 +33,17 @@ Query file: `data/local-landmarks.overpassql`
 
 Includes:
 
-- pubs/bars
-- cafés/tea huts
-- transport links: train-related points, bus stations, bus stops, taxi points
-- access infrastructure: gates, entrances, parking, toilets, benches, cycle parking
-- named tourism/historic places (including monuments where tagged)
+- **Food & Drink:**
+  - pubs/bars
+  - cafés/tea huts
+  - restaurants (named)
+  - shops: convenience stores, supermarkets, groceries, greengrocers, butchers, bakeries, delis, farm shops, pastry shops, confectioneries, kiosks
+- **Transport:** train-related points, bus stations, bus stops, taxi points
+- **Access infrastructure:** gates, entrances, parking, toilets, benches, cycle parking, drinking water
+- **Tourism & Historic:** named tourism/historic places (including monuments, attractions, viewpoints, museums, picnic sites)
+- **Heritage:** historic sites, archaeological sites, memorials, ruins, castles
+
+**Distance filtering:** Features are filtered to within an 8-minute walk (467m) of the Epping Forest boundary at walking speed of 3.5 km/h.
 
 ### Paths and bridleways extraction (OpenStreetMap via Overpass)
 
@@ -49,6 +57,23 @@ Includes:
 - waymarked trails where OSM tags are present
 - cycleways and tracks
 - named trails/paths where OSM has names/refs
+
+### Roads extraction (OpenStreetMap via Overpass)
+
+Query file: `data/local-roads.overpassql`
+
+Includes:
+
+- Major roads only (motorways, trunk, primary, secondary)
+- Filtered for performance to prevent browser freezing
+- Distance-filtered to within walking distance of forest
+
+**Performance optimizations:**
+- Roads data is filtered to major types only during load
+- Processing happens in batches of 500 roads to prevent UI blocking
+- Rendering limited to 2,000 roads per frame
+- Roads are not drawn when zoomed out too far (< -0.5 zoom level)
+- 8-second timeout on loading to prevent indefinite hangs
 
 ### Environment extraction (OpenStreetMap via Overpass)
 
@@ -81,9 +106,15 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
 - Overlay displays step-by-step load states (`pending`/`loading`/`done`/`error`) for:
   - tree records
   - local places
+  - roads & streets
   - forest/buffer boundaries
   - live cows
 - Overlay dismisses once load completes.
+
+**Performance optimizations:**
+- Roads data is filtered and processed in batches to prevent browser freezing
+- Loading has timeout protection (8 seconds for roads)
+- Large datasets are processed incrementally with browser yield points
 
 ## Map Layers and Markers
 
@@ -144,23 +175,24 @@ Marker rules:
 ## Nearest and Filter Behavior
 
 - Overview lists nearest items across active types.
-- Supported overview filters:
-  - `all`
-  - `trees`
-  - `cows`
-  - `pubs`
-  - `cafes`
-  - `transport`
-  - `locations`
-- Filters are multi-select; `all` resets.
+- Supported overview filter groups and subfilters:
+  - **Forest:** trees, cows, paths, hydrology, nature designations, buildings
+  - **Food:** pubs & bars, restaurants, cafés, shops
+  - **Transport:** bus stops, underground stations, national rail stations
+  - **History:** historic places, royal history, WWII sites, social history, plaques, blue plaques
+  - **Locations:** celebrity associations, science, education, medicine, literature, theatre, politics, art, churches
+  - **Stories:** legends, film/TV locations
+- Filters are multi-select within and across groups.
+- Selecting a top-level group enables all subfilters within that group.
+- Deselecting all filters shows all content.
 - Nearest list entries show icon/type, distance, and directional cue.
 
 ### Nearest count control
 
-- A nearest-items slider is shown below the nearest list.
-- Range: 1–10.
-- Default: 3.
-- Changing the slider updates all of the following in sync:
+- A nearest-items dropdown select is shown below the nearest list.
+- Options: 3, 5, 10, 15, 20, 25 items.
+- Default: 10.
+- Changing the selection updates all of the following in sync:
   - number of nearest items listed
   - number of highlighted targets on map
   - route lines to overview targets
@@ -204,9 +236,13 @@ Legend reflects active marker semantics:
 - Trees
 - Cows
 - Pubs & bars
+- Restaurants
 - Cafés & tea huts
-- Train links
-- Bus links & stops
+- Shops (convenience, supermarkets, bakeries, etc.)
+- Train stations (Underground & National Rail)
+- Bus stops
+- Historic sites & landmarks
+- Plaques & memorials
 - Generic locations
 
 ## Attribution Rules
@@ -220,15 +256,55 @@ Legend reflects active marker semantics:
 - Service worker caches app shell + offline datasets.
 - Cache name is versioned and bumped with behavior/data wiring changes.
 - Cow proxy endpoint bypasses service-worker caching.
-- Cow data is cached in browser storage and refreshed on interval.
+- Cow data is cached in browser storage and refreshed on interval (every 5 minutes).
+
+## Data Statistics (as of May 2026)
+
+Approximate feature counts in offline datasets:
+
+- **Trees:** ~400 veteran trees
+- **Landmarks:** ~3,900+ features including:
+  - ~210 shops (convenience stores, supermarkets, bakeries, etc.)
+  - ~100+ pubs & bars
+  - ~150+ cafés & restaurants
+  - ~200+ transport stops/stations
+  - ~500+ historic sites
+  - ~1,000+ access points (gates, entrances, etc.)
+- **Roads:** ~3,000-5,000 major road segments (filtered for performance)
+- **Paths:** ~1,000+ footpaths, bridleways, and trails
+- **Environment:** ~500+ water features and nature designations
 
 ## Local Regeneration Workflow
 
-- Preferred regeneration script: `scripts/regenerate_local_landmarks.py`
-  - fetches Overpass payload (with endpoint fallback)
-  - writes `data/local-landmarks.overpass.json`
-  - rebuilds `data/local-landmarks.geojson`
-  - prints category counts
+### Landmarks regeneration
+
+Preferred regeneration script: `scripts/regenerate_local_landmarks.py`
+
+- Fetches Overpass payload (with endpoint fallback)
+- Writes `data/local-landmarks.overpass.json`
+- Filters features to within 8-minute walk (467m) of forest boundary
+- Rebuilds `data/local-landmarks.geojson`
+- Prints category counts
+
+Alternative: `scripts/regenerate-local-landmarks.js` (Node.js version)
+
+### Paths regeneration
+
+- `scripts/regenerate_local_paths.py`  
+- `scripts/regenerate-local-paths.js`
+
+### Roads regeneration
+
+- `scripts/regenerate_local_roads.py`
+
+### Environment regeneration
+
+- `scripts/regenerate_local_environment.py`
+
+### Quick updates
+
+- `scripts/add_missing_shops.py` - adds new shops from existing Overpass data
+- `scripts/quick_add_shops.py` - patches shop properties in existing data
 
 ## Technical Constraints
 

@@ -494,10 +494,15 @@
       gap: 4px;
     }
 
-    .nearest-items-slider {
-      width: 100%;
+    .nearest-items-select {
+      padding: 6px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 0.9rem;
+      font-family: inherit;
       cursor: pointer;
-      accent-color: #004e2c;
     }
 
     .filter-chip {
@@ -1874,9 +1879,9 @@
         updateFilterUi();
       });
 
-      // Slider is now part of the overview UI, so we attach listener in selectOverview()
-      document.addEventListener("input", (event) => {
-        if (event.target.id === "nearestItemsSlider") {
+      // Select dropdown is now part of the overview UI, so we attach listener in selectOverview()
+      document.addEventListener("change", (event) => {
+        if (event.target.id === "nearestItemsSelect") {
           state.nearestItemsCount = parseInt(event.target.value, 10);
           selectOverview();
           if (state.userLocation) {
@@ -4688,8 +4693,11 @@
         return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label"><span class="nearest-emoji" aria-hidden="true">${emoji}</span><span>${escapeHtml(name)}</span></span></span><small>${escapeHtml(subtitle)}</small></button></li>`;
       }).join("");
 
-      const sliderSection = `<div class="filter-section"><label for="nearestItemsSlider">Show nearest items: <span id="nearestItemsValue">${state.nearestItemsCount}</span></label><input id="nearestItemsSlider" type="range" min="1" max="25" value="${state.nearestItemsCount}" class="nearest-items-slider"></div>`;
-      return `<p class="source-note"><strong>${heading}</strong></p><ul class="nearest-list">${itemsHtml}</ul>${sliderSection}<p class="source-note">App version: ${APP_VERSION}</p>`;
+      const selectOptions = [3, 5, 10, 15, 20, 25].map(n => 
+        `<option value="${n}" ${state.nearestItemsCount === n ? 'selected' : ''}>${n}</option>`
+      ).join('');
+      const selectSection = `<div class="filter-section"><label for="nearestItemsSelect">Show nearest items: <select id="nearestItemsSelect" class="nearest-items-select">${selectOptions}</select></label></div>`;
+      return `<p class="source-note"><strong>${heading}</strong></p><ul class="nearest-list">${itemsHtml}</ul>${selectSection}<p class="source-note">App version: ${APP_VERSION}</p>`;
     }
 
     function detailsHtml(rows) {
