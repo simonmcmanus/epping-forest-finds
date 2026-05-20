@@ -807,7 +807,11 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      transition: max-height 0.2s ease;
+      transition: max-height 180ms ease-out;
+    }
+
+    .inspector.is-dragging {
+      transition: max-height 0s;
     }
 
     .inspector-drag-handle {
@@ -1324,7 +1328,7 @@
         bottom: 10px;
         width: auto;
         max-height: var(--inspector-height, 48%);
-        transition: max-height 0s;
+        transition: max-height 120ms ease-out;
       }
 
       .inspector-drag-handle {
@@ -6245,6 +6249,7 @@
         event.preventDefault();
         dragHandle.setPointerCapture(event.pointerId);
         state.inspectorDragging = true;
+        els.inspector.classList.add("is-dragging");
         state.inspectorDragStart = {
           y: event.clientY,
           heightPercent: state.inspectorHeightPercent || 48,
@@ -6270,6 +6275,7 @@
       dragHandle.addEventListener("pointerup", (event) => {
         if (!state.inspectorDragging) return;
         state.inspectorDragging = false;
+        els.inspector.classList.remove("is-dragging");
         dragHandle.classList.remove("dragging");
         if (dragRecenterFrame != null) {
           cancelAnimationFrame(dragRecenterFrame);
@@ -6281,6 +6287,7 @@
       dragHandle.addEventListener("pointercancel", () => {
         if (!state.inspectorDragging) return;
         state.inspectorDragging = false;
+        els.inspector.classList.remove("is-dragging");
         dragHandle.classList.remove("dragging");
       });
 
