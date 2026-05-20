@@ -5865,8 +5865,23 @@
       if (!target || !state.userLocation) return;
       if (!options.force && els.inspector.classList.contains("minimized")) return;
       const shouldAnimate = options.animate !== false;
+      
+      let pointsToFit = [state.userLocation.point];
+      
+      // For paths, fit to all segments instead of just a single point
+      if (state.selected && state.selected.type === "path" && target.segments) {
+        for (const segment of target.segments) {
+          pointsToFit.push(...segment);
+        }
+      } else {
+        // For trees, landmarks, cows, use their single point
+        if (target.point) {
+          pointsToFit.push(target.point);
+        }
+      }
+      
       fitToPoints(
-        [state.userLocation.point, target.point],
+        pointsToFit,
         false,
         {
           focusVisibleArea: true,
