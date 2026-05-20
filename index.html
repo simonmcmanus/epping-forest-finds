@@ -406,6 +406,18 @@
       color: #557565;
     }
 
+    .filter-group-outside-link {
+      background: none;
+      border: 0;
+      padding: 0;
+      margin: 0 0 0 6px;
+      color: #2f6f4e;
+      font: inherit;
+      font-weight: 800;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
     .filter-subfilters-row.is-scrollable {
       --edge-fade: 24px;
       -webkit-mask-image: linear-gradient(to right,
@@ -1646,6 +1658,7 @@
       buildingFeatures: [],
       buildingsLoaded: false,
       buildingsLoading: false,
+      showAllOutsideRadius: false,
     };
 
     const els = {
@@ -2057,6 +2070,7 @@
       document.addEventListener("change", (event) => {
         if (event.target.id === "nearestItemsSelect") {
           state.walkingDistanceMinutes = parseInt(event.target.value, 10);
+          state.showAllOutsideRadius = false;
           selectOverview();
           if (state.userLocation) {
             const { latitude, longitude } = state.userLocation;
@@ -2070,6 +2084,19 @@
       }, true);
 
       els.filterPanel.addEventListener("click", (event) => {
+        const outsideLink = event.target.closest("[data-show-all-outside-radius]");
+        if (outsideLink) {
+          event.preventDefault();
+          state.showAllOutsideRadius = true;
+          updateFilterUi();
+          if (isOverviewScreenActive()) {
+            selectOverview();
+            ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+          }
+          requestDraw();
+          return;
+        }
+
         const expandButton = event.target.closest("[data-filter-group-expand]");
         if (expandButton) {
           toggleOverviewGroupExpansion(expandButton.dataset.filterGroupExpand);
@@ -4569,6 +4596,7 @@
 
     function setOverviewFilters(nextFilters) {
       state.overviewFilters = sanitizeOverviewFilters(nextFilters);
+      state.showAllOutsideRadius = false;
       if (state.overviewFilters.length > 0) {
         // When user activates filters, show the panel and reset collapsed state
         state.filterPanelCollapsed = false;
@@ -4635,7 +4663,9 @@
         const outsideRadiusCount = groupExpanded ? outOfRadiusCountForGroup(groupKey) : 0;
         if (outsideEl) {
           outsideEl.hidden = !(groupExpanded && outsideRadiusCount > 0);
-          outsideEl.textContent = outsideRadiusCount > 0 ? `${outsideRadiusCount} outside selected walking radius` : "";
+          outsideEl.innerHTML = outsideRadiusCount > 0
+            ? `${outsideRadiusCount} outside selected walking radius <button type="button" class="filter-group-outside-link" data-show-all-outside-radius="true">show all</button>`
+            : "";
         }
         setSubfilterPanelExpanded(panel, groupExpanded);
         const groupSection = button.closest(".filter-group");
@@ -4713,6 +4743,7 @@
       if (select) {
         select.addEventListener("change", () => {
           state.walkingDistanceMinutes = parseInt(select.value, 10);
+          state.showAllOutsideRadius = false;
           selectOverview();
           if (state.userLocation) {
             const { latitude, longitude } = state.userLocation;
@@ -4937,15 +4968,21 @@
 
     function outOfRadiusCountForGroup(groupKey) {
       if (!state.userLocation) return 0;
+      if (state.showAllOutsideRadius) return 0;
 
       const group = FILTER_GROUPS_BY_KEY.get(groupKey);
       if (!group || !Array.isArray(group.subfilters) || !group.subfilters.length) return 0;
+
+      const currentSet = activeOverviewFilterSet();
+      const activeSubfilters = group.subfilters.filter((subfilter) => currentSet.has(subfilter.key));
+      const subfiltersToCount = state.overviewFilters.length > 0 ? activeSubfilters : group.subfilters;
+      if (!subfiltersToCount.length) return 0;
 
       const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
       const { latitude, longitude } = state.userLocation;
       const unique = new Set();
 
-      for (const subfilter of group.subfilters) {
+      for (const subfilter of subfiltersToCount) {
         const filterKey = subfilter.key;
         if (filterKey === "trees") {
           for (const tree of state.trees) {
@@ -5186,7 +5223,7 @@
     function overviewItemsForActiveFilter(limit = 3) {
       if (!state.userLocation) return [];
       const { latitude, longitude } = state.userLocation;
-      const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+      const maxMetres = state.showAllOutsideRadius ? Number.POSITIVE_INFINITY : walkingDistanceToMetres(state.walkingDistanceMinutes);
 
       const hasFilters = state.overviewFilters.length > 0;
       if (hasFilters) {
