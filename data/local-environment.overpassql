@@ -9,7 +9,6 @@
   way["leisure"="park"](51.545,-0.035,51.745,0.145);
   way["boundary"="protected_area"](51.545,-0.035,51.745,0.145);
   way["designation"~"SSSI|Site of Special Scientific Interest|Local Nature Reserve|nature reserve|Ancient Woodland"](51.545,-0.035,51.745,0.145);
-  way["building"](51.545,-0.035,51.745,0.145);
   way["railway"~"^(rail|light_rail|subway|tram)$"](51.545,-0.035,51.745,0.145);
 );
 out geom tags;

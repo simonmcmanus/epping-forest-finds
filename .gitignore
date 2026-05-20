@@ -8,3 +8,11 @@ npm-debug.log*
 # Large files split into smaller category files
 data/local-landmarks.geojson
 data/local-landmarks-access.geojson
+
+# Large intermediate/source data files (too big for GitHub)
+data/local-environment.overpass.json
+data/local-roads.overpass.json
+data/local-paths.overpass.json
+data/local-landmarks.overpass.json
+Veteran_Tree_Register.enriched.with_named_trees.json
+Veteran_Tree_Register.json

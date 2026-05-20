@@ -1343,10 +1343,6 @@
         subfilters: [
           { key: "trees", label: "🌳 Trees", title: "trees" },
           { key: "cows", label: "🐄 Cows", title: "cows" },
-          { key: "paths", label: "🥾 Paths", title: "paths" },
-          { key: "hydrology", label: "💧 Hydrology", title: "water features" },
-          { key: "nature_designations", label: "🌱 Nature designations", title: "nature designations" },
-          { key: "buildings", label: "🏘️ Buildings", title: "buildings" },
         ],
       },
       {
@@ -1410,7 +1406,8 @@
     );
     const FILTER_SUBFILTERS_BY_KEY = new Map(FILTER_SUBFILTERS.map((subfilter) => [subfilter.key, subfilter]));
     const ALL_OVERVIEW_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key));
-    const LAYER_FILTER_KEYS = new Set(["paths", "hydrology", "nature_designations", "buildings"]);
+    // Base layers (paths, hydrology, nature designations, buildings) are now always visible
+    const LAYER_FILTER_KEYS = new Set([]);
     const TREE_FILTER_KEYS = new Set(["trees"]);
     const COW_FILTER_KEYS = new Set(["cows"]);
     const PLACE_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key).filter((key) => !LAYER_FILTER_KEYS.has(key) && !TREE_FILTER_KEYS.has(key) && !COW_FILTER_KEYS.has(key)));
@@ -2468,7 +2465,7 @@
     }
 
     function drawPaths(ctx) {
-      if (!state.paths.length || !isLayerVisibleForFilter("paths")) return;
+      if (!state.paths.length) return;
 
       const dpr = pixelRatio();
       const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
@@ -2669,7 +2666,7 @@
         const geometry = feature.geometry || {};
         const type = feature.properties && feature.properties.featureType;
 
-        if (type === "hydrology_area" && isLayerVisibleForFilter("hydrology")) {
+        if (type === "hydrology_area") {
           drawEnvironmentPolygon(ctx, geometry, {
             fill: "rgba(88, 151, 212, 0.22)",
             stroke: "rgba(47, 114, 178, 0.62)",
@@ -2678,7 +2675,7 @@
           continue;
         }
 
-        if (type === "nature_designation" && isLayerVisibleForFilter("nature_designations")) {
+        if (type === "nature_designation") {
           drawEnvironmentPolygon(ctx, geometry, {
             fill: "rgba(105, 163, 94, 0.12)",
             stroke: "rgba(72, 130, 65, 0.46)",
@@ -2687,7 +2684,7 @@
           continue;
         }
 
-        if (type === "hydrology_line" && isLayerVisibleForFilter("hydrology")) {
+        if (type === "hydrology_line") {
           drawEnvironmentLines(ctx, geometry, {
             stroke: "rgba(47, 114, 178, 0.72)",
             width: 1.5 * dpr,
@@ -2700,14 +2697,6 @@
             casing: "rgba(255, 255, 255, 0.45)",
             width: 2.5 * dpr,
             casingWidth: 4.5 * dpr,
-          });
-        }
-
-        if (type === "building" && isLayerVisibleForFilter("buildings")) {
-          drawEnvironmentPolygon(ctx, geometry, {
-            fill: "rgba(120, 120, 120, 0.15)",
-            stroke: "rgba(80, 80, 80, 0.35)",
-            width: 0.8 * dpr,
           });
         }
 

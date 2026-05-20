@@ -131,8 +131,10 @@ Rendered layers/features:
 - Buffer land polygons
 - Veteran trees
 - Local places/landmarks
-- Paths, trails, and bridleways
-- Hydrology and nature designations
+- **Base layers (always visible):**
+  - Paths, trails, and bridleways
+  - Hydrology and nature designations
+  - Buildings
 - Cows and pasture polygons
 - User location marker
 
@@ -183,12 +185,13 @@ Marker rules:
 
 - Overview lists nearest items across active types.
 - Supported overview filter groups and subfilters:
-  - **Forest:** trees, cows, paths, hydrology, nature designations, buildings
+  - **Nature:** trees, cows
   - **Food:** pubs & bars, restaurants, cafés, shops
   - **Transport:** bus stops, underground stations, national rail stations
   - **History:** historic places, royal history, WWII sites, social history, plaques, blue plaques
   - **Locations:** celebrity associations, science, education, medicine, literature, theatre, politics, art, churches
   - **Stories:** legends, film/TV locations
+- **Note:** Paths, hydrology, nature designations, and buildings are always visible as base layers and not included in filters.
 - Filters are multi-select within and across groups.
 - Selecting a top-level group enables all subfilters within that group.
 - Deselecting all filters shows all content.
