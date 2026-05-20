@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-05-20T06:29:41.611041Z",
+  "generatedAt": "2026-05-20T19:50:37.594054Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -13,13 +13,81 @@
       51.745
     ],
     "distanceFilter": {
-      "maxMinutesFromForestBoundary": 5,
+      "maxMinutesFromForestBoundary": 8,
+      "maxMinutesFromForestBoundaryTransport": 15,
       "walkingSpeedMPerMin": 58.333333333333336,
-      "maxDistanceMetres": 291.7,
+      "maxDistanceMetres": 466.7,
+      "maxDistanceMetresTransport": 875.0,
       "boundaryFile": "data/epping-forest-land.geojson"
     }
   },
   "features": [
+    {
+      "type": "Feature",
+      "id": "node/472446515",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0141505,
+          51.5745346
+        ]
+      },
+      "properties": {
+        "id": "node/472446515",
+        "osmType": "node",
+        "osmId": 472446515,
+        "name": null,
+        "category": "telephone",
+        "categoryLabel": "Telephone",
+        "amenity": "telephone",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "telephone",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 363.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/2091280682",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0284773,
+          51.5924422
+        ]
+      },
+      "properties": {
+        "id": "node/2091280682",
+        "osmType": "node",
+        "osmId": 2091280682,
+        "name": "Fresh as a Daisy",
+        "category": "dry_cleaning",
+        "categoryLabel": "Dry Cleaning",
+        "amenity": "cafe",
+        "shop": "dry_cleaning",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.freshasadaisyltd.co.uk/",
+        "phone": "+44 20 8532 9654",
+        "address": "11 Mulberry Way, London E18 1EB",
+        "distanceToForestBoundaryMetres": 463.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
     {
       "type": "Feature",
       "id": "node/4313670399",
@@ -38,6 +106,7 @@
         "category": "yes",
         "categoryLabel": "Yes",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "yes",
@@ -49,7 +118,40 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 204.5,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/4341813729",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0141608,
+          51.5745298
+        ]
+      },
+      "properties": {
+        "id": "node/4341813729",
+        "osmType": "node",
+        "osmId": 4341813729,
+        "name": null,
+        "category": "telephone",
+        "categoryLabel": "Telephone",
+        "amenity": "telephone",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "telephone",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 364.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -70,6 +172,7 @@
         "category": "gate_pier",
         "categoryLabel": "Gate Pier",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "gate_pier",
@@ -81,7 +184,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 23.6,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -102,6 +205,7 @@
         "category": "gate_pier",
         "categoryLabel": "Gate Pier",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "gate_pier",
@@ -113,7 +217,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 18.6,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -134,6 +238,7 @@
         "category": "artwork",
         "categoryLabel": "Artwork",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "artwork",
         "historic": "monument",
@@ -144,8 +249,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 290.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 464.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -166,6 +271,7 @@
         "category": "yes",
         "categoryLabel": "Yes",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "yes",
@@ -176,8 +282,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 287.6,
-        "shop": null
+        "distanceToForestBoundaryMetres": 464.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -198,6 +304,7 @@
         "category": "artwork",
         "categoryLabel": "Artwork",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "artwork",
         "historic": "monument",
@@ -208,8 +315,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 285.9,
-        "shop": null
+        "distanceToForestBoundaryMetres": 432.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -230,6 +337,7 @@
         "category": "yes",
         "categoryLabel": "Yes",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "yes",
@@ -240,8 +348,41 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 272.0,
-        "shop": null
+        "distanceToForestBoundaryMetres": 433.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/5061253",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0507459,
+          51.5591988
+        ]
+      },
+      "properties": {
+        "id": "way/5061253",
+        "osmType": "way",
+        "osmId": 5061253,
+        "name": "City of London Cemetery and Crematorium",
+        "category": "fence",
+        "categoryLabel": "Fence",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "yes",
+        "railway": null,
+        "barrier": "fence",
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 465.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -262,6 +403,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -272,8 +414,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 247.5,
-        "shop": null
+        "distanceToForestBoundaryMetres": 425.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -294,6 +436,7 @@
         "category": "place_of_worship",
         "categoryLabel": "Place Of Worship",
         "amenity": "place_of_worship",
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "church",
@@ -304,8 +447,41 @@
         "website": null,
         "phone": null,
         "address": "Wanstead Park Avenue, London E12 5EN",
-        "distanceToForestBoundaryMetres": 290.1,
-        "shop": null
+        "distanceToForestBoundaryMetres": 461.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/100488535",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0477968,
+          51.5603952
+        ]
+      },
+      "properties": {
+        "id": "way/100488535",
+        "osmType": "way",
+        "osmId": 100488535,
+        "name": "City of London Cemetery Chapel",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "church",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": "90 Aldersbrook Road, London E12 5DS",
+        "distanceToForestBoundaryMetres": 460.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -326,6 +502,7 @@
         "category": "church",
         "categoryLabel": "Church",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "church",
@@ -336,8 +513,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.6,
-        "shop": null
+        "distanceToForestBoundaryMetres": 330.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -358,6 +535,7 @@
         "category": "place_of_worship",
         "categoryLabel": "Place Of Worship",
         "amenity": "place_of_worship",
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "church",
@@ -368,8 +546,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 281.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 466.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -390,6 +568,7 @@
         "category": "place_of_worship",
         "categoryLabel": "Place Of Worship",
         "amenity": "place_of_worship",
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "church",
@@ -400,8 +579,8 @@
         "website": null,
         "phone": null,
         "address": "IG10 4BF",
-        "distanceToForestBoundaryMetres": 67.3,
-        "shop": null
+        "distanceToForestBoundaryMetres": 413.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -422,6 +601,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -432,8 +612,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 281.7,
-        "shop": null
+        "distanceToForestBoundaryMetres": 466.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -454,6 +634,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -464,8 +645,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 287.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 327.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -486,6 +667,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -496,8 +678,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 289.8,
-        "shop": null
+        "distanceToForestBoundaryMetres": 379.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -518,6 +700,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -528,8 +711,8 @@
         "website": null,
         "phone": null,
         "address": "24 Gladding Road, London",
-        "distanceToForestBoundaryMetres": 262.6,
-        "shop": null
+        "distanceToForestBoundaryMetres": 459.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -550,6 +733,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -560,8 +744,8 @@
         "website": null,
         "phone": null,
         "address": "Manor Road, IG10 4AD",
-        "distanceToForestBoundaryMetres": 232.8,
-        "shop": null
+        "distanceToForestBoundaryMetres": 421.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -582,6 +766,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -592,8 +777,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 225.3,
-        "shop": null
+        "distanceToForestBoundaryMetres": 466.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -614,6 +799,7 @@
         "category": "yes",
         "categoryLabel": "Yes",
         "amenity": "cafe",
+        "shop": "yes",
         "highway": null,
         "tourism": null,
         "historic": null,
@@ -624,8 +810,8 @@
         "website": null,
         "phone": null,
         "address": "626 Lea Bridge Road, London E10 6AP",
-        "distanceToForestBoundaryMetres": 285.9,
-        "shop": "yes"
+        "distanceToForestBoundaryMetres": 355.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -646,6 +832,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -656,8 +843,74 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 339.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/509602217",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0100492,
+          51.5663734
+        ]
+      },
+      "properties": {
+        "id": "way/509602217",
+        "osmType": "way",
+        "osmId": 509602217,
+        "name": null,
+        "category": "yes",
+        "categoryLabel": "Yes",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "yes",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 466.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/513305723",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0097741,
+          51.5652258
+        ]
+      },
+      "properties": {
+        "id": "way/513305723",
+        "osmType": "way",
+        "osmId": 513305723,
+        "name": "Stone Mini Market",
+        "category": "alcohol",
+        "categoryLabel": "Alcohol",
+        "amenity": "bar",
+        "shop": "alcohol",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "719 High Road Leytonstone, London E11 4RD",
+        "distanceToForestBoundaryMetres": 461.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -678,6 +931,7 @@
         "category": "church",
         "categoryLabel": "Church",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "church",
@@ -688,8 +942,41 @@
         "website": null,
         "phone": null,
         "address": "24 Gladding Road, London E12 5DD",
-        "distanceToForestBoundaryMetres": 288.9,
-        "shop": null
+        "distanceToForestBoundaryMetres": 453.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/556704883",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0668417,
+          51.6934473
+        ]
+      },
+      "properties": {
+        "id": "way/556704883",
+        "osmType": "way",
+        "osmId": 556704883,
+        "name": "Copped Hall Temple",
+        "category": "folly",
+        "categoryLabel": "Folly",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "folly",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 465.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -710,6 +997,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -721,7 +1009,7 @@
         "phone": null,
         "address": "89 Dames Road, London",
         "distanceToForestBoundaryMetres": 237.9,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -742,6 +1030,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -753,7 +1042,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 100.8,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -774,6 +1063,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -784,8 +1074,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 279.0,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -806,6 +1096,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -817,7 +1108,7 @@
         "phone": null,
         "address": "Romford Road, London",
         "distanceToForestBoundaryMetres": 216.0,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -838,6 +1129,7 @@
         "category": "tomb",
         "categoryLabel": "Tomb",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "tomb",
@@ -848,8 +1140,74 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 288.0,
-        "shop": null
+        "distanceToForestBoundaryMetres": 461.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/875469841",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0474716,
+          51.5499921
+        ]
+      },
+      "properties": {
+        "id": "way/875469841",
+        "osmType": "way",
+        "osmId": 875469841,
+        "name": "The Royal Regency",
+        "category": "events_venue",
+        "categoryLabel": "Events Venue",
+        "amenity": "events_venue",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 340.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/875469842",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0474516,
+          51.5503954
+        ]
+      },
+      "properties": {
+        "id": "way/875469842",
+        "osmType": "way",
+        "osmId": 875469842,
+        "name": "Earl Of Essex Public House",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 295.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -870,6 +1228,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -880,8 +1239,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 204.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 415.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -902,6 +1261,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -912,8 +1272,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 272.7,
-        "shop": null
+        "distanceToForestBoundaryMetres": 349.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -934,6 +1294,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -944,8 +1305,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 270.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 466.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -966,6 +1327,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -976,8 +1338,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 285.3,
-        "shop": null
+        "distanceToForestBoundaryMetres": 447.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -998,6 +1360,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -1008,8 +1371,8 @@
         "website": null,
         "phone": null,
         "address": "6 Theydon Park Road, Theydon Bois",
-        "distanceToForestBoundaryMetres": 249.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 344.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1030,6 +1393,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -1040,8 +1404,8 @@
         "website": null,
         "phone": null,
         "address": "4 Theydon Park Road, Theydon Bois",
-        "distanceToForestBoundaryMetres": 247.9,
-        "shop": null
+        "distanceToForestBoundaryMetres": 348.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1062,6 +1426,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -1072,8 +1437,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 245.8,
-        "shop": null
+        "distanceToForestBoundaryMetres": 445.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1094,6 +1459,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -1104,8 +1470,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 244.6,
-        "shop": null
+        "distanceToForestBoundaryMetres": 434.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1126,6 +1492,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -1136,8 +1503,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 222.5,
-        "shop": null
+        "distanceToForestBoundaryMetres": 398.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1158,6 +1525,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -1168,8 +1536,41 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 275.0,
-        "shop": null
+        "distanceToForestBoundaryMetres": 440.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/913318929",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0016624,
+          51.6077611
+        ]
+      },
+      "properties": {
+        "id": "way/913318929",
+        "osmType": "way",
+        "osmId": 913318929,
+        "name": "Ziggy\u2019s Gift Shop",
+        "category": "chemist",
+        "categoryLabel": "Chemist",
+        "amenity": "cafe",
+        "shop": "chemist",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "3 Signal Walk, London E4 9BW",
+        "distanceToForestBoundaryMetres": 393.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1190,6 +1591,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -1201,7 +1603,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 161.6,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1222,6 +1624,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -1233,7 +1636,7 @@
         "phone": null,
         "address": "Hollybush Hill, London E11 1PU",
         "distanceToForestBoundaryMetres": 278.9,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1254,6 +1657,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -1265,7 +1669,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 279.2,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1286,6 +1690,7 @@
         "category": "water_well",
         "categoryLabel": "Water Well",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "water_well",
@@ -1296,8 +1701,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 289.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 323.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1318,6 +1723,7 @@
         "category": "yes",
         "categoryLabel": "Yes",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "yes",
@@ -1328,8 +1734,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 287.8,
-        "shop": null
+        "distanceToForestBoundaryMetres": 432.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1350,6 +1756,7 @@
         "category": "yes",
         "categoryLabel": "Yes",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "yes",
@@ -1360,8 +1767,41 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 284.0,
-        "shop": null
+        "distanceToForestBoundaryMetres": 430.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1102161906",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0495368,
+          51.5592313
+        ]
+      },
+      "properties": {
+        "id": "way/1102161906",
+        "osmType": "way",
+        "osmId": 1102161906,
+        "name": "Columbarium",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 463.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1382,6 +1822,7 @@
         "category": "path",
         "categoryLabel": "Path",
         "amenity": null,
+        "shop": null,
         "highway": "path",
         "tourism": null,
         "historic": "memorial",
@@ -1392,8 +1833,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 289.9,
-        "shop": null
+        "distanceToForestBoundaryMetres": 459.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1414,6 +1855,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -1424,8 +1866,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 290.0,
-        "shop": null
+        "distanceToForestBoundaryMetres": 417.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1446,6 +1888,7 @@
         "category": "building",
         "categoryLabel": "Building",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": null,
         "historic": "building",
@@ -1457,7 +1900,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 268.1,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
   ]

@@ -14,7 +14,9 @@ GEOJSON_PATH = DATA / "local-landmarks.geojson"
 FOREST_BOUNDARY_PATH = DATA / "epping-forest-land.geojson"
 WALKING_SPEED_M_PER_MIN = 3500 / 60  # 3.5 km/h
 MAX_WALK_MINUTES_FROM_BOUNDARY = 8
+MAX_TRANSPORT_WALK_MINUTES_FROM_BOUNDARY = 15
 MAX_DISTANCE_FROM_BOUNDARY_METRES = WALKING_SPEED_M_PER_MIN * MAX_WALK_MINUTES_FROM_BOUNDARY
+MAX_TRANSPORT_DISTANCE_FROM_BOUNDARY_METRES = WALKING_SPEED_M_PER_MIN * MAX_TRANSPORT_WALK_MINUTES_FROM_BOUNDARY
 OVERPASS_URLS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
@@ -74,10 +76,26 @@ LABELS = {
     "kiosk": "Kiosk",
 }
 
+TRANSPORT_CATEGORIES = {
+    "bus_station",
+    "bus_stop",
+    "taxi",
+    "train_station",
+    "station",
+    "halt",
+    "tram_stop",
+}
+
 def category_label(key: str) -> str:
     if key in LABELS:
         return LABELS[key]
     return (key or "place").replace("_", " ").title()
+
+
+def category_walk_distance_limit_metres(category: str) -> float:
+    if category in TRANSPORT_CATEGORIES:
+        return MAX_TRANSPORT_DISTANCE_FROM_BOUNDARY_METRES
+    return MAX_DISTANCE_FROM_BOUNDARY_METRES
 
 
 def polygon_rings(geometry):
@@ -251,12 +269,13 @@ for element in parsed.get("elements", []):
         if part
     ) or None
 
+    distance_limit_m = category_walk_distance_limit_metres(category)
     is_within_limit, boundary_distance_m = within_boundary_distance(
         lon,
         lat,
         projected_boundary_segments,
         ref_lat_rad,
-        MAX_DISTANCE_FROM_BOUNDARY_METRES,
+        distance_limit_m,
     )
     if not is_within_limit:
         continue
@@ -285,6 +304,7 @@ for element in parsed.get("elements", []):
             "phone": tags.get("phone") or tags.get("contact:phone"),
             "address": address,
             "distanceToForestBoundaryMetres": round(boundary_distance_m, 1),
+            "distanceLimitFromForestBoundaryMetres": round(distance_limit_m, 1),
         },
     })
 
@@ -299,8 +319,10 @@ geojson = {
         "bbox": [-0.035, 51.595, 0.145, 51.745],
         "distanceFilter": {
             "maxMinutesFromForestBoundary": MAX_WALK_MINUTES_FROM_BOUNDARY,
+            "maxMinutesFromForestBoundaryTransport": MAX_TRANSPORT_WALK_MINUTES_FROM_BOUNDARY,
             "walkingSpeedMPerMin": WALKING_SPEED_M_PER_MIN,
             "maxDistanceMetres": round(MAX_DISTANCE_FROM_BOUNDARY_METRES, 1),
+            "maxDistanceMetresTransport": round(MAX_TRANSPORT_DISTANCE_FROM_BOUNDARY_METRES, 1),
             "boundaryFile": "data/epping-forest-land.geojson",
         },
     },

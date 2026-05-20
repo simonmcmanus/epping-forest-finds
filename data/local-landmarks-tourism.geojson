@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Tourism & Information",
-  "generatedAt": "2026-05-20T06:29:41.609835Z",
+  "generatedAt": "2026-05-20T19:50:37.592289Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -13,9 +13,11 @@
       51.745
     ],
     "distanceFilter": {
-      "maxMinutesFromForestBoundary": 5,
+      "maxMinutesFromForestBoundary": 8,
+      "maxMinutesFromForestBoundaryTransport": 15,
       "walkingSpeedMPerMin": 58.333333333333336,
-      "maxDistanceMetres": 291.7,
+      "maxDistanceMetres": 466.7,
+      "maxDistanceMetresTransport": 875.0,
       "boundaryFile": "data/epping-forest-land.geojson"
     }
   },
@@ -38,6 +40,7 @@
         "category": "picnic_site",
         "categoryLabel": "Picnic Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "picnic_site",
         "historic": null,
@@ -48,8 +51,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 290.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 459.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -70,6 +73,7 @@
         "category": "viewpoint",
         "categoryLabel": "Viewpoint",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "viewpoint",
         "historic": null,
@@ -81,7 +85,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 156.6,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -102,6 +106,7 @@
         "category": "viewpoint",
         "categoryLabel": "Viewpoint",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "viewpoint",
         "historic": null,
@@ -112,8 +117,41 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 212.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 349.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/936394505",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.008851,
+          51.710493
+        ]
+      },
+      "properties": {
+        "id": "node/936394505",
+        "osmType": "node",
+        "osmId": 936394505,
+        "name": "Fishers Green",
+        "category": "picnic_site",
+        "categoryLabel": "Picnic Site",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "picnic_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 463.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -134,6 +172,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -144,8 +183,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 288.5,
-        "shop": null
+        "distanceToForestBoundaryMetres": 462.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -166,6 +205,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -176,8 +216,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 203.6,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -198,6 +238,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -208,8 +249,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 266.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 463.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -230,6 +271,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -240,8 +282,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 284.6,
-        "shop": null
+        "distanceToForestBoundaryMetres": 460.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -262,6 +304,7 @@
         "category": "caravan_site",
         "categoryLabel": "Caravan Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "caravan_site",
         "historic": null,
@@ -272,8 +315,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.6,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -294,6 +337,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -305,7 +349,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 163.8,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -326,6 +370,7 @@
         "category": "picnic_site",
         "categoryLabel": "Picnic Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "picnic_site",
         "historic": null,
@@ -337,7 +382,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 200.9,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -358,6 +403,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -369,7 +415,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 177.7,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -390,6 +436,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -401,7 +448,73 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 146.2,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3380518936",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0007725,
+          51.6672719
+        ]
+      },
+      "properties": {
+        "id": "node/3380518936",
+        "osmType": "node",
+        "osmId": 3380518936,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 456.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3380518937",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0001717,
+          51.6674982
+        ]
+      },
+      "properties": {
+        "id": "node/3380518937",
+        "osmType": "node",
+        "osmId": 3380518937,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 459.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -422,6 +535,7 @@
         "category": "attraction",
         "categoryLabel": "Attraction",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "attraction",
         "historic": null,
@@ -432,8 +546,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.6,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -454,6 +568,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -465,7 +580,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 238.6,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -486,6 +601,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -497,7 +613,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 118.9,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -518,6 +634,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -529,7 +646,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 45.8,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -550,6 +667,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -561,7 +679,40 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 91.8,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/4155050740",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0243225,
+          51.6029159
+        ]
+      },
+      "properties": {
+        "id": "node/4155050740",
+        "osmType": "node",
+        "osmId": 4155050740,
+        "name": null,
+        "category": "caravan_site",
+        "categoryLabel": "Caravan Site",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "caravan_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 440.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -582,6 +733,7 @@
         "category": "viewpoint",
         "categoryLabel": "Viewpoint",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "viewpoint",
         "historic": null,
@@ -592,8 +744,41 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 278.5,
-        "shop": null
+        "distanceToForestBoundaryMetres": 459.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/4374245707",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0085961,
+          51.7104019
+        ]
+      },
+      "properties": {
+        "id": "node/4374245707",
+        "osmType": "node",
+        "osmId": 4374245707,
+        "name": "Glade",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 465.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -614,6 +799,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -625,7 +811,106 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 27.8,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/4983963141",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.010016,
+          51.5642764
+        ]
+      },
+      "properties": {
+        "id": "node/4983963141",
+        "osmType": "node",
+        "osmId": 4983963141,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 461.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/4985805684",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0094427,
+          51.5630363
+        ]
+      },
+      "properties": {
+        "id": "node/4985805684",
+        "osmType": "node",
+        "osmId": 4985805684,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 464.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/4988714092",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0106068,
+          51.5682925
+        ]
+      },
+      "properties": {
+        "id": "node/4988714092",
+        "osmType": "node",
+        "osmId": 4988714092,
+        "name": "Leytonstone Community Noticeboard",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 456.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -646,6 +931,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -656,8 +942,41 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 289.9,
-        "shop": null
+        "distanceToForestBoundaryMetres": 463.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/5015613859",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0101017,
+          51.5656039
+        ]
+      },
+      "properties": {
+        "id": "node/5015613859",
+        "osmType": "node",
+        "osmId": 5015613859,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 464.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -678,6 +997,7 @@
         "category": "picnic_site",
         "categoryLabel": "Picnic Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "picnic_site",
         "historic": null,
@@ -688,8 +1008,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 286.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -710,6 +1030,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -720,8 +1041,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 73.1,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -742,6 +1063,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -752,8 +1074,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 267.9,
-        "shop": null
+        "distanceToForestBoundaryMetres": 462.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -774,6 +1096,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -784,8 +1107,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 238.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 466.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -806,6 +1129,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -817,7 +1141,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 256.2,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -838,6 +1162,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -849,7 +1174,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 233.1,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -870,6 +1195,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -881,7 +1207,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 45.1,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -902,6 +1228,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -913,7 +1240,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 65.5,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -934,6 +1261,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -945,7 +1273,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 68.1,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -966,6 +1294,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -976,8 +1305,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.5,
-        "shop": null
+        "distanceToForestBoundaryMetres": 388.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -998,6 +1327,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1008,8 +1338,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 289.7,
-        "shop": null
+        "distanceToForestBoundaryMetres": 410.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1030,6 +1360,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1040,8 +1371,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 434.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1062,6 +1393,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1072,8 +1404,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 288.8,
-        "shop": null
+        "distanceToForestBoundaryMetres": 405.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1094,6 +1426,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1104,8 +1437,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 384.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1126,6 +1459,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1136,8 +1470,41 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 287.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 456.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/8330373918",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0076792,
+          51.6164294
+        ]
+      },
+      "properties": {
+        "id": "node/8330373918",
+        "osmType": "node",
+        "osmId": 8330373918,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 461.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1158,6 +1525,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1168,8 +1536,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 286.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1190,6 +1558,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1201,7 +1570,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 233.8,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1222,6 +1591,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1233,7 +1603,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 34.5,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1254,6 +1624,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1265,7 +1636,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 50.1,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1286,6 +1657,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1297,7 +1669,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 99.2,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1318,6 +1690,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1329,7 +1702,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 238.3,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1350,6 +1723,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1361,7 +1735,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 183.9,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1382,6 +1756,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1392,8 +1767,140 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.3,
-        "shop": null
+        "distanceToForestBoundaryMetres": 410.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015689152",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0140759,
+          51.574302
+        ]
+      },
+      "properties": {
+        "id": "node/9015689152",
+        "osmType": "node",
+        "osmId": 9015689152,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 352.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015689153",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0146308,
+          51.573889
+        ]
+      },
+      "properties": {
+        "id": "node/9015689153",
+        "osmType": "node",
+        "osmId": 9015689153,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 384.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015689154",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0152075,
+          51.5734464
+        ]
+      },
+      "properties": {
+        "id": "node/9015689154",
+        "osmType": "node",
+        "osmId": 9015689154,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 424.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015689155",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.015935,
+          51.5731638
+        ]
+      },
+      "properties": {
+        "id": "node/9015689155",
+        "osmType": "node",
+        "osmId": 9015689155,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 463.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1414,6 +1921,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1424,8 +1932,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 287.7,
-        "shop": null
+        "distanceToForestBoundaryMetres": 462.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1446,6 +1954,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1456,8 +1965,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 282.8,
-        "shop": null
+        "distanceToForestBoundaryMetres": 456.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1478,6 +1987,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1488,8 +1998,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 182.9,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1510,6 +2020,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1520,8 +2031,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 290.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 463.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1542,6 +2053,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1552,8 +2064,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 289.6,
-        "shop": null
+        "distanceToForestBoundaryMetres": 347.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1574,6 +2086,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1584,8 +2097,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 99.7,
-        "shop": null
+        "distanceToForestBoundaryMetres": 464.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1606,6 +2119,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1616,8 +2130,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.3,
-        "shop": null
+        "distanceToForestBoundaryMetres": 466.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1638,6 +2152,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1648,8 +2163,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 282.7,
-        "shop": null
+        "distanceToForestBoundaryMetres": 466.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1670,6 +2185,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1680,8 +2196,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 275.3,
-        "shop": null
+        "distanceToForestBoundaryMetres": 323.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1702,6 +2218,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1712,8 +2229,41 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 283.0,
-        "shop": null
+        "distanceToForestBoundaryMetres": 403.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9891631618",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0042887,
+          51.5554902
+        ]
+      },
+      "properties": {
+        "id": "node/9891631618",
+        "osmType": "node",
+        "osmId": 9891631618,
+        "name": "Welcome to Langthorne Park",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 314.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1734,6 +2284,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1744,8 +2295,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 290.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 312.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1766,6 +2317,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1776,8 +2328,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 466.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1798,6 +2350,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1808,8 +2361,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 289.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 463.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1830,6 +2383,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1841,7 +2395,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 41.5,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1862,6 +2416,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1873,7 +2428,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 69.2,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1894,6 +2449,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1905,7 +2461,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 110.6,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1926,6 +2482,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1936,8 +2493,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 247.6,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1958,6 +2515,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -1968,8 +2526,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 283.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -1990,6 +2548,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2000,8 +2559,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 287.3,
-        "shop": null
+        "distanceToForestBoundaryMetres": 451.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2022,6 +2581,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2032,8 +2592,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 285.8,
-        "shop": null
+        "distanceToForestBoundaryMetres": 462.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2054,6 +2614,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2064,8 +2625,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.7,
-        "shop": null
+        "distanceToForestBoundaryMetres": 466.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2086,6 +2647,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2096,8 +2658,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.7,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2118,6 +2680,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2129,7 +2692,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 241.3,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2150,6 +2713,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2161,7 +2725,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 218.3,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2182,6 +2746,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2193,7 +2758,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 224.2,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2214,6 +2779,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2224,8 +2790,140 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 288.8,
-        "shop": null
+        "distanceToForestBoundaryMetres": 460.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11780886951",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0107416,
+          51.5822554
+        ]
+      },
+      "properties": {
+        "id": "node/11780886951",
+        "osmType": "node",
+        "osmId": 11780886951,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 466.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11780886952",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0073037,
+          51.583067
+        ]
+      },
+      "properties": {
+        "id": "node/11780886952",
+        "osmType": "node",
+        "osmId": 11780886952,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 440.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11780886957",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0018477,
+          51.585768
+        ]
+      },
+      "properties": {
+        "id": "node/11780886957",
+        "osmType": "node",
+        "osmId": 11780886957,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 454.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11780886958",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0003976,
+          51.5872248
+        ]
+      },
+      "properties": {
+        "id": "node/11780886958",
+        "osmType": "node",
+        "osmId": 11780886958,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 322.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2246,6 +2944,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2257,7 +2956,40 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 93.3,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12146004087",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0093839,
+          51.7021813
+        ]
+      },
+      "properties": {
+        "id": "node/12146004087",
+        "osmType": "node",
+        "osmId": 12146004087,
+        "name": "Newtons Pool",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 466.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2278,6 +3010,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2288,8 +3021,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 281.4,
-        "shop": null
+        "distanceToForestBoundaryMetres": 453.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2310,6 +3043,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2320,8 +3054,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 289.5,
-        "shop": null
+        "distanceToForestBoundaryMetres": 466.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2342,6 +3076,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2352,8 +3087,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 291.1,
-        "shop": null
+        "distanceToForestBoundaryMetres": 466.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2374,6 +3109,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2385,7 +3121,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 190.2,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2406,6 +3142,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2416,8 +3153,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 284.3,
-        "shop": null
+        "distanceToForestBoundaryMetres": 458.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2438,6 +3175,7 @@
         "category": "museum",
         "categoryLabel": "Museum",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "museum",
         "historic": null,
@@ -2448,8 +3186,41 @@
         "website": "https://www.scoutadventures.org.uk/gilwell-park-heritage",
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 274.3,
-        "shop": null
+        "distanceToForestBoundaryMetres": 460.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/13845043363",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0137134,
+          51.6375
+        ]
+      },
+      "properties": {
+        "id": "node/13845043363",
+        "osmType": "node",
+        "osmId": 13845043363,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 434.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2470,6 +3241,7 @@
         "category": "attraction",
         "categoryLabel": "Attraction",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "attraction",
         "historic": "yes",
@@ -2481,7 +3253,7 @@
         "phone": null,
         "address": "6 Ranger's Road, London E4 7QH",
         "distanceToForestBoundaryMetres": 116.9,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2502,6 +3274,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2512,8 +3285,8 @@
         "website": "https://www.scoutadventures.org.uk/centre/gilwell-park",
         "phone": null,
         "address": "London E4 7QW",
-        "distanceToForestBoundaryMetres": 291.1,
-        "shop": null
+        "distanceToForestBoundaryMetres": 442.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2534,6 +3307,7 @@
         "category": "museum",
         "categoryLabel": "Museum",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "museum",
         "historic": "folly",
@@ -2544,8 +3318,41 @@
         "website": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/where-to-go-in-epping-forest/the-temple",
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 277.5,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/122135243",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0665036,
+          51.694394
+        ]
+      },
+      "properties": {
+        "id": "way/122135243",
+        "osmType": "way",
+        "osmId": 122135243,
+        "name": "Copped Hall House and gardens",
+        "category": "attraction",
+        "categoryLabel": "Attraction",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "attraction",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 462.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2566,6 +3373,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2576,8 +3384,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 287.1,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2598,6 +3406,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2608,8 +3417,8 @@
         "website": "http://www.debdenhouse.com/campsite-epping-forest.html",
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 287.3,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2630,6 +3439,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2640,8 +3450,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 290.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 463.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2662,6 +3472,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2672,8 +3483,41 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 288.5,
-        "shop": null
+        "distanceToForestBoundaryMetres": 430.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/237910009",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0004783,
+          51.6513245
+        ]
+      },
+      "properties": {
+        "id": "way/237910009",
+        "osmType": "way",
+        "osmId": 237910009,
+        "name": "Mallinson",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 431.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2694,6 +3538,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2704,8 +3549,8 @@
         "website": "https://www.visitleevalley.org.uk/lee-valley-campsite-sewardstone",
         "phone": "+44 20 8529 5689",
         "address": "Sewardstone Road, London E4 7RA",
-        "distanceToForestBoundaryMetres": 283.0,
-        "shop": null
+        "distanceToForestBoundaryMetres": 463.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2726,6 +3571,7 @@
         "category": "information",
         "categoryLabel": "Information",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "information",
         "historic": null,
@@ -2737,7 +3583,7 @@
         "phone": null,
         "address": "Ranger's Road, London E4 7QH",
         "distanceToForestBoundaryMetres": 100.7,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2758,6 +3604,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2768,8 +3615,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 289.6,
-        "shop": null
+        "distanceToForestBoundaryMetres": 300.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2790,6 +3637,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2801,7 +3649,7 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 228.0,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2822,6 +3670,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2832,8 +3681,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 289.7,
-        "shop": null
+        "distanceToForestBoundaryMetres": 464.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2854,6 +3703,7 @@
         "category": "caravan_site",
         "categoryLabel": "Caravan Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "caravan_site",
         "historic": null,
@@ -2864,8 +3714,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 290.3,
-        "shop": null
+        "distanceToForestBoundaryMetres": 465.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2886,6 +3736,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2896,8 +3747,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 289.9,
-        "shop": null
+        "distanceToForestBoundaryMetres": 409.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2918,6 +3769,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2928,8 +3780,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 277.2,
-        "shop": null
+        "distanceToForestBoundaryMetres": 347.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2950,6 +3802,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2960,8 +3813,8 @@
         "website": null,
         "phone": null,
         "address": null,
-        "distanceToForestBoundaryMetres": 286.7,
-        "shop": null
+        "distanceToForestBoundaryMetres": 353.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
     {
@@ -2982,6 +3835,7 @@
         "category": "camp_site",
         "categoryLabel": "Camp Site",
         "amenity": null,
+        "shop": null,
         "highway": null,
         "tourism": "camp_site",
         "historic": null,
@@ -2993,7 +3847,40 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 254.4,
-        "shop": null
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1350921476",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1125773,
+          51.6923623
+        ]
+      },
+      "properties": {
+        "id": "way/1350921476",
+        "osmType": "way",
+        "osmId": 1350921476,
+        "name": "Epping Signalling Museum",
+        "category": "museum",
+        "categoryLabel": "Museum",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": "museum",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "CM16 4HW",
+        "distanceToForestBoundaryMetres": 449.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
   ]

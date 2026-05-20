@@ -392,6 +392,13 @@
       transition: max-height 220ms ease, opacity 140ms ease 90ms, transform 180ms ease 90ms;
     }
 
+    .filter-group-outside {
+      margin: 4px 2px 0;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #557565;
+    }
+
     .filter-subfilters.is-scrollable {
       --edge-fade: 24px;
       -webkit-mask-image: linear-gradient(to right,
@@ -1154,6 +1161,7 @@
       font-weight: 700;
       display: grid;
       gap: 3px;
+      will-change: transform, opacity;
     }
 
     .nearest-main {
@@ -4161,6 +4169,7 @@
     }
 
     function selectOverview() {
+      const previousNearestPositions = captureNearestItemPositions();
       setInspectorSelectionChrome({ emoji: "", showBack: false });
       els.inspectorTools.hidden = false;
       els.inspectorTitle.textContent = "Nearby";
@@ -4173,6 +4182,66 @@
       const nearestSummary = overviewNearestHtml();
       els.inspectorBody.innerHTML = nearestSummary;
       updateOverviewDirectionArrows();
+      animateNearestItemReorder(previousNearestPositions);
+    }
+
+    function nearestItemDomKey(node) {
+      if (!node) return "";
+      const type = node.dataset.overviewType || "";
+      const key = node.dataset.overviewKey || "";
+      if (!type || !key) return "";
+      return `${type}:${key}`;
+    }
+
+    function captureNearestItemPositions() {
+      if (!els.inspectorBody) return new Map();
+      const positions = new Map();
+      const items = els.inspectorBody.querySelectorAll(".nearest-item[data-overview-type][data-overview-key]");
+      for (const item of items) {
+        const key = nearestItemDomKey(item);
+        if (!key) continue;
+        const rect = item.getBoundingClientRect();
+        positions.set(key, { top: rect.top, left: rect.left });
+      }
+      return positions;
+    }
+
+    function animateNearestItemReorder(previousPositions) {
+      if (!els.inspectorBody || !(previousPositions instanceof Map) || previousPositions.size === 0) return;
+      const items = els.inspectorBody.querySelectorAll(".nearest-item[data-overview-type][data-overview-key]");
+      if (!items.length) return;
+
+      for (const item of items) {
+        item.style.transition = "none";
+        item.style.transform = "";
+        item.style.opacity = "";
+      }
+
+      for (const item of items) {
+        const key = nearestItemDomKey(item);
+        if (!key) continue;
+        const nextRect = item.getBoundingClientRect();
+        const previous = previousPositions.get(key);
+
+        if (previous) {
+          const deltaY = previous.top - nextRect.top;
+          if (Math.abs(deltaY) > 0.5) {
+            item.style.transform = `translateY(${deltaY}px)`;
+          }
+          continue;
+        }
+
+        item.style.opacity = "0.74";
+        item.style.transform = "translateY(4px)";
+      }
+
+      requestAnimationFrame(() => {
+        for (const item of items) {
+          item.style.transition = "transform 150ms ease-out, opacity 150ms ease-out";
+          item.style.transform = "";
+          item.style.opacity = "";
+        }
+      });
     }
 
     function isOverviewScreenActive() {
@@ -4225,6 +4294,7 @@
               <div class="filter-subfilters" data-filter-group-panel="${escapeHtml(group.key)}" hidden>
                 ${group.subfilters.map((subfilter) => `<button class="filter-chip filter-chip-sub" type="button" data-filter-subfilter="${escapeHtml(subfilter.key)}">${escapeHtml(subfilter.label)}</button>`).join("")}
               </div>
+              <p class="filter-group-outside" data-filter-group-outside="${escapeHtml(group.key)}" hidden></p>
             </section>
           `).join("")}
         </div>
@@ -4450,13 +4520,14 @@
         button.setAttribute("aria-expanded", String(groupExpanded));
         const summary = button.querySelector(".filter-group-summary");
         const total = FILTER_GROUPS_BY_KEY.get(groupKey)?.subfilters.length || 0;
-        if (summary) {
-          const outsideRadiusCount = groupExpanded ? outOfRadiusCountForGroup(groupKey) : 0;
-          summary.textContent = outsideRadiusCount > 0
-            ? `${activeSubfilters.length}/${total} · ${outsideRadiusCount} outside radius`
-            : `${activeSubfilters.length}/${total}`;
-        }
+        if (summary) summary.textContent = `${activeSubfilters.length}/${total}`;
         const panel = els.filterPanel.querySelector(`[data-filter-group-panel="${groupKey}"]`);
+        const outsideEl = els.filterPanel.querySelector(`[data-filter-group-outside="${groupKey}"]`);
+        const outsideRadiusCount = groupExpanded ? outOfRadiusCountForGroup(groupKey) : 0;
+        if (outsideEl) {
+          outsideEl.hidden = !(groupExpanded && outsideRadiusCount > 0);
+          outsideEl.textContent = outsideRadiusCount > 0 ? `${outsideRadiusCount} outside selected walking radius` : "";
+        }
         setSubfilterPanelExpanded(panel, groupExpanded);
         const groupSection = button.closest(".filter-group");
         if (groupSection) groupSection.classList.toggle("expanded", groupExpanded);
@@ -5898,6 +5969,7 @@
     function setupInspectorDragResize() {
       const dragHandle = document.getElementById("inspectorDragHandle");
       if (!dragHandle) return;
+      let dragRecenterFrame = null;
 
       function isMobileLayout() {
         return window.innerWidth <= 850;
@@ -5910,15 +5982,17 @@
         els.inspector.style.setProperty("--inspector-height", `${clamped}%`);
       }
 
-      function recentMapForInspectorChange() {
+      function recentMapForInspectorChange(options = {}) {
+        const animate = Boolean(options.animate);
+        const durationMs = options.durationMs || (animate ? 220 : 0);
         if (!state.userLocation) return;
         if (state.selected && selectedCompassTarget()) {
           centerViewportOnPointsKeepScale(
             [state.userLocation.point, selectedCompassTarget().point],
-            { animate: false, focusVisibleArea: true, assumeInspectorOpen: true }
+            { animate, durationMs, focusVisibleArea: true, assumeInspectorOpen: true }
           );
         } else if (isOverviewScreenActive()) {
-          ensureOverviewTargetsVisible({ animate: false });
+          ensureOverviewTargetsVisible({ animate, durationMs });
         }
       }
 
@@ -5941,13 +6015,23 @@
         const deltaPercent = (deltaY / viewportHeight) * 100;
         const newPercent = state.inspectorDragStart.heightPercent + deltaPercent;
         setInspectorHeight(newPercent);
+        if (dragRecenterFrame == null) {
+          dragRecenterFrame = requestAnimationFrame(() => {
+            dragRecenterFrame = null;
+            recentMapForInspectorChange({ animate: false });
+          });
+        }
       });
 
       dragHandle.addEventListener("pointerup", (event) => {
         if (!state.inspectorDragging) return;
         state.inspectorDragging = false;
         dragHandle.classList.remove("dragging");
-        recentMapForInspectorChange();
+        if (dragRecenterFrame != null) {
+          cancelAnimationFrame(dragRecenterFrame);
+          dragRecenterFrame = null;
+        }
+        recentMapForInspectorChange({ animate: true, durationMs: 240 });
       });
 
       dragHandle.addEventListener("pointercancel", () => {
