@@ -1,0 +1,1464 @@
+{
+  "type": "FeatureCollection",
+  "name": "Other Landmarks",
+  "generatedAt": "2026-05-20T06:29:41.611041Z",
+  "source": {
+    "name": "OpenStreetMap via Overpass API",
+    "license": "Open Data Commons Open Database License (ODbL)",
+    "queryFile": "data/local-landmarks.overpassql",
+    "bbox": [
+      -0.035,
+      51.595,
+      0.145,
+      51.745
+    ],
+    "distanceFilter": {
+      "maxMinutesFromForestBoundary": 5,
+      "walkingSpeedMPerMin": 58.333333333333336,
+      "maxDistanceMetres": 291.7,
+      "boundaryFile": "data/epping-forest-land.geojson"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "node/4313670399",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.027936,
+          51.5753817
+        ]
+      },
+      "properties": {
+        "id": "node/4313670399",
+        "osmType": "node",
+        "osmId": 4313670399,
+        "name": null,
+        "category": "yes",
+        "categoryLabel": "Yes",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "yes",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 204.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/8937962759",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0236221,
+          51.5696659
+        ]
+      },
+      "properties": {
+        "id": "node/8937962759",
+        "osmType": "node",
+        "osmId": 8937962759,
+        "name": null,
+        "category": "gate_pier",
+        "categoryLabel": "Gate Pier",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "gate_pier",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 23.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/8937962760",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0236171,
+          51.5698091
+        ]
+      },
+      "properties": {
+        "id": "node/8937962760",
+        "osmType": "node",
+        "osmId": 8937962760,
+        "name": null,
+        "category": "gate_pier",
+        "categoryLabel": "Gate Pier",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "gate_pier",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 18.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10005125311",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0020051,
+          51.6499851
+        ]
+      },
+      "properties": {
+        "id": "node/10005125311",
+        "osmType": "node",
+        "osmId": 10005125311,
+        "name": "Baden-Powell Bust",
+        "category": "artwork",
+        "categoryLabel": "Artwork",
+        "amenity": null,
+        "highway": null,
+        "tourism": "artwork",
+        "historic": "monument",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10005216811",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0014846,
+          51.6501691
+        ]
+      },
+      "properties": {
+        "id": "node/10005216811",
+        "osmType": "node",
+        "osmId": 10005216811,
+        "name": "The Chief\u2019s Drum",
+        "category": "yes",
+        "categoryLabel": "Yes",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "yes",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10005579286",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0031583,
+          51.6503939
+        ]
+      },
+      "properties": {
+        "id": "node/10005579286",
+        "osmType": "node",
+        "osmId": 10005579286,
+        "name": "Baden-Powell Statue",
+        "category": "artwork",
+        "categoryLabel": "Artwork",
+        "amenity": null,
+        "highway": null,
+        "tourism": "artwork",
+        "historic": "monument",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 285.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11404935760",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0044305,
+          51.6490173
+        ]
+      },
+      "properties": {
+        "id": "node/11404935760",
+        "osmType": "node",
+        "osmId": 11404935760,
+        "name": null,
+        "category": "yes",
+        "categoryLabel": "Yes",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "yes",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 272.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/85585582",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0028412,
+          51.6485755
+        ]
+      },
+      "properties": {
+        "id": "way/85585582",
+        "osmType": "way",
+        "osmId": 85585582,
+        "name": "The Farm",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 247.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/100488534",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0450348,
+          51.560244
+        ]
+      },
+      "properties": {
+        "id": "way/100488534",
+        "osmType": "way",
+        "osmId": 100488534,
+        "name": "City of London Cemetery Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "highway": null,
+        "tourism": null,
+        "historic": "church",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": "Wanstead Park Avenue, London E12 5EN",
+        "distanceToForestBoundaryMetres": 290.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/100488944",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0508152,
+          51.557515
+        ]
+      },
+      "properties": {
+        "id": "way/100488944",
+        "osmType": "way",
+        "osmId": 100488944,
+        "name": null,
+        "category": "church",
+        "categoryLabel": "Church",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "church",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/142269053",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0933226,
+          51.6736031
+        ]
+      },
+      "properties": {
+        "id": "way/142269053",
+        "osmType": "way",
+        "osmId": 142269053,
+        "name": "St. Mary the Virgin, Theydon Bois",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "highway": null,
+        "tourism": null,
+        "historic": "church",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 281.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/146271380",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.034362,
+          51.6617252
+        ]
+      },
+      "properties": {
+        "id": "way/146271380",
+        "osmType": "way",
+        "osmId": 146271380,
+        "name": "Holy Innocents, High Beach",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "highway": null,
+        "tourism": null,
+        "historic": "church",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": "IG10 4BF",
+        "distanceToForestBoundaryMetres": 67.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/219244505",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0998605,
+          51.6722175
+        ]
+      },
+      "properties": {
+        "id": "way/219244505",
+        "osmType": "way",
+        "osmId": 219244505,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 281.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/219244516",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1012804,
+          51.6713886
+        ]
+      },
+      "properties": {
+        "id": "way/219244516",
+        "osmType": "way",
+        "osmId": 219244516,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/248925079",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.020763,
+          51.5831254
+        ]
+      },
+      "properties": {
+        "id": "way/248925079",
+        "osmType": "way",
+        "osmId": 248925079,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/420760390",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0444508,
+          51.5539964
+        ]
+      },
+      "properties": {
+        "id": "way/420760390",
+        "osmType": "way",
+        "osmId": 420760390,
+        "name": "Manor House",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": "24 Gladding Road, London",
+        "distanceToForestBoundaryMetres": 262.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/448319486",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0331328,
+          51.6635079
+        ]
+      },
+      "properties": {
+        "id": "way/448319486",
+        "osmType": "way",
+        "osmId": 448319486,
+        "name": "Dower House",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": "Manor Road, IG10 4AD",
+        "distanceToForestBoundaryMetres": 232.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/448319488",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0339013,
+          51.6634403
+        ]
+      },
+      "properties": {
+        "id": "way/448319488",
+        "osmType": "way",
+        "osmId": 448319488,
+        "name": "Arabin House",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 225.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/452993163",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0123635,
+          51.5755361
+        ]
+      },
+      "properties": {
+        "id": "way/452993163",
+        "osmType": "way",
+        "osmId": 452993163,
+        "name": "Johnston's Cafe",
+        "category": "yes",
+        "categoryLabel": "Yes",
+        "amenity": "cafe",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "626 Lea Bridge Road, London E10 6AP",
+        "distanceToForestBoundaryMetres": 285.9,
+        "shop": "yes"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/492182373",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0990267,
+          51.6911845
+        ]
+      },
+      "properties": {
+        "id": "way/492182373",
+        "osmType": "way",
+        "osmId": 492182373,
+        "name": "The Black Cottage",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/550447411",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0447376,
+          51.5541477
+        ]
+      },
+      "properties": {
+        "id": "way/550447411",
+        "osmType": "way",
+        "osmId": 550447411,
+        "name": "St Nicholas' Chapel",
+        "category": "church",
+        "categoryLabel": "Church",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "church",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": "24 Gladding Road, London E12 5DD",
+        "distanceToForestBoundaryMetres": 288.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/696379753",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.021895,
+          51.5541956
+        ]
+      },
+      "properties": {
+        "id": "way/696379753",
+        "osmType": "way",
+        "osmId": 696379753,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": "89 Dames Road, London",
+        "distanceToForestBoundaryMetres": 237.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/815832344",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0359996,
+          51.6421134
+        ]
+      },
+      "properties": {
+        "id": "way/815832344",
+        "osmType": "way",
+        "osmId": 815832344,
+        "name": "The Warren",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 100.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/830088801",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0480285,
+          51.5613978
+        ]
+      },
+      "properties": {
+        "id": "way/830088801",
+        "osmType": "way",
+        "osmId": 830088801,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 279.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/875455403",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0537446,
+          51.5531725
+        ]
+      },
+      "properties": {
+        "id": "way/875455403",
+        "osmType": "way",
+        "osmId": 875455403,
+        "name": "Old Manor Park Library",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": "Romford Road, London",
+        "distanceToForestBoundaryMetres": 216.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/875455404",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0450581,
+          51.5584485
+        ]
+      },
+      "properties": {
+        "id": "way/875455404",
+        "osmType": "way",
+        "osmId": 875455404,
+        "name": null,
+        "category": "tomb",
+        "categoryLabel": "Tomb",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "tomb",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/884753731",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0332792,
+          51.6632581
+        ]
+      },
+      "properties": {
+        "id": "way/884753731",
+        "osmType": "way",
+        "osmId": 884753731,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 204.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/885064422",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0911243,
+          51.6903439
+        ]
+      },
+      "properties": {
+        "id": "way/885064422",
+        "osmType": "way",
+        "osmId": 885064422,
+        "name": "Ladderstile Farmhouse",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 272.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/885064423",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0878852,
+          51.6888652
+        ]
+      },
+      "properties": {
+        "id": "way/885064423",
+        "osmType": "way",
+        "osmId": 885064423,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 270.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/885064424",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0880864,
+          51.6889903
+        ]
+      },
+      "properties": {
+        "id": "way/885064424",
+        "osmType": "way",
+        "osmId": 885064424,
+        "name": "Park Cottage",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 285.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/885126724",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0988756,
+          51.6684008
+        ]
+      },
+      "properties": {
+        "id": "way/885126724",
+        "osmType": "way",
+        "osmId": 885126724,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": "6 Theydon Park Road, Theydon Bois",
+        "distanceToForestBoundaryMetres": 249.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/885126725",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0989646,
+          51.6684532
+        ]
+      },
+      "properties": {
+        "id": "way/885126725",
+        "osmType": "way",
+        "osmId": 885126725,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": "4 Theydon Park Road, Theydon Bois",
+        "distanceToForestBoundaryMetres": 247.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/885126726",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1004468,
+          51.6703192
+        ]
+      },
+      "properties": {
+        "id": "way/885126726",
+        "osmType": "way",
+        "osmId": 885126726,
+        "name": "Pakes Farmhouse",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 245.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/885126727",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.100392,
+          51.6699638
+        ]
+      },
+      "properties": {
+        "id": "way/885126727",
+        "osmType": "way",
+        "osmId": 885126727,
+        "name": "The Cottage",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 244.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/885126728",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0999223,
+          51.6696058
+        ]
+      },
+      "properties": {
+        "id": "way/885126728",
+        "osmType": "way",
+        "osmId": 885126728,
+        "name": "Heathfield Cottage",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 222.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/885126729",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0977305,
+          51.6727129
+        ]
+      },
+      "properties": {
+        "id": "way/885126729",
+        "osmType": "way",
+        "osmId": 885126729,
+        "name": "Baldocks",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 275.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/930420087",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0353224,
+          51.6272354
+        ]
+      },
+      "properties": {
+        "id": "way/930420087",
+        "osmType": "way",
+        "osmId": 930420087,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 161.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1069072298",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0196251,
+          51.5813057
+        ]
+      },
+      "properties": {
+        "id": "way/1069072298",
+        "osmType": "way",
+        "osmId": 1069072298,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": "Hollybush Hill, London E11 1PU",
+        "distanceToForestBoundaryMetres": 278.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1069072299",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0197087,
+          51.5816567
+        ]
+      },
+      "properties": {
+        "id": "way/1069072299",
+        "osmType": "way",
+        "osmId": 1069072299,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 279.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1069430785",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0203549,
+          51.5817845
+        ]
+      },
+      "properties": {
+        "id": "way/1069430785",
+        "osmType": "way",
+        "osmId": 1069430785,
+        "name": "Drinking Fountain",
+        "category": "water_well",
+        "categoryLabel": "Water Well",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "water_well",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1092459246",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0018578,
+          51.6506502
+        ]
+      },
+      "properties": {
+        "id": "way/1092459246",
+        "osmType": "way",
+        "osmId": 1092459246,
+        "name": "The Pigsty",
+        "category": "yes",
+        "categoryLabel": "Yes",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "yes",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1092472354",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0018897,
+          51.650621
+        ]
+      },
+      "properties": {
+        "id": "way/1092472354",
+        "osmType": "way",
+        "osmId": 1092472354,
+        "name": "Eccles (Baden-Powell\u2019s Caravan)",
+        "category": "yes",
+        "categoryLabel": "Yes",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "yes",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 284.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1243885579",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0018556,
+          51.6496479
+        ]
+      },
+      "properties": {
+        "id": "way/1243885579",
+        "osmType": "way",
+        "osmId": 1243885579,
+        "name": "Promise Path",
+        "category": "path",
+        "categoryLabel": "Path",
+        "amenity": null,
+        "highway": "path",
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "relation/12023345",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0678549,
+          51.6848456
+        ]
+      },
+      "properties": {
+        "id": "relation/12023345",
+        "osmType": "relation",
+        "osmId": 12023345,
+        "name": null,
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "relation/12024223",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0853248,
+          51.6662753
+        ]
+      },
+      "properties": {
+        "id": "relation/12024223",
+        "osmType": "relation",
+        "osmId": 12024223,
+        "name": "Ripley Grange",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 268.1,
+        "shop": null
+      }
+    }
+  ]
+}

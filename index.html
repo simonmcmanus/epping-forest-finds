@@ -1312,7 +1312,15 @@
   <script>
     const TREE_URL = "Veteran_Tree_Register.json";
     const TREE_ENRICHED_URL = "Veteran_Tree_Register.enriched.with_named_trees.json";
-    const LANDMARK_URL = "data/local-landmarks.geojson";
+    const LANDMARK_URLS = [
+      "data/local-landmarks-food.geojson",
+      "data/local-landmarks-transport.geojson",
+      "data/local-landmarks-gates.geojson",
+      "data/local-landmarks-facilities.geojson",
+      "data/local-landmarks-historic.geojson",
+      "data/local-landmarks-tourism.geojson",
+      "data/local-landmarks-misc.geojson"
+    ];
     const FOLKLORE_URL = "data/epping_forest_folklore_locations_v14_external_links.json";
     const PATHS_URL = "data/local-paths.geojson";
     const ROADS_URL = "data/local-roads.geojson";
@@ -1575,18 +1583,22 @@
             return { trees: [], historicalNamedTreeEnrichment: null };
           });
 
-        const landmarkPromise = fetch(LANDMARK_URL)
-          .then(async (r) => {
-            if (!r.ok) throw new Error(`Landmark data HTTP ${r.status}`);
-            const data = await r.json();
-            const count = data.features ? data.features.length : 0;
-            setLoadStep("places", "done", count);
-            return data;
-          })
-          .catch(() => {
-            setLoadStep("places", "error");
-            return { features: [] };
-          });
+        const landmarkPromise = Promise.all(
+          LANDMARK_URLS.map(url =>
+            fetch(url)
+              .then(r => r.ok ? r.json() : { features: [] })
+              .catch(() => ({ features: [] }))
+          )
+        ).then(datasets => {
+          // Merge all landmark datasets
+          const allFeatures = datasets.flatMap(data => data.features || []);
+          const count = allFeatures.length;
+          setLoadStep("places", "done", count);
+          return { features: allFeatures };
+        }).catch(() => {
+          setLoadStep("places", "error");
+          return { features: [] };
+        });
 
         const folklorePromise = fetch(FOLKLORE_URL)
           .then(async (r) => {
@@ -4340,6 +4352,10 @@
         const activeGroupCount = getActiveGroupKeys(currentSet).length;
         const hasActiveFilter = activeGroupCount > 0;
         const locationSelected = Boolean(state.selected && ["tree", "landmark", "cow"].includes(state.selected.type));
+        
+        // Hide filter button when viewing location details
+        els.filterToggle.hidden = locationSelected;
+        
         // Only auto-open if user hasn't manually collapsed it
         if (hasActiveFilter && !locationSelected && !state.filterPanelCollapsed) {
           els.filterPanel.hidden = false;

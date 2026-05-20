@@ -1,0 +1,3000 @@
+{
+  "type": "FeatureCollection",
+  "name": "Tourism & Information",
+  "generatedAt": "2026-05-20T06:29:41.609835Z",
+  "source": {
+    "name": "OpenStreetMap via Overpass API",
+    "license": "Open Data Commons Open Database License (ODbL)",
+    "queryFile": "data/local-landmarks.overpassql",
+    "bbox": [
+      -0.035,
+      51.595,
+      0.145,
+      51.745
+    ],
+    "distanceFilter": {
+      "maxMinutesFromForestBoundary": 5,
+      "walkingSpeedMPerMin": 58.333333333333336,
+      "maxDistanceMetres": 291.7,
+      "boundaryFile": "data/epping-forest-land.geojson"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "node/434050871",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0396133,
+          51.6656129
+        ]
+      },
+      "properties": {
+        "id": "node/434050871",
+        "osmType": "node",
+        "osmId": 434050871,
+        "name": "High Beach",
+        "category": "picnic_site",
+        "categoryLabel": "Picnic Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "picnic_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/666217159",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.018626,
+          51.6548657
+        ]
+      },
+      "properties": {
+        "id": "node/666217159",
+        "osmType": "node",
+        "osmId": 666217159,
+        "name": "Lippitts Hill",
+        "category": "viewpoint",
+        "categoryLabel": "Viewpoint",
+        "amenity": null,
+        "highway": null,
+        "tourism": "viewpoint",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 156.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/671649864",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.006219,
+          51.644664
+        ]
+      },
+      "properties": {
+        "id": "node/671649864",
+        "osmType": "node",
+        "osmId": 671649864,
+        "name": "Yardley Hill",
+        "category": "viewpoint",
+        "categoryLabel": "Viewpoint",
+        "amenity": null,
+        "highway": null,
+        "tourism": "viewpoint",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 212.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/1332788385",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1296798,
+          51.7186569
+        ]
+      },
+      "properties": {
+        "id": "node/1332788385",
+        "osmType": "node",
+        "osmId": 1332788385,
+        "name": "Epping Forest Information Board",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/1332796951",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1288988,
+          51.7072114
+        ]
+      },
+      "properties": {
+        "id": "node/1332796951",
+        "osmType": "node",
+        "osmId": 1332796951,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 203.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/1334055249",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1380343,
+          51.7065024
+        ]
+      },
+      "properties": {
+        "id": "node/1334055249",
+        "osmType": "node",
+        "osmId": 1334055249,
+        "name": "Gernon Bushes Nature Reserve",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 266.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/1362179979",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0793917,
+          51.7321733
+        ]
+      },
+      "properties": {
+        "id": "node/1362179979",
+        "osmType": "node",
+        "osmId": 1362179979,
+        "name": "Epping Forest Information Board",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 284.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/1373671404",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0781685,
+          51.6642472
+        ]
+      },
+      "properties": {
+        "id": "node/1373671404",
+        "osmType": "node",
+        "osmId": 1373671404,
+        "name": "Debden House Centre",
+        "category": "caravan_site",
+        "categoryLabel": "Caravan Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "caravan_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3077522579",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0184889,
+          51.6340303
+        ]
+      },
+      "properties": {
+        "id": "node/3077522579",
+        "osmType": "node",
+        "osmId": 3077522579,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 163.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3086185544",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0187401,
+          51.6346722
+        ]
+      },
+      "properties": {
+        "id": "node/3086185544",
+        "osmType": "node",
+        "osmId": 3086185544,
+        "name": null,
+        "category": "picnic_site",
+        "categoryLabel": "Picnic Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "picnic_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 200.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3379806830",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1151848,
+          51.7013957
+        ]
+      },
+      "properties": {
+        "id": "node/3379806830",
+        "osmType": "node",
+        "osmId": 3379806830,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 177.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3379893481",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1059151,
+          51.6958632
+        ]
+      },
+      "properties": {
+        "id": "node/3379893481",
+        "osmType": "node",
+        "osmId": 3379893481,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 146.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3432300477",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0464961,
+          51.5683548
+        ]
+      },
+      "properties": {
+        "id": "node/3432300477",
+        "osmType": "node",
+        "osmId": 3432300477,
+        "name": "The Grotto",
+        "category": "attraction",
+        "categoryLabel": "Attraction",
+        "amenity": null,
+        "highway": null,
+        "tourism": "attraction",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3711894245",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0104829,
+          51.6251537
+        ]
+      },
+      "properties": {
+        "id": "node/3711894245",
+        "osmType": "node",
+        "osmId": 3711894245,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 238.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3711898368",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0130739,
+          51.6256666
+        ]
+      },
+      "properties": {
+        "id": "node/3711898368",
+        "osmType": "node",
+        "osmId": 3711898368,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 118.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3711917605",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0124401,
+          51.6270853
+        ]
+      },
+      "properties": {
+        "id": "node/3711917605",
+        "osmType": "node",
+        "osmId": 3711917605,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 45.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3711918896",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.01372,
+          51.6273562
+        ]
+      },
+      "properties": {
+        "id": "node/3711918896",
+        "osmType": "node",
+        "osmId": 3711918896,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 91.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/4216830181",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0409687,
+          51.6641804
+        ]
+      },
+      "properties": {
+        "id": "node/4216830181",
+        "osmType": "node",
+        "osmId": 4216830181,
+        "name": "Epping Forest Field Centre Bird Viewing Point",
+        "category": "viewpoint",
+        "categoryLabel": "Viewpoint",
+        "amenity": null,
+        "highway": null,
+        "tourism": "viewpoint",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 278.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/4973541126",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0067803,
+          51.558078
+        ]
+      },
+      "properties": {
+        "id": "node/4973541126",
+        "osmType": "node",
+        "osmId": 4973541126,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 27.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/5000797443",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0129839,
+          51.5697859
+        ]
+      },
+      "properties": {
+        "id": "node/5000797443",
+        "osmType": "node",
+        "osmId": 5000797443,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/6005283464",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0400168,
+          51.6659645
+        ]
+      },
+      "properties": {
+        "id": "node/6005283464",
+        "osmType": "node",
+        "osmId": 6005283464,
+        "name": null,
+        "category": "picnic_site",
+        "categoryLabel": "Picnic Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "picnic_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 286.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7508322035",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0176268,
+          51.574451
+        ]
+      },
+      "properties": {
+        "id": "node/7508322035",
+        "osmType": "node",
+        "osmId": 7508322035,
+        "name": "The High Stone",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 73.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7620511986",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0098927,
+          51.5783834
+        ]
+      },
+      "properties": {
+        "id": "node/7620511986",
+        "osmType": "node",
+        "osmId": 7620511986,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 267.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7620512193",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0103876,
+          51.5785563
+        ]
+      },
+      "properties": {
+        "id": "node/7620512193",
+        "osmType": "node",
+        "osmId": 7620512193,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 238.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7620519585",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0123513,
+          51.5828739
+        ]
+      },
+      "properties": {
+        "id": "node/7620519585",
+        "osmType": "node",
+        "osmId": 7620519585,
+        "name": "Leyton Flats",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 256.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7880055182",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0060164,
+          51.57902
+        ]
+      },
+      "properties": {
+        "id": "node/7880055182",
+        "osmType": "node",
+        "osmId": 7880055182,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 233.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7880179276",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0079841,
+          51.5777835
+        ]
+      },
+      "properties": {
+        "id": "node/7880179276",
+        "osmType": "node",
+        "osmId": 7880179276,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 45.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7880179282",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0074652,
+          51.5777955
+        ]
+      },
+      "properties": {
+        "id": "node/7880179282",
+        "osmType": "node",
+        "osmId": 7880179282,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 65.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7880179284",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0077234,
+          51.5779434
+        ]
+      },
+      "properties": {
+        "id": "node/7880179284",
+        "osmType": "node",
+        "osmId": 7880179284,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 68.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7880181796",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0127267,
+          51.5753311
+        ]
+      },
+      "properties": {
+        "id": "node/7880181796",
+        "osmType": "node",
+        "osmId": 7880181796,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7880181798",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0130882,
+          51.5753092
+        ]
+      },
+      "properties": {
+        "id": "node/7880181798",
+        "osmType": "node",
+        "osmId": 7880181798,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7880181803",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0133027,
+          51.5751287
+        ]
+      },
+      "properties": {
+        "id": "node/7880181803",
+        "osmType": "node",
+        "osmId": 7880181803,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7880181804",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0130363,
+          51.5753431
+        ]
+      },
+      "properties": {
+        "id": "node/7880181804",
+        "osmType": "node",
+        "osmId": 7880181804,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7880181805",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0127273,
+          51.575393
+        ]
+      },
+      "properties": {
+        "id": "node/7880181805",
+        "osmType": "node",
+        "osmId": 7880181805,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/8246188217",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0103654,
+          51.5941086
+        ]
+      },
+      "properties": {
+        "id": "node/8246188217",
+        "osmType": "node",
+        "osmId": 8246188217,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/8542921516",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0011654,
+          51.5811266
+        ]
+      },
+      "properties": {
+        "id": "node/8542921516",
+        "osmType": "node",
+        "osmId": 8542921516,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 286.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015689142",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.006014,
+          51.5790269
+        ]
+      },
+      "properties": {
+        "id": "node/9015689142",
+        "osmType": "node",
+        "osmId": 9015689142,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 233.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015689143",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0077415,
+          51.5775629
+        ]
+      },
+      "properties": {
+        "id": "node/9015689143",
+        "osmType": "node",
+        "osmId": 9015689143,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 34.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015689146",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0088359,
+          51.5775521
+        ]
+      },
+      "properties": {
+        "id": "node/9015689146",
+        "osmType": "node",
+        "osmId": 9015689146,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 50.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015689147",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0095929,
+          51.5773512
+        ]
+      },
+      "properties": {
+        "id": "node/9015689147",
+        "osmType": "node",
+        "osmId": 9015689147,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 99.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015689148",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0114195,
+          51.5766862
+        ]
+      },
+      "properties": {
+        "id": "node/9015689148",
+        "osmType": "node",
+        "osmId": 9015689148,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 238.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015689149",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0107516,
+          51.5770129
+        ]
+      },
+      "properties": {
+        "id": "node/9015689149",
+        "osmType": "node",
+        "osmId": 9015689149,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 183.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015689151",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0129339,
+          51.5751759
+        ]
+      },
+      "properties": {
+        "id": "node/9015689151",
+        "osmType": "node",
+        "osmId": 9015689151,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015696984",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0020598,
+          51.5821408
+        ]
+      },
+      "properties": {
+        "id": "node/9015696984",
+        "osmType": "node",
+        "osmId": 9015696984,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9015696985",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0023932,
+          51.5819205
+        ]
+      },
+      "properties": {
+        "id": "node/9015696985",
+        "osmType": "node",
+        "osmId": 9015696985,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 282.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9544011904",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0035307,
+          51.5797179
+        ]
+      },
+      "properties": {
+        "id": "node/9544011904",
+        "osmType": "node",
+        "osmId": 9544011904,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 182.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9730898952",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0276536,
+          51.5569749
+        ]
+      },
+      "properties": {
+        "id": "node/9730898952",
+        "osmType": "node",
+        "osmId": 9730898952,
+        "name": "Skylarks",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9794520917",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0384002,
+          51.5715561
+        ]
+      },
+      "properties": {
+        "id": "node/9794520917",
+        "osmType": "node",
+        "osmId": 9794520917,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9846274419",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.038035,
+          51.5669961
+        ]
+      },
+      "properties": {
+        "id": "node/9846274419",
+        "osmType": "node",
+        "osmId": 9846274419,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 99.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9846301517",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.044818,
+          51.5649582
+        ]
+      },
+      "properties": {
+        "id": "node/9846301517",
+        "osmType": "node",
+        "osmId": 9846301517,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9846316317",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.032724,
+          51.5653751
+        ]
+      },
+      "properties": {
+        "id": "node/9846316317",
+        "osmType": "node",
+        "osmId": 9846316317,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 282.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9846373017",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0192921,
+          51.5590022
+        ]
+      },
+      "properties": {
+        "id": "node/9846373017",
+        "osmType": "node",
+        "osmId": 9846373017,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 275.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9864018925",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0261132,
+          51.5570395
+        ]
+      },
+      "properties": {
+        "id": "node/9864018925",
+        "osmType": "node",
+        "osmId": 9864018925,
+        "name": "History Of Wanstead Flats",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 283.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9937500317",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0412385,
+          51.5657942
+        ]
+      },
+      "properties": {
+        "id": "node/9937500317",
+        "osmType": "node",
+        "osmId": 9937500317,
+        "name": "Feeding the birds",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9937518719",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0387495,
+          51.5700216
+        ]
+      },
+      "properties": {
+        "id": "node/9937518719",
+        "osmType": "node",
+        "osmId": 9937518719,
+        "name": "Chestnut Trail",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9937518720",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.038639,
+          51.5700672
+        ]
+      },
+      "properties": {
+        "id": "node/9937518720",
+        "osmType": "node",
+        "osmId": 9937518720,
+        "name": "Welcome to Wanstead Park",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10253629291",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0003108,
+          51.6146319
+        ]
+      },
+      "properties": {
+        "id": "node/10253629291",
+        "osmType": "node",
+        "osmId": 10253629291,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 41.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10254612587",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0529248,
+          51.6899132
+        ]
+      },
+      "properties": {
+        "id": "node/10254612587",
+        "osmType": "node",
+        "osmId": 10254612587,
+        "name": "Upshire Village",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 69.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10726004030",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0204198,
+          51.6548309
+        ]
+      },
+      "properties": {
+        "id": "node/10726004030",
+        "osmType": "node",
+        "osmId": 10726004030,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 110.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10817707050",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0509773,
+          51.5664644
+        ]
+      },
+      "properties": {
+        "id": "node/10817707050",
+        "osmType": "node",
+        "osmId": 10817707050,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 247.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10867489007",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.027764,
+          51.6380148
+        ]
+      },
+      "properties": {
+        "id": "node/10867489007",
+        "osmType": "node",
+        "osmId": 10867489007,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 283.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10867871305",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0647061,
+          51.6680231
+        ]
+      },
+      "properties": {
+        "id": "node/10867871305",
+        "osmType": "node",
+        "osmId": 10867871305,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10867955305",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0777174,
+          51.6820896
+        ]
+      },
+      "properties": {
+        "id": "node/10867955305",
+        "osmType": "node",
+        "osmId": 10867955305,
+        "name": "Epping Forest - Ambresbury Banks",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 285.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10869359265",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0283301,
+          51.6373554
+        ]
+      },
+      "properties": {
+        "id": "node/10869359265",
+        "osmType": "node",
+        "osmId": 10869359265,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10869359266",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.028297,
+          51.6373728
+        ]
+      },
+      "properties": {
+        "id": "node/10869359266",
+        "osmType": "node",
+        "osmId": 10869359266,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10922175041",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0451904,
+          51.574209
+        ]
+      },
+      "properties": {
+        "id": "node/10922175041",
+        "osmType": "node",
+        "osmId": 10922175041,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 241.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10922175042",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.044677,
+          51.5746254
+        ]
+      },
+      "properties": {
+        "id": "node/10922175042",
+        "osmType": "node",
+        "osmId": 10922175042,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 218.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10957677201",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0306002,
+          51.6074891
+        ]
+      },
+      "properties": {
+        "id": "node/10957677201",
+        "osmType": "node",
+        "osmId": 10957677201,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 224.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11082021093",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0023602,
+          51.5818586
+        ]
+      },
+      "properties": {
+        "id": "node/11082021093",
+        "osmType": "node",
+        "osmId": 11082021093,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11780886959",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0038047,
+          51.5880843
+        ]
+      },
+      "properties": {
+        "id": "node/11780886959",
+        "osmType": "node",
+        "osmId": 11780886959,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 93.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12178962079",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0771405,
+          51.6833054
+        ]
+      },
+      "properties": {
+        "id": "node/12178962079",
+        "osmType": "node",
+        "osmId": 12178962079,
+        "name": "Epping Forest - Ambresbury Banks",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 281.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12772308123",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0451879,
+          51.5660224
+        ]
+      },
+      "properties": {
+        "id": "node/12772308123",
+        "osmType": "node",
+        "osmId": 12772308123,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12772315127",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0468036,
+          51.5657752
+        ]
+      },
+      "properties": {
+        "id": "node/12772315127",
+        "osmType": "node",
+        "osmId": 12772315127,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12788148865",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0131556,
+          51.5810453
+        ]
+      },
+      "properties": {
+        "id": "node/12788148865",
+        "osmType": "node",
+        "osmId": 12788148865,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 190.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12788148866",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0066245,
+          51.5812627
+        ]
+      },
+      "properties": {
+        "id": "node/12788148866",
+        "osmType": "node",
+        "osmId": 12788148866,
+        "name": null,
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 284.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/13256792127",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0035564,
+          51.6493309
+        ]
+      },
+      "properties": {
+        "id": "node/13256792127",
+        "osmType": "node",
+        "osmId": 13256792127,
+        "name": "The Hirsch Family Adventure Gallery",
+        "category": "museum",
+        "categoryLabel": "Museum",
+        "amenity": null,
+        "highway": null,
+        "tourism": "museum",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.scoutadventures.org.uk/gilwell-park-heritage",
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 274.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/43171287",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0175513,
+          51.6344456
+        ]
+      },
+      "properties": {
+        "id": "way/43171287",
+        "osmType": "way",
+        "osmId": 43171287,
+        "name": "Queen Elizabeth's Hunting Lodge",
+        "category": "attraction",
+        "categoryLabel": "Attraction",
+        "amenity": null,
+        "highway": null,
+        "tourism": "attraction",
+        "historic": "yes",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/where-to-go-in-epping-forest/queen-elizabeths-hunting-lodge",
+        "phone": null,
+        "address": "6 Ranger's Road, London E4 7QH",
+        "distanceToForestBoundaryMetres": 116.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/84657073",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0019139,
+          51.6503454
+        ]
+      },
+      "properties": {
+        "id": "way/84657073",
+        "osmType": "way",
+        "osmId": 84657073,
+        "name": "Gilwell Park Scout Activity Centre",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.scoutadventures.org.uk/centre/gilwell-park",
+        "phone": null,
+        "address": "London E4 7QW",
+        "distanceToForestBoundaryMetres": 291.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/109883852",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0422276,
+          51.5678079
+        ]
+      },
+      "properties": {
+        "id": "way/109883852",
+        "osmType": "way",
+        "osmId": 109883852,
+        "name": "The Temple",
+        "category": "museum",
+        "categoryLabel": "Museum",
+        "amenity": null,
+        "highway": null,
+        "tourism": "museum",
+        "historic": "folly",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/where-to-go-in-epping-forest/the-temple",
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 277.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/207792679",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0050333,
+          51.6512103
+        ]
+      },
+      "properties": {
+        "id": "way/207792679",
+        "osmType": "way",
+        "osmId": 207792679,
+        "name": "Branchett Field",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/219246685",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0772356,
+          51.667129
+        ]
+      },
+      "properties": {
+        "id": "way/219246685",
+        "osmType": "way",
+        "osmId": 219246685,
+        "name": "Debden House Holiday Park",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "http://www.debdenhouse.com/campsite-epping-forest.html",
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/230232877",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0013714,
+          51.6493108
+        ]
+      },
+      "properties": {
+        "id": "way/230232877",
+        "osmType": "way",
+        "osmId": 230232877,
+        "name": "The Quick",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/237910005",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0019929,
+          51.652307
+        ]
+      },
+      "properties": {
+        "id": "way/237910005",
+        "osmType": "way",
+        "osmId": 237910005,
+        "name": "Woodlands",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/253232692",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0081551,
+          51.6551715
+        ]
+      },
+      "properties": {
+        "id": "way/253232692",
+        "osmType": "way",
+        "osmId": 253232692,
+        "name": "Lee Valley Campsite, Sewardstone",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.visitleevalley.org.uk/lee-valley-campsite-sewardstone",
+        "phone": "+44 20 8529 5689",
+        "address": "Sewardstone Road, London E4 7RA",
+        "distanceToForestBoundaryMetres": 283.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/303395706",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0171432,
+          51.6345254
+        ]
+      },
+      "properties": {
+        "id": "way/303395706",
+        "osmType": "way",
+        "osmId": 303395706,
+        "name": "Epping Forest Visitor Centre",
+        "category": "information",
+        "categoryLabel": "Information",
+        "amenity": null,
+        "highway": null,
+        "tourism": "information",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/where-to-go-in-epping-forest/chingford-visitor-centre",
+        "phone": null,
+        "address": "Ranger's Road, London E4 7QH",
+        "distanceToForestBoundaryMetres": 100.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/344009467",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0237663,
+          51.6553858
+        ]
+      },
+      "properties": {
+        "id": "way/344009467",
+        "osmType": "way",
+        "osmId": 344009467,
+        "name": "The Elms Campsite",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/369932186",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.73e-05,
+          51.6479054
+        ]
+      },
+      "properties": {
+        "id": "way/369932186",
+        "osmType": "way",
+        "osmId": 369932186,
+        "name": "Essex Chase",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 228.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/369932190",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0018496,
+          51.6514608
+        ]
+      },
+      "properties": {
+        "id": "way/369932190",
+        "osmType": "way",
+        "osmId": 369932190,
+        "name": "The Paddock",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/815747654",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.024309,
+          51.6267526
+        ]
+      },
+      "properties": {
+        "id": "way/815747654",
+        "osmType": "way",
+        "osmId": 815747654,
+        "name": null,
+        "category": "caravan_site",
+        "categoryLabel": "Caravan Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "caravan_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/868015749",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0009524,
+          51.6518217
+        ]
+      },
+      "properties": {
+        "id": "way/868015749",
+        "osmType": "way",
+        "osmId": 868015749,
+        "name": "Chez",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/868015750",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0012474,
+          51.652967
+        ]
+      },
+      "properties": {
+        "id": "way/868015750",
+        "osmType": "way",
+        "osmId": 868015750,
+        "name": "Ferryman Field",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 277.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/868015751",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0007987,
+          51.6524701
+        ]
+      },
+      "properties": {
+        "id": "way/868015751",
+        "osmType": "way",
+        "osmId": 868015751,
+        "name": "Woodlands Paddock",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 286.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/868015752",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.000588,
+          51.6528475
+        ]
+      },
+      "properties": {
+        "id": "way/868015752",
+        "osmType": "way",
+        "osmId": 868015752,
+        "name": "New Field",
+        "category": "camp_site",
+        "categoryLabel": "Camp Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": "camp_site",
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 254.4,
+        "shop": null
+      }
+    }
+  ]
+}

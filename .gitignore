@@ -4,3 +4,7 @@ node_modules/
 npm-debug.log*
 .cloudflared-tunnel.log
 .local-certs/
+
+# Large files split into smaller category files
+data/local-landmarks.geojson
+data/local-landmarks-access.geojson

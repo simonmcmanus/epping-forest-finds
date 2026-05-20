@@ -21,7 +21,14 @@ Provide a fast, mobile-first field map that still works in poor signal condition
 - `Veteran_Tree_Register.json` (fallback)
 - `data/epping-forest-land.geojson`
 - `data/epping-buffer-land.geojson`
-- `data/local-landmarks.geojson`
+- **Landmarks (split into category files for GitHub size limits):**
+  - `data/local-landmarks-food.geojson` - food & drink (~500 features)
+  - `data/local-landmarks-transport.geojson` - transport stops (~520 features)
+  - `data/local-landmarks-gates.geojson` - gates & barriers (~1,600 features)
+  - `data/local-landmarks-facilities.geojson` - parking, benches, toilets (~1,100 features)
+  - `data/local-landmarks-historic.geojson` - historic sites (~60 features)
+  - `data/local-landmarks-tourism.geojson` - tourism info (~90 features)
+  - `data/local-landmarks-misc.geojson` - misc landmarks (~45 features)
 - `data/local-paths.geojson`
 - `data/local-roads.geojson`
 - `data/local-environment.geojson`
@@ -154,7 +161,7 @@ Marker rules:
 ### Inspector modes
 
 - Overview mode: nearest list + filter controls.
-- Selected-detail mode: filter controls hidden.
+- Selected-detail mode: filter button hidden, filter panel closed (not relevant when viewing specific location).
 - Minimized mode: collapsed header only.
 
 ### Camera behavior
@@ -286,6 +293,22 @@ Preferred regeneration script: `scripts/regenerate_local_landmarks.py`
 - Rebuilds `data/local-landmarks.geojson`
 - Prints category counts
 
+**After regeneration, split the large file:**
+
+```bash
+python3 scripts/split_landmarks.py
+python3 scripts/split_access.py
+```
+
+This splits the landmarks into smaller category-based files to avoid GitHub's file size limits:
+- Food & drink
+- Transport
+- Gates & barriers
+- Facilities (parking, benches, toilets)
+- Historic sites
+- Tourism info
+- Miscellaneous
+
 Alternative: `scripts/regenerate-local-landmarks.js` (Node.js version)
 
 ### Paths regeneration
@@ -305,6 +328,8 @@ Alternative: `scripts/regenerate-local-landmarks.js` (Node.js version)
 
 - `scripts/add_missing_shops.py` - adds new shops from existing Overpass data
 - `scripts/quick_add_shops.py` - patches shop properties in existing data
+- `scripts/split_landmarks.py` - splits landmarks into category files
+- `scripts/split_access.py` - further splits access/facilities file
 
 ## Technical Constraints
 

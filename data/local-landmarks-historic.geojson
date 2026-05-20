@@ -1,0 +1,1880 @@
+{
+  "type": "FeatureCollection",
+  "name": "Historic & Heritage",
+  "generatedAt": "2026-05-20T06:29:41.608825Z",
+  "source": {
+    "name": "OpenStreetMap via Overpass API",
+    "license": "Open Data Commons Open Database License (ODbL)",
+    "queryFile": "data/local-landmarks.overpassql",
+    "bbox": [
+      -0.035,
+      51.595,
+      0.145,
+      51.745
+    ],
+    "distanceFilter": {
+      "maxMinutesFromForestBoundary": 5,
+      "walkingSpeedMPerMin": 58.333333333333336,
+      "maxDistanceMetres": 291.7,
+      "boundaryFile": "data/epping-forest-land.geojson"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "node/33996174",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0890159,
+          51.6655507
+        ]
+      },
+      "properties": {
+        "id": "node/33996174",
+        "osmType": "node",
+        "osmId": 33996174,
+        "name": "Coal tax post",
+        "category": "boundary_stone",
+        "categoryLabel": "Boundary Stone",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "boundary_stone",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 138.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/279150459",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0071543,
+          51.5581094
+        ]
+      },
+      "properties": {
+        "id": "node/279150459",
+        "osmType": "node",
+        "osmId": 279150459,
+        "name": "Leytonstone War Memorial",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 36.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/454971117",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0012715,
+          51.6315216
+        ]
+      },
+      "properties": {
+        "id": "node/454971117",
+        "osmType": "node",
+        "osmId": 454971117,
+        "name": "Chingford War Memorial",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 75.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/482150945",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0198456,
+          51.6331933
+        ]
+      },
+      "properties": {
+        "id": "node/482150945",
+        "osmType": "node",
+        "osmId": 482150945,
+        "name": null,
+        "category": "monument",
+        "categoryLabel": "Monument",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "monument",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 267.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/608688087",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0143035,
+          51.5637745
+        ]
+      },
+      "properties": {
+        "id": "node/608688087",
+        "osmType": "node",
+        "osmId": 608688087,
+        "name": "Victorian drinking fountain",
+        "category": "monument",
+        "categoryLabel": "Monument",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "monument",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/992820949",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0023379,
+          51.6503025
+        ]
+      },
+      "properties": {
+        "id": "node/992820949",
+        "osmType": "node",
+        "osmId": 992820949,
+        "name": "Buffalo Statue",
+        "category": "monument",
+        "categoryLabel": "Monument",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "monument",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/2504935568",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1167842,
+          51.7032018
+        ]
+      },
+      "properties": {
+        "id": "node/2504935568",
+        "osmType": "node",
+        "osmId": 2504935568,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 38.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/2866627640",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0189886,
+          51.5833841
+        ]
+      },
+      "properties": {
+        "id": "node/2866627640",
+        "osmType": "node",
+        "osmId": 2866627640,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 285.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/2871078304",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0094745,
+          51.5983931
+        ]
+      },
+      "properties": {
+        "id": "node/2871078304",
+        "osmType": "node",
+        "osmId": 2871078304,
+        "name": "Gipsy Rodney Smith",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3072398876",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0263569,
+          51.619763
+        ]
+      },
+      "properties": {
+        "id": "node/3072398876",
+        "osmType": "node",
+        "osmId": 3072398876,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3136624128",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0493233,
+          51.659299
+        ]
+      },
+      "properties": {
+        "id": "node/3136624128",
+        "osmType": "node",
+        "osmId": 3136624128,
+        "name": "Loughton Camp",
+        "category": "archaeological_site",
+        "categoryLabel": "Archaeological Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "archaeological_site",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3235187235",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0515118,
+          51.6962636
+        ]
+      },
+      "properties": {
+        "id": "node/3235187235",
+        "osmType": "node",
+        "osmId": 3235187235,
+        "name": "Boudicca's Obelisk",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 188.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3235223876",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0485066,
+          51.6928822
+        ]
+      },
+      "properties": {
+        "id": "node/3235223876",
+        "osmType": "node",
+        "osmId": 3235223876,
+        "name": "The Temple",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 285.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3397702892",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0007154,
+          51.5813409
+        ]
+      },
+      "properties": {
+        "id": "node/3397702892",
+        "osmType": "node",
+        "osmId": 3397702892,
+        "name": "Essex Regiment War Memorial",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3590858249",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0191885,
+          51.6040318
+        ]
+      },
+      "properties": {
+        "id": "node/3590858249",
+        "osmType": "node",
+        "osmId": 3590858249,
+        "name": "Sir Winston Churchill",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/4461738405",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0777338,
+          51.6827307
+        ]
+      },
+      "properties": {
+        "id": "node/4461738405",
+        "osmType": "node",
+        "osmId": 4461738405,
+        "name": "Ambresbury Banks",
+        "category": "archaeological_site",
+        "categoryLabel": "Archaeological Site",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "archaeological_site",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/5004018848",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0142946,
+          51.5702196
+        ]
+      },
+      "properties": {
+        "id": "node/5004018848",
+        "osmType": "node",
+        "osmId": 5004018848,
+        "name": "Sir Morell Mackenzie",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/5008503002",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0126683,
+          51.569094
+        ]
+      },
+      "properties": {
+        "id": "node/5008503002",
+        "osmType": "node",
+        "osmId": 5008503002,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/5015614102",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0107866,
+          51.5655459
+        ]
+      },
+      "properties": {
+        "id": "node/5015614102",
+        "osmType": "node",
+        "osmId": 5015614102,
+        "name": "Mary Fletcher",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 285.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/5398965157",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0257233,
+          51.6169557
+        ]
+      },
+      "properties": {
+        "id": "node/5398965157",
+        "osmType": "node",
+        "osmId": 5398965157,
+        "name": "Anti-Air War Memorial",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 25.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/5714876747",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0015651,
+          51.6363304
+        ]
+      },
+      "properties": {
+        "id": "node/5714876747",
+        "osmType": "node",
+        "osmId": 5714876747,
+        "name": "Ordnance Survey Obelisk",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/6611045030",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0579169,
+          51.65054
+        ]
+      },
+      "properties": {
+        "id": "node/6611045030",
+        "osmType": "node",
+        "osmId": 6611045030,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 172.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/6907992759",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0690175,
+          51.6755179
+        ]
+      },
+      "properties": {
+        "id": "node/6907992759",
+        "osmType": "node",
+        "osmId": 6907992759,
+        "name": "Coal tax post",
+        "category": "boundary_stone",
+        "categoryLabel": "Boundary Stone",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "boundary_stone",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/6907992760",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.077259,
+          51.6839823
+        ]
+      },
+      "properties": {
+        "id": "node/6907992760",
+        "osmType": "node",
+        "osmId": 6907992760,
+        "name": "Coal tax post",
+        "category": "boundary_stone",
+        "categoryLabel": "Boundary Stone",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "boundary_stone",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 281.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/6907992761",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0365129,
+          51.7210049
+        ]
+      },
+      "properties": {
+        "id": "node/6907992761",
+        "osmType": "node",
+        "osmId": 6907992761,
+        "name": "Coal tax post",
+        "category": "boundary_stone",
+        "categoryLabel": "Boundary Stone",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "boundary_stone",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 286.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/6907992763",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.015501,
+          51.7173113
+        ]
+      },
+      "properties": {
+        "id": "node/6907992763",
+        "osmType": "node",
+        "osmId": 6907992763,
+        "name": "Coal tax post",
+        "category": "boundary_stone",
+        "categoryLabel": "Boundary Stone",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "boundary_stone",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 52.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7508322036",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0175904,
+          51.5744435
+        ]
+      },
+      "properties": {
+        "id": "node/7508322036",
+        "osmType": "node",
+        "osmId": 7508322036,
+        "name": "The High Stone",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 71.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7847693607",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0324952,
+          51.6308628
+        ]
+      },
+      "properties": {
+        "id": "node/7847693607",
+        "osmType": "node",
+        "osmId": 7847693607,
+        "name": "The Wilderness",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 279.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/7997135907",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0198455,
+          51.6331812
+        ]
+      },
+      "properties": {
+        "id": "node/7997135907",
+        "osmType": "node",
+        "osmId": 7997135907,
+        "name": "Forest ramblers club centenary",
+        "category": "monument",
+        "categoryLabel": "Monument",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "monument",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 267.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/8043996056",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1068986,
+          51.6963449
+        ]
+      },
+      "properties": {
+        "id": "node/8043996056",
+        "osmType": "node",
+        "osmId": 8043996056,
+        "name": "Sydney Hills",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 230.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/8063200494",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0125081,
+          51.6005625
+        ]
+      },
+      "properties": {
+        "id": "node/8063200494",
+        "osmType": "node",
+        "osmId": 8063200494,
+        "name": "James Hilton",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/8063200495",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0044604,
+          51.5785628
+        ]
+      },
+      "properties": {
+        "id": "node/8063200495",
+        "osmType": "node",
+        "osmId": 8063200495,
+        "name": "Solomon T. Plaatje",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 286.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/8102380503",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0238458,
+          51.5796015
+        ]
+      },
+      "properties": {
+        "id": "node/8102380503",
+        "osmType": "node",
+        "osmId": 8102380503,
+        "name": "Wanstead War Memorial",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 64.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/8225854906",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0365075,
+          51.6442055
+        ]
+      },
+      "properties": {
+        "id": "node/8225854906",
+        "osmType": "node",
+        "osmId": 8225854906,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 198.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/8295173963",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0476902,
+          51.6250556
+        ]
+      },
+      "properties": {
+        "id": "node/8295173963",
+        "osmType": "node",
+        "osmId": 8295173963,
+        "name": "Buckhurst Hill War Memorial",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 275.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9587309939",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0088702,
+          51.5738531
+        ]
+      },
+      "properties": {
+        "id": "node/9587309939",
+        "osmType": "node",
+        "osmId": 9587309939,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 25.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10005216805",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0020277,
+          51.6499698
+        ]
+      },
+      "properties": {
+        "id": "node/10005216805",
+        "osmType": "node",
+        "osmId": 10005216805,
+        "name": "Baden-Powell\u2019s Boot",
+        "category": "monument",
+        "categoryLabel": "Monument",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "monument",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 289.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10018641866",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0255794,
+          51.5542868
+        ]
+      },
+      "properties": {
+        "id": "node/10018641866",
+        "osmType": "node",
+        "osmId": 10018641866,
+        "name": "Joseph Fry Memorial Drinking Fountain",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/10891203169",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.00739,
+          51.5600495
+        ]
+      },
+      "properties": {
+        "id": "node/10891203169",
+        "osmType": "node",
+        "osmId": 10891203169,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 247.8,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11052728324",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0485775,
+          51.5572602
+        ]
+      },
+      "properties": {
+        "id": "node/11052728324",
+        "osmType": "node",
+        "osmId": 11052728324,
+        "name": null,
+        "category": "monument",
+        "categoryLabel": "Monument",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "monument",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11561841291",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0006786,
+          51.6505672
+        ]
+      },
+      "properties": {
+        "id": "node/11561841291",
+        "osmType": "node",
+        "osmId": 11561841291,
+        "name": "John Thurman Shelter",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 281.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11776359499",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0929238,
+          51.6730134
+        ]
+      },
+      "properties": {
+        "id": "node/11776359499",
+        "osmType": "node",
+        "osmId": 11776359499,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.9,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12441822503",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0404336,
+          51.5526581
+        ]
+      },
+      "properties": {
+        "id": "node/12441822503",
+        "osmType": "node",
+        "osmId": 12441822503,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.3,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12441822510",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0425646,
+          51.5524633
+        ]
+      },
+      "properties": {
+        "id": "node/12441822510",
+        "osmType": "node",
+        "osmId": 12441822510,
+        "name": "Bethnal Green Tube Disaster",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 287.7,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12828364754",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0015612,
+          51.6363331
+        ]
+      },
+      "properties": {
+        "id": "node/12828364754",
+        "osmType": "node",
+        "osmId": 12828364754,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 288.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12983153101",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.012323,
+          51.5993029
+        ]
+      },
+      "properties": {
+        "id": "node/12983153101",
+        "osmType": "node",
+        "osmId": 12983153101,
+        "name": "Walthamstow Windmill",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.4,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/13049742872",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.056235,
+          51.6526439
+        ]
+      },
+      "properties": {
+        "id": "node/13049742872",
+        "osmType": "node",
+        "osmId": 13049742872,
+        "name": "Diana Kennedy",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/13049742873",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0562509,
+          51.6526357
+        ]
+      },
+      "properties": {
+        "id": "node/13049742873",
+        "osmType": "node",
+        "osmId": 13049742873,
+        "name": "Arthur Bacot",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/13049742874",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0562179,
+          51.6526527
+        ]
+      },
+      "properties": {
+        "id": "node/13049742874",
+        "osmType": "node",
+        "osmId": 13049742874,
+        "name": "Edward Manley Cummings",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/13049742875",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0563263,
+          51.6526299
+        ]
+      },
+      "properties": {
+        "id": "node/13049742875",
+        "osmType": "node",
+        "osmId": 13049742875,
+        "name": "Christopher Cutchey",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/13049742876",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0522046,
+          51.6486967
+        ]
+      },
+      "properties": {
+        "id": "node/13049742876",
+        "osmType": "node",
+        "osmId": 13049742876,
+        "name": "George Granville Barker",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/13718216628",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0326845,
+          51.5594849
+        ]
+      },
+      "properties": {
+        "id": "node/13718216628",
+        "osmType": "node",
+        "osmId": 13718216628,
+        "name": null,
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.5,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/108167279",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0195855,
+          51.6536886
+        ]
+      },
+      "properties": {
+        "id": "way/108167279",
+        "osmType": "way",
+        "osmId": 108167279,
+        "name": "Former Nuclear Bunker",
+        "category": "ruins",
+        "categoryLabel": "Ruins",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "ruins",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 45.1,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/151151097",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0043677,
+          51.7034695
+        ]
+      },
+      "properties": {
+        "id": "way/151151097",
+        "osmType": "way",
+        "osmId": 151151097,
+        "name": "WW1 Anti Aircraft gun emplacement",
+        "category": "ruins",
+        "categoryLabel": "Ruins",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "ruins",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 290.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/275043843",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0463835,
+          51.5683343
+        ]
+      },
+      "properties": {
+        "id": "way/275043843",
+        "osmType": "way",
+        "osmId": 275043843,
+        "name": "Boat House",
+        "category": "ruins",
+        "categoryLabel": "Ruins",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "ruins",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.2,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/869523536",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0071513,
+          51.5581263
+        ]
+      },
+      "properties": {
+        "id": "way/869523536",
+        "osmType": "way",
+        "osmId": 869523536,
+        "name": "Leytonstone War Memorial And Gardens",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 38.0,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/875469843",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0429262,
+          51.5519853
+        ]
+      },
+      "properties": {
+        "id": "way/875469843",
+        "osmType": "way",
+        "osmId": 875469843,
+        "name": "World War II Commemorative Monument",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 291.6,
+        "shop": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "relation/18452567",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0394912,
+          51.5528638
+        ]
+      },
+      "properties": {
+        "id": "relation/18452567",
+        "osmType": "relation",
+        "osmId": 18452567,
+        "name": "Manor Park Cemetery History Route",
+        "category": "memorial",
+        "categoryLabel": "Memorial",
+        "amenity": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "memorial",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.mpark.co.uk/Pages/A",
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 280.1,
+        "shop": null
+      }
+    }
+  ]
+}
