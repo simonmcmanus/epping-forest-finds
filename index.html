@@ -1544,8 +1544,8 @@
         label: "🌿 Nature",
         subfilters: [
           { key: "trees", label: "🌳 Trees", title: "trees" },
-          { key: "trails", label: "🥾 Trails", title: "trails" },
           { key: "cows", label: "🐄 Cows", title: "cows" },
+          { key: "waymarked_trails", label: "🥾 Waymarked trails", title: "waymarked trails" },
         ],
       },
       {
@@ -1613,7 +1613,8 @@
     const LAYER_FILTER_KEYS = new Set([]);
     const TREE_FILTER_KEYS = new Set(["trees"]);
     const COW_FILTER_KEYS = new Set(["cows"]);
-    const PLACE_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key).filter((key) => !LAYER_FILTER_KEYS.has(key) && !TREE_FILTER_KEYS.has(key) && !COW_FILTER_KEYS.has(key)));
+    const PATH_FILTER_KEYS = new Set(["waymarked_trails"]);
+    const PLACE_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key).filter((key) => !LAYER_FILTER_KEYS.has(key) && !TREE_FILTER_KEYS.has(key) && !COW_FILTER_KEYS.has(key) && !PATH_FILTER_KEYS.has(key)));
     const PLACE_FILTER_PRIORITY = [
       "pubs",
       "restaurants",
@@ -3116,6 +3117,22 @@
       return bestSegment[Math.floor(bestSegment.length / 2)] || null;
     }
 
+    function pathHashKey(path) {
+      if (!path) return "";
+      if (path.key) return path.key;
+      return [
+        path.name || path.ref || path.pathType || "path",
+        path.bbox ? path.bbox.minX.toFixed(2) : "0",
+        path.bbox ? path.bbox.minY.toFixed(2) : "0",
+        path.bbox ? path.bbox.maxX.toFixed(2) : "0",
+        path.bbox ? path.bbox.maxY.toFixed(2) : "0",
+      ].join(":");
+    }
+
+    function isWaymarkedTrail(path) {
+      return Boolean(path) && path.pathType === "waymarked_trail";
+    }
+
     function toPathFeature(feature) {
       if (!feature || !feature.geometry) return null;
 
@@ -3169,25 +3186,29 @@
         }
       }
 
-      const representativePoint = pathLabelAnchor({ segments }) || segments[0][0];
-      const representativeLonLat = representativePoint ? unprojectPoint(representativePoint) : null;
-
-      return {
+      const path = {
         name,
+        ref: tags.ref || null,
+        key: tags.id || feature.id || null,
         pathType,
         highway,
-        designation,
         foot,
         horse,
         access,
         segments,
         bbox,
         totalLength,
-        point: representativePoint,
-        latitude: representativeLonLat ? representativeLonLat.latitude : null,
-        longitude: representativeLonLat ? representativeLonLat.longitude : null,
-          }
-        }
+      };
+      const anchor = pathLabelAnchor(path);
+      if (anchor) {
+        const lonLat = unprojectPoint(anchor);
+        path.point = anchor;
+        path.latitude = lonLat.latitude;
+        path.longitude = lonLat.longitude;
+      }
+      path.key = pathHashKey(path);
+      return path;
+    }
     function toRoadFeature(feature) {
       if (!feature || !feature.geometry) return null;
 
@@ -3967,13 +3988,6 @@
         setInspectorMinimized(true);
         startCompassNavigation();
         ensureUserAndSelectionVisible({ animate: true, force: true });
-      } else if (hit.type === "path") {
-        state.selected = { type: "path", item: hit.item };
-        syncHashFromSelection();
-        showPathDetails(hit.item, distanceFromUserToPath(hit.item));
-        setInspectorMinimized(true);
-        startCompassNavigation();
-        ensureUserAndSelectionVisible({ animate: true, force: true });
       } else if (hit.type === "area") {
         state.selected = { type: "area", item: hit.item };
         syncHashFromSelection();
@@ -3985,6 +3999,14 @@
         const distance = distanceFromUserToRoad(hit.item);
         showRoadDetails(hit.item, distance);
         updateCompassOverlay();
+      } else if (hit.type === "path") {
+        state.selected = { type: "path", item: hit.item };
+        syncHashFromSelection();
+        const distance = distanceFromUserToPath(hit.item);
+        showPathDetails(hit.item, distance);
+        setInspectorMinimized(true);
+        startCompassNavigation();
+        ensureUserAndSelectionVisible({ animate: true, force: true });
       } else if (hit.type === "railway") {
         state.selected = { type: "railway", item: hit.item };
         syncHashFromSelection();
@@ -4035,8 +4057,9 @@
       if (bestTree) return bestTree;
 
       let bestPath = null;
-      const pathClickRadius = 13 * dpr;
+      const pathClickRadius = 12 * dpr;
       for (const path of state.paths) {
+        if (!isWaymarkedTrail(path)) continue;
         if (path.bbox) {
           const margin = pathClickRadius * 2;
           const worldMargin = margin / state.viewport.scale;
@@ -4045,7 +4068,7 @@
         }
 
         for (const segment of path.segments) {
-          for (let i = 1; i < segment.length; i++) {
+          for (let i = 1; i < segment.length; i += 1) {
             const p1 = worldToScreen(segment[i - 1]);
             const p2 = worldToScreen(segment[i]);
             const dist = distanceToSegment(screen.x, screen.y, p1.x, p1.y, p2.x, p2.y);
@@ -4191,36 +4214,28 @@
         ["Last update", state.cowLastUpdatedAt ? new Date(state.cowLastUpdatedAt).toLocaleTimeString() : null],
         ["Source", "Nofence open data"],
       ];
-      els.inspectorBody.innerHTML = detailsHtml(rows);    }
+      els.inspectorBody.innerHTML = detailsHtml(rows);
+    }
 
     function showPathDetails(path, distance) {
       setInspectorSelectionChrome({ emoji: "🥾", showBack: true });
       els.inspectorTools.hidden = true;
-
-      const typeLabel = path.pathType === "bridleway" ? "Bridleway"
-        : path.pathType === "byway" ? "Byway"
-        : path.pathType === "permissive" ? "Permissive path"
-        : path.pathType === "waymarked_trail" ? "Waymarked trail"
-        : "Forest trail";
-
-      els.inspectorTitle.textContent = path.name || "Forest trail";
-      els.inspectorType.textContent = typeLabel;
-
+      els.inspectorTitle.textContent = path.name || path.ref || "Waymarked trail";
+      els.inspectorType.textContent = path.pathType === "waymarked_trail" ? "Waymarked trail" : "Path";
       const rows = [
         ["Distance", distance == null ? null : formatDistance(distance), "distance"],
         ["Walking time", distance == null ? null : formatWalkTime(distance), "walktime"],
         ["Direction", directionLabelFor(path)],
-        ["Trail type", typeLabel],
         ["Name", path.name],
-        ["Highway", path.highway],
-        ["Designation", path.designation],
-        ["Foot access", path.foot],
-        ["Horse access", path.horse],
-        ["General access", path.access],
-        ["Approx length", path.totalLength == null ? null : formatDistance(path.totalLength)],
+        ["Reference", path.ref],
+        ["Type", path.pathType === "waymarked_trail" ? "Waymarked trail" : displayValue(path.pathType)],
+        ["Highway tag", path.highway],
+        ["Access", path.access],
+        ["Foot", path.foot],
+        ["Horse", path.horse],
+        ["Approx length", path.totalLength ? formatDistance(path.totalLength) : null],
         ["Source", "OpenStreetMap"],
-      ].filter(([, value]) => value != null && value !== "");
-
+      ];
       els.inspectorBody.innerHTML = detailsHtml(rows);
     }
 
@@ -4320,20 +4335,6 @@
         return;
       }
 
-      if (type === "path") {
-        const path = findPathByKey(key);
-        if (!path) return;
-        const metres = distanceFromUserToPath(path);
-        state.selected = { type: "path", item: path };
-        syncHashFromSelection();
-        showPathDetails(path, metres);
-        setInspectorMinimized(true);
-        startCompassNavigation();
-        ensureUserAndSelectionVisible({ animate: true, force: true });
-        requestDraw();
-        return;
-      }
-
       if (type === "tree") {
         const tree = findTreeByHashKey(key);
         if (!tree) return;
@@ -4369,6 +4370,20 @@
         state.selected = { type: "cow", item: cow };
         syncHashFromSelection();
         showCowDetails(cow, metres);
+        setInspectorMinimized(true);
+        startCompassNavigation();
+        ensureUserAndSelectionVisible({ animate: true, force: true });
+        requestDraw();
+        return;
+      }
+
+      if (type === "path") {
+        const path = findPathByHashKey(key);
+        if (!path) return;
+        const metres = distanceFromUserToPath(path);
+        state.selected = { type: "path", item: path };
+        syncHashFromSelection();
+        showPathDetails(path, metres);
         setInspectorMinimized(true);
         startCompassNavigation();
         ensureUserAndSelectionVisible({ animate: true, force: true });
@@ -4521,7 +4536,7 @@
 
     function markerOpacityFor(kind, item) {
       if (kind === "tree") return 1;
-      const locationSelected = state.selected && ["tree", "landmark", "cow"].includes(state.selected.type);
+      const locationSelected = state.selected && ["tree", "landmark", "cow", "path"].includes(state.selected.type);
       if (locationSelected) {
         if (state.selected.type === kind && state.selected.item === item) return 1;
         // When something is selected, reduce other markers significantly
@@ -4810,7 +4825,7 @@
       if (els.filterToggle) {
         const activeGroupCount = getActiveGroupKeys(currentSet).length;
         const hasActiveFilter = activeGroupCount > 0;
-        const locationSelected = Boolean(state.selected && ["tree", "landmark", "cow"].includes(state.selected.type));
+        const locationSelected = Boolean(state.selected && ["tree", "landmark", "cow", "path"].includes(state.selected.type));
         
         // Hide filter button when viewing location details
         els.filterToggle.hidden = locationSelected;
@@ -5133,10 +5148,11 @@
           continue;
         }
 
-        if (filterKey === "trails") {
+        if (filterKey === "waymarked_trails") {
           for (const path of state.paths) {
-            const metres = distanceFromPointToLinearFeature(latitude, longitude, path);
-            if (metres > radiusMetres) unique.add(`path:${pathKey(path)}`);
+            if (!isWaymarkedTrail(path)) continue;
+            const metres = distanceFromUserToPath(path);
+            if (metres > radiusMetres) unique.add(`path:${pathHashKey(path)}`);
           }
           continue;
         }
@@ -5397,10 +5413,10 @@
             continue;
           }
 
-          if (filterKey === "trails") {
+          if (filterKey === "waymarked_trails") {
             selectedEntries.push(
-              ...nearbyPathsWithinDistance(latitude, longitude, maxMetres).map(({ path, metres }) => ({
-                kind: "trails",
+              ...nearbyWaymarkedPathsWithinDistance(latitude, longitude, maxMetres).map(({ path, metres }) => ({
+                kind: "waymarked_trails",
                 type: "path",
                 item: path,
                 metres,
@@ -5426,8 +5442,8 @@
             : entry.type === "cow"
               ? `cow:${cowKey(entry.item)}`
               : entry.type === "path"
-                ? `path:${pathKey(entry.item)}`
-                : `place:${placeHashKey(entry.item)}`;
+                ? `path:${pathHashKey(entry.item)}`
+              : `place:${placeHashKey(entry.item)}`;
           const existing = unique.get(key);
           if (!existing || entry.metres < existing.metres) unique.set(key, entry);
         }
@@ -5456,8 +5472,8 @@
         }))
       );
       entries.push(
-        ...nearbyPathsWithinDistance(latitude, longitude, maxMetres).map(({ path, metres }) => ({
-          kind: "trails",
+        ...nearbyWaymarkedPathsWithinDistance(latitude, longitude, maxMetres).map(({ path, metres }) => ({
+          kind: "waymarked_trails",
           type: "path",
           item: path,
           metres,
@@ -5476,14 +5492,14 @@
 
     function overviewNearestHtml() {
       if (!state.userLocation) {
-        return `<p class="empty">Use your location to list the nearest trees, trails, cows, cafés, transport links, pubs, and landmarks.</p>`;
+        return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
       }
 
       const entries = overviewItemsForActiveFilter();
       const activePointFilters = getActivePointFilterKeys();
       if (!entries.length) {
         if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
-          return `<p class="empty">Selected map layers are shown on the map. Add Trees, Trails, Cows, or another nearby filter to list nearby items.</p>`;
+          return `<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
         }
         if (activePointFilters.length === 1) {
           const meta = filterMeta(activePointFilters[0]);
@@ -5501,13 +5517,13 @@
       const itemsHtml = entries.map((entry) => {
         const name = entry.type === "tree"
           ? displayValue(entry.item.commonName || entry.item.tagNumber || entry.item.recordNumber)
-          : entry.type === "path"
-            ? (entry.item.name || "Forest trail")
           : entry.type === "cow"
             ? "Cow"
+            : entry.type === "path"
+              ? displayValue(entry.item.name || entry.item.ref || "Waymarked trail")
           : placeTitle(entry.item);
         const emoji = filterKindEmoji(entry.kind) || landmarkEmoji(entry.item);
-        const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathKey(entry.item) : placeHashKey(entry.item);
+        const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : placeHashKey(entry.item);
         const subtitle = `${formatDistance(entry.metres)} · ${formatWalkTime(entry.metres)}`;
         return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label"><span class="nearest-emoji" aria-hidden="true">${emoji}</span><span>${escapeHtml(name)}</span></span></span><small>${escapeHtml(subtitle)}</small></button></li>`;
       }).join("");
@@ -6023,20 +6039,6 @@
       return null;
     }
 
-    function pathKey(path) {
-      const name = String(path?.name || path?.pathType || "trail").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      const bbox = path?.bbox || {};
-      return `path:${name}:${Math.round((bbox.minX || 0) * 100)}:${Math.round((bbox.minY || 0) * 100)}:${Math.round((bbox.maxX || 0) * 100)}:${Math.round((bbox.maxY || 0) * 100)}`;
-    }
-
-    function findPathByKey(key) {
-      const probe = String(key).trim().toLowerCase();
-      for (const path of state.paths) {
-        if (pathKey(path).toLowerCase() === probe) return path;
-      }
-      return null;
-    }
-
     function updateCompassOverlay() {
       const target = selectedCompassTarget();
       if (!target || !state.userLocation) {
@@ -6055,11 +6057,8 @@
 
       const title = state.selected.type === "tree"
         ? displayValue(target.commonName || target.tagNumber || target.recordNumber)
-        : state.selected.type === "path"
-          ? (target.name || "Forest trail")
         : placeTitle(target);
-      const distance = state.selected.type === "path" ? distanceFromUserToPath(target) : distanceFromUser(target);
-      els.compassLabel.textContent = `${title} · ${formatDistance(distance)}`;
+      els.compassLabel.textContent = `${title} · ${formatDistance(distanceFromUser(target))}`;
     }
 
     function updateOverviewDirectionArrows() {
@@ -6531,22 +6530,15 @@
       return distanceMetres(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
     }
 
-    function distanceFromUserToPath(path) {
-      return distanceFromUserToLinearFeature(path);
-    }
-
     function distanceFromUserToRoad(road) {
-      return distanceFromUserToLinearFeature(road);
-    }
-
-    function distanceFromUserToLinearFeature(feature) {
-      if (!state.userLocation || !feature || !feature.segments || feature.segments.length === 0) return null;
+      if (!state.userLocation || !road || !road.segments || road.segments.length === 0) return null;
       
       const userLat = state.userLocation.latitude;
       const userLon = state.userLocation.longitude;
       let minDistance = Infinity;
       
-      for (const segment of feature.segments) {
+      // Check all segments of the road
+      for (const segment of road.segments) {
         for (let i = 1; i < segment.length; i++) {
           const p1 = segment[i - 1];
           const p2 = segment[i];
@@ -6569,46 +6561,42 @@
       return minDistance === Infinity ? null : minDistance;
     }
 
-    function nearbyPathsWithinDistance(latitude, longitude, maxMetres) {
-      if (!state.paths.length) return [];
-      const userPoint = projectLonLat(longitude, latitude);
-      let worldRadius = Infinity;
-      if (Number.isFinite(maxMetres)) {
-        const lonDelta = maxMetres / (111320 * Math.max(0.1, Math.cos(latitude * Math.PI / 180)));
-        const edgePoint = projectLonLat(longitude + lonDelta, latitude);
-        worldRadius = Math.abs(edgePoint.x - userPoint.x);
-      }
+    function distanceFromUserToPath(path) {
+      if (!state.userLocation || !path || !path.segments || path.segments.length === 0) return null;
 
-      const results = [];
-      for (const path of state.paths) {
-        if (Number.isFinite(worldRadius) && path.bbox) {
-          if (path.bbox.maxX < userPoint.x - worldRadius || path.bbox.minX > userPoint.x + worldRadius) continue;
-          if (path.bbox.maxY < userPoint.y - worldRadius || path.bbox.minY > userPoint.y + worldRadius) continue;
-        }
-        const metres = distanceFromPointToLinearFeature(latitude, longitude, path);
-        if (!Number.isFinite(metres)) continue;
-        if (metres <= maxMetres) results.push({ path, metres });
-      }
-
-      return results.sort((a, b) => a.metres - b.metres);
-    }
-
-    function distanceFromPointToLinearFeature(latitude, longitude, feature) {
-      if (!feature || !feature.segments || !feature.segments.length) return null;
+      const userLat = state.userLocation.latitude;
+      const userLon = state.userLocation.longitude;
       let minDistance = Infinity;
-      for (const segment of feature.segments) {
-        for (let i = 1; i < segment.length; i++) {
-          const lonLat1 = unprojectPoint(segment[i - 1]);
-          const lonLat2 = unprojectPoint(segment[i]);
+
+      for (const segment of path.segments) {
+        for (let i = 1; i < segment.length; i += 1) {
+          const p1 = segment[i - 1];
+          const p2 = segment[i];
+          const lonLat1 = unprojectPoint(p1);
+          const lonLat2 = unprojectPoint(p2);
           const dist = distanceToLineSegment(
-            latitude, longitude,
+            userLat, userLon,
             lonLat1.latitude, lonLat1.longitude,
             lonLat2.latitude, lonLat2.longitude
           );
           minDistance = Math.min(minDistance, dist);
         }
       }
+
       return minDistance === Infinity ? null : minDistance;
+    }
+
+    function nearbyWaymarkedPathsWithinDistance(latitude, longitude, maxMetres) {
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return [];
+      return state.paths
+        .filter((path) => isWaymarkedTrail(path))
+        .map((path) => ({ path, metres: distanceFromUserToPath(path) }))
+        .filter((entry) => Number.isFinite(entry.metres) && entry.metres <= maxMetres)
+        .sort((a, b) => a.metres - b.metres);
+    }
+
+    function findPathByHashKey(key) {
+      return state.paths.find((path) => pathHashKey(path) === key) || null;
     }
 
     function distanceToLineSegment(lat, lon, lat1, lon1, lat2, lon2) {
@@ -7080,8 +7068,8 @@
     function filterKindEmoji(kind) {
       switch (kind) {
         case "tree": return "🌳";
-        case "trails": return "🥾";
         case "cow": return "🐄";
+        case "waymarked_trails": return "🥾";
         case "pub":
         case "pubs": return "🍺";
         case "restaurant":
@@ -7117,8 +7105,8 @@
     function filterKindColor(kind) {
       switch (kind) {
         case "tree": return "rgba(47, 111, 78, 0.85)";
-        case "trails": return "rgba(41, 82, 59, 0.88)";
         case "cow": return "rgba(154, 106, 47, 0.85)";
+        case "waymarked_trails": return "rgba(109, 68, 140, 0.9)";
         case "pub":
         case "pubs": return "rgba(127, 79, 159, 0.85)";
         case "cafe":
