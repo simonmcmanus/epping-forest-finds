@@ -926,60 +926,6 @@
       place-items: center;
     }
 
-    .report-modal {
-      position: absolute;
-      inset: 0;
-      z-index: 130;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(20, 28, 24, 0.5);
-      padding: 16px;
-    }
-
-    .report-modal[hidden] {
-      display: none;
-    }
-
-    .report-modal-card {
-      width: 100%;
-      max-width: 560px;
-      max-height: calc(100vh - 36px);
-      overflow: auto;
-      background: #fff;
-      border: 1px solid rgba(36, 56, 47, 0.18);
-      box-shadow: var(--shadow);
-      border-radius: 12px;
-      padding: 16px;
-      display: grid;
-      gap: 12px;
-    }
-
-    .report-modal-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .report-modal-title {
-      margin: 0;
-      font-size: 1.1rem;
-      font-weight: 850;
-      color: var(--ink);
-    }
-
-    .report-modal-close {
-      width: 34px;
-      height: 34px;
-      border-radius: 6px;
-      border: 1px solid var(--line);
-      background: #f4f7f3;
-      color: var(--ink);
-      font-size: 1.1rem;
-      line-height: 1;
-    }
-
     .report-form {
       display: grid;
       gap: 10px;
@@ -1176,7 +1122,7 @@
       line-height: 1;
       color: var(--selected);
       transform-origin: 50% 50%;
-      transition: transform 120ms linear;
+      transition: transform 40ms linear;
       user-select: none;
     }
 
@@ -1230,7 +1176,7 @@
       line-height: 1;
       font-weight: 900;
       transform-origin: 50% 50%;
-      transition: transform 120ms linear;
+      transition: transform 40ms linear;
       flex: 0 0 auto;
     }
 
@@ -1432,7 +1378,7 @@
           </div>
           <div class="inspector-actions">
             <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Hide filters" aria-expanded="true" aria-pressed="false" aria-controls="filterPanel"><span class="filter-icon" aria-hidden="true"></span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
-            <button id="reportToggle" class="close report-toggle" type="button" aria-label="Report missing data or request a feature" aria-haspopup="dialog" aria-controls="reportModal">✍️</button>
+            <button id="reportToggle" class="close report-toggle" type="button" aria-label="Report missing data or request a feature">✍️</button>
           </div>
         </div>
         <div class="inspector-tools">
@@ -1450,37 +1396,6 @@
           <p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>
         </div>
       </aside>
-
-      <div id="reportModal" class="report-modal" aria-live="polite" hidden>
-        <div class="report-modal-card" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle">
-          <div class="report-modal-header">
-            <h2 id="reportModalTitle" class="report-modal-title">Report missing data / request feature</h2>
-            <button id="reportModalClose" class="report-modal-close" type="button" aria-label="Close report form">✕</button>
-          </div>
-          <p class="report-note">Tell us what should appear on the map, or request a new feature. Reports can be tracked as GitHub issues.</p>
-          <form id="reportForm" class="report-form">
-            <label for="reportType">Type
-              <select id="reportType" class="report-input" required>
-                <option value="missing-data">Missing location/data</option>
-                <option value="feature-request">Feature request</option>
-              </select>
-            </label>
-            <label for="reportDetails">Details
-              <textarea id="reportDetails" class="report-textarea" placeholder="Describe what should appear on the map, or the feature you want." required></textarea>
-            </label>
-            <div class="report-row">
-              <button id="reportUseLocation" class="button" type="button">Use my current location</button>
-              <span id="reportLocationLabel" class="report-location-pill" hidden>Location not added</span>
-            </div>
-            <p class="report-note">If location is added, it will be included in the issue to help pinpoint the request.</p>
-            <p id="reportStatus" class="report-status" aria-live="polite"></p>
-            <div class="report-form-actions">
-              <button id="reportCancel" class="button" type="button">Cancel</button>
-              <button id="reportSubmit" class="button" type="submit">Submit report</button>
-            </div>
-          </form>
-        </div>
-      </div>
     </main>
   </div>
 
@@ -1659,6 +1574,7 @@
       compassAnimationFrame: null,
       compassAnimationTime: null,
       compassArrowAngle: null,
+      compassLastEventAt: null,
       viewportAnimationFrame: null,
       viewportAnimationFrom: null,
       viewportAnimationTo: null,
@@ -1705,15 +1621,6 @@
       treeSearchInput: document.getElementById("treeSearchInput"),
       treeSearchButton: document.getElementById("treeSearchButton"),
       reportToggle: document.getElementById("reportToggle"),
-      reportModal: document.getElementById("reportModal"),
-      reportModalClose: document.getElementById("reportModalClose"),
-      reportForm: document.getElementById("reportForm"),
-      reportType: document.getElementById("reportType"),
-      reportDetails: document.getElementById("reportDetails"),
-      reportUseLocation: document.getElementById("reportUseLocation"),
-      reportLocationLabel: document.getElementById("reportLocationLabel"),
-      reportStatus: document.getElementById("reportStatus"),
-      reportCancel: document.getElementById("reportCancel"),
     };
 
     boot();
@@ -2078,39 +1985,6 @@
       if (els.reportToggle) {
         els.reportToggle.addEventListener("click", () => {
           openReportModal();
-        });
-      }
-
-      if (els.reportModalClose) {
-        els.reportModalClose.addEventListener("click", () => {
-          closeReportModal();
-        });
-      }
-
-      if (els.reportCancel) {
-        els.reportCancel.addEventListener("click", () => {
-          closeReportModal();
-        });
-      }
-
-      if (els.reportModal) {
-        els.reportModal.addEventListener("click", (event) => {
-          if (event.target === els.reportModal) {
-            closeReportModal();
-          }
-        });
-      }
-
-      if (els.reportUseLocation) {
-        els.reportUseLocation.addEventListener("click", () => {
-          populateReportLocation();
-        });
-      }
-
-      if (els.reportForm) {
-        els.reportForm.addEventListener("submit", async (event) => {
-          event.preventDefault();
-          await submitReportForm();
         });
       }
 
@@ -2803,13 +2677,7 @@
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
-      // Limit roads drawn per frame to prevent lag
-      let roadsDrawn = 0;
-      const maxRoadsPerFrame = 2000;
-
       for (const road of state.roads) {
-        if (roadsDrawn >= maxRoadsPerFrame) break;
-        
         if (road.bbox) {
           if (road.bbox.maxX < minWorldX - margin || road.bbox.minX > maxWorldX + margin) continue;
           if (road.bbox.maxY < minWorldY - margin || road.bbox.minY > maxWorldY + margin) continue;
@@ -2876,7 +2744,6 @@
           ctx.stroke();
         }
         
-        roadsDrawn++;
       }
 
       ctx.restore();
@@ -2925,6 +2792,14 @@
             casing: "rgba(255, 255, 255, 0.45)",
             width: 2.5 * dpr,
             casingWidth: 4.5 * dpr,
+          });
+        }
+
+        if (type === "building") {
+          drawEnvironmentPolygon(ctx, geometry, {
+            fill: "rgba(120, 120, 120, 0.15)",
+            stroke: "rgba(80, 80, 80, 0.35)",
+            width: 0.8 * dpr,
           });
         }
 
@@ -4625,24 +4500,77 @@
     }
 
     function openReportModal() {
-      if (!els.reportModal) return;
-      els.reportModal.hidden = false;
+      state.selected = { type: "report", item: null };
+      setInspectorSelectionChrome({ emoji: "✍️", showBack: true });
+      els.inspectorTools.hidden = true;
+      els.inspectorTitle.textContent = "Report";
+      els.inspectorType.textContent = "Missing data / feature request";
+      els.inspectorBody.innerHTML = reportFormHtml();
+      bindReportFormHandlers();
       setReportStatus("");
       updateReportLocationLabel();
-      if (els.reportDetails) els.reportDetails.focus();
+      const detailsInput = document.getElementById("reportDetails");
+      if (detailsInput) detailsInput.focus();
+      setInspectorMinimized(false);
+      updateCompassOverlay();
+      requestDraw();
     }
 
-    function closeReportModal() {
-      if (!els.reportModal) return;
-      els.reportModal.hidden = true;
-      setReportStatus("");
+    function reportFormHtml() {
+      return `<p class="report-note">Tell us what should appear on the map, or request a new feature. Reports are tracked as GitHub issues.</p>
+        <form id="reportForm" class="report-form">
+          <label for="reportType">Type
+            <select id="reportType" class="report-input" required>
+              <option value="missing-data">Missing location/data</option>
+              <option value="feature-request">Feature request</option>
+            </select>
+          </label>
+          <label for="reportDetails">Details
+            <textarea id="reportDetails" class="report-textarea" placeholder="Describe what should appear on the map, or the feature you want." required></textarea>
+          </label>
+          <div class="report-row">
+            <button id="reportUseLocation" class="button" type="button">Use my current location</button>
+            <span id="reportLocationLabel" class="report-location-pill" hidden>Location not added</span>
+          </div>
+          <p class="report-note">If location is added, it will be included in the issue to help pinpoint the request.</p>
+          <p id="reportStatus" class="report-status" aria-live="polite"></p>
+          <div class="report-form-actions">
+            <button id="reportCancel" class="button" type="button">Cancel</button>
+            <button id="reportSubmit" class="button" type="submit">Submit report</button>
+          </div>
+        </form>`;
+    }
+
+    function bindReportFormHandlers() {
+      const useLocationButton = document.getElementById("reportUseLocation");
+      if (useLocationButton) {
+        useLocationButton.addEventListener("click", () => {
+          populateReportLocation();
+        });
+      }
+
+      const cancelButton = document.getElementById("reportCancel");
+      if (cancelButton) {
+        cancelButton.addEventListener("click", () => {
+          goToInitialView();
+        });
+      }
+
+      const form = document.getElementById("reportForm");
+      if (form) {
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          await submitReportForm();
+        });
+      }
     }
 
     function setReportStatus(message, tone = "") {
-      if (!els.reportStatus) return;
-      els.reportStatus.textContent = message || "";
-      els.reportStatus.classList.remove("error", "success");
-      if (tone) els.reportStatus.classList.add(tone);
+      const statusEl = document.getElementById("reportStatus");
+      if (!statusEl) return;
+      statusEl.textContent = message || "";
+      statusEl.classList.remove("error", "success");
+      if (tone) statusEl.classList.add(tone);
     }
 
     function currentReportLocation() {
@@ -4655,14 +4583,15 @@
     }
 
     function updateReportLocationLabel() {
-      if (!els.reportLocationLabel) return;
+      const locationLabel = document.getElementById("reportLocationLabel");
+      if (!locationLabel) return;
       const loc = currentReportLocation();
       if (!loc) {
-        els.reportLocationLabel.hidden = true;
+        locationLabel.hidden = true;
         return;
       }
-      els.reportLocationLabel.hidden = false;
-      els.reportLocationLabel.textContent = `📍 ${loc.latitude}, ${loc.longitude}`;
+      locationLabel.hidden = false;
+      locationLabel.textContent = `📍 ${loc.latitude}, ${loc.longitude}`;
     }
 
     async function populateReportLocation() {
@@ -4701,16 +4630,18 @@
     }
 
     async function submitReportForm() {
-      if (!els.reportType || !els.reportDetails) return;
+      const reportTypeInput = document.getElementById("reportType");
+      const reportDetailsInput = document.getElementById("reportDetails");
+      if (!reportTypeInput || !reportDetailsInput) return;
 
-      const details = String(els.reportDetails.value || "").trim();
+      const details = String(reportDetailsInput.value || "").trim();
       if (!details) {
         setReportStatus("Please add details before submitting.", "error");
         return;
       }
 
       const payload = {
-        reportType: els.reportType.value,
+        reportType: reportTypeInput.value,
         details,
         location: currentReportLocation(),
         appVersion: APP_VERSION,
@@ -4738,7 +4669,7 @@
 
         const issueText = data && data.issueUrl ? ` Issue: ${data.issueUrl}` : "";
         setReportStatus(`Report submitted successfully.${issueText}`, "success");
-        els.reportDetails.value = "";
+        reportDetailsInput.value = "";
       } catch (error) {
         setReportStatus("Could not submit report. Please try again.", "error");
       }
@@ -5341,6 +5272,7 @@
       if (!Number.isFinite(heading)) return;
       if (!Number.isFinite(state.compassHeading)) state.compassHeading = heading;
       state.compassHeadingTarget = heading;
+      state.compassLastEventAt = performance.now();
       startCompassSmoothing();
     }
 
@@ -5359,10 +5291,8 @@
         state.compassAnimationTime = timestamp;
 
         const delta = shortestCompassDelta(state.compassHeading, state.compassHeadingTarget);
-        const maxStep = 280 * dt;
-        const step = Math.sign(delta) * Math.min(Math.abs(delta), maxStep);
-        const easedStep = step * 0.82;
-        const nextHeading = state.compassHeading + easedStep;
+        const smoothing = 1 - Math.exp(-14 * dt);
+        const nextHeading = state.compassHeading + (delta * smoothing);
         state.compassHeading = nextHeading;
 
         updateOverviewDirectionArrows();
@@ -5370,7 +5300,9 @@
         requestDraw();
 
         const remaining = Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget));
-        if (remaining < 0.2) {
+        const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
+        const sensorIsActive = lastEventAge < 350;
+        if (remaining < 0.05 && !sensorIsActive) {
           state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
           updateOverviewDirectionArrows();
           updateCompassOverlay();
