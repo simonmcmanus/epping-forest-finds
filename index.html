@@ -882,6 +882,10 @@
       background: rgba(255, 255, 255, 0.72);
     }
 
+    .inspector-tools.filters-closed {
+      padding-top: 0;
+    }
+
     .inspector.minimized .inspector-tools {
       display: none;
     }
@@ -2016,6 +2020,7 @@
       updateMapControlVisibility();
       renderOverviewFilterPanel();
       updateFilterUi();
+      updateInspectorToolsLayout();
 
       window.addEventListener("resize", () => {
         updateMapControlVisibility();
@@ -2086,6 +2091,7 @@
         state.filterPanelCollapsed = !willOpen;
         els.filterToggle.setAttribute("aria-expanded", String(willOpen));
         updateFilterUi();
+        updateInspectorToolsLayout();
       });
 
       if (els.reportToggle) {
@@ -4737,6 +4743,13 @@
           ? `${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
           : (els.filterPanel.hidden ? "Show filters" : "Hide filters"));
       }
+
+      updateInspectorToolsLayout();
+    }
+
+    function updateInspectorToolsLayout() {
+      if (!els.inspectorTools || !els.filterPanel) return;
+      els.inspectorTools.classList.toggle("filters-closed", els.filterPanel.hidden);
     }
 
     function filterMeta(filterKey) {
@@ -6249,7 +6262,7 @@
         if (dragRecenterFrame == null) {
           dragRecenterFrame = requestAnimationFrame(() => {
             dragRecenterFrame = null;
-            recentMapForInspectorChange({ animate: false });
+            recentMapForInspectorChange({ animate: true, durationMs: 180 });
           });
         }
       });
