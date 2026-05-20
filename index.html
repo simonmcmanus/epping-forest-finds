@@ -870,15 +870,15 @@
     }
 
     .inspector-back {
-      width: 30px;
-      height: 30px;
+      width: 60px;
+      height: 60px;
       border-radius: 999px;
       border: 1px solid var(--line);
       background: #fff;
       color: var(--ink);
       display: inline-grid;
       place-items: center;
-      font-size: 1rem;
+      font-size: 2rem;
       line-height: 1;
       flex: 0 0 auto;
     }
@@ -1256,7 +1256,8 @@
         <span style="color: #5aaf46;">🌻 Gardens &amp; parks</span>
         <span style="color: #3a5c45;">🥾 Paths &amp; trails</span>
         <span style="color: #9a6a2f;">🐄 Cows</span>
-        <span style="color: var(--place);">🍺 Pubs, bars &amp; restaurants</span>
+        <span style="color: var(--place);">🍺 Pubs &amp; bars</span>
+        <span style="color: var(--place);">🍽️ Restaurants</span>
         <span style="color: #8b4513;">☕ Cafés</span>
         <span style="color: #dc143c;">🚆 Trains</span>
         <span style="color: #ff8c00;">🚌 Buses</span>
@@ -1321,7 +1322,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v77";
+    const APP_VERSION = "v79";
     const FILTER_GROUPS = [
       {
         key: "nature",
@@ -1339,8 +1340,10 @@
         key: "food",
         label: "🍽️ Food",
         subfilters: [
-          { key: "pubs", label: "🍺 Pubs", title: "pubs and restaurants" },
+          { key: "pubs", label: "🍺 Pubs & bars", title: "pubs and bars" },
+          { key: "restaurants", label: "🍽️ Restaurants", title: "restaurants" },
           { key: "cafes", label: "☕ Cafés", title: "cafés" },
+          { key: "shops", label: "🛒 Shops", title: "shops" },
         ],
       },
       {
@@ -1400,7 +1403,9 @@
     const PLACE_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key).filter((key) => !LAYER_FILTER_KEYS.has(key) && !TREE_FILTER_KEYS.has(key) && !COW_FILTER_KEYS.has(key)));
     const PLACE_FILTER_PRIORITY = [
       "pubs",
+      "restaurants",
       "cafes",
+      "shops",
       "bus",
       "underground",
       "national_rail",
@@ -1441,6 +1446,7 @@
       nearestTree: null,
       nearestCow: null,
       nearestPub: null,
+      nearestRestaurant: null,
       nearestLandmark: null,
       nearestPlace: null,
       cows: [],
@@ -1597,18 +1603,31 @@
             return { features: [] };
           });
 
-        const roadsPromise = fetch(ROADS_URL)
-          .then(async (r) => {
-            if (!r.ok) throw new Error(`Roads data HTTP ${r.status}`);
-            const data = await r.json();
-            const count = data.features ? data.features.length : 0;
-            setLoadStep("roads", "done", count);
-            return data;
-          })
-          .catch(() => {
+        const roadsPromise = Promise.race([
+          fetch(ROADS_URL)
+            .then(async (r) => {
+              if (!r.ok) throw new Error(`Roads data HTTP ${r.status}`);
+              const data = await r.json();
+              // Filter to only major roads to reduce processing load
+              const majorRoads = (data.features || []).filter((feature) => {
+                const highway = feature.properties?.highway;
+                return highway && ["motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link"].includes(highway);
+              });
+              const filteredData = { ...data, features: majorRoads };
+              const count = majorRoads.length;
+              setLoadStep("roads", "done", count);
+              return filteredData;
+            })
+            .catch(() => {
+              setLoadStep("roads", "error");
+              return { features: [] };
+            }),
+          // Timeout after 8 seconds to prevent indefinite hang
+          new Promise((resolve) => setTimeout(() => {
             setLoadStep("roads", "error");
-            return { features: [] };
-          });
+            resolve({ features: [] });
+          }, 8000))
+        ]);
 
         const environmentPromise = fetch(ENVIRONMENT_URL)
           .then(async (r) => {
@@ -1685,9 +1704,19 @@
           .map(toPathFeature)
           .filter(Boolean);
 
-        state.roads = (roadsData.features || [])
-          .map(toRoadFeature)
-          .filter(Boolean);
+        // Process roads in smaller batches to avoid freezing
+        const roadFeatures = roadsData.features || [];
+        state.roads = [];
+        const batchSize = 500;
+        for (let i = 0; i < roadFeatures.length; i += batchSize) {
+          const batch = roadFeatures.slice(i, i + batchSize);
+          const processed = batch.map(toRoadFeature).filter(Boolean);
+          state.roads.push(...processed);
+          // Allow browser to breathe every batch
+          if (i + batchSize < roadFeatures.length) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
+        }
 
         state.environmentFeatures = (environmentData.features || []).filter((feature) => feature && feature.geometry && feature.properties);
 
@@ -1993,7 +2022,8 @@
             state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
             state.nearestCow = nearestCowTo(latitude, longitude);
             state.nearestPub = nearestPlaceByFilter(latitude, longitude, (place) => isPubCategory(place));
-            state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isCafeCategory(place) && !isTransportCategory(place));
+            state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
+            state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
             state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
             state.selected = null;
             ensureLocationWatch();
@@ -2515,6 +2545,10 @@
 
       const dpr = pixelRatio();
       const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
+      
+      // Skip roads when zoomed out too far to improve performance
+      if (zoomLevel < -0.5) return;
+      
       const worldTopLeft = screenToWorld(0, 0);
       const worldBottomRight = screenToWorld(els.canvas.width, els.canvas.height);
       const minWorldX = Math.min(worldTopLeft.x, worldBottomRight.x);
@@ -2527,7 +2561,13 @@
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
+      // Limit roads drawn per frame to prevent lag
+      let roadsDrawn = 0;
+      const maxRoadsPerFrame = 2000;
+
       for (const road of state.roads) {
+        if (roadsDrawn >= maxRoadsPerFrame) break;
+        
         if (road.bbox) {
           if (road.bbox.maxX < minWorldX - margin || road.bbox.minX > maxWorldX + margin) continue;
           if (road.bbox.maxY < minWorldY - margin || road.bbox.minY > maxWorldY + margin) continue;
@@ -2593,6 +2633,8 @@
           ctx.lineWidth = roadWidth;
           ctx.stroke();
         }
+        
+        roadsDrawn++;
       }
 
       ctx.restore();
@@ -4320,11 +4362,22 @@
     }
 
     function isPubCategory(place) {
-      return ["pub", "bar", "restaurant"].includes(place.category);
+      return ["pub", "bar"].includes(place.category);
+    }
+
+    function isRestaurantCategory(place) {
+      return place.category === "restaurant";
     }
 
     function isCafeCategory(place) {
       return ["cafe", "tea"].includes(place.category);
+    }
+
+    function isShopCategory(place) {
+      const shopTypes = ["convenience", "supermarket", "grocery", "general", "greengrocer", "butcher", "bakery", "deli", "farm", "pastry", "kiosk", "confectionery"];
+      return shopTypes.includes(place.category)
+        || (place.shop && shopTypes.includes(place.shop))
+        || hasPlaceTag(place, "shop");
     }
 
     function isBusCategory(place) {
@@ -4459,7 +4512,9 @@
     function matchesPlaceFilter(place, filterKey) {
       switch (filterKey) {
         case "pubs": return isPubCategory(place);
+        case "restaurants": return isRestaurantCategory(place);
         case "cafes": return isCafeCategory(place);
+        case "shops": return isShopCategory(place);
         case "bus": return isBusCategory(place);
         case "underground": return isUndergroundCategory(place);
         case "national_rail": return isNationalRailCategory(place);
@@ -4586,6 +4641,10 @@
       }
       if (state.nearestPub && state.nearestPub.place) {
         entries.push({ kind: "pub", type: "landmark", item: state.nearestPub.place, metres: state.nearestPub.metres });
+      }
+
+      if (state.nearestRestaurant && state.nearestRestaurant.place) {
+        entries.push({ kind: "restaurant", type: "landmark", item: state.nearestRestaurant.place, metres: state.nearestRestaurant.metres });
       }
       if (state.nearestLandmark && state.nearestLandmark.place) {
         entries.push({ kind: "landmark", type: "landmark", item: state.nearestLandmark.place, metres: state.nearestLandmark.metres });
@@ -4886,7 +4945,8 @@
           state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
           state.nearestCow = nearestCowTo(latitude, longitude);
           state.nearestPub = nearestPlaceByFilter(latitude, longitude, (place) => isPubCategory(place));
-          state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isCafeCategory(place) && !isTransportCategory(place));
+          state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
+          state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
           state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
           if (isOverviewScreenActive()) {
             selectOverview();
@@ -6051,6 +6111,7 @@
         properties && properties.category,
         properties && properties.categoryLabel,
         properties && properties.amenity,
+        properties && properties.shop,
         properties && properties.tourism,
         properties && properties.historic,
         properties && properties.railway,
@@ -6070,8 +6131,11 @@
         case "cow": return "🐄";
         case "pub":
         case "pubs": return "🍺";
+        case "restaurant":
+        case "restaurants": return "🍽️";
         case "cafe":
         case "cafes": return "☕";
+        case "shops": return "🛒";
         case "bus": return "🚌";
         case "underground": return '<svg width="1em" height="1em" viewBox="0 0 24 24" style="vertical-align: middle; display: inline-block;"><path fill="#C9181E" d="M12 2.25a9.73 9.73 0 0 0-9.49 7.5H0v4.5h2.51a9.73 9.73 0 0 0 9.49 7.5c4.62 0 8.48-3.2 9.49-7.5H24v-4.5h-2.51A9.73 9.73 0 0 0 12 2.25zM12 6c2.5 0 4.66 1.56 5.56 3.75H6.44A6.02 6.02 0 0 1 12 6zm-5.56 8.25h11.12A6.02 6.02 0 0 1 12 18a6.02 6.02 0 0 1-5.56-3.75Z"/></svg>';
         case "national_rail": return '<svg width="1em" height="1em" viewBox="0 0 24 24" style="vertical-align: middle; display: inline-block;"><circle cx="12" cy="12" r="12" fill="#FFFFFF"/><path fill="#C9181E" d="M0 12C0 5.373 5.372 0 12 0c6.627 0 11.999 5.373 11.999 12 0 6.628-5.372 12-11.999 12-6.628 0-12-5.372-12-12Zm6.195-5.842 6.076 2.794H2.835v1.884h9.499l-4.616 2.246H2.835v1.868h4.883l5.778 2.795h4.333l-6.092-2.795h9.469v-1.868h-9.453l4.616-2.246h4.837V8.952h-4.868l-5.777-2.794H6.195"/></svg>';
@@ -6105,6 +6169,7 @@
         case "pubs": return "rgba(127, 79, 159, 0.85)";
         case "cafe":
         case "cafes": return "rgba(139, 69, 19, 0.85)";
+        case "shops": return "rgba(46, 125, 50, 0.85)";
         case "bus": return "rgba(255, 140, 0, 0.85)";
         case "underground": return "rgba(201, 24, 24, 0.85)";
         case "national_rail": return "rgba(0, 47, 167, 0.85)";

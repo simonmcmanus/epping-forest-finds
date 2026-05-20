@@ -13,7 +13,7 @@ OVERPASS_JSON_PATH = DATA / "local-landmarks.overpass.json"
 GEOJSON_PATH = DATA / "local-landmarks.geojson"
 FOREST_BOUNDARY_PATH = DATA / "epping-forest-land.geojson"
 WALKING_SPEED_M_PER_MIN = 3500 / 60  # 3.5 km/h
-MAX_WALK_MINUTES_FROM_BOUNDARY = 25
+MAX_WALK_MINUTES_FROM_BOUNDARY = 8
 MAX_DISTANCE_FROM_BOUNDARY_METRES = WALKING_SPEED_M_PER_MIN * MAX_WALK_MINUTES_FROM_BOUNDARY
 OVERPASS_URLS = [
     "https://overpass-api.de/api/interpreter",
@@ -60,6 +60,18 @@ LABELS = {
     "memorial": "Memorial",
     "ruins": "Ruins",
     "castle": "Castle",
+    "convenience": "Convenience Store",
+    "supermarket": "Supermarket",
+    "grocery": "Grocery Store",
+    "general": "General Store",
+    "greengrocer": "Greengrocer",
+    "butcher": "Butcher",
+    "bakery": "Bakery",
+    "deli": "Deli",
+    "farm": "Farm Shop",
+    "pastry": "Pastry Shop",
+    "confectionery": "Confectionery",
+    "kiosk": "Kiosk",
 }
 
 def category_label(key: str) -> str:
@@ -217,7 +229,10 @@ for element in parsed.get("elements", []):
     if not isinstance(lon, (int, float)) or not isinstance(lat, (int, float)):
         continue
 
+    # Prioritize shop tags for shop features
+    shop_tag = tags.get("shop")
     category = (
+        shop_tag if shop_tag else
         tags.get("amenity")
         or tags.get("barrier")
         or ("entrance" if tags.get("entrance") else None)
@@ -258,6 +273,7 @@ for element in parsed.get("elements", []):
             "category": category,
             "categoryLabel": category_label(category),
             "amenity": tags.get("amenity"),
+            "shop": tags.get("shop"),
             "highway": tags.get("highway"),
             "tourism": tags.get("tourism"),
             "historic": tags.get("historic"),
