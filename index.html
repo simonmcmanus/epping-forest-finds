@@ -1464,6 +1464,7 @@
     const PATHS_URL = "data/local-paths.geojson";
     const ROADS_URL = "data/local-roads.geojson";
     const ENVIRONMENT_URL = "data/local-environment.geojson";
+    const BUILDINGS_URL = "data/local-environment-buildings.geojson";
     const COW_PROXY_URL_BASE = "/api/cows?center=";
     const COW_SOURCE_URL_BASE = "https://account.nofence.no/api/open/data/?center=";
     const COW_DATA_CACHE_KEY = "forest-finds-cow-data-v1";
@@ -1634,6 +1635,9 @@
       inspectorDragStart: null,
       inspectorHeightPercent: null,
       reportDraftLocation: null,
+      buildingFeatures: [],
+      buildingsLoaded: false,
+      buildingsLoading: false,
     };
 
     const els = {
@@ -2800,10 +2804,28 @@
       ctx.restore();
     }
 
+    function loadBuildingsIfNeeded() {
+      if (state.buildingsLoaded || state.buildingsLoading) return;
+      state.buildingsLoading = true;
+      fetch(BUILDINGS_URL)
+        .then((r) => r.json())
+        .then((data) => {
+          state.buildingFeatures = (data.features || []).filter((f) => f && f.geometry && f.properties);
+          state.buildingsLoaded = true;
+          state.buildingsLoading = false;
+          requestDraw();
+        })
+        .catch(() => {
+          state.buildingsLoading = false;
+          state.buildingsLoaded = true; // don't retry on error
+        });
+    }
+
     function drawEnvironment(ctx) {
       if (!state.environmentFeatures.length) return;
 
       const dpr = pixelRatio();
+      const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -2860,6 +2882,41 @@
             stroke: "rgba(90, 140, 70, 0.45)",
             width: 1.2 * dpr,
           });
+        }
+      }
+
+      // Draw buildings lazily — only when zoomed in (zoomLevel >= 0.5)
+      if (zoomLevel >= 0.5) {
+        loadBuildingsIfNeeded();
+        if (state.buildingFeatures.length) {
+          const worldTopLeft = screenToWorld(0, 0);
+          const worldBottomRight = screenToWorld(els.canvas.width, els.canvas.height);
+          const wMinX = Math.min(worldTopLeft.x, worldBottomRight.x);
+          const wMaxX = Math.max(worldTopLeft.x, worldBottomRight.x);
+          const wMinY = Math.min(worldTopLeft.y, worldBottomRight.y);
+          const wMaxY = Math.max(worldTopLeft.y, worldBottomRight.y);
+          const marginX = (wMaxX - wMinX) * 0.05;
+          const marginY = (wMaxY - wMinY) * 0.05;
+          for (const feature of state.buildingFeatures) {
+            // Quick cull via first coordinate
+            const geom = feature.geometry || {};
+            const coords = geom.type === "Polygon" ? geom.coordinates
+              : geom.type === "MultiPolygon" ? geom.coordinates[0]
+              : null;
+            if (coords) {
+              const ring = coords[0];
+              if (ring && ring[0]) {
+                const pt = projectLonLat(Number(ring[0][0]), Number(ring[0][1]));
+                if (pt.x < wMinX - marginX || pt.x > wMaxX + marginX ||
+                    pt.y < wMinY - marginY || pt.y > wMaxY + marginY) continue;
+              }
+            }
+            drawEnvironmentPolygon(ctx, geom, {
+              fill: "rgba(120, 120, 120, 0.15)",
+              stroke: "rgba(80, 80, 80, 0.35)",
+              width: 0.8 * dpr,
+            });
+          }
         }
       }
 
