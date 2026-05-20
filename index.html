@@ -1469,6 +1469,7 @@
     const COW_SOURCE_URL_BASE = "https://account.nofence.no/api/open/data/?center=";
     const COW_DATA_CACHE_KEY = "forest-finds-cow-data-v1";
     const COW_REFRESH_MS = 5 * 60 * 1000;
+    const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
     const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
     const FEATURE_LAYERS = [
       { key: "forest", label: "Epping Forest land", url: "data/epping-forest-land.geojson" },
@@ -1878,9 +1879,11 @@
         state.environmentFeatures = (environmentData.features || []).filter((feature) => feature && feature.geometry && feature.properties);
 
         state.bounds = calculateBounds();
-        applyCachedCowData();
+        const hasCachedCowData = applyCachedCowData();
         setLoadStep("cows", "loading");
-        const cowBootstrapOk = await refreshCowData({ force: true, timeoutMs: 7000 });
+        const cowBootstrapOk = IS_LOCAL_COW_CACHE_MODE && hasCachedCowData
+          ? true
+          : await refreshCowData({ force: true, timeoutMs: 7000 });
         setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
         scheduleCowRefresh();
         fitToBounds();
@@ -5948,7 +5951,7 @@
     function applyCachedCowData() {
       try {
         const raw = localStorage.getItem(COW_DATA_CACHE_KEY);
-        if (!raw) return;
+        if (!raw) return false;
         const parsed = JSON.parse(raw);
         const cows = Array.isArray(parsed && parsed.cows)
           ? parsed.cows.map((cow) => ({
@@ -5958,7 +5961,10 @@
           : [];
         const pastures = Array.isArray(parsed && parsed.pastures) ? parsed.pastures : [];
         applyCowData(cows, pastures, parsed && parsed.updatedAt ? parsed.updatedAt : null, { persist: false });
-      } catch {}
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     async function refreshCowData(options = {}) {
@@ -5989,6 +5995,7 @@
     }
 
     function scheduleCowRefresh() {
+      if (IS_LOCAL_COW_CACHE_MODE) return;
       if (state.cowRefreshTimerId != null) return;
       state.cowRefreshTimerId = window.setInterval(() => {
         refreshCowData();
