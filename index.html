@@ -2665,12 +2665,13 @@
       drawUser(ctx);
       drawSelectedOverlay(ctx);
       drawSelectedRoadOverlay(ctx);
+      drawSelectedPathOverlay(ctx);
 
       if (Math.abs(animatedEmojiScale.target - animatedEmojiScale.value) > 0.001) {
         requestDraw();
       }
 
-      if (state.selected && ["tree", "landmark", "cow", "road"].includes(state.selected.type)) {
+      if (state.selected && ["tree", "landmark", "cow", "road", "path"].includes(state.selected.type)) {
         requestDraw();
       }
     }
@@ -3890,6 +3891,47 @@
         const alpha = 0.5 + pulse * 0.3;
 
         ctx.strokeStyle = `rgba(31, 94, 255, ${alpha})`;
+        ctx.lineWidth = highlightWidth;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawSelectedPathOverlay(ctx) {
+      if (!state.selected || state.selected.type !== "path" || !state.selected.item) return;
+
+      const path = state.selected.item;
+      const dpr = pixelRatio();
+      const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
+      const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+
+      // Base width similar to regular path rendering
+      const baseWidth = clamp(1.35 + zoomLevel * 0.18, 1.35, isCoarsePointer ? 2.5 : 2.2) * dpr;
+      // Highlight width is significantly thicker
+      const highlightWidth = baseWidth * 3.5 + 2 * dpr;
+
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      // Draw all segments of the selected path
+      for (const segment of path.segments) {
+        if (segment.length < 2) continue;
+
+        ctx.beginPath();
+        for (let i = 0; i < segment.length; i += 1) {
+          const point = worldToScreen(segment[i]);
+          if (i === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        }
+
+        // Draw animated pulse effect with yellow/golden color
+        const now = Date.now();
+        const pulse = (Math.sin(now / 350) * 0.5 + 0.5);
+        const alpha = 0.6 + pulse * 0.4;
+
+        ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;
         ctx.lineWidth = highlightWidth;
         ctx.stroke();
       }
