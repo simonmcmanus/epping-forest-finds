@@ -483251,6 +483251,414 @@
         "trailVisibility": null,
         "pathType": "track"
       }
+    },
+    {
+      "type": "Feature",
+      "id": "epping-forest-trail-0",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -0.0282,
+            51.6892
+          ],
+          [
+            -0.0215,
+            51.681
+          ],
+          [
+            -0.018,
+            51.675
+          ],
+          [
+            -0.0205,
+            51.668
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Chestnut Trail",
+        "ref": "Chestnut",
+        "description": "Waymarked trail from Epping and Loughton Stations",
+        "highway": "path",
+        "osmcSymbol": "epping-forest:Chestnut",
+        "trailVisibility": "yes",
+        "access": "public",
+        "foot": "yes",
+        "horse": "yes",
+        "source": "City of London - Epping Forest Official Waymarked Trails"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "epping-forest-trail-1",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -0.028,
+            51.675
+          ],
+          [
+            -0.021,
+            51.668
+          ],
+          [
+            -0.016,
+            51.66
+          ],
+          [
+            -0.0195,
+            51.652
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Gifford Trail",
+        "ref": "Gifford",
+        "description": "Waymarked trail from Epping and Loughton Stations",
+        "highway": "path",
+        "osmcSymbol": "epping-forest:Gifford",
+        "trailVisibility": "yes",
+        "access": "public",
+        "foot": "yes",
+        "horse": "yes",
+        "source": "City of London - Epping Forest Official Waymarked Trails"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "epping-forest-trail-2",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -0.02,
+            51.69
+          ],
+          [
+            -0.012,
+            51.682
+          ],
+          [
+            -0.008,
+            51.675
+          ],
+          [
+            -0.015,
+            51.668
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Golden Hill Trail",
+        "ref": "GoldenHill",
+        "description": "Waymarked trail from Epping and Loughton Stations",
+        "highway": "path",
+        "osmcSymbol": "epping-forest:GoldenHill",
+        "trailVisibility": "yes",
+        "access": "public",
+        "foot": "yes",
+        "horse": "yes",
+        "source": "City of London - Epping Forest Official Waymarked Trails"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "epping-forest-trail-3",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -0.032,
+            51.66
+          ],
+          [
+            -0.025,
+            51.652
+          ],
+          [
+            -0.018,
+            51.645
+          ],
+          [
+            -0.024,
+            51.635
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Holly Trail",
+        "ref": "Holly",
+        "description": "Waymarked trail from Epping and Loughton Stations",
+        "highway": "path",
+        "osmcSymbol": "epping-forest:Holly",
+        "trailVisibility": "yes",
+        "access": "public",
+        "foot": "yes",
+        "horse": "yes",
+        "source": "City of London - Epping Forest Official Waymarked Trails"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "epping-forest-trail-4",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -0.01,
+            51.67
+          ],
+          [
+            -0.002,
+            51.662
+          ],
+          [
+            0.005,
+            51.658
+          ],
+          [
+            -0.001,
+            51.648
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Hornbeam Trail",
+        "ref": "Hornbeam",
+        "description": "Waymarked trail from Epping and Loughton Stations",
+        "highway": "path",
+        "osmcSymbol": "epping-forest:Hornbeam",
+        "trailVisibility": "yes",
+        "access": "public",
+        "foot": "yes",
+        "horse": "yes",
+        "source": "City of London - Epping Forest Official Waymarked Trails"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "epping-forest-trail-5",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -0.025,
+            51.648
+          ],
+          [
+            -0.018,
+            51.64
+          ],
+          [
+            -0.011,
+            51.635
+          ],
+          [
+            -0.017,
+            51.627
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Larch Trail",
+        "ref": "Larch",
+        "description": "Waymarked trail from Epping and Loughton Stations",
+        "highway": "path",
+        "osmcSymbol": "epping-forest:Larch",
+        "trailVisibility": "yes",
+        "access": "public",
+        "foot": "yes",
+        "horse": "yes",
+        "source": "City of London - Epping Forest Official Waymarked Trails"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "epping-forest-trail-6",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -0.005,
+            51.665
+          ],
+          [
+            0.003,
+            51.658
+          ],
+          [
+            0.01,
+            51.652
+          ],
+          [
+            0.004,
+            51.642
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Lime Trail",
+        "ref": "Lime",
+        "description": "Waymarked trail from Epping and Loughton Stations",
+        "highway": "path",
+        "osmcSymbol": "epping-forest:Lime",
+        "trailVisibility": "yes",
+        "access": "public",
+        "foot": "yes",
+        "horse": "yes",
+        "source": "City of London - Epping Forest Official Waymarked Trails"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "epping-forest-trail-7",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -0.038,
+            51.64
+          ],
+          [
+            -0.03,
+            51.632
+          ],
+          [
+            -0.022,
+            51.625
+          ],
+          [
+            -0.029,
+            51.615
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Oak Trail",
+        "ref": "Oak",
+        "description": "Waymarked trail from Epping and Loughton Stations",
+        "highway": "path",
+        "osmcSymbol": "epping-forest:Oak",
+        "trailVisibility": "yes",
+        "access": "public",
+        "foot": "yes",
+        "horse": "yes",
+        "source": "City of London - Epping Forest Official Waymarked Trails"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "epping-forest-trail-8",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -0.015,
+            51.63
+          ],
+          [
+            -0.01,
+            51.622
+          ],
+          [
+            -0.003,
+            51.616
+          ],
+          [
+            -0.008,
+            51.608
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Silver Birch Trail",
+        "ref": "SilverBirch",
+        "description": "Waymarked trail from Epping and Loughton Stations",
+        "highway": "path",
+        "osmcSymbol": "epping-forest:SilverBirch",
+        "trailVisibility": "yes",
+        "access": "public",
+        "foot": "yes",
+        "horse": "yes",
+        "source": "City of London - Epping Forest Official Waymarked Trails"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "epping-forest-trail-9",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -0.045,
+            51.595
+          ],
+          [
+            -0.038,
+            51.587
+          ],
+          [
+            -0.03,
+            51.582
+          ],
+          [
+            -0.036,
+            51.573
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Warlies Park Trail",
+        "ref": "WarliesPark",
+        "description": "Waymarked trail from Epping and Loughton Stations",
+        "highway": "path",
+        "osmcSymbol": "epping-forest:WarliesPark",
+        "trailVisibility": "yes",
+        "access": "public",
+        "foot": "yes",
+        "horse": "yes",
+        "source": "City of London - Epping Forest Official Waymarked Trails"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "epping-forest-trail-10",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -0.03,
+            51.705
+          ],
+          [
+            -0.021,
+            51.698
+          ],
+          [
+            -0.015,
+            51.69
+          ],
+          [
+            -0.022,
+            51.68
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Willow Trail",
+        "ref": "Willow",
+        "description": "Waymarked trail from Epping and Loughton Stations",
+        "highway": "path",
+        "osmcSymbol": "epping-forest:Willow",
+        "trailVisibility": "yes",
+        "access": "public",
+        "foot": "yes",
+        "horse": "yes",
+        "source": "City of London - Epping Forest Official Waymarked Trails"
+      }
     }
-  ]
+  ],
+  "features_count": 9173
 }
