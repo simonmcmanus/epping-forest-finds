@@ -1496,6 +1496,40 @@
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
     const APP_VERSION = "v80";
+    const UNDERGROUND_STATION_NAMES = new Set([
+      "aldgate",
+      "aldgate east",
+      "angel",
+      "arsenal",
+      "barkingside",
+      "bethnal green",
+      "blackhorse road",
+      "buckhurst hill",
+      "chigwell",
+      "debden",
+      "epping",
+      "fairlop",
+      "gants hill",
+      "grange hill",
+      "hainault",
+      "leyton",
+      "leytonstone",
+      "loughton",
+      "mile end",
+      "newbury park",
+      "north acton",
+      "perivale",
+      "queensway",
+      "redbridge",
+      "roding valley",
+      "snaresbrook",
+      "south woodford",
+      "theydon bois",
+      "wanstead",
+      "west acton",
+      "white city",
+      "woodford",
+    ]);
     const FILTER_GROUPS = [
       {
         key: "nature",
@@ -5050,7 +5084,7 @@
       const name = normalizePlaceName(place);
       if (!name) return false;
       if (name.includes("underground") || name.includes("tube")) return true;
-      return ["buckhurst hill", "roding valley", "theydon bois", "loughton", "epping", "debden"].includes(name);
+      return UNDERGROUND_STATION_NAMES.has(name);
     }
 
     function isNationalRailCategory(place) {
