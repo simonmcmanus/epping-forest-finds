@@ -933,6 +933,46 @@
       place-items: center;
     }
 
+    button.settings-toggle {
+      width: 36px;
+      min-width: 36px;
+      padding: 0;
+      font-size: 1rem;
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .settings-form {
+      display: grid;
+      gap: 16px;
+    }
+
+    .settings-section {
+      display: grid;
+      gap: 8px;
+    }
+
+    .settings-section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 0;
+      color: var(--ink);
+    }
+
+    .settings-description {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .settings-label {
+      display: grid;
+      gap: 5px;
+      font-size: 0.9rem;
+      color: var(--ink);
+      font-weight: 700;
+    }
+
     .report-form {
       display: grid;
       gap: 10px;
@@ -1387,6 +1427,7 @@
           <div class="inspector-actions">
             <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Hide filters" aria-expanded="true" aria-pressed="false" aria-controls="filterPanel"><span class="filter-icon" aria-hidden="true"></span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
             <button id="reportToggle" class="close report-toggle" type="button" aria-label="Report missing data or request a feature">✍️</button>
+            <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings">⚙️</button>
           </div>
         </div>
         <div class="inspector-tools">
@@ -1629,6 +1670,7 @@
       treeSearchInput: document.getElementById("treeSearchInput"),
       treeSearchButton: document.getElementById("treeSearchButton"),
       reportToggle: document.getElementById("reportToggle"),
+      settingsToggle: document.getElementById("settingsToggle"),
     };
 
     boot();
@@ -1724,13 +1766,8 @@
             .then(async (r) => {
               if (!r.ok) throw new Error(`Roads data HTTP ${r.status}`);
               const data = await r.json();
-              // Filter to only major roads to reduce processing load
-              const majorRoads = (data.features || []).filter((feature) => {
-                const highway = feature.properties?.highway;
-                return highway && ["motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link"].includes(highway);
-              });
-              const filteredData = { ...data, features: majorRoads };
-              const count = majorRoads.length;
+              const filteredData = data;
+              const count = (data.features || []).length;
               setLoadStep("roads", "done", count);
               return filteredData;
             })
@@ -1993,6 +2030,12 @@
       if (els.reportToggle) {
         els.reportToggle.addEventListener("click", () => {
           openReportModal();
+        });
+      }
+
+      if (els.settingsToggle) {
+        els.settingsToggle.addEventListener("click", () => {
+          openSettings();
         });
       }
 
@@ -4568,6 +4611,53 @@
 
     function filterMeta(filterKey) {
       return FILTER_SUBFILTERS_BY_KEY.get(filterKey) || null;
+    }
+
+    function openSettings() {
+      state.selected = { type: "settings", item: null };
+      setInspectorSelectionChrome({ emoji: "⚙️", showBack: true });
+      els.inspectorTools.hidden = true;
+      els.inspectorTitle.textContent = "Settings";
+      els.inspectorType.textContent = "App preferences";
+      els.inspectorBody.innerHTML = settingsFormHtml();
+      bindSettingsHandlers();
+      setInspectorMinimized(false);
+      updateCompassOverlay();
+      requestDraw();
+    }
+
+    function settingsFormHtml() {
+      const minutes = state.walkingDistanceMinutes;
+      const options = [5, 10, 15, 20, 30, 60]
+        .map((m) => `<option value="${m}"${m === minutes ? " selected" : ""}>${m} min${m === 60 ? " (1 hr)" : ""}</option>`)
+        .join("");
+      return `<div class="settings-form">
+        <section class="settings-section">
+          <h3 class="settings-section-title">Walking radius</h3>
+          <p class="settings-description">How far to walk when listing nearby places. A circle is drawn on the map at this distance.</p>
+          <label for="settingsWalkMins" class="settings-label">Walking time
+            <select id="settingsWalkMins" class="report-input">${options}</select>
+          </label>
+        </section>
+      </div>`;
+    }
+
+    function bindSettingsHandlers() {
+      const select = document.getElementById("settingsWalkMins");
+      if (select) {
+        select.addEventListener("change", () => {
+          state.walkingDistanceMinutes = parseInt(select.value, 10);
+          selectOverview();
+          if (state.userLocation) {
+            const { latitude, longitude } = state.userLocation;
+            const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+            const nearestTrees = nearbyTreesWithinDistance(latitude, longitude, maxMetres);
+            state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
+            ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+          }
+          requestDraw();
+        });
+      }
     }
 
     function openReportModal() {
