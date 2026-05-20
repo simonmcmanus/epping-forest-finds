@@ -2886,9 +2886,8 @@
       }
 
       // Draw buildings lazily — only when zoomed in (zoomLevel >= 0.5)
-      if (zoomLevel >= 0.5) {
-        loadBuildingsIfNeeded();
-        if (state.buildingFeatures.length) {
+      loadBuildingsIfNeeded();
+      if (state.buildingFeatures.length) {
           const worldTopLeft = screenToWorld(0, 0);
           const worldBottomRight = screenToWorld(els.canvas.width, els.canvas.height);
           const wMinX = Math.min(worldTopLeft.x, worldBottomRight.x);
@@ -2918,7 +2917,6 @@
             });
           }
         }
-      }
 
       ctx.restore();
     }
@@ -3099,9 +3097,8 @@
         segments,
         bbox,
         totalLength,
-      };
-    }
-
+          }
+        }
     function toRoadFeature(feature) {
       if (!feature || !feature.geometry) return null;
 
