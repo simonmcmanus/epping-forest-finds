@@ -368,19 +368,11 @@
     }
 
     .filter-subfilters {
-      display: flex;
-      gap: 6px;
-      flex-wrap: nowrap;
-      padding: 26px 6px 12px 8px;
-      margin-top: -27px;
       width: 100%;
       min-width: 0;
       max-width: 100%;
-      overflow-x: auto;
-      overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: thin;
-      position: relative;
+      margin-top: -27px;
+      padding: 26px 6px 6px 8px;
       box-sizing: border-box;
       max-height: none;
       opacity: 1;
@@ -392,14 +384,29 @@
       transition: max-height 220ms ease, opacity 140ms ease 90ms, transform 180ms ease 90ms;
     }
 
+    .filter-subfilters-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: nowrap;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      position: relative;
+      box-sizing: border-box;
+    }
+
     .filter-group-outside {
-      margin: 4px 2px 0;
+      margin: 8px 2px 2px;
       font-size: 0.76rem;
       font-weight: 700;
       color: #557565;
     }
 
-    .filter-subfilters.is-scrollable {
+    .filter-subfilters-row.is-scrollable {
       --edge-fade: 24px;
       -webkit-mask-image: linear-gradient(to right,
         #000 0,
@@ -411,7 +418,7 @@
         transparent 100%);
     }
 
-    .filter-subfilters.is-scrollable:not(.is-scroll-start):not(.is-scroll-end) {
+    .filter-subfilters-row.is-scrollable:not(.is-scroll-start):not(.is-scroll-end) {
       -webkit-mask-image: linear-gradient(to right,
         transparent 0,
         #000 var(--edge-fade),
@@ -424,7 +431,7 @@
         transparent 100%);
     }
 
-    .filter-subfilters.is-scrollable.is-scroll-end {
+    .filter-subfilters-row.is-scrollable.is-scroll-end {
       -webkit-mask-image: linear-gradient(to right,
         transparent 0,
         #000 var(--edge-fade),
@@ -4392,15 +4399,17 @@
                 <span class="filter-group-summary" data-filter-group-expand="${escapeHtml(group.key)}">${group.subfilters.length}/${group.subfilters.length}</span>
               </button>
               <div class="filter-subfilters" data-filter-group-panel="${escapeHtml(group.key)}" hidden>
-                ${group.subfilters.map((subfilter) => `<button class="filter-chip filter-chip-sub" type="button" data-filter-subfilter="${escapeHtml(subfilter.key)}">${escapeHtml(subfilter.label)}</button>`).join("")}
+                <div class="filter-subfilters-row" data-filter-group-row="${escapeHtml(group.key)}">
+                  ${group.subfilters.map((subfilter) => `<button class="filter-chip filter-chip-sub" type="button" data-filter-subfilter="${escapeHtml(subfilter.key)}">${escapeHtml(subfilter.label)}</button>`).join("")}
+                </div>
+                <p class="filter-group-outside" data-filter-group-outside="${escapeHtml(group.key)}" hidden></p>
               </div>
-              <p class="filter-group-outside" data-filter-group-outside="${escapeHtml(group.key)}" hidden></p>
             </section>
           `).join("")}
         </div>
       `;
 
-      const subfilterRows = els.filterPanel.querySelectorAll(".filter-subfilters");
+      const subfilterRows = els.filterPanel.querySelectorAll(".filter-subfilters-row");
       for (const row of subfilterRows) {
         row.addEventListener("scroll", () => {
           updateSingleSubfilterScrollHint(row);
@@ -4421,7 +4430,7 @@
     }
 
     function updateSubfilterScrollHints() {
-      const rows = els.filterPanel ? els.filterPanel.querySelectorAll(".filter-subfilters") : [];
+      const rows = els.filterPanel ? els.filterPanel.querySelectorAll(".filter-subfilters-row") : [];
       for (const row of rows) {
         updateSingleSubfilterScrollHint(row);
       }
