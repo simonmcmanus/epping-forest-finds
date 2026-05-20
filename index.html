@@ -917,6 +917,149 @@
       padding: 0 10px;
     }
 
+    button.report-toggle {
+      width: 36px;
+      min-width: 36px;
+      padding: 0;
+      font-size: 1rem;
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .report-modal {
+      position: absolute;
+      inset: 0;
+      z-index: 130;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(20, 28, 24, 0.5);
+      padding: 16px;
+    }
+
+    .report-modal[hidden] {
+      display: none;
+    }
+
+    .report-modal-card {
+      width: 100%;
+      max-width: 560px;
+      max-height: calc(100vh - 36px);
+      overflow: auto;
+      background: #fff;
+      border: 1px solid rgba(36, 56, 47, 0.18);
+      box-shadow: var(--shadow);
+      border-radius: 12px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .report-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .report-modal-title {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 850;
+      color: var(--ink);
+    }
+
+    .report-modal-close {
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: #f4f7f3;
+      color: var(--ink);
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+
+    .report-form {
+      display: grid;
+      gap: 10px;
+    }
+
+    .report-form label {
+      display: grid;
+      gap: 5px;
+      font-size: 0.9rem;
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .report-input,
+    .report-textarea {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid rgba(36, 56, 47, 0.22);
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      padding: 9px 10px;
+    }
+
+    .report-textarea {
+      min-height: 120px;
+      resize: vertical;
+      line-height: 1.4;
+    }
+
+    .report-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .report-location-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: rgba(47, 111, 78, 0.1);
+      border: 1px solid rgba(47, 111, 78, 0.26);
+      color: #204735;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .report-form-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .report-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .report-status {
+      min-height: 1.3em;
+      margin: 0;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .report-status.error {
+      color: #b34733;
+    }
+
+    .report-status.success {
+      color: #2d6e40;
+    }
+
     .inspector-body {
       padding: 14px 16px 16px;
       overflow: auto;
@@ -1289,6 +1432,7 @@
           </div>
           <div class="inspector-actions">
             <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Hide filters" aria-expanded="true" aria-pressed="false" aria-controls="filterPanel"><span class="filter-icon" aria-hidden="true"></span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
+            <button id="reportToggle" class="close report-toggle" type="button" aria-label="Report missing data or request a feature" aria-haspopup="dialog" aria-controls="reportModal">✍️</button>
           </div>
         </div>
         <div class="inspector-tools">
@@ -1306,6 +1450,37 @@
           <p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>
         </div>
       </aside>
+
+      <div id="reportModal" class="report-modal" aria-live="polite" hidden>
+        <div class="report-modal-card" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle">
+          <div class="report-modal-header">
+            <h2 id="reportModalTitle" class="report-modal-title">Report missing data / request feature</h2>
+            <button id="reportModalClose" class="report-modal-close" type="button" aria-label="Close report form">✕</button>
+          </div>
+          <p class="report-note">Tell us what should appear on the map, or request a new feature. Reports can be tracked as GitHub issues.</p>
+          <form id="reportForm" class="report-form">
+            <label for="reportType">Type
+              <select id="reportType" class="report-input" required>
+                <option value="missing-data">Missing location/data</option>
+                <option value="feature-request">Feature request</option>
+              </select>
+            </label>
+            <label for="reportDetails">Details
+              <textarea id="reportDetails" class="report-textarea" placeholder="Describe what should appear on the map, or the feature you want." required></textarea>
+            </label>
+            <div class="report-row">
+              <button id="reportUseLocation" class="button" type="button">Use my current location</button>
+              <span id="reportLocationLabel" class="report-location-pill" hidden>Location not added</span>
+            </div>
+            <p class="report-note">If location is added, it will be included in the issue to help pinpoint the request.</p>
+            <p id="reportStatus" class="report-status" aria-live="polite"></p>
+            <div class="report-form-actions">
+              <button id="reportCancel" class="button" type="button">Cancel</button>
+              <button id="reportSubmit" class="button" type="submit">Submit report</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -1335,7 +1510,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v79";
+    const APP_VERSION = "v80";
     const FILTER_GROUPS = [
       {
         key: "nature",
@@ -1470,6 +1645,7 @@
       initialUserRevealDone: false,
       distanceWarningShown: false,
       nearestItemsCount: 10,
+      walkingDistanceMinutes: 10,
       suppressHashChange: false,
       compassHeading: null,
       compassHeadingTarget: null,
@@ -1492,6 +1668,7 @@
       inspectorDragging: false,
       inspectorDragStart: null,
       inspectorHeightPercent: null,
+      reportDraftLocation: null,
     };
 
     const els = {
@@ -1527,6 +1704,16 @@
       treeSearchPanel: document.getElementById("treeSearchPanel"),
       treeSearchInput: document.getElementById("treeSearchInput"),
       treeSearchButton: document.getElementById("treeSearchButton"),
+      reportToggle: document.getElementById("reportToggle"),
+      reportModal: document.getElementById("reportModal"),
+      reportModalClose: document.getElementById("reportModalClose"),
+      reportForm: document.getElementById("reportForm"),
+      reportType: document.getElementById("reportType"),
+      reportDetails: document.getElementById("reportDetails"),
+      reportUseLocation: document.getElementById("reportUseLocation"),
+      reportLocationLabel: document.getElementById("reportLocationLabel"),
+      reportStatus: document.getElementById("reportStatus"),
+      reportCancel: document.getElementById("reportCancel"),
     };
 
     boot();
@@ -1888,14 +2075,54 @@
         updateFilterUi();
       });
 
+      if (els.reportToggle) {
+        els.reportToggle.addEventListener("click", () => {
+          openReportModal();
+        });
+      }
+
+      if (els.reportModalClose) {
+        els.reportModalClose.addEventListener("click", () => {
+          closeReportModal();
+        });
+      }
+
+      if (els.reportCancel) {
+        els.reportCancel.addEventListener("click", () => {
+          closeReportModal();
+        });
+      }
+
+      if (els.reportModal) {
+        els.reportModal.addEventListener("click", (event) => {
+          if (event.target === els.reportModal) {
+            closeReportModal();
+          }
+        });
+      }
+
+      if (els.reportUseLocation) {
+        els.reportUseLocation.addEventListener("click", () => {
+          populateReportLocation();
+        });
+      }
+
+      if (els.reportForm) {
+        els.reportForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          await submitReportForm();
+        });
+      }
+
       // Select dropdown is now part of the overview UI, so we attach listener in selectOverview()
       document.addEventListener("change", (event) => {
         if (event.target.id === "nearestItemsSelect") {
-          state.nearestItemsCount = parseInt(event.target.value, 10);
+          state.walkingDistanceMinutes = parseInt(event.target.value, 10);
           selectOverview();
           if (state.userLocation) {
             const { latitude, longitude } = state.userLocation;
-            const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
+            const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+            const nearestTrees = nearbyTreesWithinDistance(latitude, longitude, maxMetres);
             state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
             ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
             requestDraw();
@@ -2417,6 +2644,7 @@
       drawEnvironment(ctx);
       drawRoads(ctx);
       drawPaths(ctx);
+      drawWalkingRadius(ctx);
       drawOverviewRoutes(ctx);
       drawSelectedRoute(ctx);
       drawTrees(ctx, nearbyIconLookup);
@@ -2999,6 +3227,31 @@
       ctx.restore();
     }
 
+    function drawWalkingRadius(ctx) {
+      if (!state.userLocation || state.selected) return;
+
+      const dpr = pixelRatio();
+      const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+      const center = worldToScreen(state.userLocation.point);
+      const edgeWorld = projectLonLat(
+        state.userLocation.longitude + (radiusMetres / (111320 * Math.cos(state.userLocation.latitude * Math.PI / 180))),
+        state.userLocation.latitude
+      );
+      const edge = worldToScreen(edgeWorld);
+      const radiusPx = Math.max(8, Math.hypot(edge.x - center.x, edge.y - center.y));
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(47, 114, 178, 0.07)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(47, 114, 178, 0.45)";
+      ctx.lineWidth = 1.5 * dpr;
+      ctx.setLineDash([6 * dpr, 6 * dpr]);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     function drawSelectedRoute(ctx) {
       const target = selectedCompassTarget();
       if (!state.userLocation || !target) return;
@@ -3026,7 +3279,7 @@
     }
 
     function overviewRouteTargets() {
-      const values = overviewItemsForActiveFilter(state.nearestItemsCount).map((entry) => ({
+      const values = overviewItemsForActiveFilter().map((entry) => ({
         point: entry.item.point,
         color: filterKindColor(entry.kind),
       }));
@@ -3272,7 +3525,7 @@
       const tree = new Set();
       const landmark = new Set();
       const cow = new Set();
-      for (const entry of overviewItemsForActiveFilter(state.nearestItemsCount)) {
+      for (const entry of overviewItemsForActiveFilter()) {
         if (!entry || !entry.item) continue;
         if (entry.type === "tree") tree.add(entry.item);
         else if (entry.type === "landmark") landmark.add(entry.item);
@@ -4322,7 +4575,12 @@
         button.setAttribute("aria-expanded", String(groupExpanded));
         const summary = button.querySelector(".filter-group-summary");
         const total = FILTER_GROUPS_BY_KEY.get(groupKey)?.subfilters.length || 0;
-        if (summary) summary.textContent = `${activeSubfilters.length}/${total}`;
+        if (summary) {
+          const outsideRadiusCount = groupExpanded ? outOfRadiusCountForGroup(groupKey) : 0;
+          summary.textContent = outsideRadiusCount > 0
+            ? `${activeSubfilters.length}/${total} · ${outsideRadiusCount} outside radius`
+            : `${activeSubfilters.length}/${total}`;
+        }
         const panel = els.filterPanel.querySelector(`[data-filter-group-panel="${groupKey}"]`);
         setSubfilterPanelExpanded(panel, groupExpanded);
         const groupSection = button.closest(".filter-group");
@@ -4364,6 +4622,196 @@
 
     function filterMeta(filterKey) {
       return FILTER_SUBFILTERS_BY_KEY.get(filterKey) || null;
+    }
+
+    function openReportModal() {
+      if (!els.reportModal) return;
+      els.reportModal.hidden = false;
+      setReportStatus("");
+      updateReportLocationLabel();
+      if (els.reportDetails) els.reportDetails.focus();
+    }
+
+    function closeReportModal() {
+      if (!els.reportModal) return;
+      els.reportModal.hidden = true;
+      setReportStatus("");
+    }
+
+    function setReportStatus(message, tone = "") {
+      if (!els.reportStatus) return;
+      els.reportStatus.textContent = message || "";
+      els.reportStatus.classList.remove("error", "success");
+      if (tone) els.reportStatus.classList.add(tone);
+    }
+
+    function currentReportLocation() {
+      const sourceLocation = state.reportDraftLocation || state.userLocation;
+      if (!sourceLocation) return null;
+      return {
+        latitude: Number(sourceLocation.latitude.toFixed(6)),
+        longitude: Number(sourceLocation.longitude.toFixed(6)),
+      };
+    }
+
+    function updateReportLocationLabel() {
+      if (!els.reportLocationLabel) return;
+      const loc = currentReportLocation();
+      if (!loc) {
+        els.reportLocationLabel.hidden = true;
+        return;
+      }
+      els.reportLocationLabel.hidden = false;
+      els.reportLocationLabel.textContent = `📍 ${loc.latitude}, ${loc.longitude}`;
+    }
+
+    async function populateReportLocation() {
+      if (state.userLocation) {
+        updateReportLocationLabel();
+        setReportStatus("Using current map location.");
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        setReportStatus("Geolocation is not supported in this browser.", "error");
+        return;
+      }
+
+      setReportStatus("Getting current location…");
+      await new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition((position) => {
+          const latitude = position.coords.latitude;
+          const longitude = position.coords.longitude;
+          state.reportDraftLocation = {
+            latitude,
+            longitude,
+          };
+          updateReportLocationLabel();
+          setReportStatus("Location added.", "success");
+          resolve();
+        }, () => {
+          setReportStatus("Could not access location. Check browser permissions.", "error");
+          resolve();
+        }, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        });
+      });
+    }
+
+    async function submitReportForm() {
+      if (!els.reportType || !els.reportDetails) return;
+
+      const details = String(els.reportDetails.value || "").trim();
+      if (!details) {
+        setReportStatus("Please add details before submitting.", "error");
+        return;
+      }
+
+      const payload = {
+        reportType: els.reportType.value,
+        details,
+        location: currentReportLocation(),
+        appVersion: APP_VERSION,
+        userAgent: navigator.userAgent,
+        pageUrl: window.location.href,
+      };
+
+      setReportStatus("Submitting report…");
+
+      try {
+        const response = await fetch("/.netlify/functions/report-missing-data", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const errorText = data && data.error ? data.error : `Request failed (${response.status})`;
+          setReportStatus(errorText, "error");
+          return;
+        }
+
+        const issueText = data && data.issueUrl ? ` Issue: ${data.issueUrl}` : "";
+        setReportStatus(`Report submitted successfully.${issueText}`, "success");
+        els.reportDetails.value = "";
+      } catch (error) {
+        setReportStatus("Could not submit report. Please try again.", "error");
+      }
+    }
+
+    function resolvePlaceKind(place) {
+      if (isPubCategory(place)) return "pubs";
+      if (isRestaurantCategory(place)) return "restaurants";
+      if (isCafeCategory(place)) return "cafes";
+      if (isShopCategory(place)) return "shops";
+      if (isBusCategory(place)) return "bus";
+      if (isUndergroundCategory(place)) return "underground";
+      if (isNationalRailCategory(place)) return "national_rail";
+      if (isWw2Category(place)) return "ww2";
+      if (isRoyalCategory(place)) return "royal";
+      if (isSocialHistoryCategory(place)) return "social_history";
+      if (isPlaqueCategory(place)) return "plaques";
+      if (isBluePlaqueCategory(place)) return "blue_plaques";
+      if (isHistoryCategory(place)
+        && !isRoyalCategory(place)
+        && !isWw2Category(place)
+        && !isSocialHistoryCategory(place)
+        && !isPlaqueCategory(place)
+        && !isBluePlaqueCategory(place)) return "history_general";
+      if (isCelebrityAssociationCategory(place)) return "celebrity_association";
+      if (isScienceCategory(place)) return "science";
+      if (isEducationCategory(place)) return "education";
+      if (isMedicineCategory(place)) return "medicine";
+      if (isLiteratureCategory(place)) return "literature";
+      if (isTheatreCategory(place)) return "theatre";
+      if (isPoliticsCategory(place)) return "politics";
+      if (isArtCategory(place)) return "art";
+      if (isChurchCategory(place)) return "church";
+      if (isLegendCategory(place)) return "legends";
+      if (isFilmTvCategory(place)) return "film_tv";
+      return "landmark";
+    }
+
+    function outOfRadiusCountForGroup(groupKey) {
+      if (!state.userLocation) return 0;
+
+      const group = FILTER_GROUPS_BY_KEY.get(groupKey);
+      if (!group || !Array.isArray(group.subfilters) || !group.subfilters.length) return 0;
+
+      const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+      const { latitude, longitude } = state.userLocation;
+      const unique = new Set();
+
+      for (const subfilter of group.subfilters) {
+        const filterKey = subfilter.key;
+        if (filterKey === "trees") {
+          for (const tree of state.trees) {
+            const metres = distanceMetres(latitude, longitude, tree.latitude, tree.longitude);
+            if (metres > radiusMetres) unique.add(`tree:${treeHashKey(tree)}`);
+          }
+          continue;
+        }
+        if (filterKey === "cows") {
+          for (const cow of state.cows) {
+            const metres = distanceMetres(latitude, longitude, cow.latitude, cow.longitude);
+            if (metres > radiusMetres) unique.add(`cow:${cowKey(cow)}`);
+          }
+          continue;
+        }
+
+        for (const place of state.landmarks) {
+          if (!matchesPlaceFilter(place, filterKey)) continue;
+          const metres = distanceMetres(latitude, longitude, place.latitude, place.longitude);
+          if (metres > radiusMetres) unique.add(`place:${placeHashKey(place)}`);
+        }
+      }
+
+      return unique.size;
     }
 
     function isLayerVisibleForFilter(layerKey) {
@@ -4580,19 +5028,17 @@
     function overviewItemsForActiveFilter(limit = 3) {
       if (!state.userLocation) return [];
       const { latitude, longitude } = state.userLocation;
+      const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
 
       const hasFilters = state.overviewFilters.length > 0;
       if (hasFilters) {
         const activePointFilters = getActivePointFilterKeys();
         if (!activePointFilters.length) return [];
-        const selectedFilterCount = activePointFilters.length;
-        const multiFilterMode = selectedFilterCount > 1;
-        const perFilterLimit = multiFilterMode ? limit : Math.max(limit, 24);
         const selectedEntries = [];
         for (const filterKey of activePointFilters) {
           if (filterKey === "trees") {
             selectedEntries.push(
-              ...nearbyTreesTo(latitude, longitude, perFilterLimit).map(({ tree, metres }) => ({
+              ...nearbyTreesWithinDistance(latitude, longitude, maxMetres).map(({ tree, metres }) => ({
                 kind: "tree",
                 type: "tree",
                 item: tree,
@@ -4604,7 +5050,7 @@
 
           if (filterKey === "cows") {
             selectedEntries.push(
-              ...nearestCowsTo(latitude, longitude, perFilterLimit).map(({ cow, metres }) => ({
+              ...nearbyCowsWithinDistance(latitude, longitude, maxMetres).map(({ cow, metres }) => ({
                 kind: "cow",
                 type: "cow",
                 item: cow,
@@ -4615,7 +5061,7 @@
           }
 
           selectedEntries.push(
-            ...nearestPlacesByFilter(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey), perFilterLimit).map(({ place, metres }) => ({
+            ...nearbyPlacesByFilterWithinDistance(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey), maxMetres).map(({ place, metres }) => ({
               kind: filterKey,
               type: "landmark",
               item: place,
@@ -4638,28 +5084,35 @@
         const sortedEntries = Array.from(unique.values())
           .sort((a, b) => a.metres - b.metres);
 
-        if (multiFilterMode) return sortedEntries;
-        return sortedEntries.slice(0, limit);
+        return sortedEntries;
       }
 
       const entries = [];
-      if (state.nearestTree && state.nearestTree.tree) {
-        entries.push({ kind: "tree", type: "tree", item: state.nearestTree.tree, metres: state.nearestTree.metres });
-      }
-      if (state.nearestCow && state.nearestCow.cow) {
-        entries.push({ kind: "cow", type: "cow", item: state.nearestCow.cow, metres: state.nearestCow.metres });
-      }
-      if (state.nearestPub && state.nearestPub.place) {
-        entries.push({ kind: "pub", type: "landmark", item: state.nearestPub.place, metres: state.nearestPub.metres });
-      }
-
-      if (state.nearestRestaurant && state.nearestRestaurant.place) {
-        entries.push({ kind: "restaurant", type: "landmark", item: state.nearestRestaurant.place, metres: state.nearestRestaurant.metres });
-      }
-      if (state.nearestLandmark && state.nearestLandmark.place) {
-        entries.push({ kind: "landmark", type: "landmark", item: state.nearestLandmark.place, metres: state.nearestLandmark.metres });
-      }
-      return entries.slice(0, limit);
+      entries.push(
+        ...nearbyTreesWithinDistance(latitude, longitude, maxMetres).map(({ tree, metres }) => ({
+          kind: "tree",
+          type: "tree",
+          item: tree,
+          metres,
+        }))
+      );
+      entries.push(
+        ...nearbyCowsWithinDistance(latitude, longitude, maxMetres).map(({ cow, metres }) => ({
+          kind: "cow",
+          type: "cow",
+          item: cow,
+          metres,
+        }))
+      );
+      entries.push(
+        ...nearbyPlacesByFilterWithinDistance(latitude, longitude, () => true, maxMetres).map(({ place, metres }) => ({
+          kind: resolvePlaceKind(place),
+          type: "landmark",
+          item: place,
+          metres,
+        }))
+      );
+      return entries.sort((a, b) => a.metres - b.metres);
     }
 
     function overviewNearestHtml() {
@@ -4667,7 +5120,7 @@
         return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
       }
 
-      const entries = overviewItemsForActiveFilter(state.nearestItemsCount);
+      const entries = overviewItemsForActiveFilter();
       const activePointFilters = getActivePointFilterKeys();
       if (!entries.length) {
         if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
@@ -4698,11 +5151,13 @@
         return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label"><span class="nearest-emoji" aria-hidden="true">${emoji}</span><span>${escapeHtml(name)}</span></span></span><small>${escapeHtml(subtitle)}</small></button></li>`;
       }).join("");
 
-      const selectOptions = [3, 5, 10, 15, 20, 25].map(n => 
-        `<option value="${n}" ${state.nearestItemsCount === n ? 'selected' : ''}>${n}</option>`
+      const selectOptions = [5, 10, 15, 20, 30, 60].map(n => 
+        `<option value="${n}" ${state.walkingDistanceMinutes === n ? 'selected' : ''}>${n} min walk</option>`
       ).join('');
-      const selectSection = `<div class="filter-section"><label for="nearestItemsSelect">Show nearest items: <select id="nearestItemsSelect" class="nearest-items-select">${selectOptions}</select></label></div>`;
-      return `<p class="source-note"><strong>${heading}</strong></p><ul class="nearest-list">${itemsHtml}</ul>${selectSection}<p class="source-note">App version: ${APP_VERSION}</p>`;
+      const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+      const distanceSummary = `Within ${state.walkingDistanceMinutes} min walk (${formatDistance(maxMetres)})`;
+      const selectSection = `<div class="filter-section"><label for="nearestItemsSelect">Walking distance: <select id="nearestItemsSelect" class="nearest-items-select">${selectOptions}</select></label><p class="source-note" style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.8;">Walking times are averages and assume a direct route.</p></div>`;
+      return `<p class="source-note"><strong>${heading}</strong><br><small>${distanceSummary}</small></p><ul class="nearest-list">${itemsHtml}</ul>${selectSection}<p class="source-note">App version: ${APP_VERSION}</p>`;
     }
 
     function detailsHtml(rows) {
@@ -5077,7 +5532,7 @@
       setInspectorMinimized(false);
 
       const points = [state.userLocation.point];
-      const overviewEntries = overviewItemsForActiveFilter(state.nearestItemsCount);
+      const overviewEntries = overviewItemsForActiveFilter();
       for (const entry of overviewEntries) {
         points.push(entry.item.point);
       }
@@ -5613,6 +6068,37 @@
         .slice(0, limit);
     }
 
+    function nearbyTreesWithinDistance(latitude, longitude, maxMetres) {
+      return state.trees
+        .map((tree) => ({
+          tree,
+          metres: distanceMetres(latitude, longitude, tree.latitude, tree.longitude),
+        }))
+        .filter(({ metres }) => metres <= maxMetres)
+        .sort((a, b) => a.metres - b.metres);
+    }
+
+    function nearbyCowsWithinDistance(latitude, longitude, maxMetres) {
+      return state.cows
+        .map((cow) => ({
+          cow,
+          metres: distanceMetres(latitude, longitude, cow.latitude, cow.longitude),
+        }))
+        .filter(({ metres }) => metres <= maxMetres)
+        .sort((a, b) => a.metres - b.metres);
+    }
+
+    function nearbyPlacesByFilterWithinDistance(latitude, longitude, filter, maxMetres) {
+      return state.landmarks
+        .filter((place) => filter(place))
+        .map((place) => ({
+          place,
+          metres: distanceMetres(latitude, longitude, place.latitude, place.longitude),
+        }))
+        .filter(({ metres }) => metres <= maxMetres)
+        .sort((a, b) => a.metres - b.metres);
+    }
+
     function nearestToViewport(items, limit) {
       const center = screenToWorld(els.canvas.width / 2, els.canvas.height / 2);
       return items
@@ -5849,6 +6335,11 @@
       const hours = Math.floor(minutes / 60);
       const mins = Math.round(minutes % 60);
       return mins > 0 ? `~${hours} hr ${mins} mins walk` : `~${hours} hr walk`;
+    }
+
+    function walkingDistanceToMetres(minutes) {
+      // Assume 3.5 km/h — a leisurely walking pace
+      return minutes * (3500 / 60);
     }
 
     function updateSelectedDetailFields() {
