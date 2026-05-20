@@ -1,5 +1,10 @@
 const DEFAULT_REPO = "simonmcmanus/epping-forest-finds";
 
+function normalizedToken(value) {
+  if (typeof value !== "string") return "";
+  return value.trim().replace(/^['\"]|['\"]$/g, "");
+}
+
 function response(statusCode, body) {
   return {
     statusCode,
@@ -50,12 +55,17 @@ exports.handler = async (event) => {
     return response(400, { error: "Details are required" });
   }
 
-  const githubToken = process.env.GITHUB_TOKEN;
+  const githubToken = normalizedToken(
+    process.env.GITHUB_TOKEN
+      || process.env.GH_TOKEN
+      || process.env.GITHUB_FINE_GRAINED_TOKEN
+      || process.env.GITHUB_PAT
+  );
   const githubRepo = process.env.GITHUB_REPO || DEFAULT_REPO;
 
   if (!githubToken) {
     return response(501, {
-      error: "GitHub issue integration is not configured. Set GITHUB_TOKEN in Netlify environment variables.",
+      error: "GitHub issue integration is not configured at runtime. Set GITHUB_TOKEN (or GH_TOKEN / GITHUB_FINE_GRAINED_TOKEN / GITHUB_PAT) in Netlify Site settings → Environment variables for the active deploy context, then redeploy.",
     });
   }
 
