@@ -4,6 +4,17 @@ Build a static, offline-capable PWA for exploring veteran trees, nearby places, 
 
 The app is lightweight, dependency-free on the client, and runnable directly from this folder via a local static/proxy server.
 
+## Detailed Specs
+
+This top-level spec provides the product overview. Implementation details are split into two focused specs with a clearly defined data interface between them:
+
+- **[spec-data-fetching.md](spec-data-fetching.md)** — Fetching, loading, normalizing, and caching all data sources. Defines the `AppData` output interface.
+- **[spec-data-rendering.md](spec-data-rendering.md)** — Drawing, interaction, and UI. Consumes the `AppData` interface from the fetching layer.
+
+All specs live in the `spec/` folder at the project root.
+
+All three specs should be kept in sync with every change.
+
 ## Product Goal
 
 Provide a fast, mobile-first field map that still works in poor signal conditions:
