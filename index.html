@@ -1083,6 +1083,15 @@
       color: var(--muted);
     }
 
+    .report-offline-note {
+      color: #8a5c00;
+    }
+
+    #reportSubmit:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
     .report-status.error {
       color: #b34733;
     }
@@ -1295,6 +1304,13 @@
       font-weight: 600;
     }
 
+    .nearest-address {
+      display: block;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
     @media (min-width: 761px) {
       .toolbar,
       .legend,
@@ -1502,6 +1518,7 @@
     const COW_PROXY_URL_BASE = "/api/cows?center=";
     const COW_SOURCE_URL_BASE = "https://account.nofence.no/api/open/data/?center=";
     const COW_DATA_CACHE_KEY = "forest-finds-cow-data-v1";
+    const REPORT_DRAFT_KEY = "forest-finds-report-draft-v1";
     const COW_REFRESH_MS = 5 * 60 * 1000;
     const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
     const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -4279,11 +4296,11 @@
         ["Distance", distance == null ? null : formatDistance(distance), "distance"],
         ["Walking time", distance == null ? null : formatWalkTime(distance), "walktime"],
         ["Direction", directionLabelFor(place)],
+        ["Address", place.address],
         ["Category", place.categoryLabel],
         ["Type", place.type],
         ["Area", place.area],
         ["Confidence", place.confidence],
-        ["Address", place.address],
         ["Website", place.website],
         ["Phone", place.phone],
         ["Source", isFolklorePlace(place) ? "Epping Forest folklore dataset" : (place.id ? `OpenStreetMap ${place.id}` : "OpenStreetMap")],
@@ -5042,16 +5059,24 @@
     }
 
     function reportFormHtml() {
+      let draft = {};
+      try {
+        const raw = localStorage.getItem(REPORT_DRAFT_KEY);
+        if (raw) draft = JSON.parse(raw);
+      } catch {}
+      const typeValue = draft.reportType || "missing-data";
+      const detailsValue = draft.details || "";
+      const online = navigator.onLine;
       return `<p class="report-note">Tell us what should appear on the map, or request a new feature. Reports are tracked as GitHub issues.</p>
         <form id="reportForm" class="report-form">
           <label for="reportType">Type
             <select id="reportType" class="report-input" required>
-              <option value="missing-data">Missing location/data</option>
-              <option value="feature-request">Feature request</option>
+              <option value="missing-data"${typeValue === "missing-data" ? " selected" : ""}>Missing location/data</option>
+              <option value="feature-request"${typeValue === "feature-request" ? " selected" : ""}>Feature request</option>
             </select>
           </label>
           <label for="reportDetails">Details
-            <textarea id="reportDetails" class="report-textarea" placeholder="Describe what should appear on the map, or the feature you want." required></textarea>
+            <textarea id="reportDetails" class="report-textarea" placeholder="Describe what should appear on the map, or the feature you want." required>${escapeHtml(detailsValue)}</textarea>
           </label>
           <div class="report-row">
             <button id="reportUseLocation" class="button" type="button">Use my current location</button>
@@ -5059,9 +5084,10 @@
           </div>
           <p class="report-note">If location is added, it will be included in the issue to help pinpoint the request.</p>
           <p id="reportStatus" class="report-status" aria-live="polite"></p>
+          <p id="reportOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Your report is saved and will be ready to submit when you\'re back online.</p>
           <div class="report-form-actions">
             <button id="reportCancel" class="button" type="button">Cancel</button>
-            <button id="reportSubmit" class="button" type="submit">Submit report</button>
+            <button id="reportSubmit" class="button" type="submit"${online ? "" : " disabled"}>Submit report</button>
           </div>
         </form>`;
     }
@@ -5088,6 +5114,34 @@
           await submitReportForm();
         });
       }
+
+      // Save draft to localStorage as the user types
+      function saveDraft() {
+        const typeInput = document.getElementById("reportType");
+        const detailsInput = document.getElementById("reportDetails");
+        try {
+          localStorage.setItem(REPORT_DRAFT_KEY, JSON.stringify({
+            reportType: typeInput ? typeInput.value : "missing-data",
+            details: detailsInput ? detailsInput.value : "",
+          }));
+        } catch {}
+      }
+      const typeInput = document.getElementById("reportType");
+      const detailsInput = document.getElementById("reportDetails");
+      if (typeInput) typeInput.addEventListener("change", saveDraft);
+      if (detailsInput) detailsInput.addEventListener("input", saveDraft);
+
+      // Disable/enable submit when connectivity changes
+      function updateOnlineState() {
+        const submitBtn = document.getElementById("reportSubmit");
+        const offlineNote = document.getElementById("reportOfflineNote");
+        if (!submitBtn) return; // form has been removed from DOM
+        const online = navigator.onLine;
+        submitBtn.disabled = !online;
+        if (offlineNote) offlineNote.hidden = online;
+      }
+      window.addEventListener("online", updateOnlineState);
+      window.addEventListener("offline", updateOnlineState);
     }
 
     function setReportStatus(message, tone = "") {
@@ -5159,6 +5213,11 @@
       const reportDetailsInput = document.getElementById("reportDetails");
       if (!reportTypeInput || !reportDetailsInput) return;
 
+      if (!navigator.onLine) {
+        setReportStatus("No internet connection. Your report is saved and ready to submit when you\'re back online.", "error");
+        return;
+      }
+
       const details = String(reportDetailsInput.value || "").trim();
       if (!details) {
         setReportStatus("Please add details before submitting.", "error");
@@ -5195,6 +5254,7 @@
         const issueText = data && data.issueUrl ? ` Issue: ${data.issueUrl}` : "";
         setReportStatus(`Report submitted successfully.${issueText}`, "success");
         reportDetailsInput.value = "";
+        try { localStorage.removeItem(REPORT_DRAFT_KEY); } catch {}
       } catch (error) {
         setReportStatus("Could not submit report. Please try again.", "error");
       }
@@ -5692,8 +5752,12 @@
           : placeTitle(entry.item);
         const emoji = filterKindEmoji(entry.kind) || landmarkEmoji(entry.item);
         const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : placeHashKey(entry.item);
-        const subtitle = `${formatDistance(entry.metres)} · ${formatWalkTime(entry.metres)}`;
-        return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label"><span class="nearest-emoji" aria-hidden="true">${emoji}</span><span>${escapeHtml(name)}</span></span></span><small>${escapeHtml(subtitle)}</small></button></li>`;
+        const distanceText = `${formatDistance(entry.metres)} · ${formatWalkTime(entry.metres)}`;
+        const addressLine = entry.item.address ? entry.item.address.split(',')[0].trim() : null;
+        const subtitleHtml = addressLine
+          ? `<span class="nearest-address">${escapeHtml(addressLine)}</span>${escapeHtml(distanceText)}`
+          : escapeHtml(distanceText);
+        return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label"><span class="nearest-emoji" aria-hidden="true">${emoji}</span><span>${escapeHtml(name)}</span></span></span><small>${subtitleHtml}</small></button></li>`;
       }).join("");
 
       const selectOptions = [5, 10, 15, 20, 30, 60].map(n => 
