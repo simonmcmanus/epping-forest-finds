@@ -1151,6 +1151,81 @@
       line-height: 1.45;
     }
 
+    .departures-section {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #edf0eb;
+    }
+
+    .departures-heading {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--muted);
+      margin: 0 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .departures-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .departure-item {
+      display: grid;
+      grid-template-columns: 48px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #edf0eb;
+    }
+
+    .departure-item:last-child {
+      border-bottom: none;
+    }
+
+    .departure-line {
+      font-weight: 900;
+      font-size: 0.78rem;
+      background: #f0efe7;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 2px 5px;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .departure-direction {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--ink);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .departure-time {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: #2f6f4e;
+      white-space: nowrap;
+    }
+
+    .departure-time.due {
+      color: #c0392b;
+    }
+
+    .departures-loading,
+    .departures-error,
+    .departures-empty {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin: 4px 0 0;
+    }
+
     .empty {
       color: var(--muted);
       line-height: 1.45;
@@ -4311,6 +4386,10 @@
       ];
       const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
       els.inspectorBody.innerHTML = descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : (isOpenStreetMapPlace(place) ? osmNote() : ""));
+
+      if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
+        loadTransportDepartures(place);
+      }
     }
 
     function showCowDetails(cow, distance) {
@@ -7093,8 +7172,48 @@
       return best;
     }
 
-    function showWaterDetails(water, distance) {
-      const isArea = water.featureType === "hydrology_area";
+    async function loadTransportDepartures(place) {
+      const type = isBusCategory(place) ? "bus" : "train";
+      const section = document.createElement("div");
+      section.className = "departures-section";
+      section.innerHTML = `<p class="departures-loading">Loading departures…</p>`;
+      els.inspectorBody.appendChild(section);
+
+      try {
+        const url = `/.netlify/functions/transport-departures?lat=${place.latitude}&lon=${place.longitude}&type=${type}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
+        const data = await res.json();
+
+        // Bail silently if user has navigated away
+        if (!state.selected || state.selected.item !== place) return;
+
+        if (data.error || !data.departures) {
+          section.innerHTML = `<p class="departures-error">Departures unavailable.</p>`;
+          return;
+        }
+
+        if (!data.departures.length) {
+          section.innerHTML = `<p class="departures-empty">No departures in the next few minutes.</p>`;
+          return;
+        }
+
+        section.innerHTML = `<h3 class="departures-heading">Next departures</h3>
+          <ul class="departures-list">
+            ${data.departures.map((d) => `
+              <li class="departure-item">
+                <span class="departure-line">${escapeHtml(d.line)}</span>
+                <span class="departure-direction">${escapeHtml(d.direction)}</span>
+                <span class="departure-time${d.due ? ' due' : ''}">${d.due ? 'Due' : (d.minutesAway + ' min')}</span>
+              </li>`).join("")}
+          </ul>`;
+      } catch {
+        if (state.selected && state.selected.item === place) {
+          section.innerHTML = `<p class="departures-error">Departures unavailable.</p>`;
+        }
+      }
+    }
+
+    function showWaterDetails(water, distance) {      const isArea = water.featureType === "hydrology_area";
       const typeLabel = isArea
         ? "Pond / lake"
         : (water.waterway ? water.waterway.charAt(0).toUpperCase() + water.waterway.slice(1) : "Stream / waterway");
