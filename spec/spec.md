@@ -157,6 +157,7 @@ Marker rules:
   - selected tree: 100%
   - when a non-tree location is selected: trees fade to ~10%
 - Pub/café/transport/cow markers use emoji with pulsing radial backgrounds.
+- Local places should use a specific emoji for their location type where possible; ambiguous places use the location pointer emoji (`📍`) on both the map and nearest list.
 - Transport filter is generic, but map icons differ by type:
   - train-like: 🚆
   - bus-like/stops: 🚌
@@ -180,6 +181,10 @@ Marker rules:
 ### Camera behavior
 
 - With selected target + expanded inspector: camera fits user + target.
+- In overview mode, GPS updates keep the user location centered on the map.
+  - the first successful location fix must immediately show nearby map markers without requiring a manual zoom
+  - small movements recenter immediately
+  - large movements animate smoothly between positions
 - With minimized inspector: auto-reposition is paused.
   - user can pan/zoom freely
   - GPS updates/drag/zoom/resize must not force recenter
@@ -195,6 +200,7 @@ Marker rules:
 ## Nearest and Filter Behavior
 
 - Overview lists nearest items across active types.
+- If nothing is found within the selected walking-radius range, the nearest list shows the closest available item for each active type and displays a notice explaining that no matches were found within the selected walking time.
 - Supported overview filter groups and subfilters:
   - **Nature:** trees, cows
   - **Food:** pubs & bars, restaurants, cafés, shops

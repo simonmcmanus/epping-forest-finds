@@ -21,7 +21,7 @@ Data fetching is **not** responsible for:
 - Drawing anything to screen
 - Managing viewport/camera state
 - Handling user interactions
-- Computing nearest items or distances (runtime concern)
+- Computing nearest items, walking-radius fallback results, or distances (runtime concern)
 
 ---
 

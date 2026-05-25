@@ -1219,9 +1219,9 @@
     .nearest-item {
       width: 100%;
       text-align: left;
-      border: none;
+      border: 1px solid var(--line);
       border-radius: 8px;
-      background: transparent;
+      background: #fff;
       color: var(--ink);
       padding: 10px 12px;
       font: inherit;
@@ -1565,6 +1565,7 @@
           { key: "bus", label: "🚌 Bus stops", title: "bus stops" },
           { key: "underground", label: "🔴 Underground", title: "Underground stations" },
           { key: "national_rail", label: "⇄ National Rail", title: "National Rail / overground stations" },
+          { key: "parking", label: "🅿️ Car parks", title: "car parks" },
         ],
       },
       {
@@ -1623,6 +1624,7 @@
       "bus",
       "underground",
       "national_rail",
+      "parking",
       "blue_plaques",
       "plaques",
       "film_tv",
@@ -1703,6 +1705,7 @@
       buildingsLoaded: false,
       buildingsLoading: false,
       showAllOutsideRadius: false,
+      overviewOutsideRadiusFallback: false,
     };
 
     const els = {
@@ -1959,10 +1962,13 @@
         await new Promise((resolve) => setTimeout(resolve, 600));
         if (els.loadingOverlay) els.loadingOverlay.hidden = true;
         if (!navigator.geolocation) {
-          setLocationGateVisible(true, "You need to enable location to continue.");
+          setLocationGateVisible(true, "This browser does not support location access.");
         } else {
-          setLocationGateVisible(false);
-          locateUser({ initial: true });
+          setLocationGateVisible(
+            true,
+            "Tap below to allow location so the map can centre on you and show nearby finds.",
+            "Enable location"
+          );
         }
         setStatus("Offline map data loaded.");
         selectOverview();
@@ -2022,7 +2028,6 @@
 
     function setupInteractions() {
       setupCompassListeners();
-      setupCompassPermissionPrimer();
       updateMapControlVisibility();
       renderOverviewFilterPanel();
       updateFilterUi();
@@ -2057,17 +2062,16 @@
         setInspectorMinimized(false);
       });
 
-      els.locateButton.addEventListener("click", async () => {
-        await requestCompassPermissionIfNeeded({ fromGesture: true });
+      els.locateButton.addEventListener("click", () => {
         locateUser({ initial: false });
       });
 
       if (els.locationGateButton) {
         els.locationGateButton.addEventListener("click", async () => {
-          await requestCompassPermissionIfNeeded({ fromGesture: true });
           if (!state.userLocation) {
             locateUser({ initial: false });
           } else {
+            await requestCompassPermissionIfNeeded({ fromGesture: true });
             if (state.compassPermission === "granted") {
               setLocationGateVisible(false);
               updateCompassOverlay();
@@ -2266,53 +2270,59 @@
         (position) => {
           els.locateButton.disabled = false;
           const { latitude, longitude, accuracy } = position.coords;
-            const point = projectLonLat(longitude, latitude);
-            state.userLocation = { latitude, longitude, accuracy, point };
+          const previousPoint = state.userLocation && state.userLocation.point;
+          const point = projectLonLat(longitude, latitude);
+          state.userLocation = { latitude, longitude, accuracy, point };
+          setLocationGateVisible(false);
+          updateLocateButtonVisibility();
+          state.userInMapArea = pointInsideBounds(point, state.bounds);
+          const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
+          state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
+          state.nearestCow = nearestCowTo(latitude, longitude);
+          state.nearestPub = nearestPlaceByFilter(latitude, longitude, (place) => isPubCategory(place));
+          state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
+          state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
+          state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+          state.selected = null;
+          ensureLocationWatch();
+          if (compassPermissionCanBeRequested() && state.compassPermission !== "granted") {
+            showCompassAccessPrompt();
+          } else {
             setLocationGateVisible(false);
-            updateLocateButtonVisibility();
-            state.userInMapArea = pointInsideBounds(point, state.bounds);
-            const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
-            state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
-            state.nearestCow = nearestCowTo(latitude, longitude);
-            state.nearestPub = nearestPlaceByFilter(latitude, longitude, (place) => isPubCategory(place));
-            state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
-            state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
-            state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
-            state.selected = null;
-            ensureLocationWatch();
-            if (compassPermissionCanBeRequested() && state.compassPermission !== "granted") {
-              showCompassAccessPrompt();
-            } else {
-              setLocationGateVisible(false);
-            }
-            
-            // Check if user is far from forest
-            checkDistanceToForest(latitude, longitude);
-            
-            selectOverview();
-            ensureOverviewTargetsVisible({ animate: true, durationMs: initial ? 700 : 420 });
-            if (!initial) {
-              const nearestTreeText = state.nearestTree
-                ? formatDistance(state.nearestTree.metres)
-                : "Not recorded";
-              const nearestPlaceText = state.nearestPlace
-                ? ` Nearest place: ${placeTitle(state.nearestPlace.place)} (${formatDistance(state.nearestPlace.metres)}).`
-                : "";
-              setStatus(`Nearest tree: ${nearestTreeText} away.${nearestPlaceText}`);
-            } else {
-              setStatus("");
-            }
-            updateCompassOverlay();
-            requestDraw();
+          }
+
+          // Check if user is far from forest
+          checkDistanceToForest(latitude, longitude);
+
+          selectOverview();
+          ensureOverviewTargetsVisible({ animate: Boolean(previousPoint), durationMs: initial ? 700 : 420 });
+          keepOverviewCenteredOnUser(previousPoint);
+          if (!initial) {
+            const nearestTreeText = state.nearestTree
+              ? formatDistance(state.nearestTree.metres)
+              : "Not recorded";
+            const nearestPlaceText = state.nearestPlace
+              ? ` Nearest place: ${placeTitle(state.nearestPlace.place)} (${formatDistance(state.nearestPlace.metres)}).`
+              : "";
+            setStatus(`Nearest tree: ${nearestTreeText} away.${nearestPlaceText}`);
+          } else {
+            setStatus("");
+          }
+          updateCompassOverlay();
+          requestDraw();
         },
         (error) => {
           els.locateButton.disabled = false;
           const denied = error && error.code === 1;
           if (denied) {
-            const gateMessage = "You need to enable location to continue. On iPhone: Settings → Safari → Location → Allow, then reopen this app.";
+            const gateMessage = "Location permission was blocked. Use the browser site settings to allow location for this page, then tap Enable location again.";
             setLocationGateVisible(true, gateMessage);
           } else {
-            setLocationGateVisible(false);
+            setLocationGateVisible(
+              true,
+              "Location was not available yet. Check that location services are on, then tap below to try again.",
+              "Try location again"
+            );
           }
           setStatus(initial
             ? "Location was not available yet. Use the button when you are ready."
@@ -3689,6 +3699,18 @@
           } else if (transportType === "national_rail") {
             // Draw National Rail logo
             drawNationalRailLogo(ctx, point.x, point.y, 24 * dpr * mapScale);
+          } else if (transportType === "parking") {
+            const radius = 10 * dpr;
+            const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
+            const color = "rgba(0, 90, 180, ";
+            const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
+            gradient.addColorStop(0, `${color}${pulseOpacity})`);
+            gradient.addColorStop(1, `${color}${pulseOpacity * 0.2})`);
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            drawMapEmoji(ctx, "🅿️", point.x, point.y, 24 * dpr * mapScale, emojiBadge);
           } else {
             const radius = 10 * dpr;
             const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
@@ -3704,17 +3726,7 @@
           }
         } else {
           const emoji = landmarkEmoji(place);
-          if (emoji !== "📍") {
-            drawMapEmoji(ctx, emoji, point.x, point.y, 22 * dpr * mapScale, emojiBadge);
-          } else {
-            ctx.beginPath();
-            ctx.arc(point.x, point.y, 5.8 * dpr, 0, Math.PI * 2);
-            ctx.fillStyle = "#76702f";
-            ctx.fill();
-            ctx.strokeStyle = "#fff";
-            ctx.lineWidth = 2 * dpr;
-            ctx.stroke();
-          }
+          drawMapEmoji(ctx, emoji, point.x, point.y, 22 * dpr * mapScale, emojiBadge);
         }
       }
       ctx.globalAlpha = 1;
@@ -4778,6 +4790,14 @@
       return Array.from(currentSet).filter((key) => !LAYER_FILTER_KEYS.has(key));
     }
 
+    function pointFilterKeysForNearestFallback() {
+      const activePointFilters = getActivePointFilterKeys();
+      if (state.overviewFilters.length > 0) return activePointFilters;
+      return FILTER_SUBFILTERS
+        .map((subfilter) => subfilter.key)
+        .filter((key) => !LAYER_FILTER_KEYS.has(key));
+    }
+
     function setOverviewFilters(nextFilters) {
       state.overviewFilters = sanitizeOverviewFilters(nextFilters);
       state.showAllOutsideRadius = false;
@@ -5129,6 +5149,7 @@
       if (isRestaurantCategory(place)) return "restaurants";
       if (isCafeCategory(place)) return "cafes";
       if (isShopCategory(place)) return "shops";
+      if (isParkingCategory(place)) return "parking";
       if (isBusCategory(place)) return "bus";
       if (isUndergroundCategory(place)) return "underground";
       if (isNationalRailCategory(place)) return "national_rail";
@@ -5257,8 +5278,12 @@
       return isTrainCategory(place) && !isUndergroundCategory(place);
     }
 
+    function isParkingCategory(place) {
+      return place.category === "parking";
+    }
+
     function isTransportCategory(place) {
-      return isBusCategory(place) || isTrainCategory(place) || place.category === "taxi";
+      return isBusCategory(place) || isTrainCategory(place) || place.category === "taxi" || isParkingCategory(place);
     }
 
     function isPlaqueCategory(place) {
@@ -5371,6 +5396,7 @@
         case "bus": return isBusCategory(place);
         case "underground": return isUndergroundCategory(place);
         case "national_rail": return isNationalRailCategory(place);
+        case "parking": return isParkingCategory(place);
         case "plaques": return isPlaqueCategory(place);
         case "blue_plaques": return isBluePlaqueCategory(place);
         case "film_tv": return isFilmTvCategory(place);
@@ -5402,6 +5428,7 @@
       if (isUndergroundCategory(place)) return "underground";
       if (isNationalRailCategory(place)) return "national_rail";
       if (isBusCategory(place)) return "bus";
+      if (isParkingCategory(place)) return "parking";
       return "other";
     }
 
@@ -5420,10 +5447,56 @@
       return activePlaceFilters.some((filterKey) => matchesPlaceFilter(place, filterKey));
     }
 
+    function overviewEntryKey(entry) {
+      if (!entry || !entry.item) return "";
+      if (entry.type === "tree") return `tree:${treeHashKey(entry.item)}`;
+      if (entry.type === "cow") return `cow:${cowKey(entry.item)}`;
+      if (entry.type === "path") return `path:${pathHashKey(entry.item)}`;
+      return `place:${placeHashKey(entry.item)}`;
+    }
+
+    function uniqueSortedOverviewEntries(entries) {
+      const unique = new Map();
+      for (const entry of entries) {
+        const key = overviewEntryKey(entry);
+        if (!key) continue;
+        const existing = unique.get(key);
+        if (!existing || entry.metres < existing.metres) unique.set(key, entry);
+      }
+      return Array.from(unique.values()).sort((a, b) => a.metres - b.metres);
+    }
+
+    function nearestOverviewEntryForFilter(filterKey, latitude, longitude) {
+      if (filterKey === "trees") {
+        const nearest = nearestTreeTo(latitude, longitude);
+        return nearest ? { kind: "tree", type: "tree", item: nearest.tree, metres: nearest.metres } : null;
+      }
+      if (filterKey === "cows") {
+        const nearest = nearestCowTo(latitude, longitude);
+        return nearest ? { kind: "cow", type: "cow", item: nearest.cow, metres: nearest.metres } : null;
+      }
+      if (filterKey === "waymarked_trails") {
+        const nearest = nearestWaymarkedPathToUser();
+        return nearest ? { kind: "waymarked_trails", type: "path", item: nearest.path, metres: nearest.metres } : null;
+      }
+      const nearest = nearestPlaceByFilter(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey));
+      return nearest ? { kind: filterKey, type: "landmark", item: nearest.place, metres: nearest.metres } : null;
+    }
+
+    function nearestFallbackEntriesForActiveFilter(latitude, longitude) {
+      const entries = [];
+      for (const filterKey of pointFilterKeysForNearestFallback()) {
+        const entry = nearestOverviewEntryForFilter(filterKey, latitude, longitude);
+        if (entry) entries.push(entry);
+      }
+      return uniqueSortedOverviewEntries(entries);
+    }
+
     function overviewItemsForActiveFilter(limit = 3) {
       if (!state.userLocation) return [];
       const { latitude, longitude } = state.userLocation;
       const maxMetres = state.showAllOutsideRadius ? Number.POSITIVE_INFINITY : walkingDistanceToMetres(state.walkingDistanceMinutes);
+      state.overviewOutsideRadiusFallback = false;
 
       const hasFilters = state.overviewFilters.length > 0;
       if (hasFilters) {
@@ -5477,21 +5550,12 @@
           );
         }
 
-        const unique = new Map();
-        for (const entry of selectedEntries) {
-          const key = entry.type === "tree"
-            ? `tree:${treeHashKey(entry.item)}`
-            : entry.type === "cow"
-              ? `cow:${cowKey(entry.item)}`
-              : entry.type === "path"
-                ? `path:${pathHashKey(entry.item)}`
-              : `place:${placeHashKey(entry.item)}`;
-          const existing = unique.get(key);
-          if (!existing || entry.metres < existing.metres) unique.set(key, entry);
+        const sortedEntries = uniqueSortedOverviewEntries(selectedEntries);
+        if (!sortedEntries.length && !state.showAllOutsideRadius) {
+          const fallbackEntries = nearestFallbackEntriesForActiveFilter(latitude, longitude);
+          state.overviewOutsideRadiusFallback = fallbackEntries.length > 0;
+          return fallbackEntries;
         }
-
-        const sortedEntries = Array.from(unique.values())
-          .sort((a, b) => a.metres - b.metres);
 
         return sortedEntries;
       }
@@ -5529,7 +5593,13 @@
           metres,
         }))
       );
-      return entries.sort((a, b) => a.metres - b.metres);
+      const sortedEntries = entries.sort((a, b) => a.metres - b.metres);
+      if (!sortedEntries.length && !state.showAllOutsideRadius) {
+        const fallbackEntries = nearestFallbackEntriesForActiveFilter(latitude, longitude);
+        state.overviewOutsideRadiusFallback = fallbackEntries.length > 0;
+        return fallbackEntries;
+      }
+      return sortedEntries;
     }
 
     function overviewNearestHtml() {
@@ -5575,8 +5645,11 @@
       ).join('');
       const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
       const distanceSummary = `Within ${state.walkingDistanceMinutes} min walk (${formatDistance(maxMetres)})`;
+      const fallbackNotice = state.overviewOutsideRadiusFallback
+        ? `<p class="source-note"><strong>Nothing found within ${state.walkingDistanceMinutes} mins walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
+        : "";
       const selectSection = `<div class="filter-section"><label for="nearestItemsSelect">Walking distance: <select id="nearestItemsSelect" class="nearest-items-select">${selectOptions}</select></label><p class="source-note" style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.8;">Walking times are averages and assume a direct route.</p></div>`;
-      return `<p class="source-note"><strong>${heading}</strong><br><small>${distanceSummary}</small></p><ul class="nearest-list">${itemsHtml}</ul>${selectSection}<p class="source-note">App version: ${APP_VERSION}</p>`;
+      return `<p class="source-note"><strong>${heading}</strong><br><small>${distanceSummary}</small></p>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>${selectSection}<p class="source-note">App version: ${APP_VERSION}</p>`;
     }
 
     function detailsHtml(rows) {
@@ -5661,7 +5734,38 @@
           return filterKindEmoji(filterKey) || "📍";
         }
       }
+      return landmarkTypeEmoji(place) || "📍";
+    }
+
+    function landmarkTypeEmoji(place) {
+      if (!place) return null;
+      if (hasAnyPlaceTag(place, ["parking"])) return "🅿️";
+      if (hasAnyPlaceTag(place, ["bicycle_parking", "cycle_parking"])) return "🚲";
+      if (hasAnyPlaceTag(place, ["bench"])) return "🪑";
+      if (hasAnyPlaceTag(place, ["toilets"])) return "🚻";
+      if (hasAnyPlaceTag(place, ["drinking_water", "water_well"])) return "🚰";
+      if (hasAnyPlaceTag(place, ["information"])) return "ℹ️";
+      if (hasAnyPlaceTag(place, ["memorial"])) return "🕯️";
+      if (hasAnyPlaceTag(place, ["monument", "boundary_stone"])) return "🗿";
+      if (hasAnyPlaceTag(place, ["archaeological_site", "roman_road", "ruins"])) return "🏺";
+      if (hasAnyPlaceTag(place, ["museum", "attraction", "building", "folly", "tomb", "gate_pier"])) return "🏛️";
+      if (hasAnyPlaceTag(place, ["camp_site", "caravan_site"])) return "⛺";
+      if (hasAnyPlaceTag(place, ["picnic_site"])) return "🧺";
+      if (hasAnyPlaceTag(place, ["viewpoint"])) return "🔭";
+      if (hasAnyPlaceTag(place, ["taxi"])) return "🚕";
+      if (hasAnyPlaceTag(place, ["telephone"])) return "☎️";
+      if (hasAnyPlaceTag(place, ["events_venue"])) return "🎟️";
+      if (hasAnyPlaceTag(place, ["alcohol"])) return "🍷";
+      if (hasAnyPlaceTag(place, ["chemist"])) return "⚕️";
+      if (hasAnyPlaceTag(place, ["dry_cleaning"])) return "👔";
+      if (hasAnyPlaceTag(place, ["cafe", "tea"])) return "☕";
+      if (hasAnyPlaceTag(place, ["gate", "entrance", "stile", "kissing_gate"])) return "🚪";
+      if (hasAnyPlaceTag(place, ["cycle_barrier", "lift_gate", "swing_gate", "cattle_grid", "fence"])) return "🚧";
       return "📍";
+    }
+
+    function hasAnyPlaceTag(place, tags) {
+      return tags.some((tag) => hasPlaceTag(place, tag));
     }
 
     function directionLabelFor(item) {
@@ -5710,22 +5814,9 @@
         && typeof DeviceOrientationEvent.requestPermission === "function";
     }
 
-    function setupCompassPermissionPrimer() {
-      if (!compassPermissionCanBeRequested()) return;
-
-      const onFirstGesture = async () => {
-        await requestCompassPermissionIfNeeded({ fromGesture: true });
-        window.removeEventListener("pointerdown", onFirstGesture, true);
-        window.removeEventListener("touchstart", onFirstGesture, true);
-      };
-
-      window.addEventListener("pointerdown", onFirstGesture, true);
-      window.addEventListener("touchstart", onFirstGesture, true);
-    }
-
     async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
       if (typeof DeviceOrientationEvent === "undefined") {
-        if (fromGesture) {
+        if (fromGesture && state.userLocation) {
           const message = "Compass is not available on this device/browser. You can still use the map without compass guidance.";
           setLocationGateVisible(true, message, "Continue without compass");
         }
@@ -5825,6 +5916,7 @@
       state.locationWatchId = navigator.geolocation.watchPosition(
         (position) => {
           const { latitude, longitude, accuracy } = position.coords;
+          const previousPoint = state.userLocation && state.userLocation.point;
           const point = projectLonLat(longitude, latitude);
           state.userLocation = { latitude, longitude, accuracy, point };
           updateLocateButtonVisibility();
@@ -5842,6 +5934,7 @@
           updateOverviewDirectionArrows();
           updateSelectedDetailFields();
           ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
+          keepOverviewCenteredOnUser(previousPoint);
           updateCompassOverlay();
           requestDraw();
         },
@@ -5919,6 +6012,77 @@
       state.initialUserRevealDone = true;
     }
 
+    function maxScaleForRadiusVisible(focusRect) {
+      if (!state.userLocation) return Number.POSITIVE_INFINITY;
+      const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+      const edgeWorld = projectLonLat(
+        state.userLocation.longitude + (radiusMetres / (111320 * Math.cos(state.userLocation.latitude * Math.PI / 180))),
+        state.userLocation.latitude
+      );
+      const worldRadius = Math.abs(edgeWorld.x - state.userLocation.point.x);
+      if (worldRadius <= 0) return Number.POSITIVE_INFINITY;
+      const padding = 24 * pixelRatio();
+      const availableHalf = Math.min(focusRect.width / 2, focusRect.height / 2) - padding;
+      if (availableHalf <= 0) return Number.POSITIVE_INFINITY;
+      return availableHalf / worldRadius;
+    }
+
+    function centerOverviewOnUserLocation(options = {}) {
+      if (!state.userLocation || !isOverviewScreenActive() || state.selected) return;
+      const requestedScale = Number.isFinite(options.scale) ? options.scale : state.viewport.scale;
+
+      const focusRect = options.focusVisibleArea
+        ? bestVisibleCanvasRect({ assumeInspectorOpen: true })
+        : { x: 0, y: 0, width: els.canvas.width, height: els.canvas.height };
+      const radiusCap = maxScaleForRadiusVisible(focusRect);
+      const targetScale = Math.min(requestedScale, radiusCap);
+      const focusCenter = {
+        x: focusRect.x + focusRect.width / 2,
+        y: focusRect.y + focusRect.height / 2,
+      };
+      const targetViewport = {
+        scale: targetScale,
+        tx: focusCenter.x - state.userLocation.point.x * targetScale,
+        ty: focusCenter.y - state.userLocation.point.y * targetScale,
+      };
+
+      if (options.animate) {
+        animateViewportTo(targetViewport, options.durationMs || 520);
+        return;
+      }
+
+      stopViewportAnimation();
+      state.viewport.scale = targetViewport.scale;
+      state.viewport.tx = targetViewport.tx;
+      state.viewport.ty = targetViewport.ty;
+      requestDraw();
+    }
+
+    function keepOverviewCenteredOnUser(previousPoint) {
+      if (!state.userLocation || state.selected || !isOverviewScreenActive()) return;
+      if (els.inspector.classList.contains("minimized")) return;
+
+      const previousScreen = previousPoint ? worldToScreen(previousPoint) : null;
+      const nextScreen = worldToScreen(state.userLocation.point);
+      const screenMovement = previousScreen
+        ? Math.hypot(nextScreen.x - previousScreen.x, nextScreen.y - previousScreen.y)
+        : Infinity;
+      const pendingTargetScale = state.viewportAnimationTo && Number.isFinite(state.viewportAnimationTo.scale)
+        ? state.viewportAnimationTo.scale
+        : state.viewport.scale;
+      const targetScale = capScaleForUserCenteredOverview(pendingTargetScale, { assumeInspectorOpen: true });
+      if (!previousPoint) {
+        centerOverviewOnUserLocation({ animate: false, scale: targetScale });
+        return;
+      }
+      const shouldAnimate = screenMovement >= 42;
+      centerOverviewOnUserLocation({
+        animate: shouldAnimate,
+        durationMs: screenMovement >= 160 ? 620 : 360,
+        scale: targetScale,
+      });
+    }
+
     function centerViewportOnPointsKeepScale(points, options = {}) {
       if (!Array.isArray(points) || points.length === 0) return;
       const validPoints = points.filter((point) => point && Number.isFinite(point.x) && Number.isFinite(point.y));
@@ -5966,11 +6130,7 @@
       if (state.selected) return;
       setInspectorMinimized(false);
 
-      const points = [state.userLocation.point];
-      const overviewEntries = overviewItemsForActiveFilter();
-      for (const entry of overviewEntries) {
-        points.push(entry.item.point);
-      }
+      const points = overviewTargetPoints();
 
       if (points.length >= 2) {
         fitToPoints(points, false, {
@@ -5980,6 +6140,40 @@
           durationMs: options.durationMs || 520,
         });
       }
+    }
+
+    function overviewTargetPoints() {
+      if (!state.userLocation) return [];
+      const points = [state.userLocation.point];
+      const overviewEntries = overviewItemsForActiveFilter();
+      for (const entry of overviewEntries) {
+        if (entry && entry.item && entry.item.point) points.push(entry.item.point);
+      }
+      return points;
+    }
+
+    function capScaleForUserCenteredOverview(targetScale, options = {}) {
+      if (!state.userLocation || !Number.isFinite(targetScale)) return targetScale;
+      const points = overviewTargetPoints();
+      if (points.length < 2) return targetScale;
+
+      const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) });
+      const padding = 72 * pixelRatio();
+      const availableHalfWidth = Math.max(1, focusRect.width / 2 - padding);
+      const availableHalfHeight = Math.max(1, focusRect.height / 2 - padding);
+      let maxDx = 0;
+      let maxDy = 0;
+
+      for (const point of points) {
+        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+        maxDx = Math.max(maxDx, Math.abs(point.x - state.userLocation.point.x));
+        maxDy = Math.max(maxDy, Math.abs(point.y - state.userLocation.point.y));
+      }
+
+      const scaleX = maxDx > 0 ? availableHalfWidth / maxDx : Number.POSITIVE_INFINITY;
+      const scaleY = maxDy > 0 ? availableHalfHeight / maxDy : Number.POSITIVE_INFINITY;
+      const cappedScale = Math.min(targetScale, scaleX, scaleY);
+      return Number.isFinite(cappedScale) && cappedScale > 0 ? cappedScale : targetScale;
     }
 
     function syncHashFromSelection() {
@@ -6652,6 +6846,18 @@
         .sort((a, b) => a.metres - b.metres);
     }
 
+    function nearestWaymarkedPathToUser() {
+      if (!state.userLocation) return null;
+      let best = null;
+      for (const path of state.paths) {
+        if (!isWaymarkedTrail(path)) continue;
+        const metres = distanceFromUserToPath(path);
+        if (!Number.isFinite(metres)) continue;
+        if (!best || metres < best.metres) best = { path, metres };
+      }
+      return best;
+    }
+
     function findPathByHashKey(key) {
       return state.paths.find((path) => pathHashKey(path) === key) || null;
     }
@@ -7172,6 +7378,7 @@
         case "bus": return "rgba(255, 140, 0, 0.85)";
         case "underground": return "rgba(201, 24, 24, 0.85)";
         case "national_rail": return "rgba(0, 47, 167, 0.85)";
+        case "parking": return "rgba(0, 90, 180, 0.85)";
         case "landmark": return "rgba(118, 112, 47, 0.85)";
         case "plaques": return "rgba(78, 93, 135, 0.85)";
         case "blue_plaques": return "rgba(62, 103, 196, 0.85)";

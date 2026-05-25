@@ -12,7 +12,8 @@
     "regen:paths:js": "node scripts/regenerate-local-paths.js",
     "regen:environment": "python3 scripts/regenerate_local_environment.py",
     "netlify:dev": "npx netlify dev",
-    "build": "echo \"Static site: no build step required\""
+    "build": "echo \"Static site: no build step required\"",
+    "test": "node test/forest-finds.test.js"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.8",

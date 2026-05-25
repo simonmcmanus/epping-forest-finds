@@ -181,6 +181,18 @@ Category-specific rendering:
 | Film/TV | 🎬 | Standard |
 | WWII | 🪖 | Standard |
 | Royal | 👑 | Standard |
+| Parking | 🅿️ | Standard |
+| Cycle parking | 🚲 | Standard |
+| Benches | 🪑 | Standard |
+| Toilets | 🚻 | Standard |
+| Drinking water | 🚰 | Standard |
+| Information | ℹ️ | Standard |
+| Gates / entrances | 🚪 | Standard |
+| Barriers | 🚧 | Standard |
+| Campsites | ⛺ | Standard |
+| Memorials | 🕯️ | Standard |
+| Monuments | 🗿 | Standard |
+| Ambiguous locations | 📍 | Standard |
 | Celebrity | ⭐ | Standard |
 | Science | 🔭 | Standard |
 | Education | 🎓 | Standard |
@@ -249,6 +261,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 ### Overview Content
 
 - List of nearest items across active filter types
+- If no active type has a result within the selected walking radius, show the closest available item for each active type and display a notice naming the selected walking-time radius.
 - Each entry shows: emoji icon, name, distance, directional arrow
 - Count controlled by `nearestItemsCount` dropdown (3/5/10/15/20/25)
 - Filter panel toggle visible in overview mode
@@ -316,6 +329,8 @@ Behavior:
 ### Selection Camera
 
 - **Expanded inspector + selected target:** camera fits user + target in view
+- **Overview mode:** GPS updates keep the user location centered; large movements animate between positions
+- **First location fix:** nearby map markers are visible immediately without requiring a manual zoom
 - **Minimized inspector:** auto-reposition paused — free pan/zoom
 - **Expand from minimized:** recenter once to user + selected target, preserve zoom intent
 
