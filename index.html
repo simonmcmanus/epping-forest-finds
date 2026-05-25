@@ -1570,6 +1570,7 @@
           { key: "trees", label: "🌳 Trees", title: "trees" },
           { key: "cows", label: "🐄 Cows", title: "cows" },
           { key: "waymarked_trails", label: "🥾 Waymarked trails", title: "waymarked trails" },
+          { key: "ponds_streams", label: "💧 Ponds & streams", title: "ponds and streams" },
         ],
       },
       {
@@ -1639,7 +1640,8 @@
     const TREE_FILTER_KEYS = new Set(["trees"]);
     const COW_FILTER_KEYS = new Set(["cows"]);
     const PATH_FILTER_KEYS = new Set(["waymarked_trails"]);
-    const PLACE_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key).filter((key) => !LAYER_FILTER_KEYS.has(key) && !TREE_FILTER_KEYS.has(key) && !COW_FILTER_KEYS.has(key) && !PATH_FILTER_KEYS.has(key)));
+    const WATER_FILTER_KEYS = new Set(["ponds_streams"]);
+    const PLACE_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => subfilter.key).filter((key) => !LAYER_FILTER_KEYS.has(key) && !TREE_FILTER_KEYS.has(key) && !COW_FILTER_KEYS.has(key) && !PATH_FILTER_KEYS.has(key) && !WATER_FILTER_KEYS.has(key)));
     const PLACE_FILTER_PRIORITY = [
       "pubs",
       "restaurants",
@@ -1674,6 +1676,7 @@
       paths: [],
       roads: [],
       environmentFeatures: [],
+      waterFeatures: [],
       layers: [],
       bounds: null,
       namedTreeStoriesByName: new Map(),
@@ -1991,6 +1994,7 @@
         }
 
         state.environmentFeatures = (environmentData.features || []).filter((feature) => feature && feature.geometry && feature.properties);
+        state.waterFeatures = extractWaterFeatures(environmentData.features || []);
 
         state.bounds = calculateBounds();
         const hasCachedCowData = applyCachedCowData();
@@ -4511,6 +4515,19 @@
         startCompassNavigation();
         ensureUserAndSelectionVisible({ animate: true, force: true });
         requestDraw();
+        return;
+      }
+
+      if (type === "water") {
+        const water = findWaterByHashKey(key);
+        if (!water) return;
+        const metres = distanceFromUser(water);
+        state.selected = { type: "water", item: water };
+        showWaterDetails(water, metres);
+        setInspectorMinimized(true);
+        startCompassNavigation();
+        ensureUserAndSelectionVisible({ animate: true, force: true });
+        requestDraw();
       }
     }
 
@@ -4958,9 +4975,9 @@
       if (els.filterToggle) {
         const activeGroupCount = getActiveGroupKeys(currentSet).length;
         const hasActiveFilter = activeGroupCount > 0;
-        const locationSelected = Boolean(state.selected && ["tree", "landmark", "cow", "path"].includes(state.selected.type));
+        const locationSelected = Boolean(state.selected);
         
-        // Hide filter button when viewing location details
+        // Hide filter button when not on the overview/nearby screen
         els.filterToggle.hidden = locationSelected;
         
         // Only auto-open if user hasn't manually collapsed it
@@ -5568,6 +5585,7 @@
       if (entry.type === "tree") return `tree:${treeHashKey(entry.item)}`;
       if (entry.type === "cow") return `cow:${cowKey(entry.item)}`;
       if (entry.type === "path") return `path:${pathHashKey(entry.item)}`;
+      if (entry.type === "water") return `water:${waterHashKey(entry.item)}`;
       return `place:${placeHashKey(entry.item)}`;
     }
 
@@ -5594,6 +5612,11 @@
       if (filterKey === "waymarked_trails") {
         const nearest = nearestWaymarkedPathToUser();
         return nearest ? { kind: "waymarked_trails", type: "path", item: nearest.path, metres: nearest.metres } : null;
+      }
+      if (filterKey === "ponds_streams") {
+        if (!state.userLocation) return null;
+        const nearest = nearestWaterFeatureTo(state.userLocation.latitude, state.userLocation.longitude);
+        return nearest ? { kind: "ponds_streams", type: "water", item: nearest.water, metres: nearest.metres } : null;
       }
       const nearest = nearestPlaceByFilter(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey));
       return nearest ? { kind: filterKey, type: "landmark", item: nearest.place, metres: nearest.metres } : null;
@@ -5656,6 +5679,18 @@
             continue;
           }
 
+          if (filterKey === "ponds_streams") {
+            selectedEntries.push(
+              ...nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres).map(({ water, metres }) => ({
+                kind: "ponds_streams",
+                type: "water",
+                item: water,
+                metres,
+              }))
+            );
+            continue;
+          }
+
           selectedEntries.push(
             ...nearbyPlacesByFilterWithinDistance(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey), maxMetres).map(({ place, metres }) => ({
               kind: filterKey,
@@ -5698,6 +5733,14 @@
           kind: "waymarked_trails",
           type: "path",
           item: path,
+          metres,
+        }))
+      );
+      entries.push(
+        ...nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres).map(({ water, metres }) => ({
+          kind: "ponds_streams",
+          type: "water",
+          item: water,
           metres,
         }))
       );
@@ -5749,9 +5792,11 @@
             ? "Cow"
             : entry.type === "path"
               ? displayValue(entry.item.name || entry.item.ref || "Waymarked trail")
+          : entry.type === "water"
+            ? entry.item.name
           : placeTitle(entry.item);
         const emoji = filterKindEmoji(entry.kind) || landmarkEmoji(entry.item);
-        const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : placeHashKey(entry.item);
+        const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
         const distanceText = `${formatDistance(entry.metres)} · ${formatWalkTime(entry.metres)}`;
         const addressLine = entry.item.address ? entry.item.address.split(',')[0].trim() : null;
         const subtitleHtml = addressLine
@@ -6065,7 +6110,7 @@
 
     function selectedCompassTarget() {
       if (!state.selected) return null;
-      if (state.selected.type === "tree" || state.selected.type === "landmark" || state.selected.type === "cow" || state.selected.type === "path") return state.selected.item;
+      if (state.selected.type === "tree" || state.selected.type === "landmark" || state.selected.type === "cow" || state.selected.type === "path" || state.selected.type === "water") return state.selected.item;
       return null;
     }
 
@@ -6985,6 +7030,88 @@
       return state.paths.find((path) => pathHashKey(path) === key) || null;
     }
 
+    function extractWaterFeatures(features) {
+      // Store one representative point per named water body (first occurrence wins)
+      const seen = new Map();
+      for (const feature of features) {
+        const p = feature.properties;
+        if (!p || !p.name) continue;
+        if (p.featureType !== "hydrology_area" && p.featureType !== "hydrology_line") continue;
+        if (seen.has(p.name)) continue;
+        const geom = feature.geometry;
+        if (!geom) continue;
+        let lat, lng;
+        if (geom.type === "Polygon" && geom.coordinates[0] && geom.coordinates[0].length) {
+          const ring = geom.coordinates[0];
+          lng = ring.reduce((s, c) => s + c[0], 0) / ring.length;
+          lat = ring.reduce((s, c) => s + c[1], 0) / ring.length;
+        } else if (geom.type === "LineString" && geom.coordinates.length) {
+          const mid = geom.coordinates[Math.floor(geom.coordinates.length / 2)];
+          lng = mid[0]; lat = mid[1];
+        } else {
+          continue;
+        }
+        seen.set(p.name, {
+          id: p.id,
+          name: p.name,
+          featureType: p.featureType,
+          waterway: p.waterway || null,
+          latitude: lat,
+          longitude: lng,
+          point: projectLonLat(lng, lat),
+        });
+      }
+      return Array.from(seen.values());
+    }
+
+    function waterHashKey(water) {
+      return water.id || water.name;
+    }
+
+    function findWaterByHashKey(key) {
+      return state.waterFeatures.find((w) => waterHashKey(w) === key) || null;
+    }
+
+    function nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres) {
+      // Deduplicate by name, keeping the nearest occurrence of each named feature
+      const byName = new Map();
+      for (const w of state.waterFeatures) {
+        const metres = distanceMetres(latitude, longitude, w.latitude, w.longitude);
+        if (metres > maxMetres) continue;
+        const existing = byName.get(w.name);
+        if (!existing || metres < existing.metres) byName.set(w.name, { water: w, metres });
+      }
+      return Array.from(byName.values()).sort((a, b) => a.metres - b.metres);
+    }
+
+    function nearestWaterFeatureTo(latitude, longitude) {
+      let best = null;
+      for (const w of state.waterFeatures) {
+        const metres = distanceMetres(latitude, longitude, w.latitude, w.longitude);
+        if (!best || metres < best.metres) best = { water: w, metres };
+      }
+      return best;
+    }
+
+    function showWaterDetails(water, distance) {
+      const isArea = water.featureType === "hydrology_area";
+      const typeLabel = isArea
+        ? "Pond / lake"
+        : (water.waterway ? water.waterway.charAt(0).toUpperCase() + water.waterway.slice(1) : "Stream / waterway");
+      setInspectorSelectionChrome({ emoji: "💧", showBack: true });
+      els.inspectorTools.hidden = true;
+      els.inspectorTitle.textContent = water.name;
+      els.inspectorType.textContent = typeLabel;
+      const rows = [
+        ["Distance", distance == null ? null : formatDistance(distance), "distance"],
+        ["Walking time", distance == null ? null : formatWalkTime(distance), "walktime"],
+        ["Direction", directionLabelFor(water)],
+        ["Type", typeLabel],
+        ["Source", water.id ? `OpenStreetMap ${water.id}` : "OpenStreetMap"],
+      ];
+      els.inspectorBody.innerHTML = detailsHtml(rows);
+    }
+
     function distanceToLineSegment(lat, lon, lat1, lon1, lat2, lon2) {
       // Calculate distance from point to line segment in metres
       const d12 = distanceMetres(lat1, lon1, lat2, lon2);
@@ -7480,6 +7607,7 @@
         case "tree": return "🌳";
         case "cow": return "🐄";
         case "waymarked_trails": return "🥾";
+        case "ponds_streams": return "💧";
         case "pub":
         case "pubs": return "🍺";
         case "restaurant":
