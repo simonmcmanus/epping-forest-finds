@@ -102,6 +102,34 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Proxy Netlify functions locally
+  if (url.pathname.startsWith("/.netlify/functions/")) {
+    const fnName = url.pathname.replace("/.netlify/functions/", "");
+    const fnPath = path.join(ROOT, "netlify", "functions", fnName + ".js");
+    const resolved = path.resolve(fnPath);
+    if (!resolved.startsWith(path.join(ROOT, "netlify", "functions"))) {
+      send(res, 403, "Forbidden");
+      return;
+    }
+    try {
+      // Clear require cache so changes are picked up on restart
+      delete require.cache[require.resolve(resolved)];
+      const fn = require(resolved);
+      const qs = Object.fromEntries(url.searchParams.entries());
+      fn.handler({ httpMethod: req.method, queryStringParameters: qs })
+        .then((result) => {
+          res.writeHead(result.statusCode, result.headers || { "Content-Type": "application/json" });
+          res.end(result.body || "");
+        })
+        .catch((err) => {
+          send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8");
+        });
+    } catch (err) {
+      send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8");
+    }
+    return;
+  }
+
   if (req.method !== "GET" && req.method !== "HEAD") {
     send(res, 405, "Method not allowed");
     return;
