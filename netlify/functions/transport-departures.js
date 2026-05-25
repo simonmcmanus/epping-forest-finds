@@ -1,10 +1,5 @@
 const TFL_BASE = "https://api.tfl.gov.uk";
 
-const STOP_TYPES_FOR = {
-  bus: "NaptanBusCoachTimetabledStop,NaptanPublicBusCoachTram",
-  train: "NaptanRailStation,NaptanMetroStation",
-};
-
 exports.handler = async (event) => {
   const headers = {
     "Content-Type": "application/json; charset=utf-8",
@@ -29,14 +24,13 @@ exports.handler = async (event) => {
   }
 
   const p = event.queryStringParameters || {};
-  const { lat, lon, type } = p;
+  const { lat, lon, type, name } = p;
 
   if (!lat || !lon || !type) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing lat, lon or type" }) };
   }
 
-  const stopTypes = STOP_TYPES_FOR[type];
-  if (!stopTypes) {
+  if (type !== "bus" && type !== "train") {
     return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid type, must be bus or train" }) };
   }
 
@@ -44,24 +38,54 @@ exports.handler = async (event) => {
   const keyQs = appKey ? `&app_key=${appKey}` : "";
 
   try {
-    // Step 1: find the nearest stop at this location
-    const stopRes = await fetch(
-      `${TFL_BASE}/StopPoint?lat=${lat}&lon=${lon}&stopTypes=${stopTypes}&radius=150${keyQs}`
-    );
-    if (!stopRes.ok) throw new Error(`TfL StopPoint HTTP ${stopRes.status}`);
-    const stopData = await stopRes.json();
-    const stops = Array.isArray(stopData.stopPoints) ? stopData.stopPoints : [];
+    let stopId, stopName;
 
-    if (!stops.length) {
-      return { statusCode: 200, headers, body: JSON.stringify({ departures: [], stopName: null }) };
+    if (type === "bus") {
+      // Bus stops: find by lat/lon
+      const stopRes = await fetch(
+        `${TFL_BASE}/StopPoint?lat=${lat}&lon=${lon}&stopTypes=NaptanPublicBusCoachTram&radius=200${keyQs}`
+      );
+      if (!stopRes.ok) throw new Error(`TfL StopPoint HTTP ${stopRes.status}`);
+      const stopData = await stopRes.json();
+      const stops = Array.isArray(stopData.stopPoints) ? stopData.stopPoints : [];
+      if (!stops.length) {
+        return { statusCode: 200, headers, body: JSON.stringify({ departures: [], stopName: null }) };
+      }
+      stopId = stops[0].id;
+      stopName = stops[0].commonName;
+    } else {
+      // Train/underground: try lat/lon first, fall back to name search
+      const stopRes = await fetch(
+        `${TFL_BASE}/StopPoint?lat=${lat}&lon=${lon}&stopTypes=NaptanMetroStation,NaptanRailStation&radius=500${keyQs}`
+      );
+      if (!stopRes.ok) throw new Error(`TfL StopPoint HTTP ${stopRes.status}`);
+      const stopData = await stopRes.json();
+      const stops = Array.isArray(stopData.stopPoints) ? stopData.stopPoints : [];
+
+      if (stops.length) {
+        stopId = stops[0].id;
+        stopName = stops[0].commonName;
+      } else if (name) {
+        // Fall back to name search (covers overground/national rail not in lat/lon index)
+        const searchRes = await fetch(
+          `${TFL_BASE}/StopPoint/Search/${encodeURIComponent(name)}?modes=tube,overground,elizabeth-line,national-rail&maxResults=5${keyQs}`
+        );
+        if (!searchRes.ok) throw new Error(`TfL Search HTTP ${searchRes.status}`);
+        const searchData = await searchRes.json();
+        const matches = Array.isArray(searchData.matches) ? searchData.matches : [];
+        if (!matches.length) {
+          return { statusCode: 200, headers, body: JSON.stringify({ departures: [], stopName: null }) };
+        }
+        stopId = matches[0].id;
+        stopName = matches[0].name;
+      } else {
+        return { statusCode: 200, headers, body: JSON.stringify({ departures: [], stopName: null }) };
+      }
     }
 
-    // Closest stop is first (TfL sorts by distance)
-    const stop = stops[0];
-
-    // Step 2: get live arrivals for this stop
+    // Fetch live arrivals
     const arrivalsRes = await fetch(
-      `${TFL_BASE}/StopPoint/${stop.id}/Arrivals${appKey ? `?app_key=${appKey}` : ""}`
+      `${TFL_BASE}/StopPoint/${stopId}/Arrivals${appKey ? `?app_key=${appKey}` : ""}`
     );
     if (!arrivalsRes.ok) throw new Error(`TfL Arrivals HTTP ${arrivalsRes.status}`);
     const arrivals = await arrivalsRes.json();
@@ -70,7 +94,7 @@ exports.handler = async (event) => {
       .sort((a, b) => a.timeToStation - b.timeToStation)
       .slice(0, 10)
       .map((a) => ({
-        line: a.lineName || a.lineId || "–",
+        line: a.lineName || a.lineId || "\u2013",
         direction: a.towards || a.destinationName || "",
         minutesAway: Math.max(0, Math.round(a.timeToStation / 60)),
         due: a.timeToStation <= 30,
@@ -79,7 +103,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ departures, stopName: stop.commonName, stopId: stop.id }),
+      body: JSON.stringify({ departures, stopName, stopId }),
     };
   } catch (error) {
     return {
