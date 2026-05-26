@@ -225,6 +225,25 @@ Marker rules:
   - route lines to overview targets
   - camera fit to keep all overview targets visible
 
+### Nearby list footer
+
+- The nearby list shows only the nearest items and the walking-radius summary header.
+- The walking distance selector and app version are **not** shown in the nearby list.
+
+## Settings Screen
+
+- Accessible via the ⚙️ button in the inspector header.
+- Contains a **Walking radius** control: a dropdown to choose how far to walk when listing nearby places (5, 10, 15, 20, 30, 60 min options).
+- Contains an **About** section displaying the current app version (e.g. `v80`).
+- Changing the walking radius immediately updates the nearby list, map circle, and nearest tree selection.
+
+## Feedback / Report Screen
+
+- Accessible via the ✍️ button in the inspector header.
+- Allows users to report missing data or request features; submissions are tracked as GitHub issues.
+- The current app version is displayed in the form so the user can see which version will be reported.
+- The app version, user agent, page URL, and optional geolocation are included in every submission payload.
+
 ## Compass and Direction Guidance
 
 - Use device orientation when available.

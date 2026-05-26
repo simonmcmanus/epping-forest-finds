@@ -138,6 +138,8 @@ globalThis.__forestFindsTest = {
   isNearCanvas,
   landmarkEmoji,
   worldToScreen,
+  settingsFormHtml,
+  reportFormHtml,
 };
 `;
 
@@ -347,6 +349,40 @@ test("minimized inspector preserves user-controlled map position on GPS updates"
 
   assert.equal(app.state.viewportAnimationTo, null);
   assert.deepEqual(app.state.viewport, { scale: 1000, tx: 123, ty: 456 });
+});
+
+test("nearby HTML does not contain the walking distance selector", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addFixtureData(app);
+
+  const html = app.overviewNearestHtml();
+
+  assert.ok(!html.includes("nearestItemsSelect"), "nearby should not contain the walking distance select control");
+  assert.ok(!html.includes("Walking distance:"), "nearby should not contain the walking distance label");
+});
+
+test("nearby HTML does not contain the app version", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addFixtureData(app);
+
+  const html = app.overviewNearestHtml();
+
+  assert.ok(!html.includes("App version:"), "app version should not appear in the nearby section");
+});
+
+test("settings form shows the app version", () => {
+  const html = app.settingsFormHtml();
+
+  assert.match(html, /v\d+/, "settings form should include the app version number");
+  assert.match(html, /App version/, "settings form should label the app version");
+});
+
+test("report form shows the app version that will be submitted", () => {
+  const html = app.reportFormHtml();
+
+  assert.match(html, /v\d+/, "report form should display the app version so the user knows what version is being reported");
 });
 
 test("walking radius circle is always fully visible on screen after centering", () => {

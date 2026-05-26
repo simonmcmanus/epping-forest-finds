@@ -374,6 +374,7 @@
       margin-top: -27px;
       padding: 26px 6px 6px 8px;
       box-sizing: border-box;
+      overflow: hidden;
       max-height: none;
       opacity: 1;
       transform: translateY(0);
@@ -393,7 +394,7 @@
       max-width: 100%;
       overflow-x: auto;
       overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
       scrollbar-width: thin;
       position: relative;
       box-sizing: border-box;
@@ -5123,6 +5124,10 @@
             <select id="settingsWalkMins" class="report-input">${options}</select>
           </label>
         </section>
+        <section class="settings-section">
+          <h3 class="settings-section-title">About</h3>
+          <p class="settings-description">App version: ${APP_VERSION}</p>
+        </section>
       </div>`;
     }
 
@@ -5190,6 +5195,7 @@
           <p class="report-note">If location is added, it will be included in the issue to help pinpoint the request.</p>
           <p id="reportStatus" class="report-status" aria-live="polite"></p>
           <p id="reportOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Your report is saved and will be ready to submit when you\'re back online.</p>
+          <p class="report-note" style="opacity: 0.7;">Version ${APP_VERSION} will be included with your report.</p>
           <div class="report-form-actions">
             <button id="reportCancel" class="button" type="button">Cancel</button>
             <button id="reportSubmit" class="button" type="submit"${online ? "" : " disabled"}>Submit report</button>
@@ -5893,16 +5899,12 @@
         return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label"><span class="nearest-emoji" aria-hidden="true">${emoji}</span><span>${escapeHtml(name)}</span></span></span><small>${subtitleHtml}</small></button></li>`;
       }).join("");
 
-      const selectOptions = [5, 10, 15, 20, 30, 60].map(n => 
-        `<option value="${n}" ${state.walkingDistanceMinutes === n ? 'selected' : ''}>${n} min walk</option>`
-      ).join('');
       const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
       const distanceSummary = `Within ${state.walkingDistanceMinutes} min walk (${formatDistance(maxMetres)})`;
       const fallbackNotice = state.overviewOutsideRadiusFallback
         ? `<p class="source-note"><strong>Nothing found within ${state.walkingDistanceMinutes} mins walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
         : "";
-      const selectSection = `<div class="filter-section"><label for="nearestItemsSelect">Walking distance: <select id="nearestItemsSelect" class="nearest-items-select">${selectOptions}</select></label><p class="source-note" style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.8;">Walking times are averages and assume a direct route.</p></div>`;
-      return `<p class="source-note"><strong>${heading}</strong><br><small>${distanceSummary}</small></p>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>${selectSection}<p class="source-note">App version: ${APP_VERSION}</p>`;
+      return `<p class="source-note"><strong>${heading}</strong><br><small>${distanceSummary}</small></p>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
 
     function detailsHtml(rows) {
