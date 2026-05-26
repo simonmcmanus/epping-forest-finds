@@ -144,6 +144,15 @@ globalThis.__forestFindsTest = {
 `;
 
   vm.createContext(context);
+
+  const rootDir = path.join(__dirname, "..");
+  for (const externalSrc of ["js/categories.js", "js/normalize.js"]) {
+    const externalPath = path.join(rootDir, externalSrc);
+    if (fs.existsSync(externalPath)) {
+      vm.runInContext(fs.readFileSync(externalPath, "utf8"), context, { filename: externalSrc });
+    }
+  }
+
   vm.runInContext(script, context, { filename: "index.html" });
   return context.__forestFindsTest;
 }

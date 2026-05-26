@@ -1,15 +1,28 @@
-const CACHE_NAME = "veteran-tree-finder-v82";
+const CACHE_NAME = "veteran-tree-finder-v84";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./tree-icon.svg",
+  "./css/base.css",
+  "./css/filter.css",
+  "./css/loading.css",
+  "./css/inspector.css",
+  "./css/map-ui.css",
+  "./js/categories.js",
+  "./js/normalize.js",
   "./Veteran_Tree_Register.json",
   "./Veteran_Tree_Register.enriched.with_named_trees.json",
   "./data/epping-forest-land.geojson",
   "./data/epping-buffer-land.geojson",
-  "./data/local-landmarks.geojson",
-  "./data/epping_forest_folklore_locations_v14_external_links.json",
+  "./data/local-landmarks-food.geojson",
+  "./data/local-landmarks-transport.geojson",
+  "./data/local-landmarks-gates.geojson",
+  "./data/local-landmarks-facilities.geojson",
+  "./data/local-landmarks-historic.geojson",
+  "./data/local-landmarks-tourism.geojson",
+  "./data/local-landmarks-misc.geojson",
+  "./data/epping_forest_folklore_locations.json",
   "./data/local-paths.geojson",
   "./data/local-environment.geojson"
 ];

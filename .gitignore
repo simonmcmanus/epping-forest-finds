@@ -9,6 +9,11 @@ npm-debug.log*
 data/local-landmarks.geojson
 data/local-landmarks-access.geojson
 
+# Backup and versioned data snapshots
+data/*.backup
+data/epping_forest_folklore_locations_v*.json
+tracking/
+
 # Large intermediate/source data files (too big for GitHub)
 data/local-environment.overpass.json
 data/local-roads.overpass.json
