@@ -2426,10 +2426,12 @@
             // First-ever location fix: one smooth cinematic zoom from the full-forest view
             // down to the user's location, filling the visible area with their walking radius.
             setInspectorMinimized(false);
+            const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+            const initialScale = maxScaleForRadiusVisible(focusRect);
             centerOverviewOnUserLocation({
               animate: true,
               durationMs: 1200,
-              scale: 1e9, // very large finite value — capped to walking-radius fit inside the function
+              scale: initialScale,
               focusVisibleArea: true,
             });
           } else {
@@ -6283,8 +6285,7 @@
       const focusRect = options.focusVisibleArea
         ? bestVisibleCanvasRect({ assumeInspectorOpen: true })
         : { x: 0, y: 0, width: els.canvas.width, height: els.canvas.height };
-      const radiusCap = maxScaleForRadiusVisible(focusRect);
-      const targetScale = Math.min(requestedScale, radiusCap);
+      const targetScale = requestedScale;
       const focusCenter = {
         x: focusRect.x + focusRect.width / 2,
         y: focusRect.y + focusRect.height / 2,
@@ -6316,6 +6317,21 @@
       const screenMovement = previousScreen
         ? Math.hypot(nextScreen.x - previousScreen.x, nextScreen.y - previousScreen.y)
         : Infinity;
+
+      // When filters are active, fit to the actual items rather than centering on
+      // the user. Centering on user + capping scale to cover all items forces a
+      // full-radius zoom even when items are only in part of the circle.
+      if (state.overviewFilters.length > 0) {
+        if (!previousPoint || screenMovement >= 42) {
+          const shouldAnimate = Boolean(previousPoint) && screenMovement >= 42;
+          ensureOverviewTargetsVisible({
+            animate: shouldAnimate,
+            durationMs: screenMovement >= 160 ? 620 : 360,
+          });
+        }
+        return;
+      }
+
       const pendingTargetScale = state.viewportAnimationTo && Number.isFinite(state.viewportAnimationTo.scale)
         ? state.viewportAnimationTo.scale
         : state.viewport.scale;
