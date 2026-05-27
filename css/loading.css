@@ -8,10 +8,16 @@
   background: rgba(237, 242, 234, 0.88);
   backdrop-filter: blur(14px);
   padding: 24px;
+  transition: opacity 0.32s ease;
 }
 
 .loading-overlay[hidden] {
   display: none;
+}
+
+.loading-overlay.fading-out {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .location-gate {
@@ -23,10 +29,16 @@
   justify-content: center;
   background: var(--paper);
   padding: 24px;
+  transition: opacity 0.32s ease;
 }
 
 .location-gate[hidden] {
   display: none;
+}
+
+.location-gate.fading-out {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .location-gate-card {

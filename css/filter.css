@@ -100,10 +100,10 @@
 }
 
 .filter-group.expanded {
-  flex: 0 0 100%;
-  width: 100%;
+  flex: 0 0 75%;
+  width: 75%;
   max-width: 100%;
-  min-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
