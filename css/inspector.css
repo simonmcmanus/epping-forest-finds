@@ -121,6 +121,11 @@
   font-size: 2rem;
   line-height: 1;
   flex: 0 0 auto;
+  transition: background 120ms ease;
+}
+
+.inspector-back:hover {
+  background: #f5f5f0;
 }
 
 .inspector-title-emoji {
@@ -144,6 +149,11 @@
   color: var(--ink);
   font-size: 1.3rem;
   line-height: 1;
+  transition: background 120ms ease;
+}
+
+.close:hover {
+  background: #deeadc;
 }
 
 button.filter-toggle {
@@ -426,7 +436,7 @@ dl {
 
 dt {
   color: var(--muted);
-  font-weight: 780;
+  font-weight: 800;
 }
 
 dd {

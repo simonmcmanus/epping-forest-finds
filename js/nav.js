@@ -226,6 +226,8 @@ function setupSearchAndNavHandlers() {
   });
 
   els.inspectorBody.addEventListener("click", (event) => {
+    const shareBtn = event.target.closest("[data-action='share-location']");
+    if (shareBtn) { shareCurrentLocation(); return; }
     const button = event.target.closest("[data-overview-type][data-overview-key]");
     if (!button) return;
     focusOverviewItem(button.dataset.overviewType, button.dataset.overviewKey);

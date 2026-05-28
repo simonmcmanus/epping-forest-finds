@@ -211,7 +211,7 @@ function showTreeDetails(tree, distance, label) {
   ].filter(([, value]) => value != null && value !== "");
   const distancePill = distance != null ? `<span class="distance" data-live-field="distance">${detailTypeLabel(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(tree.latitude, tree.longitude, tree.commonName || "Veteran tree");
-  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}</div>`;
+  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}${shareLocationHtml()}</div>`;
   const technicalHtml = technicalRows.length
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
@@ -238,7 +238,8 @@ function showLandmarkDetails(place, distance) {
   ];
   const distancePill = distance != null ? `<span class="distance" data-live-field="distance">${detailTypeLabel(distance)}</span>` : "";
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
-  const topRow = (distancePill || mapsLink) ? `<div class="detail-top-row">${distancePill}${mapsLink}</div>` : "";
+  const shareBtn = shareLocationHtml();
+  const topRow = (distancePill || mapsLink || shareBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : (isOpenStreetMapPlace(place) ? osmNote() : ""));
   transitionInspectorBody(landmarkHtml, "forward", () => {
@@ -334,7 +335,7 @@ function showRoadDetails(road, distance) {
 
   const displayName = road.name || road.ref || "Unnamed road";
   els.inspectorTitle.textContent = displayName;
-  els.inspectorType.textContent = detailTypeLabel(distance);
+  els.inspectorType.textContent = roadTypeLabel;
 
   const rows = [
     ["Road type", roadTypeLabel],
@@ -369,20 +370,27 @@ function showRailwayDetails(railway) {
   els.inspectorTitle.textContent = displayName;
   els.inspectorType.textContent = railwayTypeLabel;
 
-  const rows = [
+  const primaryRows = [
     ["Type", railwayTypeLabel],
     ["Name", props.name],
     ["Operator", props.operator],
-    ["Usage", props.usage],
-    ["Gauge", props.gauge ? `${props.gauge}` : null],
-    ["Electrified", props.electrified === "yes" ? "Yes" : props.electrified === "no" ? "No" : props.electrified],
-    ["Voltage", props.voltage ? `${props.voltage}` : null],
-    ["Frequency", props.frequency ? `${props.frequency} Hz` : null],
     ["Service", props.service],
     ["Source", "OpenStreetMap"],
-  ].filter(([key, value]) => value != null && value !== "");
+  ].filter(([, value]) => value != null && value !== "");
 
-  transitionInspectorBody(detailsHtml(rows), "forward");
+  const technicalRows = [
+    ["Gauge", props.gauge ? `${props.gauge} mm` : null],
+    ["Electrified", props.electrified === "yes" ? "Yes" : props.electrified === "no" ? "No" : props.electrified],
+    ["Voltage", props.voltage ? `${props.voltage} V` : null],
+    ["Frequency", props.frequency ? `${props.frequency} Hz` : null],
+    ["Usage", props.usage],
+  ].filter(([, value]) => value != null && value !== "");
+
+  const technicalHtml = technicalRows.length
+    ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
+    : "";
+
+  transitionInspectorBody(detailsHtml(primaryRows) + technicalHtml, "forward");
 }
 
 function showWaterDetails(water, distance) {
@@ -393,7 +401,7 @@ function showWaterDetails(water, distance) {
   setInspectorSelectionChrome({ emoji: "💧", showBack: true });
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = water.name;
-  els.inspectorType.textContent = detailTypeLabel(distance);
+  els.inspectorType.textContent = typeLabel;
   const rows = [
     ["Type", typeLabel],
     ["Source", water.id ? `OpenStreetMap ${water.id}` : "OpenStreetMap"],
@@ -718,6 +726,30 @@ function openInMapsHtml(lat, lon, name) {
   if (lat == null || lon == null || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return "";
   const url = `https://maps.google.com/?q=${Number(lat).toFixed(6)},${Number(lon).toFixed(6)}`;
   return `<a class="detail-map-link" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Open in Maps</a>`;
+}
+
+function shareLocationHtml() {
+  if (typeof navigator === "undefined") return "";
+  if (!("share" in navigator) && !("clipboard" in navigator)) return "";
+  return `<button class="detail-map-link" type="button" data-action="share-location">Share link</button>`;
+}
+
+async function shareCurrentLocation() {
+  const url = window.location.href;
+  if (navigator.share) {
+    try { await navigator.share({ url }); return; } catch (_) {}
+  }
+  if (navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(url);
+      const btn = els.inspectorBody && els.inspectorBody.querySelector("[data-action='share-location']");
+      if (btn) {
+        const original = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { if (btn.isConnected) btn.textContent = original; }, 1600);
+      }
+    } catch (_) {}
+  }
 }
 
 function detailsHtml(rows) {

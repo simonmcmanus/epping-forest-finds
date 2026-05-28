@@ -57,6 +57,16 @@
   display: grid;
   gap: 3px;
   will-change: transform, opacity;
+  transition: background 100ms ease, border-color 100ms ease;
+}
+
+.nearest-item:hover {
+  background: #f7f9f6;
+  border-color: rgba(36, 56, 47, 0.28);
+}
+
+.nearest-item:active {
+  background: #eff5ee;
 }
 
 .nearest-main {
