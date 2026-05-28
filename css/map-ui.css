@@ -117,9 +117,7 @@
 
 .nearest-item small {
   display: block;
-  margin-top: 5px;
-  color: var(--muted);
-  font-weight: 600;
+  margin-top: 6px;
 }
 
 .nearest-address {

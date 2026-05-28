@@ -492,7 +492,7 @@
         const walkMins = Math.ceil(minDistance / 80); // 80m/min walking speed
         
         if (els.distanceWarningMessage) {
-          els.distanceWarningMessage.textContent = `You're currently about ${distanceKm}km (${walkMins} minutes walk) from Epping Forest. This app will be most useful when you're closer to the forest, but all the map data has been downloaded and is ready for when you visit.`;
+          els.distanceWarningMessage.textContent = `You're about ${formatDistance(minDistance)} from the forest boundary — roughly ${Math.round(minDistance / (5000 / 60))} minutes on foot. The map is fully loaded and ready to explore when you visit.`;
         }
         
         if (els.distanceWarning) {
@@ -1907,20 +1907,18 @@
           : placeTitle(entry.item);
         const emoji = filterKindEmoji(entry.kind) || landmarkEmoji(entry.item);
         const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
-        const distanceText = `${formatDistance(entry.metres)} · ${formatWalkTime(entry.metres)}`;
+        const distanceHtml = walkInfoHtml(entry.metres);
         const addressLine = entry.item.address ? entry.item.address.split(',')[0].trim() : null;
         const subtitleHtml = addressLine
-          ? `<span class="nearest-address">${escapeHtml(addressLine)}</span>${escapeHtml(distanceText)}`
-          : escapeHtml(distanceText);
+          ? `<span class="nearest-address">${escapeHtml(addressLine)}</span>${distanceHtml}`
+          : distanceHtml;
         return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label"><span class="nearest-emoji" aria-hidden="true">${emoji}</span><span>${escapeHtml(name)}</span></span></span><small>${subtitleHtml}</small></button></li>`;
       }).join("");
 
-      const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
-      const distanceSummary = `Within ${state.walkingDistanceMinutes} min walk (${formatDistance(maxMetres)})`;
       const fallbackNotice = state.overviewOutsideRadiusFallback
         ? `<p class="source-note"><strong>Nothing found within ${state.walkingDistanceMinutes} mins walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
         : "";
-      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong><small>${escapeHtml(distanceSummary)}</small></div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong><span class="walk-chip">🚶 ${state.walkingDistanceMinutes} min</span></div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
 
     function landmarkEmoji(place) {
@@ -2525,7 +2523,7 @@
       const title = state.selected.type === "tree"
         ? displayValue(target.commonName || target.tagNumber || target.recordNumber)
         : placeTitle(target);
-      els.compassLabel.textContent = `${title} · ${formatDistance(distanceFromUser(target))}`;
+      els.compassLabel.textContent = `${title} · ${detailTypeLabel(distanceFromUser(target))}`;
     }
 
     function updateOverviewDirectionArrows() {
@@ -3187,9 +3185,8 @@
       const item = selectedCompassTarget();
       if (!item) return;
       const metres = distanceFromUser(item);
-      const label = detailTypeLabel(metres);
       const distancePill = els.inspectorBody && els.inspectorBody.querySelector('[data-live-field="distance"]');
-      if (distancePill) distancePill.textContent = label;
+      if (distancePill) distancePill.innerHTML = walkInfoExpandableHtml(metres);
       updateCowTimeAgoField();
     }
 

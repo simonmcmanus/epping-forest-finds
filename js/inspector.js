@@ -209,7 +209,7 @@ function showTreeDetails(tree, distance, label) {
     ["Northing", tree.location.britishNationalGrid.northing],
     ["Record number", tree.recordNumber],
   ].filter(([, value]) => value != null && value !== "");
-  const distancePill = distance != null ? `<span class="distance" data-live-field="distance">${detailTypeLabel(distance)}</span>` : "";
+  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(tree.latitude, tree.longitude, tree.commonName || "Veteran tree");
   const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}${shareLocationHtml()}</div>`;
   const technicalHtml = technicalRows.length
@@ -236,7 +236,7 @@ function showLandmarkDetails(place, distance) {
     ["Phone", place.phone],
     ["Source", isFolklorePlace(place) ? "Epping Forest folklore dataset" : (place.id ? `OpenStreetMap ${place.id}` : "OpenStreetMap")],
   ];
-  const distancePill = distance != null ? `<span class="distance" data-live-field="distance">${detailTypeLabel(distance)}</span>` : "";
+  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
   const topRow = (distancePill || mapsLink || shareBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}</div>` : "";
@@ -261,7 +261,7 @@ function showCowDetails(cow, distance) {
     ["Position updated", formatTimeAgo(state.cowLastUpdatedAt), "cow-updated"],
     ["Source", "Nofence open data"],
   ];
-  const distancePill = distance != null ? `<span class="distance" data-live-field="distance">${detailTypeLabel(distance)}</span>` : "";
+  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(cow.latitude, cow.longitude, `Cow ${cow.serialNo}`);
   const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}</div>`;
   transitionInspectorBody(topRow + detailsHtml(rows), "forward");
@@ -293,7 +293,7 @@ function showPathDetails(path, distance) {
     ["Approx length", path.totalLength ? formatDistance(path.totalLength) : null],
     ["Source", "OpenStreetMap"],
   ];
-  const distancePill = distance != null ? `<span class="distance" data-live-field="distance">${detailTypeLabel(distance)}</span>` : "";
+  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
   transitionInspectorBody(topRow + detailsHtml(rows), "forward");
 }
@@ -708,18 +708,30 @@ function focusOverviewItem(type, key) {
 
 // --- HTML helpers ---
 
+function walkTimeStr(distance) {
+  const minutes = distance / (5000 / 60);
+  if (minutes < 1) return "< 1 min";
+  if (minutes < 60) return `~${Math.round(minutes)} min`;
+  const hours = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  return mins > 0 ? `~${hours}h ${mins}min` : `~${hours}h`;
+}
+
+function walkInfoHtml(distance) {
+  if (distance == null || !Number.isFinite(distance)) return "";
+  return `<span class="walk-chip">🚶 ${walkTimeStr(distance)}</span>`;
+}
+
+function walkInfoExpandableHtml(distance) {
+  if (distance == null || !Number.isFinite(distance)) return "";
+  const timeStr = walkTimeStr(distance);
+  const distStr = formatDistance(distance);
+  return `<button class="walk-chip walk-chip-btn" type="button" aria-expanded="false" data-walk-short="🚶 ${timeStr}" data-walk-full="🚶 ${timeStr} · 📏 ${distStr}">🚶 ${timeStr}</button>`;
+}
+
 function detailTypeLabel(distance) {
   if (distance == null || !Number.isFinite(distance)) return "";
-  const minutes = distance / (5000 / 60);
-  let timeStr;
-  if (minutes < 1) timeStr = "< 1 min";
-  else if (minutes < 60) timeStr = `~${Math.round(minutes)} min`;
-  else {
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.round(minutes % 60);
-    timeStr = mins > 0 ? `~${hours}h ${mins}min` : `~${hours}h`;
-  }
-  return `${timeStr} · ${formatDistance(distance)}`;
+  return `🚶 ${walkTimeStr(distance)} · ${formatDistance(distance)}`;
 }
 
 function openInMapsHtml(lat, lon, name) {

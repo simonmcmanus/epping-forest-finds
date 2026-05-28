@@ -328,17 +328,27 @@ button.settings-toggle.active {
   margin-bottom: 12px;
 }
 
-.distance {
+.walk-chip {
   display: inline-flex;
   align-items: center;
-  min-height: 30px;
-  padding: 0 9px;
-  border-radius: 999px;
-  background: #f0efe7;
-  border: 1px solid var(--line);
-  color: #384840;
-  font-size: 0.86rem;
+  padding: 3px 8px 4px;
+  border-radius: 5px;
+  background: rgba(47, 111, 78, 0.09);
+  border: 1px solid rgba(47, 111, 78, 0.22);
+  color: #1a5236;
+  font-size: 0.82rem;
   font-weight: 800;
+  white-space: nowrap;
+  line-height: 1.4;
+  user-select: none;
+}
+
+.walk-chip-btn {
+  cursor: pointer;
+}
+
+.walk-chip-btn:hover {
+  background: rgba(47, 111, 78, 0.15);
 }
 
 .detail-map-link {
@@ -403,21 +413,18 @@ details.technical-details[open] summary::before {
 
 .nearby-heading {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin-bottom: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #edf0eb;
 }
 
 .nearby-heading strong {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 800;
   color: var(--ink);
-}
-
-.nearby-heading small {
-  font-size: 0.82rem;
-  color: var(--muted);
-  font-weight: 600;
 }
 
 dl {
