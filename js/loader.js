@@ -10,6 +10,13 @@ function setLoadStep(key, status, count) {
       countEl.textContent = count.toLocaleString();
     }
   }
+
+  const steps = document.querySelectorAll("[data-load-step]");
+  const complete = document.querySelectorAll("[data-load-step].done, [data-load-step].error").length;
+  const bar = document.getElementById("loadingProgressBar");
+  if (bar && steps.length > 0) {
+    bar.style.width = `${Math.round((complete / steps.length) * 100)}%`;
+  }
 }
 
 async function loadMapData() {

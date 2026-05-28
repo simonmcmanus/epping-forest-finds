@@ -21,13 +21,16 @@
       <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data">
         <div class="loading-card">
           <div class="loading-brand">🌳 Epping Forest Finds</div>
-          <p class="loading-intro">Loading everything needed to work offline — once ready, the map works without internet access.</p>
+          <p class="loading-intro">Preparing your offline map — this is a one-time download. Once ready, the map works anywhere in the forest, even without phone signal.</p>
+          <div class="loading-progress" role="progressbar" aria-label="Loading progress">
+            <div class="loading-progress-bar" id="loadingProgressBar"></div>
+          </div>
           <ul id="loadingSteps" class="loading-steps">
             <li class="loading-step pending" data-load-step="trees">
-              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Tree records (veteran register)</span><span class="step-count" data-step-count="trees"></span>
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Veteran trees</span><span class="step-count" data-step-count="trees"></span>
             </li>
             <li class="loading-step pending" data-load-step="places">
-              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Local places &amp; landmarks</span><span class="step-count" data-step-count="places"></span>
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Places &amp; landmarks</span><span class="step-count" data-step-count="places"></span>
             </li>
             <li class="loading-step pending" data-load-step="paths">
               <span class="step-icon" aria-hidden="true"></span><span class="step-label">Paths &amp; trails</span><span class="step-count" data-step-count="paths"></span>
@@ -36,13 +39,13 @@
               <span class="step-icon" aria-hidden="true"></span><span class="step-label">Roads &amp; streets</span><span class="step-count" data-step-count="roads"></span>
             </li>
             <li class="loading-step pending" data-load-step="environment">
-              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Environment (buildings, water, nature)</span><span class="step-count" data-step-count="environment"></span>
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Water &amp; nature</span><span class="step-count" data-step-count="environment"></span>
             </li>
             <li class="loading-step pending" data-load-step="forest">
-              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Forest &amp; buffer boundaries</span><span class="step-count" data-step-count="forest"></span>
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Forest boundaries</span><span class="step-count" data-step-count="forest"></span>
             </li>
             <li class="loading-step pending" data-load-step="cows">
-              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Live cow positions (Nofence)</span><span class="step-count" data-step-count="cows"></span>
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Live cattle positions</span><span class="step-count" data-step-count="cows"></span>
             </li>
           </ul>
         </div>
@@ -50,17 +53,19 @@
 
       <div id="locationGate" class="location-gate" aria-live="polite" hidden>
         <div class="location-gate-card">
-          <h2 class="location-gate-title">Location required</h2>
-          <p id="locationGateMessage" class="location-gate-text">You need to enable location to continue. Map data is loading in the background.</p>
+          <div class="location-gate-icon" aria-hidden="true">📍</div>
+          <h2 id="locationGateTitle" class="location-gate-title">Allow location access</h2>
+          <p id="locationGateMessage" class="location-gate-text">Epping Forest Finds uses your location to show nearby trees and point you toward them with compass directions.</p>
           <button id="locationGateButton" class="button" type="button">Enable location to continue</button>
         </div>
       </div>
 
       <div id="distanceWarning" class="location-gate" aria-live="polite" hidden>
         <div class="location-gate-card">
-          <h2 class="location-gate-title">You're far from the forest</h2>
-          <p id="distanceWarningMessage" class="location-gate-text">You're currently over 15 minutes walk from Epping Forest. This app will be most useful when you're closer to the forest, but all the map data has been downloaded and is ready for when you visit.</p>
-          <button id="distanceWarningButton" class="button" type="button">Continue anyway</button>
+          <div class="location-gate-icon" aria-hidden="true">🗺️</div>
+          <h2 class="location-gate-title">You're not near the forest yet</h2>
+          <p id="distanceWarningMessage" class="location-gate-text">You're more than 15 minutes' walk from Epping Forest. The map is fully loaded and ready to explore — all features will kick in when you visit.</p>
+          <button id="distanceWarningButton" class="button" type="button">Explore the map</button>
         </div>
       </div>
 
@@ -282,6 +287,7 @@
       versionBadge: document.getElementById("versionBadge"),
       loadingOverlay: document.getElementById("loadingOverlay"),
       locationGate: document.getElementById("locationGate"),
+      locationGateTitle: document.getElementById("locationGateTitle"),
       locationGateMessage: document.getElementById("locationGateMessage"),
       locationGateButton: document.getElementById("locationGateButton"),
       distanceWarning: document.getElementById("distanceWarning"),
@@ -1994,8 +2000,8 @@
     }
 
     function showCompassAccessPrompt() {
-      const message = "Compass access is needed for direction guidance. Tap below to enable compass (and location if needed). On iPhone: Settings → Safari → Motion & Orientation Access → On.";
-      setLocationGateVisible(true, message, "Enable compass and location");
+      const message = "On iPhone, go to Settings → Safari → Motion & Orientation Access → On, then tap below to enable compass guidance.";
+      setLocationGateVisible(true, message, "Enable compass and location", "Allow compass access");
     }
 
     function compassPermissionCanBeRequested() {
@@ -2006,8 +2012,8 @@
     async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
       if (typeof DeviceOrientationEvent === "undefined") {
         if (fromGesture && state.userLocation) {
-          const message = "Compass is not available on this device/browser. You can still use the map without compass guidance.";
-          setLocationGateVisible(true, message, "Continue without compass");
+          const message = "Compass is not available on this device or browser. You can still use the map and tap any tree to see its distance.";
+          setLocationGateVisible(true, message, "Continue without compass", "Compass unavailable");
         }
         return;
       }
@@ -2278,9 +2284,9 @@
         centerOverviewOnUserLocation({ animate: false, scale: targetScale, focusVisibleArea: true });
         return;
       }
-      const shouldAnimate = screenMovement >= 42;
+      if (screenMovement < 42) return;
       centerOverviewOnUserLocation({
-        animate: shouldAnimate,
+        animate: true,
         durationMs: screenMovement >= 160 ? 620 : 360,
         scale: targetScale,
         focusVisibleArea: true,

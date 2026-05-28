@@ -48,10 +48,16 @@
   border: 1px solid rgba(36, 56, 47, 0.15);
   box-shadow: var(--shadow);
   border-radius: 16px;
-  padding: 24px 22px;
+  padding: 28px 24px 24px;
   text-align: center;
   display: grid;
-  gap: 12px;
+  gap: 14px;
+}
+
+.location-gate-icon {
+  font-size: 2.6rem;
+  line-height: 1;
+  margin-bottom: -2px;
 }
 
 .location-gate-title {
@@ -85,10 +91,26 @@
 }
 
 .loading-intro {
-  margin: 0 0 18px;
+  margin: 0 0 14px;
   color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.5;
+}
+
+.loading-progress {
+  height: 4px;
+  background: rgba(47, 111, 78, 0.14);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.loading-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--tree);
+  border-radius: 999px;
+  transition: width 0.35s ease;
 }
 
 .loading-steps {
@@ -144,28 +166,17 @@
 .loading-step.pending .step-icon::after   { content: "" }
 .loading-step.loading .step-icon {
   background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(23, 34, 30, 0.26);
-  box-shadow: 0 0 0 1px rgba(23, 34, 30, 0.08);
+  border-color: rgba(23, 34, 30, 0.15);
+  box-shadow: 0 0 0 1px rgba(23, 34, 30, 0.06);
 }
-.loading-step.loading .step-icon::before  {
+.loading-step.loading .step-icon::before {
   content: "";
   position: absolute;
   inset: -2px;
   border-radius: 999px;
-  border: 3px solid rgba(23, 34, 30, 0.14);
-  border-top-color: currentColor;
-  border-left-color: currentColor;
-  animation: step-spin 0.72s linear infinite;
-}
-.loading-step.loading .step-icon::after   {
-  content: "";
-  position: absolute;
-  inset: 4px;
-  border-radius: 999px;
-  border: 2px solid rgba(23, 34, 30, 0.12);
-  border-right-color: currentColor;
-  border-bottom-color: currentColor;
-  animation: step-spin-reverse 1.05s linear infinite;
+  border: 2.5px solid rgba(23, 34, 30, 0.1);
+  border-top-color: var(--tree);
+  animation: step-spin 0.8s linear infinite;
 }
 .loading-step.done    .step-icon::after   { content: "✓"; font-size: 0.8rem; }
 .loading-step.done    .step-icon          { background: var(--tree); border-color: var(--tree); color: #fff; }
@@ -185,10 +196,6 @@
 
 @keyframes step-spin {
   to { transform: rotate(360deg); }
-}
-
-@keyframes step-spin-reverse {
-  to { transform: rotate(-360deg); }
 }
 
 .version {

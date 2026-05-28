@@ -127,7 +127,11 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
   - roads & streets
   - forest/buffer boundaries
   - live cows
-- Overlay dismisses once load completes.
+- Once loading completes, the map is rendered first, then the overlay fades out (0.32s opacity transition) so the map is revealed beneath the dissolving card.
+- A ~500ms pause after all steps complete lets the user see the finished state before the fade begins.
+- The location gate (shown when geolocation permission is not pre-granted) also fades out on dismissal.
+- The distance warning dismisses with the same fade.
+- A `hideWithFade(el, onDone?)` utility handles all fade-out transitions: adds `.fading-out` class, waits for `transitionend` (420ms fallback), then sets `hidden = true`.
 
 **Performance optimizations:**
 - Roads data is filtered and processed in batches to prevent browser freezing

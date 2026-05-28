@@ -384,8 +384,8 @@ function goToInitialView(updateHash = true) {
   state.selected = null;
   selectOverview(true);
   setInspectorMinimized(false);
-  ensureOverviewTargetsVisible({ animate: true, durationMs: 520 });
-  if (!state.userLocation) fitToBounds(false, { animate: true, durationMs: 520 });
+  ensureOverviewTargetsVisible({ animate: true, durationMs: 300 });
+  if (!state.userLocation) fitToBounds(false, { animate: true, durationMs: 300 });
   updateCompassOverlay();
   if (updateHash) setHashFromSelection();
   requestDraw();
@@ -421,7 +421,7 @@ function hideWithFade(el, onDone) {
   setTimeout(finish, 420);
 }
 
-function setLocationGateVisible(visible, message, buttonLabel) {
+function setLocationGateVisible(visible, message, buttonLabel, title) {
   if (!els.locationGate) return;
   if (visible) {
     els.locationGate.classList.remove("fading-out");
@@ -432,6 +432,9 @@ function setLocationGateVisible(visible, message, buttonLabel) {
       els.loadingOverlay.hidden = false;
     }
     hideWithFade(els.locationGate);
+  }
+  if (title && els.locationGateTitle) {
+    els.locationGateTitle.textContent = title;
   }
   if (message && els.locationGateMessage) {
     els.locationGateMessage.textContent = message;
