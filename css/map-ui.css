@@ -101,14 +101,14 @@
 }
 
 .nearest-emoji {
-  font-size: 2em;
+  font-size: calc(2em * var(--icon-scale));
   line-height: 1;
   flex: 0 0 auto;
 }
 
 .nearest-icon {
-  width: 64px;
-  height: 64px;
+  width: calc(64px * var(--icon-scale));
+  height: calc(64px * var(--icon-scale));
 }
 
 .nearest-kind {
@@ -139,8 +139,8 @@
 }
 
 .walk-icon {
-  width: 36px;
-  height: 36px;
+  width: calc(36px * var(--icon-scale));
+  height: calc(36px * var(--icon-scale));
 }
 
 @media (min-width: 761px) {

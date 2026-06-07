@@ -229,13 +229,15 @@ test("nav controls use generated image assets instead of text glyphs", () => {
 });
 
 test("generated UI icon classes render at the enlarged sizes", () => {
+  const baseCss = fs.readFileSync(path.join(__dirname, "..", "css", "base.css"), "utf8");
   const inspectorCss = fs.readFileSync(path.join(__dirname, "..", "css", "inspector.css"), "utf8");
   const mapUiCss = fs.readFileSync(path.join(__dirname, "..", "css", "map-ui.css"), "utf8");
 
-  assert.match(inspectorCss, /\.nav-icon\s*\{[\s\S]*width:\s*44px;[\s\S]*height:\s*44px;/);
-  assert.match(inspectorCss, /\.title-icon\s*\{[\s\S]*width:\s*76px;[\s\S]*height:\s*76px;/);
-  assert.match(mapUiCss, /\.nearest-icon\s*\{[\s\S]*width:\s*64px;[\s\S]*height:\s*64px;/);
-  assert.match(mapUiCss, /\.walk-icon\s*\{[\s\S]*width:\s*36px;[\s\S]*height:\s*36px;/);
+  assert.match(baseCss, /--icon-scale:\s*2;/);
+  assert.match(inspectorCss, /\.nav-icon\s*\{[\s\S]*width:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(inspectorCss, /\.title-icon\s*\{[\s\S]*width:\s*calc\(76px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(76px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(mapUiCss, /\.nearest-icon\s*\{[\s\S]*width:\s*calc\(64px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(64px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(mapUiCss, /\.walk-icon\s*\{[\s\S]*width:\s*calc\(36px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(36px\s*\*\s*var\(--icon-scale\)\);/);
 });
 
 test("nearest list falls back to one closest item for each active type outside the walking radius", () => {

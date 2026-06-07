@@ -3,7 +3,10 @@
     "allow": [
       "Bash(node -e ' *)",
       "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -n \"function setupFilterPanelHandlers\" /Users/simonmcmanus/node/trees/index.html)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(git -C /Users/simonmcmanus/node/trees log --oneline -10)",
+      "Bash(git -C /Users/simonmcmanus/node/trees show b05fce1 --stat)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/simonmcmanus/node/trees/Veteran_Tree_Register.enriched.with_named_trees.json'\\)\\); t=d['trees'][0]; print\\(json.dumps\\(t, indent=2\\)\\)\")"
     ]
   }
 }

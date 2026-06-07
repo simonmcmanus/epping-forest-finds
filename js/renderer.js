@@ -1,3 +1,5 @@
+const MAP_ICON_SCALE = 2;
+
 function draw() {
   state.animationFrame = null;
   const ctx = els.canvas.getContext("2d");
@@ -617,13 +619,13 @@ function drawLayer(ctx, layer) {
 function drawTrees(ctx, nearbyIconLookup) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
-  const treeEmojiSize = 24 * dpr * mapScale;
-  const emojiCirclePadding = 5.6 * dpr * mapScale;
+  const treeEmojiSize = 24 * dpr * mapScale * MAP_ICON_SCALE;
+  const emojiCirclePadding = 5.6 * dpr * mapScale * MAP_ICON_SCALE;
 
   ctx.save();
   for (const tree of state.trees) {
     const point = worldToScreen(tree.point);
-    if (!isNearCanvas(point, 10 * dpr)) continue;
+    if (!isNearCanvas(point, 10 * dpr * MAP_ICON_SCALE)) continue;
     if (!shouldDrawMapIcon("tree", tree, nearbyIconLookup)) continue;
     ctx.globalAlpha = 1;
     drawMapEmoji(ctx, "🌳", point.x, point.y, treeEmojiSize, {
@@ -760,14 +762,14 @@ function drawLandmarks(ctx, nearbyIconLookup) {
   const emojiBadge = {
     backgroundColor: null,
     borderColor: null,
-    borderWidth: 2 * dpr * mapScale,
-    paddingPx: 5.6 * dpr * mapScale,
+    borderWidth: 2 * dpr * mapScale * MAP_ICON_SCALE,
+    paddingPx: 5.6 * dpr * mapScale * MAP_ICON_SCALE,
   };
   const candidates = state.landmarks;
   ctx.save();
   for (const place of candidates) {
     const point = worldToScreen(place.point);
-    if (!isNearCanvas(point, 16 * dpr)) continue;
+    if (!isNearCanvas(point, 16 * dpr * MAP_ICON_SCALE)) continue;
     ctx.globalAlpha = markerOpacityFor("landmark", place);
     const showIcon = shouldDrawMapIcon("landmark", place, nearbyIconLookup);
     const isPub = isPubCategory(place);
@@ -779,7 +781,7 @@ function drawLandmarks(ctx, nearbyIconLookup) {
     }
 
     if (isPub) {
-      const radius = 10 * dpr;
+      const radius = 10 * dpr * MAP_ICON_SCALE;
       const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
       const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
       gradient.addColorStop(0, `rgba(127, 79, 159, ${pulseOpacity})`);
@@ -788,9 +790,9 @@ function drawLandmarks(ctx, nearbyIconLookup) {
       ctx.beginPath();
       ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
       ctx.fill();
-      drawMapEmoji(ctx, "🍺", point.x, point.y, 24 * dpr * mapScale, emojiBadge);
+      drawMapEmoji(ctx, "🍺", point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
     } else if (isCafe) {
-      const radius = 10 * dpr;
+      const radius = 10 * dpr * MAP_ICON_SCALE;
       const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
       const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
       gradient.addColorStop(0, `rgba(139, 69, 19, ${pulseOpacity})`);
@@ -799,16 +801,16 @@ function drawLandmarks(ctx, nearbyIconLookup) {
       ctx.beginPath();
       ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
       ctx.fill();
-      drawMapEmoji(ctx, "☕", point.x, point.y, 24 * dpr * mapScale, emojiBadge);
+      drawMapEmoji(ctx, "☕", point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
     } else if (isTransport) {
       const transportType = getTransportType(place);
 
       if (transportType === "underground") {
-        drawUndergroundRoundel(ctx, point.x, point.y, 24 * dpr * mapScale);
+        drawUndergroundRoundel(ctx, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE);
       } else if (transportType === "national_rail") {
-        drawNationalRailLogo(ctx, point.x, point.y, 24 * dpr * mapScale);
+        drawNationalRailLogo(ctx, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE);
       } else if (transportType === "parking") {
-        const radius = 10 * dpr;
+        const radius = 10 * dpr * MAP_ICON_SCALE;
         const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
         const color = "rgba(0, 90, 180, ";
         const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
@@ -818,9 +820,9 @@ function drawLandmarks(ctx, nearbyIconLookup) {
         ctx.beginPath();
         ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
         ctx.fill();
-        drawMapEmoji(ctx, "🅿️", point.x, point.y, 24 * dpr * mapScale, emojiBadge);
+        drawMapEmoji(ctx, "🅿️", point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
       } else {
-        const radius = 10 * dpr;
+        const radius = 10 * dpr * MAP_ICON_SCALE;
         const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
         const color = "rgba(255, 140, 0, ";
         const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
@@ -830,11 +832,11 @@ function drawLandmarks(ctx, nearbyIconLookup) {
         ctx.beginPath();
         ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
         ctx.fill();
-        drawMapEmoji(ctx, "🚌", point.x, point.y, 24 * dpr * mapScale, emojiBadge);
+        drawMapEmoji(ctx, "🚌", point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
       }
     } else {
       const emoji = landmarkEmoji(place);
-      drawMapEmoji(ctx, emoji, point.x, point.y, 22 * dpr * mapScale, emojiBadge);
+      drawMapEmoji(ctx, emoji, point.x, point.y, 22 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
     }
   }
   ctx.globalAlpha = 1;
@@ -848,18 +850,18 @@ function drawCows(ctx, nearbyIconLookup) {
   const emojiBadge = {
     backgroundColor: null,
     borderColor: null,
-    borderWidth: 2 * dpr * mapScale,
-    paddingPx: 5.6 * dpr * mapScale,
+    borderWidth: 2 * dpr * mapScale * MAP_ICON_SCALE,
+    paddingPx: 5.6 * dpr * mapScale * MAP_ICON_SCALE,
   };
 
   ctx.save();
   for (const cow of state.cows) {
     const point = worldToScreen(cow.point);
-    if (!isNearCanvas(point, 18 * dpr)) continue;
+    if (!isNearCanvas(point, 18 * dpr * MAP_ICON_SCALE)) continue;
     ctx.globalAlpha = markerOpacityFor("cow", cow);
     const showIcon = shouldDrawMapIcon("cow", cow, nearbyIconLookup);
     if (!showIcon) continue;
-    const radius = 11 * dpr;
+    const radius = 11 * dpr * MAP_ICON_SCALE;
     const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
     const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
     gradient.addColorStop(0, `rgba(154, 106, 47, ${pulseOpacity})`);
@@ -868,7 +870,7 @@ function drawCows(ctx, nearbyIconLookup) {
     ctx.beginPath();
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     ctx.fill();
-    drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr * mapScale, emojiBadge);
+    drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
   }
   ctx.globalAlpha = 1;
 
@@ -900,16 +902,16 @@ function drawSelectedOverlay(ctx) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
   const selectedScale = selectedIconScale();
-  const selectedEmojiPadding = 2.94 * dpr * mapScale;
-  const selectedEmojiYOffset = 1.1 * dpr * mapScale;
+  const selectedEmojiPadding = 2.94 * dpr * mapScale * MAP_ICON_SCALE;
+  const selectedEmojiYOffset = 1.1 * dpr * mapScale * MAP_ICON_SCALE;
 
   if (state.selected.type === "tree") {
     const point = worldToScreen(state.selected.item.point);
-    if (isNearCanvas(point, 24 * dpr)) {
-      drawMapEmoji(ctx, "🌳", point.x, point.y, 24 * dpr * mapScale * selectedScale, {
+    if (isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) {
+      drawMapEmoji(ctx, "🌳", point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
         backgroundColor: null,
         borderColor: null,
-        borderWidth: 2.5 * dpr * mapScale,
+        borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
         paddingPx: selectedEmojiPadding,
         yOffsetPx: selectedEmojiYOffset,
       });
@@ -918,13 +920,13 @@ function drawSelectedOverlay(ctx) {
   }
 
   const point = worldToScreen(state.selected.item.point);
-  if (!isNearCanvas(point, 24 * dpr)) return;
+  if (!isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) return;
 
   if (state.selected.type === "cow") {
-    drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr * mapScale * selectedScale, {
+    drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
       backgroundColor: null,
       borderColor: null,
-      borderWidth: 2.5 * dpr * mapScale,
+      borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
       paddingPx: selectedEmojiPadding,
       yOffsetPx: selectedEmojiYOffset,
     });
@@ -934,30 +936,30 @@ function drawSelectedOverlay(ctx) {
     if (emoji === "📍") {
       ctx.save();
       ctx.beginPath();
-      ctx.arc(point.x, point.y, 7.6 * dpr * selectedScale, 0, Math.PI * 2);
+      ctx.arc(point.x, point.y, 7.6 * dpr * MAP_ICON_SCALE * selectedScale, 0, Math.PI * 2);
       ctx.fillStyle = "#76702f";
       ctx.fill();
       ctx.restore();
     } else if (isTransportCategory(selectedPlace)) {
       const transportType = getTransportType(selectedPlace);
       if (transportType === "underground") {
-        drawUndergroundRoundel(ctx, point.x, point.y, 26 * dpr * mapScale * selectedScale);
+        drawUndergroundRoundel(ctx, point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       } else if (transportType === "national_rail") {
-        drawNationalRailLogo(ctx, point.x, point.y, 26 * dpr * mapScale * selectedScale);
+        drawNationalRailLogo(ctx, point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       } else {
-        drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * selectedScale, {
+        drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
           backgroundColor: null,
           borderColor: null,
-          borderWidth: 2.5 * dpr * mapScale,
+          borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
           paddingPx: selectedEmojiPadding,
           yOffsetPx: selectedEmojiYOffset,
         });
       }
     } else {
-      drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * selectedScale, {
+      drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
         backgroundColor: null,
         borderColor: null,
-        borderWidth: 2.5 * dpr * mapScale,
+        borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
         paddingPx: selectedEmojiPadding,
         yOffsetPx: selectedEmojiYOffset,
       });

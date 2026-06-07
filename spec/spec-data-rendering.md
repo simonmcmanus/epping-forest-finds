@@ -154,6 +154,8 @@ Filtered to major types only. Style varies by `roadType` (motorway thicker/darke
 
 ## Marker Rendering
 
+All map marker icons (emoji and transport glyphs) are rendered at **2x** the previous baseline size for improved readability.
+
 ### Trees
 
 - Rendered as 🌳 emoji at map scale

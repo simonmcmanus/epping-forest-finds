@@ -1,5 +1,6 @@
 :root {
   color-scheme: light;
+  --icon-scale: 2;
   --ink: #17221e;
   --muted: #5d6a62;
   --line: #d7ded8;
@@ -139,8 +140,8 @@ a:focus-visible {
 }
 
 .icon {
-  width: 18px;
-  height: 18px;
+  width: calc(18px * var(--icon-scale));
+  height: calc(18px * var(--icon-scale));
   flex: 0 0 auto;
 }
 
