@@ -51,10 +51,10 @@
   border-radius: 12px;
   background: #fff;
   color: var(--ink);
-  padding: 12px 14px;
+  padding: 10px 12px;
   font: inherit;
   display: grid;
-  gap: 6px;
+  gap: 4px;
   grid-template-rows: auto auto;
   transition: all 140ms ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
