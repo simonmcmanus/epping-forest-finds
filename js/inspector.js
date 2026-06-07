@@ -560,6 +560,12 @@ function transitionInspectorBody(newHtml, direction, onDone) {
     return;
   }
 
+  // Lock height so the container stays stable while both cards are absolutely positioned
+  const lockedHeight = body.offsetHeight;
+  body.style.height = lockedHeight + "px";
+  body.style.overflow = "hidden";
+  body.style.position = "relative";
+
   const outgoing = document.createElement("div");
   outgoing.style.cssText = "position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;";
   outgoing.innerHTML = body.innerHTML;
@@ -568,16 +574,14 @@ function transitionInspectorBody(newHtml, direction, onDone) {
   incoming.style.cssText = "position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;";
   incoming.innerHTML = newHtml;
 
-  body.style.position = "relative";
   body.innerHTML = "";
   body.appendChild(outgoing);
   body.appendChild(incoming);
 
-  const dur = 280;
+  const dur = 260;
   const easing = "cubic-bezier(0.4, 0, 0.2, 1)";
-
-  const outEnd  = "translateX(40%)";
-  const inStart = direction === "forward" ? "translateX(100%)" : "translateX(-30%)";
+  const outEnd  = direction === "forward" ? "translateX(-18%)" : "translateX(18%)";
+  const inStart = direction === "forward" ? "translateX(18%)"  : "translateX(-18%)";
 
   outgoing.animate([
     { transform: "translateX(0)", opacity: 1 },
@@ -589,6 +593,8 @@ function transitionInspectorBody(newHtml, direction, onDone) {
     { transform: "translateX(0)", opacity: 1 },
   ], { duration: dur, easing, fill: "forwards" }).finished.then(() => {
     body.style.position = "";
+    body.style.height = "";
+    body.style.overflow = "";
     body.innerHTML = newHtml;
     onDone && onDone();
   });
