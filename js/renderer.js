@@ -651,7 +651,8 @@ function drawTrees(ctx, nearbyIconLookup) {
     const point = worldToScreen(tree.point);
     if (!isNearCanvas(point, 10 * dpr * MAP_ICON_SCALE)) continue;
     if (!shouldDrawMapIcon("tree", tree, nearbyIconLookup)) continue;
-    ctx.globalAlpha = 1;
+    const isOutOfRadius = nearbyIconLookup.outOfRadius && nearbyIconLookup.outOfRadius.has(tree);
+    ctx.globalAlpha = isOutOfRadius ? 0.4 : 1;
     const treeSrc = treeSpeciesIconPath(tree.commonName, tree.latinName) || iconPath("tree");
     if (!drawPngMapIcon(ctx, treeSrc, point.x, point.y, treeEmojiSize)) {
       drawMapEmoji(ctx, "🌳", point.x, point.y, treeEmojiSize, {
@@ -768,13 +769,15 @@ function buildNearbyIconLookup() {
   const tree = new Set();
   const landmark = new Set();
   const cow = new Set();
+  const outOfRadius = new Set();
   for (const entry of overviewItemsForActiveFilter()) {
     if (!entry || !entry.item) continue;
+    if (entry.outOfRadius) outOfRadius.add(entry.item);
     if (entry.type === "tree") tree.add(entry.item);
     else if (entry.type === "landmark") landmark.add(entry.item);
     else if (entry.type === "cow") cow.add(entry.item);
   }
-  return { tree, landmark, cow };
+  return { tree, landmark, cow, outOfRadius };
 }
 
 function shouldDrawMapIcon(type, item, nearbyIconLookup) {
@@ -797,7 +800,6 @@ function drawLandmarks(ctx, nearbyIconLookup) {
   for (const place of candidates) {
     const point = worldToScreen(place.point);
     if (!isNearCanvas(point, 16 * dpr * MAP_ICON_SCALE)) continue;
-    ctx.globalAlpha = markerOpacityFor("landmark", place);
     const showIcon = shouldDrawMapIcon("landmark", place, nearbyIconLookup);
     const isPub = isPubCategory(place);
     const isCafe = isCafeCategory(place);
@@ -807,19 +809,16 @@ function drawLandmarks(ctx, nearbyIconLookup) {
       continue;
     }
 
+    const isOutOfRadius = nearbyIconLookup.outOfRadius && nearbyIconLookup.outOfRadius.has(place);
+    const baseOpacity = markerOpacityFor("landmark", place);
+    ctx.globalAlpha = isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity;
+
     if (isPub) {
       drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * BEER_ICON_SCALE);
     } else if (isCafe) {
-      const radius = 10 * dpr * MAP_ICON_SCALE;
-      const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
-      const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-      gradient.addColorStop(0, `rgba(139, 69, 19, ${pulseOpacity})`);
-      gradient.addColorStop(1, `rgba(139, 69, 19, ${pulseOpacity * 0.2})`);
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      drawMapEmoji(ctx, "☕", point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
+      drawPngMapIcon(ctx, iconPath("cafe"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE);
+    } else if (isShopCategory(place)) {
+      drawPngMapIcon(ctx, iconPath("shop"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE);
     } else if (isTransport) {
       const transportType = getTransportType(place);
 
@@ -856,9 +855,11 @@ function drawCows(ctx, nearbyIconLookup) {
   for (const cow of state.cows) {
     const point = worldToScreen(cow.point);
     if (!isNearCanvas(point, 18 * dpr * MAP_ICON_SCALE)) continue;
-    ctx.globalAlpha = markerOpacityFor("cow", cow);
     const showIcon = shouldDrawMapIcon("cow", cow, nearbyIconLookup);
     if (!showIcon) continue;
+    const isOutOfRadius = nearbyIconLookup.outOfRadius && nearbyIconLookup.outOfRadius.has(cow);
+    const baseOpacity = markerOpacityFor("cow", cow);
+    ctx.globalAlpha = isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity;
     const radius = 11 * dpr * MAP_ICON_SCALE;
     const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
     const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
@@ -944,6 +945,10 @@ function drawSelectedOverlay(ctx) {
       ctx.restore();
     } else if (isPubCategory(selectedPlace)) {
       drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale * BEER_ICON_SCALE);
+    } else if (isCafeCategory(selectedPlace)) {
+      drawPngMapIcon(ctx, iconPath("cafe"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+    } else if (isShopCategory(selectedPlace)) {
+      drawPngMapIcon(ctx, iconPath("shop"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     } else if (isTransportCategory(selectedPlace)) {
       const transportType = getTransportType(selectedPlace);
       if (transportType === "underground") {

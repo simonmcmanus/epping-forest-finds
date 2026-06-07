@@ -301,6 +301,23 @@ function iconPath(name) {
   return ICON_PATHS[name] || null;
 }
 
+function filterKindIconSlug(kind) {
+  switch (kind) {
+    case "tree":
+    case "trees": return "tree";
+    case "cow":
+    case "cows": return "cow";
+    case "pub":
+    case "pubs": return "beer";
+    case "cafe":
+    case "cafes": return "cafe";
+    case "shops": return "shop";
+    case "bus": return "bus";
+    case "parking": return "landmark-parking";
+    default: return null;
+  }
+}
+
 function appIconHtml(name, className = "app-icon") {
   const src = iconPath(name);
   if (!src) return "";

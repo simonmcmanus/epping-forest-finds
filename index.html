@@ -284,7 +284,6 @@
       buildingFeatures: [],
       buildingsLoaded: false,
       buildingsLoading: false,
-      showAllOutsideRadius: false,
       overviewOutsideRadiusFallback: false,
       dataLoaded: false,
     };
@@ -817,23 +816,36 @@
     }
 
     function renderFilterBodyHtml() {
-      return `<div class="filter-body"><div class="filter-group-list">
-        ${FILTER_GROUPS.map((group) => `
-          <section class="filter-group" data-filter-group-section="${escapeHtml(group.key)}">
-            <button class="filter-chip filter-chip-group" type="button" data-filter-group="${escapeHtml(group.key)}" aria-expanded="false">
-              ${group.icon ? appIconHtml(group.icon, "app-icon filter-chip-icon") : ""}
-              <span class="filter-group-label">${escapeHtml(group.label)}</span>
-              <span class="filter-group-summary" data-filter-group-expand="${escapeHtml(group.key)}">${group.subfilters.length}/${group.subfilters.length}</span>
-            </button>
-            <div class="filter-subfilters" data-filter-group-panel="${escapeHtml(group.key)}" hidden>
-              <div class="filter-subfilters-row" data-filter-group-row="${escapeHtml(group.key)}">
-                ${group.subfilters.map((subfilter) => `<button class="filter-chip filter-chip-sub" type="button" data-filter-subfilter="${escapeHtml(subfilter.key)}">${subfilter.icon ? appIconHtml(subfilter.icon, "app-icon filter-chip-icon") : ""}${escapeHtml(subfilter.label)}</button>`).join("")}
+      return `<div class="filter-body">
+        <div class="filter-actions">
+          <button class="filter-action-btn filter-clear-all" type="button" data-filter-clear-all>
+            Clear all filters
+          </button>
+        </div>
+        <div class="filter-groups">
+          ${FILTER_GROUPS.map((group) => `
+            <section class="filter-group-card" data-filter-group-section="${escapeHtml(group.key)}">
+              <header class="filter-group-header" data-filter-group="${escapeHtml(group.key)}">
+                <div class="filter-group-title">
+                  ${group.icon ? appIconHtml(group.icon, "app-icon filter-group-icon") : ""}
+                  <span class="filter-group-label">${escapeHtml(group.label)}</span>
+                </div>
+                <span class="filter-group-count" data-group-count="${escapeHtml(group.key)}">0 of ${group.subfilters.length}</span>
+              </header>
+              <div class="filter-group-grid">
+                ${group.subfilters.map((subfilter) => `
+                  <button class="filter-chip" type="button" data-filter-subfilter="${escapeHtml(subfilter.key)}">
+                    ${subfilter.icon ? appIconHtml(subfilter.icon, "app-icon filter-chip-icon") : ""}
+                    <span class="filter-chip-label">${escapeHtml(subfilter.label)}</span>
+                    <span class="filter-chip-check" aria-hidden="true">✓</span>
+                  </button>
+                `).join("")}
               </div>
               <p class="filter-group-outside" data-filter-group-outside="${escapeHtml(group.key)}" hidden></p>
-            </div>
-          </section>
-        `).join("")}
-      </div></div>`;
+            </section>
+          `).join("")}
+        </div>
+      </div>`;
     }
 
     function attachFilterScrollHints() {
@@ -1012,7 +1024,6 @@
 
     function setOverviewFilters(nextFilters) {
       state.overviewFilters = sanitizeOverviewFilters(nextFilters);
-      state.showAllOutsideRadius = false;
       saveFilterState();
       updateFilterUi();
       if (isOverviewScreenActive() && !state.filterScreenOpen) {
@@ -1059,56 +1070,48 @@
 
     function updateFilterUi() {
       const currentSet = activeOverviewFilterSet();
-      const expandedSet = activeOverviewExpandedSet();
 
-      const groupButtons = els.inspectorBody.querySelectorAll("[data-filter-group]");
-      for (const button of groupButtons) {
-        const groupKey = button.dataset.filterGroup;
+      // Update group cards - show active state and counts
+      for (const group of FILTER_GROUPS) {
+        const groupKey = group.key;
         const activeSubfilters = getActiveSubfiltersForGroup(groupKey, currentSet);
         const groupActive = activeSubfilters.length > 0;
-        const groupExpanded = expandedSet.has(groupKey);
-        button.classList.toggle("active", groupActive);
-        button.setAttribute("aria-expanded", String(groupExpanded));
-        const summary = button.querySelector(".filter-group-summary");
-        const total = FILTER_GROUPS_BY_KEY.get(groupKey)?.subfilters.length || 0;
-        if (summary) summary.textContent = `${activeSubfilters.length}/${total}`;
-        const panel = els.inspectorBody.querySelector(`[data-filter-group-panel="${groupKey}"]`);
-        const outsideEl = els.inspectorBody.querySelector(`[data-filter-group-outside="${groupKey}"]`);
-        const outsideRadiusCount = groupExpanded ? outOfRadiusCountForGroup(groupKey) : 0;
-        if (outsideEl) {
-          outsideEl.hidden = !(groupExpanded && outsideRadiusCount > 0);
-          outsideEl.innerHTML = outsideRadiusCount > 0
-            ? `${outsideRadiusCount} outside selected walking radius <button type="button" class="filter-group-outside-link" data-show-all-outside-radius="true">show all</button>`
-            : "";
+
+        const groupCard = els.inspectorBody.querySelector(`[data-filter-group-section="${groupKey}"]`);
+        if (groupCard) {
+          groupCard.classList.toggle("active", groupActive);
         }
-        setSubfilterPanelExpanded(panel, groupExpanded);
-        const groupSection = button.closest(".filter-group");
-        if (groupSection) {
-          if (groupExpanded) {
-            groupSection.dataset.collapseGen = "";
-            groupSection.classList.add("expanded");
-          } else if (panel && !prefersReducedMotion()) {
-            const gen = String(Date.now());
-            groupSection.dataset.collapseGen = gen;
-            const removeIfCurrent = () => {
-              if (groupSection.dataset.collapseGen === gen) groupSection.classList.remove("expanded");
-            };
-            panel.addEventListener("transitionend", removeIfCurrent, { once: true });
-            setTimeout(removeIfCurrent, 280);
-          } else {
-            groupSection.classList.remove("expanded");
-          }
+
+        const countEl = els.inspectorBody.querySelector(`[data-group-count="${groupKey}"]`);
+        if (countEl) {
+          countEl.textContent = `${activeSubfilters.length} of ${group.subfilters.length}`;
+          countEl.classList.toggle("has-active", activeSubfilters.length > 0);
+        }
+
+        const outsideEl = els.inspectorBody.querySelector(`[data-filter-group-outside="${groupKey}"]`);
+        const outsideRadiusCount = outOfRadiusCountForGroup(groupKey);
+        if (outsideEl) {
+          outsideEl.hidden = outsideRadiusCount === 0;
+          outsideEl.textContent = outsideRadiusCount > 0
+            ? `${outsideRadiusCount} outside selected walking radius`
+            : "";
         }
       }
 
+      // Update subfilter chips
       const subfilterButtons = els.inspectorBody.querySelectorAll("[data-filter-subfilter]");
       for (const button of subfilterButtons) {
         const filterKey = button.dataset.filterSubfilter;
         button.classList.toggle("active", currentSet.has(filterKey));
       }
 
-      updateSubfilterScrollHints();
+      // Update "Clear all" button visibility
+      const clearAllBtn = els.inspectorBody.querySelector("[data-filter-clear-all]");
+      if (clearAllBtn) {
+        clearAllBtn.hidden = currentSet.size === 0;
+      }
 
+      // Update filter toggle button
       if (els.filterToggle) {
         const activeGroupCount = getActiveGroupKeys(currentSet).length;
         const hasActiveFilter = activeGroupCount > 0;
@@ -1144,7 +1147,6 @@
       els.inspectorType.textContent = "";
       transitionInspectorBody(renderFilterBodyHtml(), "forward", () => {
         updateFilterUi();
-        attachFilterScrollHints();
       });
       setInspectorMinimized(false);
       requestDraw();
@@ -1189,7 +1191,6 @@
       if (select) {
         select.addEventListener("change", () => {
           state.walkingDistanceMinutes = parseInt(select.value, 10);
-          state.showAllOutsideRadius = false;
           selectOverview();
           if (state.userLocation) {
             const { latitude, longitude } = state.userLocation;
@@ -1460,7 +1461,6 @@
 
     function outOfRadiusCountForGroup(groupKey) {
       if (!state.userLocation) return 0;
-      if (state.showAllOutsideRadius) return 0;
 
       const group = FILTER_GROUPS_BY_KEY.get(groupKey);
       if (!group || !Array.isArray(group.subfilters) || !group.subfilters.length) return 0;
@@ -1781,7 +1781,7 @@
     function overviewItemsForActiveFilter(limit = 3) {
       if (!state.userLocation) return [];
       const { latitude, longitude } = state.userLocation;
-      const maxMetres = state.showAllOutsideRadius ? Number.POSITIVE_INFINITY : walkingDistanceToMetres(state.walkingDistanceMinutes);
+      const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
       state.overviewOutsideRadiusFallback = false;
 
       const hasFilters = state.overviewFilters.length > 0;
@@ -1789,71 +1789,64 @@
         const activePointFilters = getActivePointFilterKeys();
         if (!activePointFilters.length) return [];
         const selectedEntries = [];
+        const filterTypesWithResults = new Set();
+
         for (const filterKey of activePointFilters) {
+          let entriesForFilter = [];
+
           if (filterKey === "trees") {
-            selectedEntries.push(
-              ...nearbyTreesWithinDistance(latitude, longitude, maxMetres).map(({ tree, metres }) => ({
-                kind: "tree",
-                type: "tree",
-                item: tree,
-                metres,
-              }))
-            );
-            continue;
-          }
-
-          if (filterKey === "cows") {
-            selectedEntries.push(
-              ...nearbyCowsWithinDistance(latitude, longitude, maxMetres).map(({ cow, metres }) => ({
-                kind: "cow",
-                type: "cow",
-                item: cow,
-                metres,
-              }))
-            );
-            continue;
-          }
-
-          if (filterKey === "waymarked_trails") {
-            selectedEntries.push(
-              ...nearbyWaymarkedPathsWithinDistance(latitude, longitude, maxMetres).map(({ path, metres }) => ({
-                kind: "waymarked_trails",
-                type: "path",
-                item: path,
-                metres,
-              }))
-            );
-            continue;
-          }
-
-          if (filterKey === "ponds_streams") {
-            selectedEntries.push(
-              ...nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres).map(({ water, metres }) => ({
-                kind: "ponds_streams",
-                type: "water",
-                item: water,
-                metres,
-              }))
-            );
-            continue;
-          }
-
-          selectedEntries.push(
-            ...nearbyPlacesByFilterWithinDistance(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey), maxMetres).map(({ place, metres }) => ({
+            entriesForFilter = nearbyTreesWithinDistance(latitude, longitude, maxMetres).map(({ tree, metres }) => ({
+              kind: "tree",
+              type: "tree",
+              item: tree,
+              metres,
+            }));
+          } else if (filterKey === "cows") {
+            entriesForFilter = nearbyCowsWithinDistance(latitude, longitude, maxMetres).map(({ cow, metres }) => ({
+              kind: "cow",
+              type: "cow",
+              item: cow,
+              metres,
+            }));
+          } else if (filterKey === "waymarked_trails") {
+            entriesForFilter = nearbyWaymarkedPathsWithinDistance(latitude, longitude, maxMetres).map(({ path, metres }) => ({
+              kind: "waymarked_trails",
+              type: "path",
+              item: path,
+              metres,
+            }));
+          } else if (filterKey === "ponds_streams") {
+            entriesForFilter = nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres).map(({ water, metres }) => ({
+              kind: "ponds_streams",
+              type: "water",
+              item: water,
+              metres,
+            }));
+          } else {
+            entriesForFilter = nearbyPlacesByFilterWithinDistance(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey), maxMetres).map(({ place, metres }) => ({
               kind: filterKey,
               type: "landmark",
               item: place,
               metres,
-            }))
-          );
+            }));
+          }
+
+          if (entriesForFilter.length > 0) {
+            selectedEntries.push(...entriesForFilter);
+            filterTypesWithResults.add(filterKey);
+          } else {
+            // No items within radius for this filter - add nearest one as fallback
+            const fallbackEntry = nearestOverviewEntryForFilter(filterKey, latitude, longitude);
+            if (fallbackEntry) {
+              fallbackEntry.outOfRadius = true;
+              selectedEntries.push(fallbackEntry);
+            }
+          }
         }
 
         const sortedEntries = uniqueSortedOverviewEntries(selectedEntries);
-        if (!sortedEntries.length && !state.showAllOutsideRadius) {
-          const fallbackEntries = nearestFallbackEntriesForActiveFilter(latitude, longitude);
-          state.overviewOutsideRadiusFallback = fallbackEntries.length > 0;
-          return fallbackEntries;
-        }
+        const hasAnyFallback = sortedEntries.some(entry => entry.outOfRadius);
+        state.overviewOutsideRadiusFallback = hasAnyFallback && filterTypesWithResults.size === 0;
 
         return sortedEntries;
       }
@@ -1900,7 +1893,7 @@
         }))
       );
       const sortedEntries = entries.sort((a, b) => a.metres - b.metres);
-      if (!sortedEntries.length && !state.showAllOutsideRadius) {
+      if (!sortedEntries.length) {
         const fallbackEntries = nearestFallbackEntriesForActiveFilter(latitude, longitude);
         state.overviewOutsideRadiusFallback = fallbackEntries.length > 0;
         return fallbackEntries;
@@ -1946,12 +1939,19 @@
           ? (treeSpeciesIconHtml(entry.item.commonName, entry.item.latinName) || filterKindEmoji(entry.kind))
           : (filterKindEmoji(entry.kind) || landmarkEmoji(entry.item));
         const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
-        const distanceHtml = walkInfoHtml(entry.metres);
-        const addressLine = entry.item.address ? entry.item.address.split(',')[0].trim() : null;
-        const subtitleHtml = addressLine
-          ? `<span class="nearest-address">${escapeHtml(addressLine)}</span>${distanceHtml}`
-          : distanceHtml;
-        return `<li><button class="nearest-item" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}"><span class="nearest-main"><span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span><span class="nearest-label"><span class="nearest-emoji" aria-hidden="true">${emoji}</span><span>${escapeHtml(name)}</span></span></span><small>${subtitleHtml}</small></button></li>`;
+        const distanceText = walkTimeStr(entry.metres);
+        const typeLabel = filterMeta(entry.kind)?.label || (entry.type === "tree" ? "Tree" : entry.type === "cow" ? "Cow" : entry.type === "path" ? "Trail" : entry.type === "water" ? "Water" : "Place");
+        const outOfRadiusClass = entry.outOfRadius ? " out-of-radius" : "";
+        return `<li><button class="nearest-item${outOfRadiusClass}" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}">
+          <div class="nearest-header">
+            <span class="nearest-icon" aria-hidden="true">${emoji}</span>
+            <span class="nearest-name">${escapeHtml(name)}</span>
+          </div>
+          <div class="nearest-footer">
+            <span class="nearest-meta">${escapeHtml(typeLabel)} · ${distanceText}</span>
+            <span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span>
+          </div>
+        </button></li>`;
       }).join("");
 
       const fallbackNotice = state.overviewOutsideRadiusFallback

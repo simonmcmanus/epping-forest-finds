@@ -265,7 +265,7 @@ test("generated UI icon classes render at the enlarged sizes", () => {
   assert.match(baseCss, /--icon-scale:\s*1;/);
   assert.match(inspectorCss, /\.nav-icon\s*\{[\s\S]*width:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);/);
   assert.match(inspectorCss, /\.title-icon\s*\{[\s\S]*width:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(mapUiCss, /\.nearest-emoji\s+\.app-icon\s*\{[\s\S]*width:\s*calc\(24px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(24px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(mapUiCss, /\.nearest-icon\s+\.app-icon\s*\{[\s\S]*width:\s*32px;[\s\S]*height:\s*32px;/);
   assert.match(mapUiCss, /\.walk-icon\s*\{[\s\S]*width:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);/);
 });
 
@@ -292,8 +292,10 @@ test("nearest list uses in-radius matches before fallback", () => {
   const entries = app.overviewItemsForActiveFilter();
 
   assert.equal(app.state.overviewOutsideRadiusFallback, false);
-  assert.equal(entries.length, 1);
-  assert.equal(entries[0].item.id, "near-pub");
+  // Now returns 2: one in-radius pub, and one fallback tree (since no trees in radius)
+  assert.equal(entries.length, 2);
+  assert.equal(entries.filter(e => e.kind === "pubs")[0].item.id, "near-pub");
+  assert.equal(entries.filter(e => e.kind === "tree")[0].outOfRadius, true);
 });
 
 test("fallback notice names the selected walking distance", () => {

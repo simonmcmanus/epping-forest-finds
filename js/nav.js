@@ -150,7 +150,6 @@ function setupFilterPanelHandlers() {
   document.addEventListener("change", (event) => {
     if (event.target.id === "nearestItemsSelect") {
       state.walkingDistanceMinutes = parseInt(event.target.value, 10);
-      state.showAllOutsideRadius = false;
       selectOverview();
       if (state.userLocation) {
         const { latitude, longitude } = state.userLocation;
@@ -164,22 +163,9 @@ function setupFilterPanelHandlers() {
   }, true);
 
   els.inspectorBody.addEventListener("click", (event) => {
-    const outsideLink = event.target.closest("[data-show-all-outside-radius]");
-    if (outsideLink) {
-      event.preventDefault();
-      state.showAllOutsideRadius = true;
-      updateFilterUi();
-      if (isOverviewScreenActive()) {
-        selectOverview();
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
-      }
-      requestDraw();
-      return;
-    }
-
-    const expandButton = event.target.closest("[data-filter-group-expand]");
-    if (expandButton) {
-      toggleOverviewGroupExpansion(expandButton.dataset.filterGroupExpand);
+    const clearAllButton = event.target.closest("[data-filter-clear-all]");
+    if (clearAllButton) {
+      setOverviewFilters([]);
       return;
     }
 
