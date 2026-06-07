@@ -1,225 +1,345 @@
-# Epping Forest Finds — Icon Specification
+1) Filter group headers
+filter-nature
 
-## Overview
+Create a single nature icon for an app called Epping Forest Finds. Show a simple leaf sprig with 2–3 leaves. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-Icons appear in three contexts:
-- **Filter chips** — sidebar filter panel, ~20px inline with label text
-- **Inspector title** — large emoji next to the panel heading when a feature is selected
-- **Nearest-items list** — inline with place names in the overview list
+filter-food
 
-The visual style should feel like a **polished outdoor/nature app** — earthy, calm, slightly illustrated but legible at small sizes.
+Create a single food icon for an app called Epping Forest Finds. Show a plate with fork and knife. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, balanced composition, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-## Output format
+filter-transport
 
-- **Format:** SVG, one file per icon
-- **ViewBox:** `24×24`
-- **Padding:** 1–2px inside the viewBox
-- **Colour:** use `currentColor` for main fill/stroke so CSS can tint per category
-- **Destination:** `assets/icons/<name>.svg`
-- **Integration points:**
-  - Filter emojis → `filterKindEmoji()` in `js/categories.js:200`
-  - Landmark type fallbacks → `landmarkTypeEmoji()` in `index.html:1958`
-  - Inspector titles → `setInspectorSelectionChrome()` calls in `js/inspector.js`
+Create a single transport icon for an app called Epping Forest Finds. Show a simple bus or transit icon, preferably a front-facing bus. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-**Do not replace:**
-- `filter-underground` — must stay as the official TfL branded SVG (`assets/london-underground-logo.svg`)
-- `filter-national-rail` — must stay as the official branded SVG (`assets/national-rail-logo.svg`)
-- `ui-filter` — has a custom CSS implementation; SVG version already at `assets/forest_finds_top_nav_icons/svg/filter.svg`
+filter-history
 
----
+Create a single history icon for an app called Epping Forest Finds. Show a scroll or old document. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-## Filter group headers
+filter-locations
 
-Labels for collapsible filter sections in the sidebar.
+Create a single locations icon for an app called Epping Forest Finds. Show a map pin. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-| Filename | Current | Label | Description |
-|---|---|---|---|
-| `filter-nature.svg` | 🌿 | Nature | Leaf or sprig — represents the natural environment category |
-| `filter-food.svg` | 🍽️ | Food | Plate with cutlery — covers pubs, restaurants, cafés, shops |
-| `filter-transport.svg` | 🚌 | Transport | Bus or transit icon — public transport options near the forest |
-| `filter-history.svg` | 📜 | History | Scroll or document — historical places and heritage |
-| `filter-locations.svg` | 📍 | Locations | Map pin — notable locations by topic |
-| `filter-stories.svg` | ✨ | Stories | Sparkle/stars — legends, folklore, film locations |
+filter-stories
 
----
+Create a single stories icon for an app called Epping Forest Finds. Show sparkles or small stars to represent folklore, legends and stories. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-## Nature subfilters
+2) Nature subfilters
+filter-trees
 
-| Filename | Current | Label | Description |
-|---|---|---|---|
-| `filter-trees.svg` | 🌳 | Trees | Veteran/ancient tree — the primary feature of the app. Should feel significant and old, broad spreading canopy, often pollarded |
-| `filter-cows.svg` | 🐄 | Cows | Grazing cow — the forest has free-roaming cattle; this filter toggles their live GPS positions |
-| `filter-waymarked-trails.svg` | 🥾 | Waymarked trails | Walking boot — waymarked hiking routes through the forest |
-| `filter-ponds-streams.svg` | 💧 | Ponds & streams | Water drop — ponds, streams and hydrology features |
+Create a single tree icon for an app called Epping Forest Finds. Show a veteran ancient tree with a broad spreading canopy and sturdy trunk, feeling significant and old. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
----
+filter-cows
 
-## Food & drink subfilters
+Create a single cow icon for an app called Epping Forest Finds. Show a grazing cow, simple and friendly, side view preferred. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-| Filename | Current | Label | Description |
-|---|---|---|---|
-| `filter-pubs.svg` | 🍺 | Pubs & bars | Beer mug — pubs and bars near the forest |
-| `filter-restaurants.svg` | 🍽️ | Restaurants | Plate with cutlery — restaurants |
-| `filter-cafes.svg` | ☕ | Cafés | Coffee cup — cafés and tea rooms |
-| `filter-shops.svg` | 🛒 | Shops | Shopping basket — local shops |
+filter-waymarked-trails
 
----
+Create a single waymarked trails icon for an app called Epping Forest Finds. Show a walking boot or hiking boot. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-## Transport subfilters
+filter-ponds-streams
 
-| Filename | Current | Label | Description |
-|---|---|---|---|
-| `filter-bus.svg` | 🚌 | Bus stops | Bus — bus stops near the forest |
-| *(keep branded SVG)* | London Underground logo | Underground | Must remain as official TfL branded SVG |
-| *(keep branded SVG)* | National Rail logo | National Rail | Must remain as official branded SVG |
-| `filter-parking.svg` | 🅿️ | Car parks | Blue letter P — car parks |
+Create a single ponds and streams icon for an app called Epping Forest Finds. Show a water drop. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
----
+3) Food & drink subfilters
+filter-pubs
 
-## History subfilters
+Create a single pubs and bars icon for an app called Epping Forest Finds. Show a beer mug. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-| Filename | Current | Label | Description |
-|---|---|---|---|
-| `filter-historic-places.svg` | 🏛️ | Historic places | Classical building with columns — general historic places |
-| `filter-royal.svg` | 👑 | Royal | Crown — royal-history associations (hunts, lodges, monarchs) |
-| `filter-ww2.svg` | 🪖 | WWII | Military helmet — WWII sites (anti-aircraft, POW camps, bomb sites) |
-| `filter-social-history.svg` | 🧺 | Social history | Basket — social history (public access, Victorian recreation, working-class history) |
-| `filter-plaques.svg` | 🪧 | Plaques | Plaque/sign mounted on wall — commemorative plaques |
-| `filter-blue-plaques.svg` | 🔵 | Blue plaques | Blue circle/disc — English Heritage blue plaques specifically |
+filter-restaurants
 
----
+Create a single restaurants icon for an app called Epping Forest Finds. Show a plate with cutlery. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-## Locations subfilters
+filter-cafes
 
-| Filename | Current | Label | Description |
-|---|---|---|---|
-| `filter-celebrity.svg` | ⭐ | Celebrity | Star — places with celebrity associations |
-| `filter-science.svg` | 🔭 | Science | Telescope — science-related places |
-| `filter-education.svg` | 🎓 | Education | Graduation cap — schools, universities, educational sites |
-| `filter-medicine.svg` | ⚕️ | Medicine | Caduceus/medical cross — hospitals, public health history |
-| `filter-literature.svg` | 📚 | Literature | Stack of books — literary connections (authors, poets, settings) |
-| `filter-theatre.svg` | 🎭 | Theatre | Comedy/tragedy masks — theatre and performing arts |
-| `filter-politics.svg` | 🏛️ | Politics | Columns building — political history locations |
-| `filter-art.svg` | 🎨 | Art | Artist palette — art and music locations |
-| `filter-church.svg` | ⛪ | Church | Church with steeple — churches and places of worship |
+Create a single cafés icon for an app called Epping Forest Finds. Show a coffee cup, optionally with a little steam. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
----
+filter-shops
 
-## Stories subfilters
+Create a single shops icon for an app called Epping Forest Finds. Show a shopping basket. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-| Filename | Current | Label | Description |
-|---|---|---|---|
-| `filter-legends.svg` | ✨ | Legends | Sparkle/magic stars — local legends, ghost stories, folklore |
-| `filter-film-tv.svg` | 🎬 | Film/TV | Clapperboard — film and TV filming locations |
+4) Transport subfilters
+filter-bus
 
----
+Create a single bus stops icon for an app called Epping Forest Finds. Show a simple bus, ideally front-facing. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-## Inspector title icons
+filter-parking
 
-Appear as a large icon next to the inspector panel heading when a map feature is selected.
+Create a single car parks icon for an app called Epping Forest Finds. Show a parking symbol. Prefer a clean blue-P style parking icon if the generator handles symbols well, otherwise a simple parked car / parking marker. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no scenery, no border, no shadow.
 
-| Filename | Current | Trigger | Description |
-|---|---|---|---|
-| `inspector-map-overview.svg` | 🗺️ | General area / default state | Folded map — overview/no-selection state |
-| `inspector-forest-land.svg` | 🌲 | Epping Forest polygon tapped | Conifer tree — the forest land designation area |
-| `inspector-buffer-land.svg` | 🟢 | Buffer land polygon tapped | Green circle — buffer/protected land around the forest |
-| `inspector-motorway.svg` | 🛣️ | Motorway road tapped | Road with central divider — major motorway |
-| `inspector-trunk-road.svg` | 🛤️ | Trunk/primary road tapped | Road — trunk or primary road |
-| `inspector-road.svg` | 🚙 | Minor road tapped | Car — smaller local road |
-| `inspector-subway.svg` | 🚇 | Subway/tube line tapped | Underground train — tube line |
-| `inspector-tram.svg` | 🚊 | Tram line tapped | Tram — tram line |
-| `inspector-light-rail.svg` | 🚈 | Light rail line tapped | Light rail vehicle |
-| `inspector-railway.svg` | 🚂 | General railway tapped | Locomotive — general railway line |
+5) History subfilters
+filter-historic-places
 
----
+Create a single historic places icon for an app called Epping Forest Finds. Show a classical building with columns. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-## Landmark type icons (OSM amenity fallbacks)
+filter-royal
 
-Used when a landmark does not match a named filter category. Appear in the nearest-items list and as inspector titles.
+Create a single royal history icon for an app called Epping Forest Finds. Show a crown. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-| Filename | Current | OSM tags covered | Description |
-|---|---|---|---|
-| `landmark-parking.svg` | 🅿️ | parking | Blue letter P — car park |
-| `landmark-bicycle-parking.svg` | 🚲 | bicycle_parking, cycle_parking | Bicycle — bike parking point |
-| `landmark-bench.svg` | 🪑 | bench | Bench/seat — a place to sit and rest |
-| `landmark-toilets.svg` | 🚻 | toilets | WC/restroom symbol — public toilets |
-| `landmark-drinking-water.svg` | 🚰 | drinking_water, water_well | Tap — drinking water point or water well |
-| `landmark-information.svg` | ℹ️ | information | Info symbol — information board or visitor centre |
-| `landmark-memorial.svg` | 🕯️ | memorial | Candle — war memorial or commemorative marker |
-| `landmark-monument.svg` | 🗿 | monument, boundary_stone | Stone monolith — monument or boundary stone |
-| `landmark-archaeological.svg` | 🏺 | archaeological_site, roman_road, ruins | Amphora — archaeological site, Roman road, ruins |
-| `landmark-museum.svg` | 🏛️ | museum, attraction, building, folly, gate_pier | Classical building — museum or notable building |
-| `landmark-campsite.svg` | ⛺ | camp_site, caravan_site | Tent — campsite or caravan site |
-| `landmark-picnic.svg` | 🧺 | picnic_site | Picnic basket — picnic site |
-| `landmark-viewpoint.svg` | 🔭 | viewpoint | Telescope — scenic viewpoint |
-| `landmark-taxi.svg` | 🚕 | taxi | Taxi cab — taxi rank |
-| `landmark-telephone.svg` | ☎️ | telephone | Phone handset — public telephone |
-| `landmark-events-venue.svg` | 🎟️ | events_venue | Ticket — events venue |
-| `landmark-alcohol.svg` | 🍷 | alcohol | Wine glass — off-licence / alcohol shop |
-| `landmark-chemist.svg` | ⚕️ | chemist | Medical cross — pharmacy or chemist |
-| `landmark-dry-cleaning.svg` | 👔 | dry_cleaning | Shirt — dry cleaning shop |
-| `landmark-cafe.svg` | ☕ | cafe, tea | Coffee cup — café or tearoom |
-| `landmark-gate.svg` | 🚪 | gate, entrance, stile, kissing_gate | Gate/door — forest entry point, stile, kissing gate |
-| `landmark-barrier.svg` | 🚧 | cycle_barrier, lift_gate, cattle_grid, fence | Barrier — physical barrier or access restriction |
-| `landmark-default.svg` | 📍 | fallback for unmatched places | Pin — generic location marker |
+filter-ww2
 
----
+Create a single WWII icon for an app called Epping Forest Finds. Show a military helmet. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-## UI control icons
+filter-social-history
 
-Action buttons in the app header/toolbar.
+Create a single social history icon for an app called Epping Forest Finds. Show a basket representing public access, Victorian recreation and working-class history. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-| Filename | Current | Button | Description |
-|---|---|---|---|
-| `ui-search.svg` | 🔍 | Opens tree number search panel | Magnifying glass |
-| `ui-report.svg` | ✍️ | Opens feedback/report-missing-data form | Pencil writing |
-| `ui-settings.svg` | ⚙️ | Opens settings panel | Gear/cog |
-| `ui-back.svg` | ← | Back to overview list in inspector | Left-pointing arrow |
+filter-plaques
 
----
+Create a single plaques icon for an app called Epping Forest Finds. Show a plaque or sign mounted on a wall. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-## Location / compass UI icons
+filter-blue-plaques
 
-| Filename | Current | Used as | Description |
-|---|---|---|---|
-| `ui-location-gate.svg` | 📍 | Large icon on "Allow location" prompt card | Pin — prompts user to enable GPS |
-| `ui-distance-warning.svg` | 🗺️ | Large icon on "You're not near the forest" card | Folded map — user is outside the forest area |
-| `ui-compass-arrow.svg` | ↑ | Rotating arrow pointing toward selected location | Clean upward arrow — rotated by JS to point at target; must look good at any rotation angle |
+Create a single blue plaques icon for an app called Epping Forest Finds. Show a simple circular plaque or disc, recognisable as a blue plaque. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
----
+6) Locations subfilters
+filter-celebrity
 
-## Tree species icons
+Create a single celebrity icon for an app called Epping Forest Finds. Show a star. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-Each species icon appears as a map marker and optionally in the inspector title when a specific tree is selected. The three dominant species (Beech, Oak, Hornbeam) represent ~99% of all veteran trees and must be **clearly distinguishable from each other at ~20px**.
+filter-science
 
-Design approach: **leaf-forward** — the characteristic leaf silhouette is the primary differentiator, with a minimal trunk/pollard hint below.
+Create a single science icon for an app called Epping Forest Finds. Show a telescope. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-| Filename | Common name | Latin name | Count | Key visual features |
-|---|---|---|---|---|
-| `tree-common-beech.svg` | Common Beech | *Fagus sylvatica* | 13,129 | Oval leaf with smooth wavy edge and parallel side veins; smooth pale grey bark; wide spreading canopy. Often seen as squat multi-stemmed pollards. Turns copper/gold in autumn. |
-| `tree-english-oak.svg` | English Oak | *Quercus robur* | 7,793 | Classic deeply-lobed rounded leaf; acorns on long stalks; thick gnarled fissured bark; massive spreading crown. Many are ancient pollards with stubby thick limbs. |
-| `tree-hornbeam.svg` | Hornbeam | *Carpinus betulus* | 3,573 | Sharply double-toothed oval leaf with pronounced parallel veins; distinctive muscle-like fluted silver-grey trunk; hop-like clusters of winged fruit. Epping Forest is famous for its hornbeam pollards. |
-| `tree-holly.svg` | Holly | *Ilex aquifolium* | 9 | Glossy dark evergreen leaf with spiny lobed edges; red berries; dense rounded canopy. Very recognisable silhouette. |
-| `tree-wild-service.svg` | Wild Service | *Sorbus torminalis* | 7 | Maple-like deeply lobed leaf turning red/orange in autumn; small brown spotted fruit. A rare ancient-woodland indicator species. |
-| `tree-field-maple.svg` | Field Maple | *Acer campestre* | 7 | Small 5-lobed leaf similar to sycamore but smaller and neater; turns yellow in autumn; corky ridged bark. |
-| `tree-ash.svg` | Ash | *Fraxinus excelsior* | 3 | Compound pinnate leaf with 7–13 paired leaflets; distinctive black buds in winter; clusters of winged seeds ("keys"); tall open canopy. |
+filter-education
 
----
+Create a single education icon for an app called Epping Forest Finds. Show a graduation cap. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
 
-## Summary counts
+filter-medicine
 
-| Group | Icons to generate |
-|---|---|
-| Filter group headers | 6 |
-| Nature subfilters | 4 |
-| Food & drink subfilters | 4 |
-| Transport subfilters | 2 (underground + national rail stay as branded SVGs) |
-| History subfilters | 6 |
-| Locations subfilters | 9 |
-| Stories subfilters | 2 |
-| Inspector title icons | 10 |
-| Landmark type icons | 24 |
-| UI control icons | 4 |
-| Location / compass UI | 3 |
-| Tree species icons | 7 |
-| **Total** | **81** |
+Create a single medicine icon for an app called Epping Forest Finds. Show a medical cross or simple medical symbol. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+filter-literature
+
+Create a single literature icon for an app called Epping Forest Finds. Show a stack of books. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+filter-theatre
+
+Create a single theatre icon for an app called Epping Forest Finds. Show comedy and tragedy masks. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+filter-politics
+
+Create a single politics icon for an app called Epping Forest Finds. Show a formal columns building representing political history. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+filter-art
+
+Create a single art icon for an app called Epping Forest Finds. Show an artist palette. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+filter-church
+
+Create a single church icon for an app called Epping Forest Finds. Show a church with a steeple. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+7) Stories subfilters
+filter-legends
+
+Create a single legends icon for an app called Epping Forest Finds. Show sparkles or magic stars representing local legends, ghost stories and folklore. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+filter-film-tv
+
+Create a single film and TV icon for an app called Epping Forest Finds. Show a clapperboard. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+8) Inspector title icons
+inspector-map-overview
+
+Create a single map overview icon for an app called Epping Forest Finds. Show a folded map. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at both small and slightly larger sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+inspector-forest-land
+
+Create a single forest land icon for an app called Epping Forest Finds. Show a conifer tree. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at both small and slightly larger sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+inspector-buffer-land
+
+Create a single buffer land icon for an app called Epping Forest Finds. Show a green circle or protected land symbol, simple and clear. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, clear silhouette, minimal detail, readable at both small and slightly larger sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+inspector-motorway
+
+Create a single motorway icon for an app called Epping Forest Finds. Show a road with a central divider, representing a major motorway. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at both small and slightly larger sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+inspector-trunk-road
+
+Create a single trunk road icon for an app called Epping Forest Finds. Show a simple road representing a trunk or primary road. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at both small and slightly larger sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+inspector-road
+
+Create a single minor road icon for an app called Epping Forest Finds. Show a car. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at both small and slightly larger sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+inspector-subway
+
+Create a single subway icon for an app called Epping Forest Finds. Show an underground train. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at both small and slightly larger sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+inspector-tram
+
+Create a single tram icon for an app called Epping Forest Finds. Show a tram. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at both small and slightly larger sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+inspector-light-rail
+
+Create a single light rail icon for an app called Epping Forest Finds. Show a light rail vehicle. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at both small and slightly larger sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+inspector-railway
+
+Create a single railway icon for an app called Epping Forest Finds. Show a locomotive or general railway train. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at both small and slightly larger sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+9) Landmark type icons
+landmark-parking
+
+Create a single parking icon for an app called Epping Forest Finds. Show a parking symbol, ideally a blue-P style icon or simple car-park marker. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-bicycle-parking
+
+Create a single bicycle parking icon for an app called Epping Forest Finds. Show a bicycle. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-bench
+
+Create a single bench icon for an app called Epping Forest Finds. Show a bench or seat. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-toilets
+
+Create a single public toilets icon for an app called Epping Forest Finds. Show a WC or restroom symbol. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-drinking-water
+
+Create a single drinking water icon for an app called Epping Forest Finds. Show a tap. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-information
+
+Create a single information icon for an app called Epping Forest Finds. Show an information board or visitor information symbol. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-memorial
+
+Create a single memorial icon for an app called Epping Forest Finds. Show a candle. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-monument
+
+Create a single monument icon for an app called Epping Forest Finds. Show a stone monolith or standing stone. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-archaeological
+
+Create a single archaeological icon for an app called Epping Forest Finds. Show an amphora or ancient pottery vessel. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-museum
+
+Create a single museum icon for an app called Epping Forest Finds. Show a classical building with columns. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-campsite
+
+Create a single campsite icon for an app called Epping Forest Finds. Show a tent. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-picnic
+
+Create a single picnic icon for an app called Epping Forest Finds. Show a picnic basket. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-viewpoint
+
+Create a single viewpoint icon for an app called Epping Forest Finds. Show a telescope. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-taxi
+
+Create a single taxi icon for an app called Epping Forest Finds. Show a taxi cab. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-telephone
+
+Create a single telephone icon for an app called Epping Forest Finds. Show a phone handset. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-events-venue
+
+Create a single events venue icon for an app called Epping Forest Finds. Show a ticket. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-alcohol
+
+Create a single alcohol icon for an app called Epping Forest Finds. Show a wine glass. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-chemist
+
+Create a single chemist icon for an app called Epping Forest Finds. Show a medical cross. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-dry-cleaning
+
+Create a single dry cleaning icon for an app called Epping Forest Finds. Show a shirt. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-cafe
+
+Create a single café icon for an app called Epping Forest Finds. Show a coffee cup. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-gate
+
+Create a single gate icon for an app called Epping Forest Finds. Show a gate or entrance, suitable for a forest access point, stile or kissing gate. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-barrier
+
+Create a single barrier icon for an app called Epping Forest Finds. Show a physical barrier or access restriction marker. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+landmark-default
+
+Create a single generic location icon for an app called Epping Forest Finds. Show a map pin. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+10) UI control icons
+ui-search
+
+Create a single search icon for an app called Epping Forest Finds. Show a magnifying glass. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+ui-report
+
+Create a single report icon for an app called Epping Forest Finds. Show a pencil writing to represent reporting missing data or requesting a feature. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+ui-settings
+
+Create a single settings icon for an app called Epping Forest Finds. Show a gear or cog. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+ui-back
+
+Create a single back icon for an app called Epping Forest Finds. Show a left-pointing arrow. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, clear silhouette, minimal detail, readable at small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+11) Location / compass UI
+ui-location-gate
+
+Create a single location prompt icon for an app called Epping Forest Finds. Show a map pin used on an “allow location” prompt. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, friendly and clear, readable at slightly larger prompt-card size, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+ui-distance-warning
+
+Create a single distance warning icon for an app called Epping Forest Finds. Show a folded map to represent being outside the forest area. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, friendly and clear, readable at slightly larger prompt-card size, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+ui-compass-arrow
+
+Create a single compass arrow icon for an app called Epping Forest Finds. Show a clean upward-pointing directional arrow that will later be rotated by code, so it must look balanced from any angle. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+12) Tree species icons
+
+For these, I’d use a slightly more specific prompt structure because they need to be distinguishable.
+
+Shared tree species rule
+
+All tree species icons should be:
+
+leaf-forward
+one centered icon
+transparent background
+simple map-marker-friendly icon
+the leaf silhouette is the main differentiator
+add only a minimal trunk or pollard hint below
+very clear at ~20px
+tree-common-beech
+
+Create a single Common Beech tree species icon for an app called Epping Forest Finds. Use a leaf-forward design: the main shape should be a beech leaf, oval with a smooth gently wavy edge and visible parallel side veins, with only a very small trunk or pollard hint underneath. The icon should feel clear and distinct from oak and hornbeam. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+tree-english-oak
+
+Create a single English Oak tree species icon for an app called Epping Forest Finds. Use a leaf-forward design: the main shape should be a classic oak leaf with deep rounded lobes, optionally with a very small acorn detail, and only a minimal trunk or pollard hint underneath. The icon must feel clearly different from beech and hornbeam. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+tree-hornbeam
+
+Create a single Hornbeam tree species icon for an app called Epping Forest Finds. Use a leaf-forward design: the main shape should be a hornbeam leaf, oval with a pointed tip, sharply toothed edge and strong parallel veins, with only a minimal trunk or pollard hint underneath. The icon must feel clearly different from beech and oak. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+tree-holly
+
+Create a single Holly tree species icon for an app called Epping Forest Finds. Use a leaf-forward design: the main shape should be a holly leaf with glossy spiny lobed edges, optionally with a small red berry detail, and only a minimal trunk or pollard hint underneath. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+tree-wild-service
+
+Create a single Wild Service tree species icon for an app called Epping Forest Finds. Use a leaf-forward design: the main shape should be a wild service leaf, maple-like and deeply lobed, with only a minimal trunk or pollard hint underneath. Optionally include a tiny fruit cue if it stays simple. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+tree-field-maple
+
+Create a single Field Maple tree species icon for an app called Epping Forest Finds. Use a leaf-forward design: the main shape should be a small 5-lobed field maple leaf, neat and compact, with only a minimal trunk or pollard hint underneath. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.
+
+tree-ash
+
+Create a single Ash tree species icon for an app called Epping Forest Finds. Use a leaf-forward design: the main shape should be an ash compound pinnate leaf with several paired leaflets, and only a minimal trunk or pollard hint underneath. The icon should stay simple enough to read at 20px. Style: polished outdoor/nature app icon, clean and simple, not hand-drawn, not emoji-like, slightly illustrated but still icon-like, dark forest green outline with subtle muted earthy fills, strong silhouette, minimal detail, readable at very small sizes, transparent background, one centered icon only, no text, no scenery, no border, no shadow.

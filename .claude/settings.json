@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -n \"function setupFilterPanelHandlers\" /Users/simonmcmanus/node/trees/index.html)",
+      "Bash(python3 -c ' *)"
+    ]
+  }
+}

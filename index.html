@@ -111,13 +111,13 @@
             <p id="inspectorType" class="type"></p>
           </div>
           <div class="inspector-actions">
-            <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Hide filters" aria-expanded="true" aria-pressed="false" aria-controls="filterPanel"><span class="filter-icon" aria-hidden="true"></span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
+            <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Show filters" aria-expanded="false" aria-pressed="false" aria-controls="filterPanel"><span class="filter-icon" aria-hidden="true"></span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
             <button id="reportToggle" class="close report-toggle" type="button" aria-label="Report missing data or request a feature">✍️</button>
             <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings">⚙️</button>
           </div>
         </div>
         <div class="inspector-tools">
-          <div id="filterPanel" class="filter-panel"></div>
+          <div id="filterPanel" class="filter-panel" hidden></div>
           <div id="treeSearchPanel" class="search-panel" hidden>
             <input id="treeSearchInput" class="search-number" type="search" inputmode="text" autocomplete="off" placeholder="Search tree number" aria-label="Search by tree number">
             <button id="treeSearchButton" class="button search-button" type="button">Find</button>
@@ -162,6 +162,7 @@
     const COW_DATA_CACHE_KEY = "forest-finds-cow-data-v1";
     const REPORT_DRAFT_KEY = "forest-finds-report-draft-v1";
     const FILTER_STATE_KEY = "forest-finds-filter-state-v1";
+    const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
     const DEFAULT_FILTERS = ["trees", "pubs", "bus", "underground", "national_rail"];
     const COW_REFRESH_MS = 5 * 60 * 1000;
     const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
@@ -250,7 +251,7 @@
         } catch {}
         return [];
       })(),
-      filterPanelCollapsed: false,
+      filterPanelCollapsed: true,
       initialUserRevealDone: false,
       distanceWarningShown: false,
       nearestItemsCount: 10,
@@ -384,6 +385,7 @@
         applySelectionFromHash();
         // Fade out after the map is rendered beneath the overlay
         hideWithFade(els.loadingOverlay);
+        showFilterHintIfFirstVisit();
         if (locationPregranted) {
           locateUser({ initial: true });
         } else if (state.userLocation) {

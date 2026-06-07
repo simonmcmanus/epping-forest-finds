@@ -31,6 +31,8 @@ function createElementStub(id = "") {
     scrollHeight: 0,
     textContent: "",
     innerHTML: "",
+    childNodes: { length: 0 },
+    offsetHeight: 0,
     value: "",
     disabled: false,
     addEventListener() {},
@@ -146,7 +148,8 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  for (const externalSrc of ["js/categories.js", "js/normalize.js"]) {
+  const externalScripts = ["js/categories.js", "js/normalize.js", "js/nav.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
+  for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
       vm.runInContext(fs.readFileSync(externalPath, "utf8"), context, { filename: externalSrc });

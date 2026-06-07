@@ -39,6 +39,19 @@ function setupUiZoomLock() {
   }, { passive: false });
 }
 
+function showFilterHintIfFirstVisit() {
+  try {
+    if (localStorage.getItem(FILTER_HINT_KEY)) return;
+    localStorage.setItem(FILTER_HINT_KEY, "1");
+  } catch {}
+  setTimeout(() => {
+    els.filterToggle.classList.add("filter-toggle-hint");
+    els.filterToggle.addEventListener("animationend", () => {
+      els.filterToggle.classList.remove("filter-toggle-hint");
+    }, { once: true });
+  }, 1400);
+}
+
 function setupInteractions() {
   setupCompassListeners();
   setupResizeHandler();

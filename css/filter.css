@@ -408,3 +408,16 @@
   border: 2px solid #fff;
   box-shadow: 0 0 0 1px currentColor;
 }
+
+@keyframes filter-hint-shake {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  18%       { transform: translateX(-5px) rotate(-4deg); }
+  36%       { transform: translateX(5px) rotate(4deg); }
+  54%       { transform: translateX(-4px) rotate(-2deg); }
+  72%       { transform: translateX(4px) rotate(2deg); }
+  86%       { transform: translateX(-2px); }
+}
+
+.filter-toggle-hint {
+  animation: filter-hint-shake 0.55s ease 1.4s 1 both;
+}

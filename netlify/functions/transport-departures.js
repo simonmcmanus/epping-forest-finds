@@ -92,7 +92,6 @@ exports.handler = async (event) => {
 
     const departures = (Array.isArray(arrivals) ? arrivals : [])
       .sort((a, b) => a.timeToStation - b.timeToStation)
-      .slice(0, 10)
       .map((a) => ({
         line: a.lineName || a.lineId || "\u2013",
         direction: a.towards || a.destinationName || "",
