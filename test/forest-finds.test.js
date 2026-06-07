@@ -140,6 +140,8 @@ globalThis.__forestFindsTest = {
   isNearCanvas,
   landmarkEmoji,
   appIconHtml,
+  treeSpeciesIconHtml,
+  ICON_PATHS,
   worldToScreen,
   settingsFormHtml,
   reportFormHtml,
@@ -219,6 +221,33 @@ function test(name, fn) {
 
 const app = loadAppForTests();
 
+test("ICON_PATHS is the single registry for all icon slugs", () => {
+  const { ICON_PATHS: icons } = app;
+  const iconDir = path.join(__dirname, "..", "data", "icons");
+
+  // All registered paths must point to existing files
+  for (const [slug, filePath] of Object.entries(icons)) {
+    const abs = path.join(__dirname, "..", filePath);
+    assert.ok(fs.existsSync(abs), `ICON_PATHS["${slug}"] → ${filePath} does not exist`);
+  }
+
+  // Key icon slugs are present
+  for (const slug of ["bus", "feedback", "filter", "home", "nearby", "settings", "tick", "walking"]) {
+    assert.ok(slug in icons, `missing app icon slug: ${slug}`);
+  }
+  for (const slug of ["tree-ash", "tree-common-beech", "tree-holly", "tree-hornbeam", "tree-english-oak", "tree-wild-service"]) {
+    assert.ok(slug in icons, `missing tree species icon slug: ${slug}`);
+  }
+});
+
+test("treeSpeciesIconHtml returns leaf icon for known species", () => {
+  const { treeSpeciesIconHtml: fn } = app;
+  assert.match(fn("English Oak", "Quercus robur"), /trees\/oak\.png/);
+  assert.match(fn("Common Beech", "Fagus sylvatica"), /trees\/beach\.png/);
+  assert.match(fn("Hornbeam", "Carpinus betulus"), /trees\/hornbeam\.png/);
+  assert.equal(fn("Unknown species", ""), "");
+});
+
 test("nav controls use generated image assets instead of text glyphs", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 
@@ -233,11 +262,11 @@ test("generated UI icon classes render at the enlarged sizes", () => {
   const inspectorCss = fs.readFileSync(path.join(__dirname, "..", "css", "inspector.css"), "utf8");
   const mapUiCss = fs.readFileSync(path.join(__dirname, "..", "css", "map-ui.css"), "utf8");
 
-  assert.match(baseCss, /--icon-scale:\s*2;/);
-  assert.match(inspectorCss, /\.nav-icon\s*\{[\s\S]*width:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(inspectorCss, /\.title-icon\s*\{[\s\S]*width:\s*calc\(76px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(76px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(mapUiCss, /\.nearest-icon\s*\{[\s\S]*width:\s*calc\(64px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(64px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(mapUiCss, /\.walk-icon\s*\{[\s\S]*width:\s*calc\(36px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(36px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(baseCss, /--icon-scale:\s*1;/);
+  assert.match(inspectorCss, /\.nav-icon\s*\{[\s\S]*width:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(inspectorCss, /\.title-icon\s*\{[\s\S]*width:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(mapUiCss, /\.nearest-icon\s*\{[\s\S]*width:\s*calc\(24px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(24px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(mapUiCss, /\.walk-icon\s*\{[\s\S]*width:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);/);
 });
 
 test("nearest list falls back to one closest item for each active type outside the walking radius", () => {

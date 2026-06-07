@@ -96,15 +96,50 @@ const PLACE_FILTER_PRIORITY = [
   "theatre", "politics", "art", "church", "legends",
 ];
 
-const APP_ICON_PATHS = {
+// Single source of truth for all icon paths. To add an icon: drop the file
+// in data/icons/ (or data/icons/trees/) and add one line here.
+const ICON_PATHS = {
+  // App UI
   bus: "data/icons/bus.png",
   feedback: "data/icons/feedback.png",
   filter: "data/icons/filter.png",
   home: "data/icons/home.png",
   nearby: "data/icons/nearby.png",
   settings: "data/icons/settings.png",
+  tick: "data/icons/tick.png",
   walking: "data/icons/walking.png",
+
+  // Landmarks
+  "landmark-archaeological": "data/icons/landmark-archaeological.png",
+  "landmark-bench": "data/icons/landmark-bench.png",
+  "landmark-campsite": "data/icons/landmark-campsite.png",
+  "landmark-drinking-water": "data/icons/landmark-drinking-water.png",
+  "landmark-dry-cleaning": "data/icons/landmark-dry-cleaning.png",
+  "landmark-information": "data/icons/landmark-information.png",
+  "landmark-monument": "data/icons/landmark-monument.png",
+  "landmark-museum": "data/icons/landmark-museum.png",
+  "landmark-parking": "data/icons/landmark-parking.png",
+  "landmark-taxi": "data/icons/landmark-taxi.png",
+  "landmark-toilets": "data/icons/landmark-toilets.png",
+
+  // Tree species (leaf icons)
+  "tree-ash": "data/icons/trees/ash.png",
+  "tree-common-beech": "data/icons/trees/beach.png",
+  "tree-holly": "data/icons/trees/holly.png",
+  "tree-hornbeam": "data/icons/trees/hornbeam.png",
+  "tree-english-oak": "data/icons/trees/oak.png",
+  "tree-wild-service": "data/icons/trees/wild.png",
 };
+
+// Matches a tree's common/latin name text to a leaf icon slug.
+const TREE_SPECIES_ICON_TOKENS = [
+  { tokens: ["beech", "fagus"], icon: "tree-common-beech" },
+  { tokens: ["oak", "quercus"], icon: "tree-english-oak" },
+  { tokens: ["hornbeam", "carpinus"], icon: "tree-hornbeam" },
+  { tokens: ["holly", "ilex"], icon: "tree-holly" },
+  { tokens: ["ash", "fraxinus"], icon: "tree-ash" },
+  { tokens: ["wild service", "sorbus torminalis"], icon: "tree-wild-service" },
+];
 
 // --- Tag normalization ---
 
@@ -246,10 +281,20 @@ function filterKindEmoji(kind) {
   }
 }
 
+function iconPath(name) {
+  return ICON_PATHS[name] || null;
+}
+
 function appIconHtml(name, className = "app-icon") {
-  const src = APP_ICON_PATHS[name];
+  const src = iconPath(name);
   if (!src) return "";
   return `<img class="${className}" src="${src}" alt="" loading="lazy" decoding="async">`;
+}
+
+function treeSpeciesIconHtml(commonName, latinName, className = "app-icon tree-species-icon") {
+  const text = `${commonName || ""} ${latinName || ""}`.toLowerCase();
+  const match = TREE_SPECIES_ICON_TOKENS.find((m) => m.tokens.some((t) => text.includes(t)));
+  return match ? appIconHtml(match.icon, className) : "";
 }
 
 function filterKindColor(kind) {

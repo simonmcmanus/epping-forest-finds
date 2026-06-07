@@ -725,14 +725,14 @@ function walkTimeStr(distance) {
 
 function walkInfoHtml(distance) {
   if (distance == null || !Number.isFinite(distance)) return "";
-  return `<span class="walk-chip">🚶 ${walkTimeStr(distance)}</span>`;
+  return `<span class="walk-chip">${appIconHtml("walking", "app-icon walk-icon")} ${walkTimeStr(distance)}</span>`;
 }
 
 function walkInfoExpandableHtml(distance) {
   if (distance == null || !Number.isFinite(distance)) return "";
   const timeStr = walkTimeStr(distance);
   const distStr = formatDistance(distance);
-  return `<button class="walk-chip walk-chip-btn" type="button" aria-expanded="false" data-walk-short="🚶 ${timeStr}" data-walk-full="🚶 ${timeStr} · 📏 ${distStr}">🚶 ${timeStr}</button>`;
+  return `<button class="walk-chip walk-chip-btn" type="button" aria-expanded="false">${appIconHtml("walking", "app-icon walk-icon")}<span data-walk-short="${timeStr}" data-walk-full="${timeStr} · 📏 ${distStr}">${timeStr}</span></button>`;
 }
 
 function detailTypeLabel(distance) {

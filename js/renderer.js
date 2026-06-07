@@ -1,5 +1,25 @@
 const MAP_ICON_SCALE = 2;
 
+const mapImageCache = new Map();
+
+function getMapImage(src) {
+  if (!mapImageCache.has(src)) {
+    const img = new Image();
+    img.onload = () => { if (typeof requestDraw === "function") requestDraw(); };
+    img.src = src;
+    mapImageCache.set(src, img);
+  }
+  return mapImageCache.get(src);
+}
+
+function drawPngMapIcon(ctx, src, x, y, size) {
+  const img = getMapImage(src);
+  if (!img.complete || !img.naturalWidth) return;
+  ctx.save();
+  ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+  ctx.restore();
+}
+
 function draw() {
   state.animationFrame = null;
   const ctx = els.canvas.getContext("2d");
@@ -832,7 +852,7 @@ function drawLandmarks(ctx, nearbyIconLookup) {
         ctx.beginPath();
         ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
         ctx.fill();
-        drawMapEmoji(ctx, "🚌", point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
+        drawPngMapIcon(ctx, iconPath("bus"), point.x, point.y, 12 * dpr * mapScale * MAP_ICON_SCALE);
       }
     } else {
       const emoji = landmarkEmoji(place);
@@ -947,13 +967,8 @@ function drawSelectedOverlay(ctx) {
       } else if (transportType === "national_rail") {
         drawNationalRailLogo(ctx, point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       } else {
-        drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
-          backgroundColor: null,
-          borderColor: null,
-          borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
-          paddingPx: selectedEmojiPadding,
-          yOffsetPx: selectedEmojiYOffset,
-        });
+        const busSize = 12 * dpr * mapScale * MAP_ICON_SCALE * selectedScale;
+        drawPngMapIcon(ctx, iconPath("bus"), point.x, point.y, busSize);
       }
     } else {
       drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {

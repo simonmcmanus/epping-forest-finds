@@ -244,7 +244,8 @@ function setupSearchAndNavHandlers() {
     const walkBtn = event.target.closest(".walk-chip-btn");
     if (walkBtn) {
       const expanded = walkBtn.getAttribute("aria-expanded") === "true";
-      walkBtn.textContent = expanded ? walkBtn.dataset.walkShort : walkBtn.dataset.walkFull;
+      const span = walkBtn.querySelector("[data-walk-short]");
+      if (span) span.textContent = expanded ? span.dataset.walkShort : span.dataset.walkFull;
       walkBtn.setAttribute("aria-expanded", String(!expanded));
       return;
     }

@@ -107,8 +107,8 @@
 }
 
 .nearest-icon {
-  width: calc(64px * var(--icon-scale));
-  height: calc(64px * var(--icon-scale));
+  width: calc(24px * var(--icon-scale));
+  height: calc(24px * var(--icon-scale));
 }
 
 .nearest-kind {
@@ -139,8 +139,8 @@
 }
 
 .walk-icon {
-  width: calc(36px * var(--icon-scale));
-  height: calc(36px * var(--icon-scale));
+  width: calc(18px * var(--icon-scale));
+  height: calc(18px * var(--icon-scale));
 }
 
 @media (min-width: 761px) {

@@ -266,6 +266,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 - If no active type has a result within the selected walking radius, show the closest available item for each active type and display a notice naming the selected walking-time radius.
 - Each entry shows: emoji icon, name, distance, directional arrow
 - Overview chrome uses generated PNG assets from `data/icons/` for the nearby title, walking-time chip, bus entries, and inspector header nav buttons; these generated UI icons render at enlarged sizes after tight-cropping.
+- All icon paths are declared in a single `ICON_PATHS` registry in `js/categories.js`. Adding an icon requires one line there; no other file needs editing. Tree species leaf icons use `treeSpeciesIconHtml(commonName, latinName)` for fuzzy name-to-icon matching.
 - Count controlled by `nearestItemsCount` dropdown (3/5/10/15/20/25)
 - Filter panel toggle visible in overview mode
 
