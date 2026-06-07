@@ -1,5 +1,6 @@
 const MAP_ICON_SCALE = 2;
 const MAP_PNG_ICON_SIZE = 12;
+const BEER_ICON_SCALE = 1.15;
 
 const mapImageCache = new Map();
 
@@ -807,7 +808,7 @@ function drawLandmarks(ctx, nearbyIconLookup) {
     }
 
     if (isPub) {
-      drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE);
+      drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * BEER_ICON_SCALE);
     } else if (isCafe) {
       const radius = 10 * dpr * MAP_ICON_SCALE;
       const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
@@ -942,7 +943,7 @@ function drawSelectedOverlay(ctx) {
       ctx.fill();
       ctx.restore();
     } else if (isPubCategory(selectedPlace)) {
-      drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+      drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale * BEER_ICON_SCALE);
     } else if (isTransportCategory(selectedPlace)) {
       const transportType = getTransportType(selectedPlace);
       if (transportType === "underground") {
