@@ -161,6 +161,8 @@
     const COW_SOURCE_URL_BASE = "https://account.nofence.no/api/open/data/?center=";
     const COW_DATA_CACHE_KEY = "forest-finds-cow-data-v1";
     const REPORT_DRAFT_KEY = "forest-finds-report-draft-v1";
+    const FILTER_STATE_KEY = "forest-finds-filter-state-v1";
+    const DEFAULT_FILTERS = ["trees", "pubs", "bus", "underground", "national_rail"];
     const COW_REFRESH_MS = 5 * 60 * 1000;
     const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
     const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -234,8 +236,20 @@
       cowRefreshTimerId: null,
       cowDetailTimerId: null,
       cowFetchInFlight: false,
-      overviewFilters: [],
-      overviewExpandedGroups: [],
+      overviewFilters: (() => {
+        try {
+          const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
+          if (d && Array.isArray(d.filters)) return sanitizeOverviewFilters(d.filters);
+        } catch {}
+        return DEFAULT_FILTERS.slice();
+      })(),
+      overviewExpandedGroups: (() => {
+        try {
+          const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
+          if (d && Array.isArray(d.expandedGroups)) return sanitizeExpandedGroups(d.expandedGroups);
+        } catch {}
+        return [];
+      })(),
       filterPanelCollapsed: false,
       initialUserRevealDone: false,
       distanceWarningShown: false,
@@ -976,9 +990,19 @@
         .filter((key) => !LAYER_FILTER_KEYS.has(key));
     }
 
+    function saveFilterState() {
+      try {
+        localStorage.setItem(FILTER_STATE_KEY, JSON.stringify({
+          filters: state.overviewFilters,
+          expandedGroups: state.overviewExpandedGroups,
+        }));
+      } catch {}
+    }
+
     function setOverviewFilters(nextFilters) {
       state.overviewFilters = sanitizeOverviewFilters(nextFilters);
       state.showAllOutsideRadius = false;
+      saveFilterState();
       if (state.overviewFilters.length > 0) {
         // When user activates filters, show the panel and reset collapsed state
         state.filterPanelCollapsed = false;
@@ -995,6 +1019,7 @@
 
     function setOverviewExpandedGroups(nextGroups) {
       state.overviewExpandedGroups = sanitizeExpandedGroups(nextGroups);
+      saveFilterState();
       updateFilterUi();
     }
 

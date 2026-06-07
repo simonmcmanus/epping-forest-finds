@@ -205,10 +205,12 @@ Marker rules:
 
 - Overview lists nearest items across active types.
 - If nothing is found within the selected walking-radius range, the nearest list shows the closest available item for each active type and displays a notice explaining that no matches were found within the selected walking time.
+- **Default filters:** On first visit (no saved state), filters default to Trees, Pubs & bars, Bus stops, Underground, and National Rail.
+- **Filter persistence:** Active filters and expanded groups are saved to `localStorage` under `forest-finds-filter-state-v1` and restored on next visit.
 - Supported overview filter groups and subfilters:
-  - **Nature:** trees, cows
+  - **Nature:** trees, cows, waymarked trails, ponds & streams
   - **Food:** pubs & bars, restaurants, cafés, shops
-  - **Transport:** bus stops, underground stations, national rail stations
+  - **Transport:** bus stops, underground stations, national rail stations, car parks
   - **History:** historic places, royal history, WWII sites, social history, plaques, blue plaques
   - **Locations:** celebrity associations, science, education, medicine, literature, theatre, politics, art, churches
   - **Stories:** legends, film/TV locations
