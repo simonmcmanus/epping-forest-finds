@@ -109,6 +109,13 @@ const ICON_PATHS = {
   tick: "data/icons/tick.png",
   walking: "data/icons/walking.png",
 
+  // Place types
+  beer: "data/icons/beer.png",
+  campsite: "data/icons/campsite.png",
+  cow: "data/icons/cow.png",
+  shop: "data/icons/shop.png",
+  tree: "data/icons/tree.png",
+
   // Landmarks
   "landmark-archaeological": "data/icons/landmark-archaeological.png",
   "landmark-bench": "data/icons/landmark-bench.png",
@@ -123,6 +130,7 @@ const ICON_PATHS = {
   "landmark-toilets": "data/icons/landmark-toilets.png",
 
   // Tree species (leaf icons)
+  logo: "data/icons/trees/logo.png",
   "tree-ash": "data/icons/trees/ash.png",
   "tree-common-beech": "data/icons/trees/beach.png",
   "tree-holly": "data/icons/trees/holly.png",
@@ -249,16 +257,16 @@ function filterKindEmoji(kind) {
     case "waymarked_trails": return "🥾";
     case "ponds_streams": return "💧";
     case "pub":
-    case "pubs": return "🍺";
+    case "pubs": return appIconHtml("beer");
     case "restaurant":
     case "restaurants": return "🍽️";
     case "cafe":
     case "cafes": return "☕";
     case "shops": return "🛒";
-    case "bus": return appIconHtml("bus", "app-icon nearest-icon");
+    case "bus": return appIconHtml("bus");
     case "underground": return '<svg width="1em" height="1em" viewBox="0 0 24 24" style="vertical-align: middle; display: inline-block;"><path fill="#C9181E" d="M12 2.25a9.73 9.73 0 0 0-9.49 7.5H0v4.5h2.51a9.73 9.73 0 0 0 9.49 7.5c4.62 0 8.48-3.2 9.49-7.5H24v-4.5h-2.51A9.73 9.73 0 0 0 12 2.25zM12 6c2.5 0 4.66 1.56 5.56 3.75H6.44A6.02 6.02 0 0 1 12 6zm-5.56 8.25h11.12A6.02 6.02 0 0 1 12 18a6.02 6.02 0 0 1-5.56-3.75Z"/></svg>';
     case "national_rail": return '<svg width="1em" height="1em" viewBox="0 0 24 24" style="vertical-align: middle; display: inline-block;"><circle cx="12" cy="12" r="12" fill="#FFFFFF"/><path fill="#C9181E" d="M0 12C0 5.373 5.372 0 12 0c6.627 0 11.999 5.373 11.999 12 0 6.628-5.372 12-11.999 12-6.628 0-12-5.372-12-12Zm6.195-5.842 6.076 2.794H2.835v1.884h9.499l-4.616 2.246H2.835v1.868h4.883l5.778 2.795h4.333l-6.092-2.795h9.469v-1.868h-9.453l4.616-2.246h4.837V8.952h-4.868l-5.777-2.794H6.195"/></svg>';
-    case "parking": return "🅿️";
+    case "parking": return appIconHtml("landmark-parking");
     case "landmark": return "📍";
     case "plaques": return "🪧";
     case "blue_plaques": return "🔵";
@@ -291,10 +299,15 @@ function appIconHtml(name, className = "app-icon") {
   return `<img class="${className}" src="${src}" alt="" loading="lazy" decoding="async">`;
 }
 
-function treeSpeciesIconHtml(commonName, latinName, className = "app-icon tree-species-icon") {
+function treeSpeciesIconPath(commonName, latinName) {
   const text = `${commonName || ""} ${latinName || ""}`.toLowerCase();
   const match = TREE_SPECIES_ICON_TOKENS.find((m) => m.tokens.some((t) => text.includes(t)));
-  return match ? appIconHtml(match.icon, className) : "";
+  return match ? iconPath(match.icon) : null;
+}
+
+function treeSpeciesIconHtml(commonName, latinName, className = "app-icon tree-species-icon") {
+  const src = treeSpeciesIconPath(commonName, latinName);
+  return src ? `<img class="${className}" src="${src}" alt="" loading="lazy" decoding="async">` : "";
 }
 
 function filterKindColor(kind) {

@@ -88,6 +88,16 @@
   font-weight: 900;
   color: var(--ink);
   margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-logo {
+  width: calc(28px * var(--icon-scale));
+  height: calc(28px * var(--icon-scale));
+  object-fit: contain;
+  flex: 0 0 auto;
 }
 
 .loading-intro {
@@ -178,7 +188,7 @@
   border-top-color: var(--tree);
   animation: step-spin 0.8s linear infinite;
 }
-.loading-step.done    .step-icon::after   { content: "✓"; font-size: calc(0.8rem * var(--icon-scale)); }
+.loading-step.done    .step-icon::after   { content: ""; display: block; width: calc(13px * var(--icon-scale)); height: calc(13px * var(--icon-scale)); background: url('../data/icons/tick.png') center / contain no-repeat; }
 .loading-step.done    .step-icon          { background: var(--tree); border-color: var(--tree); color: #fff; }
 .loading-step.error   .step-icon::after   { content: "!"; font-size: calc(0.85rem * var(--icon-scale)); }
 .loading-step.error   .step-icon          { background: var(--selected); border-color: var(--selected); color: #fff; }

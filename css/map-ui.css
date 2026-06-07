@@ -101,14 +101,17 @@
 }
 
 .nearest-emoji {
-  font-size: calc(2em * var(--icon-scale));
+  font-size: calc(24px * var(--icon-scale));
   line-height: 1;
   flex: 0 0 auto;
 }
 
-.nearest-icon {
+.nearest-emoji .app-icon {
   width: calc(24px * var(--icon-scale));
   height: calc(24px * var(--icon-scale));
+  object-fit: contain;
+  padding: 2px;
+  box-sizing: border-box;
 }
 
 .nearest-kind {

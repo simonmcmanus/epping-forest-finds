@@ -1,4 +1,5 @@
 const MAP_ICON_SCALE = 2;
+const MAP_PNG_ICON_SIZE = 12;
 
 const mapImageCache = new Map();
 
@@ -13,11 +14,13 @@ function getMapImage(src) {
 }
 
 function drawPngMapIcon(ctx, src, x, y, size) {
+  if (!src) return false;
   const img = getMapImage(src);
-  if (!img.complete || !img.naturalWidth) return;
+  if (!img.complete || !img.naturalWidth) return false;
   ctx.save();
   ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
   ctx.restore();
+  return true;
 }
 
 function draw() {
@@ -639,7 +642,7 @@ function drawLayer(ctx, layer) {
 function drawTrees(ctx, nearbyIconLookup) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
-  const treeEmojiSize = 24 * dpr * mapScale * MAP_ICON_SCALE;
+  const treeEmojiSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE;
   const emojiCirclePadding = 5.6 * dpr * mapScale * MAP_ICON_SCALE;
 
   ctx.save();
@@ -648,12 +651,15 @@ function drawTrees(ctx, nearbyIconLookup) {
     if (!isNearCanvas(point, 10 * dpr * MAP_ICON_SCALE)) continue;
     if (!shouldDrawMapIcon("tree", tree, nearbyIconLookup)) continue;
     ctx.globalAlpha = 1;
-    drawMapEmoji(ctx, "🌳", point.x, point.y, treeEmojiSize, {
-      backgroundColor: null,
-      borderColor: null,
-      borderWidth: 2 * dpr * mapScale,
-      paddingPx: emojiCirclePadding,
-    });
+    const treeSrc = treeSpeciesIconPath(tree.commonName, tree.latinName) || iconPath("tree");
+    if (!drawPngMapIcon(ctx, treeSrc, point.x, point.y, treeEmojiSize)) {
+      drawMapEmoji(ctx, "🌳", point.x, point.y, treeEmojiSize, {
+        backgroundColor: null,
+        borderColor: null,
+        borderWidth: 2 * dpr * mapScale,
+        paddingPx: emojiCirclePadding,
+      });
+    }
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -801,16 +807,7 @@ function drawLandmarks(ctx, nearbyIconLookup) {
     }
 
     if (isPub) {
-      const radius = 10 * dpr * MAP_ICON_SCALE;
-      const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
-      const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-      gradient.addColorStop(0, `rgba(127, 79, 159, ${pulseOpacity})`);
-      gradient.addColorStop(1, `rgba(127, 79, 159, ${pulseOpacity * 0.2})`);
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      drawMapEmoji(ctx, "🍺", point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
+      drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE);
     } else if (isCafe) {
       const radius = 10 * dpr * MAP_ICON_SCALE;
       const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
@@ -830,29 +827,9 @@ function drawLandmarks(ctx, nearbyIconLookup) {
       } else if (transportType === "national_rail") {
         drawNationalRailLogo(ctx, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE);
       } else if (transportType === "parking") {
-        const radius = 10 * dpr * MAP_ICON_SCALE;
-        const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
-        const color = "rgba(0, 90, 180, ";
-        const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-        gradient.addColorStop(0, `${color}${pulseOpacity})`);
-        gradient.addColorStop(1, `${color}${pulseOpacity * 0.2})`);
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-        drawMapEmoji(ctx, "🅿️", point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
+        drawPngMapIcon(ctx, iconPath("landmark-parking"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE);
       } else {
-        const radius = 10 * dpr * MAP_ICON_SCALE;
-        const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
-        const color = "rgba(255, 140, 0, ";
-        const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-        gradient.addColorStop(0, `${color}${pulseOpacity})`);
-        gradient.addColorStop(1, `${color}${pulseOpacity * 0.2})`);
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-        drawPngMapIcon(ctx, iconPath("bus"), point.x, point.y, 12 * dpr * mapScale * MAP_ICON_SCALE);
+        drawPngMapIcon(ctx, iconPath("bus"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE);
       }
     } else {
       const emoji = landmarkEmoji(place);
@@ -928,13 +905,17 @@ function drawSelectedOverlay(ctx) {
   if (state.selected.type === "tree") {
     const point = worldToScreen(state.selected.item.point);
     if (isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) {
-      drawMapEmoji(ctx, "🌳", point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
-        backgroundColor: null,
-        borderColor: null,
-        borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
-        paddingPx: selectedEmojiPadding,
-        yOffsetPx: selectedEmojiYOffset,
-      });
+      const selectedTree = state.selected.item;
+      const selectedTreeSrc = treeSpeciesIconPath(selectedTree.commonName, selectedTree.latinName) || iconPath("tree");
+      if (!drawPngMapIcon(ctx, selectedTreeSrc, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale)) {
+        drawMapEmoji(ctx, "🌳", point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
+          backgroundColor: null,
+          borderColor: null,
+          borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
+          paddingPx: selectedEmojiPadding,
+          yOffsetPx: selectedEmojiYOffset,
+        });
+      }
     }
     return;
   }
@@ -960,15 +941,18 @@ function drawSelectedOverlay(ctx) {
       ctx.fillStyle = "#76702f";
       ctx.fill();
       ctx.restore();
+    } else if (isPubCategory(selectedPlace)) {
+      drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     } else if (isTransportCategory(selectedPlace)) {
       const transportType = getTransportType(selectedPlace);
       if (transportType === "underground") {
         drawUndergroundRoundel(ctx, point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       } else if (transportType === "national_rail") {
         drawNationalRailLogo(ctx, point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+      } else if (transportType === "parking") {
+        drawPngMapIcon(ctx, iconPath("landmark-parking"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       } else {
-        const busSize = 12 * dpr * mapScale * MAP_ICON_SCALE * selectedScale;
-        drawPngMapIcon(ctx, iconPath("bus"), point.x, point.y, busSize);
+        drawPngMapIcon(ctx, iconPath("bus"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       }
     } else {
       drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {

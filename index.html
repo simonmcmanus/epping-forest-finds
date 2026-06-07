@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#24382f">
   <title>Epping Forest Finds</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="tree-icon.svg" type="image/svg+xml">
+  <link rel="icon" href="data/icons/trees/logo.png" type="image/png">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/filter.css">
   <link rel="stylesheet" href="css/loading.css">
@@ -20,7 +20,7 @@
 
       <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data">
         <div class="loading-card">
-          <div class="loading-brand">🌳 Epping Forest Finds</div>
+          <div class="loading-brand"><img class="loading-logo" src="data/icons/trees/logo.png" alt=""> Epping Forest Finds</div>
           <p class="loading-intro">Preparing your offline map — this is a one-time download. Once ready, the map works anywhere in the forest, even without phone signal.</p>
           <div class="loading-progress" role="progressbar" aria-label="Loading progress">
             <div class="loading-progress-bar" id="loadingProgressBar"></div>
@@ -1941,7 +1941,9 @@
           : entry.type === "water"
             ? entry.item.name
           : placeTitle(entry.item);
-        const emoji = filterKindEmoji(entry.kind) || landmarkEmoji(entry.item);
+        const emoji = entry.type === "tree"
+          ? (treeSpeciesIconHtml(entry.item.commonName, entry.item.latinName) || filterKindEmoji(entry.kind))
+          : (filterKindEmoji(entry.kind) || landmarkEmoji(entry.item));
         const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
         const distanceHtml = walkInfoHtml(entry.metres);
         const addressLine = entry.item.address ? entry.item.address.split(',')[0].trim() : null;

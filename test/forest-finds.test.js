@@ -265,7 +265,7 @@ test("generated UI icon classes render at the enlarged sizes", () => {
   assert.match(baseCss, /--icon-scale:\s*1;/);
   assert.match(inspectorCss, /\.nav-icon\s*\{[\s\S]*width:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);/);
   assert.match(inspectorCss, /\.title-icon\s*\{[\s\S]*width:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(mapUiCss, /\.nearest-icon\s*\{[\s\S]*width:\s*calc\(24px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(24px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(mapUiCss, /\.nearest-emoji\s+\.app-icon\s*\{[\s\S]*width:\s*calc\(24px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(24px\s*\*\s*var\(--icon-scale\)\);/);
   assert.match(mapUiCss, /\.walk-icon\s*\{[\s\S]*width:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);/);
 });
 
@@ -353,7 +353,7 @@ test("walking radius marker hides in selected-detail mode", () => {
 });
 
 test("landmark emoji falls back to useful type icons before location pointer", () => {
-  assert.equal(app.landmarkEmoji({ category: "parking", categoryTags: ["parking"] }), "🅿️");
+  assert.match(app.landmarkEmoji({ category: "parking", categoryTags: ["parking"] }), /landmark-parking\.png/);
   assert.equal(app.landmarkEmoji({ category: "bench", categoryTags: ["bench"] }), "🪑");
   assert.equal(app.landmarkEmoji({ category: "toilets", categoryTags: ["toilets"] }), "🚻");
   assert.equal(app.landmarkEmoji({ category: "gate", categoryTags: ["gate"] }), "🚪");
