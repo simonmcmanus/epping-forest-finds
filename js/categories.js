@@ -96,6 +96,16 @@ const PLACE_FILTER_PRIORITY = [
   "theatre", "politics", "art", "church", "legends",
 ];
 
+const APP_ICON_PATHS = {
+  bus: "data/icons/bus.png",
+  feedback: "data/icons/feedback.png",
+  filter: "data/icons/filter.png",
+  home: "data/icons/home.png",
+  nearby: "data/icons/nearby.png",
+  settings: "data/icons/settings.png",
+  walking: "data/icons/walking.png",
+};
+
 // --- Tag normalization ---
 
 function normalizeTag(value) {
@@ -210,7 +220,7 @@ function filterKindEmoji(kind) {
     case "cafe":
     case "cafes": return "☕";
     case "shops": return "🛒";
-    case "bus": return "🚌";
+    case "bus": return appIconHtml("bus", "app-icon nearest-icon");
     case "underground": return '<svg width="1em" height="1em" viewBox="0 0 24 24" style="vertical-align: middle; display: inline-block;"><path fill="#C9181E" d="M12 2.25a9.73 9.73 0 0 0-9.49 7.5H0v4.5h2.51a9.73 9.73 0 0 0 9.49 7.5c4.62 0 8.48-3.2 9.49-7.5H24v-4.5h-2.51A9.73 9.73 0 0 0 12 2.25zM12 6c2.5 0 4.66 1.56 5.56 3.75H6.44A6.02 6.02 0 0 1 12 6zm-5.56 8.25h11.12A6.02 6.02 0 0 1 12 18a6.02 6.02 0 0 1-5.56-3.75Z"/></svg>';
     case "national_rail": return '<svg width="1em" height="1em" viewBox="0 0 24 24" style="vertical-align: middle; display: inline-block;"><circle cx="12" cy="12" r="12" fill="#FFFFFF"/><path fill="#C9181E" d="M0 12C0 5.373 5.372 0 12 0c6.627 0 11.999 5.373 11.999 12 0 6.628-5.372 12-11.999 12-6.628 0-12-5.372-12-12Zm6.195-5.842 6.076 2.794H2.835v1.884h9.499l-4.616 2.246H2.835v1.868h4.883l5.778 2.795h4.333l-6.092-2.795h9.469v-1.868h-9.453l4.616-2.246h4.837V8.952h-4.868l-5.777-2.794H6.195"/></svg>';
     case "parking": return "🅿️";
@@ -234,6 +244,12 @@ function filterKindEmoji(kind) {
     case "legends": return "✨";
     default: return null;
   }
+}
+
+function appIconHtml(name, className = "app-icon") {
+  const src = APP_ICON_PATHS[name];
+  if (!src) return "";
+  return `<img class="${className}" src="${src}" alt="" loading="lazy" decoding="async">`;
 }
 
 function filterKindColor(kind) {

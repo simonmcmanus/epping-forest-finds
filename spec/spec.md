@@ -219,7 +219,7 @@ Marker rules:
 - Filters are multi-select within and across groups.
 - Selecting a top-level group enables all subfilters within that group.
 - Deselecting all filters shows all content.
-- Nearest list entries show icon/type, distance, and directional cue.
+- Nearest list entries show icon/type, distance, and directional cue; the nearby header uses generated nearby/walking PNG icons from `data/icons/`, and bus entries use the generated bus icon.
 
 ### Nearest count control
 
@@ -239,14 +239,14 @@ Marker rules:
 
 ## Settings Screen
 
-- Accessible via the ⚙️ button in the inspector header.
+- Accessible via the generated settings icon button in the inspector header.
 - Contains a **Walking radius** control: a dropdown to choose how far to walk when listing nearby places (5, 10, 15, 20, 30, 60 min options).
 - Contains an **About** section displaying the current app version (e.g. `v80`).
 - Changing the walking radius immediately updates the nearby list, map circle, and nearest tree selection.
 
 ## Feedback / Report Screen
 
-- Accessible via the ✍️ button in the inspector header.
+- Accessible via the generated feedback icon button in the inspector header.
 - Allows users to report missing data or request features; submissions are tracked as GitHub issues.
 - The current app version is displayed in the form so the user can see which version will be reported.
 - The app version, user agent, page URL, and optional geolocation are included in every submission payload.

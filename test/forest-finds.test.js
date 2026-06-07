@@ -139,6 +139,7 @@ globalThis.__forestFindsTest = {
   buildNearbyIconLookup,
   isNearCanvas,
   landmarkEmoji,
+  appIconHtml,
   worldToScreen,
   settingsFormHtml,
   reportFormHtml,
@@ -217,6 +218,25 @@ function test(name, fn) {
 }
 
 const app = loadAppForTests();
+
+test("nav controls use generated image assets instead of text glyphs", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+
+  assert.match(html, /id="inspectorBack"[\s\S]*data\/icons\/home\.png/);
+  assert.match(html, /id="filterToggle"[\s\S]*data\/icons\/filter\.png/);
+  assert.match(html, /id="reportToggle"[\s\S]*data\/icons\/feedback\.png/);
+  assert.match(html, /id="settingsToggle"[\s\S]*data\/icons\/settings\.png/);
+});
+
+test("generated UI icon classes render at the enlarged sizes", () => {
+  const inspectorCss = fs.readFileSync(path.join(__dirname, "..", "css", "inspector.css"), "utf8");
+  const mapUiCss = fs.readFileSync(path.join(__dirname, "..", "css", "map-ui.css"), "utf8");
+
+  assert.match(inspectorCss, /\.nav-icon\s*\{[\s\S]*width:\s*44px;[\s\S]*height:\s*44px;/);
+  assert.match(inspectorCss, /\.title-icon\s*\{[\s\S]*width:\s*76px;[\s\S]*height:\s*76px;/);
+  assert.match(mapUiCss, /\.nearest-icon\s*\{[\s\S]*width:\s*64px;[\s\S]*height:\s*64px;/);
+  assert.match(mapUiCss, /\.walk-icon\s*\{[\s\S]*width:\s*36px;[\s\S]*height:\s*36px;/);
+});
 
 test("nearest list falls back to one closest item for each active type outside the walking radius", () => {
   resetData(app);
@@ -372,6 +392,29 @@ test("nearby HTML does not contain the walking distance selector", () => {
 
   assert.ok(!html.includes("nearestItemsSelect"), "nearby should not contain the walking distance select control");
   assert.ok(!html.includes("Walking distance:"), "nearby should not contain the walking distance label");
+});
+
+test("nearby summary uses the generated walking icon asset", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
+
+  const html = app.overviewNearestHtml();
+
+  assert.match(html, /data\/icons\/walking\.png/);
+  assert.match(app.appIconHtml("nearby", "app-icon title-icon"), /data\/icons\/nearby\.png/);
+});
+
+test("nearby transport entries use the generated bus icon asset", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["bus"];
+  app.state.landmarks.push({ id: "near-bus", name: "Near bus stop", category: "bus_stop", categoryTags: ["bus_stop"], ...makePoint(app, 0.001, 0) });
+
+  const html = app.overviewNearestHtml();
+
+  assert.match(html, /data\/icons\/bus\.png/);
 });
 
 test("nearby HTML does not contain the app version", () => {

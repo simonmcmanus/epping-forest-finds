@@ -134,6 +134,24 @@
   flex: 0 0 auto;
 }
 
+.app-icon {
+  display: block;
+  width: 1em;
+  height: 1em;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.nav-icon {
+  width: 44px;
+  height: 44px;
+}
+
+.title-icon {
+  width: 76px;
+  height: 76px;
+}
+
 .inspector .type {
   margin: 7px 0 0;
   color: var(--muted);
@@ -141,8 +159,8 @@
 }
 
 .close {
-  width: 36px;
-  height: 36px;
+  width: 56px;
+  height: 56px;
   flex: 0 0 auto;
   border-radius: 6px;
   background: #edf2ec;
@@ -158,13 +176,13 @@
 
 button.filter-toggle {
   width: auto;
-  min-width: 36px;
-  padding: 0 10px;
+  min-width: 56px;
+  padding: 0 8px;
 }
 
 button.report-toggle {
-  width: 36px;
-  min-width: 36px;
+  width: 56px;
+  min-width: 56px;
   padding: 0;
   font-size: 1rem;
   display: inline-grid;
@@ -172,8 +190,8 @@ button.report-toggle {
 }
 
 button.settings-toggle {
-  width: 36px;
-  min-width: 36px;
+  width: 56px;
+  min-width: 56px;
   padding: 0;
   font-size: 1rem;
   display: inline-grid;

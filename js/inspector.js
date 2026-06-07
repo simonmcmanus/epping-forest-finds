@@ -472,7 +472,7 @@ function showAreaDetails(area) {
 
 function selectOverview(animate = false) {
   const previousNearestPositions = captureNearestItemPositions();
-  setInspectorSelectionChrome({ emoji: "", showBack: false });
+  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false });
   els.inspectorTools.hidden = false;
   els.inspectorTitle.textContent = "Nearby";
   els.inspectorType.textContent = "";
@@ -603,7 +603,7 @@ function transitionInspectorBody(newHtml, direction, onDone) {
 function setInspectorSelectionChrome({ emoji, showBack }) {
   els.inspectorBack.hidden = !showBack;
   els.inspectorTitleEmoji.hidden = !emoji;
-  if (emoji && emoji.includes('<svg')) {
+  if (emoji && emoji.includes("<")) {
     els.inspectorTitleEmoji.innerHTML = emoji;
   } else {
     els.inspectorTitleEmoji.textContent = emoji || "";
