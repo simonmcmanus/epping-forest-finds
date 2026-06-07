@@ -386,6 +386,15 @@
         hideWithFade(els.loadingOverlay);
         if (locationPregranted) {
           locateUser({ initial: true });
+        } else if (state.userLocation) {
+          // Location was obtained while data was still loading (user clicked gate early).
+          // fitToBounds() above cancelled the in-flight zoom; re-trigger it now that
+          // the viewport scale is correctly established.
+          setInspectorMinimized(false);
+          checkDistanceToForest(state.userLocation.latitude, state.userLocation.longitude);
+          const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+          const initialScale = maxScaleForRadiusVisible(focusRect);
+          centerOverviewOnUserLocation({ animate: true, durationMs: 1200, scale: initialScale, focusVisibleArea: true });
         }
       } catch (error) {
         console.error(error);

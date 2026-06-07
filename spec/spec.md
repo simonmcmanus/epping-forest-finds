@@ -186,7 +186,8 @@ Marker rules:
 
 - With selected target + expanded inspector: camera fits user + target.
 - In overview mode, GPS updates keep the user location centered on the map.
-  - the first successful location fix must immediately show nearby map markers without requiring a manual zoom
+  - the first successful location fix triggers a 1200ms cinematic zoom to the user's 5-minute walking radius
+  - if location is obtained before map data finishes loading (user clicks the gate early), the zoom is re-triggered once data and `fitToBounds()` are ready — ensuring the animation is never permanently cancelled by the data-load sequence
   - small movements recenter immediately
   - large movements animate smoothly between positions
 - With minimized inspector: auto-reposition is paused.
