@@ -832,8 +832,27 @@ function drawLandmarks(ctx, nearbyIconLookup) {
         drawPngMapIcon(ctx, iconPath("bus"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE);
       }
     } else {
-      const emoji = landmarkEmoji(place);
-      drawMapEmoji(ctx, emoji, point.x, point.y, 22 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
+      // Check if there's a PNG icon available for this place's primary filter
+      let iconSlug = null;
+      for (const filterKey of PLACE_FILTER_PRIORITY) {
+        if (matchesPlaceFilter(place, filterKey)) {
+          iconSlug = filterKindIconSlug(filterKey);
+          break;
+        }
+      }
+
+      if (iconSlug) {
+        const path = iconPath(iconSlug);
+        if (path) {
+          drawPngMapIcon(ctx, path, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE);
+        } else {
+          const emoji = landmarkEmoji(place);
+          drawMapEmoji(ctx, emoji, point.x, point.y, 22 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
+        }
+      } else {
+        const emoji = landmarkEmoji(place);
+        drawMapEmoji(ctx, emoji, point.x, point.y, 22 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
+      }
     }
   }
   ctx.globalAlpha = 1;
@@ -844,12 +863,6 @@ function drawCows(ctx, nearbyIconLookup) {
   if (!state.cows.length) return;
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
-  const emojiBadge = {
-    backgroundColor: null,
-    borderColor: null,
-    borderWidth: 2 * dpr * mapScale * MAP_ICON_SCALE,
-    paddingPx: 5.6 * dpr * mapScale * MAP_ICON_SCALE,
-  };
 
   ctx.save();
   for (const cow of state.cows) {
@@ -869,7 +882,7 @@ function drawCows(ctx, nearbyIconLookup) {
     ctx.beginPath();
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     ctx.fill();
-    drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE, emojiBadge);
+    drawPngMapIcon(ctx, iconPath("cow"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE);
   }
   ctx.globalAlpha = 1;
 
@@ -926,23 +939,22 @@ function drawSelectedOverlay(ctx) {
   if (!isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) return;
 
   if (state.selected.type === "cow") {
-    drawMapEmoji(ctx, "🐄", point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
-      backgroundColor: null,
-      borderColor: null,
-      borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
-      paddingPx: selectedEmojiPadding,
-      yOffsetPx: selectedEmojiYOffset,
-    });
+    drawPngMapIcon(ctx, iconPath("cow"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
   } else if (state.selected.type === "landmark") {
     const selectedPlace = state.selected.item;
-    const emoji = landmarkEmoji(selectedPlace);
-    if (emoji === "📍") {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, 7.6 * dpr * MAP_ICON_SCALE * selectedScale, 0, Math.PI * 2);
-      ctx.fillStyle = "#76702f";
-      ctx.fill();
-      ctx.restore();
+
+    // Check for PNG icon first
+    let iconSlug = null;
+    for (const filterKey of PLACE_FILTER_PRIORITY) {
+      if (matchesPlaceFilter(selectedPlace, filterKey)) {
+        iconSlug = filterKindIconSlug(filterKey);
+        break;
+      }
+    }
+
+    if (iconSlug && iconPath(iconSlug)) {
+      // Generic landmark with PNG icon
+      drawPngMapIcon(ctx, iconPath(iconSlug), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     } else if (isPubCategory(selectedPlace)) {
       drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale * BEER_ICON_SCALE);
     } else if (isCafeCategory(selectedPlace)) {
@@ -961,13 +973,24 @@ function drawSelectedOverlay(ctx) {
         drawPngMapIcon(ctx, iconPath("bus"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       }
     } else {
-      drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
-        backgroundColor: null,
-        borderColor: null,
-        borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
-        paddingPx: selectedEmojiPadding,
-        yOffsetPx: selectedEmojiYOffset,
-      });
+      // Fall back to emoji rendering
+      const emoji = landmarkEmoji(selectedPlace);
+      if (emoji === "📍") {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 7.6 * dpr * MAP_ICON_SCALE * selectedScale, 0, Math.PI * 2);
+        ctx.fillStyle = "#76702f";
+        ctx.fill();
+        ctx.restore();
+      } else {
+        drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
+          backgroundColor: null,
+          borderColor: null,
+          borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
+          paddingPx: selectedEmojiPadding,
+          yOffsetPx: selectedEmojiYOffset,
+        });
+      }
     }
   }
 }

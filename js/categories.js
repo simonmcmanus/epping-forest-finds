@@ -4,20 +4,22 @@
 const FILTER_GROUPS = [
   {
     key: "nature",
-    label: "🌿 Nature",
+    label: "Nature",
+    icon: "nature",
     subfilters: [
       { key: "trees", label: "Trees", icon: "tree", title: "trees" },
       { key: "cows", label: "Cows", icon: "cow", title: "cows" },
-      { key: "waymarked_trails", label: "🥾 Waymarked trails", title: "waymarked trails" },
-      { key: "ponds_streams", label: "💧 Ponds & streams", title: "ponds and streams" },
+      { key: "waymarked_trails", label: "Waymarked trails", icon: "waymarked", title: "waymarked trails" },
+      { key: "ponds_streams", label: "Ponds & streams", icon: "ponds", title: "ponds and streams" },
     ],
   },
   {
     key: "food",
-    label: "🍽️ Food",
+    label: "Food",
+    icon: "food",
     subfilters: [
       { key: "pubs", label: "Pubs & bars", icon: "beer", title: "pubs and bars" },
-      { key: "restaurants", label: "🍽️ Restaurants", title: "restaurants" },
+      { key: "restaurants", label: "Restaurants", icon: "restaurant", title: "restaurants" },
       { key: "cafes", label: "Cafés", icon: "cafe", title: "cafés" },
       { key: "shops", label: "Shops", icon: "shop", title: "shops" },
     ],
@@ -28,21 +30,22 @@ const FILTER_GROUPS = [
     icon: "bus",
     subfilters: [
       { key: "bus", label: "Bus stops", icon: "bus", title: "bus stops" },
-      { key: "underground", label: "🔴 Underground", title: "Underground stations" },
-      { key: "national_rail", label: "⇄ National Rail", title: "National Rail / overground stations" },
+      { key: "underground", label: "Underground", icon: "underground", title: "Underground stations" },
+      { key: "national_rail", label: "National Rail", icon: "national-rail", title: "National Rail / overground stations" },
       { key: "parking", label: "Car parks", icon: "landmark-parking", title: "car parks" },
     ],
   },
   {
     key: "history",
-    label: "📜 History",
+    label: "History",
+    icon: "history",
     subfilters: [
-      { key: "history_general", label: "🏛️ Historic places", title: "historic places" },
-      { key: "royal", label: "👑 Royal", title: "royal-history places" },
-      { key: "ww2", label: "🪖 WWII", title: "WWII places" },
-      { key: "social_history", label: "🧺 Social history", title: "social history places" },
-      { key: "plaques", label: "🪧 Plaques", title: "plaques" },
-      { key: "blue_plaques", label: "🔵 Blue plaques", title: "blue plaques" },
+      { key: "history_general", label: "Historic places", icon: "historic", title: "historic places" },
+      { key: "royal", label: "Royal", icon: "crown", title: "royal-history places" },
+      { key: "ww2", label: "WWII", icon: "wwII", title: "WWII places" },
+      { key: "social_history", label: "Social history", icon: "social-history", title: "social history places" },
+      { key: "plaques", label: "Plaques", icon: "plaques", title: "plaques" },
+      { key: "blue_plaques", label: "Blue plaques", icon: "blue-plaques", title: "blue plaques" },
     ],
   },
   {
@@ -50,15 +53,15 @@ const FILTER_GROUPS = [
     label: "Locations",
     icon: "pin",
     subfilters: [
-      { key: "celebrity_association", label: "⭐ Celebrity", title: "celebrity links" },
-      { key: "science", label: "🔭 Science", title: "science places" },
-      { key: "education", label: "🎓 Education", title: "education places" },
-      { key: "medicine", label: "⚕️ Medicine", title: "medicine places" },
-      { key: "literature", label: "📚 Literature", title: "literary places" },
-      { key: "theatre", label: "🎭 Theatre", title: "theatre places" },
-      { key: "politics", label: "🏛️ Politics", title: "politics places" },
-      { key: "art", label: "🎨 Art", title: "art places" },
-      { key: "church", label: "⛪ Church", title: "churches" },
+      { key: "celebrity_association", label: "Celebrity", icon: "celebrities", title: "celebrity links" },
+      { key: "science", label: "Science", icon: "science", title: "science places" },
+      { key: "education", label: "Education", icon: "education", title: "education places" },
+      { key: "medicine", label: "Medicine", icon: "medicine", title: "medicine places" },
+      { key: "literature", label: "Literature", icon: "literature", title: "literary places" },
+      { key: "theatre", label: "Theatre", icon: "theatre", title: "theatre places" },
+      { key: "politics", label: "Politics", icon: "politics", title: "politics places" },
+      { key: "art", label: "Art", icon: "art", title: "art places" },
+      { key: "church", label: "Church", icon: "church", title: "churches" },
     ],
   },
   {
@@ -66,8 +69,8 @@ const FILTER_GROUPS = [
     label: "Stories",
     icon: "stories",
     subfilters: [
-      { key: "legends", label: "✨ Legends", title: "legends" },
-      { key: "film_tv", label: "🎬 Film/TV", title: "film and TV locations" },
+      { key: "legends", label: "Legends", icon: "legends", title: "legends" },
+      { key: "film_tv", label: "Film/TV", icon: "film", title: "film and TV locations" },
     ],
   },
 ];
@@ -114,13 +117,38 @@ const ICON_PATHS = {
   walking: "data/icons/walking.png",
 
   // Place types
+  art: "data/icons/art.png",
   beer: "data/icons/beer.png",
+  "blue-plaques": "data/icons/blue-plaques.png",
   cafe: "data/icons/cafe.png",
   campsite: "data/icons/campsite.png",
+  celebrities: "data/icons/celebreties.png",
+  church: "data/icons/church.png",
   cow: "data/icons/cow.png",
+  education: "data/icons/education.png",
+  crown: "data/icons/crown.png",
+  film: "data/icons/film.png",
+  food: "data/icons/food.png",
+  historic: "data/icons/historic.png",
+  history: "data/icons/history.png",
+  legends: "data/icons/legends.png",
+  literature: "data/icons/literature.png",
+  medicine: "data/icons/medicine.png",
+  "national-rail": "data/icons/national-rail.png",
+  nature: "data/icons/nature.png",
+  plaques: "data/icons/plaques.png",
+  politics: "data/icons/politics.png",
+  ponds: "data/icons/ponds.png",
+  restaurant: "data/icons/restaurant.png",
+  science: "data/icons/science.png",
   shop: "data/icons/shop.png",
+  "social-history": "data/icons/social-history.png",
   stories: "data/icons/stories.png",
+  theatre: "data/icons/theatre.png",
   tree: "data/icons/tree.png",
+  underground: "data/icons/underground.png",
+  waymarked: "data/icons/waymarked.png",
+  wwII: "data/icons/wwII.png",
 
   // Landmarks
   "landmark-archaeological": "data/icons/landmark-archaeological.png",
@@ -262,37 +290,37 @@ function filterKindEmoji(kind) {
     case "trees": return appIconHtml("tree");
     case "cow":
     case "cows": return appIconHtml("cow");
-    case "waymarked_trails": return "🥾";
-    case "ponds_streams": return "💧";
+    case "waymarked_trails": return appIconHtml("waymarked");
+    case "ponds_streams": return appIconHtml("ponds");
     case "pub":
     case "pubs": return appIconHtml("beer");
     case "restaurant":
-    case "restaurants": return "🍽️";
+    case "restaurants": return appIconHtml("restaurant");
     case "cafe":
     case "cafes": return appIconHtml("cafe");
     case "shops": return appIconHtml("shop");
     case "bus": return appIconHtml("bus");
-    case "underground": return '<svg width="1em" height="1em" viewBox="0 0 24 24" style="vertical-align: middle; display: inline-block;"><path fill="#C9181E" d="M12 2.25a9.73 9.73 0 0 0-9.49 7.5H0v4.5h2.51a9.73 9.73 0 0 0 9.49 7.5c4.62 0 8.48-3.2 9.49-7.5H24v-4.5h-2.51A9.73 9.73 0 0 0 12 2.25zM12 6c2.5 0 4.66 1.56 5.56 3.75H6.44A6.02 6.02 0 0 1 12 6zm-5.56 8.25h11.12A6.02 6.02 0 0 1 12 18a6.02 6.02 0 0 1-5.56-3.75Z"/></svg>';
-    case "national_rail": return '<svg width="1em" height="1em" viewBox="0 0 24 24" style="vertical-align: middle; display: inline-block;"><circle cx="12" cy="12" r="12" fill="#FFFFFF"/><path fill="#C9181E" d="M0 12C0 5.373 5.372 0 12 0c6.627 0 11.999 5.373 11.999 12 0 6.628-5.372 12-11.999 12-6.628 0-12-5.372-12-12Zm6.195-5.842 6.076 2.794H2.835v1.884h9.499l-4.616 2.246H2.835v1.868h4.883l5.778 2.795h4.333l-6.092-2.795h9.469v-1.868h-9.453l4.616-2.246h4.837V8.952h-4.868l-5.777-2.794H6.195"/></svg>';
+    case "underground": return appIconHtml("underground");
+    case "national_rail": return appIconHtml("national-rail");
     case "parking": return appIconHtml("landmark-parking");
     case "landmark": return "📍";
-    case "plaques": return "🪧";
-    case "blue_plaques": return "🔵";
-    case "film_tv": return "🎬";
-    case "ww2": return "🪖";
-    case "royal": return "👑";
-    case "history_general": return "📜";
-    case "social_history": return "🧺";
-    case "celebrity_association": return "⭐";
-    case "science": return "🔭";
-    case "education": return "🎓";
-    case "medicine": return "⚕️";
-    case "literature": return "📚";
-    case "theatre": return "🎭";
-    case "politics": return "🏛️";
-    case "art": return "🎨";
-    case "church": return "⛪";
-    case "legends": return "✨";
+    case "plaques": return appIconHtml("plaques");
+    case "blue_plaques": return appIconHtml("blue-plaques");
+    case "film_tv": return appIconHtml("film");
+    case "ww2": return appIconHtml("wwII");
+    case "royal": return appIconHtml("crown");
+    case "history_general": return appIconHtml("historic");
+    case "social_history": return appIconHtml("social-history");
+    case "celebrity_association": return appIconHtml("celebrities");
+    case "science": return appIconHtml("science");
+    case "education": return appIconHtml("education");
+    case "medicine": return appIconHtml("medicine");
+    case "literature": return appIconHtml("literature");
+    case "theatre": return appIconHtml("theatre");
+    case "politics": return appIconHtml("politics");
+    case "art": return appIconHtml("art");
+    case "church": return appIconHtml("church");
+    case "legends": return appIconHtml("legends");
     default: return null;
   }
 }
@@ -307,13 +335,36 @@ function filterKindIconSlug(kind) {
     case "trees": return "tree";
     case "cow":
     case "cows": return "cow";
+    case "waymarked_trails": return "waymarked";
+    case "ponds_streams": return "ponds";
     case "pub":
     case "pubs": return "beer";
+    case "restaurant":
+    case "restaurants": return "restaurant";
     case "cafe":
     case "cafes": return "cafe";
     case "shops": return "shop";
     case "bus": return "bus";
+    case "underground": return "underground";
+    case "national_rail": return "national-rail";
     case "parking": return "landmark-parking";
+    case "plaques": return "plaques";
+    case "blue_plaques": return "blue-plaques";
+    case "film_tv": return "film";
+    case "ww2": return "wwII";
+    case "royal": return "crown";
+    case "history_general": return "historic";
+    case "social_history": return "social-history";
+    case "celebrity_association": return "celebrities";
+    case "science": return "science";
+    case "education": return "education";
+    case "medicine": return "medicine";
+    case "literature": return "literature";
+    case "theatre": return "theatre";
+    case "politics": return "politics";
+    case "art": return "art";
+    case "church": return "church";
+    case "legends": return "legends";
     default: return null;
   }
 }

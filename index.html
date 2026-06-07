@@ -54,7 +54,9 @@
 
       <div id="locationGate" class="location-gate" aria-live="polite" hidden>
         <div class="location-gate-card">
-          <div class="location-gate-icon" aria-hidden="true">📍</div>
+          <div class="location-gate-icon" aria-hidden="true">
+            <img class="app-icon" src="data/icons/pin.png" alt="" loading="lazy" decoding="async">
+          </div>
           <h2 id="locationGateTitle" class="location-gate-title">Allow location access</h2>
           <p id="locationGateMessage" class="location-gate-text">Epping Forest Finds uses your location to show nearby trees and point you toward them with compass directions.</p>
           <button id="locationGateButton" class="button" type="button">Enable location to continue</button>
@@ -1149,6 +1151,7 @@
         updateFilterUi();
       });
       setInspectorMinimized(false);
+      syncHashFromSelection();
       requestDraw();
     }
 
@@ -2426,6 +2429,13 @@
 
     function syncHashFromSelection() {
       const selection = state.selected;
+
+      // Filter screen has a special hash
+      if (state.filterScreenOpen) {
+        setHashFromSelection("filters");
+        return;
+      }
+
       if (!selection || !selection.item) {
         setHashFromSelection("");
         return;
@@ -2462,6 +2472,12 @@
     function applySelectionFromHash(announceMissing = true) {
       const raw = window.location.hash.replace(/^#/, "").trim();
       if (!raw) return false;
+
+      // Handle special screens
+      if (raw === "filters") {
+        openFiltersScreen();
+        return true;
+      }
 
       const params = new URLSearchParams(raw);
       const treeKey = params.get("tree");

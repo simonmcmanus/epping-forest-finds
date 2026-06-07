@@ -107,7 +107,19 @@ function loadAppForTests() {
     document,
     window,
     navigator: { geolocation: null, userAgent: "node-test" },
-    history: { replaceState() {} },
+    history: {
+      replaceState(state, title, url) {
+        // Parse the URL and update window.location to match browser behavior
+        if (url) {
+          const hashIndex = url.indexOf('#');
+          if (hashIndex >= 0) {
+            window.location.hash = url.substring(hashIndex);
+          } else {
+            window.location.hash = "";
+          }
+        }
+      }
+    },
     fetch: async () => { throw new Error("fetch should not run in tests"); },
     setTimeout,
     clearTimeout,
@@ -117,6 +129,7 @@ function loadAppForTests() {
     cancelAnimationFrame(id) { clearTimeout(id); },
     performance: { now: () => Date.now() },
     Element: function Element() {},
+    URLSearchParams,
   };
   context.globalThis = context;
 
@@ -145,6 +158,10 @@ globalThis.__forestFindsTest = {
   worldToScreen,
   settingsFormHtml,
   reportFormHtml,
+  openFiltersScreen,
+  applySelectionFromHash,
+  syncHashFromSelection,
+  location: window.location,
 };
 `;
 
@@ -181,6 +198,7 @@ function resetData(app) {
   app.state.walkingDistanceMinutes = 5;
   app.state.showAllOutsideRadius = false;
   app.state.overviewOutsideRadiusFallback = false;
+  app.state.filterScreenOpen = false;
   app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
   app.state.viewportAnimationFrame = null;
   app.state.viewportAnimationFrom = null;
@@ -190,6 +208,7 @@ function resetData(app) {
   app.els.inspector.classList.remove("minimized");
   app.els.canvas.width = 1000;
   app.els.canvas.height = 800;
+  app.location.hash = "";
 }
 
 function addFixtureData(app) {
@@ -532,4 +551,60 @@ test("walking radius circle fits in visible area even with inspector open", () =
   assert.ok(center.x + radiusPx <= canvasWidth, `right edge of radius circle off screen: ${center.x + radiusPx} > ${canvasWidth}`);
   assert.ok(center.y - radiusPx >= 0, `top edge of radius circle off screen: ${center.y - radiusPx}`);
   assert.ok(center.y + radiusPx <= canvasHeight, `bottom edge of radius circle off screen: ${center.y + radiusPx} > ${canvasHeight}`);
+});
+
+test("filter screen sets hash to #filters", () => {
+  resetData(app);
+  app.openFiltersScreen();
+  // In real browsers, window.location.hash = "filters" results in window.location.hash === "#filters"
+  // But in tests, it's just a plain object, so we check for "filters"
+  assert.ok(app.location.hash === "filters" || app.location.hash === "#filters", "filter screen sets hash");
+});
+
+test("hash #filters opens filter screen on load", () => {
+  resetData(app);
+  app.location.hash = "#filters";
+  const opened = app.applySelectionFromHash(false);
+  assert.ok(opened, "applySelectionFromHash returns true for #filters");
+  assert.ok(app.state.filterScreenOpen, "filter screen is open");
+  assert.equal(app.els.inspectorTitle.textContent, "Filters", "inspector shows Filters title");
+});
+
+test("returning to nearby screen clears the hash", () => {
+  resetData(app);
+  app.openFiltersScreen();
+  assert.ok(app.location.hash === "filters" || app.location.hash === "#filters", "hash is set to filters");
+  app.selectOverview();
+  assert.equal(app.location.hash, "", "hash is cleared after returning to nearby");
+  assert.equal(app.state.filterScreenOpen, false, "filter screen is closed");
+});
+
+test("selecting a tree sets hash with tree parameter", () => {
+  resetData(app);
+  app.state.trees = [{ id: "12345", latitude: 51.65, longitude: 0.05, point: app.projectLonLat(0.05, 51.65) }];
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  app.syncHashFromSelection();
+  assert.ok(app.location.hash.includes("tree=12345"), "hash contains tree parameter");
+});
+
+test("hash with tree parameter loads that tree", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const tree = {
+    id: "99999",
+    latitude: 51.65,
+    longitude: 0.05,
+    point: app.projectLonLat(0.05, 51.65),
+    tagNumber: "99999",
+    commonName: "Test Oak",
+    location: {
+      britishNationalGrid: { easting: 540000, northing: 195000, gridReference: "TL 400 950" }
+    }
+  };
+  app.state.trees = [tree];
+  app.location.hash = "#tree=99999";
+  const opened = app.applySelectionFromHash(false);
+  assert.ok(opened, "applySelectionFromHash returns true for tree hash");
+  assert.equal(app.state.selected?.type, "tree", "tree is selected");
+  assert.equal(app.state.selected?.item?.id, "99999", "correct tree is selected");
 });

@@ -495,6 +495,7 @@ function selectOverview(animate = false) {
     updateOverviewDirectionArrows();
     animateNearestItemReorder(previousNearestPositions);
   });
+  syncHashFromSelection();
 }
 
 function nearestItemDomKey(node) {
