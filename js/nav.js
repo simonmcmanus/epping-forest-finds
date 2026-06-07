@@ -64,9 +64,7 @@ function setupInteractions() {
 
 function setupResizeHandler() {
   updateMapControlVisibility();
-  renderOverviewFilterPanel();
   updateFilterUi();
-  updateInspectorToolsLayout();
   window.addEventListener("resize", () => {
     updateMapControlVisibility();
     updateSubfilterScrollHints();
@@ -129,13 +127,12 @@ function setupFilterPanelHandlers() {
     if (els.inspector.classList.contains("minimized")) {
       setInspectorMinimized(false);
     }
-    const willOpen = els.filterPanel.hidden;
-    els.filterPanel.hidden = !willOpen;
-    state.filterPanelCollapsed = !willOpen;
-    els.filterToggle.setAttribute("aria-expanded", String(willOpen));
-    updateFilterUi();
-    updateInspectorToolsLayout();
+    openFiltersScreen();
   });
+
+  if (els.nearbyToggle) {
+    els.nearbyToggle.addEventListener("click", () => selectOverview(true));
+  }
 
   if (els.reportToggle) {
     els.reportToggle.addEventListener("click", () => {
@@ -166,7 +163,7 @@ function setupFilterPanelHandlers() {
     }
   }, true);
 
-  els.filterPanel.addEventListener("click", (event) => {
+  els.inspectorBody.addEventListener("click", (event) => {
     const outsideLink = event.target.closest("[data-show-all-outside-radius]");
     if (outsideLink) {
       event.preventDefault();

@@ -6,8 +6,8 @@ const FILTER_GROUPS = [
     key: "nature",
     label: "🌿 Nature",
     subfilters: [
-      { key: "trees", label: "🌳 Trees", title: "trees" },
-      { key: "cows", label: "🐄 Cows", title: "cows" },
+      { key: "trees", label: "Trees", icon: "tree", title: "trees" },
+      { key: "cows", label: "Cows", icon: "cow", title: "cows" },
       { key: "waymarked_trails", label: "🥾 Waymarked trails", title: "waymarked trails" },
       { key: "ponds_streams", label: "💧 Ponds & streams", title: "ponds and streams" },
     ],
@@ -16,20 +16,21 @@ const FILTER_GROUPS = [
     key: "food",
     label: "🍽️ Food",
     subfilters: [
-      { key: "pubs", label: "🍺 Pubs & bars", title: "pubs and bars" },
+      { key: "pubs", label: "Pubs & bars", icon: "beer", title: "pubs and bars" },
       { key: "restaurants", label: "🍽️ Restaurants", title: "restaurants" },
-      { key: "cafes", label: "☕ Cafés", title: "cafés" },
-      { key: "shops", label: "🛒 Shops", title: "shops" },
+      { key: "cafes", label: "Cafés", icon: "cafe", title: "cafés" },
+      { key: "shops", label: "Shops", icon: "shop", title: "shops" },
     ],
   },
   {
     key: "transport",
-    label: "🚌 Transport",
+    label: "Transport",
+    icon: "bus",
     subfilters: [
-      { key: "bus", label: "🚌 Bus stops", title: "bus stops" },
+      { key: "bus", label: "Bus stops", icon: "bus", title: "bus stops" },
       { key: "underground", label: "🔴 Underground", title: "Underground stations" },
       { key: "national_rail", label: "⇄ National Rail", title: "National Rail / overground stations" },
-      { key: "parking", label: "🅿️ Car parks", title: "car parks" },
+      { key: "parking", label: "Car parks", icon: "landmark-parking", title: "car parks" },
     ],
   },
   {
@@ -46,7 +47,8 @@ const FILTER_GROUPS = [
   },
   {
     key: "locations",
-    label: "📍 Locations",
+    label: "Locations",
+    icon: "pin",
     subfilters: [
       { key: "celebrity_association", label: "⭐ Celebrity", title: "celebrity links" },
       { key: "science", label: "🔭 Science", title: "science places" },
@@ -61,7 +63,8 @@ const FILTER_GROUPS = [
   },
   {
     key: "stories",
-    label: "✨ Stories",
+    label: "Stories",
+    icon: "stories",
     subfilters: [
       { key: "legends", label: "✨ Legends", title: "legends" },
       { key: "film_tv", label: "🎬 Film/TV", title: "film and TV locations" },
@@ -105,15 +108,18 @@ const ICON_PATHS = {
   filter: "data/icons/filter.png",
   home: "data/icons/home.png",
   nearby: "data/icons/nearby.png",
+  pin: "data/icons/pin.png",
   settings: "data/icons/settings.png",
   tick: "data/icons/tick.png",
   walking: "data/icons/walking.png",
 
   // Place types
   beer: "data/icons/beer.png",
+  cafe: "data/icons/cafe.png",
   campsite: "data/icons/campsite.png",
   cow: "data/icons/cow.png",
   shop: "data/icons/shop.png",
+  stories: "data/icons/stories.png",
   tree: "data/icons/tree.png",
 
   // Landmarks
@@ -252,8 +258,10 @@ function classifyFolkloreTopics(item) {
 
 function filterKindEmoji(kind) {
   switch (kind) {
-    case "tree": return "🌳";
-    case "cow": return "🐄";
+    case "tree":
+    case "trees": return appIconHtml("tree");
+    case "cow":
+    case "cows": return appIconHtml("cow");
     case "waymarked_trails": return "🥾";
     case "ponds_streams": return "💧";
     case "pub":
@@ -261,8 +269,8 @@ function filterKindEmoji(kind) {
     case "restaurant":
     case "restaurants": return "🍽️";
     case "cafe":
-    case "cafes": return "☕";
-    case "shops": return "🛒";
+    case "cafes": return appIconHtml("cafe");
+    case "shops": return appIconHtml("shop");
     case "bus": return appIconHtml("bus");
     case "underground": return '<svg width="1em" height="1em" viewBox="0 0 24 24" style="vertical-align: middle; display: inline-block;"><path fill="#C9181E" d="M12 2.25a9.73 9.73 0 0 0-9.49 7.5H0v4.5h2.51a9.73 9.73 0 0 0 9.49 7.5c4.62 0 8.48-3.2 9.49-7.5H24v-4.5h-2.51A9.73 9.73 0 0 0 12 2.25zM12 6c2.5 0 4.66 1.56 5.56 3.75H6.44A6.02 6.02 0 0 1 12 6zm-5.56 8.25h11.12A6.02 6.02 0 0 1 12 18a6.02 6.02 0 0 1-5.56-3.75Z"/></svg>';
     case "national_rail": return '<svg width="1em" height="1em" viewBox="0 0 24 24" style="vertical-align: middle; display: inline-block;"><circle cx="12" cy="12" r="12" fill="#FFFFFF"/><path fill="#C9181E" d="M0 12C0 5.373 5.372 0 12 0c6.627 0 11.999 5.373 11.999 12 0 6.628-5.372 12-11.999 12-6.628 0-12-5.372-12-12Zm6.195-5.842 6.076 2.794H2.835v1.884h9.499l-4.616 2.246H2.835v1.868h4.883l5.778 2.795h4.333l-6.092-2.795h9.469v-1.868h-9.453l4.616-2.246h4.837V8.952h-4.868l-5.777-2.794H6.195"/></svg>';

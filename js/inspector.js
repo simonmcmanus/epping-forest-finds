@@ -473,15 +473,14 @@ function showAreaDetails(area) {
 let _overviewListKey;
 
 function selectOverview(animate = false) {
+  state.filterScreenOpen = false;
+  if (els.nearbyToggle) els.nearbyToggle.hidden = true;
+  if (els.filterToggle) els.filterToggle.classList.remove("screen-active");
   const previousNearestPositions = captureNearestItemPositions();
   setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false });
   els.inspectorTools.hidden = false;
   els.inspectorTitle.textContent = "Nearby";
   els.inspectorType.textContent = "";
-  if (!state.filterPanelCollapsed) {
-    els.filterPanel.hidden = false;
-    els.filterToggle.setAttribute("aria-expanded", "true");
-  }
   const nearestSummary = overviewNearestHtml();
   const listKey = nearestSummary.replace(/<span class="walk-time">[^<]*<\/span>/, "");
 
@@ -619,7 +618,11 @@ function setInspectorSelectionChrome({ emoji, showBack }) {
   } else {
     els.inspectorTitleEmoji.textContent = emoji || "";
   }
-  if (els.inspectorActions) els.inspectorActions.hidden = showBack;
+  if (showBack) {
+    state.filterScreenOpen = false;
+    if (els.nearbyToggle) els.nearbyToggle.hidden = true;
+    if (els.filterToggle) els.filterToggle.classList.remove("screen-active");
+  }
   if (els.reportToggle) els.reportToggle.classList.remove("active");
   if (els.settingsToggle) els.settingsToggle.classList.remove("active");
 }

@@ -112,13 +112,13 @@
             <p id="inspectorType" class="type"></p>
           </div>
           <div class="inspector-actions">
-            <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Show filters" aria-expanded="false" aria-pressed="false" aria-controls="filterPanel"><img class="app-icon nav-icon" src="data/icons/filter.png" alt="" loading="lazy" decoding="async"><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
+            <button id="nearbyToggle" class="close nearby-toggle" type="button" aria-label="Back to nearby" hidden><img class="app-icon nav-icon" src="data/icons/nearby.png" alt="" loading="lazy" decoding="async"></button>
+            <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Show filters" aria-pressed="false"><img class="app-icon nav-icon" src="data/icons/filter.png" alt="" loading="lazy" decoding="async"><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
             <button id="reportToggle" class="close report-toggle" type="button" aria-label="Report missing data or request a feature"><img class="app-icon nav-icon" src="data/icons/feedback.png" alt="" loading="lazy" decoding="async"></button>
             <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings"><img class="app-icon nav-icon" src="data/icons/settings.png" alt="" loading="lazy" decoding="async"></button>
           </div>
         </div>
         <div class="inspector-tools">
-          <div id="filterPanel" class="filter-panel" hidden></div>
           <div id="treeSearchPanel" class="search-panel" hidden>
             <input id="treeSearchInput" class="search-number" type="search" inputmode="text" autocomplete="off" placeholder="Search tree number" aria-label="Search by tree number">
             <button id="treeSearchButton" class="button search-button" type="button">Find</button>
@@ -252,7 +252,7 @@
         } catch {}
         return [];
       })(),
-      filterPanelCollapsed: true,
+      filterScreenOpen: false,
       initialUserRevealDone: false,
       distanceWarningShown: false,
       nearestItemsCount: 10,
@@ -297,7 +297,7 @@
       compassLabel: document.getElementById("compassLabel"),
       filterToggle: document.getElementById("filterToggle"),
       filterCount: document.getElementById("filterCount"),
-      filterPanel: document.getElementById("filterPanel"),
+      nearbyToggle: document.getElementById("nearbyToggle"),
       locateButton: document.getElementById("locateButton"),
       installButton: document.getElementById("installButton"),
       versionBadge: document.getElementById("versionBadge"),
@@ -816,33 +816,32 @@
       requestDraw();
     }
 
-    function renderOverviewFilterPanel() {
-      els.filterPanel.innerHTML = `
-        <div class="filter-group-list">
-          ${FILTER_GROUPS.map((group) => `
-            <section class="filter-group" data-filter-group-section="${escapeHtml(group.key)}">
-              <button class="filter-chip filter-chip-group" type="button" data-filter-group="${escapeHtml(group.key)}" aria-expanded="false">
-                <span class="filter-group-label">${escapeHtml(group.label)}</span>
-                <span class="filter-group-summary" data-filter-group-expand="${escapeHtml(group.key)}">${group.subfilters.length}/${group.subfilters.length}</span>
-              </button>
-              <div class="filter-subfilters" data-filter-group-panel="${escapeHtml(group.key)}" hidden>
-                <div class="filter-subfilters-row" data-filter-group-row="${escapeHtml(group.key)}">
-                  ${group.subfilters.map((subfilter) => `<button class="filter-chip filter-chip-sub" type="button" data-filter-subfilter="${escapeHtml(subfilter.key)}">${escapeHtml(subfilter.label)}</button>`).join("")}
-                </div>
-                <p class="filter-group-outside" data-filter-group-outside="${escapeHtml(group.key)}" hidden></p>
+    function renderFilterBodyHtml() {
+      return `<div class="filter-body"><div class="filter-group-list">
+        ${FILTER_GROUPS.map((group) => `
+          <section class="filter-group" data-filter-group-section="${escapeHtml(group.key)}">
+            <button class="filter-chip filter-chip-group" type="button" data-filter-group="${escapeHtml(group.key)}" aria-expanded="false">
+              ${group.icon ? appIconHtml(group.icon, "app-icon filter-chip-icon") : ""}
+              <span class="filter-group-label">${escapeHtml(group.label)}</span>
+              <span class="filter-group-summary" data-filter-group-expand="${escapeHtml(group.key)}">${group.subfilters.length}/${group.subfilters.length}</span>
+            </button>
+            <div class="filter-subfilters" data-filter-group-panel="${escapeHtml(group.key)}" hidden>
+              <div class="filter-subfilters-row" data-filter-group-row="${escapeHtml(group.key)}">
+                ${group.subfilters.map((subfilter) => `<button class="filter-chip filter-chip-sub" type="button" data-filter-subfilter="${escapeHtml(subfilter.key)}">${subfilter.icon ? appIconHtml(subfilter.icon, "app-icon filter-chip-icon") : ""}${escapeHtml(subfilter.label)}</button>`).join("")}
               </div>
-            </section>
-          `).join("")}
-        </div>
-      `;
+              <p class="filter-group-outside" data-filter-group-outside="${escapeHtml(group.key)}" hidden></p>
+            </div>
+          </section>
+        `).join("")}
+      </div></div>`;
+    }
 
-      const subfilterRows = els.filterPanel.querySelectorAll(".filter-subfilters-row");
-      for (const row of subfilterRows) {
-        row.addEventListener("scroll", () => {
-          updateSingleSubfilterScrollHint(row);
-        }, { passive: true });
+    function attachFilterScrollHints() {
+      const rows = els.inspectorBody.querySelectorAll(".filter-subfilters-row");
+      for (const row of rows) {
+        row.addEventListener("scroll", () => updateSingleSubfilterScrollHint(row), { passive: true });
+        updateSingleSubfilterScrollHint(row);
       }
-      updateSubfilterScrollHints();
     }
 
     function updateSingleSubfilterScrollHint(row) {
@@ -857,7 +856,7 @@
     }
 
     function updateSubfilterScrollHints() {
-      const rows = els.filterPanel ? els.filterPanel.querySelectorAll(".filter-subfilters-row") : [];
+      const rows = els.inspectorBody ? els.inspectorBody.querySelectorAll(".filter-subfilters-row") : [];
       for (const row of rows) {
         updateSingleSubfilterScrollHint(row);
       }
@@ -1015,15 +1014,11 @@
       state.overviewFilters = sanitizeOverviewFilters(nextFilters);
       state.showAllOutsideRadius = false;
       saveFilterState();
-      if (state.overviewFilters.length > 0) {
-        // When user activates filters, show the panel and reset collapsed state
-        state.filterPanelCollapsed = false;
-        els.filterPanel.hidden = false;
-        els.filterToggle.setAttribute("aria-expanded", "true");
-      }
       updateFilterUi();
-      if (isOverviewScreenActive()) {
+      if (isOverviewScreenActive() && !state.filterScreenOpen) {
         selectOverview();
+        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+      } else if (state.filterScreenOpen) {
         ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
       }
       requestDraw();
@@ -1066,7 +1061,7 @@
       const currentSet = activeOverviewFilterSet();
       const expandedSet = activeOverviewExpandedSet();
 
-      const groupButtons = els.filterPanel.querySelectorAll("[data-filter-group]");
+      const groupButtons = els.inspectorBody.querySelectorAll("[data-filter-group]");
       for (const button of groupButtons) {
         const groupKey = button.dataset.filterGroup;
         const activeSubfilters = getActiveSubfiltersForGroup(groupKey, currentSet);
@@ -1077,8 +1072,8 @@
         const summary = button.querySelector(".filter-group-summary");
         const total = FILTER_GROUPS_BY_KEY.get(groupKey)?.subfilters.length || 0;
         if (summary) summary.textContent = `${activeSubfilters.length}/${total}`;
-        const panel = els.filterPanel.querySelector(`[data-filter-group-panel="${groupKey}"]`);
-        const outsideEl = els.filterPanel.querySelector(`[data-filter-group-outside="${groupKey}"]`);
+        const panel = els.inspectorBody.querySelector(`[data-filter-group-panel="${groupKey}"]`);
+        const outsideEl = els.inspectorBody.querySelector(`[data-filter-group-outside="${groupKey}"]`);
         const outsideRadiusCount = groupExpanded ? outOfRadiusCountForGroup(groupKey) : 0;
         if (outsideEl) {
           outsideEl.hidden = !(groupExpanded && outsideRadiusCount > 0);
@@ -1106,7 +1101,7 @@
         }
       }
 
-      const subfilterButtons = els.filterPanel.querySelectorAll("[data-filter-subfilter]");
+      const subfilterButtons = els.inspectorBody.querySelectorAll("[data-filter-subfilter]");
       for (const button of subfilterButtons) {
         const filterKey = button.dataset.filterSubfilter;
         button.classList.toggle("active", currentSet.has(filterKey));
@@ -1118,36 +1113,41 @@
         const activeGroupCount = getActiveGroupKeys(currentSet).length;
         const hasActiveFilter = activeGroupCount > 0;
         const locationSelected = Boolean(state.selected);
-        
-        // Hide filter button when not on the overview/nearby screen
         els.filterToggle.hidden = locationSelected;
-        
-        // Only auto-open if user hasn't manually collapsed it
-        if (hasActiveFilter && !locationSelected && !state.filterPanelCollapsed) {
-          els.filterPanel.hidden = false;
-          els.filterToggle.setAttribute("aria-expanded", "true");
-        }
         els.filterToggle.classList.toggle("active", hasActiveFilter);
+        els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
         els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
+        els.filterToggle.setAttribute("aria-label", hasActiveFilter
+          ? `${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
+          : "Show filters");
         if (els.filterCount) {
           els.filterCount.hidden = !hasActiveFilter;
           els.filterCount.textContent = String(activeGroupCount);
         }
-        els.filterToggle.setAttribute("aria-label", hasActiveFilter
-          ? `${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
-          : (els.filterPanel.hidden ? "Show filters" : "Hide filters"));
       }
-
-      updateInspectorToolsLayout();
     }
 
-    function updateInspectorToolsLayout() {
-      if (!els.inspectorTools || !els.filterPanel) return;
-      els.inspectorTools.classList.toggle("filters-closed", els.filterPanel.hidden);
-    }
+    function updateInspectorToolsLayout() {}
 
     function filterMeta(filterKey) {
       return FILTER_SUBFILTERS_BY_KEY.get(filterKey) || null;
+    }
+
+    function openFiltersScreen() {
+      state.filterScreenOpen = true;
+      state.selected = null;
+      setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: false });
+      if (els.nearbyToggle) els.nearbyToggle.hidden = false;
+      if (els.filterToggle) els.filterToggle.classList.add("screen-active");
+      els.inspectorTools.hidden = true;
+      els.inspectorTitle.textContent = "Filters";
+      els.inspectorType.textContent = "";
+      transitionInspectorBody(renderFilterBodyHtml(), "forward", () => {
+        updateFilterUi();
+        attachFilterScrollHints();
+      });
+      setInspectorMinimized(false);
+      requestDraw();
     }
 
     function openSettings() {

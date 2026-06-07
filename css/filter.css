@@ -14,6 +14,17 @@
   box-shadow: 0 10px 20px rgba(20, 36, 28, 0.2);
 }
 
+.filter-toggle.screen-active:not(.active) {
+  background: #d4e5d0;
+  border-color: rgba(47, 111, 78, 0.4);
+}
+
+.nearby-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .filter-count {
   min-width: 18px;
   height: 18px;
@@ -35,15 +46,14 @@
   color: #fff;
 }
 
-.filter-panel {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.filter-chip-icon {
+  width: calc(18px * var(--icon-scale, 1));
+  height: calc(18px * var(--icon-scale, 1));
+  flex-shrink: 0;
 }
 
-.filter-panel[hidden] {
-  display: none;
+.filter-body {
+  padding: 12px 16px 16px;
 }
 
 .filter-group-list {
