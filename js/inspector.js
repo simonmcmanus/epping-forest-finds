@@ -470,6 +470,8 @@ function showAreaDetails(area) {
 
 // --- Overview screen ---
 
+let _overviewListKey;
+
 function selectOverview(animate = false) {
   const previousNearestPositions = captureNearestItemPositions();
   setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false });
@@ -481,6 +483,15 @@ function selectOverview(animate = false) {
     els.filterToggle.setAttribute("aria-expanded", "true");
   }
   const nearestSummary = overviewNearestHtml();
+  const listKey = nearestSummary.replace(/<span class="walk-time">[^<]*<\/span>/, "");
+
+  if (!animate && listKey === _overviewListKey && els.inspectorBody?.querySelector(".walk-time")) {
+    const walkTimeEl = els.inspectorBody.querySelector(".walk-time");
+    walkTimeEl.textContent = nearestSummary.match(/<span class="walk-time">([^<]*)<\/span>/)?.[1] ?? "";
+    return;
+  }
+
+  _overviewListKey = listKey;
   transitionInspectorBody(nearestSummary, animate ? "back" : null, () => {
     updateOverviewDirectionArrows();
     animateNearestItemReorder(previousNearestPositions);

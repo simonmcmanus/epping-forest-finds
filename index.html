@@ -1957,7 +1957,7 @@
       const fallbackNotice = state.overviewOutsideRadiusFallback
         ? `<p class="source-note"><strong>Nothing found within ${state.walkingDistanceMinutes} mins walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
         : "";
-      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong><span class="walk-chip">${appIconHtml("walking", "app-icon walk-icon")} ${state.walkingDistanceMinutes} min</span></div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong><span class="walk-chip">${appIconHtml("walking", "app-icon walk-icon")} <span class="walk-time">${state.walkingDistanceMinutes} min</span></span></div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
 
     function landmarkEmoji(place) {
