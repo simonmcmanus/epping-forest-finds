@@ -127,15 +127,17 @@
           </div>
         </div>
         <div class="inspector-scroll">
-          <div class="inspector-title-section">
-            <span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>
-            <div>
-              <h2 id="inspectorTitle">Epping Forest Finds</h2>
-              <p id="inspectorType" class="type"></p>
+          <div class="inspector-screen">
+            <div class="inspector-title-section">
+              <span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>
+              <div>
+                <h2 id="inspectorTitle">Epping Forest Finds</h2>
+                <p id="inspectorType" class="type"></p>
+              </div>
             </div>
-          </div>
-          <div id="inspectorBody" class="inspector-body">
-            <p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>
+            <div id="inspectorBody" class="inspector-body">
+              <p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>
+            </div>
           </div>
         </div>
       </aside>
@@ -1221,9 +1223,8 @@
       els.inspectorTools.hidden = true;
       els.inspectorTitle.textContent = "Filters";
       els.inspectorType.textContent = "";
-      transitionInspectorBody(renderFilterBodyHtml(), "forward", () => {
-        updateFilterUi();
-      });
+      transitionInspectorBody(renderFilterBodyHtml(), "forward");
+      updateFilterUi();
       setInspectorMinimized(false);
       syncHashFromSelection();
       requestDraw();
@@ -1236,7 +1237,7 @@
       els.inspectorTools.hidden = true;
       els.inspectorTitle.textContent = "Settings";
       els.inspectorType.textContent = "App preferences";
-      els.inspectorBody.innerHTML = settingsFormHtml();
+      transitionInspectorBody(settingsFormHtml(), "forward");
       bindSettingsHandlers();
       setInspectorMinimized(false);
       updateCompassOverlay();
@@ -1289,7 +1290,7 @@
       els.inspectorTools.hidden = true;
       els.inspectorTitle.textContent = "Report";
       els.inspectorType.textContent = "Missing data / feature request";
-      els.inspectorBody.innerHTML = reportFormHtml();
+      transitionInspectorBody(reportFormHtml(), "forward");
       bindReportFormHandlers();
       setReportStatus("");
       updateReportLocationLabel();

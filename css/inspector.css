@@ -142,6 +142,7 @@
   overflow: auto;
   overflow-x: hidden;
   min-height: 0;
+  position: relative; /* clipping anchor for transition snapshots */
 }
 
 .inspector-title-section {

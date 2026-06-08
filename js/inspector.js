@@ -249,11 +249,10 @@ function showLandmarkDetails(place, distance) {
   const topRow = (distancePill || mapsLink || shareBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "");
-  transitionInspectorBody(landmarkHtml, "forward", () => {
-    if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
-      loadTransportDepartures(place);
-    }
-  });
+  transitionInspectorBody(landmarkHtml, "forward");
+  if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
+    loadTransportDepartures(place);
+  }
 }
 
 function showCowDetails(cow, distance) {
@@ -565,57 +564,88 @@ function isOverviewScreenActive() {
   return !state.selected;
 }
 
-function transitionInspectorBody(newHtml, direction, onDone) {
-  const body = els.inspectorBody;
-  const hasContent = body.childNodes.length > 0 && body.innerHTML.trim() !== "";
+// --- Screen transition ---
 
-  if (!direction || !hasContent || prefersReducedMotion()) {
-    body.innerHTML = newHtml;
-    onDone && onDone();
+let _transitionSnapshot = null;
+let _transitionAnimation = null;
+
+function _cleanupTransition() {
+  const scroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
+  const screen = scroll && scroll.querySelector(".inspector-screen");
+  const ghost  = scroll && scroll.querySelector(".inspector-screen-ghost");
+  if (ghost)  ghost.remove();
+  if (screen) { screen.style.willChange = ""; screen.getAnimations().forEach(a => a.cancel()); }
+  if (scroll) { scroll.style.overflow = ""; scroll.style.height = ""; }
+}
+
+function applyScreenTransition(direction, onDone) {
+  const scroll    = els.inspector && els.inspector.querySelector(".inspector-scroll");
+  const screen    = scroll && scroll.querySelector(".inspector-screen");
+  const snapshot  = _transitionSnapshot;
+  _transitionSnapshot = null;
+
+  if (!direction || !snapshot || !screen || !scroll || prefersReducedMotion()) {
+    if (onDone) onDone();
     return;
   }
 
-  // Lock height so the container stays stable while both cards are absolutely positioned
-  const lockedHeight = body.offsetHeight;
-  body.style.height = lockedHeight + "px";
-  body.style.overflow = "hidden";
-  body.style.position = "relative";
+  // Reset scroll position for incoming screen
+  scroll.scrollTop = 0;
 
-  const outgoing = document.createElement("div");
-  outgoing.style.cssText = "position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;";
-  outgoing.innerHTML = body.innerHTML;
+  // Build ghost (outgoing overlay) from pre-captured snapshot
+  const ghost = snapshot;
+  ghost.classList.add("inspector-screen-ghost");
+  ghost.setAttribute("aria-hidden", "true");
+  ghost.style.cssText = "position:absolute;top:0;left:0;right:0;pointer-events:none;z-index:1;background:var(--panel);backdrop-filter:blur(12px);";
 
-  const incoming = document.createElement("div");
-  incoming.style.cssText = "position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;";
-  incoming.innerHTML = newHtml;
+  // Lock height so the panel doesn't jump as content height changes
+  scroll.style.height = scroll.offsetHeight + "px";
+  scroll.style.overflow = "hidden";
+  scroll.appendChild(ghost);
 
-  body.innerHTML = "";
-  body.appendChild(outgoing);
-  body.appendChild(incoming);
+  const dur    = 310;
+  const ease   = "cubic-bezier(0.4, 0, 0.2, 1)";
+  const outX   = direction === "forward" ? "-62%" : "62%";
+  const inX    = direction === "forward" ?  "62%" : "-62%";
 
-  const dur = 260;
-  const easing = "cubic-bezier(0.4, 0, 0.2, 1)";
-  const outEnd  = direction === "forward" ? "translateX(-18%)" : "translateX(18%)";
-  const inStart = direction === "forward" ? "translateX(18%)"  : "translateX(-18%)";
+  screen.style.willChange = "transform, opacity";
 
-  outgoing.animate([
-    { transform: "translateX(0)", opacity: 1 },
-    { transform: outEnd, opacity: 0 },
-  ], { duration: dur, easing, fill: "forwards" });
+  ghost.animate([
+    { transform: "translateX(0)",   opacity: 1 },
+    { transform: `translateX(${outX})`, opacity: 0 },
+  ], { duration: dur, easing: ease });
 
-  incoming.animate([
-    { transform: inStart, opacity: 0 },
-    { transform: "translateX(0)", opacity: 1 },
-  ], { duration: dur, easing, fill: "forwards" }).finished.then(() => {
-    body.style.position = "";
-    body.style.height = "";
-    body.style.overflow = "";
-    body.innerHTML = newHtml;
-    onDone && onDone();
-  });
+  const inAnim = screen.animate([
+    { transform: `translateX(${inX})`, opacity: 0 },
+    { transform: "translateX(0)",      opacity: 1 },
+  ], { duration: dur, easing: ease, fill: "backwards" });
+
+  _transitionAnimation = inAnim;
+
+  inAnim.finished.then(() => {
+    _transitionAnimation = null;
+    _cleanupTransition();
+    if (onDone) onDone();
+  }).catch(() => { /* cancelled by next transition */ });
+}
+
+function transitionInspectorBody(newHtml, direction, onDone) {
+  els.inspectorBody.innerHTML = newHtml;
+  applyScreenTransition(direction, onDone);
 }
 
 function setInspectorSelectionChrome({ emoji, showBack }) {
+  // Cancel any in-flight transition and capture a fresh snapshot before DOM changes
+  if (_transitionAnimation) {
+    _transitionAnimation.cancel();
+    _transitionAnimation = null;
+    _cleanupTransition();
+  }
+  const scroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
+  const screen = scroll && scroll.querySelector(".inspector-screen");
+  _transitionSnapshot = screen ? screen.cloneNode(true) : null;
+
+  // Apply chrome updates
   els.inspectorBack.hidden = !showBack;
   if (els.inspectorHeader) els.inspectorHeader.classList.toggle("has-back", Boolean(showBack));
   els.inspectorTitleEmoji.hidden = !emoji;
