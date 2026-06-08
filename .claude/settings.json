@@ -8,7 +8,12 @@
       "Bash(git -C /Users/simonmcmanus/node/trees show b05fce1 --stat)",
       "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/simonmcmanus/node/trees/Veteran_Tree_Register.enriched.with_named_trees.json'\\)\\); t=d['trees'][0]; print\\(json.dumps\\(t, indent=2\\)\\)\")",
       "Skill(run)",
-      "Skill(run:*)"
+      "Skill(run:*)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -rn \"function setLoadStep\\\\|setLoadStep\" /Users/simonmcmanus/node/trees/index.html)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -rn \"setLoadStep\" /Users/simonmcmanus/node/trees/js/*.js)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -n \"els\\\\.\" /Users/simonmcmanus/node/trees/index.html)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -n \"inspector:\" /Users/simonmcmanus/node/trees/index.html)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -n \"@media\\\\|breakpoint\\\\|max-width\\\\|min-width\" /Users/simonmcmanus/node/trees/css/inspector.css)"
     ]
   }
 }

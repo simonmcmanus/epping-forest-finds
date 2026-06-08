@@ -85,7 +85,7 @@
 
 .nearest-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   min-width: 0;
 }
@@ -191,6 +191,13 @@
 .walk-icon {
   width: calc(18px * var(--icon-scale));
   height: calc(18px * var(--icon-scale));
+}
+
+.nearest-walk {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
 }
 
 @media (min-width: 761px) {

@@ -7,22 +7,26 @@
   font-weight: 900;
 }
 
-.filter-toggle.active {
+.nearby-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Active page state: currently viewing this screen */
+.nearby-toggle.screen-active,
+.filter-toggle.screen-active {
   background: var(--tree);
   border-color: var(--tree);
   color: #fff;
   box-shadow: 0 10px 20px rgba(20, 36, 28, 0.2);
 }
 
-.filter-toggle.screen-active:not(.active) {
-  background: #d4e5d0;
-  border-color: rgba(47, 111, 78, 0.4);
-}
-
-.nearby-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/* Filter enabled but NOT viewing the filter screen — subtle tint */
+.filter-toggle.active:not(.screen-active) {
+  background: #dff0d8;
+  border-color: rgba(47, 111, 78, 0.5);
+  color: var(--tree);
 }
 
 .filter-count {
@@ -40,9 +44,17 @@
   color: inherit;
 }
 
-.filter-toggle.active .filter-count {
+/* Badge when on filter screen (dark bg) */
+.filter-toggle.screen-active .filter-count {
   background: rgba(255, 255, 255, 0.16);
   border-color: rgba(255, 255, 255, 0.65);
+  color: #fff;
+}
+
+/* Badge when filter enabled but not on filter screen — make it pop */
+.filter-toggle.active:not(.screen-active) .filter-count {
+  background: var(--tree);
+  border-color: var(--tree);
   color: #fff;
 }
 

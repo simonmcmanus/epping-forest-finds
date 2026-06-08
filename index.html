@@ -48,6 +48,9 @@
             <li class="loading-step pending" data-load-step="cows">
               <span class="step-icon" aria-hidden="true"></span><span class="step-label">Live cattle positions</span><span class="step-count" data-step-count="cows"></span>
             </li>
+            <li class="loading-step pending" data-load-step="location">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Your location</span><span class="step-count" data-step-count="location"></span>
+            </li>
           </ul>
         </div>
       </div>
@@ -319,6 +322,7 @@
       inspectorType: document.getElementById("inspectorType"),
       inspectorBody: document.getElementById("inspectorBody"),
       inspectorTools: document.querySelector(".inspector-tools"),
+      inspectorHeader: document.querySelector(".inspector-header"),
       closeInspector: document.getElementById("closeInspector"),
       treeSearchToggle: document.getElementById("treeSearchToggle"),
       treeSearchPanel: document.getElementById("treeSearchPanel"),
@@ -379,29 +383,76 @@
 
         state.dataLoaded = true;
 
-        // Brief pause so user can see all steps complete (only shown when loading overlay is visible)
         if (locationPregranted) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          // Stage 2: get position before revealing the map so it opens in the right place.
+          setLoadStep("location", "loading");
+          const locResult = await new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => resolve({ ok: true, position: pos }),
+              () => resolve({ ok: false }),
+              { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+            );
+          });
+
+          if (locResult.ok) {
+            const { latitude, longitude } = applyLocationFix(locResult.position);
+            setLoadStep("location", "done");
+            updateLocateButtonVisibility();
+            setLocationGateVisible(false);
+            checkDistanceToForest(latitude, longitude);
+            ensureLocationWatch();
+
+            // Populate overview list and render map while overlay is still up.
+            selectOverview();
+            draw();
+            applySelectionFromHash();
+
+            // Snap camera to user position but slightly zoomed out so the reveal animates in.
+            const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+            const targetScale = maxScaleForRadiusVisible(focusRect);
+            centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
+            draw();
+
+            // Brief pause so the user sees the completed step list.
+            await new Promise((resolve) => setTimeout(resolve, 320));
+
+            // Fade overlay, zoom in, and slide inspector in simultaneously for a clean reveal.
+            centerOverviewOnUserLocation({ animate: true, durationMs: 700, scale: targetScale, focusVisibleArea: true });
+            triggerInspectorEntry();
+            hideWithFade(els.loadingOverlay);
+          } else {
+            // Location timed out — fall back to forest view.
+            setLoadStep("location", "error");
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            selectOverview();
+            draw();
+            applySelectionFromHash();
+            triggerMapRevealZoom();
+            triggerInspectorEntry();
+            hideWithFade(els.loadingOverlay);
+            updateLocateButtonVisibility();
+          }
+        } else {
+          // Gate was shown; location arrives separately via locateUser callback.
+          setStatus("Offline map data loaded.");
+          selectOverview();
+          draw();
+          applySelectionFromHash();
+          if (state.userLocation) {
+            // Location was obtained while data was loading (user clicked gate early).
+            setInspectorMinimized(false);
+            checkDistanceToForest(state.userLocation.latitude, state.userLocation.longitude);
+            const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+            const initialScale = maxScaleForRadiusVisible(focusRect);
+            triggerInspectorEntry();
+            centerOverviewOnUserLocation({ animate: true, durationMs: 1200, scale: initialScale, focusVisibleArea: true });
+          } else {
+            triggerMapRevealZoom();
+            triggerInspectorEntry();
+          }
+          hideWithFade(els.loadingOverlay);
         }
-        setStatus("Offline map data loaded.");
-        selectOverview();
-        draw();
-        applySelectionFromHash();
-        // Fade out after the map is rendered beneath the overlay
-        hideWithFade(els.loadingOverlay);
         showFilterHintIfFirstVisit();
-        if (locationPregranted) {
-          locateUser({ initial: true });
-        } else if (state.userLocation) {
-          // Location was obtained while data was still loading (user clicked gate early).
-          // fitToBounds() above cancelled the in-flight zoom; re-trigger it now that
-          // the viewport scale is correctly established.
-          setInspectorMinimized(false);
-          checkDistanceToForest(state.userLocation.latitude, state.userLocation.longitude);
-          const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-          const initialScale = maxScaleForRadiusVisible(focusRect);
-          centerOverviewOnUserLocation({ animate: true, durationMs: 1200, scale: initialScale, focusVisibleArea: true });
-        }
       } catch (error) {
         console.error(error);
         hideWithFade(els.loadingOverlay);
@@ -411,6 +462,42 @@
         }
         setStatus("Could not load local map data. Start a local server from this folder and refresh.");
       }
+    }
+
+    function applyLocationFix(position) {
+      const { latitude, longitude, accuracy } = position.coords;
+      const previousPoint = state.userLocation && state.userLocation.point;
+      const point = projectLonLat(longitude, latitude);
+      state.userLocation = { latitude, longitude, accuracy, point };
+      state.userInMapArea = pointInsideBounds(point, state.bounds);
+      const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
+      state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
+      state.nearestCow = nearestCowTo(latitude, longitude);
+      state.nearestPub = nearestPlaceByFilter(latitude, longitude, (place) => isPubCategory(place));
+      state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
+      state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
+      state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+      state.selected = null;
+      return { latitude, longitude, previousPoint };
+    }
+
+    function triggerInspectorEntry() {
+      const el = els.inspector;
+      if (!el) return;
+      el.classList.remove("entering");
+      void el.offsetWidth;
+      el.classList.add("entering");
+      el.addEventListener("animationend", () => el.classList.remove("entering"), { once: true });
+    }
+
+    function triggerMapRevealZoom(durationMs = 700) {
+      const target = { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
+      const f = 0.85;
+      state.viewport.scale = target.scale * f;
+      state.viewport.tx = target.tx + els.canvas.width * (1 - f) / 2;
+      state.viewport.ty = target.ty + els.canvas.height * (1 - f) / 2;
+      draw();
+      animateViewportTo(target, durationMs);
     }
 
     function locateUser({ initial }) {
@@ -425,21 +512,9 @@
       navigator.geolocation.getCurrentPosition(
         (position) => {
           els.locateButton.disabled = false;
-          const { latitude, longitude, accuracy } = position.coords;
-          const previousPoint = state.userLocation && state.userLocation.point;
-          const point = projectLonLat(longitude, latitude);
-          state.userLocation = { latitude, longitude, accuracy, point };
+          const { latitude, longitude, previousPoint } = applyLocationFix(position);
           setLocationGateVisible(false);
           updateLocateButtonVisibility();
-          state.userInMapArea = pointInsideBounds(point, state.bounds);
-          const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
-          state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
-          state.nearestCow = nearestCowTo(latitude, longitude);
-          state.nearestPub = nearestPlaceByFilter(latitude, longitude, (place) => isPubCategory(place));
-          state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
-          state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
-          state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
-          state.selected = null;
           ensureLocationWatch();
           if (compassPermissionCanBeRequested() && state.compassPermission !== "granted") {
             showCompassAccessPrompt();
@@ -447,13 +522,10 @@
             setLocationGateVisible(false);
           }
 
-          // Check if user is far from forest
           checkDistanceToForest(latitude, longitude);
 
           selectOverview();
           if (!previousPoint) {
-            // First-ever location fix: one smooth cinematic zoom from the full-forest view
-            // down to the user's location, filling the visible area with their walking radius.
             setInspectorMinimized(false);
             const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
             const initialScale = maxScaleForRadiusVisible(focusRect);
@@ -1234,42 +1306,23 @@
         const raw = localStorage.getItem(REPORT_DRAFT_KEY);
         if (raw) draft = JSON.parse(raw);
       } catch {}
-      const typeValue = draft.reportType || "missing-data";
       const detailsValue = draft.details || "";
       const online = navigator.onLine;
-      return `<p class="report-note">Tell us what should appear on the map, or request a new feature. Reports are tracked as GitHub issues.</p>
-        <form id="reportForm" class="report-form">
-          <label for="reportType">Type
-            <select id="reportType" class="report-input" required>
-              <option value="missing-data"${typeValue === "missing-data" ? " selected" : ""}>Missing location/data</option>
-              <option value="feature-request"${typeValue === "feature-request" ? " selected" : ""}>Feature request</option>
-            </select>
+      return `<form id="reportForm" class="report-form">
+          <label for="reportDetails">What did you notice?
+            <textarea id="reportDetails" class="report-textarea" placeholder="Describe what's missing or what you'd like to see…" required>${escapeHtml(detailsValue)}</textarea>
           </label>
-          <label for="reportDetails">Details
-            <textarea id="reportDetails" class="report-textarea" placeholder="Describe what should appear on the map, or the feature you want." required>${escapeHtml(detailsValue)}</textarea>
-          </label>
-          <div class="report-row">
-            <button id="reportUseLocation" class="button" type="button">Use my current location</button>
-            <span id="reportLocationLabel" class="report-location-pill" hidden>Location not added</span>
-          </div>
-          <p class="report-note">If location is added, it will be included in the issue to help pinpoint the request.</p>
           <p id="reportStatus" class="report-status" aria-live="polite"></p>
           <p id="reportOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Your report is saved and will be ready to submit when you\'re back online.</p>
-          <p class="report-note" style="opacity: 0.7;">Version ${APP_VERSION} will be included with your report.</p>
           <div class="report-form-actions">
-            <button id="reportCancel" class="button" type="button">Cancel</button>
-            <button id="reportSubmit" class="button" type="submit"${online ? "" : " disabled"}>Submit report</button>
+            <button id="reportCancel" class="button button-ghost" type="button">Cancel</button>
+            <button id="reportSubmit" class="button" type="submit"${online ? "" : " disabled"}>Submit</button>
           </div>
         </form>`;
     }
 
     function bindReportFormHandlers() {
-      const useLocationButton = document.getElementById("reportUseLocation");
-      if (useLocationButton) {
-        useLocationButton.addEventListener("click", () => {
-          populateReportLocation();
-        });
-      }
+      populateReportLocation();
 
       const cancelButton = document.getElementById("reportCancel");
       if (cancelButton) {
@@ -1288,18 +1341,14 @@
 
       // Save draft to localStorage as the user types
       function saveDraft() {
-        const typeInput = document.getElementById("reportType");
         const detailsInput = document.getElementById("reportDetails");
         try {
           localStorage.setItem(REPORT_DRAFT_KEY, JSON.stringify({
-            reportType: typeInput ? typeInput.value : "missing-data",
             details: detailsInput ? detailsInput.value : "",
           }));
         } catch {}
       }
-      const typeInput = document.getElementById("reportType");
       const detailsInput = document.getElementById("reportDetails");
-      if (typeInput) typeInput.addEventListener("change", saveDraft);
       if (detailsInput) detailsInput.addEventListener("input", saveDraft);
 
       // Disable/enable submit when connectivity changes
@@ -1345,44 +1394,22 @@
     }
 
     async function populateReportLocation() {
-      if (state.userLocation) {
-        updateReportLocationLabel();
-        setReportStatus("Using current map location.");
-        return;
-      }
-
-      if (!navigator.geolocation) {
-        setReportStatus("Geolocation is not supported in this browser.", "error");
-        return;
-      }
-
-      setReportStatus("Getting current location…");
+      if (state.userLocation) return;
+      if (!navigator.geolocation) return;
       await new Promise((resolve) => {
         navigator.geolocation.getCurrentPosition((position) => {
-          const latitude = position.coords.latitude;
-          const longitude = position.coords.longitude;
           state.reportDraftLocation = {
-            latitude,
-            longitude,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
           };
-          updateReportLocationLabel();
-          setReportStatus("Location added.", "success");
           resolve();
-        }, () => {
-          setReportStatus("Could not access location. Check browser permissions.", "error");
-          resolve();
-        }, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        });
+        }, resolve, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
       });
     }
 
     async function submitReportForm() {
-      const reportTypeInput = document.getElementById("reportType");
       const reportDetailsInput = document.getElementById("reportDetails");
-      if (!reportTypeInput || !reportDetailsInput) return;
+      if (!reportDetailsInput) return;
 
       if (!navigator.onLine) {
         setReportStatus("No internet connection. Your report is saved and ready to submit when you\'re back online.", "error");
@@ -1396,7 +1423,7 @@
       }
 
       const payload = {
-        reportType: reportTypeInput.value,
+        reportType: "feedback",
         details,
         location: currentReportLocation(),
         appVersion: APP_VERSION,
@@ -1945,7 +1972,7 @@
           ? (treeSpeciesIconHtml(entry.item.commonName, entry.item.latinName) || filterKindEmoji(entry.kind))
           : (filterKindEmoji(entry.kind) || landmarkEmoji(entry.item));
         const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
-        const distanceText = walkTimeStr(entry.metres);
+        const walkTime = walkTimeStr(entry.metres).replace(/~/g, "");
         const typeLabel = filterMeta(entry.kind)?.label || (entry.type === "tree" ? "Tree" : entry.type === "cow" ? "Cow" : entry.type === "path" ? "Trail" : entry.type === "water" ? "Water" : "Place");
         const outOfRadiusClass = entry.outOfRadius ? " out-of-radius" : "";
         return `<li><button class="nearest-item${outOfRadiusClass}" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}">
@@ -1954,7 +1981,7 @@
             <span class="nearest-name">${escapeHtml(name)}</span>
           </div>
           <div class="nearest-footer">
-            <span class="nearest-meta">${escapeHtml(typeLabel)} · ${distanceText}</span>
+            <span class="nearest-meta">${escapeHtml(typeLabel)} · <span class="nearest-walk">${escapeHtml(walkTime)} ${appIconHtml("walking", "app-icon walk-icon")}</span></span>
             <span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span>
           </div>
         </button></li>`;

@@ -14,6 +14,26 @@
   transition: max-height 0s;
 }
 
+@keyframes inspector-slide-in-right {
+  from { transform: translateX(calc(100% + 28px)); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes inspector-slide-in-up {
+  from { transform: translateY(calc(100% + 24px)); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.inspector.entering {
+  animation: inspector-slide-in-right 0.52s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+@media (max-width: 760px) {
+  .inspector.entering {
+    animation-name: inspector-slide-in-up;
+  }
+}
+
 .inspector-drag-handle {
   display: none;
   position: absolute;
@@ -64,6 +84,9 @@
   align-items: center;
   min-height: calc(36px * var(--icon-scale) + 24px);
   padding: 12px 16px;
+}
+
+.inspector-header.has-back {
   border-bottom: 1px solid var(--line);
 }
 
@@ -88,6 +111,13 @@
 
 .inspector-tools.filters-closed {
   padding-top: 0;
+}
+
+.inspector-tools.tools-empty {
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+  gap: 0;
 }
 
 .inspector.minimized .inspector-tools {
@@ -168,6 +198,10 @@
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.inspector .type:empty {
+  display: none;
 }
 
 .close {
@@ -310,6 +344,17 @@ button.settings-toggle.active {
   flex-wrap: wrap;
 }
 
+.button-ghost {
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+  border: 1px solid var(--line);
+}
+
+.button-ghost:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .report-note {
   margin: 0;
   color: var(--muted);
@@ -449,9 +494,11 @@ details.technical-details[open] summary::before {
 }
 
 .nearby-heading strong {
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 dl {

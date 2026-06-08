@@ -298,7 +298,6 @@ function showPathDetails(path, distance) {
     ["Foot", path.foot],
     ["Horse", path.horse],
     ["Approx length", path.totalLength ? formatDistance(path.totalLength) : null],
-    ["Source", "OpenStreetMap"],
   ];
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
@@ -349,7 +348,6 @@ function showRoadDetails(road, distance) {
     ["Name", road.name],
     ["Reference", road.ref],
     ["Highway tag", road.highway],
-    ["Source", "OpenStreetMap"],
   ].filter(([key, value]) => value != null && value !== "");
 
   transitionInspectorBody(detailsHtml(rows), "forward");
@@ -382,7 +380,6 @@ function showRailwayDetails(railway) {
     ["Name", props.name],
     ["Operator", props.operator],
     ["Service", props.service],
-    ["Source", "OpenStreetMap"],
   ].filter(([, value]) => value != null && value !== "");
 
   const technicalRows = [
@@ -481,10 +478,10 @@ let _overviewListKey;
 
 function selectOverview(animate = false) {
   state.filterScreenOpen = false;
-  if (els.nearbyToggle) els.nearbyToggle.hidden = true;
   if (els.filterToggle) els.filterToggle.classList.remove("screen-active");
   const previousNearestPositions = captureNearestItemPositions();
   setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false });
+  if (els.nearbyToggle) els.nearbyToggle.classList.add("screen-active");
   els.inspectorTools.hidden = false;
   els.inspectorTitle.textContent = "Nearby";
   els.inspectorType.textContent = "";
@@ -620,15 +617,16 @@ function transitionInspectorBody(newHtml, direction, onDone) {
 
 function setInspectorSelectionChrome({ emoji, showBack }) {
   els.inspectorBack.hidden = !showBack;
+  if (els.inspectorHeader) els.inspectorHeader.classList.toggle("has-back", Boolean(showBack));
   els.inspectorTitleEmoji.hidden = !emoji;
   if (emoji && emoji.includes("<")) {
     els.inspectorTitleEmoji.innerHTML = emoji;
   } else {
     els.inspectorTitleEmoji.textContent = emoji || "";
   }
+  if (els.nearbyToggle) els.nearbyToggle.classList.remove("screen-active");
   if (showBack) {
     state.filterScreenOpen = false;
-    if (els.nearbyToggle) els.nearbyToggle.hidden = true;
     if (els.filterToggle) els.filterToggle.classList.remove("screen-active");
   }
   if (els.reportToggle) els.reportToggle.classList.remove("active");

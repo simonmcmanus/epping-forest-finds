@@ -407,6 +407,15 @@ function updateMapControlVisibility() {
 function updateLocateButtonVisibility() {
   const geolocationAvailable = typeof navigator !== "undefined" && Boolean(navigator.geolocation);
   els.locateButton.hidden = !geolocationAvailable || Boolean(state.userLocation);
+  syncInspectorToolsVisibility();
+}
+
+function syncInspectorToolsVisibility() {
+  if (!els.inspectorTools || els.inspectorTools.hidden) return;
+  const hasContent = !els.locateButton.hidden
+    || !els.treeSearchPanel.hidden
+    || (els.installButton && getComputedStyle(els.installButton).display !== "none");
+  els.inspectorTools.classList.toggle("tools-empty", !hasContent);
 }
 
 function hideWithFade(el, onDone) {
