@@ -37,24 +37,24 @@
 }
 
 .nearest-list {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 8px;
+  gap: 5px;
 }
 
 .nearest-item {
   width: 100%;
   text-align: left;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   color: var(--ink);
-  padding: 10px 12px;
+  padding: 7px 12px;
   font: inherit;
   display: grid;
-  gap: 4px;
+  gap: 2px;
   grid-template-rows: auto auto;
   transition: all 140ms ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);

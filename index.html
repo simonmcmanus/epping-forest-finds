@@ -104,21 +104,14 @@
 
       <aside id="inspector" class="inspector" aria-live="polite">
         <div id="inspectorDragHandle" class="inspector-drag-handle" aria-label="Drag to resize"></div>
+        <div class="inspector-actions">
+          <button id="nearbyToggle" class="close nearby-toggle" type="button" aria-label="Back to nearby"><img class="app-icon nav-icon" src="data/icons/nearby.png" alt="" loading="lazy" decoding="async"></button>
+          <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Show filters" aria-pressed="false"><img class="app-icon nav-icon" src="data/icons/filter.png" alt="" loading="lazy" decoding="async"><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
+          <button id="reportToggle" class="close report-toggle" type="button" aria-label="Report missing data or request a feature"><img class="app-icon nav-icon" src="data/icons/feedback.png" alt="" loading="lazy" decoding="async"></button>
+          <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings"><img class="app-icon nav-icon" src="data/icons/settings.png" alt="" loading="lazy" decoding="async"></button>
+        </div>
         <div class="inspector-header">
-          <div>
-            <div class="inspector-title-row">
-              <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back to nearest locations" hidden><img class="app-icon nav-icon" src="data/icons/home.png" alt="" loading="lazy" decoding="async"></button>
-              <span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>
-              <h2 id="inspectorTitle">Epping Forest Finds</h2>
-            </div>
-            <p id="inspectorType" class="type"></p>
-          </div>
-          <div class="inspector-actions">
-            <button id="nearbyToggle" class="close nearby-toggle" type="button" aria-label="Back to nearby" hidden><img class="app-icon nav-icon" src="data/icons/nearby.png" alt="" loading="lazy" decoding="async"></button>
-            <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Show filters" aria-pressed="false"><img class="app-icon nav-icon" src="data/icons/filter.png" alt="" loading="lazy" decoding="async"><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
-            <button id="reportToggle" class="close report-toggle" type="button" aria-label="Report missing data or request a feature"><img class="app-icon nav-icon" src="data/icons/feedback.png" alt="" loading="lazy" decoding="async"></button>
-            <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings"><img class="app-icon nav-icon" src="data/icons/settings.png" alt="" loading="lazy" decoding="async"></button>
-          </div>
+          <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back to nearest locations" hidden><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M11 13.5L6.5 9L11 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
         <div class="inspector-tools">
           <div id="treeSearchPanel" class="search-panel" hidden>
@@ -130,8 +123,17 @@
             <button id="installButton" class="button install" type="button">Install</button>
           </div>
         </div>
-        <div id="inspectorBody" class="inspector-body">
-          <p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>
+        <div class="inspector-scroll">
+          <div class="inspector-title-section">
+            <span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>
+            <div>
+              <h2 id="inspectorTitle">Epping Forest Finds</h2>
+              <p id="inspectorType" class="type"></p>
+            </div>
+          </div>
+          <div id="inspectorBody" class="inspector-body">
+            <p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>
+          </div>
         </div>
       </aside>
     </main>

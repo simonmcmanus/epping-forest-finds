@@ -51,6 +51,7 @@
 
 .inspector.minimized .inspector-header {
   border-bottom: 0;
+  min-height: 0;
   padding: 10px 12px;
 }
 
@@ -59,23 +60,21 @@
 }
 
 .inspector-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: start;
-  padding: 16px;
+  display: flex;
+  align-items: center;
+  min-height: calc(36px * var(--icon-scale) + 24px);
+  padding: 12px 16px;
   border-bottom: 1px solid var(--line);
 }
 
-.inspector-header > div:first-child {
-  min-width: 0;
-}
-
 .inspector-actions {
-  display: inline-flex;
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  display: flex;
   gap: 8px;
   align-items: center;
-  flex-shrink: 0;
+  z-index: 3;
 }
 
 .inspector-tools {
@@ -103,10 +102,23 @@
 }
 
 .inspector-title-row {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
+}
+
+.inspector-scroll {
+  overflow: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.inspector-title-section {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px 16px 12px;
 }
 
 .inspector-back {
@@ -153,9 +165,9 @@
 }
 
 .inspector .type {
-  margin: 7px 0 0;
+  margin: 6px 0 0;
   color: var(--muted);
-  font-size: 0.92rem;
+  font-size: 0.88rem;
 }
 
 .close {
@@ -331,10 +343,7 @@ button.settings-toggle.active {
 }
 
 .inspector-body {
-  padding: 14px 16px 16px;
-  overflow: auto;
-  overflow-x: hidden;
-  min-height: 0;
+  padding: 0 16px 16px;
   position: relative;
 }
 

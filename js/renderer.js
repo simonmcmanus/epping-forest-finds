@@ -18,8 +18,28 @@ function drawPngMapIcon(ctx, src, x, y, size) {
   if (!src) return false;
   const img = getMapImage(src);
   if (!img.complete || !img.naturalWidth) return false;
+
+  const R = size / 2;
+  const pH = R * 0.75;
+  const cx = x;
+  const cy = y - R - pH;
+  const halfAngle = Math.PI / 5;
+
   ctx.save();
-  ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, Math.PI / 2 + halfAngle, Math.PI / 2 - halfAngle, false);
+  ctx.lineTo(x, y);
+  ctx.closePath();
+  ctx.fillStyle = "white";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.45)";
+  ctx.lineWidth = Math.max(1, size * 0.055);
+  ctx.stroke();
+
+  const iconSize = R * 1.3;
+  ctx.drawImage(img, cx - iconSize / 2, cy - iconSize / 2, iconSize, iconSize);
+
   ctx.restore();
   return true;
 }

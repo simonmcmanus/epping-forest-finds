@@ -62,13 +62,22 @@ function handleMapClick(event) {
 
 function findHit(screen, world, lonLat) {
   const dpr = pixelRatio();
+  const mapScale = mapEmojiScale();
+  // Pin geometry mirrors drawPngMapIcon: circle centre sits R*1.75 above the tip.
+  const pinR = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE / 2;
+  const pinYOffset = pinR * 1.75;
+
+  function pinDistance(point) {
+    return Math.hypot(point.x - screen.x, (point.y - pinYOffset) - screen.y);
+  }
+
   let bestPlace = null;
   for (const place of state.landmarks) {
     const opacity = markerOpacityFor("landmark", place);
     if (opacity < 0.5) continue;
     const point = worldToScreen(place.point);
-    const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
-    if (distance < 15 * dpr && (!bestPlace || distance < bestPlace.distance)) {
+    const distance = pinDistance(point);
+    if (distance < pinR && (!bestPlace || distance < bestPlace.distance)) {
       bestPlace = { type: "landmark", item: place, distance };
     }
   }
@@ -79,8 +88,8 @@ function findHit(screen, world, lonLat) {
     const opacity = markerOpacityFor("cow", cow);
     if (opacity < 0.5) continue;
     const point = worldToScreen(cow.point);
-    const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
-    if (distance < 15 * dpr && (!bestCow || distance < bestCow.distance)) {
+    const distance = pinDistance(point);
+    if (distance < pinR && (!bestCow || distance < bestCow.distance)) {
       bestCow = { type: "cow", item: cow, distance };
     }
   }
@@ -90,8 +99,8 @@ function findHit(screen, world, lonLat) {
   for (const tree of state.trees) {
     const point = worldToScreen(tree.point);
     if (!isNearCanvas(point, 20 * dpr)) continue;
-    const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
-    if (distance < 13 * dpr && (!bestTree || distance < bestTree.distance)) {
+    const distance = pinDistance(point);
+    if (distance < pinR && (!bestTree || distance < bestTree.distance)) {
       bestTree = { type: "tree", item: tree, distance };
     }
   }
@@ -228,20 +237,18 @@ function showLandmarkDetails(place, distance) {
   const description = place.folkloreSummary || place.description || place.summary || null;
   const rows = [
     ["Address", place.address],
-    ["Category", place.categoryLabel],
     ["Type", place.type],
     ["Area", place.area],
     ["Confidence", place.confidence],
     ["Website", place.website],
     ["Phone", place.phone],
-    ["Source", isFolklorePlace(place) ? "Epping Forest folklore dataset" : (place.id ? `OpenStreetMap ${place.id}` : "OpenStreetMap")],
   ];
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
   const topRow = (distancePill || mapsLink || shareBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
-  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : (isOpenStreetMapPlace(place) ? osmNote() : ""));
+  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "");
   transitionInspectorBody(landmarkHtml, "forward", () => {
     if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
       loadTransportDepartures(place);
