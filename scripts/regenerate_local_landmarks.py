@@ -1,4 +1,5 @@
 import json
+import sys
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -14,7 +15,7 @@ GEOJSON_PATH = DATA / "local-landmarks.geojson"
 FOREST_BOUNDARY_PATH = DATA / "epping-forest-land.geojson"
 WALKING_SPEED_M_PER_MIN = 3500 / 60  # 3.5 km/h
 MAX_WALK_MINUTES_FROM_BOUNDARY = 8
-MAX_TRANSPORT_WALK_MINUTES_FROM_BOUNDARY = 15
+MAX_TRANSPORT_WALK_MINUTES_FROM_BOUNDARY = 20
 MAX_DISTANCE_FROM_BOUNDARY_METRES = WALKING_SPEED_M_PER_MIN * MAX_WALK_MINUTES_FROM_BOUNDARY
 MAX_TRANSPORT_DISTANCE_FROM_BOUNDARY_METRES = WALKING_SPEED_M_PER_MIN * MAX_TRANSPORT_WALK_MINUTES_FROM_BOUNDARY
 OVERPASS_URLS = [
@@ -190,41 +191,48 @@ def within_boundary_distance(lon, lat, projected_segments, ref_lat_rad, threshol
                 return True, best
     return best <= threshold_m, best
 
-query_text = QUERY_PATH.read_text(encoding="utf-8")
-raw = None
-last_error = None
+use_cache = "--use-cache" in sys.argv
 
-for endpoint in OVERPASS_URLS:
-    try:
-        request = urllib.request.Request(
-            endpoint,
-            data=query_text.encode("utf-8"),
-            headers={"Content-Type": "text/plain; charset=utf-8"},
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=120) as response:
-            raw = response.read().decode("utf-8")
-            print(f"Fetched from {endpoint} via POST")
-            break
-    except urllib.error.HTTPError as error:
-        last_error = error
+if use_cache and OVERPASS_JSON_PATH.exists():
+    print(f"Using cached Overpass data from {OVERPASS_JSON_PATH}")
+    raw = OVERPASS_JSON_PATH.read_text(encoding="utf-8")
+else:
+    query_text = QUERY_PATH.read_text(encoding="utf-8")
+    raw = None
+    last_error = None
+
+    for endpoint in OVERPASS_URLS:
         try:
-            encoded = urllib.parse.urlencode({"data": query_text})
-            with urllib.request.urlopen(f"{endpoint}?{encoded}", timeout=120) as response:
+            request = urllib.request.Request(
+                endpoint,
+                data=query_text.encode("utf-8"),
+                headers={"Content-Type": "text/plain; charset=utf-8"},
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=120) as response:
                 raw = response.read().decode("utf-8")
-                print(f"Fetched from {endpoint} via GET")
+                print(f"Fetched from {endpoint} via POST")
                 break
-        except Exception as inner_error:
-            last_error = inner_error
+        except urllib.error.HTTPError as error:
+            last_error = error
+            try:
+                encoded = urllib.parse.urlencode({"data": query_text})
+                with urllib.request.urlopen(f"{endpoint}?{encoded}", timeout=120) as response:
+                    raw = response.read().decode("utf-8")
+                    print(f"Fetched from {endpoint} via GET")
+                    break
+            except Exception as inner_error:
+                last_error = inner_error
+                continue
+        except Exception as error:
+            last_error = error
             continue
-    except Exception as error:
-        last_error = error
-        continue
 
-if raw is None:
-    raise RuntimeError(f"Failed to fetch Overpass data: {last_error}")
+    if raw is None:
+        raise RuntimeError(f"Failed to fetch Overpass data: {last_error}")
 
-OVERPASS_JSON_PATH.write_text(raw, encoding="utf-8")
+    OVERPASS_JSON_PATH.write_text(raw, encoding="utf-8")
+
 parsed = json.loads(raw)
 boundary_segments = load_boundary_segments(FOREST_BOUNDARY_PATH)
 if not boundary_segments:

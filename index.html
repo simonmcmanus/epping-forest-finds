@@ -1580,11 +1580,10 @@
     }
 
     function isUndergroundCategory(place) {
-      if (!isTrainCategory(place)) return false;
       const name = normalizePlaceName(place);
-      if (!name) return false;
       if (name.includes("underground") || name.includes("tube")) return true;
-      return UNDERGROUND_STATION_NAMES.has(name);
+      if (!isTrainCategory(place)) return false;
+      return name.length > 0 && UNDERGROUND_STATION_NAMES.has(name);
     }
 
     function isNationalRailCategory(place) {
@@ -1780,6 +1779,24 @@
       return Array.from(unique.values()).sort((a, b) => a.metres - b.metres);
     }
 
+    function nearestOverviewEntriesForFilter(filterKey, latitude, longitude, limit) {
+      if (filterKey === "trees") {
+        return nearestTreesTo(latitude, longitude, limit).map(({ tree, metres }) => ({ kind: "tree", type: "tree", item: tree, metres }));
+      }
+      if (filterKey === "cows") {
+        return nearestCowsTo(latitude, longitude, limit).map(({ cow, metres }) => ({ kind: "cow", type: "cow", item: cow, metres }));
+      }
+      if (filterKey === "waymarked_trails") {
+        return nearestWaymarkedPathsToUser(limit).map(({ path, metres }) => ({ kind: "waymarked_trails", type: "path", item: path, metres }));
+      }
+      if (filterKey === "ponds_streams") {
+        if (!state.userLocation) return [];
+        return nearestWaterFeaturesTo(latitude, longitude, limit).map(({ water, metres }) => ({ kind: "ponds_streams", type: "water", item: water, metres }));
+      }
+      return nearestPlacesByFilter(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey), limit)
+        .map(({ place, metres }) => ({ kind: filterKey, type: "landmark", item: place, metres }));
+    }
+
     function nearestOverviewEntryForFilter(filterKey, latitude, longitude) {
       if (filterKey === "trees") {
         const nearest = nearestTreeTo(latitude, longitude);
@@ -1868,11 +1885,11 @@
             selectedEntries.push(...entriesForFilter);
             filterTypesWithResults.add(filterKey);
           } else {
-            // No items within radius for this filter - add nearest one as fallback
-            const fallbackEntry = nearestOverviewEntryForFilter(filterKey, latitude, longitude);
-            if (fallbackEntry) {
-              fallbackEntry.outOfRadius = true;
-              selectedEntries.push(fallbackEntry);
+            // No items within radius for this filter - add nearest 3 as fallback
+            const fallbackEntries = nearestOverviewEntriesForFilter(filterKey, latitude, longitude, 3);
+            for (const entry of fallbackEntries) {
+              entry.outOfRadius = true;
+              selectedEntries.push(entry);
             }
           }
         }
@@ -3081,6 +3098,23 @@
         if (!best || metres < best.metres) best = { water: w, metres };
       }
       return best;
+    }
+
+    function nearestWaterFeaturesTo(latitude, longitude, limit) {
+      return state.waterFeatures
+        .map((water) => ({ water, metres: distanceMetres(latitude, longitude, water.latitude, water.longitude) }))
+        .sort((a, b) => a.metres - b.metres)
+        .slice(0, limit);
+    }
+
+    function nearestWaymarkedPathsToUser(limit) {
+      if (!state.userLocation) return [];
+      return state.paths
+        .filter(isWaymarkedTrail)
+        .map((path) => ({ path, metres: distanceFromUserToPath(path) }))
+        .filter((x) => Number.isFinite(x.metres))
+        .sort((a, b) => a.metres - b.metres)
+        .slice(0, limit);
     }
 
     async function loadTransportDepartures(place) {

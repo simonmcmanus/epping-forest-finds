@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-05-20T19:50:37.594054Z",
+  "generatedAt": "2026-06-08T20:43:14.611464Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -14,10 +14,10 @@
     ],
     "distanceFilter": {
       "maxMinutesFromForestBoundary": 8,
-      "maxMinutesFromForestBoundaryTransport": 15,
+      "maxMinutesFromForestBoundaryTransport": 20,
       "walkingSpeedMPerMin": 58.333333333333336,
       "maxDistanceMetres": 466.7,
-      "maxDistanceMetresTransport": 875.0,
+      "maxDistanceMetresTransport": 1166.7,
       "boundaryFile": "data/epping-forest-land.geojson"
     }
   },
