@@ -80,7 +80,6 @@
         <div id="compassLabel" class="compass-label">Pointing to selected location</div>
       </div>
 
-      <div id="versionBadge" class="version">v70 loading</div>
 
       <div class="legend" aria-label="Map legend">
         <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
@@ -308,7 +307,6 @@
       nearbyToggle: document.getElementById("nearbyToggle"),
       locateButton: document.getElementById("locateButton"),
       installButton: document.getElementById("installButton"),
-      versionBadge: document.getElementById("versionBadge"),
       loadingOverlay: document.getElementById("loadingOverlay"),
       locationGate: document.getElementById("locationGate"),
       locationGateTitle: document.getElementById("locationGateTitle"),
@@ -368,20 +366,22 @@
       }
 
       try {
+        // Start cow fetch in parallel with map data — they are independent requests
+        const hasCachedCowData = applyCachedCowData();
+        setLoadStep("cows", "loading");
+        const cowPromise = IS_LOCAL_COW_CACHE_MODE && hasCachedCowData
+          ? Promise.resolve(true)
+          : refreshCowData({ force: true, timeoutMs: 7000 });
+
         await loadMapData();
 
         state.bounds = calculateBounds();
-        const hasCachedCowData = applyCachedCowData();
-        setLoadStep("cows", "loading");
-        const cowBootstrapOk = IS_LOCAL_COW_CACHE_MODE && hasCachedCowData
-          ? true
-          : await refreshCowData({ force: true, timeoutMs: 7000 });
+        const cowBootstrapOk = await cowPromise;
         setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
         scheduleCowRefresh();
         fitToBounds();
         els.locateButton.disabled = false;
         updateLocateButtonVisibility();
-        els.versionBadge.textContent = `${APP_VERSION} · ${state.trees.length.toLocaleString()} trees · ${state.landmarks.length.toLocaleString()} places`;
 
         state.dataLoaded = true;
 
@@ -458,7 +458,6 @@
       } catch (error) {
         console.error(error);
         hideWithFade(els.loadingOverlay);
-        if (els.versionBadge) els.versionBadge.textContent = `${APP_VERSION} · load error`;
         if (els.inspectorBody) {
           els.inspectorBody.innerHTML = `<p class="empty">Could not fully load map data. Try a hard refresh. If running locally, make sure the server is started from this folder.</p>`;
         }
@@ -1246,7 +1245,7 @@
 
     function settingsFormHtml() {
       const minutes = state.walkingDistanceMinutes;
-      const options = [5, 10, 15, 20, 30, 60]
+      const options = [1, 2, 5, 10, 15, 20, 30, 60]
         .map((m) => `<option value="${m}"${m === minutes ? " selected" : ""}>${m} min${m === 60 ? " (1 hr)" : ""}</option>`)
         .join("");
       return `<div class="settings-form">

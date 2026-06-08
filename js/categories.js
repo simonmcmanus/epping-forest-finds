@@ -151,6 +151,7 @@ const ICON_PATHS = {
   wwII: "data/icons/wwII.png",
 
   // Landmarks
+  gate: "data/icons/gate.png",
   "landmark-archaeological": "data/icons/landmark-archaeological.png",
   "landmark-bench": "data/icons/landmark-bench.png",
   "landmark-campsite": "data/icons/landmark-campsite.png",
@@ -367,6 +368,22 @@ function filterKindIconSlug(kind) {
     case "legends": return "legends";
     default: return null;
   }
+}
+
+function landmarkIconSlug(place) {
+  const check = (tags) => tags.some((t) => hasPlaceTag(place, t));
+  if (check(["gate", "entrance", "stile", "kissing_gate"])) return "gate";
+  if (check(["bench"])) return "landmark-bench";
+  if (check(["toilets"])) return "landmark-toilets";
+  if (check(["drinking_water", "water_well"])) return "landmark-drinking-water";
+  if (check(["information"])) return "landmark-information";
+  if (check(["monument", "boundary_stone"])) return "landmark-monument";
+  if (check(["archaeological_site", "roman_road", "ruins"])) return "landmark-archaeological";
+  if (check(["museum", "attraction", "building", "folly", "tomb", "gate_pier"])) return "landmark-museum";
+  if (check(["camp_site", "caravan_site"])) return "landmark-campsite";
+  if (check(["dry_cleaning"])) return "landmark-dry-cleaning";
+  if (check(["taxi"])) return "landmark-taxi";
+  return null;
 }
 
 function appIconHtml(name, className = "app-icon") {

@@ -860,6 +860,7 @@ function drawLandmarks(ctx, nearbyIconLookup) {
           break;
         }
       }
+      if (!iconSlug) iconSlug = landmarkIconSlug(place);
 
       if (iconSlug) {
         const path = iconPath(iconSlug);
@@ -971,6 +972,7 @@ function drawSelectedOverlay(ctx) {
         break;
       }
     }
+    if (!iconSlug) iconSlug = landmarkIconSlug(selectedPlace);
 
     if (iconSlug && iconPath(iconSlug)) {
       // Generic landmark with PNG icon
