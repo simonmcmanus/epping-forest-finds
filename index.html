@@ -1275,7 +1275,7 @@
             const nearestTrees = nearbyTreesWithinDistance(latitude, longitude, maxMetres);
             state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
             const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-            const targetScale = Math.min(state.viewport.scale, maxScaleForRadiusVisible(focusRect));
+            const targetScale = maxScaleForRadiusVisible(focusRect);
             const focusCenter = { x: focusRect.x + focusRect.width / 2, y: focusRect.y + focusRect.height / 2 };
             animateViewportTo({
               scale: targetScale,
