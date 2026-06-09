@@ -478,7 +478,9 @@ let _overviewListKey;
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen) return;
-  if (els.filterToggle) els.filterToggle.classList.remove("screen-active");
+  [els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
+    if (el) el.classList.remove("screen-active", "active");
+  });
   const previousNearestPositions = captureNearestItemPositions();
   setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false, captureSnapshot: animate });
   if (els.nearbyToggle) els.nearbyToggle.classList.add("screen-active");

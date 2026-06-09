@@ -357,6 +357,11 @@ function drawEnvironment(ctx) {
 
   loadBuildingsIfNeeded();
   if (state.buildingFeatures.length) {
+    const BUILDINGS_FADE_MS = 1200;
+    const fadeAlpha = state.buildingsRevealStartTime
+      ? Math.min(1, (performance.now() - state.buildingsRevealStartTime) / BUILDINGS_FADE_MS)
+      : 1;
+
     const worldTopLeft = screenToWorld(0, 0);
     const worldBottomRight = screenToWorld(els.canvas.width, els.canvas.height);
     const wMinX = Math.min(worldTopLeft.x, worldBottomRight.x);
@@ -365,6 +370,9 @@ function drawEnvironment(ctx) {
     const wMaxY = Math.max(worldTopLeft.y, worldBottomRight.y);
     const marginX = (wMaxX - wMinX) * 0.05;
     const marginY = (wMaxY - wMinY) * 0.05;
+
+    ctx.save();
+    ctx.globalAlpha = fadeAlpha;
     for (const feature of state.buildingFeatures) {
       const geom = feature.geometry || {};
       const coords = geom.type === "Polygon" ? geom.coordinates
@@ -384,6 +392,9 @@ function drawEnvironment(ctx) {
         width: 0.8 * dpr,
       });
     }
+    ctx.restore();
+
+    if (fadeAlpha < 1) requestDraw();
   }
 
   ctx.restore();
@@ -545,10 +556,12 @@ function drawSelectedRoute(ctx) {
 }
 
 function overviewRouteTargets() {
-  const values = overviewItemsForActiveFilter().map((entry) => ({
-    point: entry.item.point,
-    color: filterKindColor(entry.kind),
-  }));
+  const values = overviewItemsForActiveFilter()
+    .filter((entry) => !entry.outOfRadius)
+    .map((entry) => ({
+      point: entry.item.point,
+      color: filterKindColor(entry.kind),
+    }));
 
   const seen = new Set();
   return values.filter((target) => {
@@ -846,9 +859,9 @@ function drawLandmarks(ctx, nearbyIconLookup) {
       const transportType = getTransportType(place);
 
       if (transportType === "underground") {
-        drawUndergroundRoundel(ctx, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE);
+        drawUndergroundRoundel(ctx, point.x, point.y, 8 * dpr * mapScale * MAP_ICON_SCALE);
       } else if (transportType === "national_rail") {
-        drawNationalRailLogo(ctx, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE);
+        drawNationalRailLogo(ctx, point.x, point.y, 8 * dpr * mapScale * MAP_ICON_SCALE);
       } else if (transportType === "parking") {
         drawPngMapIcon(ctx, iconPath("landmark-parking"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE);
       } else {
@@ -980,7 +993,7 @@ function drawSelectedOverlay(ctx) {
     } else if (isTransportCategory(selectedPlace)) {
       const transportType = getTransportType(selectedPlace);
       if (transportType === "underground") {
-        drawUndergroundRoundel(ctx, point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+        drawPngMapIcon(ctx, iconPath("underground"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       } else if (transportType === "national_rail") {
         drawNationalRailLogo(ctx, point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       } else if (transportType === "parking") {

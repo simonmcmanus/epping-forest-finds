@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/loading.css">
   <link rel="stylesheet" href="css/inspector.css">
   <link rel="stylesheet" href="css/map-ui.css">
+  <link rel="stylesheet" href="css/onboarding.css">
 </head>
 <body>
   <div class="app">
@@ -72,6 +73,14 @@
           <h2 class="location-gate-title">You're not near the forest yet</h2>
           <p id="distanceWarningMessage" class="location-gate-text">You're more than 15 minutes' walk from Epping Forest. The map is fully loaded and ready to explore — all features will kick in when you visit.</p>
           <button id="distanceWarningButton" class="button" type="button">Explore the map</button>
+        </div>
+      </div>
+
+      <div id="onboardingOverlay" class="onboarding-overlay" hidden>
+        <div class="onboarding-card">
+          <div class="onboarding-progress"></div>
+          <div class="onboarding-content"></div>
+          <div class="onboarding-actions"></div>
         </div>
       </div>
 
@@ -149,6 +158,7 @@
   <script src="js/loader.js"></script>
   <script src="js/renderer.js"></script>
   <script src="js/inspector.js"></script>
+  <script src="js/onboarding.js"></script>
   <script>
     const TREE_URL = "Veteran_Tree_Register.json";
     const TREE_ENRICHED_URL = "Veteran_Tree_Register.enriched.with_named_trees.json";
@@ -292,6 +302,7 @@
       buildingFeatures: [],
       buildingsLoaded: false,
       buildingsLoading: false,
+      buildingsRevealStartTime: null,
       overviewOutsideRadiusFallback: false,
       dataLoaded: false,
     };
@@ -351,8 +362,26 @@
         } catch (_) {}
       }
 
-      // If permission not yet granted, show the gate immediately so data loads in the background
-      if (!locationPregranted) {
+      // Start data loading immediately so it runs in parallel with any onboarding/gate UI
+      const hasCachedCowData = applyCachedCowData();
+      setLoadStep("cows", "loading");
+      const cowPromise = IS_LOCAL_COW_CACHE_MODE && hasCachedCowData
+        ? Promise.resolve(true)
+        : refreshCowData({ force: true, timeoutMs: 7000 });
+      const mapPromise = loadMapData();
+
+      if (!hasCompletedOnboarding()) {
+        // First visit: hide loading overlay and show onboarding while data loads behind it
+        if (els.loadingOverlay) els.loadingOverlay.hidden = true;
+        const onboardResult = await showOnboarding();
+        state.overviewFilters = sanitizeOverviewFilters(onboardResult.filters);
+        saveFilterState();
+        if (onboardResult.requestLocation && navigator.geolocation) {
+          locationPregranted = true;
+        }
+        if (els.loadingOverlay) els.loadingOverlay.hidden = false;
+      } else if (!locationPregranted) {
+        // Returning user without location permission — show gate while data loads
         if (els.loadingOverlay) els.loadingOverlay.hidden = true;
         if (!navigator.geolocation) {
           setLocationGateVisible(true, "This browser does not support location access.");
@@ -366,14 +395,7 @@
       }
 
       try {
-        // Start cow fetch in parallel with map data — they are independent requests
-        const hasCachedCowData = applyCachedCowData();
-        setLoadStep("cows", "loading");
-        const cowPromise = IS_LOCAL_COW_CACHE_MODE && hasCachedCowData
-          ? Promise.resolve(true)
-          : refreshCowData({ force: true, timeoutMs: 7000 });
-
-        await loadMapData();
+        await mapPromise;
 
         state.bounds = calculateBounds();
         const cowBootstrapOk = await cowPromise;
@@ -1214,11 +1236,18 @@
       return FILTER_SUBFILTERS_BY_KEY.get(filterKey) || null;
     }
 
+    function clearNavScreenActive() {
+      [els.nearbyToggle, els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
+        if (el) el.classList.remove("screen-active", "active");
+      });
+    }
+
     function openFiltersScreen() {
       state.filterScreenOpen = true;
       state.selected = null;
       setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: false });
       if (els.nearbyToggle) els.nearbyToggle.hidden = false;
+      clearNavScreenActive();
       if (els.filterToggle) els.filterToggle.classList.add("screen-active");
       els.inspectorTools.hidden = true;
       els.inspectorTitle.textContent = "Filters";
@@ -1233,7 +1262,8 @@
     function openSettings() {
       state.selected = { type: "settings", item: null };
       setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true });
-      els.settingsToggle.classList.add("active");
+      clearNavScreenActive();
+      els.settingsToggle.classList.add("screen-active");
       els.inspectorTools.hidden = true;
       els.inspectorTitle.textContent = "Settings";
       els.inspectorType.textContent = "App preferences";
@@ -1292,7 +1322,8 @@
     function openReportModal() {
       state.selected = { type: "report", item: null };
       setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
-      els.reportToggle.classList.add("active");
+      clearNavScreenActive();
+      els.reportToggle.classList.add("screen-active");
       els.inspectorTools.hidden = true;
       els.inspectorTitle.textContent = "Report";
       els.inspectorType.textContent = "Missing data / feature request";
@@ -2253,7 +2284,7 @@
           }
           updateOverviewDirectionArrows();
           updateSelectedDetailFields();
-          ensureUserAndSelectionVisible({ animate: true, durationMs: 800 });
+          ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
           keepOverviewCenteredOnUser(previousPoint);
           updateCompassOverlay();
           requestDraw();
@@ -2391,15 +2422,8 @@
         ? Math.hypot(nextScreen.x - previousScreen.x, nextScreen.y - previousScreen.y)
         : Infinity;
 
-      // When filters are active OR showing all distances, fit to the actual items
-      // rather than centering on the user. Centering on user + capping scale to
-      // cover all items forces a full-radius zoom even when items are only in part
-      // of the circle. showAllOutsideRadius has the same issue since items can be
-      // anywhere.
       if (state.overviewFilters.length > 0 || state.showAllOutsideRadius) {
-        const significantMove = !previousPoint || screenMovement >= 42;
-        // Also refit if any overview item has drifted outside the visible canvas area
-        // (e.g. fast walking or train — user should never lose sight of nearest items).
+        const significantMove = !previousPoint || screenMovement >= 24;
         const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
         const anyOffscreen = !significantMove && overviewTargetPoints().some((pt) => {
           const s = worldToScreen(pt);
@@ -2407,36 +2431,35 @@
             || s.y < focusRect.y || s.y > focusRect.y + focusRect.height;
         });
         if (significantMove || anyOffscreen) {
-          ensureOverviewTargetsVisible({
-            animate: Boolean(previousPoint) && screenMovement >= 42,
-            durationMs: screenMovement >= 160 ? 620 : 360,
-          });
+          // Animate only for large jumps (GPS correction / fast travel); small steps are instant.
+          const animate = Boolean(previousPoint) && screenMovement >= 200;
+          ensureOverviewTargetsVisible({ animate, durationMs: 300 });
         }
         return;
       }
 
-      const pendingTargetScale = state.viewportAnimationTo && Number.isFinite(state.viewportAnimationTo.scale)
-        ? state.viewportAnimationTo.scale
-        : state.viewport.scale;
-      const targetScale = capScaleForUserCenteredOverview(pendingTargetScale, { assumeInspectorOpen: true });
+      // Keep current zoom level — just pan to follow the user. Changing scale on
+      // every GPS tick causes the jarring zoom-jump the user sees.
+      const targetScale = state.viewport.scale;
       if (!previousPoint) {
         centerOverviewOnUserLocation({ animate: false, scale: targetScale, focusVisibleArea: true });
         return;
       }
-      // Always reposition if the user has moved significantly or has drifted near the edge.
-      const focusRectNf = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-      const edgeMarginNf = Math.min(focusRectNf.width, focusRectNf.height) * 0.12;
-      const userOffCenter = nextScreen.x < focusRectNf.x + edgeMarginNf
-        || nextScreen.x > focusRectNf.x + focusRectNf.width - edgeMarginNf
-        || nextScreen.y < focusRectNf.y + edgeMarginNf
-        || nextScreen.y > focusRectNf.y + focusRectNf.height - edgeMarginNf;
-      if (screenMovement < 42 && !userOffCenter) return;
-      centerOverviewOnUserLocation({
-        animate: true,
-        durationMs: screenMovement >= 160 ? 620 : 360,
-        scale: targetScale,
-        focusVisibleArea: true,
-      });
+
+      // Re-centre whenever the user moves at all or drifts past the 20% edge buffer.
+      // With instant (no-animation) updates, high-accuracy GPS frequency makes this smooth.
+      const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+      const edgeMargin = Math.min(focusRect.width, focusRect.height) * 0.20;
+      const userNearEdge = nextScreen.x < focusRect.x + edgeMargin
+        || nextScreen.x > focusRect.x + focusRect.width - edgeMargin
+        || nextScreen.y < focusRect.y + edgeMargin
+        || nextScreen.y > focusRect.y + focusRect.height - edgeMargin;
+      if (screenMovement < 4 && !userNearEdge) return;
+
+      // Large GPS correction: a brief animation avoids a disorienting instant teleport.
+      // Normal walking steps: instant snap — GPS frequency provides the smoothness.
+      const animate = screenMovement >= 200;
+      centerOverviewOnUserLocation({ animate, durationMs: 300, scale: targetScale, focusVisibleArea: true });
     }
 
     function centerViewportOnPointsKeepScale(points, options = {}) {

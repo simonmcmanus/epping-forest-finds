@@ -52,37 +52,13 @@ exports.handler = async (event) => {
       if (!stops.length) {
         return { statusCode: 200, headers, body: JSON.stringify({ departures: [], stopName: null }) };
       }
-      stopName = stops[0].commonName;
+      // Use only the single closest stop so we show departures from the tapped
+      // stop only — not buses from the opposite-direction stop across the road.
+      const nearestStop = stops[0];
+      stopName = nearestStop.commonName;
 
-      // Query all nearby stops in parallel (up to 5) so buses from every bay/side are included
-      const perStop = await Promise.all(
-        stops.slice(0, 5).map(async (stop) => {
-          try {
-            const res = await fetch(arrivalsUrl(stop.id));
-            return res.ok ? (await res.json()) : [];
-          } catch {
-            return [];
-          }
-        })
-      );
-
-      // Deduplicate by vehicleId: same physical bus can appear in multiple nearby stops;
-      // keep the soonest prediction for each vehicle.
-      const byVehicle = new Map();
-      const noVehicleId = [];
-      for (const arrivals of perStop) {
-        for (const a of (Array.isArray(arrivals) ? arrivals : [])) {
-          if (a.vehicleId) {
-            const existing = byVehicle.get(a.vehicleId);
-            if (!existing || a.timeToStation < existing.timeToStation) {
-              byVehicle.set(a.vehicleId, a);
-            }
-          } else {
-            noVehicleId.push(a);
-          }
-        }
-      }
-      rawArrivals = [...byVehicle.values(), ...noVehicleId];
+      const res = await fetch(arrivalsUrl(nearestStop.id));
+      rawArrivals = res.ok ? (await res.json()) : [];
     } else {
       // Train/underground: try lat/lon first, fall back to name search
       const stopRes = await fetch(

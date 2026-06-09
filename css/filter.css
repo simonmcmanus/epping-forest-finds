@@ -15,18 +15,20 @@
 
 /* Active page state: currently viewing this screen */
 .nearby-toggle.screen-active,
-.filter-toggle.screen-active {
-  background: var(--tree);
-  border-color: var(--tree);
+.filter-toggle.screen-active,
+.report-toggle.screen-active,
+.settings-toggle.screen-active {
+  background: var(--nav);
+  border-color: var(--nav);
   color: #fff;
-  box-shadow: 0 10px 20px rgba(20, 36, 28, 0.2);
+  box-shadow: 0 10px 20px rgba(20, 30, 55, 0.22);
 }
 
 /* Filter enabled but NOT viewing the filter screen — subtle tint */
 .filter-toggle.active:not(.screen-active) {
-  background: #dff0d8;
-  border-color: rgba(47, 111, 78, 0.5);
-  color: var(--tree);
+  background: #dde7f5;
+  border-color: rgba(44, 79, 133, 0.45);
+  color: var(--nav);
 }
 
 .filter-count {
@@ -53,8 +55,8 @@
 
 /* Badge when filter enabled but not on filter screen — make it pop */
 .filter-toggle.active:not(.screen-active) .filter-count {
-  background: var(--tree);
-  border-color: var(--tree);
+  background: var(--nav);
+  border-color: var(--nav);
   color: #fff;
 }
 

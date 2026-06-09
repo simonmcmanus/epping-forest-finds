@@ -215,7 +215,8 @@ Marker rules:
 
 - Overview lists nearest items across active types.
 - If nothing is found within the selected walking-radius range, the nearest list shows the closest available item for each active type and displays a notice explaining that no matches were found within the selected walking time.
-- **Default filters:** On first visit (no saved state), filters default to Trees, Pubs & bars, Bus stops, Underground, and National Rail.
+- **Onboarding (first visit):** On first visit (`forest-finds-onboarding-v1` not in localStorage), a full-screen onboarding overlay is shown while map data loads in the background. Steps: Welcome → one step per filter group (Nature, Food, Transport, History, Locations, Stories) → Location opt-in. Each category step shows all subfilters as toggle chips (all on by default); the user deselects anything unwanted. A skip option is available on every step. The location step replaces the normal location gate for first-time users. On completion (or skip), selected filters are saved and onboarding is marked done. Implemented in `js/onboarding.js` + `css/onboarding.css`.
+- **Default filters:** On first visit (no saved state from onboarding), filters default to all subfilters selected. If onboarding is skipped without changes, all filters remain active.
 - **Filter persistence:** Active filters and expanded groups are saved to `localStorage` under `forest-finds-filter-state-v1` and restored on next visit.
 - Supported overview filter groups and subfilters:
   - **Nature:** trees, cows, waymarked trails, ponds & streams

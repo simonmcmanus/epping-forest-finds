@@ -426,16 +426,16 @@ button.settings-toggle.active {
 
 .walk-chip-toggle {
   cursor: pointer;
-  background: #2f6f4e;
-  border-color: #2f6f4e;
+  background: var(--nav);
+  border-color: var(--nav);
   color: #fff;
   gap: 4px;
   transition: background 120ms, border-color 120ms, color 120ms;
 }
 
 .walk-chip-toggle:hover {
-  background: #256040;
-  border-color: #256040;
+  background: #243f6b;
+  border-color: #243f6b;
 }
 
 .walk-chip-toggle--off {

@@ -1,0 +1,237 @@
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(237, 242, 234, 0.92);
+  backdrop-filter: blur(16px);
+  padding: 20px;
+  transition: opacity 0.35s ease;
+}
+
+.onboarding-overlay[hidden] {
+  display: none;
+}
+
+.onboarding-overlay.fading-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.onboarding-card {
+  width: 100%;
+  max-width: 440px;
+  max-height: 92vh;
+  background: #fff;
+  border: 1px solid rgba(36, 56, 47, 0.12);
+  box-shadow: var(--shadow);
+  border-radius: 20px;
+  padding: 24px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.onboarding-progress {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-bottom: 18px;
+}
+
+.onboarding-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 0.25s ease, width 0.25s ease;
+  flex-shrink: 0;
+}
+
+.onboarding-dot.active {
+  background: var(--tree);
+  width: 22px;
+}
+
+.onboarding-dot.done {
+  background: rgba(47, 111, 78, 0.4);
+}
+
+.onboarding-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+.onboarding-step-icon {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
+.onboarding-step-title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.onboarding-step-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  max-width: 300px;
+}
+
+.onboarding-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.onboarding-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(47, 111, 78, 0.3);
+  background: #f0f9f4;
+  color: var(--tree);
+  font-size: 0.83rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s, color 0.14s, opacity 0.14s;
+  user-select: none;
+  font-family: inherit;
+}
+
+.onboarding-chip img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.chip-tick {
+  width: 12px;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1;
+  opacity: 1;
+  transition: opacity 0.14s;
+}
+
+.onboarding-chip.off .chip-tick {
+  opacity: 0;
+}
+
+.onboarding-chip.off {
+  background: var(--paper);
+  border-color: var(--line);
+  color: var(--muted);
+  opacity: 0.65;
+}
+
+.onboarding-chip:focus-visible {
+  outline: 3px solid rgba(60, 99, 130, 0.35);
+  outline-offset: 2px;
+}
+
+.onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.onboarding-actions > .button {
+  width: 100%;
+}
+
+.onboarding-nav {
+  display: flex;
+  gap: 10px;
+}
+
+.ob-back {
+  flex: 0 0 auto;
+  width: auto;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: none;
+  padding: 0 16px;
+}
+
+.ob-back:hover {
+  background: var(--line);
+}
+
+.ob-next {
+  flex: 1;
+}
+
+.onboarding-skip-btn {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: inherit;
+  border-radius: 4px;
+}
+
+.onboarding-skip-btn:hover {
+  color: var(--ink);
+}
+
+.onboarding-skip-btn:focus-visible {
+  outline: 3px solid rgba(60, 99, 130, 0.35);
+  outline-offset: 2px;
+}
+
+@keyframes ob-slide-in-right {
+  from { opacity: 0; transform: translateX(26px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes ob-slide-in-left {
+  from { opacity: 0; transform: translateX(-26px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.onboarding-content.entering-forward {
+  animation: ob-slide-in-right 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.onboarding-content.entering-backward {
+  animation: ob-slide-in-left 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}

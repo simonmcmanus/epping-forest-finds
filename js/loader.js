@@ -195,6 +195,7 @@ function loadBuildingsIfNeeded() {
       state.buildingFeatures = (data.features || []).filter((f) => f && f.geometry && f.properties);
       state.buildingsLoaded = true;
       state.buildingsLoading = false;
+      state.buildingsRevealStartTime = performance.now();
       requestDraw();
     })
     .catch(() => {
