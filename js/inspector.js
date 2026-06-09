@@ -477,7 +477,7 @@ function showAreaDetails(area) {
 let _overviewListKey;
 
 function selectOverview(animate = false) {
-  state.filterScreenOpen = false;
+  if (state.filterScreenOpen) return;
   if (els.filterToggle) els.filterToggle.classList.remove("screen-active");
   const previousNearestPositions = captureNearestItemPositions();
   setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false, captureSnapshot: animate });

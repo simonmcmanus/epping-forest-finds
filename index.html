@@ -295,6 +295,19 @@
       dataLoaded: false,
     };
 
+    // DEBUG: trap filterScreenOpen changes — remove before shipping
+    let _filterScreenOpen = false;
+    Object.defineProperty(state, "filterScreenOpen", {
+      get() { return _filterScreenOpen; },
+      set(v) {
+        if (!v && _filterScreenOpen) {
+          console.warn("[filter] filterScreenOpen set to false", new Error().stack);
+        }
+        _filterScreenOpen = v;
+      },
+      configurable: true,
+    });
+
     const els = {
       canvas: document.getElementById("mapCanvas"),
       toolbar: document.querySelector(".toolbar"),

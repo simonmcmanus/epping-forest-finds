@@ -385,6 +385,7 @@ function setupInspectorDragResize() {
 
 function goToInitialView(updateHash = true) {
   state.selected = null;
+  state.filterScreenOpen = false;
   selectOverview(true);
   setInspectorMinimized(false);
   ensureOverviewTargetsVisible({ animate: true, durationMs: 300 });
