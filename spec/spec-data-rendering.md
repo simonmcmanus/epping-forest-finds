@@ -335,7 +335,7 @@ Behavior:
 
 ### Selection Camera
 
-- **Expanded inspector + selected target:** camera fits user + target in view, using the visible area above the inspector panel (`focusVisibleArea + assumeInspectorOpen`).
+- **Expanded inspector + selected target:** camera fits user + target in the area not covered by the inspector. Uses the actual current inspector state (minimised on mobile after selection, expanded on desktop) so the route fills the full available canvas rather than a conservatively smaller area.
 - **Navigation mode GPS follow:** on each GPS update, the camera checks whether both the user and the selected destination are comfortably inside the visible area (14% edge margin). If both are visible, no animation is triggered. If either drifts toward the edge or off-screen, `fitToPoints` runs with an 800 ms animation — long enough that consecutive GPS ticks blend smoothly rather than producing visible jumps.
 - **Initial selection zoom:** always refits immediately (800 ms, `force: true`), ignoring the edge-margin guard.
 - **Overview mode GPS follow — no filters:** on each GPS tick the user's screen position is checked. Repositioning fires if the user has moved ≥ 42 px on screen *or* if the user dot is within the 12% edge margin. Zoom is capped via `capScaleForUserCenteredOverview` so all overview items remain visible.

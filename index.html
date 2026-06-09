@@ -295,19 +295,6 @@
       dataLoaded: false,
     };
 
-    // DEBUG: trap filterScreenOpen changes — remove before shipping
-    let _filterScreenOpen = false;
-    Object.defineProperty(state, "filterScreenOpen", {
-      get() { return _filterScreenOpen; },
-      set(v) {
-        if (!v && _filterScreenOpen) {
-          console.warn("[filter] filterScreenOpen set to false", new Error().stack);
-        }
-        _filterScreenOpen = v;
-      },
-      configurable: true,
-    });
-
     const els = {
       canvas: document.getElementById("mapCanvas"),
       toolbar: document.querySelector(".toolbar"),
@@ -727,9 +714,10 @@
       const padding = 54 * pixelRatio();
       const width = els.canvas.width;
       const height = els.canvas.height;
-      const focusRect = options.focusVisibleArea
-        ? bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) })
-        : { x: 0, y: 0, width, height };
+      const focusRect = options.customFocusRect
+        || (options.focusVisibleArea
+          ? bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) })
+          : { x: 0, y: 0, width, height });
       const viewportWidth = Math.max(1, focusRect.width);
       const viewportHeight = Math.max(1, focusRect.height);
       const rangeX = Math.max(0.0001, bounds.maxX - bounds.minX);
@@ -2263,8 +2251,10 @@
       // On GPS-triggered calls (no force flag), skip the refit when both the user
       // and destination are comfortably inside the visible area. This prevents
       // continuous animation restarts from GPS noise causing visible jitter.
+      // Uses the ACTUAL inspector state (not assumeInspectorOpen) so mobile
+      // navigation — where the inspector is collapsed — fills the larger available area.
       if (!options.force && shouldAnimate) {
-        const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+        const focusRect = bestVisibleCanvasRect();
         const edgeMargin = Math.min(focusRect.width, focusRect.height) * 0.14;
         const allVisible = pointsToFit.every((pt) => {
           const s = worldToScreen(pt);
@@ -2276,7 +2266,6 @@
 
       fitToPoints(pointsToFit, false, {
         focusVisibleArea: true,
-        assumeInspectorOpen: true,
         animate: shouldAnimate,
         durationMs: options.durationMs || 800,
       });

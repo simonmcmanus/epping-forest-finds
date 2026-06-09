@@ -15,21 +15,21 @@ function handleMapClick(event) {
     showTreeDetails(hit.item, distanceFromUser(hit.item), "Tree record");
     if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
-    ensureUserAndSelectionVisible({ animate: true, force: true });
+    zoomToSelection();
   } else if (hit.type === "cow") {
     state.selected = { type: "cow", item: hit.item };
     syncHashFromSelection();
     showCowDetails(hit.item, distanceFromUser(hit.item));
     if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
-    ensureUserAndSelectionVisible({ animate: true, force: true });
+    zoomToSelection();
   } else if (hit.type === "landmark") {
     state.selected = { type: "landmark", item: hit.item };
     syncHashFromSelection();
     showLandmarkDetails(hit.item, distanceFromUser(hit.item));
     if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
-    ensureUserAndSelectionVisible({ animate: true, force: true });
+    zoomToSelection();
   } else if (hit.type === "area") {
     state.selected = { type: "area", item: hit.item };
     syncHashFromSelection();
@@ -48,7 +48,7 @@ function handleMapClick(event) {
     showPathDetails(hit.item, distance);
     if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
-    ensureUserAndSelectionVisible({ animate: true, force: true });
+    zoomToSelection();
   } else if (hit.type === "railway") {
     state.selected = { type: "railway", item: hit.item };
     syncHashFromSelection();
@@ -707,7 +707,7 @@ function focusOverviewItem(type, key) {
     showTreeDetails(tree, metres, "Nearest tree");
     setInspectorMinimized(true);
     startCompassNavigation();
-    ensureUserAndSelectionVisible({ animate: true, force: true });
+    zoomToSelection();
     requestDraw();
     return;
   }
@@ -721,7 +721,7 @@ function focusOverviewItem(type, key) {
     showLandmarkDetails(place, metres);
     setInspectorMinimized(true);
     startCompassNavigation();
-    ensureUserAndSelectionVisible({ animate: true, force: true });
+    zoomToSelection();
     requestDraw();
     return;
   }
@@ -735,7 +735,7 @@ function focusOverviewItem(type, key) {
     showCowDetails(cow, metres);
     setInspectorMinimized(true);
     startCompassNavigation();
-    ensureUserAndSelectionVisible({ animate: true, force: true });
+    zoomToSelection();
     requestDraw();
     return;
   }
@@ -749,7 +749,7 @@ function focusOverviewItem(type, key) {
     showPathDetails(path, metres);
     setInspectorMinimized(true);
     startCompassNavigation();
-    ensureUserAndSelectionVisible({ animate: true, force: true });
+    zoomToSelection();
     requestDraw();
     return;
   }
@@ -762,9 +762,27 @@ function focusOverviewItem(type, key) {
     showWaterDetails(water, metres);
     setInspectorMinimized(true);
     startCompassNavigation();
-    ensureUserAndSelectionVisible({ animate: true, force: true });
+    zoomToSelection();
     requestDraw();
   }
+}
+
+// Defers the selection camera zoom until after the inspector's max-height CSS
+// transition completes, so getBoundingClientRect() returns the correct
+// minimized height when bestVisibleCanvasRect() measures the focus rect.
+function zoomToSelection() {
+  if (!els.inspector.classList.contains("minimized")) {
+    ensureUserAndSelectionVisible({ animate: true, force: true });
+    return;
+  }
+  let fired = false;
+  const fire = () => {
+    if (fired) return;
+    fired = true;
+    ensureUserAndSelectionVisible({ animate: true, force: true });
+  };
+  els.inspector.addEventListener("transitionend", fire, { once: true });
+  setTimeout(fire, 250);
 }
 
 // --- HTML helpers ---
