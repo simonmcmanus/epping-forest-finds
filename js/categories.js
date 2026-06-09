@@ -389,7 +389,7 @@ function landmarkIconSlug(place) {
 function appIconHtml(name, className = "app-icon") {
   const src = iconPath(name);
   if (!src) return "";
-  return `<img class="${className}" src="${src}" alt="" loading="lazy" decoding="async">`;
+  return `<img class="${className}" src="${src}" alt="" loading="eager" decoding="sync">`;
 }
 
 function treeSpeciesIconPath(commonName, latinName) {
@@ -400,7 +400,7 @@ function treeSpeciesIconPath(commonName, latinName) {
 
 function treeSpeciesIconHtml(commonName, latinName, className = "app-icon tree-species-icon") {
   const src = treeSpeciesIconPath(commonName, latinName);
-  return src ? `<img class="${className}" src="${src}" alt="" loading="lazy" decoding="async">` : "";
+  return src ? `<img class="${className}" src="${src}" alt="" loading="eager" decoding="sync">` : "";
 }
 
 function filterKindColor(kind) {

@@ -1998,7 +1998,7 @@
           </div>
           <div class="nearest-footer">
             <span class="nearest-meta">${escapeHtml(typeLabel)} · <span class="nearest-walk">${escapeHtml(walkTime)} ${appIconHtml("walking", "app-icon walk-icon")}</span></span>
-            <span class="nearest-arrow" data-bearing="${bearingForItem(entry.item)}" aria-hidden="true">↑</span>
+            <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true">↑</span>
           </div>
         </button></li>`;
       }).join("");
@@ -2622,12 +2622,15 @@
 
     function updateOverviewDirectionArrows() {
       if (state.selected || !state.userLocation || !els.inspectorBody) return;
-      const arrows = els.inspectorBody.querySelectorAll(".nearest-arrow[data-bearing]");
+      const arrows = els.inspectorBody.querySelectorAll(".nearest-arrow[data-item-lat]");
       if (!arrows.length) return;
+      const { latitude, longitude } = state.userLocation;
 
       for (const arrow of arrows) {
-        const bearing = Number(arrow.dataset.bearing);
-        if (!Number.isFinite(bearing)) continue;
+        const itemLat = Number(arrow.dataset.itemLat);
+        const itemLon = Number(arrow.dataset.itemLon);
+        if (!Number.isFinite(itemLat) || !Number.isFinite(itemLon)) continue;
+        const bearing = bearingDegrees(latitude, longitude, itemLat, itemLon);
         const relative = Number.isFinite(state.compassHeading)
           ? shortestCompassDelta(state.compassHeading, bearing)
           : bearing;
