@@ -179,9 +179,11 @@ Marker rules:
 ### Inspector modes
 
 - Overview mode: nearest list + filter controls.
-- Filter screen mode: `state.filterScreenOpen = true`; stays open until the user explicitly navigates away. GPS updates, cow refreshes, and locate-button taps must not close it.
+- Filter screen mode: `state.filterScreenOpen = true`; stays open until the user explicitly navigates away. GPS updates, cow refreshes, locate-button taps, and empty canvas taps must not close it.
 - Selected-detail mode: filter button hidden, filter panel closed (not relevant when viewing specific location).
 - Minimized mode: collapsed header only.
+- On desktop (>760px) selecting a location keeps the inspector expanded. On mobile (≤760px) selecting a location collapses the inspector so the map is visible.
+- Tapping the Nearby button always calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone.
 
 ### URL hash / navigation state
 

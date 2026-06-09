@@ -111,6 +111,7 @@ The main `draw()` function is called via `requestAnimationFrame`. Draw order (ba
 - Roads rendering limited to **2,000 segments per frame**
 - Only markers within canvas bounds (+ padding) are drawn (`isNearCanvas` check)
 - Only markers in the active overview set are drawn on map (`shouldDrawMapIcon`)
+- When a tree, landmark, cow, or path is selected (navigation mode), `shouldDrawMapIcon` returns `false` for **all** items — the selected item is rendered exclusively by `drawSelectedOverlay`. This clears the map of all other pins while navigating.
 - Emoji scale animation uses `requestAnimationFrame` scheduling
 
 ---
@@ -268,6 +269,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 - The directional arrow element stores the item's fixed coordinates (`data-item-lat`, `data-item-lon`); bearing is computed live in `updateOverviewDirectionArrows()` from `state.userLocation` — never baked into the HTML template. This keeps the `listKey` stable across GPS updates, preventing unnecessary full re-renders and icon flash.
 - Overview chrome uses generated PNG assets from `data/icons/` for the nearby title, walking-time chip, bus entries, and inspector header nav buttons; these generated UI icons render at enlarged sizes after tight-cropping.
 - All icon paths are declared in a single `ICON_PATHS` registry in `js/categories.js`. Adding an icon requires one line there; no other file needs editing. Tree species leaf icons use `treeSpeciesIconHtml(commonName, latinName)` for fuzzy name-to-icon matching.
+- All `<img>` icons in the inspector panel use `loading="eager" decoding="sync"` so they render immediately on DOM insertion without a visible flash.
 - Count controlled by `nearestItemsCount` dropdown (3/5/10/15/20/25)
 - Filter panel toggle visible in overview mode
 

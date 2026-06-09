@@ -55,7 +55,7 @@ function handleMapClick(event) {
     showRailwayDetails(hit.item);
     updateCompassOverlay();
   } else {
-    goToInitialView();
+    if (!state.filterScreenOpen) goToInitialView();
     return;
   }
   requestDraw();
