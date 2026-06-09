@@ -131,7 +131,7 @@ function setupFilterPanelHandlers() {
   });
 
   if (els.nearbyToggle) {
-    els.nearbyToggle.addEventListener("click", () => selectOverview(true));
+    els.nearbyToggle.addEventListener("click", () => goToInitialView());
   }
 
   if (els.reportToggle) {
@@ -213,9 +213,8 @@ function setupSearchAndNavHandlers() {
   });
 
   window.addEventListener("hashchange", () => {
-    if (state.suppressHashChange) return;
     if (!window.location.hash) {
-      goToInitialView(false);
+      if (!state.filterScreenOpen) goToInitialView(false);
       return;
     }
     applySelectionFromHash(false);

@@ -15,3 +15,13 @@ shows the user how far away a given location is.
 
 Navigation: 
 the buttons at the top right of the modal 
+
+
+navigation mode
+
+when a user has selection a location as is being shown directions to that location
+
+
+nearby mode 
+
+when showing the nearby panel and being shown all the nearby locations

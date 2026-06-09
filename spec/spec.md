@@ -179,8 +179,14 @@ Marker rules:
 ### Inspector modes
 
 - Overview mode: nearest list + filter controls.
+- Filter screen mode: `state.filterScreenOpen = true`; stays open until the user explicitly navigates away. GPS updates, cow refreshes, and locate-button taps must not close it.
 - Selected-detail mode: filter button hidden, filter panel closed (not relevant when viewing specific location).
 - Minimized mode: collapsed header only.
+
+### URL hash / navigation state
+
+- All hash changes use `history.replaceState` (never `pushState`) so no in-app history entries are created and browser back/swipe gestures take the user out of the app rather than undoing in-app navigation.
+- `hashchange` with an empty hash only triggers `goToInitialView()` when the filter screen is not open.
 
 ### Camera behavior
 

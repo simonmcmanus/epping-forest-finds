@@ -479,7 +479,7 @@ function selectOverview(animate = false) {
   state.filterScreenOpen = false;
   if (els.filterToggle) els.filterToggle.classList.remove("screen-active");
   const previousNearestPositions = captureNearestItemPositions();
-  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false });
+  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false, captureSnapshot: animate });
   if (els.nearbyToggle) els.nearbyToggle.classList.add("screen-active");
   els.inspectorTools.hidden = false;
   els.inspectorTitle.textContent = "Nearby";
@@ -561,7 +561,7 @@ function animateNearestItemReorder(previousPositions) {
 }
 
 function isOverviewScreenActive() {
-  return !state.selected;
+  return !state.selected && !state.filterScreenOpen;
 }
 
 // --- Screen transition ---
@@ -634,16 +634,20 @@ function transitionInspectorBody(newHtml, direction, onDone) {
   applyScreenTransition(direction, onDone);
 }
 
-function setInspectorSelectionChrome({ emoji, showBack }) {
+function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }) {
   // Cancel any in-flight transition and capture a fresh snapshot before DOM changes
   if (_transitionAnimation) {
     _transitionAnimation.cancel();
     _transitionAnimation = null;
     _cleanupTransition();
   }
-  const scroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
-  const screen = scroll && scroll.querySelector(".inspector-screen");
-  _transitionSnapshot = screen ? screen.cloneNode(true) : null;
+  if (captureSnapshot) {
+    const scroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
+    const screen = scroll && scroll.querySelector(".inspector-screen");
+    _transitionSnapshot = screen ? screen.cloneNode(true) : null;
+  } else {
+    _transitionSnapshot = null;
+  }
 
   // Apply chrome updates
   els.inspectorBack.hidden = !showBack;

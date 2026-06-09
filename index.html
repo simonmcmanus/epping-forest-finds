@@ -265,7 +265,6 @@
       distanceWarningShown: false,
       nearestItemsCount: 10,
       walkingDistanceMinutes: 5,
-      suppressHashChange: false,
       compassHeading: null,
       compassHeadingTarget: null,
       compassPermission: "unknown",
@@ -525,7 +524,7 @@
 
           checkDistanceToForest(latitude, longitude);
 
-          selectOverview();
+          if (isOverviewScreenActive()) selectOverview();
           if (!previousPoint) {
             setInspectorMinimized(false);
             const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
@@ -2504,15 +2503,8 @@
     function setHashFromSelection(value) {
       const nextHash = value ? `#${value}` : "";
       if (window.location.hash === nextHash) return;
-      state.suppressHashChange = true;
-      if (!nextHash) {
-        history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-      } else {
-        window.location.hash = value;
-      }
-      setTimeout(() => {
-        state.suppressHashChange = false;
-      }, 0);
+      const url = `${window.location.pathname}${window.location.search}${nextHash}`;
+      history.replaceState(null, "", url);
     }
 
     function applySelectionFromHash(announceMissing = true) {
