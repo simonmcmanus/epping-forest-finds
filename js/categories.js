@@ -372,7 +372,7 @@ function filterKindIconSlug(kind) {
 
 function landmarkIconSlug(place) {
   const check = (tags) => tags.some((t) => hasPlaceTag(place, t));
-  if (check(["gate", "entrance", "stile", "kissing_gate"])) return "gate";
+  if (check(["gate", "entrance", "stile", "kissing_gate", "cycle_barrier", "lift_gate", "swing_gate", "cattle_grid", "fence"])) return "gate";
   if (check(["bench"])) return "landmark-bench";
   if (check(["toilets"])) return "landmark-toilets";
   if (check(["drinking_water", "water_well"])) return "landmark-drinking-water";

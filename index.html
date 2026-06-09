@@ -2041,8 +2041,7 @@
       if (hasAnyPlaceTag(place, ["chemist"])) return "⚕️";
       if (hasAnyPlaceTag(place, ["dry_cleaning"])) return "👔";
       if (hasAnyPlaceTag(place, ["cafe", "tea"])) return "☕";
-      if (hasAnyPlaceTag(place, ["gate", "entrance", "stile", "kissing_gate"])) return "🚪";
-      if (hasAnyPlaceTag(place, ["cycle_barrier", "lift_gate", "swing_gate", "cattle_grid", "fence"])) return "🚧";
+      if (hasAnyPlaceTag(place, ["gate", "entrance", "stile", "kissing_gate", "cycle_barrier", "lift_gate", "swing_gate", "cattle_grid", "fence"])) return appIconHtml("gate");
       return "📍";
     }
 
