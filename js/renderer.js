@@ -897,15 +897,6 @@ function drawCows(ctx, nearbyIconLookup) {
     const isOutOfRadius = nearbyIconLookup.outOfRadius && nearbyIconLookup.outOfRadius.has(cow);
     const baseOpacity = markerOpacityFor("cow", cow);
     ctx.globalAlpha = isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity;
-    const radius = 11 * dpr * MAP_ICON_SCALE;
-    const pulseOpacity = getMarkerPulseOpacity(0.4, 0.9);
-    const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-    gradient.addColorStop(0, `rgba(154, 106, 47, ${pulseOpacity})`);
-    gradient.addColorStop(1, `rgba(154, 106, 47, ${pulseOpacity * 0.2})`);
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    ctx.fill();
     drawPngMapIcon(ctx, iconPath("cow"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE);
   }
   ctx.globalAlpha = 1;
