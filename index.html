@@ -2526,7 +2526,7 @@
         if (tree) {
           state.selected = { type: "tree", item: tree };
           showTreeDetails(tree, distanceFromUser(tree), "Tree link");
-          setInspectorMinimized(true);
+          if (window.innerWidth <= 760) setInspectorMinimized(true);
           startCompassNavigation();
           if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true });
           else fitToPoints([tree.point], false, { animate: true });
@@ -2540,7 +2540,7 @@
         if (place) {
           state.selected = { type: "landmark", item: place };
           showLandmarkDetails(place, distanceFromUser(place));
-          setInspectorMinimized(true);
+          if (window.innerWidth <= 760) setInspectorMinimized(true);
           startCompassNavigation();
           if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true });
           else fitToPoints([place.point], false, { animate: true });
@@ -2893,7 +2893,7 @@
       fitToPoints(focusPoints, false, { animate: true });
       ensureUserAndSelectionVisible({ animate: true });
       showTreeDetails(tree, distanceFromUser(tree), "Tree search result");
-      setInspectorMinimized(true);
+      if (window.innerWidth <= 760) setInspectorMinimized(true);
       setStatus(`Found tree ${displayValue(tree.tagNumber || tree.nationalDatabaseTagNumber || tree.recordNumber)}.`);
       requestDraw();
     }

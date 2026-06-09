@@ -8,25 +8,26 @@ function handleMapClick(event) {
   const lonLat = unprojectPoint(world);
   const hit = findHit(screen, world, lonLat);
 
+  const isMobile = window.innerWidth <= 760;
   if (hit.type === "tree") {
     state.selected = { type: "tree", item: hit.item };
     syncHashFromSelection();
     showTreeDetails(hit.item, distanceFromUser(hit.item), "Tree record");
-    setInspectorMinimized(true);
+    if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
     ensureUserAndSelectionVisible({ animate: true, force: true });
   } else if (hit.type === "cow") {
     state.selected = { type: "cow", item: hit.item };
     syncHashFromSelection();
     showCowDetails(hit.item, distanceFromUser(hit.item));
-    setInspectorMinimized(true);
+    if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
     ensureUserAndSelectionVisible({ animate: true, force: true });
   } else if (hit.type === "landmark") {
     state.selected = { type: "landmark", item: hit.item };
     syncHashFromSelection();
     showLandmarkDetails(hit.item, distanceFromUser(hit.item));
-    setInspectorMinimized(true);
+    if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
     ensureUserAndSelectionVisible({ animate: true, force: true });
   } else if (hit.type === "area") {
@@ -45,7 +46,7 @@ function handleMapClick(event) {
     syncHashFromSelection();
     const distance = distanceFromUserToPath(hit.item);
     showPathDetails(hit.item, distance);
-    setInspectorMinimized(true);
+    if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
     ensureUserAndSelectionVisible({ animate: true, force: true });
   } else if (hit.type === "railway") {

@@ -801,7 +801,7 @@ function buildNearbyIconLookup() {
 }
 
 function shouldDrawMapIcon(type, item, nearbyIconLookup) {
-  if (state.selected && state.selected.type === type && state.selected.item === item) return false;
+  if (state.selected && ["tree", "landmark", "cow", "path"].includes(state.selected.type)) return false;
   const typeSet = nearbyIconLookup && nearbyIconLookup[type];
   return Boolean(typeSet && typeSet.has(item));
 }
