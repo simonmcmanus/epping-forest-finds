@@ -265,6 +265,7 @@
       distanceWarningShown: false,
       nearestItemsCount: 10,
       walkingDistanceMinutes: 5,
+      showAllOutsideRadius: false,
       compassHeading: null,
       compassHeadingTarget: null,
       compassPermission: "unknown",
@@ -1834,11 +1835,37 @@
       return uniqueSortedOverviewEntries(entries);
     }
 
+    function overviewItemsUnlimited(latitude, longitude) {
+      const limit = 10;
+      const hasFilters = state.overviewFilters.length > 0;
+      if (hasFilters) {
+        const activePointFilters = getActivePointFilterKeys();
+        if (!activePointFilters.length) return [];
+        const entries = [];
+        for (const filterKey of activePointFilters) {
+          entries.push(...nearestOverviewEntriesForFilter(filterKey, latitude, longitude, limit));
+        }
+        return uniqueSortedOverviewEntries(entries);
+      }
+      const entries = [];
+      entries.push(...nearestTreesTo(latitude, longitude, limit).map(({ tree, metres }) => ({ kind: "tree", type: "tree", item: tree, metres })));
+      entries.push(...nearestCowsTo(latitude, longitude, limit).map(({ cow, metres }) => ({ kind: "cow", type: "cow", item: cow, metres })));
+      entries.push(...nearestWaymarkedPathsToUser(limit).map(({ path, metres }) => ({ kind: "waymarked_trails", type: "path", item: path, metres })));
+      entries.push(...nearestWaterFeaturesTo(latitude, longitude, limit).map(({ water, metres }) => ({ kind: "ponds_streams", type: "water", item: water, metres })));
+      entries.push(...nearestPlacesByFilter(latitude, longitude, () => true, limit).map(({ place, metres }) => ({ kind: resolvePlaceKind(place), type: "landmark", item: place, metres })));
+      return entries.sort((a, b) => a.metres - b.metres);
+    }
+
     function overviewItemsForActiveFilter(limit = 3) {
       if (!state.userLocation) return [];
       const { latitude, longitude } = state.userLocation;
-      const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
       state.overviewOutsideRadiusFallback = false;
+
+      if (state.showAllOutsideRadius) {
+        return overviewItemsUnlimited(latitude, longitude);
+      }
+
+      const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
 
       const hasFilters = state.overviewFilters.length > 0;
       if (hasFilters) {
@@ -2013,7 +2040,13 @@
       const fallbackNotice = state.overviewOutsideRadiusFallback
         ? `<p class="source-note"><strong>Nothing found within ${state.walkingDistanceMinutes} mins walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
         : "";
-      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong><span class="walk-chip">${appIconHtml("walking", "app-icon walk-icon")} <span class="walk-time">${state.walkingDistanceMinutes} min</span></span></div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+      const radiusActive = !state.showAllOutsideRadius;
+      const chipTitle = radiusActive
+        ? `Showing within ${state.walkingDistanceMinutes} min walk — tap to show all`
+        : `Showing all distances — tap to filter to ${state.walkingDistanceMinutes} min walk`;
+      const chipLabel = radiusActive ? `${state.walkingDistanceMinutes} min` : "All";
+      const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}">${appIconHtml("walking", "app-icon walk-icon")} <span class="walk-time">${chipLabel}</span></button>`;
+      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong>${walkChip}</div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
 
     function landmarkEmoji(place) {
@@ -2358,10 +2391,12 @@
         ? Math.hypot(nextScreen.x - previousScreen.x, nextScreen.y - previousScreen.y)
         : Infinity;
 
-      // When filters are active, fit to the actual items rather than centering on
-      // the user. Centering on user + capping scale to cover all items forces a
-      // full-radius zoom even when items are only in part of the circle.
-      if (state.overviewFilters.length > 0) {
+      // When filters are active OR showing all distances, fit to the actual items
+      // rather than centering on the user. Centering on user + capping scale to
+      // cover all items forces a full-radius zoom even when items are only in part
+      // of the circle. showAllOutsideRadius has the same issue since items can be
+      // anywhere.
+      if (state.overviewFilters.length > 0 || state.showAllOutsideRadius) {
         const significantMove = !previousPoint || screenMovement >= 42;
         // Also refit if any overview item has drifted outside the visible canvas area
         // (e.g. fast walking or train — user should never lose sight of nearest items).
@@ -2468,7 +2503,9 @@
       const points = [state.userLocation.point];
       const overviewEntries = overviewItemsForActiveFilter();
       for (const entry of overviewEntries) {
-        if (entry && entry.item && entry.item.point) points.push(entry.item.point);
+        if (!entry || !entry.item || !entry.item.point) continue;
+        if (entry.outOfRadius && !state.showAllOutsideRadius) continue;
+        points.push(entry.item.point);
       }
       return points;
     }

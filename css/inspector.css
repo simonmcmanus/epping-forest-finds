@@ -424,6 +424,30 @@ button.settings-toggle.active {
   background: rgba(47, 111, 78, 0.15);
 }
 
+.walk-chip-toggle {
+  cursor: pointer;
+  background: #2f6f4e;
+  border-color: #2f6f4e;
+  color: #fff;
+  gap: 4px;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+
+.walk-chip-toggle:hover {
+  background: #256040;
+  border-color: #256040;
+}
+
+.walk-chip-toggle--off {
+  background: transparent;
+  border-color: rgba(0, 0, 0, 0.18);
+  color: var(--muted);
+}
+
+.walk-chip-toggle--off:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
 .detail-map-link {
   display: inline-flex;
   align-items: center;

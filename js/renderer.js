@@ -792,7 +792,10 @@ function buildNearbyIconLookup() {
   const outOfRadius = new Set();
   for (const entry of overviewItemsForActiveFilter()) {
     if (!entry || !entry.item) continue;
-    if (entry.outOfRadius) outOfRadius.add(entry.item);
+    if (entry.outOfRadius) {
+      outOfRadius.add(entry.item);
+      if (!state.showAllOutsideRadius) continue;
+    }
     if (entry.type === "tree") tree.add(entry.item);
     else if (entry.type === "landmark") landmark.add(entry.item);
     else if (entry.type === "cow") cow.add(entry.item);

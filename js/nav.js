@@ -223,6 +223,14 @@ function setupSearchAndNavHandlers() {
   els.inspectorBody.addEventListener("click", (event) => {
     const shareBtn = event.target.closest("[data-action='share-location']");
     if (shareBtn) { shareCurrentLocation(); return; }
+    const radiusToggle = event.target.closest("[data-action='toggle-radius']");
+    if (radiusToggle) {
+      state.showAllOutsideRadius = !state.showAllOutsideRadius;
+      selectOverview();
+      ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+      requestDraw();
+      return;
+    }
     const walkBtn = event.target.closest(".walk-chip-btn");
     if (walkBtn) {
       const expanded = walkBtn.getAttribute("aria-expanded") === "true";
