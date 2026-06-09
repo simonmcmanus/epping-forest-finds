@@ -192,12 +192,13 @@ Marker rules:
 
 ### Camera behavior
 
-- With selected target + expanded inspector: camera fits user + target.
-- In overview mode, GPS updates keep the user location centered on the map.
+- With selected target + expanded inspector: camera fits user + target in the visible area above the inspector (not behind the modal). Zoom adjusts so both fill the available viewport.
+- Navigation mode GPS follow: smooth 800 ms animation that only triggers when the user or destination drifts near the edge of the visible area (14% margin). Sub-threshold GPS noise is ignored so the camera glides rather than jumps.
+- In overview mode, GPS updates keep the user location and nearest items within the visible map area.
   - the first successful location fix triggers a 1200ms cinematic zoom to the user's 5-minute walking radius
   - if location is obtained before map data finishes loading (user clicks the gate early), the zoom is re-triggered once data and `fitToBounds()` are ready — ensuring the animation is never permanently cancelled by the data-load sequence
-  - small movements recenter immediately
-  - large movements animate smoothly between positions
+  - the zoom level adjusts as the user moves so nearest items always fill the available viewport; items that drift off-screen trigger an immediate refit regardless of movement distance
+  - fast movement (walking, train) never causes the user or their nearest items to disappear from the map
 - With minimized inspector: auto-reposition is paused.
   - user can pan/zoom freely
   - GPS updates/drag/zoom/resize must not force recenter

@@ -2227,7 +2227,7 @@
           }
           updateOverviewDirectionArrows();
           updateSelectedDetailFields();
-          ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
+          ensureUserAndSelectionVisible({ animate: true, durationMs: 800 });
           keepOverviewCenteredOnUser(previousPoint);
           updateCompassOverlay();
           requestDraw();
@@ -2252,31 +2252,34 @@
       if (!target || !state.userLocation) return;
       if (!options.force && els.inspector.classList.contains("minimized")) return;
       const shouldAnimate = options.animate !== false;
-      
+
       let pointsToFit = [state.userLocation.point];
-      
-      // For paths, fit to all segments instead of just a single point
       if (state.selected && state.selected.type === "path" && target.segments) {
-        for (const segment of target.segments) {
-          pointsToFit.push(...segment);
-        }
+        for (const segment of target.segments) pointsToFit.push(...segment);
       } else {
-        // For trees, landmarks, cows, use their single point
-        if (target.point) {
-          pointsToFit.push(target.point);
-        }
+        if (target.point) pointsToFit.push(target.point);
       }
-      
-      fitToPoints(
-        pointsToFit,
-        false,
-        {
-          focusVisibleArea: true,
-          assumeInspectorOpen: true,
-          animate: shouldAnimate,
-          durationMs: options.durationMs || 480,
-        }
-      );
+
+      // On GPS-triggered calls (no force flag), skip the refit when both the user
+      // and destination are comfortably inside the visible area. This prevents
+      // continuous animation restarts from GPS noise causing visible jitter.
+      if (!options.force && shouldAnimate) {
+        const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+        const edgeMargin = Math.min(focusRect.width, focusRect.height) * 0.14;
+        const allVisible = pointsToFit.every((pt) => {
+          const s = worldToScreen(pt);
+          return s.x >= focusRect.x + edgeMargin && s.x <= focusRect.x + focusRect.width - edgeMargin
+            && s.y >= focusRect.y + edgeMargin && s.y <= focusRect.y + focusRect.height - edgeMargin;
+        });
+        if (allVisible) return;
+      }
+
+      fitToPoints(pointsToFit, false, {
+        focusVisibleArea: true,
+        assumeInspectorOpen: true,
+        animate: shouldAnimate,
+        durationMs: options.durationMs || 800,
+      });
     }
 
     function revealUserLocationSmooth() {
@@ -2365,10 +2368,18 @@
       // the user. Centering on user + capping scale to cover all items forces a
       // full-radius zoom even when items are only in part of the circle.
       if (state.overviewFilters.length > 0) {
-        if (!previousPoint || screenMovement >= 42) {
-          const shouldAnimate = Boolean(previousPoint) && screenMovement >= 42;
+        const significantMove = !previousPoint || screenMovement >= 42;
+        // Also refit if any overview item has drifted outside the visible canvas area
+        // (e.g. fast walking or train — user should never lose sight of nearest items).
+        const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+        const anyOffscreen = !significantMove && overviewTargetPoints().some((pt) => {
+          const s = worldToScreen(pt);
+          return s.x < focusRect.x || s.x > focusRect.x + focusRect.width
+            || s.y < focusRect.y || s.y > focusRect.y + focusRect.height;
+        });
+        if (significantMove || anyOffscreen) {
           ensureOverviewTargetsVisible({
-            animate: shouldAnimate,
+            animate: Boolean(previousPoint) && screenMovement >= 42,
             durationMs: screenMovement >= 160 ? 620 : 360,
           });
         }
@@ -2383,7 +2394,14 @@
         centerOverviewOnUserLocation({ animate: false, scale: targetScale, focusVisibleArea: true });
         return;
       }
-      if (screenMovement < 42) return;
+      // Always reposition if the user has moved significantly or has drifted near the edge.
+      const focusRectNf = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+      const edgeMarginNf = Math.min(focusRectNf.width, focusRectNf.height) * 0.12;
+      const userOffCenter = nextScreen.x < focusRectNf.x + edgeMarginNf
+        || nextScreen.x > focusRectNf.x + focusRectNf.width - edgeMarginNf
+        || nextScreen.y < focusRectNf.y + edgeMarginNf
+        || nextScreen.y > focusRectNf.y + focusRectNf.height - edgeMarginNf;
+      if (screenMovement < 42 && !userOffCenter) return;
       centerOverviewOnUserLocation({
         animate: true,
         durationMs: screenMovement >= 160 ? 620 : 360,

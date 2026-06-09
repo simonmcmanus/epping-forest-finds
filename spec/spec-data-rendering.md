@@ -335,14 +335,19 @@ Behavior:
 
 ### Selection Camera
 
-- **Expanded inspector + selected target:** camera fits user + target in view
-- **Overview mode:** GPS updates keep the user location centered; large movements animate between positions
+- **Expanded inspector + selected target:** camera fits user + target in view, using the visible area above the inspector panel (`focusVisibleArea + assumeInspectorOpen`).
+- **Navigation mode GPS follow:** on each GPS update, the camera checks whether both the user and the selected destination are comfortably inside the visible area (14% edge margin). If both are visible, no animation is triggered. If either drifts toward the edge or off-screen, `fitToPoints` runs with an 800 ms animation — long enough that consecutive GPS ticks blend smoothly rather than producing visible jumps.
+- **Initial selection zoom:** always refits immediately (800 ms, `force: true`), ignoring the edge-margin guard.
+- **Overview mode GPS follow — no filters:** on each GPS tick the user's screen position is checked. Repositioning fires if the user has moved ≥ 42 px on screen *or* if the user dot is within the 12% edge margin. Zoom is capped via `capScaleForUserCenteredOverview` so all overview items remain visible.
+- **Overview mode GPS follow — filters active:** `ensureOverviewTargetsVisible` (fitToPoints to all item points) fires when movement ≥ 42 px, *or* if any overview item has drifted fully outside the visible canvas. This ensures fast-moving users (walking, train) never lose sight of nearest items. Animation only runs on significant movement.
 - **First location fix:** nearby map markers are visible immediately without requiring a manual zoom
 - **Minimized inspector:** auto-reposition paused — free pan/zoom
 - **Expand from minimized:** recenter once to user + selected target, preserve zoom intent
 
 ### Animations
 
+- GPS-triggered navigation follow uses 800 ms cubic ease-in-out so consecutive position updates blend without visible restarts.
+- Overview repositioning uses 360–620 ms depending on distance moved.
 - View transitions animate with configurable duration
 - Smooth interpolation between viewport states
 
