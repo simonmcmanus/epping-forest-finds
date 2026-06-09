@@ -36,12 +36,13 @@ exports.handler = async (event) => {
 
   const appKey = process.env.TFL_APP_KEY;
   const keyQs = appKey ? `&app_key=${appKey}` : "";
+  const arrivalsUrl = (id) => `${TFL_BASE}/StopPoint/${id}/Arrivals${appKey ? `?app_key=${appKey}` : ""}`;
 
   try {
-    let stopId, stopName;
+    let rawArrivals = [];
+    let stopName = null;
 
     if (type === "bus") {
-      // Bus stops: find by lat/lon
       const stopRes = await fetch(
         `${TFL_BASE}/StopPoint?lat=${lat}&lon=${lon}&stopTypes=NaptanPublicBusCoachTram&radius=200${keyQs}`
       );
@@ -51,8 +52,37 @@ exports.handler = async (event) => {
       if (!stops.length) {
         return { statusCode: 200, headers, body: JSON.stringify({ departures: [], stopName: null }) };
       }
-      stopId = stops[0].id;
       stopName = stops[0].commonName;
+
+      // Query all nearby stops in parallel (up to 5) so buses from every bay/side are included
+      const perStop = await Promise.all(
+        stops.slice(0, 5).map(async (stop) => {
+          try {
+            const res = await fetch(arrivalsUrl(stop.id));
+            return res.ok ? (await res.json()) : [];
+          } catch {
+            return [];
+          }
+        })
+      );
+
+      // Deduplicate by vehicleId: same physical bus can appear in multiple nearby stops;
+      // keep the soonest prediction for each vehicle.
+      const byVehicle = new Map();
+      const noVehicleId = [];
+      for (const arrivals of perStop) {
+        for (const a of (Array.isArray(arrivals) ? arrivals : [])) {
+          if (a.vehicleId) {
+            const existing = byVehicle.get(a.vehicleId);
+            if (!existing || a.timeToStation < existing.timeToStation) {
+              byVehicle.set(a.vehicleId, a);
+            }
+          } else {
+            noVehicleId.push(a);
+          }
+        }
+      }
+      rawArrivals = [...byVehicle.values(), ...noVehicleId];
     } else {
       // Train/underground: try lat/lon first, fall back to name search
       const stopRes = await fetch(
@@ -62,11 +92,11 @@ exports.handler = async (event) => {
       const stopData = await stopRes.json();
       const stops = Array.isArray(stopData.stopPoints) ? stopData.stopPoints : [];
 
+      let stopId;
       if (stops.length) {
         stopId = stops[0].id;
         stopName = stops[0].commonName;
       } else if (name) {
-        // Fall back to name search (covers overground/national rail not in lat/lon index)
         const searchRes = await fetch(
           `${TFL_BASE}/StopPoint/Search/${encodeURIComponent(name)}?modes=tube,overground,elizabeth-line,national-rail&maxResults=5${keyQs}`
         );
@@ -81,19 +111,16 @@ exports.handler = async (event) => {
       } else {
         return { statusCode: 200, headers, body: JSON.stringify({ departures: [], stopName: null }) };
       }
+
+      const arrivalsRes = await fetch(arrivalsUrl(stopId));
+      if (!arrivalsRes.ok) throw new Error(`TfL Arrivals HTTP ${arrivalsRes.status}`);
+      rawArrivals = await arrivalsRes.json();
     }
 
-    // Fetch live arrivals
-    const arrivalsRes = await fetch(
-      `${TFL_BASE}/StopPoint/${stopId}/Arrivals${appKey ? `?app_key=${appKey}` : ""}`
-    );
-    if (!arrivalsRes.ok) throw new Error(`TfL Arrivals HTTP ${arrivalsRes.status}`);
-    const arrivals = await arrivalsRes.json();
-
-    const departures = (Array.isArray(arrivals) ? arrivals : [])
+    const departures = (Array.isArray(rawArrivals) ? rawArrivals : [])
       .sort((a, b) => a.timeToStation - b.timeToStation)
       .map((a) => ({
-        line: a.lineName || a.lineId || "\u2013",
+        line: a.lineName || a.lineId || "–",
         direction: a.towards || a.destinationName || "",
         minutesAway: Math.max(0, Math.round(a.timeToStation / 60)),
         due: a.timeToStation <= 30,
@@ -102,7 +129,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ departures, stopName, stopId }),
+      body: JSON.stringify({ departures, stopName }),
     };
   } catch (error) {
     return {
