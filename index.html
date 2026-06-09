@@ -1245,8 +1245,8 @@
 
     function settingsFormHtml() {
       const minutes = state.walkingDistanceMinutes;
-      const options = [1, 2, 5, 10, 15, 20, 30, 60]
-        .map((m) => `<option value="${m}"${m === minutes ? " selected" : ""}>${m} min${m === 60 ? " (1 hr)" : ""}</option>`)
+      const options = [1, 2, 5, 10, 15, 20, 30]
+        .map((m) => `<option value="${m}"${m === minutes ? " selected" : ""}>${m} min</option>`)
         .join("");
       return `<div class="settings-form">
         <section class="settings-section">
@@ -1269,13 +1269,19 @@
       if (select) {
         select.addEventListener("change", () => {
           state.walkingDistanceMinutes = parseInt(select.value, 10);
-          selectOverview();
           if (state.userLocation) {
             const { latitude, longitude } = state.userLocation;
             const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
             const nearestTrees = nearbyTreesWithinDistance(latitude, longitude, maxMetres);
             state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
-            ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+            const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+            const targetScale = Math.min(state.viewport.scale, maxScaleForRadiusVisible(focusRect));
+            const focusCenter = { x: focusRect.x + focusRect.width / 2, y: focusRect.y + focusRect.height / 2 };
+            animateViewportTo({
+              scale: targetScale,
+              tx: focusCenter.x - state.userLocation.point.x * targetScale,
+              ty: focusCenter.y - state.userLocation.point.y * targetScale,
+            }, 520);
           }
           requestDraw();
         });

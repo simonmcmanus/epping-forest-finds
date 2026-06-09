@@ -249,9 +249,9 @@ Marker rules:
 ## Settings Screen
 
 - Accessible via the generated settings icon button in the inspector header.
-- Contains a **Walking radius** control: a dropdown to choose how far to walk when listing nearby places (5, 10, 15, 20, 30, 60 min options).
+- Contains a **Walking radius** control: a dropdown to choose how far to walk when listing nearby places (1, 2, 5, 10, 15, 20, 30 min options).
 - Contains an **About** section displaying the current app version (e.g. `v80`).
-- Changing the walking radius immediately updates the nearby list, map circle, and nearest tree selection.
+- Changing the walking radius stays on the settings screen, immediately animates the map to fit the new radius, updates the nearby list and nearest tree selection, and keeps the walking radius ring visible.
 
 ## Feedback / Report Screen
 

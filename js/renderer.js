@@ -494,7 +494,7 @@ function drawOverviewRoutes(ctx) {
 }
 
 function drawWalkingRadius(ctx) {
-  if (!state.userLocation || state.selected) return;
+  if (!state.userLocation || (state.selected && state.selected.type !== "settings")) return;
 
   const dpr = pixelRatio();
   const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);

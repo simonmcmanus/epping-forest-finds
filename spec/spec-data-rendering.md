@@ -245,7 +245,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 
 ### Walking Radius Circle
 
-- Shown in overview mode only (no selection)
+- Shown in overview mode and settings screen (no selection, or settings selection)
 - Dashed circle centered on user
 - Radius = walking distance in minutes × walking speed
 - Fill: `rgba(47, 114, 178, 0.07)`
