@@ -101,6 +101,10 @@ function setupInspectorHandlers() {
   if (els.locationGateButton) {
     els.locationGateButton.addEventListener("click", async () => {
       if (!state.userLocation) {
+        if (!hasTrackingConsent()) {
+          const consented = await showTrackingConsent();
+          if (!consented) return;
+        }
         locateUser({ initial: false });
       } else {
         await requestCompassPermissionIfNeeded({ fromGesture: true });

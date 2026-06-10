@@ -387,6 +387,47 @@ Alternative: `scripts/regenerate-local-landmarks.js` (Node.js version)
 - `scripts/split_landmarks.py` - splits landmarks into category files
 - `scripts/split_access.py` - further splits access/facilities file
 
+## User Tracking & Analytics
+
+### Consent
+Users are shown a privacy/consent modal before location is enabled. Consent is stored in `localStorage` under key `ff-track-v1`. Users can withdraw via Settings → Privacy.
+
+Full terms are at `/terms.html`. The modal links to this page.
+
+### Data collected (with consent)
+- **Location pings** — lat/lng, heading, current nav target — sent every 60 seconds while location is active
+- **Click events** — item type, item ID, item name, user position — sent on every map-item selection
+- Each event is tagged with a random anonymous user ID (`ff-uid` in `localStorage`) and ISO timestamp
+
+### Event types
+All events POST to `POST /api/track` as `{ events: [...] }`.
+
+**Location event:**
+```json
+{ "type": "location", "uid": "...", "ts": "ISO", "lat": 51.65, "lng": 0.04, "heading": 180, "navTarget": { "id": "...", "name": "...", "type": "tree" } }
+```
+
+**Click event:**
+```json
+{ "type": "click", "uid": "...", "ts": "ISO", "userLat": 51.65, "userLng": 0.04, "itemType": "tree", "itemId": "T123", "itemName": "Ancient Oak" }
+```
+
+### Offline queue
+Events are stored in `localStorage` (`ff-track-queue`) when offline and flushed as a batch when connectivity is restored (via `window online` event).
+
+### Storage
+- **Local server:** appended to `data/tracking/location.ndjson` and `data/tracking/click.ndjson`
+- **Netlify:** stored as blobs in the `tracking` store via `@netlify/blobs`
+
+### Admin interface
+- URL: `/admin` — password-protected (env var `ADMIN_PASSWORD`)
+- Canvas map of Epping Forest showing user positions and tracks
+- Sidebar with user list; click to isolate an individual user's route
+- Toggle between **Tracks view** (coloured route lines + direction arrows) and **Heatmap view** (density grid)
+- Yellow dots show click/tap events; coloured dots show last known user position
+- Auto-refreshes every 5 minutes; manual refresh button available
+- Data served from `GET /api/admin/tracks?pw=...`
+
 ## Technical Constraints
 
 - No client build step.

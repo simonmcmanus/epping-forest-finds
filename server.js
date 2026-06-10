@@ -2,6 +2,50 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
+// Load .env if present (no dotenv dependency needed)
+try {
+  const envFile = path.join(__dirname, ".env");
+  if (fs.existsSync(envFile)) {
+    fs.readFileSync(envFile, "utf8").split("\n").forEach((line) => {
+      const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (m && !Object.prototype.hasOwnProperty.call(process.env, m[1])) {
+        process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+      }
+    });
+  }
+} catch {}
+
+const TRACKING_DIR = path.join(__dirname, "data", "tracking");
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+
+function ensureTrackingDir() {
+  if (!fs.existsSync(TRACKING_DIR)) fs.mkdirSync(TRACKING_DIR, { recursive: true });
+}
+
+function appendNdjson(filename, objects) {
+  ensureTrackingDir();
+  const lines = objects.map((o) => JSON.stringify(o)).join("\n") + "\n";
+  fs.appendFileSync(path.join(TRACKING_DIR, filename), lines, "utf8");
+}
+
+function readNdjson(filename) {
+  const file = path.join(TRACKING_DIR, filename);
+  if (!fs.existsSync(file)) return [];
+  return fs.readFileSync(file, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => { try { return JSON.parse(line); } catch { return null; } })
+    .filter(Boolean);
+}
+
+function checkAdminAuth(req, url) {
+  if (!ADMIN_PASSWORD) return false;
+  const authHeader = req.headers.authorization || "";
+  if (authHeader === `Bearer ${ADMIN_PASSWORD}`) return true;
+  if (url.searchParams.get("pw") === ADMIN_PASSWORD) return true;
+  return false;
+}
+
 const PORT = Number(process.env.PORT || 8080);
 const ROOT = process.cwd();
 const COW_SOURCE_BASE = "https://account.nofence.no/api/open/data/?center=";
@@ -86,7 +130,7 @@ const server = http.createServer((req, res) => {
   const host = req.headers.host || `localhost:${PORT}`;
   const url = new URL(req.url, `http://${host}`);
 
-  if (req.method === "OPTIONS" && url.pathname === "/api/cows") {
+  if (req.method === "OPTIONS" && (url.pathname === "/api/cows" || url.pathname === "/api/track")) {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
@@ -99,6 +143,44 @@ const server = http.createServer((req, res) => {
 
   if (url.pathname === "/api/cows") {
     handleCowProxy(req, res, url);
+    return;
+  }
+
+  if (url.pathname === "/api/track" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      try {
+        const payload = JSON.parse(body);
+        const events = Array.isArray(payload.events) ? payload.events : [];
+        const locationEvents = events.filter((e) => e && e.type === "location");
+        const clickEvents = events.filter((e) => e && e.type === "click");
+        if (locationEvents.length) appendNdjson("location.ndjson", locationEvents);
+        if (clickEvents.length) appendNdjson("click.ndjson", clickEvents);
+        send(res, 200, JSON.stringify({ ok: true, stored: events.length }), "application/json; charset=utf-8");
+      } catch {
+        send(res, 400, JSON.stringify({ error: "Invalid JSON" }), "application/json; charset=utf-8");
+      }
+    });
+    return;
+  }
+
+  if (url.pathname === "/api/admin/tracks" && req.method === "GET") {
+    if (!checkAdminAuth(req, url)) {
+      send(res, 401, JSON.stringify({ error: "Unauthorized" }), "application/json; charset=utf-8");
+      return;
+    }
+    const locations = readNdjson("location.ndjson");
+    const clicks = readNdjson("click.ndjson");
+    send(res, 200, JSON.stringify({ locations, clicks }), "application/json; charset=utf-8");
+    return;
+  }
+
+  if (url.pathname === "/admin") {
+    const adminFile = path.join(ROOT, "admin.html");
+    if (!fs.existsSync(adminFile)) { send(res, 404, "Admin not found"); return; }
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    fs.createReadStream(adminFile).pipe(res);
     return;
   }
 
@@ -140,4 +222,9 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Forest Finds server running at http://localhost:${PORT}`);
+  if (ADMIN_PASSWORD) {
+    console.log(`Admin dashboard: http://localhost:${PORT}/admin  (password set ✓)`);
+  } else {
+    console.log(`Admin dashboard: disabled — set ADMIN_PASSWORD in .env to enable`);
+  }
 });

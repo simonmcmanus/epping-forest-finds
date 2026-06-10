@@ -1,0 +1,87 @@
+.tracking-consent-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(237, 242, 234, 0.94);
+  backdrop-filter: blur(16px);
+  padding: 20px;
+  transition: opacity 0.3s ease;
+}
+
+.tracking-consent-overlay[hidden] {
+  display: none;
+}
+
+.tracking-consent-overlay.tc-fading-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tracking-consent-card {
+  width: 100%;
+  max-width: 460px;
+  max-height: 92vh;
+  background: #fff;
+  border: 1px solid rgba(36, 56, 47, 0.12);
+  box-shadow: var(--shadow);
+  border-radius: 20px;
+  padding: 26px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.tracking-consent-title {
+  margin: 0 0 14px;
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.tracking-consent-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.tracking-consent-body p {
+  margin: 0 0 10px;
+}
+
+.tracking-consent-body ul {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+
+.tracking-consent-body li {
+  margin-bottom: 7px;
+}
+
+.tracking-consent-body a {
+  color: var(--tree);
+  text-underline-offset: 2px;
+}
+
+.tracking-consent-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.tracking-consent-actions > .button {
+  width: 100%;
+}

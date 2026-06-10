@@ -58,6 +58,11 @@ function handleMapClick(event) {
     if (!state.filterScreenOpen) goToInitialView();
     return;
   }
+  if (hit.type && hit.item && typeof trackClick === "function") {
+    const uLat = state.userLocation?.latitude ?? null;
+    const uLng = state.userLocation?.longitude ?? null;
+    trackClick(hit.type, hit.item, uLat, uLng);
+  }
   requestDraw();
 }
 

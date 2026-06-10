@@ -1,0 +1,260 @@
+:root {
+  --ink: #17221e;
+  --muted: #5d6a62;
+  --line: #d7ded8;
+  --paper: #eef2ea;
+  --tree: #2f6f4e;
+  --shadow: 0 8px 30px rgba(19, 31, 25, 0.14);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #1a2420;
+  color: var(--ink);
+}
+
+/* --- Login screen (fixed overlay so admin app fills viewport behind it) --- */
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a2420;
+  padding: 20px;
+}
+
+.login-screen[hidden] {
+  display: none;
+}
+
+.login-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 340px;
+  box-shadow: var(--shadow);
+}
+
+.login-title {
+  margin: 0 0 6px;
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.login-sub {
+  margin: 0 0 22px;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.login-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--paper);
+  margin-bottom: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.login-input:focus { border-color: var(--tree); }
+
+.login-btn {
+  width: 100%;
+  padding: 11px;
+  background: var(--tree);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.login-btn:hover { opacity: 0.88; }
+.login-error { color: #c0392b; font-size: 0.82rem; margin-top: 8px; }
+
+/* --- Admin app shell --- */
+
+.admin-app {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: #24382f;
+  color: #fff;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.admin-topbar-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: rgba(255,255,255,0.9);
+  margin-right: auto;
+}
+
+.admin-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.admin-btn:hover { background: rgba(255,255,255,0.2); }
+.admin-btn.active { background: rgba(255,255,255,0.28); border-color: rgba(255,255,255,0.5); }
+
+.admin-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* --- Sidebar --- */
+
+.admin-sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  background: #1e2d27;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.admin-sidebar-title {
+  padding: 12px 14px 8px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.45);
+}
+
+.admin-user-list {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.admin-user-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  transition: background 0.12s;
+}
+
+.admin-user-item:hover { background: rgba(255,255,255,0.07); }
+.admin-user-item.selected { background: rgba(255,255,255,0.12); }
+
+.admin-user-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.admin-user-label {
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.75);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-user-meta {
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.4);
+  white-space: nowrap;
+}
+
+/* --- Map area --- */
+
+.admin-map-area {
+  flex: 1;
+  position: relative;
+  background: #1a2420;
+  overflow: hidden;
+}
+
+#adminCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.admin-stats {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.6;
+  pointer-events: none;
+}
+
+.admin-stats strong { color: #fff; }
+
+.admin-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.88rem;
+  color: rgba(255,255,255,0.35);
+}
+
+.admin-legend {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(0,0,0,0.55);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.75);
+  line-height: 1.8;
+}
+
+.admin-legend-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+}

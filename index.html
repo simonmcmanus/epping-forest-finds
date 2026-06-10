@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="css/inspector.css">
   <link rel="stylesheet" href="css/map-ui.css">
   <link rel="stylesheet" href="css/onboarding.css">
+  <link rel="stylesheet" href="css/tracking.css">
 </head>
 <body>
   <div class="app">
@@ -73,6 +74,27 @@
           <h2 class="location-gate-title">You're not near the forest yet</h2>
           <p id="distanceWarningMessage" class="location-gate-text">You're more than 15 minutes' walk from Epping Forest. The map is fully loaded and ready to explore — all features will kick in when you visit.</p>
           <button id="distanceWarningButton" class="button" type="button">Explore the map</button>
+        </div>
+      </div>
+
+      <div id="trackingConsentModal" class="tracking-consent-overlay" hidden>
+        <div class="tracking-consent-card">
+          <h2 class="tracking-consent-title">Privacy &amp; Location Data</h2>
+          <div class="tracking-consent-body">
+            <p>To enable your location we need your consent to collect anonymous usage data that helps improve the app:</p>
+            <ul>
+              <li><strong>GPS position</strong> — updated roughly once per minute while the app is open</li>
+              <li><strong>Direction &amp; navigation</strong> — which features you navigate toward</li>
+              <li><strong>Interactions</strong> — which trees, paths, and places you tap on</li>
+            </ul>
+            <p>You are identified only by a random anonymous ID — no name, email, or account is required. Your data will never be sold individually.</p>
+            <p>Anonymised data may be used in the future to show relevant suggestions or advertising. You can withdraw consent at any time via <em>Settings → Privacy</em>.</p>
+            <p><a href="/terms.html" target="_blank" rel="noopener">Read full Privacy Policy &amp; Terms</a></p>
+          </div>
+          <div class="tracking-consent-actions">
+            <button class="button tc-accept" type="button">I agree &amp; enable location</button>
+            <button class="onboarding-skip-btn tc-decline" type="button">No thanks, skip location</button>
+          </div>
         </div>
       </div>
 
@@ -154,6 +176,7 @@
 
   <script src="js/categories.js"></script>
   <script src="js/normalize.js"></script>
+  <script src="js/tracker.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/loader.js"></script>
   <script src="js/renderer.js"></script>
@@ -347,6 +370,7 @@
     boot();
 
     async function boot() {
+      initTracker();
       setupPwa();
       setupUiZoomLock();
       setupInteractions();
@@ -2264,6 +2288,7 @@
 
     function ensureLocationWatch() {
       if (!navigator.geolocation || state.locationWatchId != null) return;
+      startLocationTracking();
       state.locationWatchId = navigator.geolocation.watchPosition(
         (position) => {
           const { latitude, longitude, accuracy } = position.coords;

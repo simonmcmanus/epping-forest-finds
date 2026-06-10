@@ -105,7 +105,11 @@ function showOnboarding() {
       actionsEl.querySelector(".ob-next")?.addEventListener("click", goNext);
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
       actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish(false));
-      actionsEl.querySelector(".ob-location")?.addEventListener("click", () => finish(true));
+      actionsEl.querySelector(".ob-location")?.addEventListener("click", async () => {
+        if (hasTrackingConsent()) { finish(true); return; }
+        const consented = await showTrackingConsent();
+        finish(consented);
+      });
       actionsEl.querySelector(".ob-location-skip")?.addEventListener("click", () => finish(false));
     }
 

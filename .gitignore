@@ -1,5 +1,6 @@
 .DS_Store
 node_modules/
+.env
 .netlify/
 npm-debug.log*
 .cloudflared-tunnel.log
@@ -13,6 +14,7 @@ data/local-landmarks-access.geojson
 data/*.backup
 data/epping_forest_folklore_locations_v*.json
 tracking/
+data/tracking/
 
 # Large intermediate/source data files (too big for GitHub)
 data/local-environment.overpass.json

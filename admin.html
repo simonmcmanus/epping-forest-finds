@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin — Epping Forest Finds</title>
+  <link rel="icon" href="data/icons/trees/logo.png" type="image/png">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+  <!-- Login screen -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <h1 class="login-title">Admin Access</h1>
+      <p class="login-sub">Epping Forest Finds — usage analytics</p>
+      <form id="loginForm" onsubmit="return false">
+        <input id="loginPassword" class="login-input" type="password" placeholder="Admin password" autocomplete="current-password">
+        <button id="loginBtn" class="login-btn" type="submit">Sign in</button>
+      </form>
+      <p id="loginError" class="login-error"></p>
+    </div>
+  </div>
+
+  <!-- Admin app (hidden until authenticated) -->
+  <div id="adminApp" class="admin-app" hidden>
+
+    <header class="admin-topbar">
+      <span class="admin-topbar-title">Epping Forest Finds — User Analytics</span>
+      <button id="tracksBtn" class="admin-btn active" type="button">Tracks</button>
+      <button id="heatmapBtn" class="admin-btn" type="button">Heatmap</button>
+      <button id="refreshBtn" class="admin-btn" type="button">Refresh</button>
+    </header>
+
+    <div class="admin-body">
+      <aside class="admin-sidebar">
+        <div class="admin-sidebar-title">Users</div>
+        <div id="adminUserList" class="admin-user-list"></div>
+      </aside>
+
+      <div class="admin-map-area">
+        <canvas id="adminCanvas"></canvas>
+
+        <div class="admin-legend">
+          <div><span class="admin-legend-dot" style="background:#4fc97e"></span>Location ping</div>
+          <div><span class="admin-legend-dot" style="background:rgba(255,200,50,0.8)"></span>Tap / click</div>
+          <div><span class="admin-legend-dot" style="background:rgba(47,111,78,0.4)"></span>Forest area</div>
+        </div>
+
+        <div id="adminStats" class="admin-stats"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/admin.js"></script>
+</body>
+</html>
