@@ -27,16 +27,27 @@ async function loadMapData() {
   setLoadStep("environment", "loading");
   setLoadStep("forest", "loading");
 
-  const loadTreeDataset = async (url) => {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Tree data HTTP ${response.status}`);
-    const data = await response.json();
-    if (!data || !Array.isArray(data.trees)) throw new Error("Tree data format invalid");
-    return data;
+  const loadTreeDataset = async (url, timeoutMs = 20000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) throw new Error(`Tree data HTTP ${response.status}`);
+      const data = await response.json();
+      if (!data || !Array.isArray(data.trees)) throw new Error("Tree data format invalid");
+      return data;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   };
 
-  const treePromise = loadTreeDataset(TREE_ENRICHED_URL)
-    .catch(() => loadTreeDataset(TREE_URL))
+  // Try enriched (24 MB) with a tight timeout — on mobile a stalled download should
+  // fail fast so we can fall through to the smaller base file sooner.
+  // The base file (15 MB) gets two attempts: one immediate and one retry after a
+  // short pause, covering brief signal drops that recover quickly.
+  const treePromise = loadTreeDataset(TREE_ENRICHED_URL, 15000)
+    .catch(() => loadTreeDataset(TREE_URL, 20000))
+    .catch(() => new Promise((resolve) => setTimeout(resolve, 1500)).then(() => loadTreeDataset(TREE_URL, 20000)))
     .then((data) => {
       setLoadStep("trees", "done", data.trees.length);
       return data;
