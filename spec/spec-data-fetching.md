@@ -31,8 +31,10 @@ Data fetching is **not** responsible for:
 
 | Dataset | URL(s) | Format |
 |---------|--------|--------|
-| Trees (enriched) | `Veteran_Tree_Register.enriched.with_named_trees.json` | Custom JSON |
-| Trees (fallback) | `Veteran_Tree_Register.json` | Custom JSON |
+| Trees (chunk index) | `data/trees/index.json` | Custom JSON |
+| Trees (chunks) | `data/trees/chunk-*.json` | Custom JSON |
+| Trees (full fallback) | `Veteran_Tree_Register.json` | Custom JSON |
+| Trees (legacy enriched fallback) | `Veteran_Tree_Register.enriched.with_named_trees.json` | Custom JSON |
 | Landmarks – food | `data/local-landmarks-food.geojson` | GeoJSON |
 | Landmarks – transport | `data/local-landmarks-transport.geojson` | GeoJSON |
 | Landmarks – gates | `data/local-landmarks-gates.geojson` | GeoJSON |
@@ -69,15 +71,15 @@ Each step transitions through states: `pending` → `loading` → `done` | `erro
 
 ### Fallback Strategy
 
-- **Trees:** On mobile/touch devices and constrained connections, try the smaller base URL first with longer timeouts and one retry, then try the enriched URL. On other devices, try enriched first, then fall back to base with the same retry.
+- **Trees:** Try `data/trees/index.json` first, then load all listed chunk files with a concurrency limit of 6 and one retry per failed chunk. If chunk loading fails, fall back to the full register. On mobile/touch devices and constrained connections, full-file fallback tries the smaller base URL before the legacy enriched URL; other devices try the legacy enriched URL after the base retry.
 - **Landmarks:** Each category file fetches independently; failed files return empty features.
 - **Roads:** Race against an 8-second timeout to prevent indefinite hang.
 - **Cows:** On localhost, use cached localStorage data; otherwise fetch with 7-second timeout.
 
 ### Service Worker Caching
 
-- The service worker pre-caches the app shell and smaller static datasets during install.
-- The large veteran tree JSON files are not install pre-cache entries; they are cached opportunistically by the runtime fetch handler after the page successfully downloads them. This avoids duplicate first-load tree downloads on mobile.
+- The service worker pre-caches the app shell, smaller static datasets, and `data/trees/index.json` during install.
+- Tree chunks and large legacy veteran tree JSON files are not install pre-cache entries; they are cached opportunistically by the runtime fetch handler after the page successfully downloads them. This avoids duplicate first-load tree downloads on mobile.
 
 ### Batched Processing
 
@@ -93,7 +95,9 @@ Each step transitions through states: `pending` → `loading` → `done` | `erro
 
 ### Trees
 
-Source: `{ trees: [...], historicalNamedTreeEnrichment: {...} }`
+Primary source: `data/trees/index.json` with `chunks: [{ url, count, bounds }]`, then each chunk file as `{ trees: [...] }`.
+
+Fallback source: `{ trees: [...], historicalNamedTreeEnrichment: {...} }`
 
 Each tree record is kept as-is from source, with added computed fields:
 

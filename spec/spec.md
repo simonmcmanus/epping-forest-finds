@@ -28,8 +28,9 @@ Provide a fast, mobile-first field map that still works in poor signal condition
 
 ### Local offline files
 
-- `Veteran_Tree_Register.enriched.with_named_trees.json` (preferred)
-- `Veteran_Tree_Register.json` (fallback)
+- `data/trees/index.json` and `data/trees/chunk-*.json` (preferred chunked veteran tree register)
+- `Veteran_Tree_Register.json` (full-file fallback)
+- `Veteran_Tree_Register.enriched.with_named_trees.json` (legacy enriched fallback)
 - `data/epping-forest-land.geojson`
 - `data/epping-buffer-land.geojson`
 - **Landmarks (split into category files for GitHub size limits):**
@@ -136,7 +137,7 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
 **Performance optimizations:**
 - Roads data is filtered and processed in batches to prevent browser freezing
 - Loading has timeout protection (8 seconds for roads)
-- Mobile and constrained connections load the smaller tree register before the enriched tree file and cache tree JSON at runtime after a successful page fetch
+- Tree records load from small geographic chunks first, with full-file register fallback; chunks and legacy tree JSON are cached at runtime after successful page fetches
 - Large datasets are processed incrementally with browser yield points
 
 ## Map Layers and Markers

@@ -1,4 +1,4 @@
-const CACHE_NAME = "veteran-tree-finder-v98";
+const CACHE_NAME = "veteran-tree-finder-v99";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -11,6 +11,7 @@ const APP_SHELL = [
   "./css/map-ui.css",
   "./js/categories.js",
   "./js/normalize.js",
+  "./data/trees/index.json",
   "./data/epping-forest-land.geojson",
   "./data/epping-buffer-land.geojson",
   "./data/local-landmarks-food.geojson",

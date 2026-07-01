@@ -4,6 +4,11 @@ This folder stores local GeoJSON files used by the PWA when offline.
 
 ## Sources
 
+- `trees/index.json` and `trees/chunk-*.json`
+  - Source: generated from `Veteran_Tree_Register.json`.
+  - Script: `npm run split:trees`.
+  - Contents: the veteran tree register split into 0.01-degree geographic chunks for mobile-friendly loading and runtime caching.
+
 - `epping-forest-land.geojson`
   - Source layer: City of London ArcGIS REST, `INSPIRE/MapServer/143`
   - Layer name: `Epping Forest - Forest Land`

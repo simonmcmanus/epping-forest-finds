@@ -11,6 +11,7 @@
     "regen:paths": "python3 scripts/regenerate_local_paths.py",
     "regen:paths:js": "node scripts/regenerate-local-paths.js",
     "regen:environment": "python3 scripts/regenerate_local_environment.py",
+    "split:trees": "node scripts/split-veteran-trees.js",
     "netlify:dev": "npx netlify dev",
     "build": "echo \"Static site: no build step required\"",
     "test": "node test/forest-finds.test.js"

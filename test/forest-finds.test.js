@@ -276,18 +276,33 @@ test("nav controls use generated image assets instead of text glyphs", () => {
   assert.match(html, /id="settingsToggle"[\s\S]*data\/icons\/settings\.png/);
 });
 
-test("mobile loading prioritises the smaller veteran tree register", () => {
+test("tree loading uses chunked register before full-file fallbacks", () => {
   const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
 
-  assert.match(loader, /preferBaseTreeFile\s*=\s*mobileLike\s*\|\|\s*constrainedConnection/);
-  assert.match(loader, /preferBaseTreeFile[\s\S]*\{\s*url:\s*TREE_URL,\s*timeoutMs:\s*90000\s*\}[\s\S]*\{\s*url:\s*TREE_URL,\s*timeoutMs:\s*120000,\s*delayMs:\s*2000\s*\}[\s\S]*\{\s*url:\s*TREE_ENRICHED_URL,\s*timeoutMs:\s*90000\s*\}/);
+  assert.match(loader, /loadTreeChunks\(TREE_CHUNK_INDEX_URL\)/);
+  assert.match(loader, /const treeAttempts = \[[\s\S]*loadTreeChunks\(TREE_CHUNK_INDEX_URL\)[\s\S]*\.\.\.fullFileAttempts/);
+  assert.match(loader, /const maxConcurrent = Math\.min\(6, chunks\.length\)/);
 });
 
-test("service worker install does not pre-cache huge veteran tree files", () => {
+test("generated tree chunks cover the full veteran tree register", () => {
+  const source = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "Veteran_Tree_Register.json"), "utf8"));
+  const index = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "trees", "index.json"), "utf8"));
+
+  assert.equal(index.recordCount, source.trees.length);
+  assert.equal(index.chunks.reduce((sum, chunk) => sum + chunk.count, 0), source.trees.length);
+  assert.ok(index.chunks.length > 1, "tree data should be split across multiple chunks");
+  for (const chunk of index.chunks) {
+    assert.ok(fs.existsSync(path.join(__dirname, "..", chunk.url)), `${chunk.url} should exist`);
+  }
+});
+
+test("service worker install pre-caches only the small tree chunk index", () => {
   const serviceWorker = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   const shellMatch = serviceWorker.match(/const APP_SHELL = \[([\s\S]*?)\];/);
 
   assert.ok(shellMatch, "APP_SHELL cache list exists");
+  assert.ok(shellMatch[1].includes("data/trees/index.json"), "tree chunk index should be pre-cached");
+  assert.ok(!shellMatch[1].includes("data/trees/chunk-"), "tree chunks should be runtime cached after the page fetch");
   assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.json"), "base tree register should be runtime cached after the page fetch");
   assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.enriched.with_named_trees.json"), "enriched tree register should be runtime cached after the page fetch");
 });

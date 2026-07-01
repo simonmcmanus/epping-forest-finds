@@ -27,25 +27,75 @@ async function loadMapData() {
   setLoadStep("environment", "loading");
   setLoadStep("forest", "loading");
 
-  const loadTreeDataset = async (url, timeoutMs = 60000) => {
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const loadJson = async (url, timeoutMs = 60000) => {
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
       const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
-      if (!response.ok) throw new Error(`Tree data HTTP ${response.status}`);
-      const data = await response.json();
-      if (!data || !Array.isArray(data.trees)) throw new Error("Tree data format invalid");
-      return data;
+      if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+      return response.json();
     } finally {
       if (timeoutId != null) clearTimeout(timeoutId);
     }
+  };
+
+  const loadTreeDataset = async (url, timeoutMs = 60000) => {
+    const data = await loadJson(url, timeoutMs);
+    if (!data || !Array.isArray(data.trees)) throw new Error("Tree data format invalid");
+    return data;
+  };
+
+  const loadTreeChunks = async (indexUrl, timeoutMs = 20000) => {
+    const index = await loadJson(indexUrl, timeoutMs);
+    const chunks = Array.isArray(index && index.chunks) ? index.chunks : [];
+    if (chunks.length === 0) throw new Error("Tree chunk index empty");
+
+    const results = new Array(chunks.length);
+    const maxConcurrent = Math.min(6, chunks.length);
+    let nextIndex = 0;
+    let loadedCount = 0;
+
+    const loadChunk = async (chunk) => {
+      const data = await loadJson(chunk.url, 30000);
+      if (!data || !Array.isArray(data.trees)) throw new Error(`Tree chunk invalid: ${chunk.url}`);
+      return data.trees;
+    };
+
+    const worker = async () => {
+      while (nextIndex < chunks.length) {
+        const chunkIndex = nextIndex;
+        nextIndex += 1;
+        const chunk = chunks[chunkIndex];
+        const trees = await loadChunk(chunk).catch(() => delay(1000).then(() => loadChunk(chunk)));
+        results[chunkIndex] = trees;
+        loadedCount += trees.length;
+        setLoadStep("trees", "loading", loadedCount);
+        await delay(0);
+      }
+    };
+
+    await Promise.all(Array.from({ length: maxConcurrent }, worker));
+
+    return {
+      dataset: index.dataset,
+      sourceFiles: index.sourceFiles,
+      generatedAt: index.generatedAt,
+      recordCount: index.recordCount,
+      encoding: index.encoding,
+      coordinateReferenceSystem: index.coordinateReferenceSystem,
+      fields: index.fields,
+      historicalNamedTreeEnrichment: index.historicalNamedTreeEnrichment || null,
+      trees: results.flat(),
+    };
   };
 
   const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   const mobileLike = navigator.maxTouchPoints > 0 && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
   const constrainedConnection = connection && (connection.saveData || /(^|-)2g$|3g/.test(connection.effectiveType || ""));
   const preferBaseTreeFile = mobileLike || constrainedConnection;
-  const treeAttempts = preferBaseTreeFile
+  const fullFileAttempts = preferBaseTreeFile
     ? [
         { url: TREE_URL, timeoutMs: 90000 },
         { url: TREE_URL, timeoutMs: 120000, delayMs: 2000 },
@@ -56,10 +106,16 @@ async function loadMapData() {
         { url: TREE_URL, timeoutMs: 90000 },
         { url: TREE_URL, timeoutMs: 120000, delayMs: 2000 },
       ];
+  const treeAttempts = [
+    { load: () => loadTreeChunks(TREE_CHUNK_INDEX_URL), delayMs: 0 },
+    ...fullFileAttempts.map((attempt) => ({
+      delayMs: attempt.delayMs || 0,
+      load: () => loadTreeDataset(attempt.url, attempt.timeoutMs),
+    })),
+  ];
 
   const treePromise = treeAttempts.reduce((promise, attempt) => {
-    return promise.catch(() => new Promise((resolve) => setTimeout(resolve, attempt.delayMs || 0))
-      .then(() => loadTreeDataset(attempt.url, attempt.timeoutMs)));
+    return promise.catch(() => delay(attempt.delayMs || 0).then(() => attempt.load()));
   }, Promise.reject())
     .then((data) => {
       setLoadStep("trees", "done", data.trees.length);
