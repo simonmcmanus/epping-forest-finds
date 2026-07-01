@@ -27,27 +27,40 @@ async function loadMapData() {
   setLoadStep("environment", "loading");
   setLoadStep("forest", "loading");
 
-  const loadTreeDataset = async (url, timeoutMs = 20000) => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const loadTreeDataset = async (url, timeoutMs = 60000) => {
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
-      const response = await fetch(url, { signal: controller.signal });
+      const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
       if (!response.ok) throw new Error(`Tree data HTTP ${response.status}`);
       const data = await response.json();
       if (!data || !Array.isArray(data.trees)) throw new Error("Tree data format invalid");
       return data;
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId != null) clearTimeout(timeoutId);
     }
   };
 
-  // Try enriched (24 MB) with a tight timeout — on mobile a stalled download should
-  // fail fast so we can fall through to the smaller base file sooner.
-  // The base file (15 MB) gets two attempts: one immediate and one retry after a
-  // short pause, covering brief signal drops that recover quickly.
-  const treePromise = loadTreeDataset(TREE_ENRICHED_URL, 15000)
-    .catch(() => loadTreeDataset(TREE_URL, 20000))
-    .catch(() => new Promise((resolve) => setTimeout(resolve, 1500)).then(() => loadTreeDataset(TREE_URL, 20000)))
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const mobileLike = navigator.maxTouchPoints > 0 && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+  const constrainedConnection = connection && (connection.saveData || /(^|-)2g$|3g/.test(connection.effectiveType || ""));
+  const preferBaseTreeFile = mobileLike || constrainedConnection;
+  const treeAttempts = preferBaseTreeFile
+    ? [
+        { url: TREE_URL, timeoutMs: 90000 },
+        { url: TREE_URL, timeoutMs: 120000, delayMs: 2000 },
+        { url: TREE_ENRICHED_URL, timeoutMs: 90000 },
+      ]
+    : [
+        { url: TREE_ENRICHED_URL, timeoutMs: 60000 },
+        { url: TREE_URL, timeoutMs: 90000 },
+        { url: TREE_URL, timeoutMs: 120000, delayMs: 2000 },
+      ];
+
+  const treePromise = treeAttempts.reduce((promise, attempt) => {
+    return promise.catch(() => new Promise((resolve) => setTimeout(resolve, attempt.delayMs || 0))
+      .then(() => loadTreeDataset(attempt.url, attempt.timeoutMs)));
+  }, Promise.reject())
     .then((data) => {
       setLoadStep("trees", "done", data.trees.length);
       return data;

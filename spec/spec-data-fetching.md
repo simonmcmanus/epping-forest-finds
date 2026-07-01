@@ -69,10 +69,15 @@ Each step transitions through states: `pending` → `loading` → `done` | `erro
 
 ### Fallback Strategy
 
-- **Trees:** Try enriched URL first; fall back to base URL on failure.
+- **Trees:** On mobile/touch devices and constrained connections, try the smaller base URL first with longer timeouts and one retry, then try the enriched URL. On other devices, try enriched first, then fall back to base with the same retry.
 - **Landmarks:** Each category file fetches independently; failed files return empty features.
 - **Roads:** Race against an 8-second timeout to prevent indefinite hang.
 - **Cows:** On localhost, use cached localStorage data; otherwise fetch with 7-second timeout.
+
+### Service Worker Caching
+
+- The service worker pre-caches the app shell and smaller static datasets during install.
+- The large veteran tree JSON files are not install pre-cache entries; they are cached opportunistically by the runtime fetch handler after the page successfully downloads them. This avoids duplicate first-load tree downloads on mobile.
 
 ### Batched Processing
 

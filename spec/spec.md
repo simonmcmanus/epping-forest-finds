@@ -136,6 +136,7 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
 **Performance optimizations:**
 - Roads data is filtered and processed in batches to prevent browser freezing
 - Loading has timeout protection (8 seconds for roads)
+- Mobile and constrained connections load the smaller tree register before the enriched tree file and cache tree JSON at runtime after a successful page fetch
 - Large datasets are processed incrementally with browser yield points
 
 ## Map Layers and Markers

@@ -276,6 +276,22 @@ test("nav controls use generated image assets instead of text glyphs", () => {
   assert.match(html, /id="settingsToggle"[\s\S]*data\/icons\/settings\.png/);
 });
 
+test("mobile loading prioritises the smaller veteran tree register", () => {
+  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
+
+  assert.match(loader, /preferBaseTreeFile\s*=\s*mobileLike\s*\|\|\s*constrainedConnection/);
+  assert.match(loader, /preferBaseTreeFile[\s\S]*\{\s*url:\s*TREE_URL,\s*timeoutMs:\s*90000\s*\}[\s\S]*\{\s*url:\s*TREE_URL,\s*timeoutMs:\s*120000,\s*delayMs:\s*2000\s*\}[\s\S]*\{\s*url:\s*TREE_ENRICHED_URL,\s*timeoutMs:\s*90000\s*\}/);
+});
+
+test("service worker install does not pre-cache huge veteran tree files", () => {
+  const serviceWorker = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
+  const shellMatch = serviceWorker.match(/const APP_SHELL = \[([\s\S]*?)\];/);
+
+  assert.ok(shellMatch, "APP_SHELL cache list exists");
+  assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.json"), "base tree register should be runtime cached after the page fetch");
+  assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.enriched.with_named_trees.json"), "enriched tree register should be runtime cached after the page fetch");
+});
+
 test("generated UI icon classes render at the enlarged sizes", () => {
   const baseCss = fs.readFileSync(path.join(__dirname, "..", "css", "base.css"), "utf8");
   const inspectorCss = fs.readFileSync(path.join(__dirname, "..", "css", "inspector.css"), "utf8");
