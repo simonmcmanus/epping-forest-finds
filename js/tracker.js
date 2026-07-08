@@ -33,6 +33,11 @@ function hasTrackingConsent() {
   }
 }
 
+async function ensureTrackingConsent() {
+  if (hasTrackingConsent()) return true;
+  return showTrackingConsent();
+}
+
 function setTrackingConsent(value) {
   try {
     if (value) {

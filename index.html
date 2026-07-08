@@ -383,7 +383,7 @@
       if (navigator.permissions && navigator.geolocation) {
         try {
           const permStatus = await navigator.permissions.query({ name: "geolocation" });
-          locationPregranted = permStatus.state === "granted";
+          locationPregranted = permStatus.state === "granted" && hasTrackingConsent();
         } catch (_) {}
       }
 

@@ -94,17 +94,15 @@ function setupInspectorHandlers() {
     setInspectorMinimized(false);
   });
 
-  els.locateButton.addEventListener("click", () => {
+  els.locateButton.addEventListener("click", async () => {
+    if (!(await ensureTrackingConsent())) return;
     locateUser({ initial: false });
   });
 
   if (els.locationGateButton) {
     els.locationGateButton.addEventListener("click", async () => {
       if (!state.userLocation) {
-        if (!hasTrackingConsent()) {
-          const consented = await showTrackingConsent();
-          if (!consented) return;
-        }
+        if (!(await ensureTrackingConsent())) return;
         locateUser({ initial: false });
       } else {
         await requestCompassPermissionIfNeeded({ fromGesture: true });
