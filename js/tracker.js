@@ -92,19 +92,32 @@ function trackerEnqueueEvent(event) {
 }
 
 let _trackerFlushing = false;
+let _trackerFlushPending = false;
 
 async function trackerFlushQueue() {
-  if (_trackerFlushing || !navigator.onLine) return;
+  if (!navigator.onLine) return;
+  if (_trackerFlushing) {
+    _trackerFlushPending = true;
+    return;
+  }
   _trackerFlushing = true;
+  _trackerFlushPending = false;
   let queue;
+  const finishFlush = () => {
+    _trackerFlushing = false;
+    if (_trackerFlushPending) {
+      _trackerFlushPending = false;
+      setTimeout(trackerFlushQueue, 0);
+    }
+  };
   try {
     const raw = localStorage.getItem(TRACKER_QUEUE_KEY);
-    if (!raw) { _trackerFlushing = false; return; }
+    if (!raw) { finishFlush(); return; }
     queue = JSON.parse(raw);
-    if (!queue || queue.length === 0) { _trackerFlushing = false; return; }
+    if (!queue || queue.length === 0) { finishFlush(); return; }
     localStorage.removeItem(TRACKER_QUEUE_KEY);
   } catch {
-    _trackerFlushing = false;
+    finishFlush();
     return;
   }
 
@@ -119,7 +132,7 @@ async function trackerFlushQueue() {
   } catch {
     queue.forEach(trackerEnqueueEvent);
   }
-  _trackerFlushing = false;
+  finishFlush();
 }
 
 function trackerSendEvent(event) {
@@ -133,10 +146,13 @@ function trackerSendEvent(event) {
 function _getNavTarget() {
   if (typeof state === "undefined" || !state.selected?.item) return null;
   const item = state.selected.item;
+  const target = trackerItemLatLng(item);
   return {
-    id: item.tagNumber || item.id || item.osmId || null,
-    name: item.commonName || item.name || null,
+    id: trackerItemId(item),
+    name: trackerItemName(item),
     type: state.selected.type || null,
+    targetLat: target ? target.lat : null,
+    targetLng: target ? target.lng : null,
   };
 }
 

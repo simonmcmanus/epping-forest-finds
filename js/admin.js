@@ -776,13 +776,16 @@ function filteredLocations() {
 }
 
 function filteredClicks() {
-  const clicks = allData.clicks;
+  const clicks = adminClickEvents();
   if (!selectedUid) return clicks;
   return clicks.filter((e) => e.uid === selectedUid);
 }
 
 let _locationsByUidCacheSource = null;
 let _locationsByUidCache = null;
+let _adminClickEventsCacheSource = null;
+let _adminClickEventsCacheLocations = null;
+let _adminClickEventsCache = null;
 
 function eventTimeMs(event) {
   const time = Date.parse(event && event.ts);
@@ -847,6 +850,74 @@ function clickLatLng(event) {
   return latLngFromKeys(event, ["targetLat", "itemLat", "lat"], ["targetLng", "itemLng", "lng"])
     || latLngFromKeys(event, ["userLat"], ["userLng"])
     || nearestLocationForClick(event);
+}
+
+function targetKey(target) {
+  if (!target || typeof target !== "object") return "";
+  return `${target.type || ""}:${target.id || target.name || ""}`;
+}
+
+function explicitClickMatchesTarget(clicks, location, target) {
+  const key = targetKey(target);
+  if (!key) return false;
+  const locationTime = eventTimeMs(location);
+  return clicks.some((click) => {
+    if (!click || click.uid !== location.uid) return false;
+    const clickKey = `${click.itemType || ""}:${click.itemId || click.itemName || ""}`;
+    if (clickKey !== key) return false;
+    const clickTime = eventTimeMs(click);
+    return locationTime == null || clickTime == null || Math.abs(clickTime - locationTime) <= 2 * 60 * 1000;
+  });
+}
+
+function navTargetClickEvents() {
+  const clicks = Array.isArray(allData.clicks) ? allData.clicks : [];
+  const derived = [];
+
+  for (const [uid, events] of locationsByUid()) {
+    let previousTargetKey = "";
+    for (const event of events) {
+      const target = event && event.navTarget;
+      const key = targetKey(target);
+      const targetLatLng = latLngFromKeys(target, ["targetLat", "lat"], ["targetLng", "lng"]);
+      if (!key || !targetLatLng || key === previousTargetKey) continue;
+      previousTargetKey = key;
+      if (explicitClickMatchesTarget(clicks, event, target)) continue;
+
+      derived.push({
+        type: "click",
+        uid,
+        ts: event.ts,
+        userLat: event.lat,
+        userLng: event.lng,
+        targetLat: targetLatLng.lat,
+        targetLng: targetLatLng.lng,
+        itemType: target.type || null,
+        itemId: target.id || null,
+        itemName: target.name || null,
+        source: "navigation",
+        derived: true,
+      });
+    }
+  }
+
+  return derived;
+}
+
+function adminClickEvents() {
+  if (
+    _adminClickEventsCacheSource === allData.clicks
+    && _adminClickEventsCacheLocations === allData.locations
+    && _adminClickEventsCache
+  ) {
+    return _adminClickEventsCache;
+  }
+
+  const explicit = Array.isArray(allData.clicks) ? allData.clicks : [];
+  _adminClickEventsCacheSource = allData.clicks;
+  _adminClickEventsCacheLocations = allData.locations;
+  _adminClickEventsCache = explicit.concat(navTargetClickEvents());
+  return _adminClickEventsCache;
 }
 
 function drawTracks(ctx, w, h) {
@@ -999,7 +1070,7 @@ function buildUserList() {
     u.count++;
     if (e.ts > u.last) u.last = e.ts;
   }
-  for (const e of allData.clicks) {
+  for (const e of adminClickEvents()) {
     if (!byUser.has(e.uid)) byUser.set(e.uid, { count: 0, clicks: 0, last: e.ts });
     const u = byUser.get(e.uid);
     u.clicks++;
