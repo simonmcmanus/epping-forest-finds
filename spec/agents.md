@@ -7,8 +7,17 @@ Update the relevant spec file(s) with every code change that adds, removes, or a
 - `spec/spec-data-fetching.md` — loading, normalisation, AppData interface
 - `spec/spec-data-rendering.md` — drawing, interaction, inspector, UI state
 - `spec/spec-admin.md` — admin dashboard, tracking data API, Netlify routing
+- `spec/spec-icons.md` — icon registry, icon rendering, generated icon asset requirements
+- `spec/glossary.md` — product terminology
 
 Update the affected section only; do not pad.
+
+Do not consider a behaviour change complete until the matching spec update is included in the same change set. If no spec update is needed, state the reason in the final response.
+
+Before finishing any implementation task:
+- Check `git diff --name-only`.
+- Map changed files to the relevant `spec/` document.
+- Update the spec or explicitly document why the change is implementation-only.
 
 ## Project Structure
 - `index.html` — boot and wiring only; no logic beyond this
