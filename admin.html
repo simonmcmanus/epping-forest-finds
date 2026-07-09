@@ -30,6 +30,7 @@
       <button id="tracksBtn" class="admin-btn active" type="button">Tracks</button>
       <button id="heatmapBtn" class="admin-btn" type="button">Heatmap</button>
       <button id="refreshBtn" class="admin-btn" type="button">Refresh</button>
+      <button id="logoutBtn" class="admin-btn" type="button">Log out</button>
     </header>
 
     <div class="admin-body">
@@ -40,6 +41,12 @@
 
       <div class="admin-map-area">
         <canvas id="adminCanvas"></canvas>
+
+        <div class="admin-map-controls" aria-label="Map controls">
+          <button id="zoomInBtn" class="admin-map-control" type="button" aria-label="Zoom in">+</button>
+          <button id="zoomOutBtn" class="admin-map-control" type="button" aria-label="Zoom out">-</button>
+          <button id="resetMapBtn" class="admin-map-control reset" type="button">Reset</button>
+        </div>
 
         <div class="admin-legend">
           <div><span class="admin-legend-dot" style="background:#4fc97e"></span>Location ping</div>

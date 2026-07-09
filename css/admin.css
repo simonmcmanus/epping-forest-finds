@@ -211,6 +211,47 @@ html, body {
   inset: 0;
   width: 100%;
   height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+#adminCanvas.dragging {
+  cursor: grabbing;
+}
+
+.admin-map-controls {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+  background: rgba(0,0,0,0.48);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 6px;
+  backdrop-filter: blur(6px);
+}
+
+.admin-map-control {
+  min-width: 30px;
+  height: 30px;
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-map-control:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+.admin-map-control.reset {
+  min-width: 54px;
+  font-size: 0.72rem;
 }
 
 .admin-stats {

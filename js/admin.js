@@ -10,6 +10,11 @@ const ADMIN_MAP_URLS = {
   roads: "data/local-roads.geojson",
   paths: "data/local-paths.geojson",
 };
+const ADMIN_SESSION_KEY = "ff-admin-session-password";
+const BASE_MAP_OPACITY = 0.42;
+const MIN_MAP_ZOOM = 0.85;
+const MAX_MAP_ZOOM = 14;
+const MAP_ZOOM_STEP = 1.35;
 
 // Colour palette for distinguishing users (cycles)
 const USER_COLOURS = [
@@ -22,6 +27,18 @@ const USER_COLOURS = [
 
 let _fallbackBoundsCache = null;
 let _mapFitCache = null;
+
+let adminViewport = {
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+  dragging: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  startPanX: 0,
+  startPanY: 0,
+};
 
 function projectLonLat(longitude, latitude) {
   const clamped = Math.min(85, Math.max(-85, latitude));
@@ -58,6 +75,9 @@ function mapFit(canvasW, canvasH) {
     && _mapFitCache.canvasW === canvasW
     && _mapFitCache.canvasH === canvasH
     && _mapFitCache.bounds === bounds
+    && _mapFitCache.zoom === adminViewport.zoom
+    && _mapFitCache.panX === adminViewport.panX
+    && _mapFitCache.panY === adminViewport.panY
   ) {
     return _mapFitCache.fit;
   }
@@ -65,15 +85,28 @@ function mapFit(canvasW, canvasH) {
   const pad = Math.max(18, Math.min(canvasW, canvasH) * 0.045);
   const rangeX = Math.max(0.000001, bounds.maxX - bounds.minX);
   const rangeY = Math.max(0.000001, bounds.maxY - bounds.minY);
-  const scale = Math.min((canvasW - pad * 2) / rangeX, (canvasH - pad * 2) / rangeY);
-  const contentW = rangeX * scale;
-  const contentH = rangeY * scale;
+  const baseScale = Math.min((canvasW - pad * 2) / rangeX, (canvasH - pad * 2) / rangeY);
+  const contentW = rangeX * baseScale;
+  const contentH = rangeY * baseScale;
+  const baseTx = (canvasW - contentW) / 2 - bounds.minX * baseScale;
+  const baseTy = (canvasH - contentH) / 2 - bounds.minY * baseScale;
+  const centerX = canvasW / 2;
+  const centerY = canvasH / 2;
+  const scale = baseScale * adminViewport.zoom;
   const fit = {
     scale,
-    tx: (canvasW - contentW) / 2 - bounds.minX * scale,
-    ty: (canvasH - contentH) / 2 - bounds.minY * scale,
+    tx: baseTx * adminViewport.zoom + centerX * (1 - adminViewport.zoom) + adminViewport.panX,
+    ty: baseTy * adminViewport.zoom + centerY * (1 - adminViewport.zoom) + adminViewport.panY,
   };
-  _mapFitCache = { canvasW, canvasH, bounds, fit };
+  _mapFitCache = {
+    canvasW,
+    canvasH,
+    bounds,
+    zoom: adminViewport.zoom,
+    panX: adminViewport.panX,
+    panY: adminViewport.panY,
+    fit,
+  };
   return fit;
 }
 
@@ -87,6 +120,22 @@ function worldToCanvas(point, canvasW, canvasH) {
 
 function latLngToCanvas(lat, lng, canvasW, canvasH) {
   return worldToCanvas(projectLonLat(Number(lng), Number(lat)), canvasW, canvasH);
+}
+
+function canvasToWorld(x, y, canvasW, canvasH) {
+  const fit = mapFit(canvasW, canvasH);
+  return {
+    x: (x - fit.tx) / fit.scale,
+    y: (y - fit.ty) / fit.scale,
+  };
+}
+
+function invalidateMapFit() {
+  _mapFitCache = null;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 // ---- User colour assignment ----
@@ -346,8 +395,12 @@ function drawBaseMap(ctx, w, h) {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, w, h);
 
+  ctx.save();
+  ctx.globalAlpha = BASE_MAP_OPACITY;
+
   if (!adminMap.loaded) {
     drawForestOutline(ctx, w, h);
+    ctx.restore();
     if (adminMap.loading) {
       ctx.fillStyle = "rgba(36, 56, 47, 0.78)";
       ctx.font = "600 12px system-ui";
@@ -360,6 +413,7 @@ function drawBaseMap(ctx, w, h) {
   drawAdminEnvironment(ctx, w, h);
   drawAdminRoads(ctx, w, h);
   drawAdminPaths(ctx, w, h);
+  ctx.restore();
 }
 
 function drawAdminLayer(ctx, w, h, layer) {
@@ -577,6 +631,107 @@ function bboxIntersects(a, b) {
   return a && b && a.maxX >= b.minX && a.minX <= b.maxX && a.maxY >= b.minY && a.minY <= b.maxY;
 }
 
+function canvasCssSize(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  return { width: rect.width, height: rect.height, rect };
+}
+
+function setMapZoom(nextZoom, anchor) {
+  const canvas = document.getElementById("adminCanvas");
+  if (!canvas) return;
+  const { width, height } = canvasCssSize(canvas);
+  if (!width || !height) return;
+
+  const targetZoom = clamp(nextZoom, MIN_MAP_ZOOM, MAX_MAP_ZOOM);
+  if (Math.abs(targetZoom - adminViewport.zoom) < 0.001) return;
+
+  const focus = anchor || { x: width / 2, y: height / 2 };
+  const before = canvasToWorld(focus.x, focus.y, width, height);
+
+  adminViewport.zoom = targetZoom;
+  invalidateMapFit();
+
+  const after = worldToCanvas(before, width, height);
+  adminViewport.panX += focus.x - after.x;
+  adminViewport.panY += focus.y - after.y;
+  invalidateMapFit();
+
+  render();
+}
+
+function zoomMapBy(factor, anchor) {
+  setMapZoom(adminViewport.zoom * factor, anchor);
+}
+
+function resetMapView() {
+  adminViewport.zoom = 1;
+  adminViewport.panX = 0;
+  adminViewport.panY = 0;
+  adminViewport.dragging = false;
+  adminViewport.pointerId = null;
+  invalidateMapFit();
+  render();
+}
+
+function eventCanvasPoint(canvas, event) {
+  const { rect } = canvasCssSize(canvas);
+  return {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  };
+}
+
+function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
+  if (!canvas) return;
+
+  if (zoomInBtn) zoomInBtn.addEventListener("click", () => zoomMapBy(MAP_ZOOM_STEP));
+  if (zoomOutBtn) zoomOutBtn.addEventListener("click", () => zoomMapBy(1 / MAP_ZOOM_STEP));
+  if (resetMapBtn) resetMapBtn.addEventListener("click", resetMapView);
+
+  canvas.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const point = eventCanvasPoint(canvas, event);
+    zoomMapBy(event.deltaY < 0 ? MAP_ZOOM_STEP : 1 / MAP_ZOOM_STEP, point);
+  }, { passive: false });
+
+  canvas.addEventListener("pointerdown", (event) => {
+    if (event.button != null && event.button !== 0) return;
+    event.preventDefault();
+    adminViewport.dragging = true;
+    adminViewport.pointerId = event.pointerId;
+    adminViewport.startX = event.clientX;
+    adminViewport.startY = event.clientY;
+    adminViewport.startPanX = adminViewport.panX;
+    adminViewport.startPanY = adminViewport.panY;
+    canvas.classList.add("dragging");
+    if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
+  });
+
+  canvas.addEventListener("pointermove", (event) => {
+    if (!adminViewport.dragging || event.pointerId !== adminViewport.pointerId) return;
+    adminViewport.panX = adminViewport.startPanX + (event.clientX - adminViewport.startX);
+    adminViewport.panY = adminViewport.startPanY + (event.clientY - adminViewport.startY);
+    invalidateMapFit();
+    render();
+  });
+
+  function endDrag(event) {
+    if (!adminViewport.dragging || event.pointerId !== adminViewport.pointerId) return;
+    adminViewport.dragging = false;
+    adminViewport.pointerId = null;
+    canvas.classList.remove("dragging");
+    if (canvas.releasePointerCapture) canvas.releasePointerCapture(event.pointerId);
+  }
+
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
+  canvas.addEventListener("lostpointercapture", () => {
+    adminViewport.dragging = false;
+    adminViewport.pointerId = null;
+    canvas.classList.remove("dragging");
+  });
+}
+
 function filteredLocations() {
   const locs = allData.locations;
   if (!selectedUid) return locs;
@@ -768,15 +923,38 @@ function updateStats() {
 // ---- Data loading ----
 
 async function loadData(password) {
-  const url = `/api/admin/tracks?pw=${encodeURIComponent(password)}`;
+  const url = "/api/admin/tracks";
   console.log("[admin] fetching", url);
   const resp = await fetch(url, { headers: { "Authorization": `Bearer ${password}` } });
   console.log("[admin] response status", resp.status);
   if (resp.status === 401) throw new Error("wrong-password");
   if (!resp.ok) throw new Error(`Server error ${resp.status}`);
   const data = await resp.json();
-  console.log("[admin] data received", data);
+  console.log("[admin] data received", {
+    locations: Array.isArray(data.locations) ? data.locations.length : 0,
+    clicks: Array.isArray(data.clicks) ? data.clicks.length : 0,
+  });
   return data;
+}
+
+function readSessionPassword() {
+  try {
+    return sessionStorage.getItem(ADMIN_SESSION_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function saveSessionPassword(password) {
+  try {
+    sessionStorage.setItem(ADMIN_SESSION_KEY, password);
+  } catch {}
+}
+
+function clearSessionPassword() {
+  try {
+    sessionStorage.removeItem(ADMIN_SESSION_KEY);
+  } catch {}
 }
 
 // ---- Boot ----
@@ -790,10 +968,39 @@ async function adminBoot() {
   const heatmapBtn = document.getElementById("heatmapBtn");
   const tracksBtn = document.getElementById("tracksBtn");
   const refreshBtn = document.getElementById("refreshBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
   const canvas = document.getElementById("adminCanvas");
+  const zoomInBtn = document.getElementById("zoomInBtn");
+  const zoomOutBtn = document.getElementById("zoomOutBtn");
+  const resetMapBtn = document.getElementById("resetMapBtn");
 
   let password = "";
   loadAdminBaseMap();
+  setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn);
+
+  function showAdminApp() {
+    loginScreen.hidden = true;
+    adminApp.hidden = false;
+    buildUserList();
+    updateStats();
+    requestAnimationFrame(render);
+  }
+
+  function showLogin(message = "") {
+    adminApp.hidden = true;
+    loginScreen.hidden = false;
+    loginError.textContent = message;
+    loginBtn.disabled = false;
+    loginBtn.textContent = "Sign in";
+  }
+
+  function forgetSession(message = "") {
+    password = "";
+    allData = { locations: [], clicks: [] };
+    selectedUid = null;
+    clearSessionPassword();
+    showLogin(message);
+  }
 
   async function doLogin() {
     const pw = loginInput.value.trim();
@@ -808,18 +1015,14 @@ async function adminBoot() {
       allData = await loadData(pw);
       console.log("[admin] login ok, switching screens");
       password = pw;
-      loginScreen.hidden = true;
-      adminApp.hidden = false;
+      saveSessionPassword(pw);
       console.log("[admin] building UI");
-      buildUserList();
-      updateStats();
+      showAdminApp();
       console.log("[admin] rendering canvas");
-      // Defer render one frame so the browser lays out adminApp before
-      // we measure the canvas dimensions.
-      requestAnimationFrame(render);
       console.log("[admin] done");
     } catch (err) {
       console.error("[admin] login failed:", err);
+      clearSessionPassword();
       if (err.message === "wrong-password") {
         loginError.textContent = "Incorrect password — check ADMIN_PASSWORD in your .env file.";
       } else {
@@ -833,6 +1036,26 @@ async function adminBoot() {
   const loginForm = document.getElementById("loginForm");
   if (loginForm) loginForm.addEventListener("submit", (e) => { e.preventDefault(); doLogin(); });
   else loginBtn.addEventListener("click", doLogin);
+
+  async function restoreSession() {
+    const savedPassword = readSessionPassword();
+    if (!savedPassword) return;
+
+    loginBtn.disabled = true;
+    loginBtn.textContent = "Restoring…";
+    loginError.textContent = "";
+    try {
+      allData = await loadData(savedPassword);
+      password = savedPassword;
+      showAdminApp();
+    } catch (err) {
+      console.warn("[admin] session restore failed:", err);
+      clearSessionPassword();
+      showLogin(err.message === "wrong-password" ? "Admin session expired. Sign in again." : "");
+    }
+  }
+
+  restoreSession();
 
   heatmapBtn.addEventListener("click", () => {
     viewMode = "heatmap";
@@ -855,16 +1078,27 @@ async function adminBoot() {
       buildUserList();
       updateStats();
       render();
-    } catch {}
+    } catch (err) {
+      if (err.message === "wrong-password") forgetSession("Admin session expired. Sign in again.");
+    }
     refreshBtn.disabled = false;
   });
 
-  window.addEventListener("resize", () => render());
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      loginInput.value = "";
+      forgetSession("");
+    });
+  }
+
+  window.addEventListener("resize", () => { invalidateMapFit(); render(); });
 
   // Auto-refresh every 5 minutes
   setInterval(async () => {
     if (!password) return;
-    try { allData = await loadData(password); buildUserList(); updateStats(); render(); } catch {}
+    try { allData = await loadData(password); buildUserList(); updateStats(); render(); } catch (err) {
+      if (err.message === "wrong-password") forgetSession("Admin session expired. Sign in again.");
+    }
   }, 5 * 60 * 1000);
 }
 
