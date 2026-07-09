@@ -59,11 +59,16 @@ function handleMapClick(event) {
     return;
   }
   if (hit.type && hit.item && typeof trackClick === "function") {
-    const uLat = state.userLocation?.latitude ?? null;
-    const uLng = state.userLocation?.longitude ?? null;
-    trackClick(hit.type, hit.item, uLat, uLng);
+    trackSelectionClick(hit.type, hit.item, "map");
   }
   requestDraw();
+}
+
+function trackSelectionClick(itemType, item, source) {
+  if (typeof trackClick !== "function") return;
+  const uLat = state.userLocation?.latitude ?? null;
+  const uLng = state.userLocation?.longitude ?? null;
+  trackClick(itemType, item, uLat, uLng, source);
 }
 
 function findHit(screen, world, lonLat) {
@@ -715,6 +720,7 @@ function focusOverviewItem(type, key) {
     setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
+    trackSelectionClick("tree", tree, "overview");
     requestDraw();
     return;
   }
@@ -729,6 +735,7 @@ function focusOverviewItem(type, key) {
     setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
+    trackSelectionClick("landmark", place, "overview");
     requestDraw();
     return;
   }
@@ -743,6 +750,7 @@ function focusOverviewItem(type, key) {
     setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
+    trackSelectionClick("cow", cow, "overview");
     requestDraw();
     return;
   }
@@ -757,6 +765,7 @@ function focusOverviewItem(type, key) {
     setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
+    trackSelectionClick("path", path, "overview");
     requestDraw();
     return;
   }
@@ -770,6 +779,7 @@ function focusOverviewItem(type, key) {
     setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
+    trackSelectionClick("water", water, "overview");
     requestDraw();
   }
 }

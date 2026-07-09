@@ -363,8 +363,8 @@ function render() {
   } else {
     drawTracks(ctx, w, h);
   }
-  drawClickMarkers(ctx, w, h);
   drawCurrentPositions(ctx, w, h);
+  drawClickMarkers(ctx, w, h);
 }
 
 function drawForestOutline(ctx, w, h) {
@@ -738,6 +738,80 @@ function filteredLocations() {
   return locs.filter((e) => e.uid === selectedUid);
 }
 
+function filteredClicks() {
+  const clicks = allData.clicks;
+  if (!selectedUid) return clicks;
+  return clicks.filter((e) => e.uid === selectedUid);
+}
+
+let _locationsByUidCacheSource = null;
+let _locationsByUidCache = null;
+
+function eventTimeMs(event) {
+  const time = Date.parse(event && event.ts);
+  return Number.isFinite(time) ? time : null;
+}
+
+function locationsByUid() {
+  if (_locationsByUidCacheSource === allData.locations && _locationsByUidCache) {
+    return _locationsByUidCache;
+  }
+
+  const byUser = new Map();
+  for (const event of allData.locations) {
+    if (!event || event.uid == null || event.lat == null || event.lng == null) continue;
+    if (!byUser.has(event.uid)) byUser.set(event.uid, []);
+    byUser.get(event.uid).push({ ...event, _timeMs: eventTimeMs(event) });
+  }
+  for (const events of byUser.values()) {
+    events.sort((a, b) => (a._timeMs ?? 0) - (b._timeMs ?? 0));
+  }
+
+  _locationsByUidCacheSource = allData.locations;
+  _locationsByUidCache = byUser;
+  return byUser;
+}
+
+function latLngFromKeys(event, latKeys, lngKeys) {
+  for (let i = 0; i < latKeys.length; i += 1) {
+    const lat = Number(event && event[latKeys[i]]);
+    const lng = Number(event && event[lngKeys[i]]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  }
+  return null;
+}
+
+function nearestLocationForClick(event) {
+  const userEvents = locationsByUid().get(event && event.uid);
+  if (!userEvents || !userEvents.length) return null;
+
+  const clickTime = eventTimeMs(event);
+  if (clickTime == null) {
+    const last = userEvents[userEvents.length - 1];
+    return { lat: Number(last.lat), lng: Number(last.lng) };
+  }
+
+  let best = null;
+  let bestDelta = Infinity;
+  for (const location of userEvents) {
+    if (location._timeMs == null) continue;
+    const delta = Math.abs(location._timeMs - clickTime);
+    if (delta < bestDelta) {
+      best = location;
+      bestDelta = delta;
+    }
+  }
+
+  if (!best || bestDelta > 10 * 60 * 1000) return null;
+  return { lat: Number(best.lat), lng: Number(best.lng) };
+}
+
+function clickLatLng(event) {
+  return latLngFromKeys(event, ["targetLat", "itemLat", "lat"], ["targetLng", "itemLng", "lng"])
+    || latLngFromKeys(event, ["userLat"], ["userLng"])
+    || nearestLocationForClick(event);
+}
+
 function drawTracks(ctx, w, h) {
   const locs = filteredLocations();
   if (!locs.length) return;
@@ -828,15 +902,26 @@ function drawHeatmap(ctx, w, h) {
 }
 
 function drawClickMarkers(ctx, w, h) {
-  const clicks = allData.clicks.filter((e) => !selectedUid || e.uid === selectedUid);
+  const clicks = filteredClicks();
+  ctx.save();
   for (const e of clicks) {
-    if (e.userLat == null || e.userLng == null) continue;
-    const { x, y } = latLngToCanvas(e.userLat, e.userLng, w, h);
+    const latLng = clickLatLng(e);
+    if (!latLng) continue;
+    const { x, y } = latLngToCanvas(latLng.lat, latLng.lng, w, h);
+    ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+    ctx.shadowBlur = 5;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255, 224, 94, 0.95)";
     ctx.beginPath();
-    ctx.arc(x, y, 3, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255, 200, 50, 0.55)";
+    ctx.arc(x, y, 7, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(x, y, 3.2, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255, 210, 50, 0.95)";
     ctx.fill();
   }
+  ctx.restore();
 }
 
 function drawCurrentPositions(ctx, w, h) {
@@ -872,10 +957,16 @@ function buildUserList() {
 
   const byUser = new Map();
   for (const e of allData.locations) {
-    if (!byUser.has(e.uid)) byUser.set(e.uid, { count: 0, last: e.ts });
+    if (!byUser.has(e.uid)) byUser.set(e.uid, { count: 0, clicks: 0, last: e.ts });
     const u = byUser.get(e.uid);
     u.count++;
     if (e.ts > u.last) u.last = e.ts;
+  }
+  for (const e of allData.clicks) {
+    if (!byUser.has(e.uid)) byUser.set(e.uid, { count: 0, clicks: 0, last: e.ts });
+    const u = byUser.get(e.uid);
+    u.clicks++;
+    if (!u.last || e.ts > u.last) u.last = e.ts;
   }
 
   // Sort by last seen desc
@@ -890,7 +981,7 @@ function buildUserList() {
     div.innerHTML = `
       <span class="admin-user-dot" style="background:${colour}"></span>
       <span class="admin-user-label">${shortUid(uid)}</span>
-      <span class="admin-user-meta">${info.count} pts</span>
+      <span class="admin-user-meta">${info.count} pts · ${info.clicks} taps</span>
     `;
     div.title = `Last seen: ${lastSeen}`;
     div.addEventListener("click", () => {
@@ -915,8 +1006,8 @@ function updateStats() {
   const el = document.getElementById("adminStats");
   if (!el) return;
   const locs = filteredLocations();
-  const clicks = allData.clicks.filter((e) => !selectedUid || e.uid === selectedUid);
-  const uids = new Set(locs.map((e) => e.uid));
+  const clicks = filteredClicks();
+  const uids = new Set([...locs, ...clicks].map((e) => e.uid));
   el.innerHTML = `<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""} &nbsp;·&nbsp; <strong>${locs.length}</strong> location pings &nbsp;·&nbsp; <strong>${clicks.length}</strong> taps`;
 }
 

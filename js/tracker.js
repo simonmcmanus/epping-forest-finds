@@ -176,16 +176,94 @@ function stopLocationTracking() {
 
 // --- Click / selection tracking ---
 
-function trackClick(itemType, item, userLat, userLng) {
+function trackerFiniteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function trackerGeojsonLatLng(geometry) {
+  if (!geometry || !geometry.coordinates) return null;
+  const points = [];
+
+  function collect(value) {
+    if (!Array.isArray(value)) return;
+    if (value.length >= 2 && typeof value[0] === "number" && typeof value[1] === "number") {
+      points.push({ lng: value[0], lat: value[1] });
+      return;
+    }
+    value.forEach(collect);
+  }
+
+  collect(geometry.coordinates);
+  if (!points.length) return null;
+  const totals = points.reduce((sum, point) => ({
+    lat: sum.lat + point.lat,
+    lng: sum.lng + point.lng,
+  }), { lat: 0, lng: 0 });
+  return {
+    lat: totals.lat / points.length,
+    lng: totals.lng / points.length,
+  };
+}
+
+function trackerPointLatLng(point) {
+  if (!point || typeof unprojectPoint !== "function") return null;
+  const x = trackerFiniteNumber(point.x);
+  const y = trackerFiniteNumber(point.y);
+  if (x == null || y == null) return null;
+  const lonLat = unprojectPoint({ x, y });
+  const lat = trackerFiniteNumber(lonLat && lonLat.latitude);
+  const lng = trackerFiniteNumber(lonLat && lonLat.longitude);
+  return lat == null || lng == null ? null : { lat, lng };
+}
+
+function trackerItemLatLng(item) {
+  if (!item || typeof item !== "object") return null;
+
+  const directLat = trackerFiniteNumber(item.latitude ?? item.lat);
+  const directLng = trackerFiniteNumber(item.longitude ?? item.lng ?? item.lon);
+  if (directLat != null && directLng != null) return { lat: directLat, lng: directLng };
+
+  const pointLatLng = trackerPointLatLng(item.point);
+  if (pointLatLng) return pointLatLng;
+
+  if (item.bbox) {
+    const minX = trackerFiniteNumber(item.bbox.minX);
+    const maxX = trackerFiniteNumber(item.bbox.maxX);
+    const minY = trackerFiniteNumber(item.bbox.minY);
+    const maxY = trackerFiniteNumber(item.bbox.maxY);
+    if (minX != null && maxX != null && minY != null && maxY != null) {
+      const bboxLatLng = trackerPointLatLng({ x: (minX + maxX) / 2, y: (minY + maxY) / 2 });
+      if (bboxLatLng) return bboxLatLng;
+    }
+  }
+
+  return trackerGeojsonLatLng(item.geometry || item.feature?.geometry);
+}
+
+function trackerItemId(item) {
+  return item?.tagNumber || item?.id || item?.osmId || item?.key || item?.ref
+    || item?.feature?.id || item?.feature?.properties?.id || null;
+}
+
+function trackerItemName(item) {
+  return item?.commonName || item?.name || item?.feature?.properties?.name || null;
+}
+
+function trackClick(itemType, item, userLat, userLng, source = "map") {
+  const target = trackerItemLatLng(item);
   trackerSendEvent({
     type: "click",
     uid: trackerGetOrCreateUserId(),
     ts: new Date().toISOString(),
     userLat: userLat ?? null,
     userLng: userLng ?? null,
+    targetLat: target ? target.lat : null,
+    targetLng: target ? target.lng : null,
     itemType,
-    itemId: item.tagNumber || item.id || item.osmId || null,
-    itemName: item.commonName || item.name || null,
+    itemId: trackerItemId(item),
+    itemName: trackerItemName(item),
+    source,
   });
 }
 
