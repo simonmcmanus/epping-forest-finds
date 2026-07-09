@@ -83,7 +83,7 @@ function checkAuth(event) {
   if (!ADMIN_PASSWORD) return false;
   const auth = event.headers?.authorization || "";
   if (auth === `Bearer ${ADMIN_PASSWORD}`) return true;
-  const pw = new URLSearchParams((event.rawQuery || "")).get("pw");
+  const pw = event.queryStringParameters?.pw || new URLSearchParams((event.rawQuery || "")).get("pw");
   if (pw === ADMIN_PASSWORD) return true;
   return false;
 }

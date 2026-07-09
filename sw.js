@@ -1,4 +1,4 @@
-const CACHE_NAME = "veteran-tree-finder-v99";
+const CACHE_NAME = "veteran-tree-finder-v100";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -43,12 +43,23 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
   const requestUrl = new URL(event.request.url);
-  if (requestUrl.pathname === "/api/cows") {
+
+  if (
+    requestUrl.origin === self.location.origin &&
+    (requestUrl.pathname.startsWith("/api/") || requestUrl.pathname.startsWith("/.netlify/functions/"))
+  ) {
     event.respondWith(fetch(event.request));
     return;
   }
+
+  if (event.request.method !== "GET") return;
+
+  if (requestUrl.pathname === "/admin" || requestUrl.pathname === "/admin.html") {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request)
