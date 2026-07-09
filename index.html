@@ -314,6 +314,7 @@
       compassArrowAngle: null,
       compassLastEventAt: null,
       navigationHeadingUp: false,
+      renderedNavigationHeading: null,
       viewportAnimationFrame: null,
       viewportAnimationFrom: null,
       viewportAnimationTo: null,
@@ -2254,8 +2255,12 @@
 
         updateOverviewDirectionArrows();
         updateCompassOverlay();
-        alignHeadingUpNavigationViewport();
-        requestDraw();
+        const viewportChanged = alignHeadingUpNavigationViewport();
+        if (selectedNavigationHeadingUpActive()) {
+          if (viewportChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
+        } else {
+          requestDraw();
+        }
 
         const remaining = Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget));
         const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
@@ -2264,8 +2269,12 @@
           state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
           updateOverviewDirectionArrows();
           updateCompassOverlay();
-          alignHeadingUpNavigationViewport();
-          requestDraw();
+          const finalViewportChanged = alignHeadingUpNavigationViewport();
+          if (selectedNavigationHeadingUpActive()) {
+            if (finalViewportChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
+          } else {
+            requestDraw();
+          }
           state.compassAnimationFrame = null;
           state.compassAnimationTime = null;
           return;
@@ -2343,6 +2352,14 @@
     }
 
     function navigationMapRotationDegrees() {
+      if (!selectedNavigationHeadingUpActive()) return 0;
+      const heading = Number.isFinite(state.renderedNavigationHeading)
+        ? state.renderedNavigationHeading
+        : state.compassHeading;
+      return -normalizeDegrees(heading);
+    }
+
+    function currentNavigationMapRotationDegrees() {
       return selectedNavigationHeadingUpActive() ? -normalizeDegrees(state.compassHeading) : 0;
     }
 
@@ -2374,7 +2391,7 @@
       const right = focusRect.x + focusRect.width - margin;
       const top = focusRect.y + margin;
       const bottom = focusRect.y + focusRect.height - margin;
-      const rotation = navigationMapRotationDegrees();
+      const rotation = currentNavigationMapRotationDegrees();
       const radians = toRadians(rotation);
       const cos = Math.cos(radians);
       const sin = Math.sin(radians);
@@ -2398,6 +2415,9 @@
 
     function alignHeadingUpNavigationViewport() {
       if (!selectedNavigationHeadingUpActive()) return false;
+      const previousScale = state.viewport.scale;
+      const previousTx = state.viewport.tx;
+      const previousTy = state.viewport.ty;
       const focusRect = bestVisibleCanvasRect();
       const focus = navigationFocusPoint();
       const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
@@ -2405,6 +2425,38 @@
       const userPoint = state.userLocation.point;
       state.viewport.tx = focus.x - userPoint.x * state.viewport.scale;
       state.viewport.ty = focus.y - userPoint.y * state.viewport.scale;
+      return Math.abs(previousScale - state.viewport.scale) > 0.000001
+        || Math.abs(previousTx - state.viewport.tx) > 0.5
+        || Math.abs(previousTy - state.viewport.ty) > 0.5;
+    }
+
+    function clearHeadingUpCanvasTransform() {
+      if (!els.canvas) return;
+      els.canvas.style.transform = "";
+      els.canvas.style.transformOrigin = "";
+    }
+
+    function prepareCanvasForDraw() {
+      if (selectedNavigationHeadingUpActive()) {
+        state.renderedNavigationHeading = normalizeDegrees(state.compassHeading);
+      } else {
+        state.renderedNavigationHeading = null;
+      }
+      clearHeadingUpCanvasTransform();
+    }
+
+    function updateHeadingUpCanvasRotationTransform() {
+      if (!selectedNavigationHeadingUpActive() || !Number.isFinite(state.renderedNavigationHeading)) {
+        clearHeadingUpCanvasTransform();
+        return false;
+      }
+      const renderedRotation = -normalizeDegrees(state.renderedNavigationHeading);
+      const currentRotation = currentNavigationMapRotationDegrees();
+      const delta = shortestCompassDelta(renderedRotation, currentRotation);
+      const origin = rawWorldToScreen(state.userLocation.point);
+      const dpr = pixelRatio();
+      els.canvas.style.transformOrigin = `${origin.x / dpr}px ${origin.y / dpr}px`;
+      els.canvas.style.transform = Math.abs(delta) < 0.01 ? "" : `rotate(${delta}deg)`;
       return true;
     }
 

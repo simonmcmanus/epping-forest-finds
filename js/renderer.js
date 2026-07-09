@@ -46,6 +46,7 @@ function drawPngMapIcon(ctx, src, x, y, size) {
 
 function draw() {
   state.animationFrame = null;
+  if (typeof prepareCanvasForDraw === "function") prepareCanvasForDraw();
   const ctx = els.canvas.getContext("2d");
   const width = els.canvas.width;
   const height = els.canvas.height;
@@ -79,7 +80,7 @@ function draw() {
     requestDraw();
   }
 
-  if (state.selected && ["tree", "landmark", "cow", "road", "path"].includes(state.selected.type)) {
+  if (state.selected && ["road", "path"].includes(state.selected.type)) {
     requestDraw();
   }
 }

@@ -161,6 +161,7 @@ canvas {
   display: block;
   cursor: grab;
   touch-action: none;
+  will-change: transform;
 }
 
 canvas.dragging {
