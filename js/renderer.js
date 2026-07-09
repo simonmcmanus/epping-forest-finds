@@ -1128,6 +1128,41 @@ function mapEmojiScale() {
   return Number.isFinite(state.emojiScaleAnimated) ? state.emojiScaleAnimated : zoomEmojiScaleTarget();
 }
 
+function destinationPointMetres(latitude, longitude, bearingDegrees, metres) {
+  const earthRadiusMetres = 6371008.8;
+  const angularDistance = metres / earthRadiusMetres;
+  const bearing = toRadians(bearingDegrees);
+  const lat1 = toRadians(latitude);
+  const lon1 = toRadians(longitude);
+  const sinLat1 = Math.sin(lat1);
+  const cosLat1 = Math.cos(lat1);
+  const sinAngular = Math.sin(angularDistance);
+  const cosAngular = Math.cos(angularDistance);
+
+  const lat2 = Math.asin((sinLat1 * cosAngular) + (cosLat1 * sinAngular * Math.cos(bearing)));
+  const lon2 = lon1 + Math.atan2(
+    Math.sin(bearing) * sinAngular * cosLat1,
+    cosAngular - sinLat1 * Math.sin(lat2)
+  );
+
+  return {
+    latitude: lat2 * 180 / Math.PI,
+    longitude: lon2 * 180 / Math.PI,
+  };
+}
+
+function radarRadiusForMetres(point, metres) {
+  if (!state.userLocation || !Number.isFinite(state.compassHeading)) return 0;
+  const destination = destinationPointMetres(
+    state.userLocation.latitude,
+    state.userLocation.longitude,
+    normalizeDegrees(state.compassHeading),
+    metres
+  );
+  const destinationScreen = worldToScreen(projectLonLat(destination.longitude, destination.latitude));
+  return Math.hypot(destinationScreen.x - point.x, destinationScreen.y - point.y);
+}
+
 function drawUserRadar(ctx, point, dpr) {
   if (!Number.isFinite(state.compassHeading)) return;
 
@@ -1135,11 +1170,8 @@ function drawUserRadar(ctx, point, dpr) {
     ? toRadians(-90)
     : toRadians(normalizeDegrees(state.compassHeading) - 90);
   const spread = toRadians(26);
-  const baselineScale = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
-  const zoomRatio = baselineScale > 0 ? state.viewport.scale / baselineScale : 1;
-  const radarScale = clamp(Math.max(0.0001, zoomRatio), 0.28, 2.6);
-  const innerRadius = 24 * dpr * radarScale;
-  const outerRadius = 88 * dpr * radarScale;
+  const outerRadius = Math.max(0.5, radarRadiusForMetres(point, 20));
+  const innerRadius = Math.max(0.2, outerRadius * 0.28);
 
   ctx.save();
 

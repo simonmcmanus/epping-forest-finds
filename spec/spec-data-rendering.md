@@ -369,7 +369,7 @@ Behavior:
 - Appears when: user location exists AND selected navigation target exists
 - Shows directional arrow smoothed with device heading
 - Updates continuously via `requestAnimationFrame`
-- In heading-up selected navigation mode, the radar cone around the user points straight ahead on screen while the map rotates underneath it. Outside heading-up mode, the radar cone is drawn at the absolute compass heading on the north-up map. Radar radius scales with the current viewport zoom so it becomes smaller when zoomed out and larger when zoomed in, within bounded minimum and maximum sizes.
+- In heading-up selected navigation mode, the radar cone around the user points straight ahead on screen while the map rotates underneath it. Outside heading-up mode, the radar cone is drawn at the absolute compass heading on the north-up map. The radar cone outer edge represents roughly 20 metres in front of the user's current GPS position at the current map zoom, so it naturally grows when zooming in and shrinks when zooming out.
 
 ---
 

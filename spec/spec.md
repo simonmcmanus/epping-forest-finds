@@ -275,7 +275,7 @@ Marker rules:
   - selected mode: user → selected target
   - overview mode: user → nearest overview targets
 - Compass overlay appears only when user location and a selected navigation target exist.
-- The user radar cone scales with the current viewport zoom, bounded to avoid becoming unusably small or large.
+- The user radar cone outer edge represents roughly 20 metres in front of the user's current GPS position at the current map zoom.
 
 ## Details Content Requirements
 
