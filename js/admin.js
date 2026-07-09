@@ -34,6 +34,7 @@ let adminViewport = {
   panX: 0,
   panY: 0,
   dragging: false,
+  dragMoved: false,
   pointerId: null,
   startX: 0,
   startY: 0,
@@ -139,6 +140,16 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;",
+  }[char]));
+}
+
 function finiteNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
@@ -192,6 +203,7 @@ function shortUid(uid) {
 
 let allData = { locations: [], clicks: [] };
 let selectedUid = null; // null = show all users
+let selectedClickKey = null;
 let viewMode = "tracks"; // "tracks" | "heatmap"
 
 let adminMap = {
@@ -733,6 +745,7 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     if (event.button != null && event.button !== 0) return;
     event.preventDefault();
     adminViewport.dragging = true;
+    adminViewport.dragMoved = false;
     adminViewport.pointerId = event.pointerId;
     adminViewport.startX = event.clientX;
     adminViewport.startY = event.clientY;
@@ -744,6 +757,9 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
 
   canvas.addEventListener("pointermove", (event) => {
     if (!adminViewport.dragging || event.pointerId !== adminViewport.pointerId) return;
+    const deltaX = event.clientX - adminViewport.startX;
+    const deltaY = event.clientY - adminViewport.startY;
+    if (Math.hypot(deltaX, deltaY) > 4) adminViewport.dragMoved = true;
     adminViewport.panX = adminViewport.startPanX + (event.clientX - adminViewport.startX);
     adminViewport.panY = adminViewport.startPanY + (event.clientY - adminViewport.startY);
     invalidateMapFit();
@@ -766,6 +782,19 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     adminViewport.dragging = false;
     adminViewport.pointerId = null;
     canvas.classList.remove("dragging");
+  });
+
+  canvas.addEventListener("click", (event) => {
+    if (adminViewport.dragMoved) {
+      adminViewport.dragMoved = false;
+      return;
+    }
+    const point = eventCanvasPoint(canvas, event);
+    const click = findClickMarkerAt(canvas, point.x, point.y);
+    if (!click) return;
+    selectedClickKey = clickTargetKey(click);
+    renderClickDetails(selectedClickKey);
+    render();
   });
 }
 
@@ -920,6 +949,60 @@ function adminClickEvents() {
   return _adminClickEventsCache;
 }
 
+function clickTargetKey(event) {
+  if (!event || typeof event !== "object") return "";
+  const type = event.itemType || event.type || "unknown";
+  const id = event.itemId || event.itemName || `${event.targetLat || event.lat || ""},${event.targetLng || event.lng || ""}`;
+  return `${type}:${id}`;
+}
+
+function clickTargetTitle(event) {
+  return event?.itemName || event?.itemId || "Unknown target";
+}
+
+function clickTargetType(event) {
+  const type = event?.itemType || "unknown";
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function clickEventsForTarget(key) {
+  return adminClickEvents().filter((event) => clickTargetKey(event) === key);
+}
+
+function clickTargetSummary(key) {
+  const events = clickEventsForTarget(key);
+  const sorted = [...events].sort((a, b) => (eventTimeMs(b) ?? 0) - (eventTimeMs(a) ?? 0));
+  const first = sorted[0] || events[0] || null;
+  return {
+    key,
+    first,
+    events: sorted,
+    totalClicks: events.length,
+    uniqueUsers: new Set(events.map((event) => event.uid || "unknown")).size,
+    explicitClicks: events.filter((event) => !event.derived).length,
+    navigationClicks: events.filter((event) => event.derived || event.source === "navigation").length,
+  };
+}
+
+function findClickMarkerAt(canvas, x, y) {
+  const { width, height } = canvasCssSize(canvas);
+  if (!width || !height) return null;
+
+  let best = null;
+  let bestDistance = Infinity;
+  for (const event of filteredClicks()) {
+    const latLng = clickLatLng(event);
+    if (!latLng) continue;
+    const point = latLngToCanvas(latLng.lat, latLng.lng, width, height);
+    const distance = Math.hypot(point.x - x, point.y - y);
+    if (distance <= 12 && distance < bestDistance) {
+      best = event;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
 function drawTracks(ctx, w, h) {
   const locs = filteredLocations();
   if (!locs.length) return;
@@ -1016,17 +1099,18 @@ function drawClickMarkers(ctx, w, h) {
     const latLng = clickLatLng(e);
     if (!latLng) continue;
     const { x, y } = latLngToCanvas(latLng.lat, latLng.lng, w, h);
+    const selected = selectedClickKey && clickTargetKey(e) === selectedClickKey;
     ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
-    ctx.shadowBlur = 5;
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(255, 224, 94, 0.95)";
+    ctx.shadowBlur = selected ? 8 : 5;
+    ctx.lineWidth = selected ? 3 : 2;
+    ctx.strokeStyle = selected ? "rgba(255, 255, 255, 0.96)" : "rgba(255, 224, 94, 0.95)";
     ctx.beginPath();
-    ctx.arc(x, y, 7, 0, Math.PI * 2);
+    ctx.arc(x, y, selected ? 10 : 7, 0, Math.PI * 2);
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.beginPath();
-    ctx.arc(x, y, 3.2, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255, 210, 50, 0.95)";
+    ctx.arc(x, y, selected ? 4.2 : 3.2, 0, Math.PI * 2);
+    ctx.fillStyle = selected ? "rgba(255, 244, 146, 1)" : "rgba(255, 210, 50, 0.95)";
     ctx.fill();
   }
   ctx.restore();
@@ -1119,6 +1203,90 @@ function updateStats() {
   el.innerHTML = `<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""} &nbsp;·&nbsp; <strong>${locs.length}</strong> location pings &nbsp;·&nbsp; <strong>${clicks.length}</strong> taps`;
 }
 
+function formatEventTime(value) {
+  const time = Date.parse(value);
+  if (!Number.isFinite(time)) return "Unknown time";
+  return new Date(time).toLocaleString();
+}
+
+function sourceLabel(event) {
+  if (event?.derived || event?.source === "navigation") return "Navigation";
+  if (event?.source === "overview") return "Nearby list";
+  if (event?.source === "map") return "Map tap";
+  return "Tap";
+}
+
+function hideClickDetails() {
+  selectedClickKey = null;
+  const panel = document.getElementById("adminClickDetails");
+  if (panel) panel.hidden = true;
+  render();
+}
+
+function refreshClickDetails() {
+  if (!selectedClickKey) return;
+  renderClickDetails(selectedClickKey);
+}
+
+function renderClickDetails(key) {
+  const panel = document.getElementById("adminClickDetails");
+  const body = document.getElementById("adminClickDetailsBody");
+  if (!panel || !body) return;
+
+  const summary = clickTargetSummary(key);
+  if (!summary.first || !summary.totalClicks) {
+    panel.hidden = true;
+    selectedClickKey = null;
+    return;
+  }
+
+  const title = clickTargetTitle(summary.first);
+  const type = clickTargetType(summary.first);
+  const id = summary.first.itemId || "Unknown";
+  const recent = summary.events.slice(0, 6).map((event) => `
+    <li>
+      <span>${escapeHtml(shortUid(event.uid))} · ${escapeHtml(sourceLabel(event))}</span>
+      <span>${escapeHtml(formatEventTime(event.ts))}</span>
+    </li>
+  `).join("");
+
+  body.innerHTML = `
+    <h2 class="admin-click-title">${escapeHtml(title)}</h2>
+    <p class="admin-click-subtitle">${escapeHtml(type)}</p>
+    <div class="admin-click-summary">
+      <div class="admin-click-summary-item">
+        <span class="admin-click-summary-value">${summary.totalClicks}</span>
+        <span class="admin-click-summary-label">tap${summary.totalClicks !== 1 ? "s" : ""}</span>
+      </div>
+      <div class="admin-click-summary-item">
+        <span class="admin-click-summary-value">${summary.uniqueUsers}</span>
+        <span class="admin-click-summary-label">user${summary.uniqueUsers !== 1 ? "s" : ""}</span>
+      </div>
+    </div>
+    <dl class="admin-click-meta">
+      <div class="admin-click-meta-row">
+        <dt class="admin-click-meta-label">ID</dt>
+        <dd class="admin-click-meta-value">${escapeHtml(id)}</dd>
+      </div>
+      <div class="admin-click-meta-row">
+        <dt class="admin-click-meta-label">Explicit taps</dt>
+        <dd class="admin-click-meta-value">${summary.explicitClicks}</dd>
+      </div>
+      <div class="admin-click-meta-row">
+        <dt class="admin-click-meta-label">Navigation selections</dt>
+        <dd class="admin-click-meta-value">${summary.navigationClicks}</dd>
+      </div>
+      <div class="admin-click-meta-row">
+        <dt class="admin-click-meta-label">Last clicked</dt>
+        <dd class="admin-click-meta-value">${escapeHtml(formatEventTime(summary.events[0].ts))}</dd>
+      </div>
+    </dl>
+    <h3 class="admin-click-recent-title">Recent taps</h3>
+    <ul class="admin-click-recent-list">${recent}</ul>
+  `;
+  panel.hidden = false;
+}
+
 // ---- Data loading ----
 
 async function loadData(password) {
@@ -1172,6 +1340,7 @@ async function adminBoot() {
   const zoomInBtn = document.getElementById("zoomInBtn");
   const zoomOutBtn = document.getElementById("zoomOutBtn");
   const resetMapBtn = document.getElementById("resetMapBtn");
+  const clickDetailsClose = document.getElementById("adminClickDetailsClose");
 
   let password = "";
   readSavedViewport();
@@ -1183,6 +1352,7 @@ async function adminBoot() {
     adminApp.hidden = false;
     buildUserList();
     updateStats();
+    refreshClickDetails();
     requestAnimationFrame(render);
   }
 
@@ -1198,6 +1368,7 @@ async function adminBoot() {
     password = "";
     allData = { locations: [], clicks: [] };
     selectedUid = null;
+    selectedClickKey = null;
     clearSessionPassword();
     showLogin(message);
   }
@@ -1277,6 +1448,7 @@ async function adminBoot() {
       allData = await loadData(password);
       buildUserList();
       updateStats();
+      refreshClickDetails();
       render();
     } catch (err) {
       if (err.message === "wrong-password") forgetSession("Admin session expired. Sign in again.");
@@ -1291,12 +1463,16 @@ async function adminBoot() {
     });
   }
 
+  if (clickDetailsClose) {
+    clickDetailsClose.addEventListener("click", hideClickDetails);
+  }
+
   window.addEventListener("resize", () => { invalidateMapFit(); render(); });
 
   // Auto-refresh every 5 minutes
   setInterval(async () => {
     if (!password) return;
-    try { allData = await loadData(password); buildUserList(); updateStats(); render(); } catch (err) {
+    try { allData = await loadData(password); buildUserList(); updateStats(); refreshClickDetails(); render(); } catch (err) {
       if (err.message === "wrong-password") forgetSession("Admin session expired. Sign in again.");
     }
   }, 5 * 60 * 1000);

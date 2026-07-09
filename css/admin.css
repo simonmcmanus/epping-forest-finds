@@ -269,6 +269,138 @@ html, body {
 
 .admin-stats strong { color: #fff; }
 
+.admin-click-details {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: min(360px, calc(100% - 24px));
+  max-height: min(420px, calc(100% - 86px));
+  overflow-y: auto;
+  background: rgba(14, 22, 18, 0.92);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  color: rgba(255,255,255,0.84);
+  padding: 14px;
+  backdrop-filter: blur(8px);
+}
+
+.admin-click-details[hidden] {
+  display: none;
+}
+
+.admin-click-details-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.admin-click-details-close:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.admin-click-title {
+  margin: 0 34px 4px 0;
+  color: #fff;
+  font-size: 0.96rem;
+  font-weight: 900;
+}
+
+.admin-click-subtitle {
+  margin: 0 34px 12px 0;
+  color: rgba(255,255,255,0.56);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-click-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.admin-click-summary-item {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 7px;
+  padding: 8px;
+}
+
+.admin-click-summary-value {
+  display: block;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
+.admin-click-summary-label {
+  display: block;
+  color: rgba(255,255,255,0.52);
+  font-size: 0.68rem;
+}
+
+.admin-click-meta {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: 0.74rem;
+}
+
+.admin-click-meta-row {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.admin-click-meta-label {
+  color: rgba(255,255,255,0.48);
+}
+
+.admin-click-meta-value {
+  color: rgba(255,255,255,0.82);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.admin-click-recent-title {
+  margin: 10px 0 6px;
+  color: rgba(255,255,255,0.7);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-click-recent-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-click-recent-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.68);
+  font-size: 0.72rem;
+}
+
 .admin-empty {
   position: absolute;
   inset: 0;
