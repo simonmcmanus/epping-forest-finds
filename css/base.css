@@ -161,7 +161,18 @@ canvas {
   display: block;
   cursor: grab;
   touch-action: none;
+}
+
+#mapCanvas {
   will-change: transform;
+}
+
+#overlayCanvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  cursor: default;
 }
 
 canvas.dragging {

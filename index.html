@@ -20,6 +20,7 @@
   <div class="app">
     <main class="map-stage">
       <canvas id="mapCanvas" aria-label="Interactive map of veteran trees and local landmarks"></canvas>
+      <canvas id="overlayCanvas" aria-hidden="true"></canvas>
 
       <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data">
         <div class="loading-card">
@@ -309,6 +310,7 @@
       dragStart: null,
       installPrompt: null,
       animationFrame: null,
+      overlayAnimationFrame: null,
       compassAnimationFrame: null,
       compassAnimationTime: null,
       compassArrowAngle: null,
@@ -335,6 +337,8 @@
 
     const els = {
       canvas: document.getElementById("mapCanvas"),
+      overlayCanvas: document.getElementById("overlayCanvas"),
+      mapStage: document.querySelector(".map-stage"),
       toolbar: document.querySelector(".toolbar"),
       compassOverlay: document.getElementById("compassOverlay"),
       compassArrow: document.getElementById("compassArrow"),
@@ -700,11 +704,16 @@
     }
 
     function resizeCanvas() {
-      const rect = els.canvas.getBoundingClientRect();
+      const rect = (els.mapStage || els.canvas).getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       els.canvas.width = Math.max(1, Math.round(rect.width * dpr));
       els.canvas.height = Math.max(1, Math.round(rect.height * dpr));
       els.canvas.dataset.dpr = String(dpr);
+      if (els.overlayCanvas) {
+        els.overlayCanvas.width = els.canvas.width;
+        els.overlayCanvas.height = els.canvas.height;
+        els.overlayCanvas.dataset.dpr = String(dpr);
+      }
     }
 
     function calculateBounds() {
@@ -896,7 +905,7 @@
         els.inspector.classList.remove("minimized");
       }
 
-      const canvasRect = els.canvas.getBoundingClientRect();
+      const canvasRect = (els.mapStage || els.canvas).getBoundingClientRect();
       const inspectorRect = els.inspector.getBoundingClientRect();
 
       if (assumeInspectorOpen && wasMinimized) {
@@ -2258,6 +2267,7 @@
         const viewportChanged = alignHeadingUpNavigationViewport();
         if (selectedNavigationHeadingUpActive()) {
           if (viewportChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
+          else requestOverlayDraw();
         } else {
           requestDraw();
         }
@@ -2272,6 +2282,7 @@
           const finalViewportChanged = alignHeadingUpNavigationViewport();
           if (selectedNavigationHeadingUpActive()) {
             if (finalViewportChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
+            else requestOverlayDraw();
           } else {
             requestDraw();
           }
@@ -2415,6 +2426,7 @@
 
     function alignHeadingUpNavigationViewport() {
       if (!selectedNavigationHeadingUpActive()) return false;
+      clearHeadingUpCanvasTransform();
       const previousScale = state.viewport.scale;
       const previousTx = state.viewport.tx;
       const previousTy = state.viewport.ty;
@@ -3502,7 +3514,7 @@
     }
 
     function canvasPoint(event) {
-      const rect = els.canvas.getBoundingClientRect();
+      const rect = (els.mapStage || els.canvas).getBoundingClientRect();
       const dpr = pixelRatio();
       return {
         x: (event.clientX - rect.left) * dpr,
@@ -3521,6 +3533,14 @@
     function requestDraw() {
       if (state.animationFrame) return;
       state.animationFrame = requestAnimationFrame(draw);
+    }
+
+    function requestOverlayDraw() {
+      if (state.overlayAnimationFrame) return;
+      state.overlayAnimationFrame = requestAnimationFrame(() => {
+        state.overlayAnimationFrame = null;
+        if (typeof drawOverlay === "function") drawOverlay();
+      });
     }
 
     function setStatus(_message) {

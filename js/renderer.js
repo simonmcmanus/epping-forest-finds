@@ -71,10 +71,10 @@ function draw() {
   drawTrees(ctx, nearbyIconLookup);
   drawLandmarks(ctx, nearbyIconLookup);
   drawCows(ctx, nearbyIconLookup);
-  drawUser(ctx);
   drawSelectedOverlay(ctx);
   drawSelectedRoadOverlay(ctx);
   drawSelectedPathOverlay(ctx);
+  drawOverlay();
 
   if (Math.abs(animatedEmojiScale.target - animatedEmojiScale.value) > 0.001) {
     requestDraw();
@@ -83,6 +83,15 @@ function draw() {
   if (state.selected && ["road", "path"].includes(state.selected.type)) {
     requestDraw();
   }
+}
+
+function drawOverlay() {
+  const canvas = els.overlayCanvas;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!state.bounds) return;
+  drawUser(ctx);
 }
 
 function drawCowPastures(ctx) {
@@ -1171,7 +1180,7 @@ function drawUserRadar(ctx, point, dpr) {
     ? toRadians(-90)
     : toRadians(normalizeDegrees(state.compassHeading) - 90);
   const spread = toRadians(26);
-  const outerRadius = Math.max(0.5, radarRadiusForMetres(point, 20));
+  const outerRadius = Math.max(0.5, radarRadiusForMetres(point, 60));
   const innerRadius = Math.max(0.2, outerRadius * 0.28);
 
   ctx.save();

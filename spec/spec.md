@@ -271,12 +271,12 @@ Marker rules:
   - compass overlay arrow
   - nearest-list directional arrows
 - In selected-location navigation, the map becomes heading-up whenever compass heading is available, regardless of whether the inspector is expanded or minimized: the device-facing direction is always toward the top of the screen, the user stays anchored slightly below center, and the map rotates as the user turns. The selected location must stay inside the visible map area; heading-up navigation reduces zoom when needed to keep it visible.
-- While selected-location heading-up navigation is active, compass-only rotation updates should rotate the existing canvas around the user point rather than redrawing all map layers every animation frame.
+- While selected-location heading-up navigation is active, compass-only rotation updates should rotate the existing map canvas around the user point and redraw only the lightweight user/radar overlay rather than redrawing all map layers every animation frame.
 - Show route lines:
   - selected mode: user → selected target
   - overview mode: user → nearest overview targets
 - Compass overlay appears only when user location and a selected navigation target exist.
-- The user radar cone outer edge represents roughly 20 metres in front of the user's current GPS position at the current map zoom.
+- The user radar cone outer edge represents roughly 60 metres in front of the user's current GPS position at the current map zoom.
 
 ## Details Content Requirements
 
