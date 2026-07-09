@@ -3,6 +3,14 @@
 // Approximate bounding box for Epping Forest area
 const BOUNDS = { minLat: 51.595, maxLat: 51.730, minLng: -0.110, maxLng: 0.155 };
 
+const ADMIN_MAP_URLS = {
+  forest: "data/epping-forest-land.geojson",
+  buffer: "data/epping-buffer-land.geojson",
+  environment: "data/local-environment.geojson",
+  roads: "data/local-roads.geojson",
+  paths: "data/local-paths.geojson",
+};
+
 // Colour palette for distinguishing users (cycles)
 const USER_COLOURS = [
   "#4fc97e", "#e05f4f", "#5b8de8", "#e8a93c", "#b45be8",
@@ -12,15 +20,73 @@ const USER_COLOURS = [
 
 // ---- Coordinate helpers ----
 
+let _fallbackBoundsCache = null;
+let _mapFitCache = null;
+
+function projectLonLat(longitude, latitude) {
+  const clamped = Math.min(85, Math.max(-85, latitude));
+  const rad = clamped * Math.PI / 180;
+  return {
+    x: longitude,
+    y: -Math.log(Math.tan(Math.PI / 4 + rad / 2)) * 180 / Math.PI,
+  };
+}
+
+function fallbackWorldBounds() {
+  if (_fallbackBoundsCache) return _fallbackBoundsCache;
+  const points = [
+    projectLonLat(BOUNDS.minLng, BOUNDS.minLat),
+    projectLonLat(BOUNDS.maxLng, BOUNDS.maxLat),
+  ];
+  _fallbackBoundsCache = boundsFromPoints(points);
+  return _fallbackBoundsCache;
+}
+
+function boundsFromPoints(points) {
+  return points.reduce((bounds, point) => ({
+    minX: Math.min(bounds.minX, point.x),
+    minY: Math.min(bounds.minY, point.y),
+    maxX: Math.max(bounds.maxX, point.x),
+    maxY: Math.max(bounds.maxY, point.y),
+  }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+}
+
+function mapFit(canvasW, canvasH) {
+  const bounds = adminMap.bounds || fallbackWorldBounds();
+  if (
+    _mapFitCache
+    && _mapFitCache.canvasW === canvasW
+    && _mapFitCache.canvasH === canvasH
+    && _mapFitCache.bounds === bounds
+  ) {
+    return _mapFitCache.fit;
+  }
+
+  const pad = Math.max(18, Math.min(canvasW, canvasH) * 0.045);
+  const rangeX = Math.max(0.000001, bounds.maxX - bounds.minX);
+  const rangeY = Math.max(0.000001, bounds.maxY - bounds.minY);
+  const scale = Math.min((canvasW - pad * 2) / rangeX, (canvasH - pad * 2) / rangeY);
+  const contentW = rangeX * scale;
+  const contentH = rangeY * scale;
+  const fit = {
+    scale,
+    tx: (canvasW - contentW) / 2 - bounds.minX * scale,
+    ty: (canvasH - contentH) / 2 - bounds.minY * scale,
+  };
+  _mapFitCache = { canvasW, canvasH, bounds, fit };
+  return fit;
+}
+
+function worldToCanvas(point, canvasW, canvasH) {
+  const fit = mapFit(canvasW, canvasH);
+  return {
+    x: point.x * fit.scale + fit.tx,
+    y: point.y * fit.scale + fit.ty,
+  };
+}
+
 function latLngToCanvas(lat, lng, canvasW, canvasH) {
-  // Mercator-corrected x, linear y (fine for ~15 km area)
-  const midLat = (BOUNDS.minLat + BOUNDS.maxLat) / 2;
-  const cosLat = Math.cos(midLat * Math.PI / 180);
-  const lngSpan = (BOUNDS.maxLng - BOUNDS.minLng) * cosLat;
-  const latSpan = BOUNDS.maxLat - BOUNDS.minLat;
-  const x = ((lng - BOUNDS.minLng) * cosLat / lngSpan) * canvasW;
-  const y = (1 - (lat - BOUNDS.minLat) / latSpan) * canvasH;
-  return { x, y };
+  return worldToCanvas(projectLonLat(Number(lng), Number(lat)), canvasW, canvasH);
 }
 
 // ---- User colour assignment ----
@@ -46,6 +112,180 @@ let allData = { locations: [], clicks: [] };
 let selectedUid = null; // null = show all users
 let viewMode = "tracks"; // "tracks" | "heatmap"
 
+let adminMap = {
+  loaded: false,
+  loading: false,
+  error: null,
+  layers: [],
+  environmentFeatures: [],
+  roads: [],
+  paths: [],
+  bounds: null,
+};
+
+// ---- Base map loading ----
+
+async function fetchGeojson(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+  return response.json();
+}
+
+async function loadAdminBaseMap() {
+  if (adminMap.loaded || adminMap.loading) return;
+  adminMap.loading = true;
+
+  const safeLoad = (url) => fetchGeojson(url).catch((error) => {
+    console.warn("[admin] map layer failed", url, error);
+    return { type: "FeatureCollection", features: [] };
+  });
+
+  try {
+    const [forest, buffer, environment, roads, paths] = await Promise.all([
+      safeLoad(ADMIN_MAP_URLS.forest),
+      safeLoad(ADMIN_MAP_URLS.buffer),
+      safeLoad(ADMIN_MAP_URLS.environment),
+      safeLoad(ADMIN_MAP_URLS.roads),
+      safeLoad(ADMIN_MAP_URLS.paths),
+    ]);
+
+    const layers = [
+      { key: "buffer", data: buffer },
+      { key: "forest", data: forest },
+    ];
+
+    adminMap = {
+      loaded: true,
+      loading: false,
+      error: null,
+      layers,
+      environmentFeatures: (environment.features || []).filter((feature) => feature && feature.geometry && feature.properties),
+      roads: (roads.features || []).map(toAdminRoadFeature).filter(Boolean),
+      paths: (paths.features || []).map(toAdminPathFeature).filter(Boolean),
+      bounds: calculateBaseMapBounds(layers),
+    };
+  } catch (error) {
+    adminMap = { ...adminMap, loaded: false, loading: false, error };
+    console.warn("[admin] base map failed", error);
+  }
+
+  render();
+}
+
+function calculateBaseMapBounds(layers) {
+  const points = [];
+  for (const layer of layers) {
+    forEachGeojsonCoordinate(layer.data, ([longitude, latitude]) => {
+      const point = projectLonLat(Number(longitude), Number(latitude));
+      if (Number.isFinite(point.x) && Number.isFinite(point.y)) points.push(point);
+    });
+  }
+  return points.length ? boundsFromPoints(points) : fallbackWorldBounds();
+}
+
+function lineSegmentsFromGeometry(geometry) {
+  if (!geometry) return [];
+  if (geometry.type === "LineString") return [geometry.coordinates || []];
+  if (geometry.type === "MultiLineString") return geometry.coordinates || [];
+  return [];
+}
+
+function polygonRingsFromGeometry(geometry) {
+  if (!geometry) return [];
+  if (geometry.type === "Polygon") return [geometry.coordinates || []];
+  if (geometry.type === "MultiPolygon") return geometry.coordinates || [];
+  return [];
+}
+
+function forEachGeojsonCoordinate(collection, visit) {
+  for (const feature of collection.features || []) {
+    walkCoordinates(feature.geometry && feature.geometry.coordinates, visit);
+  }
+}
+
+function walkCoordinates(value, visit) {
+  if (!Array.isArray(value)) return;
+  if (typeof value[0] === "number" && typeof value[1] === "number") {
+    visit(value);
+    return;
+  }
+  for (const item of value) walkCoordinates(item, visit);
+}
+
+function projectLineFeature(feature) {
+  const segments = lineSegmentsFromGeometry(feature.geometry)
+    .map((segment) => segment
+      .map(([longitude, latitude]) => projectLonLat(Number(longitude), Number(latitude)))
+      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y)))
+    .filter((segment) => segment.length >= 2);
+
+  if (!segments.length) return null;
+
+  const points = segments.flat();
+  return { segments, bbox: boundsFromPoints(points) };
+}
+
+function toAdminPathFeature(feature) {
+  const projected = projectLineFeature(feature);
+  if (!projected) return null;
+
+  const tags = feature.properties || {};
+  const highway = tags.highway || null;
+  const designation = String(tags.designation || "").toLowerCase();
+  const horse = tags.horse || null;
+  const foot = tags.foot || null;
+  const access = tags.access || null;
+  const pathType = highway === "bridleway"
+    || designation.includes("bridleway")
+    || horse === "designated"
+    ? "bridleway"
+    : (designation.includes("byway") || highway === "byway")
+      ? "byway"
+      : (access === "permissive" || foot === "permissive" || horse === "permissive")
+        ? "permissive"
+        : (tags.osmcSymbol || tags.trailVisibility)
+          ? "waymarked_trail"
+          : "trail";
+
+  return {
+    ...projected,
+    pathType,
+    name: tags.name || tags.ref || null,
+  };
+}
+
+function toAdminRoadFeature(feature) {
+  const projected = projectLineFeature(feature);
+  if (!projected) return null;
+
+  const tags = feature.properties || {};
+  const highway = tags.highway || null;
+  const service = tags.service || null;
+  const roadType = highway === "motorway" || highway === "motorway_link"
+    ? "motorway"
+    : highway === "trunk" || highway === "trunk_link"
+      ? "trunk"
+      : highway === "primary" || highway === "primary_link"
+        ? "primary"
+        : highway === "secondary" || highway === "secondary_link"
+          ? "secondary"
+          : highway === "tertiary" || highway === "tertiary_link"
+            ? "tertiary"
+            : highway === "residential"
+              ? "residential"
+              : highway === "service" && service === "alley"
+                ? "alley"
+                : highway === "service"
+                  ? "service"
+                  : "unclassified";
+
+  return {
+    ...projected,
+    roadType,
+    name: tags.name || tags.ref || null,
+  };
+}
+
 // ---- Rendering ----
 
 function render() {
@@ -67,11 +307,7 @@ function render() {
   const w = W / dpr;
   const h = H / dpr;
 
-  // Background
-  ctx.fillStyle = "#1a2420";
-  ctx.fillRect(0, 0, w, h);
-
-  drawForestOutline(ctx, w, h);
+  drawBaseMap(ctx, w, h);
 
   if (viewMode === "heatmap") {
     drawHeatmap(ctx, w, h);
@@ -101,6 +337,244 @@ function drawForestOutline(ctx, w, h) {
   ctx.strokeStyle = "rgba(79, 201, 126, 0.25)";
   ctx.lineWidth = 1;
   ctx.stroke();
+}
+
+function drawBaseMap(ctx, w, h) {
+  const gradient = ctx.createLinearGradient(0, 0, w, h);
+  gradient.addColorStop(0, "#edf2e9");
+  gradient.addColorStop(1, "#cfdccb");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, w, h);
+
+  if (!adminMap.loaded) {
+    drawForestOutline(ctx, w, h);
+    if (adminMap.loading) {
+      ctx.fillStyle = "rgba(36, 56, 47, 0.78)";
+      ctx.font = "600 12px system-ui";
+      ctx.fillText("Loading map context...", 16, 24);
+    }
+    return;
+  }
+
+  for (const layer of adminMap.layers) drawAdminLayer(ctx, w, h, layer);
+  drawAdminEnvironment(ctx, w, h);
+  drawAdminRoads(ctx, w, h);
+  drawAdminPaths(ctx, w, h);
+}
+
+function drawAdminLayer(ctx, w, h, layer) {
+  const style = layer.key === "buffer"
+    ? { fill: "rgba(85, 167, 160, 0.24)", stroke: "rgba(20, 110, 105, 0.52)", width: 1.2 }
+    : { fill: "rgba(79, 139, 98, 0.29)", stroke: "rgba(21, 96, 56, 0.66)", width: 1.5 };
+
+  ctx.save();
+  ctx.fillStyle = style.fill;
+  ctx.strokeStyle = style.stroke;
+  ctx.lineWidth = style.width;
+
+  for (const feature of layer.data.features || []) {
+    drawAdminPolygon(ctx, w, h, feature.geometry, style);
+  }
+
+  ctx.restore();
+}
+
+function drawAdminEnvironment(ctx, w, h) {
+  if (!adminMap.environmentFeatures.length) return;
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  for (const feature of adminMap.environmentFeatures) {
+    const geometry = feature.geometry || {};
+    const type = feature.properties && feature.properties.featureType;
+
+    if (type === "hydrology_area") {
+      drawAdminPolygon(ctx, w, h, geometry, {
+        fill: "rgba(88, 151, 212, 0.22)",
+        stroke: "rgba(47, 114, 178, 0.55)",
+        width: 1,
+      });
+    } else if (type === "nature_designation") {
+      drawAdminPolygon(ctx, w, h, geometry, {
+        fill: "rgba(105, 163, 94, 0.11)",
+        stroke: "rgba(72, 130, 65, 0.35)",
+        width: 1,
+      });
+    } else if (type === "garden") {
+      drawAdminPolygon(ctx, w, h, geometry, {
+        fill: "rgba(120, 175, 90, 0.16)",
+        stroke: "rgba(90, 140, 70, 0.36)",
+        width: 1,
+      });
+    } else if (type === "hydrology_line") {
+      drawAdminLines(ctx, w, h, geometry, {
+        stroke: "rgba(47, 114, 178, 0.62)",
+        width: 1.25,
+      });
+    } else if (type === "railway") {
+      drawAdminLines(ctx, w, h, geometry, {
+        stroke: "rgba(60, 60, 60, 0.72)",
+        casing: "rgba(255, 255, 255, 0.55)",
+        width: 1.5,
+        casingWidth: 3.2,
+      });
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawAdminRoads(ctx, w, h) {
+  if (!adminMap.roads.length) return;
+  const visible = visibleWorldBounds(w, h);
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  for (const road of adminMap.roads) {
+    if (!bboxIntersects(road.bbox, visible)) continue;
+    const style = roadStyle(road.roadType);
+    for (const segment of road.segments) drawProjectedSegment(ctx, w, h, segment, style);
+  }
+
+  ctx.restore();
+}
+
+function drawAdminPaths(ctx, w, h) {
+  if (!adminMap.paths.length) return;
+  const visible = visibleWorldBounds(w, h);
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  for (const path of adminMap.paths) {
+    if (!bboxIntersects(path.bbox, visible)) continue;
+    const style = pathStyle(path.pathType);
+    for (const segment of path.segments) drawProjectedSegment(ctx, w, h, segment, style);
+  }
+
+  ctx.restore();
+}
+
+function roadStyle(roadType) {
+  switch (roadType) {
+    case "motorway":
+      return { stroke: "rgba(229, 105, 82, 0.68)", casing: "rgba(0,0,0,0.12)", width: 3.3, casingWidth: 4.8 };
+    case "trunk":
+      return { stroke: "rgba(245, 161, 80, 0.66)", casing: "rgba(0,0,0,0.10)", width: 3, casingWidth: 4.3 };
+    case "primary":
+      return { stroke: "rgba(232, 190, 77, 0.66)", casing: "rgba(255,255,255,0.45)", width: 2.4, casingWidth: 3.7 };
+    case "secondary":
+      return { stroke: "rgba(244, 250, 191, 0.72)", casing: "rgba(110,110,90,0.18)", width: 2, casingWidth: 3 };
+    case "tertiary":
+      return { stroke: "rgba(255, 255, 255, 0.66)", casing: "rgba(90,90,90,0.16)", width: 1.7, casingWidth: 2.5 };
+    case "residential":
+      return { stroke: "rgba(255, 255, 255, 0.56)", casing: "rgba(90,90,90,0.14)", width: 1.35, casingWidth: 2.1 };
+    case "service":
+      return { stroke: "rgba(255, 255, 255, 0.44)", casing: "rgba(90,90,90,0.12)", width: 1, casingWidth: 1.7 };
+    case "alley":
+      return { stroke: "rgba(255, 255, 255, 0.32)", casing: "rgba(90,90,90,0.10)", width: 0.8, casingWidth: 1.3 };
+    default:
+      return { stroke: "rgba(255, 255, 255, 0.48)", casing: "rgba(90,90,90,0.12)", width: 1.2, casingWidth: 1.9 };
+  }
+}
+
+function pathStyle(pathType) {
+  const stroke = pathType === "bridleway"
+    ? "rgba(113, 77, 35, 0.78)"
+    : pathType === "byway"
+      ? "rgba(72, 61, 139, 0.80)"
+      : pathType === "permissive"
+        ? "rgba(57, 90, 138, 0.76)"
+        : pathType === "waymarked_trail"
+          ? "rgba(109, 68, 140, 0.80)"
+          : "rgba(41, 82, 59, 0.74)";
+  const dash = pathType === "bridleway"
+    ? [7, 4.5]
+    : pathType === "byway"
+      ? [2, 3]
+      : pathType === "permissive"
+        ? [4, 3]
+        : pathType === "waymarked_trail"
+          ? [9, 5]
+          : [];
+  return { stroke, casing: "rgba(255,255,255,0.70)", width: 1.15, casingWidth: 2.7, dash };
+}
+
+function drawAdminPolygon(ctx, w, h, geometry, style) {
+  const polygons = polygonRingsFromGeometry(geometry);
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon) || !polygon.length) continue;
+    ctx.beginPath();
+    for (const ring of polygon) {
+      if (!Array.isArray(ring) || ring.length < 3) continue;
+      for (let i = 0; i < ring.length; i += 1) {
+        const point = worldToCanvas(projectLonLat(Number(ring[i][0]), Number(ring[i][1])), w, h);
+        if (i === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      }
+    }
+    ctx.fillStyle = style.fill;
+    ctx.fill("evenodd");
+    ctx.strokeStyle = style.stroke;
+    ctx.lineWidth = style.width;
+    ctx.stroke();
+  }
+}
+
+function drawAdminLines(ctx, w, h, geometry, style) {
+  const segments = lineSegmentsFromGeometry(geometry);
+  for (const segment of segments) {
+    const projected = segment
+      .map(([longitude, latitude]) => projectLonLat(Number(longitude), Number(latitude)))
+      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+    drawProjectedSegment(ctx, w, h, projected, style);
+  }
+}
+
+function drawProjectedSegment(ctx, w, h, segment, style) {
+  if (!Array.isArray(segment) || segment.length < 2) return;
+  ctx.beginPath();
+  for (let i = 0; i < segment.length; i += 1) {
+    const point = worldToCanvas(segment[i], w, h);
+    if (i === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  }
+
+  if (style.casing) {
+    ctx.setLineDash(style.dash || []);
+    ctx.strokeStyle = style.casing;
+    ctx.lineWidth = style.casingWidth;
+    ctx.stroke();
+  }
+
+  ctx.setLineDash(style.dash || []);
+  ctx.strokeStyle = style.stroke;
+  ctx.lineWidth = style.width;
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function visibleWorldBounds(w, h) {
+  const fit = mapFit(w, h);
+  const topLeft = { x: (0 - fit.tx) / fit.scale, y: (0 - fit.ty) / fit.scale };
+  const bottomRight = { x: (w - fit.tx) / fit.scale, y: (h - fit.ty) / fit.scale };
+  const marginX = Math.abs(bottomRight.x - topLeft.x) * 0.04;
+  const marginY = Math.abs(bottomRight.y - topLeft.y) * 0.04;
+  return {
+    minX: Math.min(topLeft.x, bottomRight.x) - marginX,
+    minY: Math.min(topLeft.y, bottomRight.y) - marginY,
+    maxX: Math.max(topLeft.x, bottomRight.x) + marginX,
+    maxY: Math.max(topLeft.y, bottomRight.y) + marginY,
+  };
+}
+
+function bboxIntersects(a, b) {
+  return a && b && a.maxX >= b.minX && a.minX <= b.maxX && a.maxY >= b.minY && a.minY <= b.maxY;
 }
 
 function filteredLocations() {
@@ -319,6 +793,7 @@ async function adminBoot() {
   const canvas = document.getElementById("adminCanvas");
 
   let password = "";
+  loadAdminBaseMap();
 
   async function doLogin() {
     const pw = loginInput.value.trim();
