@@ -11,6 +11,7 @@ const ADMIN_MAP_URLS = {
   paths: "data/local-paths.geojson",
 };
 const ADMIN_SESSION_KEY = "ff-admin-session-password";
+const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
 const BASE_MAP_OPACITY = 0.42;
 const MIN_MAP_ZOOM = 0.85;
 const MAX_MAP_ZOOM = 14;
@@ -136,6 +137,38 @@ function invalidateMapFit() {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function finiteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function readSavedViewport() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ADMIN_VIEWPORT_KEY) || "null");
+    if (!saved || typeof saved !== "object") return;
+
+    const zoom = finiteNumber(saved.zoom);
+    const panX = finiteNumber(saved.panX);
+    const panY = finiteNumber(saved.panY);
+    if (zoom == null || panX == null || panY == null) return;
+
+    adminViewport.zoom = clamp(zoom, MIN_MAP_ZOOM, MAX_MAP_ZOOM);
+    adminViewport.panX = panX;
+    adminViewport.panY = panY;
+    invalidateMapFit();
+  } catch {}
+}
+
+function saveViewport() {
+  try {
+    localStorage.setItem(ADMIN_VIEWPORT_KEY, JSON.stringify({
+      zoom: adminViewport.zoom,
+      panX: adminViewport.panX,
+      panY: adminViewport.panY,
+    }));
+  } catch {}
 }
 
 // ---- User colour assignment ----
@@ -655,6 +688,7 @@ function setMapZoom(nextZoom, anchor) {
   adminViewport.panX += focus.x - after.x;
   adminViewport.panY += focus.y - after.y;
   invalidateMapFit();
+  saveViewport();
 
   render();
 }
@@ -670,6 +704,7 @@ function resetMapView() {
   adminViewport.dragging = false;
   adminViewport.pointerId = null;
   invalidateMapFit();
+  saveViewport();
   render();
 }
 
@@ -721,11 +756,13 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     adminViewport.pointerId = null;
     canvas.classList.remove("dragging");
     if (canvas.releasePointerCapture) canvas.releasePointerCapture(event.pointerId);
+    saveViewport();
   }
 
   canvas.addEventListener("pointerup", endDrag);
   canvas.addEventListener("pointercancel", endDrag);
   canvas.addEventListener("lostpointercapture", () => {
+    if (adminViewport.dragging) saveViewport();
     adminViewport.dragging = false;
     adminViewport.pointerId = null;
     canvas.classList.remove("dragging");
@@ -1066,6 +1103,7 @@ async function adminBoot() {
   const resetMapBtn = document.getElementById("resetMapBtn");
 
   let password = "";
+  readSavedViewport();
   loadAdminBaseMap();
   setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn);
 
