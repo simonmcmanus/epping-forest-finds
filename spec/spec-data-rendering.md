@@ -422,6 +422,7 @@ Always visible, shows active marker semantics:
 
 - Mobile-first: controls compact, avoid overflow
 - Inspector drag-to-resize on mobile
+- Mobile inspector navigation controls sit below the drag-to-resize bar with a clear gap so the resize handle remains visually distinct and easy to touch.
 - Filter panel adapts to screen width with auto-fit grid
 - Subfilter rows scroll horizontally with scroll indicator
 - Map controls repositioned based on viewport

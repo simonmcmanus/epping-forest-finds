@@ -118,6 +118,7 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
 - Install button appears when `beforeinstallprompt` is available.
 - Tree number search is available from map UI.
 - Mobile layout keeps controls compact and avoids overflow.
+- On mobile, the modal navigation controls sit below the drag-to-resize bar with a clear gap so the resize handle remains visually distinct and easy to touch.
 
 ## Loading Experience
 

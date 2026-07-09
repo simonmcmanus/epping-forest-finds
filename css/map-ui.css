@@ -251,8 +251,13 @@
     display: flex;
   }
 
+  .inspector-actions {
+    top: 30px;
+  }
+
   .inspector-header {
-    padding-top: 24px;
+    min-height: calc(36px * var(--icon-scale) + 44px);
+    padding-top: 42px;
   }
 
   .toolbar {
