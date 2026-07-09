@@ -2338,7 +2338,6 @@
         state.userLocation
         && selectedCompassTarget()
         && Number.isFinite(state.compassHeading)
-        && els.inspector.classList.contains("minimized")
       );
     }
 
@@ -2745,12 +2744,6 @@
       if (!target || !state.userLocation) {
         els.compassOverlay.hidden = true;
         state.compassArrowAngle = null;
-        return;
-      }
-
-      // Hide compass when the detail panel is expanded — user is reading, not navigating
-      if (!els.inspector.classList.contains("minimized")) {
-        els.compassOverlay.hidden = true;
         return;
       }
 
