@@ -938,6 +938,7 @@
       state.viewport.scale = clamp(state.viewport.scale * factor, state.fitScale * 0.65, state.fitScale * 220);
       state.viewport.tx = screenPoint.x - before.x * state.viewport.scale;
       state.viewport.ty = screenPoint.y - before.y * state.viewport.scale;
+      if (selectedNavigationHeadingUpActive()) alignHeadingUpNavigationViewport();
       requestDraw();
     }
 
@@ -2353,9 +2354,54 @@
       };
     }
 
+    function selectedNavigationTargetPoints() {
+      const target = selectedCompassTarget();
+      if (!target) return [];
+      if (state.selected && state.selected.type === "path" && target.segments) {
+        return target.segments.flat();
+      }
+      return target.point ? [target.point] : [];
+    }
+
+    function maxHeadingUpNavigationScale(focus, focusRect) {
+      if (!state.userLocation) return state.viewport.scale;
+      const points = selectedNavigationTargetPoints();
+      if (!points.length) return state.viewport.scale;
+
+      const dpr = pixelRatio();
+      const margin = Math.min(focusRect.width, focusRect.height) * 0.1 + 12 * dpr;
+      const left = focusRect.x + margin;
+      const right = focusRect.x + focusRect.width - margin;
+      const top = focusRect.y + margin;
+      const bottom = focusRect.y + focusRect.height - margin;
+      const rotation = navigationMapRotationDegrees();
+      const radians = toRadians(rotation);
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      let maxScale = Number.POSITIVE_INFINITY;
+
+      for (const point of points) {
+        const dx = point.x - state.userLocation.point.x;
+        const dy = point.y - state.userLocation.point.y;
+        const rotatedX = dx * cos - dy * sin;
+        const rotatedY = dx * sin + dy * cos;
+
+        if (rotatedX > 0) maxScale = Math.min(maxScale, (right - focus.x) / rotatedX);
+        if (rotatedX < 0) maxScale = Math.min(maxScale, (left - focus.x) / rotatedX);
+        if (rotatedY > 0) maxScale = Math.min(maxScale, (bottom - focus.y) / rotatedY);
+        if (rotatedY < 0) maxScale = Math.min(maxScale, (top - focus.y) / rotatedY);
+      }
+
+      if (!Number.isFinite(maxScale) || maxScale <= 0) return state.viewport.scale;
+      return maxScale;
+    }
+
     function alignHeadingUpNavigationViewport() {
       if (!selectedNavigationHeadingUpActive()) return false;
+      const focusRect = bestVisibleCanvasRect();
       const focus = navigationFocusPoint();
+      const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
+      if (state.viewport.scale > maxScale) state.viewport.scale = maxScale;
       const userPoint = state.userLocation.point;
       state.viewport.tx = focus.x - userPoint.x * state.viewport.scale;
       state.viewport.ty = focus.y - userPoint.y * state.viewport.scale;

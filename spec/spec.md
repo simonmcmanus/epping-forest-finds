@@ -270,11 +270,12 @@ Marker rules:
 - Smooth heading updates for:
   - compass overlay arrow
   - nearest-list directional arrows
-- In selected-location navigation, the map becomes heading-up whenever compass heading is available, regardless of whether the inspector is expanded or minimized: the device-facing direction is always toward the top of the screen, the user stays anchored slightly below center, and the map rotates as the user turns.
+- In selected-location navigation, the map becomes heading-up whenever compass heading is available, regardless of whether the inspector is expanded or minimized: the device-facing direction is always toward the top of the screen, the user stays anchored slightly below center, and the map rotates as the user turns. The selected location must stay inside the visible map area; heading-up navigation reduces zoom when needed to keep it visible.
 - Show route lines:
   - selected mode: user → selected target
   - overview mode: user → nearest overview targets
 - Compass overlay appears only when user location and a selected navigation target exist.
+- The user radar cone scales with the current viewport zoom, bounded to avoid becoming unusably small or large.
 
 ## Details Content Requirements
 

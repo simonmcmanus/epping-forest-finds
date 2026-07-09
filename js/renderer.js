@@ -1137,7 +1137,7 @@ function drawUserRadar(ctx, point, dpr) {
   const spread = toRadians(26);
   const baselineScale = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
   const zoomRatio = baselineScale > 0 ? state.viewport.scale / baselineScale : 1;
-  const radarScale = clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.38), 0.42, 1.22);
+  const radarScale = clamp(Math.max(0.0001, zoomRatio), 0.28, 2.6);
   const innerRadius = 24 * dpr * radarScale;
   const outerRadius = 88 * dpr * radarScale;
 
