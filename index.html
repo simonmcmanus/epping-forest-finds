@@ -313,6 +313,7 @@
       compassAnimationTime: null,
       compassArrowAngle: null,
       compassLastEventAt: null,
+      navigationHeadingUp: false,
       viewportAnimationFrame: null,
       viewportAnimationFrom: null,
       viewportAnimationTo: null,
@@ -2252,6 +2253,7 @@
 
         updateOverviewDirectionArrows();
         updateCompassOverlay();
+        alignHeadingUpNavigationViewport();
         requestDraw();
 
         const remaining = Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget));
@@ -2261,6 +2263,7 @@
           state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
           updateOverviewDirectionArrows();
           updateCompassOverlay();
+          alignHeadingUpNavigationViewport();
           requestDraw();
           state.compassAnimationFrame = null;
           state.compassAnimationTime = null;
@@ -2310,7 +2313,11 @@
           }
           updateOverviewDirectionArrows();
           updateSelectedDetailFields();
-          ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
+          if (selectedNavigationHeadingUpActive()) {
+            alignHeadingUpNavigationViewport();
+          } else {
+            ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
+          }
           keepOverviewCenteredOnUser(previousPoint);
           updateCompassOverlay();
           requestDraw();
@@ -2324,6 +2331,36 @@
       if (!state.selected) return null;
       if (state.selected.type === "tree" || state.selected.type === "landmark" || state.selected.type === "cow" || state.selected.type === "path" || state.selected.type === "water") return state.selected.item;
       return null;
+    }
+
+    function selectedNavigationHeadingUpActive() {
+      return Boolean(
+        state.userLocation
+        && selectedCompassTarget()
+        && Number.isFinite(state.compassHeading)
+        && els.inspector.classList.contains("minimized")
+      );
+    }
+
+    function navigationMapRotationDegrees() {
+      return selectedNavigationHeadingUpActive() ? -normalizeDegrees(state.compassHeading) : 0;
+    }
+
+    function navigationFocusPoint() {
+      const focusRect = bestVisibleCanvasRect();
+      return {
+        x: focusRect.x + focusRect.width / 2,
+        y: focusRect.y + focusRect.height * 0.62,
+      };
+    }
+
+    function alignHeadingUpNavigationViewport() {
+      if (!selectedNavigationHeadingUpActive()) return false;
+      const focus = navigationFocusPoint();
+      const userPoint = state.userLocation.point;
+      state.viewport.tx = focus.x - userPoint.x * state.viewport.scale;
+      state.viewport.ty = focus.y - userPoint.y * state.viewport.scale;
+      return true;
     }
 
     function shouldAutoRepositionSelection() {
@@ -3333,18 +3370,44 @@
       return { longitude: point.x, latitude };
     }
 
-    function worldToScreen(point) {
+    function rawWorldToScreen(point) {
       return {
         x: point.x * state.viewport.scale + state.viewport.tx,
         y: point.y * state.viewport.scale + state.viewport.ty,
       };
     }
 
-    function screenToWorld(x, y) {
+    function rawScreenToWorld(x, y) {
       return {
         x: (x - state.viewport.tx) / state.viewport.scale,
         y: (y - state.viewport.ty) / state.viewport.scale,
       };
+    }
+
+    function rotateScreenPoint(point, center, degrees) {
+      const radians = toRadians(degrees);
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      const dx = point.x - center.x;
+      const dy = point.y - center.y;
+      return {
+        x: center.x + dx * cos - dy * sin,
+        y: center.y + dx * sin + dy * cos,
+      };
+    }
+
+    function worldToScreen(point) {
+      const raw = rawWorldToScreen(point);
+      const rotation = navigationMapRotationDegrees();
+      if (!rotation || !state.userLocation) return raw;
+      return rotateScreenPoint(raw, rawWorldToScreen(state.userLocation.point), rotation);
+    }
+
+    function screenToWorld(x, y) {
+      const rotation = navigationMapRotationDegrees();
+      if (!rotation || !state.userLocation) return rawScreenToWorld(x, y);
+      const unrotated = rotateScreenPoint({ x, y }, rawWorldToScreen(state.userLocation.point), -rotation);
+      return rawScreenToWorld(unrotated.x, unrotated.y);
     }
 
     function canvasPoint(event) {

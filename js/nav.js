@@ -304,6 +304,9 @@ function setInspectorMinimized(minimized) {
       [state.userLocation.point, selectedCompassTarget().point],
       { animate: true, durationMs: 480, focusVisibleArea: true, assumeInspectorOpen: true }
     );
+  } else if (!wasMinimized && minimized && typeof alignHeadingUpNavigationViewport === "function") {
+    alignHeadingUpNavigationViewport();
+    requestDraw();
   }
   if (typeof updateCompassOverlay === "function") updateCompassOverlay();
 }

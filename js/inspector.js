@@ -797,6 +797,12 @@ function zoomToSelection() {
     if (fired) return;
     fired = true;
     ensureUserAndSelectionVisible({ animate: true, force: true });
+    if (typeof alignHeadingUpNavigationViewport === "function") {
+      setTimeout(() => {
+        alignHeadingUpNavigationViewport();
+        requestDraw();
+      }, 860);
+    }
   };
   els.inspector.addEventListener("transitionend", fire, { once: true });
   setTimeout(fire, 250);

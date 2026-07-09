@@ -1131,7 +1131,9 @@ function mapEmojiScale() {
 function drawUserRadar(ctx, point, dpr) {
   if (!Number.isFinite(state.compassHeading)) return;
 
-  const headingRad = toRadians(normalizeDegrees(state.compassHeading) - 90);
+  const headingRad = typeof selectedNavigationHeadingUpActive === "function" && selectedNavigationHeadingUpActive()
+    ? toRadians(-90)
+    : toRadians(normalizeDegrees(state.compassHeading) - 90);
   const spread = toRadians(26);
   const baselineScale = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
   const zoomRatio = baselineScale > 0 ? state.viewport.scale / baselineScale : 1;
