@@ -47,16 +47,17 @@ jobs:
         env:
           CODEX_ACCESS_TOKEN: ${{ secrets.CODEX_ACCESS_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPEN_API_KEY: ${{ secrets.OPEN_API_KEY }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ -z "${CODEX_ACCESS_TOKEN:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
+          if [ -z "${CODEX_ACCESS_TOKEN:-}" ] && [ -z "${OPENAI_API_KEY:-}" ] && [ -z "${OPEN_API_KEY:-}" ]; then
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
               ISSUE_NUMBER="${{ inputs.issue_number }}"
             else
               ISSUE_NUMBER="${{ github.event.issue.number }}"
             fi
-            gh issue comment "$ISSUE_NUMBER" --body "Codex issue agent is not configured yet. Add either the \`CODEX_ACCESS_TOKEN\` secret or the \`OPENAI_API_KEY\` secret, then re-run this workflow."
+            gh issue comment "$ISSUE_NUMBER" --body "Codex issue agent is not configured yet. Add either the \`CODEX_ACCESS_TOKEN\` secret or the \`OPENAI_API_KEY\` repository secret, then re-run this workflow. \`OPEN_API_KEY\` is also accepted as a compatibility alias."
             exit 1
           fi
 
@@ -64,13 +65,16 @@ jobs:
         env:
           CODEX_ACCESS_TOKEN: ${{ secrets.CODEX_ACCESS_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPEN_API_KEY: ${{ secrets.OPEN_API_KEY }}
           CODEX_HOME: ${{ runner.temp }}/codex-home
         run: |
           set -euo pipefail
           if [ -n "${CODEX_ACCESS_TOKEN:-}" ]; then
             printf '%s' "$CODEX_ACCESS_TOKEN" | codex login --with-access-token
-          else
+          elif [ -n "${OPENAI_API_KEY:-}" ]; then
             printf '%s' "$OPENAI_API_KEY" | codex login --with-api-key
+          else
+            printf '%s' "$OPEN_API_KEY" | codex login --with-api-key
           fi
 
       - name: Prepare issue prompt
