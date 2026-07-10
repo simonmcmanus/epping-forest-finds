@@ -367,7 +367,7 @@ Behavior:
 ## Selected Direction Arrow
 
 - Appears in the inspector title row when: user location exists AND selected navigation target exists
-- Aligns to the right of the selected location name/type
+- Aligns to the far right edge of the inspector modal title row and is roughly three times larger than the default title-row arrow size, with title text padding reserved so the arrow and name do not collide
 - Shows only the directional arrow; the previous top-of-screen compass card with title/distance text is not shown during selected-location navigation
 - Shows directional arrow smoothed with device heading
 - Updates continuously via `requestAnimationFrame`

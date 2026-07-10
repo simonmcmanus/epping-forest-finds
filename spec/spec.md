@@ -275,7 +275,7 @@ Marker rules:
 - Show route lines:
   - selected mode: user → selected target
   - overview mode: user → nearest overview targets
-- The selected-location compass arrow appears only when user location and a selected navigation target exist. It lives in the inspector title row, aligned to the right of the location name/type; no separate top-of-screen title/distance box is shown.
+- The selected-location compass arrow appears only when user location and a selected navigation target exist. It lives in the inspector title row, aligned to the far right edge of the modal and roughly three times the normal title-row arrow size; no separate top-of-screen title/distance box is shown.
 - The user radar cone outer edge represents roughly 60 metres in front of the user's current GPS position at the current map zoom.
 
 ## Details Content Requirements
