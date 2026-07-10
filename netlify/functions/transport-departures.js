@@ -59,8 +59,13 @@ function stopMetadataDirection(stopPoint) {
 function busStopDirection(stopPoint, rawArrivals) {
   const metadataDirection = stopMetadataDirection(stopPoint);
   if (metadataDirection) return metadataDirection;
-  const directions = uniqueDirections((Array.isArray(rawArrivals) ? rawArrivals : []).map((arrival) => arrival && (arrival.towards || arrival.destinationName)));
+  const directions = arrivalDirections(rawArrivals);
   return summarizeDirections(directions);
+}
+
+function arrivalDirections(rawArrivals) {
+  const directions = Array.isArray(rawArrivals) ? rawArrivals : [];
+  return uniqueDirections(directions.map((arrival) => arrival && (arrival.towards || arrival.destinationName)));
 }
 
 exports.handler = async (event) => {
@@ -120,8 +125,6 @@ exports.handler = async (event) => {
       // stop only — not buses from the opposite-direction stop across the road.
       const nearestStop = stops[0];
       stopName = nearestStop.commonName;
-
-      stopDirection = busStopDirection(nearestStop, rawArrivals);
 
       const res = await fetch(arrivalsUrl(nearestStop.id));
       rawArrivals = res.ok ? (await res.json()) : [];
