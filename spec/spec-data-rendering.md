@@ -288,6 +288,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 - Appropriate emoji by type
 - OSM attribution (only for OSM-sourced places)
 - Live distance + walking time
+- Bus stop selections append live departures when online; the departures block also shows a bus-stop direction summary (`Buses towards …`) using TfL stop metadata when available, otherwise a deduplicated summary of upcoming destination names for that stop only.
 
 #### Cow Details
 
