@@ -1,4 +1,4 @@
-const CACHE_NAME = "veteran-tree-finder-v115";
+const CACHE_NAME = "veteran-tree-finder-v116";
 const APP_SHELL = [
   "./",
   "./index.html",

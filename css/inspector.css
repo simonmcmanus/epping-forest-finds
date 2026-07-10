@@ -152,6 +152,27 @@
   padding: 16px 16px 12px;
 }
 
+.inspector-title-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.title-compass-arrow {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--selected);
+  font-size: clamp(2.15rem, 10vw, 3.4rem);
+  font-weight: 850;
+  line-height: 0.9;
+  transform-origin: 50% 50%;
+  transition: transform 40ms linear;
+  user-select: none;
+}
+
+.title-compass-arrow[hidden] {
+  display: none;
+}
+
 .inspector-back {
   width: calc(36px * var(--icon-scale));
   height: calc(36px * var(--icon-scale));

@@ -364,9 +364,11 @@ Behavior:
 
 ---
 
-## Compass Overlay
+## Selected Direction Arrow
 
-- Appears when: user location exists AND selected navigation target exists
+- Appears in the inspector title row when: user location exists AND selected navigation target exists
+- Aligns to the right of the selected location name/type
+- Shows only the directional arrow; the previous top-of-screen compass card with title/distance text is not shown during selected-location navigation
 - Shows directional arrow smoothed with device heading
 - Updates continuously via `requestAnimationFrame`
 - In heading-up selected navigation mode, the radar cone around the user is drawn on `#overlayCanvas` and points straight ahead on screen while the map rotates underneath it. Outside heading-up mode, the radar cone is drawn at the absolute compass heading on the north-up map. The radar cone outer edge represents roughly 60 metres in front of the user's current GPS position at the current map zoom, so it naturally grows when zooming in and shrinks when zooming out.

@@ -107,12 +107,6 @@
         </div>
       </div>
 
-      <div id="compassOverlay" class="compass-overlay" aria-live="polite" hidden>
-        <div id="compassArrow" class="compass-arrow">↑</div>
-        <div id="compassLabel" class="compass-label">Pointing to selected location</div>
-      </div>
-
-
       <div class="legend" aria-label="Map legend">
         <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
         <span style="color: #2f72b2;">💧 Hydrology</span>
@@ -161,10 +155,11 @@
           <div class="inspector-screen">
             <div class="inspector-title-section">
               <span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>
-              <div>
+              <div class="inspector-title-copy">
                 <h2 id="inspectorTitle">Epping Forest Finds</h2>
                 <p id="inspectorType" class="type"></p>
               </div>
+              <span id="compassArrow" class="title-compass-arrow" aria-label="Direction to selected location" hidden>↑</span>
             </div>
             <div id="inspectorBody" class="inspector-body">
               <p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>
@@ -340,9 +335,7 @@
       overlayCanvas: document.getElementById("overlayCanvas"),
       mapStage: document.querySelector(".map-stage"),
       toolbar: document.querySelector(".toolbar"),
-      compassOverlay: document.getElementById("compassOverlay"),
       compassArrow: document.getElementById("compassArrow"),
-      compassLabel: document.getElementById("compassLabel"),
       filterToggle: document.getElementById("filterToggle"),
       filterCount: document.getElementById("filterCount"),
       nearbyToggle: document.getElementById("nearbyToggle"),
@@ -2852,7 +2845,7 @@
     function updateCompassOverlay() {
       const target = selectedCompassTarget();
       if (!target || !state.userLocation) {
-        els.compassOverlay.hidden = true;
+        if (els.compassArrow) els.compassArrow.hidden = true;
         state.compassArrowAngle = null;
         return;
       }
@@ -2862,13 +2855,14 @@
       const relative = hasHeading ? shortestCompassDelta(state.compassHeading, bearingToTarget) : bearingToTarget;
       state.compassArrowAngle = unwrapAngle(state.compassArrowAngle, relative);
 
-      els.compassOverlay.hidden = false;
-      els.compassArrow.style.transform = `rotate(${state.compassArrowAngle}deg)`;
-
       const title = state.selected.type === "tree"
         ? displayValue(target.commonName || target.tagNumber || target.recordNumber)
         : placeTitle(target);
-      els.compassLabel.textContent = `${title} · ${detailTypeLabel(distanceFromUser(target))}`;
+      if (els.compassArrow) {
+        els.compassArrow.hidden = false;
+        els.compassArrow.style.transform = `rotate(${state.compassArrowAngle}deg)`;
+        els.compassArrow.setAttribute("aria-label", `Direction to ${title}, ${detailTypeLabel(distanceFromUser(target))}`);
+      }
     }
 
     function updateOverviewDirectionArrows() {
