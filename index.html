@@ -3384,7 +3384,10 @@
         }
 
         const stopLabel = data.stopName ? `<p class="departures-stop-name">${escapeHtml(data.stopName)}</p>` : "";
-        section.innerHTML = `<h3 class="departures-heading">Next departures</h3>${stopLabel}
+        const stopDirection = type === "bus" && data.stopDirection
+          ? `<p class="departures-stop-direction">Buses towards ${escapeHtml(data.stopDirection)}</p>`
+          : "";
+        section.innerHTML = `<h3 class="departures-heading">Next departures</h3>${stopLabel}${stopDirection}
           <ul class="departures-list">
             ${data.departures.map((d) => `
               <li class="departure-item">

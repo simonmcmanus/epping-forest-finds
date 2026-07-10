@@ -1,5 +1,68 @@
 const TFL_BASE = "https://api.tfl.gov.uk";
 
+function normalizeDirectionText(value) {
+  if (typeof value !== "string") return null;
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (!cleaned) return null;
+  if (/^stop\s+[a-z0-9]+$/i.test(cleaned)) return null;
+  return cleaned.replace(/^towards\s+/i, "");
+}
+
+function uniqueDirections(values) {
+  const seen = new Set();
+  const directions = [];
+  for (const value of values) {
+    const normalized = normalizeDirectionText(value);
+    if (!normalized) continue;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    directions.push(normalized);
+  }
+  return directions;
+}
+
+function summarizeDirections(directions) {
+  if (!directions.length) return null;
+  if (directions.length === 1) return directions[0];
+  if (directions.length === 2) return `${directions[0]} / ${directions[1]}`;
+  return `${directions[0]} / ${directions[1]} + ${directions.length - 2} more`;
+}
+
+function stopMetadataDirection(stopPoint) {
+  if (!stopPoint || typeof stopPoint !== "object") return null;
+
+  const additionalProperties = Array.isArray(stopPoint.additionalProperties) ? stopPoint.additionalProperties : [];
+  for (const property of additionalProperties) {
+    const descriptor = [
+      property && property.category,
+      property && property.key,
+      property && property.sourceSystemKey,
+      property && property.description,
+    ].filter(Boolean).join(" ");
+    if (!/towards|destination|direction|bearing|compass/i.test(descriptor)) continue;
+    const direction = normalizeDirectionText(property && (property.value || property.description));
+    if (direction) return direction;
+  }
+
+  const indicator = normalizeDirectionText(stopPoint.indicator);
+  if (indicator && /bound|towards|via|north|south|east|west|n|s|e|w/i.test(indicator)) {
+    return indicator;
+  }
+
+  const bearing = normalizeDirectionText(stopPoint.bearing);
+  if (bearing) return bearing;
+
+  return null;
+}
+
+function busStopDirection(stopPoint, rawArrivals) {
+  const metadataDirection = stopMetadataDirection(stopPoint);
+  if (metadataDirection) return metadataDirection;
+  const directions = uniqueDirections((Array.isArray(rawArrivals) ? rawArrivals : []).map((arrival) => arrival && (arrival.towards || arrival.destinationName)));
+  return summarizeDirections(directions);
+}
+
 exports.handler = async (event) => {
   const headers = {
     "Content-Type": "application/json; charset=utf-8",
@@ -41,6 +104,7 @@ exports.handler = async (event) => {
   try {
     let rawArrivals = [];
     let stopName = null;
+    let stopDirection = null;
 
     if (type === "bus") {
       const stopRes = await fetch(
@@ -57,8 +121,11 @@ exports.handler = async (event) => {
       const nearestStop = stops[0];
       stopName = nearestStop.commonName;
 
+      stopDirection = busStopDirection(nearestStop, rawArrivals);
+
       const res = await fetch(arrivalsUrl(nearestStop.id));
       rawArrivals = res.ok ? (await res.json()) : [];
+      stopDirection = busStopDirection(nearestStop, rawArrivals);
     } else {
       // Train/underground: try lat/lon first, fall back to name search
       const stopRes = await fetch(
@@ -105,7 +172,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ departures, stopName }),
+      body: JSON.stringify({ departures, stopName, stopDirection }),
     };
   } catch (error) {
     return {
@@ -114,4 +181,10 @@ exports.handler = async (event) => {
       body: JSON.stringify({ error: String(error.message || "Transport lookup failed") }),
     };
   }
+};
+
+exports._private = {
+  normalizeDirectionText,
+  summarizeDirections,
+  busStopDirection,
 };
