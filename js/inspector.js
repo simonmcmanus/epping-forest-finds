@@ -1,4 +1,4 @@
-const BUS_STOP_DIRECTION_LABEL_REGEX = /bound|towards|via|\b(?:north|south|east|west|n|s|e|w)\b/i;
+const HAS_DIRECTIONAL_WORDING_REGEX = /bound|towards|via|\b(?:north|south|east|west|n|s|e|w)\b/i;
 
 // --- Hit detection & map click ---
 
@@ -950,15 +950,18 @@ function normalizeStoryName(value) {
 }
 
 function placeTitle(place) {
-  const cachedTransport = isBusCategory(place) && state.transportLookupCache
-    ? state.transportLookupCache.get(`bus:${placeHashKey(place)}`)
+  const busCacheKey = isBusCategory(place) && typeof transportCacheKey === "function"
+    ? transportCacheKey(place, "bus")
+    : null;
+  const cachedTransport = busCacheKey && state.transportLookupCache
+    ? state.transportLookupCache.get(busCacheKey)
     : null;
   const baseName = cachedTransport?.stopName || place.transportStopName || place.name || place.categoryLabel || "Local place";
   const rawDirection = cachedTransport?.stopDirection || place.stopDirection;
   if (!isBusCategory(place) || !rawDirection) return baseName;
   const direction = String(rawDirection).replace(/\s+/g, " ").trim();
   if (!direction) return baseName;
-  const directionLabel = BUS_STOP_DIRECTION_LABEL_REGEX.test(direction)
+  const directionLabel = HAS_DIRECTIONAL_WORDING_REGEX.test(direction)
     ? direction
     : `towards ${direction}`;
   if (baseName.toLowerCase().includes(directionLabel.toLowerCase())) return baseName;

@@ -3359,10 +3359,14 @@
         .slice(0, limit);
     }
 
+    function escapeCssSelector(value) {
+      return typeof CSS !== "undefined" && CSS && typeof CSS.escape === "function"
+        ? CSS.escape(String(value))
+        : String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    }
+
     function overviewLandmarkItemSelector(placeKey) {
-      const escapedKey = typeof CSS !== "undefined" && CSS && typeof CSS.escape === "function"
-        ? CSS.escape(String(placeKey))
-        : String(placeKey).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      const escapedKey = escapeCssSelector(placeKey);
       return `.nearest-item[data-overview-type="landmark"][data-overview-key="${escapedKey}"]`;
     }
 
@@ -3370,10 +3374,14 @@
       return !navigator.onLine || !els.inspectorBody || state.selected || state.filterScreenOpen;
     }
 
+    function transportCacheKey(place, type) {
+      return `${type}:${placeHashKey(place)}`;
+    }
+
     async function fetchTransportDeparturesData(place, type) {
       if (!place) return { error: "Transport stop missing" };
       const lookupType = type || (isBusCategory(place) ? "bus" : "train");
-      const cacheKey = `${lookupType}:${placeHashKey(place)}`;
+      const cacheKey = transportCacheKey(place, lookupType);
       if (state.transportLookupCache.has(cacheKey)) return state.transportLookupCache.get(cacheKey);
       if (state.transportLookupRequests.has(cacheKey)) return state.transportLookupRequests.get(cacheKey);
       const nameParam = lookupType === "train" && place.name ? `&name=${encodeURIComponent(place.name)}` : "";
@@ -3405,8 +3413,10 @@
       for (const item of items) {
         const place = findPlaceByHashKey(item.dataset.overviewKey || "");
         if (!place || !isBusCategory(place)) continue;
-        refreshOverviewBusStopName(place);
-        if (place.stopDirection) continue;
+        if (place.stopDirection || state.transportLookupCache.has(transportCacheKey(place, "bus"))) {
+          refreshOverviewBusStopName(place);
+          continue;
+        }
         fetchTransportDeparturesData(place, "bus")
           .then((data) => {
             if (!data || data.error) return;
