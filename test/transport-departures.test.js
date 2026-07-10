@@ -34,3 +34,7 @@ test("bus stop direction falls back to unique live departure destinations", () =
 test("bus stop direction ignores stop letters when no destination data exists", () => {
   assert.equal(_private.busStopDirection({ indicator: "Stop F" }, []), null);
 });
+
+test("bus stop direction keeps valid directional indicators", () => {
+  assert.equal(_private.busStopDirection({ indicator: "Stop F northbound" }, []), "Stop F northbound");
+});

@@ -40,13 +40,15 @@ function stopMetadataDirection(stopPoint) {
       property && property.sourceSystemKey,
       property && property.description,
     ].filter(Boolean).join(" ");
+    // TfL stop metadata is inconsistent, so match any property whose label looks
+    // direction-related and then normalize the associated value.
     if (!/towards|destination|direction|bearing|compass/i.test(descriptor)) continue;
     const direction = normalizeDirectionText(property && (property.value || property.description));
     if (direction) return direction;
   }
 
   const indicator = normalizeDirectionText(stopPoint.indicator);
-  if (indicator && /bound|towards|via|north|south|east|west|n|s|e|w/i.test(indicator)) {
+  if (indicator && /bound|towards|via|\b(?:north|south|east|west|n|s|e|w)\b/i.test(indicator)) {
     return indicator;
   }
 
