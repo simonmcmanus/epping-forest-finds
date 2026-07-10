@@ -3360,7 +3360,9 @@
     }
 
     function overviewLandmarkItemSelector(placeKey) {
-      const escapedKey = String(placeKey).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      const escapedKey = typeof CSS !== "undefined" && CSS && typeof CSS.escape === "function"
+        ? CSS.escape(String(placeKey))
+        : String(placeKey).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
       return `.nearest-item[data-overview-type="landmark"][data-overview-key="${escapedKey}"]`;
     }
 
@@ -3379,12 +3381,6 @@
       const request = fetch(url, { signal: AbortSignal.timeout(12000) })
         .then((res) => res.json())
         .then((data) => {
-          // Cache stop-level bus metadata back onto the shared place record so the
-          // nearby list and detail view can reuse the same resolved direction/name.
-          if (lookupType === "bus" && data && typeof data === "object") {
-            if (data.stopName) place.transportStopName = data.stopName;
-            if (data.stopDirection) place.stopDirection = data.stopDirection;
-          }
           if (!data || data.error) return data;
           state.transportLookupCache.set(cacheKey, data);
           return data;

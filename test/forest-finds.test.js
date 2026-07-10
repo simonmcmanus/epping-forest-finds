@@ -523,8 +523,20 @@ test("nearby bus stop names include stop direction context when known", () => {
 
 test("bus stop titles keep explicit directional wording", () => {
   assert.equal(
+    app.placeTitle({ name: "Forest Road", category: "bus_stop", stopDirection: "Walthamstow Central" }),
+    "Forest Road — towards Walthamstow Central"
+  );
+  assert.equal(
     app.placeTitle({ name: "Forest Road", category: "bus_stop", stopDirection: "northbound" }),
     "Forest Road — northbound"
+  );
+  assert.equal(
+    app.placeTitle({ name: "Forest Road — northbound", category: "bus_stop", stopDirection: "northbound" }),
+    "Forest Road — northbound"
+  );
+  assert.equal(
+    app.placeTitle({ name: "Forest Road", category: "bus_stop", stopDirection: "   " }),
+    "Forest Road"
   );
 });
 
