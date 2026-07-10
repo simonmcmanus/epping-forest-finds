@@ -37,4 +37,7 @@ test("bus stop direction ignores stop letters when no destination data exists", 
 
 test("bus stop direction keeps valid directional indicators", () => {
   assert.equal(_private.busStopDirection({ indicator: "Stop F northbound" }, []), "Stop F northbound");
+  assert.equal(_private.busStopDirection({ indicator: "Stop G towards Chingford" }, []), "Stop G towards Chingford");
+  assert.equal(_private.busStopDirection({ indicator: "Stop H via Woodford" }, []), "Stop H via Woodford");
+  assert.equal(_private.busStopDirection({ indicator: "N" }, []), "N");
 });

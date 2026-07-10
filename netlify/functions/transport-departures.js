@@ -4,7 +4,7 @@ function normalizeDirectionText(value) {
   if (typeof value !== "string") return null;
   const cleaned = value.replace(/\s+/g, " ").trim();
   if (!cleaned) return null;
-  if (/^stop\s+[a-z0-9]+$/i.test(cleaned)) return null;
+  if (/^stop\s+[a-z0-9]$/i.test(cleaned)) return null;
   return cleaned.replace(/^towards\s+/i, "");
 }
 
