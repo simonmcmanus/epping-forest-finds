@@ -66,8 +66,8 @@ function busStopDirection(stopPoint, rawArrivals) {
 }
 
 function arrivalDirections(rawArrivals) {
-  const directions = Array.isArray(rawArrivals) ? rawArrivals : [];
-  return uniqueDirections(directions.map((arrival) => arrival && (arrival.towards || arrival.destinationName)));
+  const arrivals = Array.isArray(rawArrivals) ? rawArrivals : [];
+  return uniqueDirections(arrivals.map((arrival) => arrival && (arrival.towards || arrival.destinationName)));
 }
 
 exports.handler = async (event) => {
@@ -190,6 +190,9 @@ exports.handler = async (event) => {
 
 exports._private = {
   normalizeDirectionText,
+  uniqueDirections,
+  stopMetadataDirection,
+  arrivalDirections,
   summarizeDirections,
   busStopDirection,
 };
