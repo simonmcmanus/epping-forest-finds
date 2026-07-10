@@ -3359,16 +3359,23 @@
         .slice(0, limit);
     }
 
-    async function fetchTransportDeparturesData(place, type = isBusCategory(place) ? "bus" : "train") {
-      const cacheKey = `${type}:${placeHashKey(place)}`;
+    function overviewLandmarkItemSelector(placeKey) {
+      const escapedKey = String(placeKey).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      return `.nearest-item[data-overview-type="landmark"][data-overview-key="${escapedKey}"]`;
+    }
+
+    async function fetchTransportDeparturesData(place, type) {
+      if (!place) return { error: "Transport stop missing" };
+      const lookupType = type || (isBusCategory(place) ? "bus" : "train");
+      const cacheKey = `${lookupType}:${placeHashKey(place)}`;
       if (state.transportLookupCache.has(cacheKey)) return state.transportLookupCache.get(cacheKey);
       if (state.transportLookupRequests.has(cacheKey)) return state.transportLookupRequests.get(cacheKey);
-      const nameParam = type === "train" && place.name ? `&name=${encodeURIComponent(place.name)}` : "";
-      const url = `/.netlify/functions/transport-departures?lat=${place.latitude}&lon=${place.longitude}&type=${type}${nameParam}`;
+      const nameParam = lookupType === "train" && place.name ? `&name=${encodeURIComponent(place.name)}` : "";
+      const url = `/.netlify/functions/transport-departures?lat=${place.latitude}&lon=${place.longitude}&type=${lookupType}${nameParam}`;
       const request = fetch(url, { signal: AbortSignal.timeout(12000) })
         .then((res) => res.json())
         .then((data) => {
-          if (type === "bus" && data && typeof data === "object") {
+          if (lookupType === "bus" && data && typeof data === "object") {
             if (data.stopName) place.transportStopName = data.stopName;
             if (data.stopDirection) place.stopDirection = data.stopDirection;
           }
@@ -3386,9 +3393,8 @@
     function refreshOverviewBusStopName(place) {
       if (!els.inspectorBody) return;
       const placeKey = placeHashKey(place);
-      const items = els.inspectorBody.querySelectorAll('.nearest-item[data-overview-type="landmark"][data-overview-key]');
+      const items = els.inspectorBody.querySelectorAll(overviewLandmarkItemSelector(placeKey));
       for (const item of items) {
-        if ((item.dataset.overviewKey || "") !== placeKey) continue;
         const nameEl = item.querySelector(".nearest-name");
         if (nameEl) nameEl.textContent = placeTitle(place);
       }
@@ -3407,7 +3413,9 @@
             if (!data || data.error) return;
             refreshOverviewBusStopName(place);
           })
-          .catch(() => {});
+          .catch((error) => {
+            console.error("Failed to load nearby bus stop direction", error);
+          });
       }
     }
 
