@@ -2,7 +2,7 @@ name: Codex issue agent
 
 on:
   issues:
-    types: [labeled]
+    types: [opened, edited, labeled]
   workflow_dispatch:
     inputs:
       issue_number:
@@ -23,7 +23,7 @@ jobs:
   codex:
     name: Attempt issue fix with Codex
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'codex'
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.issue.labels.*.name, 'codex')
 
     steps:
       - name: Checkout repository
