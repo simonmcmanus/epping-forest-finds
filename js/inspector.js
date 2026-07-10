@@ -947,14 +947,14 @@ function normalizeStoryName(value) {
   return String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-const BUS_STOP_DIRECTION_LABEL_RE = /bound|towards|via|\b(?:north|south|east|west|n|s|e|w)\b/i;
+const BUS_STOP_DIRECTION_LABEL_REGEX = /bound|towards|via|\b(?:north|south|east|west|n|s|e|w)\b/i;
 
 function placeTitle(place) {
   const baseName = place.transportStopName || place.name || place.categoryLabel || "Local place";
   if (!isBusCategory(place) || !place.stopDirection) return baseName;
   const direction = String(place.stopDirection).replace(/\s+/g, " ").trim();
   if (!direction) return baseName;
-  const directionLabel = BUS_STOP_DIRECTION_LABEL_RE.test(direction)
+  const directionLabel = BUS_STOP_DIRECTION_LABEL_REGEX.test(direction)
     ? direction
     : `towards ${direction}`;
   if (baseName.toLowerCase().includes(directionLabel.toLowerCase())) return baseName;

@@ -3364,6 +3364,10 @@
       return `.nearest-item[data-overview-type="landmark"][data-overview-key="${escapedKey}"]`;
     }
 
+    function shouldSkipOverviewBusStopHydration() {
+      return !navigator.onLine || !els.inspectorBody || state.selected || state.filterScreenOpen;
+    }
+
     async function fetchTransportDeparturesData(place, type) {
       if (!place) return { error: "Transport stop missing" };
       const lookupType = type || (isBusCategory(place) ? "bus" : "train");
@@ -3375,6 +3379,8 @@
       const request = fetch(url, { signal: AbortSignal.timeout(12000) })
         .then((res) => res.json())
         .then((data) => {
+          // Cache stop-level bus metadata back onto the shared place record so the
+          // nearby list and detail view can reuse the same resolved direction/name.
           if (lookupType === "bus" && data && typeof data === "object") {
             if (data.stopName) place.transportStopName = data.stopName;
             if (data.stopDirection) place.stopDirection = data.stopDirection;
@@ -3393,15 +3399,12 @@
     function refreshOverviewBusStopName(place) {
       if (!els.inspectorBody) return;
       const placeKey = placeHashKey(place);
-      const items = els.inspectorBody.querySelectorAll(overviewLandmarkItemSelector(placeKey));
-      for (const item of items) {
-        const nameEl = item.querySelector(".nearest-name");
-        if (nameEl) nameEl.textContent = placeTitle(place);
-      }
+      const nameEls = els.inspectorBody.querySelectorAll(`${overviewLandmarkItemSelector(placeKey)} .nearest-name`);
+      for (const nameEl of nameEls) nameEl.textContent = placeTitle(place);
     }
 
     function hydrateOverviewBusStopDirections() {
-      if (!navigator.onLine || !els.inspectorBody || state.selected || state.filterScreenOpen) return;
+      if (shouldSkipOverviewBusStopHydration()) return;
       const items = els.inspectorBody.querySelectorAll('.nearest-item[data-overview-type="landmark"][data-overview-key]');
       for (const item of items) {
         const place = findPlaceByHashKey(item.dataset.overviewKey || "");
