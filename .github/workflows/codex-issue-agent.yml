@@ -68,6 +68,7 @@ jobs:
           OPEN_API_KEY: ${{ secrets.OPEN_API_KEY }}
           CODEX_HOME: ${{ runner.temp }}/codex-home
         run: |
+          mkdir -p "$CODEX_HOME"
           set -euo pipefail
           if [ -n "${CODEX_ACCESS_TOKEN:-}" ]; then
             printf '%s' "$CODEX_ACCESS_TOKEN" | codex login --with-access-token
