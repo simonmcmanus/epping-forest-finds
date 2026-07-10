@@ -1,0 +1,231 @@
+name: Codex issue agent
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number for Codex to work on"
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: codex-issue-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  codex:
+    name: Attempt issue fix with Codex
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'codex'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Install Codex CLI
+        run: npm install -g @openai/codex@latest
+
+      - name: Check Codex credential
+        env:
+          CODEX_ACCESS_TOKEN: ${{ secrets.CODEX_ACCESS_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CODEX_ACCESS_TOKEN:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              ISSUE_NUMBER="${{ inputs.issue_number }}"
+            else
+              ISSUE_NUMBER="${{ github.event.issue.number }}"
+            fi
+            gh issue comment "$ISSUE_NUMBER" --body "Codex issue agent is not configured yet. Add either the \`CODEX_ACCESS_TOKEN\` secret or the \`OPENAI_API_KEY\` secret, then re-run this workflow."
+            exit 1
+          fi
+
+      - name: Authenticate Codex
+        env:
+          CODEX_ACCESS_TOKEN: ${{ secrets.CODEX_ACCESS_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_HOME: ${{ runner.temp }}/codex-home
+        run: |
+          set -euo pipefail
+          if [ -n "${CODEX_ACCESS_TOKEN:-}" ]; then
+            printf '%s' "$CODEX_ACCESS_TOKEN" | codex login --with-access-token
+          else
+            printf '%s' "$OPENAI_API_KEY" | codex login --with-api-key
+          fi
+
+      - name: Prepare issue prompt
+        id: prep
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ISSUE_NUMBER="${{ inputs.issue_number }}"
+            gh issue view "$ISSUE_NUMBER" --json number,title,body,url,labels > "$RUNNER_TEMP/issue.json"
+          else
+            ISSUE_NUMBER="${{ github.event.issue.number }}"
+            node - "$GITHUB_EVENT_PATH" "$RUNNER_TEMP/issue.json" <<'NODE'
+          const fs = require("fs");
+          const event = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          const issue = event.issue;
+          fs.writeFileSync(process.argv[3], JSON.stringify({
+            number: issue.number,
+            title: issue.title,
+            body: issue.body || "",
+            url: issue.html_url,
+            labels: (issue.labels || []).map((label) => ({ name: label.name })),
+          }, null, 2));
+          NODE
+          fi
+
+          BRANCH="codex/issue-${ISSUE_NUMBER}-${GITHUB_RUN_ID}"
+          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          node - "$RUNNER_TEMP/issue.json" "$RUNNER_TEMP/codex-issue-prompt.md" "$DEFAULT_BRANCH" <<'NODE'
+          const fs = require("fs");
+          const issue = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          const promptPath = process.argv[3];
+          const defaultBranch = process.argv[4];
+          const labels = (issue.labels || []).map((label) => typeof label === "string" ? label : label.name).filter(Boolean);
+          const body = issue.body && issue.body.trim() ? issue.body.trim() : "(No issue body was provided.)";
+          fs.writeFileSync(promptPath, [
+            "You are Codex running in GitHub Actions for the epping-forest-finds repository.",
+            "",
+            `Goal: attempt a focused implementation for GitHub issue #${issue.number}.`,
+            "",
+            "Issue title:",
+            issue.title,
+            "",
+            "Issue URL:",
+            issue.url,
+            "",
+            "Issue labels:",
+            labels.join(", ") || "(none)",
+            "",
+            "Issue body:",
+            body,
+            "",
+            "Repository rules:",
+            "- Make the smallest practical change that addresses the issue.",
+            "- Preserve existing behaviour unless the issue explicitly asks for a change.",
+            "- Update the relevant spec file(s) for any behaviour change.",
+            "- Run appropriate checks. At minimum, inspect package.json and run the relevant lightweight checks available in this repo.",
+            "- Do not add secrets, tokens, credentials, or generated temporary files.",
+            "- Do not modify GitHub workflow files unless the issue explicitly asks for workflow changes.",
+            "- If the issue is unclear or cannot be safely completed, leave the worktree unchanged and explain why in the final response.",
+            "",
+            "Branch and PR handling is done by the GitHub Actions workflow after you finish. Do not create a commit, push, or open a pull request yourself.",
+            `The target base branch is ${defaultBranch}.`,
+            "",
+          ].join("\n"));
+          NODE
+
+      - name: Create working branch
+        run: git checkout -b "${{ steps.prep.outputs.branch }}"
+
+      - name: Run Codex
+        env:
+          CODEX_HOME: ${{ runner.temp }}/codex-home
+        run: |
+          set -euo pipefail
+          codex exec \
+            --ask-for-approval never \
+            --sandbox workspace-write \
+            --output-last-message "$RUNNER_TEMP/codex-summary.md" \
+            - < "$RUNNER_TEMP/codex-issue-prompt.md"
+
+      - name: Run tests
+        id: tests
+        continue-on-error: true
+        run: |
+          set +e
+          npm test > "$RUNNER_TEMP/codex-test-output.txt" 2>&1
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit, push, and create PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.prep.outputs.issue_number }}
+          BRANCH: ${{ steps.prep.outputs.branch }}
+          TEST_STATUS: ${{ steps.tests.outputs.status }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git status --porcelain)" ]; then
+            gh issue comment "$ISSUE_NUMBER" --body "Codex ran for this issue but did not produce any file changes. Check the workflow logs for the agent summary."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Codex attempt for issue #${ISSUE_NUMBER}"
+          git push --set-upstream origin "$BRANCH"
+
+          node - "$RUNNER_TEMP/codex-summary.md" "$RUNNER_TEMP/codex-test-output.txt" "$RUNNER_TEMP/pr-body.md" "$ISSUE_NUMBER" "$TEST_STATUS" <<'NODE'
+          const fs = require("fs");
+          const [summaryPath, testPath, bodyPath, issueNumber, testStatus] = process.argv.slice(2);
+          const summary = fs.existsSync(summaryPath) ? fs.readFileSync(summaryPath, "utf8").trim() : "(No Codex summary was captured.)";
+          const testOutput = fs.existsSync(testPath) ? fs.readFileSync(testPath, "utf8").trim() : "(Tests were not run.)";
+          const clippedTests = testOutput.length > 12000 ? `${testOutput.slice(-12000)}\n\n[Output clipped to last 12000 characters]` : testOutput;
+          fs.writeFileSync(bodyPath, [
+            `Closes #${issueNumber}`,
+            "",
+            "## Codex summary",
+            "",
+            summary,
+            "",
+            "## Verification",
+            "",
+            `\`npm test\` exit status: ${testStatus || "unknown"}`,
+            "",
+            "```text",
+            clippedTests,
+            "```",
+            "",
+            "Netlify should add its deploy preview to this PR automatically if deploy previews are enabled for the site.",
+            "",
+          ].join("\n"));
+          NODE
+
+          PR_URL="$(gh pr create \
+            --base "$DEFAULT_BRANCH" \
+            --head "$BRANCH" \
+            --title "Codex: issue #${ISSUE_NUMBER}" \
+            --body-file "$RUNNER_TEMP/pr-body.md")"
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "Codex opened a pull request: $PR_URL"
+            echo
+            echo "Netlify should post a deploy preview on the PR once its GitHub integration finishes building it."
+          } > "$RUNNER_TEMP/issue-comment.md"
+          gh issue comment "$ISSUE_NUMBER" --body-file "$RUNNER_TEMP/issue-comment.md"
