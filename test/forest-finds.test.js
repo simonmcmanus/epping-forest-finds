@@ -154,6 +154,7 @@ globalThis.__forestFindsTest = {
   landmarkEmoji,
   appIconHtml,
   treeSpeciesIconHtml,
+  placeTitle,
   ICON_PATHS,
   worldToScreen,
   settingsFormHtml,
@@ -198,6 +199,8 @@ function resetData(app) {
   app.state.walkingDistanceMinutes = 5;
   app.state.showAllOutsideRadius = false;
   app.state.overviewOutsideRadiusFallback = false;
+  app.state.transportLookupCache = new Map();
+  app.state.transportLookupRequests = new Map();
   app.state.filterScreenOpen = false;
   app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
   app.state.viewportAnimationFrame = null;
@@ -498,6 +501,31 @@ test("nearby transport entries use the generated bus icon asset", () => {
   const html = app.overviewNearestHtml();
 
   assert.match(html, /data\/icons\/bus\.png/);
+});
+
+test("nearby bus stop names include stop direction context when known", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["bus"];
+  app.state.landmarks.push({
+    id: "near-bus",
+    name: "Near bus stop",
+    category: "bus_stop",
+    categoryTags: ["bus_stop"],
+    stopDirection: "Walthamstow Central",
+    ...makePoint(app, 0.001, 0),
+  });
+
+  const html = app.overviewNearestHtml();
+
+  assert.match(html, /Near bus stop — towards Walthamstow Central/);
+});
+
+test("bus stop titles keep explicit directional wording", () => {
+  assert.equal(
+    app.placeTitle({ name: "Forest Road", category: "bus_stop", stopDirection: "northbound" }),
+    "Forest Road — northbound"
+  );
 });
 
 test("nearby HTML does not contain the app version", () => {

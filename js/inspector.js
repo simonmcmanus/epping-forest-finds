@@ -509,6 +509,7 @@ function selectOverview(animate = false) {
   _overviewListKey = listKey;
   transitionInspectorBody(nearestSummary, animate ? "back" : null, () => {
     updateOverviewDirectionArrows();
+    hydrateOverviewBusStopDirections();
     animateNearestItemReorder(previousNearestPositions);
   });
   syncHashFromSelection();
@@ -947,7 +948,15 @@ function normalizeStoryName(value) {
 }
 
 function placeTitle(place) {
-  return place.name || place.categoryLabel || "Local place";
+  const baseName = place.transportStopName || place.name || place.categoryLabel || "Local place";
+  if (!isBusCategory(place) || !place.stopDirection) return baseName;
+  const direction = String(place.stopDirection).replace(/\s+/g, " ").trim();
+  if (!direction) return baseName;
+  const directionLabel = /bound|towards|via|\b(?:north|south|east|west|n|s|e|w)\b/i.test(direction)
+    ? direction
+    : `towards ${direction}`;
+  if (baseName.toLowerCase().includes(directionLabel.toLowerCase())) return baseName;
+  return `${baseName} — ${directionLabel}`;
 }
 
 function osmNote() {

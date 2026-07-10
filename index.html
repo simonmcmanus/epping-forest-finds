@@ -327,6 +327,8 @@
       buildingsLoading: false,
       buildingsRevealStartTime: null,
       overviewOutsideRadiusFallback: false,
+      transportLookupCache: new Map(),
+      transportLookupRequests: new Map(),
       dataLoaded: false,
     };
 
@@ -3357,6 +3359,58 @@
         .slice(0, limit);
     }
 
+    async function fetchTransportDeparturesData(place, type = isBusCategory(place) ? "bus" : "train") {
+      const cacheKey = `${type}:${placeHashKey(place)}`;
+      if (state.transportLookupCache.has(cacheKey)) return state.transportLookupCache.get(cacheKey);
+      if (state.transportLookupRequests.has(cacheKey)) return state.transportLookupRequests.get(cacheKey);
+      const nameParam = type === "train" && place.name ? `&name=${encodeURIComponent(place.name)}` : "";
+      const url = `/.netlify/functions/transport-departures?lat=${place.latitude}&lon=${place.longitude}&type=${type}${nameParam}`;
+      const request = fetch(url, { signal: AbortSignal.timeout(12000) })
+        .then((res) => res.json())
+        .then((data) => {
+          if (type === "bus" && data && typeof data === "object") {
+            if (data.stopName) place.transportStopName = data.stopName;
+            if (data.stopDirection) place.stopDirection = data.stopDirection;
+          }
+          if (!data || data.error) return data;
+          state.transportLookupCache.set(cacheKey, data);
+          return data;
+        })
+        .finally(() => {
+          state.transportLookupRequests.delete(cacheKey);
+        });
+      state.transportLookupRequests.set(cacheKey, request);
+      return request;
+    }
+
+    function refreshOverviewBusStopName(place) {
+      if (!els.inspectorBody) return;
+      const placeKey = placeHashKey(place);
+      const items = els.inspectorBody.querySelectorAll('.nearest-item[data-overview-type="landmark"][data-overview-key]');
+      for (const item of items) {
+        if ((item.dataset.overviewKey || "") !== placeKey) continue;
+        const nameEl = item.querySelector(".nearest-name");
+        if (nameEl) nameEl.textContent = placeTitle(place);
+      }
+    }
+
+    function hydrateOverviewBusStopDirections() {
+      if (!navigator.onLine || !els.inspectorBody || state.selected || state.filterScreenOpen) return;
+      const items = els.inspectorBody.querySelectorAll('.nearest-item[data-overview-type="landmark"][data-overview-key]');
+      for (const item of items) {
+        const place = findPlaceByHashKey(item.dataset.overviewKey || "");
+        if (!place || !isBusCategory(place)) continue;
+        refreshOverviewBusStopName(place);
+        if (place.stopDirection) continue;
+        fetchTransportDeparturesData(place, "bus")
+          .then((data) => {
+            if (!data || data.error) return;
+            refreshOverviewBusStopName(place);
+          })
+          .catch(() => {});
+      }
+    }
+
     async function loadTransportDepartures(place) {
       const type = isBusCategory(place) ? "bus" : "train";
       const section = document.createElement("div");
@@ -3365,10 +3419,7 @@
       els.inspectorBody.appendChild(section);
 
       try {
-        const nameParam = type === "train" && place.name ? `&name=${encodeURIComponent(place.name)}` : "";
-        const url = `/.netlify/functions/transport-departures?lat=${place.latitude}&lon=${place.longitude}&type=${type}${nameParam}`;
-        const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
-        const data = await res.json();
+        const data = await fetchTransportDeparturesData(place, type);
 
         // Bail silently if user has navigated away
         if (!state.selected || state.selected.item !== place) return;
