@@ -157,8 +157,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$CODEX_HOME"
           codex exec \
-            --ask-for-approval never \
-            --sandbox workspace-write \
+            --dangerously-bypass-approvals-and-sandbox \
             --output-last-message "$RUNNER_TEMP/codex-summary.md" \
             - < "$RUNNER_TEMP/codex-issue-prompt.md"
 
