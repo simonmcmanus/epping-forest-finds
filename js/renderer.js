@@ -14,24 +14,6 @@ function getMapImage(src) {
   return mapImageCache.get(src);
 }
 
-function iconCounterRotationRadians() {
-  if (state.cssRotationAnim != null) {
-    const elapsed = performance.now() - state.cssRotationAnim.startTime;
-    const progress = Math.min(1, elapsed / state.cssRotationAnim.duration);
-    const eased = progress < 0.5
-      ? 4 * progress * progress * progress
-      : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-    const currentRot = state.cssRotationAnim.from
-      + (state.cssRotationAnim.to - state.cssRotationAnim.from) * eased;
-    return -currentRot * Math.PI / 180;
-  }
-  if (typeof navigationMapRotationDegrees === "function") {
-    const rot = navigationMapRotationDegrees();
-    return rot ? -rot * Math.PI / 180 : 0;
-  }
-  return 0;
-}
-
 function drawPngMapIcon(ctx, src, x, y, size) {
   if (!src) return false;
   const img = getMapImage(src);
@@ -39,19 +21,11 @@ function drawPngMapIcon(ctx, src, x, y, size) {
 
   const R = size / 2;
   const pH = R * 0.75;
+  const cx = x;
+  const cy = y - R - pH;
   const halfAngle = Math.PI / 5;
 
   ctx.save();
-
-  const counterRot = iconCounterRotationRadians();
-  if (counterRot) {
-    ctx.translate(x, y);
-    ctx.rotate(counterRot);
-    ctx.translate(-x, -y);
-  }
-
-  const cx = x;
-  const cy = y - R - pH;
 
   ctx.beginPath();
   ctx.arc(cx, cy, R, Math.PI / 2 + halfAngle, Math.PI / 2 - halfAngle, false);
@@ -109,8 +83,6 @@ function draw() {
   if (state.selected && ["road", "path"].includes(state.selected.type)) {
     requestDraw();
   }
-
-  if (typeof applyCssRotationAnimation === "function") applyCssRotationAnimation();
 }
 
 function drawOverlay() {

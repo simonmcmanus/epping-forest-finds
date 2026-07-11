@@ -312,7 +312,7 @@
       compassLastEventAt: null,
       navigationHeadingUp: false,
       renderedNavigationHeading: null,
-      cssRotationAnim: null,
+      headingUpEntryAnim: null,
       viewportAnimationFrame: null,
       viewportAnimationFrom: null,
       viewportAnimationTo: null,
@@ -2449,15 +2449,19 @@
       clearHeadingUpCanvasTransform();
       const safeDuration = Math.max(200, Number(durationMs) || 600);
       if (state.renderedNavigationHeading == null) {
-        // Entering heading-up for the first time: hold north-up in canvas,
-        // animate the rotation purely via CSS transform (no extra canvas redraws).
+        // Entering heading-up for the first time: animate renderedNavigationHeading
+        // from north-up (0) toward the current compass heading, baked into each
+        // canvas draw so pins always point down during the transition.
         state.renderedNavigationHeading = 0;
-        state.cssRotationAnim = {
-          from: 0,
-          to: currentNavigationMapRotationDegrees(),
-          startTime: performance.now(),
-          duration: safeDuration,
-        };
+        const targetHeading = normalizeDegrees(state.compassHeading);
+        if (Math.abs(shortestCompassDelta(0, targetHeading)) > 0.5) {
+          state.headingUpEntryAnim = {
+            from: 0,
+            to: targetHeading,
+            startTime: performance.now(),
+            duration: safeDuration,
+          };
+        }
       }
       const focusRect = bestVisibleCanvasRect();
       const focus = navigationFocusPoint();
@@ -2471,48 +2475,34 @@
       }, safeDuration);
     }
 
-    // Called at the end of every draw() to apply the CSS rotation animation without
-    // triggering extra canvas redraws. At completion, one final requestDraw() bakes
-    // the fully-rotated heading into the canvas and clears the CSS transform.
-    function applyCssRotationAnimation() {
-      if (state.cssRotationAnim == null || !state.userLocation) return;
-      const elapsed = performance.now() - state.cssRotationAnim.startTime;
-      const progress = Math.min(1, elapsed / state.cssRotationAnim.duration);
-      const eased = progress < 0.5
-        ? 4 * progress * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-      const currentRot = state.cssRotationAnim.from
-        + (state.cssRotationAnim.to - state.cssRotationAnim.from) * eased;
-      const origin = rawWorldToScreen(state.userLocation.point);
-      const dpr = pixelRatio();
-      els.canvas.style.transformOrigin = `${origin.x / dpr}px ${origin.y / dpr}px`;
-      els.canvas.style.transform = `rotate(${currentRot}deg)`;
-      if (progress >= 1) {
-        state.cssRotationAnim = null;
-        state.renderedNavigationHeading = normalizeDegrees(state.compassHeading);
-        clearHeadingUpCanvasTransform();
-        requestDraw();
-      } else {
-        requestDraw();
-      }
-    }
-
     function prepareCanvasForDraw() {
       clearHeadingUpCanvasTransform();
       if (selectedNavigationHeadingUpActive()) {
-        if (state.cssRotationAnim == null) {
+        if (state.headingUpEntryAnim != null) {
+          const elapsed = performance.now() - state.headingUpEntryAnim.startTime;
+          const progress = Math.min(1, elapsed / state.headingUpEntryAnim.duration);
+          const eased = progress < 0.5
+            ? 4 * progress * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+          const delta = shortestCompassDelta(state.headingUpEntryAnim.from, state.headingUpEntryAnim.to);
+          state.renderedNavigationHeading = normalizeDegrees(state.headingUpEntryAnim.from + delta * eased);
+          if (progress >= 1) {
+            state.headingUpEntryAnim = null;
+            state.renderedNavigationHeading = normalizeDegrees(state.compassHeading);
+          } else {
+            requestDraw();
+          }
+        } else {
           state.renderedNavigationHeading = normalizeDegrees(state.compassHeading);
         }
-        // While cssRotationAnim is active, keep renderedNavigationHeading = 0 so
-        // the canvas is drawn north-up and the CSS transform handles rotation.
       } else {
         state.renderedNavigationHeading = null;
-        state.cssRotationAnim = null;
+        state.headingUpEntryAnim = null;
       }
     }
 
     function updateHeadingUpCanvasRotationTransform() {
-      if (state.cssRotationAnim != null) return false; // CSS rotation animation owns the transform
+      if (state.headingUpEntryAnim != null) return false; // entry animation owns renderedNavigationHeading
       if (!selectedNavigationHeadingUpActive() || !Number.isFinite(state.renderedNavigationHeading)) {
         clearHeadingUpCanvasTransform();
         return false;
