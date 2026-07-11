@@ -1,4 +1,5 @@
 const HAS_DIRECTIONAL_WORDING_REGEX = /bound|towards|via|\b(?:north|south|east|west|n|s|e|w)\b/i;
+const INSPECTOR_MINIMIZE_TRANSITION_FALLBACK_MS = 220;
 
 // --- Hit detection & map click ---
 
@@ -812,7 +813,9 @@ function zoomToSelection() {
     doZoom();
   };
   els.inspector.addEventListener("transitionend", fire, { once: true });
-  setTimeout(fire, 220);
+  // Matches the 180ms inspector max-height transition with a small buffer so the
+  // camera waits for the minimized layout before measuring its target viewport.
+  setTimeout(fire, INSPECTOR_MINIMIZE_TRANSITION_FALLBACK_MS);
 }
 
 // --- HTML helpers ---
