@@ -83,15 +83,32 @@ const req = https.request(options, (res) => {
       console.error("Failed to parse response:", body);
       process.exit(1);
     }
-    const comment = data?.choices?.[0]?.message?.content;
-    if (!comment) {
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) {
       console.error("Unexpected API response:", body);
       process.exit(1);
     }
-    execFileSync("gh", ["issue", "comment", issueNumber, "--body", comment], {
-      stdio: "inherit",
-      env: { ...process.env },
-    });
+
+    // Split numbered list items into separate comments for threading
+    const lines = content.split("\n");
+    const questions = [];
+    let current = null;
+    for (const line of lines) {
+      if (/^\d+\./.test(line.trim())) {
+        if (current !== null) questions.push(current.trim());
+        current = line;
+      } else if (current !== null) {
+        current += "\n" + line;
+      }
+    }
+    if (current !== null) questions.push(current.trim());
+
+    for (const q of questions) {
+      execFileSync("gh", ["issue", "comment", issueNumber, "--body", q], {
+        stdio: "inherit",
+        env: { ...process.env },
+      });
+    }
   });
 });
 
