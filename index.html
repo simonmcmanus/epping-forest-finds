@@ -2351,6 +2351,9 @@
       return null;
     }
 
+    const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
+    const HEADING_UP_ANCHOR_NEARBY   = 0.5;  // user at center in nearby mode (no destination to track)
+
     function selectedNavigationHeadingUpActive() {
       return Boolean(
         state.userLocation
@@ -2391,7 +2394,7 @@
       const focusRect = bestVisibleCanvasRect();
       return {
         x: focusRect.x + focusRect.width / 2,
-        y: focusRect.y + focusRect.height * (selectedNavigationHeadingUpActive() ? 0.62 : 0.5),
+        y: focusRect.y + focusRect.height * (selectedNavigationHeadingUpActive() ? HEADING_UP_ANCHOR_SELECTED : HEADING_UP_ANCHOR_NEARBY),
       };
     }
 
@@ -2511,7 +2514,7 @@
           } else {
             requestDraw();
           }
-        } else if (state.renderedNavigationHeading == null && !selectedNavigationHeadingUpActive()) {
+        } else if (state.renderedNavigationHeading === null && !selectedNavigationHeadingUpActive()) {
           // Nearby heading-up first activation: animate in from north-up to current heading
           state.renderedNavigationHeading = 0;
           const targetHeading = normalizeDegrees(state.compassHeading);

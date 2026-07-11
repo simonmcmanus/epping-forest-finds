@@ -320,15 +320,23 @@ test("headingUpActive returns true for selected navigation heading-up", () => {
   assert.equal(app.headingUpActive(), true);
 });
 
-test("nearby heading-up map rotation uses compass heading", () => {
+test("nearby heading-up map rotation applies compass heading to worldToScreen", () => {
   resetData(app);
+  // Place user at origin
   app.state.userLocation = makePoint(app, 0, 0);
-  app.state.compassHeading = 90;
+  app.state.compassHeading = 90; // facing east
   app.state.selected = null;
   app.state.renderedNavigationHeading = 90;
-  // With heading 90, map should rotate -90 degrees (east becomes top)
-  const rotation = app.worldToScreen({ x: 0, y: 0 });
-  assert.ok(typeof rotation === "object", "worldToScreen returns a point");
+  app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
+
+  const userScreen = app.worldToScreen(app.state.userLocation.point);
+  // A point slightly north: latitude increases → y decreases in Mercator projection
+  const northWorldPoint = { x: app.state.userLocation.point.x, y: app.state.userLocation.point.y - 0.001 };
+  const northScreen = app.worldToScreen(northWorldPoint);
+
+  // With 90° heading (facing east), north becomes left on screen
+  assert.ok(northScreen.x < userScreen.x, "north should appear to the left when facing east");
+  assert.ok(Math.abs(northScreen.y - userScreen.y) < 0.01, "north point should be on same horizontal level as user");
 });
 
 test("nearby heading-up viewport centers on user", () => {
@@ -342,8 +350,9 @@ test("nearby heading-up viewport centers on user", () => {
 
   // Viewport should be repositioned to center on user
   assert.ok(changed, "viewport should have changed to center on user");
+  // User at world (0,0); focus should be at horizontal center of canvas
   const focusCenter = app.els.canvas.clientWidth / 2;
-  assert.equal(app.state.viewport.tx, focusCenter - 0 * 1000, "user should be centered horizontally");
+  assert.equal(app.state.viewport.tx, focusCenter, "user should be at horizontal center (tx = focusCenter - 0 * scale = focusCenter)");
 });
 
 test("nav controls use generated image assets instead of text glyphs", () => {
