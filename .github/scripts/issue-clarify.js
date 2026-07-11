@@ -5,6 +5,7 @@ const { execFileSync } = require("child_process");
 const issueNumber = process.env.ISSUE_NUMBER;
 const issueTitle = process.env.ISSUE_TITLE || "";
 const issueBody = process.env.ISSUE_BODY || "(No body provided)";
+const eventAction = process.env.EVENT_ACTION || "opened";
 
 const readFile = (path) => {
   try { return fs.readFileSync(path, "utf8"); } catch { return ""; }
@@ -17,7 +18,7 @@ const specMain = clip(readFile("spec/spec.md"), 3000);
 const specRendering = clip(readFile("spec/spec-data-rendering.md"), 2000);
 const glossary = clip(readFile("spec/glossary.md"), 1000);
 
-const prompt = [
+const preamble = [
   "You are a developer assistant for the Epping Forest Finds project",
   "-- a vanilla JS canvas-based map app for exploring Epping Forest,",
   "with no build step and a mobile-first performance focus.",
@@ -36,26 +37,61 @@ const prompt = [
   "",
   "---",
   "",
-  "A new GitHub issue has been filed:",
-  "",
   "Title: " + issueTitle,
   "",
   "Body:",
   issueBody,
   "",
   "---",
-  "",
-  "Your task: post 3-5 focused clarifying questions that will help a developer",
-  "fully understand what needs to be implemented or fixed before writing any code.",
-  "",
-  "Guidelines:",
-  "- Be specific to this project's architecture (canvas renderer, inspector panel,",
-  "  data normalisation, nav/camera, tracker, etc.)",
-  "- Surface ambiguities in scope, UX behaviour, data handling, or mobile performance",
-  "- Skip anything already clearly stated in the issue",
-  "- Format as a numbered list with a short friendly intro line",
-  "- Keep tone collaborative, not interrogative",
-].join("\n");
+];
+
+let existingComments = "";
+if (eventAction === "edited") {
+  try {
+    const raw = execFileSync("gh", ["issue", "view", issueNumber, "--json", "comments"], {
+      env: { ...process.env },
+    }).toString();
+    const comments = JSON.parse(raw).comments || [];
+    existingComments = comments.length
+      ? comments.map((c) => `[${c.author.login}]: ${c.body}`).join("\n\n")
+      : "(No comments yet)";
+  } catch (e) {
+    console.error("Failed to fetch comments:", e.message);
+  }
+}
+
+const prompt = eventAction === "edited"
+  ? [
+      ...preamble,
+      "Comment history so far:",
+      existingComments,
+      "",
+      "---",
+      "",
+      "The issue has just been edited. Review the comment history above and decide whether",
+      "important clarifying questions still remain unanswered.",
+      "",
+      "Guidelines:",
+      "- Identify any questions previously asked (look for github-actions[bot] comments)",
+      "- Check whether they have been addressed in comments or the updated body",
+      "- If the issue is now clear enough to implement, respond with exactly: NO_QUESTIONS",
+      "- If genuinely important gaps remain, post 1-3 focused new questions — err on the side of silence",
+      "- Do not repeat questions already asked or answered",
+      "- Format as a numbered list with a short friendly intro line",
+    ].join("\n")
+  : [
+      ...preamble,
+      "Your task: post 3-5 focused clarifying questions that will help a developer",
+      "fully understand what needs to be implemented or fixed before writing any code.",
+      "",
+      "Guidelines:",
+      "- Be specific to this project's architecture (canvas renderer, inspector panel,",
+      "  data normalisation, nav/camera, tracker, etc.)",
+      "- Surface ambiguities in scope, UX behaviour, data handling, or mobile performance",
+      "- Skip anything already clearly stated in the issue",
+      "- Format as a numbered list with a short friendly intro line",
+      "- Keep tone collaborative, not interrogative",
+    ].join("\n");
 
 const payload = JSON.stringify({
   model: "gpt-4o-mini",
@@ -87,6 +123,10 @@ const req = https.request(options, (res) => {
     if (!comment) {
       console.error("Unexpected API response:", body);
       process.exit(1);
+    }
+    if (comment.trim() === "NO_QUESTIONS") {
+      console.log("Issue is sufficiently clear — no new questions needed.");
+      return;
     }
     execFileSync("gh", ["issue", "comment", issueNumber, "--body", comment], {
       stdio: "inherit",
