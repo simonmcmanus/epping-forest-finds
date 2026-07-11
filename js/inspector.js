@@ -1,4 +1,5 @@
 const HAS_DIRECTIONAL_WORDING_REGEX = /bound|towards|via|\b(?:north|south|east|west|n|s|e|w)\b/i;
+const INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS = 180 + 40; // Inspector transition + buffer
 
 // --- Hit detection & map click ---
 
@@ -792,10 +793,11 @@ function focusOverviewItem(type, key) {
 // minimized height when bestVisibleCanvasRect() measures the focus rect.
 function zoomToSelection() {
   const doZoom = () => {
+    state.selectionViewportTransitionPending = false;
     if (typeof animateToHeadingUpNavigationViewport === "function" && selectedNavigationHeadingUpActive()) {
-      animateToHeadingUpNavigationViewport(600);
+      animateToHeadingUpNavigationViewport(500);
     } else {
-      ensureUserAndSelectionVisible({ animate: true, force: true });
+      ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: 500 });
     }
   };
 
@@ -803,6 +805,7 @@ function zoomToSelection() {
     doZoom();
     return;
   }
+  state.selectionViewportTransitionPending = true;
   let fired = false;
   const fire = () => {
     if (fired) return;
@@ -810,7 +813,9 @@ function zoomToSelection() {
     doZoom();
   };
   els.inspector.addEventListener("transitionend", fire, { once: true });
-  setTimeout(fire, 250);
+  // Mirrors the 180ms `.inspector` max-height transition in css/inspector.css
+  // plus a ~40ms buffer so the camera measures after the minimized layout settles.
+  setTimeout(fire, INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS);
 }
 
 // --- HTML helpers ---
