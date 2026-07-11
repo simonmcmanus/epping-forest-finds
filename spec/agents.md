@@ -40,6 +40,7 @@ Before finishing any implementation task:
 ## Technical Constraints
 - Vanilla HTML/CSS/JS only — no client build step, no external JS dependencies.
 - Mobile performance is a priority.
+- **Service worker cache version (`CACHE_NAME` in `sw.js`) must be incremented with every client-side code or asset change.** Without a version bump, returning users will run stale cached code. Include the bump in the same commit as the change.
 
 ## Testing
 - Run: `node --test test/forest-finds.test.js`
