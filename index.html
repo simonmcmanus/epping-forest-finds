@@ -2492,6 +2492,8 @@
         state.renderedNavigationHeading = normalizeDegrees(state.compassHeading);
         clearHeadingUpCanvasTransform();
         requestDraw();
+      } else {
+        requestDraw();
       }
     }
 
