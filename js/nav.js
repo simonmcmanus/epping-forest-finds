@@ -405,12 +405,30 @@ function setupInspectorDragResize() {
 }
 
 function goToInitialView(updateHash = true) {
+  const wasMinimized = els.inspector.classList.contains("minimized");
   state.selected = null;
   state.filterScreenOpen = false;
   selectOverview(true);
   setInspectorMinimized(false);
-  ensureOverviewTargetsVisible({ animate: true, durationMs: 300 });
-  if (!state.userLocation) fitToBounds(false, { animate: true, durationMs: 300 });
+  const refitOverview = () => {
+    if (state.userLocation) {
+      ensureOverviewTargetsVisible({ animate: true, durationMs: 500 });
+    } else {
+      fitToBounds(false, { animate: true, durationMs: 500 });
+    }
+  };
+  if (wasMinimized) {
+    let refitTriggered = false;
+    const triggerRefit = () => {
+      if (refitTriggered) return;
+      refitTriggered = true;
+      refitOverview();
+    };
+    els.inspector.addEventListener("transitionend", triggerRefit, { once: true });
+    setTimeout(triggerRefit, INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS);
+  } else {
+    refitOverview();
+  }
   updateCompassOverlay();
   if (updateHash) setHashFromSelection();
   requestDraw();

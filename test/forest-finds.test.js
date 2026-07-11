@@ -149,6 +149,8 @@ globalThis.__forestFindsTest = {
   drawWalkingRadius,
   selectOverview,
   ensureOverviewTargetsVisible,
+  alignHeadingUpNavigationViewport,
+  animateToHeadingUpNavigationViewport,
   buildNearbyIconLookup,
   isNearCanvas,
   landmarkEmoji,
@@ -160,6 +162,7 @@ globalThis.__forestFindsTest = {
   settingsFormHtml,
   reportFormHtml,
   openFiltersScreen,
+  goToInitialView,
   applySelectionFromHash,
   syncHashFromSelection,
   location: window.location,
@@ -208,6 +211,10 @@ function resetData(app) {
   app.state.viewportAnimationTo = null;
   app.state.viewportAnimationStartTime = null;
   app.state.viewportAnimationDuration = 0;
+  app.state.selectionViewportTransitionPending = false;
+  app.state.headingUpEntryAnim = null;
+  app.state.renderedNavigationHeading = null;
+  app.state.compassHeading = null;
   app.els.inspector.classList.remove("minimized");
   app.els.canvas.width = 1000;
   app.els.canvas.height = 800;
@@ -467,6 +474,64 @@ test("minimized inspector preserves user-controlled map position on GPS updates"
 
   assert.equal(app.state.viewportAnimationTo, null);
   assert.deepEqual(app.state.viewport, { scale: 1000, tx: 123, ty: 456 });
+});
+
+test("heading-up viewport alignment defers when camera transition is pending", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "near-tree", ...makePoint(app, 0.001, 0) } };
+  app.state.compassHeading = 90;
+  app.state.viewport = { scale: 1000, tx: 123, ty: 456 };
+  app.state.selectionViewportTransitionPending = true;
+
+  const changed = app.alignHeadingUpNavigationViewport();
+
+  assert.equal(changed, false);
+  assert.equal(app.state.viewport.scale, 1000);
+  assert.equal(app.state.viewport.tx, 123);
+  assert.equal(app.state.viewport.ty, 456);
+});
+
+test("heading-up viewport alignment preserves animation target when rotation starts", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "near-tree", ...makePoint(app, 0.001, 0) } };
+  app.state.compassHeading = 90;
+  app.state.viewport = { scale: 1000, tx: 123, ty: 456 };
+
+  app.animateToHeadingUpNavigationViewport(500);
+  const target = { ...app.state.viewportAnimationTo };
+
+  const changed = app.alignHeadingUpNavigationViewport();
+
+  assert.ok(app.state.headingUpEntryAnim, "heading-up rotation should animate in");
+  assert.equal(app.state.viewportAnimationDuration, 500);
+  assert.equal(app.state.viewportAnimationTo.scale, target.scale);
+  assert.equal(app.state.viewportAnimationTo.tx, target.tx);
+  assert.equal(app.state.viewportAnimationTo.ty, target.ty);
+  assert.equal(changed, false);
+  assert.equal(app.state.viewport.scale, 1000);
+  assert.equal(app.state.viewport.tx, 123);
+  assert.equal(app.state.viewport.ty, 456);
+});
+
+test("returning to nearby waits for inspector expansion before starting the nearby camera move", async () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  app.state.viewport = { scale: 1000, tx: 123, ty: 456 };
+  app.els.inspector.classList.add("minimized");
+
+  app.goToInitialView();
+
+  assert.equal(app.state.selected, null);
+  assert.equal(app.state.viewportAnimationTo, null, "nearby refit should wait until inspector expansion settles");
+
+  await new Promise((resolve) => setTimeout(resolve, 240));
+
+  assert.ok(app.state.viewportAnimationTo, "nearby refit should begin after the inspector transition window");
+  assert.equal(app.state.viewportAnimationDuration, 500);
 });
 
 test("nearby HTML does not contain the walking distance selector", () => {
