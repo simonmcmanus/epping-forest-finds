@@ -84,9 +84,7 @@ function draw() {
     requestDraw();
   }
 
-  if (state.rotationAnimStartTime != null) {
-    requestDraw();
-  }
+  if (typeof applyCssRotationAnimation === "function") applyCssRotationAnimation();
 }
 
 function drawOverlay() {
