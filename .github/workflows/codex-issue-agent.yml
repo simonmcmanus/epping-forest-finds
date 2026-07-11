@@ -69,6 +69,7 @@ jobs:
           CODEX_HOME: ${{ runner.temp }}/codex-home
         run: |
           set -euo pipefail
+          mkdir -p "$CODEX_HOME"
           if [ -n "${CODEX_ACCESS_TOKEN:-}" ]; then
             printf '%s' "$CODEX_ACCESS_TOKEN" | codex login --with-access-token
           elif [ -n "${OPENAI_API_KEY:-}" ]; then
@@ -154,6 +155,7 @@ jobs:
           CODEX_HOME: ${{ runner.temp }}/codex-home
         run: |
           set -euo pipefail
+          mkdir -p "$CODEX_HOME"
           codex exec \
             --ask-for-approval never \
             --sandbox workspace-write \
