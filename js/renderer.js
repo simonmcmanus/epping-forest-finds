@@ -71,7 +71,6 @@ function draw() {
   drawTrees(ctx, nearbyIconLookup);
   drawLandmarks(ctx, nearbyIconLookup);
   drawCows(ctx, nearbyIconLookup);
-  drawSelectedOverlay(ctx);
   drawSelectedRoadOverlay(ctx);
   drawSelectedPathOverlay(ctx);
   drawOverlay();
@@ -92,6 +91,8 @@ function drawOverlay() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!state.bounds) return;
   drawUser(ctx);
+  const toScreen = typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen;
+  drawSelectedOverlay(ctx, toScreen);
 }
 
 function drawCowPastures(ctx) {
@@ -946,8 +947,9 @@ function drawUser(ctx) {
   ctx.restore();
 }
 
-function drawSelectedOverlay(ctx) {
+function drawSelectedOverlay(ctx, toScreen) {
   if (!state.selected || !state.selected.item) return;
+  if (!toScreen) toScreen = worldToScreen;
 
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
@@ -956,7 +958,7 @@ function drawSelectedOverlay(ctx) {
   const selectedEmojiYOffset = 1.1 * dpr * mapScale * MAP_ICON_SCALE;
 
   if (state.selected.type === "tree") {
-    const point = worldToScreen(state.selected.item.point);
+    const point = toScreen(state.selected.item.point);
     if (isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) {
       const selectedTree = state.selected.item;
       const selectedTreeSrc = treeSpeciesIconPath(selectedTree.commonName, selectedTree.latinName) || iconPath("tree");
@@ -973,7 +975,7 @@ function drawSelectedOverlay(ctx) {
     return;
   }
 
-  const point = worldToScreen(state.selected.item.point);
+  const point = toScreen(state.selected.item.point);
   if (!isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) return;
 
   if (state.selected.type === "cow") {

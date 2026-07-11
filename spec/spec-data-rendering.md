@@ -112,6 +112,7 @@ The main `draw()` function is called via `requestAnimationFrame`. Draw order (ba
 - Only markers within canvas bounds (+ padding) are drawn (`isNearCanvas` check)
 - Only markers in the active overview set are drawn on map (`shouldDrawMapIcon`)
 - When a tree, landmark, cow, or path is selected (navigation mode), `shouldDrawMapIcon` returns `false` for **all** items — the selected item is rendered exclusively by `drawSelectedOverlay`. This clears the map of all other pins while navigating.
+- `drawSelectedOverlay` runs on `#overlayCanvas` (not `#mapCanvas`) so the selected pin is never affected by the CSS delta rotation applied between full redraws. Positions are computed via `worldToScreenForOverlay()`, which uses `currentNavigationMapRotationDegrees()` (full current compass rotation, equal to canvas baked rotation + CSS delta) so the pin always sits at the correct geographic location. During the entry animation there is no CSS delta, so `worldToScreenForOverlay()` falls back to `worldToScreen()` to track the intermediate heading.
 - Emoji scale animation uses `requestAnimationFrame` scheduling
 
 ---

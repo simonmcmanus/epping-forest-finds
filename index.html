@@ -3621,6 +3621,19 @@
       return rotateScreenPoint(raw, rawWorldToScreen(state.userLocation.point), rotation);
     }
 
+    // For elements drawn on the overlay canvas (not CSS-rotated): use the current
+    // total effective rotation so the element aligns with where the feature appears
+    // on the CSS-rotated main canvas. During the entry animation the main canvas is
+    // redrawn each frame so worldToScreen() already reflects the intermediate heading;
+    // after the entry animation the CSS delta is what separates rendered from current.
+    function worldToScreenForOverlay(point) {
+      if (state.headingUpEntryAnim != null) return worldToScreen(point);
+      const raw = rawWorldToScreen(point);
+      const rotation = currentNavigationMapRotationDegrees();
+      if (!rotation || !state.userLocation) return raw;
+      return rotateScreenPoint(raw, rawWorldToScreen(state.userLocation.point), rotation);
+    }
+
     function screenToWorld(x, y) {
       const rotation = navigationMapRotationDegrees();
       if (!rotation || !state.userLocation) return rawScreenToWorld(x, y);
