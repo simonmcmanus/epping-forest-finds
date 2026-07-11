@@ -813,8 +813,8 @@ function zoomToSelection() {
     doZoom();
   };
   els.inspector.addEventListener("transitionend", fire, { once: true });
-  // Matches the 180ms inspector max-height transition plus a 40ms buffer so the
-  // camera waits for the minimized layout before measuring its target viewport.
+  // Mirrors the 180ms `.inspector` max-height transition in css/inspector.css
+  // plus a ~40ms buffer so the camera measures after the minimized layout settles.
   setTimeout(fire, INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS);
 }
 
