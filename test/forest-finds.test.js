@@ -149,6 +149,7 @@ globalThis.__forestFindsTest = {
   drawWalkingRadius,
   selectOverview,
   ensureOverviewTargetsVisible,
+  goToInitialView,
   buildNearbyIconLookup,
   isNearCanvas,
   landmarkEmoji,
@@ -429,6 +430,22 @@ test("overview GPS updates keep the user centered and animate large movements", 
   assert.equal(app.state.viewportAnimationTo.scale, 1000);
   assert.equal(Math.round(app.state.viewportAnimationTo.tx), Math.round(500 - app.state.userLocation.point.x * 1000));
   assert.equal(Math.round(app.state.viewportAnimationTo.ty), Math.round(400 - app.state.userLocation.point.y * 1000));
+});
+
+test("returning from a selected location to nearby animates the map state smoothly", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  app.state.viewport = { scale: 1000, tx: 123, ty: 456 };
+  const previousViewport = { ...app.state.viewport };
+
+  app.goToInitialView(false);
+
+  assert.equal(app.state.selected, null);
+  assert.deepEqual(app.state.viewport, previousViewport, "the viewport should not jump to its destination synchronously");
+  assert.ok(app.state.viewportAnimationTo, "the nearby viewport should be reached with an animation");
+  assert.equal(app.state.viewportAnimationDuration, 480);
 });
 
 test("first location fix immediately scales and centers nearby map icons", () => {

@@ -352,6 +352,7 @@ Behavior:
 
 - GPS-triggered navigation follow uses 800 ms cubic ease-in-out so consecutive position updates blend without visible restarts.
 - Overview repositioning uses 360–620 ms depending on distance moved.
+- Returning from a selected location to nearby animates the camera to the nearby viewport over 480 ms instead of changing map state synchronously.
 - View transitions animate with configurable duration
 - Smooth interpolation between viewport states
 

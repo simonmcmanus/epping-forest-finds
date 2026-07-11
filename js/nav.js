@@ -410,8 +410,8 @@ function goToInitialView(updateHash = true) {
   state.filterScreenOpen = false;
   selectOverview(true);
   setInspectorMinimized(false);
-  ensureOverviewTargetsVisible({ animate: true, durationMs: 300 });
-  if (!state.userLocation) fitToBounds(false, { animate: true, durationMs: 300 });
+  ensureOverviewTargetsVisible({ animate: true, durationMs: 480 });
+  if (!state.userLocation) fitToBounds(false, { animate: true, durationMs: 480 });
   updateCompassOverlay();
   if (updateHash) setHashFromSelection();
   requestDraw();
