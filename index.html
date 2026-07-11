@@ -2371,6 +2371,10 @@
       return selectedNavigationHeadingUpActive() ? -normalizeDegrees(state.compassHeading) : 0;
     }
 
+    function selectionCameraTransitionActive() {
+      return state.selectionViewportTransitionPending || state.viewportAnimationTo != null;
+    }
+
     function navigationFocusPoint() {
       const focusRect = bestVisibleCanvasRect();
       return {
@@ -2423,7 +2427,7 @@
 
     function alignHeadingUpNavigationViewport() {
       if (!selectedNavigationHeadingUpActive()) return false;
-      if (state.selectionViewportTransitionPending || state.viewportAnimationTo) return false;
+      if (selectionCameraTransitionActive()) return false;
       clearHeadingUpCanvasTransform();
       const previousScale = state.viewport.scale;
       const previousTx = state.viewport.tx;
