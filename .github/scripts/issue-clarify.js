@@ -181,7 +181,7 @@ function handleEdited() {
   });
 }
 
-if (eventAction === "edited") {
+if (eventAction === "edited" || eventAction === "created") {
   handleEdited();
 } else {
   handleOpened();
