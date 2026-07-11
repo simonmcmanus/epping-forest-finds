@@ -104,33 +104,38 @@ function handleOpened() {
 }
 
 function handleEdited() {
+  const repo = process.env.GITHUB_REPOSITORY;
+
   let allComments = [];
   try {
-    const raw = execFileSync("gh", ["issue", "view", issueNumber, "--json", "comments"], {
-      env: { ...process.env },
-    }).toString();
-    allComments = JSON.parse(raw).comments || [];
+    const raw = execFileSync("gh", [
+      "api", `repos/${repo}/issues/${issueNumber}/comments`,
+    ], { env: { ...process.env } }).toString();
+    allComments = JSON.parse(raw);
   } catch (e) {
     console.error("Failed to fetch comments:", e.message);
     process.exit(1);
   }
 
-  const botComment = [...allComments].reverse().find(c => c.author.login === "github-actions[bot]");
+  const botComment = [...allComments].reverse().find(c => c.user.login === "github-actions[bot]");
 
   if (!botComment) {
+    console.log("No previous bot comment found — running initial flow.");
     handleOpened();
     return;
   }
 
+  console.log(`Found bot comment id=${botComment.id}`);
+
   const humanReplies = allComments
-    .filter(c => c.author.login !== "github-actions[bot]")
-    .map(c => `[${c.author.login}]: ${c.body}`)
+    .filter(c => c.user.login !== "github-actions[bot]")
+    .map(c => `[${c.user.login}]: ${c.body}`)
     .join("\n\n") || "(No replies yet)";
 
   const prompt = [
     preamble,
-    "The issue has been edited. Below are the clarifying questions previously asked,",
-    "followed by all human replies.",
+    "The issue has been updated or a comment was added. Below are the clarifying questions",
+    "previously asked, followed by all human replies.",
     "",
     "## Previous questions",
     botComment.body,
@@ -164,13 +169,20 @@ function handleEdited() {
       process.exit(1);
     }
 
-    if (result.annotated && botComment.databaseId) {
-      const repo = process.env.GITHUB_REPOSITORY;
+    if (result.annotated) {
+      console.log(`Patching comment ${botComment.id}…`);
       execFileSync("gh", [
-        "api", `repos/${repo}/issues/comments/${botComment.databaseId}`,
+        "api", `repos/${repo}/issues/comments/${botComment.id}`,
         "--method", "PATCH",
-        "-f", `body=${result.annotated}`,
-      ], { stdio: "inherit", env: { ...process.env } });
+        "--input", "-",
+      ], {
+        input: JSON.stringify({ body: result.annotated }),
+        stdio: ["pipe", "inherit", "inherit"],
+        env: { ...process.env },
+      });
+      console.log("Comment updated.");
+    } else {
+      console.log("Model returned no annotated body.");
     }
 
     if (result.new_questions) {
