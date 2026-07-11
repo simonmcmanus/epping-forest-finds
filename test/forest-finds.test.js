@@ -162,6 +162,7 @@ globalThis.__forestFindsTest = {
   openFiltersScreen,
   applySelectionFromHash,
   syncHashFromSelection,
+  goToInitialView,
   location: window.location,
 };
 `;
@@ -648,6 +649,28 @@ test("returning to nearby screen clears the hash", () => {
   app.selectOverview();
   assert.equal(app.location.hash, "", "hash is cleared after returning to nearby");
   assert.equal(app.state.filterScreenOpen, false, "filter screen is closed");
+});
+
+test("returning from a selected location to nearby smoothly animates every map state change", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  app.state.trees = [
+    { id: "selected", point: app.projectLonLat(0.051, 51.651) },
+    { id: "nearby", point: app.projectLonLat(0.052, 51.652) },
+  ];
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  app.state.compassHeading = 75;
+  app.state.renderedNavigationHeading = 75;
+
+  app.goToInitialView();
+
+  assert.equal(app.state.selected, null, "nearby mode clears the selected location");
+  assert.deepEqual(
+    { from: app.state.headingUpEntryAnim.from, to: app.state.headingUpEntryAnim.to, duration: app.state.headingUpEntryAnim.duration },
+    { from: 75, to: 0, duration: 300 },
+    "heading eases back to north-up instead of jumping"
+  );
+  assert.ok(app.state.viewportAnimationTo, "nearby camera position and zoom animate to their target");
 });
 
 test("selecting a tree sets hash with tree parameter", () => {

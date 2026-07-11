@@ -353,7 +353,7 @@ Behavior:
 
 - GPS-triggered navigation follow uses 800 ms cubic ease-in-out so consecutive position updates blend without visible restarts.
 - Overview repositioning uses 360–620 ms depending on distance moved.
-- View transitions animate with configurable duration; all state-change transitions produce exactly one smooth animation with no intermediate jumps.
+- View transitions animate with configurable duration; all state-change transitions produce exactly one smooth animation with no intermediate jumps. Returning from heading-up selected navigation to Nearby eases the map rotation back to north-up over the same 300 ms as the overview camera fit.
 - Entering heading-up mode: `renderedNavigationHeading` is eased from 0° toward `state.compassHeading` over the same 600 ms duration as the viewport animation. Each canvas draw reflects the intermediate heading, so pins always point downward throughout.
 - `animateToHeadingUpNavigationViewport(durationMs)` is the single authoritative function for transitioning to heading-up view — it starts both the viewport animation and the CSS rotation animation together.
 - `setInspectorMinimized(true)` no longer makes any direct viewport change; the caller (`zoomToSelection`, `goToInitialView`, etc.) is responsible for the camera transition after the inspector settles.

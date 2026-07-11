@@ -2359,10 +2359,9 @@
     }
 
     function navigationMapRotationDegrees() {
-      if (!selectedNavigationHeadingUpActive()) return 0;
       const heading = Number.isFinite(state.renderedNavigationHeading)
         ? state.renderedNavigationHeading
-        : state.compassHeading;
+        : (selectedNavigationHeadingUpActive() ? state.compassHeading : 0);
       return -normalizeDegrees(heading);
     }
 
@@ -2477,27 +2476,24 @@
 
     function prepareCanvasForDraw() {
       clearHeadingUpCanvasTransform();
-      if (selectedNavigationHeadingUpActive()) {
-        if (state.headingUpEntryAnim != null) {
-          const elapsed = performance.now() - state.headingUpEntryAnim.startTime;
-          const progress = Math.min(1, elapsed / state.headingUpEntryAnim.duration);
-          const eased = progress < 0.5
-            ? 4 * progress * progress * progress
-            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-          const delta = shortestCompassDelta(state.headingUpEntryAnim.from, state.headingUpEntryAnim.to);
-          state.renderedNavigationHeading = normalizeDegrees(state.headingUpEntryAnim.from + delta * eased);
-          if (progress >= 1) {
-            state.headingUpEntryAnim = null;
-            state.renderedNavigationHeading = normalizeDegrees(state.compassHeading);
-          } else {
-            requestDraw();
-          }
+      if (state.headingUpEntryAnim != null) {
+        const elapsed = performance.now() - state.headingUpEntryAnim.startTime;
+        const progress = Math.min(1, elapsed / state.headingUpEntryAnim.duration);
+        const eased = progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+        const delta = shortestCompassDelta(state.headingUpEntryAnim.from, state.headingUpEntryAnim.to);
+        state.renderedNavigationHeading = normalizeDegrees(state.headingUpEntryAnim.from + delta * eased);
+        if (progress >= 1) {
+          state.renderedNavigationHeading = normalizeDegrees(state.headingUpEntryAnim.to);
+          state.headingUpEntryAnim = null;
         } else {
-          state.renderedNavigationHeading = normalizeDegrees(state.compassHeading);
+          requestDraw();
         }
+      } else if (selectedNavigationHeadingUpActive()) {
+        state.renderedNavigationHeading = normalizeDegrees(state.compassHeading);
       } else {
         state.renderedNavigationHeading = null;
-        state.headingUpEntryAnim = null;
       }
     }
 

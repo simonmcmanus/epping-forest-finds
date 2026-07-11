@@ -405,6 +405,17 @@ function setupInspectorDragResize() {
 }
 
 function goToInitialView(updateHash = true) {
+  if (selectedNavigationHeadingUpActive()) {
+    clearHeadingUpCanvasTransform();
+    const fromHeading = normalizeDegrees(state.compassHeading);
+    state.renderedNavigationHeading = fromHeading;
+    state.headingUpEntryAnim = {
+      from: fromHeading,
+      to: 0,
+      startTime: performance.now(),
+      duration: 300,
+    };
+  }
   state.selected = null;
   state.filterScreenOpen = false;
   selectOverview(true);
