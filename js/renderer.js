@@ -93,8 +93,9 @@ function drawOverlay() {
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!state.bounds) return;
+  const useOverlayForPins = typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive();
   const toScreen = typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen;
-  if (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive()) {
+  if (useOverlayForPins) {
     const nearbyIconLookup = buildNearbyIconLookup();
     drawTrees(ctx, nearbyIconLookup, toScreen);
     drawLandmarks(ctx, nearbyIconLookup, toScreen);
