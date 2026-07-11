@@ -162,6 +162,7 @@ globalThis.__forestFindsTest = {
   settingsFormHtml,
   reportFormHtml,
   openFiltersScreen,
+  goToInitialView,
   applySelectionFromHash,
   syncHashFromSelection,
   location: window.location,
@@ -512,6 +513,25 @@ test("heading-up viewport alignment preserves animation target when rotation sta
   assert.equal(app.state.viewport.scale, 1000);
   assert.equal(app.state.viewport.tx, 123);
   assert.equal(app.state.viewport.ty, 456);
+});
+
+test("returning to nearby waits for inspector expansion before starting the nearby camera move", async () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  app.state.viewport = { scale: 1000, tx: 123, ty: 456 };
+  app.els.inspector.classList.add("minimized");
+
+  app.goToInitialView();
+
+  assert.equal(app.state.selected, null);
+  assert.equal(app.state.viewportAnimationTo, null, "nearby refit should wait until inspector expansion settles");
+
+  await new Promise((resolve) => setTimeout(resolve, 240));
+
+  assert.ok(app.state.viewportAnimationTo, "nearby refit should begin after the inspector transition window");
+  assert.equal(app.state.viewportAnimationDuration, 500);
 });
 
 test("nearby HTML does not contain the walking distance selector", () => {

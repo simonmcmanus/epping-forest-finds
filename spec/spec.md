@@ -202,7 +202,7 @@ Marker rules:
   - if location is obtained before map data finishes loading (user clicks the gate early), the zoom is re-triggered once data and `fitToBounds()` are ready — ensuring the animation is never permanently cancelled by the data-load sequence
   - the zoom level adjusts as the user moves so nearest items always fill the available viewport; items that drift off-screen trigger an immediate refit regardless of movement distance
   - fast movement (walking, train) never causes the user or their nearest items to disappear from the map
-- Nearby ↔ selected-location transitions use a single eased ~500 ms camera move; heading-up rotation and pan/zoom start together, and compass-driven viewport alignment must wait until that transition is active so the map never snaps through an intermediate framing.
+- Nearby ↔ selected-location transitions use a single eased ~500 ms camera move; both directions wait for the inspector layout transition to settle before measuring the visible map area, and heading-up rotation/pan/zoom start together so the map never snaps through an intermediate framing.
 - With minimized inspector: auto-reposition is paused.
   - user can pan/zoom freely
   - GPS updates/drag/zoom/resize must not force recenter
