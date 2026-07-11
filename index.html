@@ -2263,7 +2263,7 @@
         const viewportChanged = alignHeadingUpNavigationViewport();
         if (selectedNavigationHeadingUpActive()) {
           if (viewportChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
-          else requestOverlayDraw();
+          else if (typeof drawOverlay === "function") drawOverlay();
         } else {
           requestDraw();
         }
@@ -2278,7 +2278,7 @@
           const finalViewportChanged = alignHeadingUpNavigationViewport();
           if (selectedNavigationHeadingUpActive()) {
             if (finalViewportChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
-            else requestOverlayDraw();
+            else if (typeof drawOverlay === "function") drawOverlay();
           } else {
             requestDraw();
           }
