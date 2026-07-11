@@ -475,7 +475,7 @@ test("minimized inspector preserves user-controlled map position on GPS updates"
   assert.deepEqual(app.state.viewport, { scale: 1000, tx: 123, ty: 456 });
 });
 
-test("heading-up selection transition waits for the planned camera animation before snapping the viewport", () => {
+test("heading-up viewport alignment defers when camera transition is pending", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.selected = { type: "tree", item: { id: "near-tree", ...makePoint(app, 0.001, 0) } };
@@ -491,7 +491,7 @@ test("heading-up selection transition waits for the planned camera animation bef
   assert.equal(app.state.viewport.ty, 456);
 });
 
-test("heading-up selection transition keeps pan and rotation on the same eased camera move", () => {
+test("heading-up viewport alignment preserves animation target when rotation starts", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.selected = { type: "tree", item: { id: "near-tree", ...makePoint(app, 0.001, 0) } };

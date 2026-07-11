@@ -1,5 +1,5 @@
 const HAS_DIRECTIONAL_WORDING_REGEX = /bound|towards|via|\b(?:north|south|east|west|n|s|e|w)\b/i;
-const INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS = 220;
+const INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS = 180 + 40; // Inspector transition + buffer
 
 // --- Hit detection & map click ---
 
