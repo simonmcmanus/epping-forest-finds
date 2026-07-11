@@ -601,6 +601,13 @@ dd {
   margin: 0 0 8px;
 }
 
+.departures-stop-direction {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: -2px 0 10px;
+}
+
 .departures-list {
   list-style: none;
   margin: 0;
