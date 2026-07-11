@@ -791,21 +791,23 @@ function focusOverviewItem(type, key) {
 // transition completes, so getBoundingClientRect() returns the correct
 // minimized height when bestVisibleCanvasRect() measures the focus rect.
 function zoomToSelection() {
+  const doZoom = () => {
+    if (typeof animateToHeadingUpNavigationViewport === "function" && selectedNavigationHeadingUpActive()) {
+      animateToHeadingUpNavigationViewport(600);
+    } else {
+      ensureUserAndSelectionVisible({ animate: true, force: true });
+    }
+  };
+
   if (!els.inspector.classList.contains("minimized")) {
-    ensureUserAndSelectionVisible({ animate: true, force: true });
+    doZoom();
     return;
   }
   let fired = false;
   const fire = () => {
     if (fired) return;
     fired = true;
-    ensureUserAndSelectionVisible({ animate: true, force: true });
-    if (typeof alignHeadingUpNavigationViewport === "function") {
-      setTimeout(() => {
-        alignHeadingUpNavigationViewport();
-        requestDraw();
-      }, 860);
-    }
+    doZoom();
   };
   els.inspector.addEventListener("transitionend", fire, { once: true });
   setTimeout(fire, 250);

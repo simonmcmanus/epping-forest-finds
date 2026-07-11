@@ -83,6 +83,10 @@ function draw() {
   if (state.selected && ["road", "path"].includes(state.selected.type)) {
     requestDraw();
   }
+
+  if (state.rotationAnimStartTime != null) {
+    requestDraw();
+  }
 }
 
 function drawOverlay() {

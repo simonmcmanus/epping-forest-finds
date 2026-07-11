@@ -312,6 +312,9 @@
       compassLastEventAt: null,
       navigationHeadingUp: false,
       renderedNavigationHeading: null,
+      rotationAnimFrom: null,
+      rotationAnimStartTime: null,
+      rotationAnimDuration: 0,
       viewportAnimationFrame: null,
       viewportAnimationFrom: null,
       viewportAnimationTo: null,
@@ -2443,13 +2446,52 @@
       els.canvas.style.transformOrigin = "";
     }
 
+    function animateToHeadingUpNavigationViewport(durationMs = 600) {
+      if (!selectedNavigationHeadingUpActive()) return;
+      clearHeadingUpCanvasTransform();
+      const safeDuration = Math.max(200, Number(durationMs) || 600);
+      if (state.renderedNavigationHeading == null) {
+        state.rotationAnimFrom = 0;
+        state.rotationAnimStartTime = performance.now();
+        state.rotationAnimDuration = safeDuration;
+      }
+      const focusRect = bestVisibleCanvasRect();
+      const focus = navigationFocusPoint();
+      const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
+      const targetScale = Math.min(state.viewport.scale, maxScale);
+      const userPoint = state.userLocation.point;
+      animateViewportTo({
+        scale: targetScale,
+        tx: focus.x - userPoint.x * targetScale,
+        ty: focus.y - userPoint.y * targetScale,
+      }, safeDuration);
+    }
+
     function prepareCanvasForDraw() {
+      clearHeadingUpCanvasTransform();
       if (selectedNavigationHeadingUpActive()) {
-        state.renderedNavigationHeading = normalizeDegrees(state.compassHeading);
+        const targetHeading = normalizeDegrees(state.compassHeading);
+        if (state.rotationAnimStartTime != null) {
+          const elapsed = performance.now() - state.rotationAnimStartTime;
+          const progress = Math.min(1, elapsed / (state.rotationAnimDuration || 600));
+          const eased = progress < 0.5
+            ? 4 * progress * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+          const delta = shortestCompassDelta(state.rotationAnimFrom || 0, targetHeading);
+          state.renderedNavigationHeading = (state.rotationAnimFrom || 0) + delta * eased;
+          if (progress >= 1) {
+            state.renderedNavigationHeading = targetHeading;
+            state.rotationAnimStartTime = null;
+            state.rotationAnimFrom = null;
+          }
+        } else {
+          state.renderedNavigationHeading = targetHeading;
+        }
       } else {
         state.renderedNavigationHeading = null;
+        state.rotationAnimStartTime = null;
+        state.rotationAnimFrom = null;
       }
-      clearHeadingUpCanvasTransform();
     }
 
     function updateHeadingUpCanvasRotationTransform() {
