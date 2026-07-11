@@ -1,3 +1,5 @@
+const HAS_DIRECTIONAL_WORDING_REGEX = /bound|towards|via|\b(?:north|south|east|west|n|s|e|w)\b/i;
+
 // --- Hit detection & map click ---
 
 function handleMapClick(event) {
@@ -509,6 +511,7 @@ function selectOverview(animate = false) {
   _overviewListKey = listKey;
   transitionInspectorBody(nearestSummary, animate ? "back" : null, () => {
     updateOverviewDirectionArrows();
+    hydrateOverviewBusStopDirections();
     animateNearestItemReorder(previousNearestPositions);
   });
   syncHashFromSelection();
@@ -947,7 +950,22 @@ function normalizeStoryName(value) {
 }
 
 function placeTitle(place) {
-  return place.name || place.categoryLabel || "Local place";
+  const busCacheKey = isBusCategory(place) && typeof transportCacheKey === "function"
+    ? transportCacheKey(place, "bus")
+    : null;
+  const cachedTransport = busCacheKey && state.transportLookupCache
+    ? state.transportLookupCache.get(busCacheKey)
+    : null;
+  const baseName = cachedTransport?.stopName || place.transportStopName || place.name || place.categoryLabel || "Local place";
+  const rawDirection = cachedTransport?.stopDirection || place.stopDirection;
+  if (!isBusCategory(place) || !rawDirection) return baseName;
+  const direction = String(rawDirection).replace(/\s+/g, " ").trim();
+  if (!direction) return baseName;
+  const directionLabel = HAS_DIRECTIONAL_WORDING_REGEX.test(direction)
+    ? direction
+    : `towards ${direction}`;
+  if (baseName.toLowerCase().includes(directionLabel.toLowerCase())) return baseName;
+  return `${baseName} — ${directionLabel}`;
 }
 
 function osmNote() {

@@ -327,6 +327,8 @@
       buildingsLoading: false,
       buildingsRevealStartTime: null,
       overviewOutsideRadiusFallback: false,
+      transportLookupCache: new Map(),
+      transportLookupRequests: new Map(),
       dataLoaded: false,
     };
 
@@ -3357,6 +3359,75 @@
         .slice(0, limit);
     }
 
+    function escapeCssSelector(value) {
+      return typeof CSS !== "undefined" && CSS && typeof CSS.escape === "function"
+        ? CSS.escape(String(value))
+        : String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    }
+
+    function overviewLandmarkItemSelector(placeKey) {
+      const escapedKey = escapeCssSelector(placeKey);
+      return `.nearest-item[data-overview-type="landmark"][data-overview-key="${escapedKey}"]`;
+    }
+
+    function shouldSkipOverviewBusStopHydration() {
+      return !navigator.onLine || !els.inspectorBody || state.selected || state.filterScreenOpen;
+    }
+
+    function transportCacheKey(place, type) {
+      return `${type}:${placeHashKey(place)}`;
+    }
+
+    async function fetchTransportDeparturesData(place, type) {
+      if (!place) return { error: "Transport stop missing" };
+      const lookupType = type || (isBusCategory(place) ? "bus" : "train");
+      const cacheKey = transportCacheKey(place, lookupType);
+      if (state.transportLookupCache.has(cacheKey)) return state.transportLookupCache.get(cacheKey);
+      if (state.transportLookupRequests.has(cacheKey)) return state.transportLookupRequests.get(cacheKey);
+      const nameParam = lookupType === "train" && place.name ? `&name=${encodeURIComponent(place.name)}` : "";
+      const url = `/.netlify/functions/transport-departures?lat=${place.latitude}&lon=${place.longitude}&type=${lookupType}${nameParam}`;
+      const request = fetch(url, { signal: AbortSignal.timeout(12000) })
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data || data.error) return data;
+          state.transportLookupCache.set(cacheKey, data);
+          return data;
+        })
+        .finally(() => {
+          state.transportLookupRequests.delete(cacheKey);
+        });
+      state.transportLookupRequests.set(cacheKey, request);
+      return request;
+    }
+
+    function refreshOverviewBusStopName(place) {
+      if (!els.inspectorBody) return;
+      const placeKey = placeHashKey(place);
+      const nameEls = els.inspectorBody.querySelectorAll(`${overviewLandmarkItemSelector(placeKey)} .nearest-name`);
+      for (const nameEl of nameEls) nameEl.textContent = placeTitle(place);
+    }
+
+    function hydrateOverviewBusStopDirections() {
+      if (shouldSkipOverviewBusStopHydration()) return;
+      const items = els.inspectorBody.querySelectorAll('.nearest-item[data-overview-type="landmark"][data-overview-key]');
+      for (const item of items) {
+        const place = findPlaceByHashKey(item.dataset.overviewKey || "");
+        if (!place || !isBusCategory(place)) continue;
+        if (place.stopDirection || state.transportLookupCache.has(transportCacheKey(place, "bus"))) {
+          refreshOverviewBusStopName(place);
+          continue;
+        }
+        fetchTransportDeparturesData(place, "bus")
+          .then((data) => {
+            if (!data || data.error) return;
+            refreshOverviewBusStopName(place);
+          })
+          .catch((error) => {
+            console.error("Failed to load nearby bus stop direction", error);
+          });
+      }
+    }
+
     async function loadTransportDepartures(place) {
       const type = isBusCategory(place) ? "bus" : "train";
       const section = document.createElement("div");
@@ -3365,10 +3436,7 @@
       els.inspectorBody.appendChild(section);
 
       try {
-        const nameParam = type === "train" && place.name ? `&name=${encodeURIComponent(place.name)}` : "";
-        const url = `/.netlify/functions/transport-departures?lat=${place.latitude}&lon=${place.longitude}&type=${type}${nameParam}`;
-        const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
-        const data = await res.json();
+        const data = await fetchTransportDeparturesData(place, type);
 
         // Bail silently if user has navigated away
         if (!state.selected || state.selected.item !== place) return;
@@ -3384,7 +3452,10 @@
         }
 
         const stopLabel = data.stopName ? `<p class="departures-stop-name">${escapeHtml(data.stopName)}</p>` : "";
-        section.innerHTML = `<h3 class="departures-heading">Next departures</h3>${stopLabel}
+        const stopDirection = type === "bus" && data.stopDirection
+          ? `<p class="departures-stop-direction">Buses towards ${escapeHtml(data.stopDirection)}</p>`
+          : "";
+        section.innerHTML = `<h3 class="departures-heading">Next departures</h3>${stopLabel}${stopDirection}
           <ul class="departures-list">
             ${data.departures.map((d) => `
               <li class="departure-item">
