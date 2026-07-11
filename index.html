@@ -313,6 +313,7 @@
       navigationHeadingUp: false,
       renderedNavigationHeading: null,
       headingUpEntryAnim: null,
+      selectionViewportTransitionPending: false,
       viewportAnimationFrame: null,
       viewportAnimationFrom: null,
       viewportAnimationTo: null,
@@ -2422,6 +2423,7 @@
 
     function alignHeadingUpNavigationViewport() {
       if (!selectedNavigationHeadingUpActive()) return false;
+      if (state.selectionViewportTransitionPending || state.viewportAnimationTo) return false;
       clearHeadingUpCanvasTransform();
       const previousScale = state.viewport.scale;
       const previousTx = state.viewport.tx;
@@ -2444,10 +2446,11 @@
       els.canvas.style.transformOrigin = "";
     }
 
-    function animateToHeadingUpNavigationViewport(durationMs = 600) {
+    function animateToHeadingUpNavigationViewport(durationMs = 500) {
       if (!selectedNavigationHeadingUpActive()) return;
       clearHeadingUpCanvasTransform();
-      const safeDuration = Math.max(200, Number(durationMs) || 600);
+      state.selectionViewportTransitionPending = false;
+      const safeDuration = Math.max(200, Number(durationMs) || 500);
       if (state.renderedNavigationHeading == null) {
         // Entering heading-up for the first time: animate renderedNavigationHeading
         // from north-up (0) toward the current compass heading, baked into each
