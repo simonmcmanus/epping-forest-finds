@@ -945,7 +945,7 @@
       state.viewport.scale = clamp(state.viewport.scale * factor, state.fitScale * 0.65, state.fitScale * 220);
       state.viewport.tx = screenPoint.x - before.x * state.viewport.scale;
       state.viewport.ty = screenPoint.y - before.y * state.viewport.scale;
-      if (selectedNavigationHeadingUpActive()) alignHeadingUpNavigationViewport();
+      if (headingUpActive()) alignHeadingUpNavigationViewport();
       requestDraw();
     }
 
@@ -2262,7 +2262,7 @@
         updateOverviewDirectionArrows();
         updateCompassOverlay();
         const viewportChanged = alignHeadingUpNavigationViewport();
-        if (selectedNavigationHeadingUpActive()) {
+        if (headingUpActive()) {
           if (viewportChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
           else if (typeof drawOverlay === "function") drawOverlay();
         } else {
@@ -2277,7 +2277,7 @@
           updateOverviewDirectionArrows();
           updateCompassOverlay();
           const finalViewportChanged = alignHeadingUpNavigationViewport();
-          if (selectedNavigationHeadingUpActive()) {
+          if (headingUpActive()) {
             if (finalViewportChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
             else if (typeof drawOverlay === "function") drawOverlay();
           } else {
@@ -2331,7 +2331,7 @@
           }
           updateOverviewDirectionArrows();
           updateSelectedDetailFields();
-          if (selectedNavigationHeadingUpActive()) {
+          if (headingUpActive()) {
             alignHeadingUpNavigationViewport();
           } else {
             ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
@@ -2359,8 +2359,20 @@
       );
     }
 
+    function nearbyHeadingUpActive() {
+      return Boolean(
+        state.userLocation
+        && typeof isOverviewScreenActive === "function" && isOverviewScreenActive()
+        && Number.isFinite(state.compassHeading)
+      );
+    }
+
+    function headingUpActive() {
+      return selectedNavigationHeadingUpActive() || nearbyHeadingUpActive();
+    }
+
     function navigationMapRotationDegrees() {
-      if (!selectedNavigationHeadingUpActive()) return 0;
+      if (!headingUpActive()) return 0;
       const heading = Number.isFinite(state.renderedNavigationHeading)
         ? state.renderedNavigationHeading
         : state.compassHeading;
@@ -2368,7 +2380,7 @@
     }
 
     function currentNavigationMapRotationDegrees() {
-      return selectedNavigationHeadingUpActive() ? -normalizeDegrees(state.compassHeading) : 0;
+      return headingUpActive() ? -normalizeDegrees(state.compassHeading) : 0;
     }
 
     function selectionCameraTransitionActive() {
@@ -2379,7 +2391,7 @@
       const focusRect = bestVisibleCanvasRect();
       return {
         x: focusRect.x + focusRect.width / 2,
-        y: focusRect.y + focusRect.height * 0.62,
+        y: focusRect.y + focusRect.height * (selectedNavigationHeadingUpActive() ? 0.62 : 0.5),
       };
     }
 
@@ -2426,7 +2438,7 @@
     }
 
     function alignHeadingUpNavigationViewport() {
-      if (!selectedNavigationHeadingUpActive()) return false;
+      if (!headingUpActive()) return false;
       if (selectionCameraTransitionActive()) return false;
       clearHeadingUpCanvasTransform();
       const previousScale = state.viewport.scale;
@@ -2484,7 +2496,7 @@
 
     function prepareCanvasForDraw() {
       clearHeadingUpCanvasTransform();
-      if (selectedNavigationHeadingUpActive()) {
+      if (headingUpActive()) {
         if (state.headingUpEntryAnim != null) {
           const elapsed = performance.now() - state.headingUpEntryAnim.startTime;
           const progress = Math.min(1, elapsed / state.headingUpEntryAnim.duration);
@@ -2499,6 +2511,21 @@
           } else {
             requestDraw();
           }
+        } else if (state.renderedNavigationHeading == null && !selectedNavigationHeadingUpActive()) {
+          // Nearby heading-up first activation: animate in from north-up to current heading
+          state.renderedNavigationHeading = 0;
+          const targetHeading = normalizeDegrees(state.compassHeading);
+          if (Math.abs(shortestCompassDelta(0, targetHeading)) > 0.5) {
+            state.headingUpEntryAnim = {
+              from: 0,
+              to: targetHeading,
+              startTime: performance.now(),
+              duration: 500,
+            };
+            requestDraw();
+          } else {
+            state.renderedNavigationHeading = targetHeading;
+          }
         } else {
           state.renderedNavigationHeading = normalizeDegrees(state.compassHeading);
         }
@@ -2510,7 +2537,7 @@
 
     function updateHeadingUpCanvasRotationTransform() {
       if (state.headingUpEntryAnim != null) return false; // entry animation owns renderedNavigationHeading
-      if (!selectedNavigationHeadingUpActive() || !Number.isFinite(state.renderedNavigationHeading)) {
+      if (!headingUpActive() || !Number.isFinite(state.renderedNavigationHeading)) {
         clearHeadingUpCanvasTransform();
         return false;
       }

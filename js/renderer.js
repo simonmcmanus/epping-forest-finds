@@ -1178,7 +1178,7 @@ function radarRadiusForMetres(point, metres) {
 function drawUserRadar(ctx, point, dpr) {
   if (!Number.isFinite(state.compassHeading)) return;
 
-  const headingRad = typeof selectedNavigationHeadingUpActive === "function" && selectedNavigationHeadingUpActive()
+  const headingRad = typeof headingUpActive === "function" && headingUpActive()
     ? toRadians(-90)
     : toRadians(normalizeDegrees(state.compassHeading) - 90);
   const spread = toRadians(26);

@@ -70,7 +70,7 @@ function setupResizeHandler() {
     updateSubfilterScrollHints();
     resizeCanvas();
     if (state.bounds) {
-      if (typeof selectedNavigationHeadingUpActive === "function" && selectedNavigationHeadingUpActive()) {
+      if (typeof headingUpActive === "function" && headingUpActive()) {
         alignHeadingUpNavigationViewport();
       } else if (state.userLocation && selectedCompassTarget()) {
         ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
@@ -268,7 +268,7 @@ function setupMapCanvasHandlers() {
 
   els.canvas.addEventListener("pointermove", (event) => {
     if (!state.dragging) return;
-    if (typeof selectedNavigationHeadingUpActive === "function" && selectedNavigationHeadingUpActive()) {
+    if (typeof headingUpActive === "function" && headingUpActive()) {
       alignHeadingUpNavigationViewport();
       requestDraw();
       return;
