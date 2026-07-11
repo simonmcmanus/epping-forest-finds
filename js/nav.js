@@ -418,14 +418,14 @@ function goToInitialView(updateHash = true) {
     }
   };
   if (wasMinimized) {
-    let fired = false;
-    const fire = () => {
-      if (fired) return;
-      fired = true;
+    let refitTriggered = false;
+    const triggerRefit = () => {
+      if (refitTriggered) return;
+      refitTriggered = true;
       refitOverview();
     };
-    els.inspector.addEventListener("transitionend", fire, { once: true });
-    setTimeout(fire, INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS);
+    els.inspector.addEventListener("transitionend", triggerRefit, { once: true });
+    setTimeout(triggerRefit, INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS);
   } else {
     refitOverview();
   }
