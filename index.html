@@ -2388,7 +2388,7 @@
     }
 
     const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
-    const HEADING_UP_ANCHOR_NEARBY   = 0.5;  // user at center in nearby mode (no destination to track)
+    const HEADING_UP_ANCHOR_NEARBY = 0.72; // user sits lower when all nearby targets are ahead
 
     function selectedNavigationHeadingUpActive() {
       return Boolean(
@@ -2434,6 +2434,34 @@
       };
     }
 
+    function nearbyHeadingUpFocusY() {
+      if (!state.userLocation) return HEADING_UP_ANCHOR_NEARBY;
+      const points = overviewTargetPoints();
+      const rotation = currentNavigationMapRotationDegrees();
+      const radians = toRadians(rotation);
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      const userPoint = state.userLocation.point;
+
+      for (const point of points) {
+        if (!point || point === userPoint) continue;
+        const dx = point.x - userPoint.x;
+        const dy = point.y - userPoint.y;
+        const rotatedY = dx * sin + dy * cos;
+        if (rotatedY > 0.000001) return 0.5;
+      }
+
+      return HEADING_UP_ANCHOR_NEARBY;
+    }
+
+    function nearbyNavigationFocusPoint() {
+      const focusRect = bestVisibleCanvasRect();
+      return {
+        x: focusRect.x + focusRect.width / 2,
+        y: focusRect.y + focusRect.height * nearbyHeadingUpFocusY(),
+      };
+    }
+
     function selectedNavigationTargetPoints() {
       const target = selectedCompassTarget();
       if (!target) return [];
@@ -2441,6 +2469,10 @@
         return target.segments.flat();
       }
       return target.point ? [target.point] : [];
+    }
+
+    function nearbyHeadingUpTargetPoints() {
+      return overviewTargetPoints();
     }
 
     function maxHeadingUpNavigationScale(focus, focusRect) {
@@ -2476,7 +2508,41 @@
       return maxScale;
     }
 
-    function alignHeadingUpNavigationViewport() {
+    function maxNearbyHeadingUpScale(focus, focusRect) {
+      if (!state.userLocation) return state.viewport.scale;
+      const points = nearbyHeadingUpTargetPoints();
+      if (points.length < 2) return state.viewport.scale;
+
+      const dpr = pixelRatio();
+      const margin = Math.min(focusRect.width, focusRect.height) * 0.1 + 12 * dpr;
+      const left = focusRect.x + margin;
+      const right = focusRect.x + focusRect.width - margin;
+      const top = focusRect.y + margin;
+      const bottom = focusRect.y + focusRect.height - margin;
+      const rotation = currentNavigationMapRotationDegrees();
+      const radians = toRadians(rotation);
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      let maxScale = Number.POSITIVE_INFINITY;
+
+      for (const point of points) {
+        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+        const dx = point.x - state.userLocation.point.x;
+        const dy = point.y - state.userLocation.point.y;
+        const rotatedX = dx * cos - dy * sin;
+        const rotatedY = dx * sin + dy * cos;
+
+        if (rotatedX > 0) maxScale = Math.min(maxScale, (right - focus.x) / rotatedX);
+        if (rotatedX < 0) maxScale = Math.min(maxScale, (left - focus.x) / rotatedX);
+        if (rotatedY > 0) maxScale = Math.min(maxScale, (bottom - focus.y) / rotatedY);
+        if (rotatedY < 0) maxScale = Math.min(maxScale, (top - focus.y) / rotatedY);
+      }
+
+      if (!Number.isFinite(maxScale) || maxScale <= 0) return state.viewport.scale;
+      return maxScale;
+    }
+
+    function alignHeadingUpNavigationViewport(options = {}) {
       if (!headingUpActive()) return false;
       if (selectionCameraTransitionActive()) return false;
       clearHeadingUpCanvasTransform();
@@ -2484,15 +2550,30 @@
       const previousTx = state.viewport.tx;
       const previousTy = state.viewport.ty;
       const focusRect = bestVisibleCanvasRect();
-      const focus = navigationFocusPoint();
-      const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
-      if (state.viewport.scale > maxScale) state.viewport.scale = maxScale;
+      const focus = selectedNavigationHeadingUpActive()
+        ? navigationFocusPoint()
+        : nearbyNavigationFocusPoint();
+      const maxScale = selectedNavigationHeadingUpActive()
+        ? maxHeadingUpNavigationScale(focus, focusRect)
+        : maxNearbyHeadingUpScale(focus, focusRect);
       const userPoint = state.userLocation.point;
-      state.viewport.tx = focus.x - userPoint.x * state.viewport.scale;
-      state.viewport.ty = focus.y - userPoint.y * state.viewport.scale;
-      return Math.abs(previousScale - state.viewport.scale) > 0.000001
-        || Math.abs(previousTx - state.viewport.tx) > 0.5
-        || Math.abs(previousTy - state.viewport.ty) > 0.5;
+      const targetScale = Math.min(state.viewport.scale, maxScale);
+      const targetViewport = {
+        scale: targetScale,
+        tx: focus.x - userPoint.x * targetScale,
+        ty: focus.y - userPoint.y * targetScale,
+      };
+
+      if (options.animate) {
+        animateViewportTo(targetViewport, options.durationMs || 500);
+      } else {
+        state.viewport.scale = targetScale;
+        state.viewport.tx = targetViewport.tx;
+        state.viewport.ty = targetViewport.ty;
+      }
+      return Math.abs(previousScale - targetViewport.scale) > 0.000001
+        || Math.abs(previousTx - targetViewport.tx) > 0.5
+        || Math.abs(previousTy - targetViewport.ty) > 0.5;
     }
 
     function clearHeadingUpCanvasTransform() {
@@ -2798,6 +2879,14 @@
       if (!state.userLocation) return;
       if (state.selected) return;
       setInspectorMinimized(false);
+
+      if (nearbyHeadingUpActive()) {
+        alignHeadingUpNavigationViewport({
+          animate: Boolean(options.animate),
+          durationMs: options.durationMs || 520,
+        });
+        return;
+      }
 
       const points = overviewTargetPoints();
 
