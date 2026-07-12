@@ -216,7 +216,17 @@
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
-        return localStorage.getItem(COMPASS_PERMISSION_KEY) || "unknown";
+        const stored = localStorage.getItem(COMPASS_PERMISSION_KEY) || "unknown";
+        // iOS requires DeviceOrientationEvent.requestPermission() from a user gesture
+        // each session before orientation events fire — even if previously granted.
+        // Restoring "granted" would skip that per-session call, so treat it as "unknown"
+        // to ensure the gate shows and the user can tap to re-enable.
+        if (stored === "granted"
+            && typeof DeviceOrientationEvent !== "undefined"
+            && typeof DeviceOrientationEvent.requestPermission === "function") {
+          return "unknown";
+        }
+        return stored;
       } catch {
         return "unknown";
       }
@@ -576,10 +586,14 @@
           setLocationGateVisible(false);
           updateLocateButtonVisibility();
           ensureLocationWatch();
-          if (compassPermissionRequiresRequest()) {
-            requestCompassPermissionIfNeeded({ fromGesture: true }).catch((error) => {
-              console.warn("Error requesting compass permission", error);
-            });
+          if (compassPermissionCanBeRequested()) {
+            // iOS: requestPermission() must come from a real user-gesture call stack.
+            // The geolocation callback is async and doesn't qualify, so show the gate
+            // and let the user's tap on the button be the actual gesture.
+            if (state.compassPermission !== "granted") showCompassAccessPrompt();
+          } else {
+            // Non-iOS: no user gesture required; auto-grant if not already set.
+            requestCompassPermissionIfNeeded({ fromGesture: false });
           }
 
           checkDistanceToForest(latitude, longitude);
