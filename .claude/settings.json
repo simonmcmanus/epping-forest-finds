@@ -13,7 +13,9 @@
       "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -rn \"setLoadStep\" /Users/simonmcmanus/node/trees/js/*.js)",
       "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -n \"els\\\\.\" /Users/simonmcmanus/node/trees/index.html)",
       "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -n \"inspector:\" /Users/simonmcmanus/node/trees/index.html)",
-      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -n \"@media\\\\|breakpoint\\\\|max-width\\\\|min-width\" /Users/simonmcmanus/node/trees/css/inspector.css)"
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -n \"@media\\\\|breakpoint\\\\|max-width\\\\|min-width\" /Users/simonmcmanus/node/trees/css/inspector.css)",
+      "Bash(/usr/bin/gh --version)",
+      "Bash(/opt/homebrew/bin/gh --version)"
     ]
   }
 }
