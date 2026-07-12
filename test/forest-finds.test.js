@@ -433,7 +433,7 @@ test("nearby filter updates trigger a heading-up refit that keeps all highlighte
   app.state.selected = null;
   app.state.viewport = { scale: 1000, tx: 100, ty: 100 };
   app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.0012, 0) });
-  app.state.landmarks.push({ id: "ahead-pub", name: "Ahead pub", category: "pub", ...makePoint(app, 0.0016, 0.0008) });
+  app.state.landmarks.push({ id: "ahead-pub", name: "Ahead Pub", category: "pub", ...makePoint(app, 0.0016, 0.0008) });
 
   app.state.overviewFilters = ["trees", "pubs"];
   app.ensureOverviewTargetsVisible({ animate: true, durationMs: 300 });
