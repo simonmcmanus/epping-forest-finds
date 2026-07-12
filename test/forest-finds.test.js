@@ -191,6 +191,7 @@ globalThis.__forestFindsTest = {
   compassStepMarkup,
   compassPermissionRequiresRequest,
   location: window.location,
+  windowStub: window,
 };
 `;
 
@@ -782,6 +783,24 @@ test("heading-up resize uses oversized canvas draw area so rotation does not exp
   assert.ok(app.els.canvas.width > app.state.canvasVisibleWidth, "map canvas bitmap should be oversized for rotation");
   assert.ok(app.els.canvas.height > app.state.canvasVisibleHeight, "map canvas bitmap should be oversized for rotation");
   assert.ok(app.state.canvasInsetX > 0 && app.state.canvasInsetY > 0, "oversized map canvas should keep centered insets");
+});
+
+test("heading-up resize limits effective pixel ratio so oversized canvas stays within safe limits", () => {
+  resetData(app);
+  const originalDpr = app.windowStub.devicePixelRatio;
+  try {
+    app.windowStub.devicePixelRatio = 3;
+    app.els.mapStage.clientWidth = 1800;
+    app.els.mapStage.clientHeight = 2600;
+    app.resizeCanvas();
+
+    assert.ok(app.els.canvas.width <= 4096, "oversized map canvas width should stay within safe dimension limits");
+    assert.ok(app.els.canvas.height <= 4096, "oversized map canvas height should stay within safe dimension limits");
+    assert.ok(app.els.canvas.width * app.els.canvas.height <= 16777216, "oversized map canvas pixel area should stay within safe limits");
+    assert.ok(app.els.canvas.width > app.state.canvasVisibleWidth, "oversized map canvas should still render beyond the visible viewport");
+  } finally {
+    app.windowStub.devicePixelRatio = originalDpr;
+  }
 });
 
 test("heading-up mode applies CSS delta rotation between redraws", () => {
