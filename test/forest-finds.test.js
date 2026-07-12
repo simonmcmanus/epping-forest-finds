@@ -169,6 +169,7 @@ globalThis.__forestFindsTest = {
   ensureOverviewTargetsVisible,
   alignHeadingUpNavigationViewport,
   animateToHeadingUpNavigationViewport,
+  resizeCanvas,
   updateHeadingUpCanvasRotationTransform,
   nearbyHeadingUpActive,
   headingUpActive,
@@ -239,6 +240,10 @@ function resetData(app) {
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
   app.state.compassHeading = null;
+  app.state.canvasInsetX = 0;
+  app.state.canvasInsetY = 0;
+  app.state.canvasVisibleWidth = 1000;
+  app.state.canvasVisibleHeight = 800;
   app.els.inspector.classList.remove("minimized");
   app.els.canvas.width = 1000;
   app.els.canvas.height = 800;
@@ -768,20 +773,31 @@ test("heading-up selected zoom changes wait for compass settle before applying",
   assert.ok(app.state.viewport.scale < activeScale, "settled compass should apply the delayed selected-view fit");
 });
 
-test("heading-up compass smoothing keeps canvas CSS rotation disabled to avoid clipped edges while rotating", () => {
+test("heading-up resize uses oversized canvas draw area so rotation does not expose viewport edges", () => {
+  resetData(app);
+  app.resizeCanvas();
+
+  assert.equal(app.state.canvasVisibleWidth, 1000, "visible canvas width should match map stage width");
+  assert.equal(app.state.canvasVisibleHeight, 800, "visible canvas height should match map stage height");
+  assert.ok(app.els.canvas.width > app.state.canvasVisibleWidth, "map canvas bitmap should be oversized for rotation");
+  assert.ok(app.els.canvas.height > app.state.canvasVisibleHeight, "map canvas bitmap should be oversized for rotation");
+  assert.ok(app.state.canvasInsetX > 0 && app.state.canvasInsetY > 0, "oversized map canvas should keep centered insets");
+});
+
+test("heading-up mode applies CSS delta rotation between redraws", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.selected = { type: "tree", item: { id: "tree-1", ...makePoint(app, 0.0015, 0) } };
   app.state.compassHeading = 90;
   app.state.renderedNavigationHeading = 80;
-  app.els.canvas.style.transform = "rotate(3deg)";
-  app.els.canvas.style.transformOrigin = "120px 240px";
+  app.els.canvas.style.transform = "";
+  app.els.canvas.style.transformOrigin = "";
 
   const usedCssRotation = app.updateHeadingUpCanvasRotationTransform();
 
-  assert.equal(usedCssRotation, false, "heading-up smoothing should rely on redraws instead of CSS canvas rotation");
-  assert.equal(app.els.canvas.style.transform, "", "canvas transform should be cleared in heading-up mode");
-  assert.equal(app.els.canvas.style.transformOrigin, "", "canvas transform origin should be cleared in heading-up mode");
+  assert.equal(usedCssRotation, true, "heading-up smoothing should apply CSS rotation when compass-only delta changes");
+  assert.match(app.els.canvas.style.transform, /rotate\(/, "canvas transform should include a CSS rotation delta");
+  assert.match(app.els.canvas.style.transformOrigin, /px/, "canvas transform origin should follow user location");
 });
 
 test("returning to nearby waits for inspector expansion before starting the nearby camera move", async () => {
