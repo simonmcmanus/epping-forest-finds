@@ -712,6 +712,28 @@ test("heading-up viewport alignment preserves animation target when rotation sta
   assert.equal(app.state.viewport.ty, 456);
 });
 
+test("heading-up nearby zoom changes wait for compass settle before applying", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) });
+  app.state.compassHeading = 0;
+  app.state.viewport = { scale: 10, tx: 500, ty: 440 };
+
+  app.state.compassLastEventAt = Date.now();
+  const changedDuringCompassUpdates = app.alignHeadingUpNavigationViewport();
+
+  assert.equal(changedDuringCompassUpdates, false, "active compass updates should defer heading-up zoom changes");
+  assert.equal(app.state.viewport.scale, 10, "scale should hold steady while the compass is still updating");
+  assert.equal(app.state.viewport.tx, 500);
+  assert.equal(app.state.viewport.ty, 440);
+
+  app.state.compassLastEventAt = Date.now() - 1000;
+  const changedAfterCompassSettles = app.alignHeadingUpNavigationViewport();
+
+  assert.equal(changedAfterCompassSettles, true, "heading-up zoom should apply once compass updates settle");
+  assert.ok(app.state.viewport.scale > 10, "settled compass should allow the delayed zoom fit");
+});
+
 test("returning to nearby waits for inspector expansion before starting the nearby camera move", async () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

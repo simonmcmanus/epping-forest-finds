@@ -2329,7 +2329,7 @@
 
         const remaining = Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget));
         const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
-        const sensorIsActive = lastEventAge < 350;
+        const sensorIsActive = lastEventAge < HEADING_UP_SENSOR_ACTIVE_MS;
         if (remaining < 0.05 && !sensorIsActive) {
           state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
           updateOverviewDirectionArrows();
@@ -2413,6 +2413,10 @@
     const HEADING_UP_ANCHOR_NEARBY = 0.55; // user slightly below centre; gives balanced space for items in all compass directions
     const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
     const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
+    const HEADING_UP_SCALE_BUFFER_RATIO = 0.02; // keep a little extra room so tiny compass changes do not force zoom churn
+    const HEADING_UP_SCALE_SETTLE_RATIO = 0.02; // absorb tiny settled scale corrections as visual noise
+    const HEADING_UP_SCALE_SETTLE_MIN = 1; // absolute settle tolerance for low zoom values
+    const HEADING_UP_SENSOR_ACTIVE_MS = 350;
 
     function selectedNavigationHeadingUpActive() {
       return Boolean(
@@ -2481,6 +2485,30 @@
 
     function nearbyHeadingUpTargetPoints() {
       return overviewTargetPoints();
+    }
+
+    function headingUpCompassSensorActive(now = performance.now()) {
+      if (!Number.isFinite(state.compassLastEventAt)) return false;
+      return (now - state.compassLastEventAt) < HEADING_UP_SENSOR_ACTIVE_MS;
+    }
+
+    function resolveHeadingUpTargetScale(maxScale, previousScale) {
+      if (!Number.isFinite(maxScale) || maxScale <= 0) return previousScale;
+      const bufferedScale = maxScale * (1 - HEADING_UP_SCALE_BUFFER_RATIO);
+      const nextScale = Number.isFinite(bufferedScale) && bufferedScale > 0 ? bufferedScale : maxScale;
+      if (!Number.isFinite(previousScale) || previousScale <= 0) return nextScale;
+
+      if (headingUpCompassSensorActive()) {
+        // While compass events are actively arriving, defer all zoom-in and any
+        // zoom-out that still keeps all targets visible at the strict fit scale.
+        if (previousScale <= nextScale || previousScale <= (maxScale + HEADING_UP_SCALE_EPSILON)) {
+          return previousScale;
+        }
+      }
+
+      const settleTolerance = Math.max(HEADING_UP_SCALE_SETTLE_MIN, previousScale * HEADING_UP_SCALE_SETTLE_RATIO);
+      if (Math.abs(previousScale - nextScale) <= settleTolerance) return previousScale;
+      return nextScale;
     }
 
     function maxHeadingUpNavigationScale(focus, focusRect) {
@@ -2568,7 +2596,7 @@
       // Use maxScale directly: heading-up mode always fits all targets in the
       // rotated focus rect. Math.min would leave scale too low when the map
       // was previously at a wider zoom (e.g. walking-radius level on first load).
-      const targetScale = maxScale;
+      const targetScale = resolveHeadingUpTargetScale(maxScale, previousScale);
       const targetViewport = {
         scale: targetScale,
         tx: focus.x - userPoint.x * targetScale,
