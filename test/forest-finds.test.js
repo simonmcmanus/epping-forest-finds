@@ -187,6 +187,7 @@ globalThis.__forestFindsTest = {
   syncHashFromSelection,
   ONBOARDING_STEPS,
   compassStepMarkup,
+  compassPermissionRequiresRequest,
   location: window.location,
 };
 `;
@@ -342,6 +343,9 @@ test("stored compass permission is restored before nearby setup runs", () => {
   assert.equal(grantedApp.state.compassPermission, "granted");
   assert.equal(deniedApp.state.compassPermission, "denied");
   assert.equal(unknownApp.state.compassPermission, "unknown");
+  assert.equal(grantedApp.compassPermissionRequiresRequest(), false);
+  assert.equal(deniedApp.compassPermissionRequiresRequest(), true);
+  assert.equal(unknownApp.compassPermissionRequiresRequest(), true);
 });
 
 test("nearbyHeadingUpActive returns false without user location", () => {

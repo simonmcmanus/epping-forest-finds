@@ -575,9 +575,11 @@
           setLocationGateVisible(false);
           updateLocateButtonVisibility();
           ensureLocationWatch();
-          requestCompassPermissionIfNeeded({ fromGesture: true }).catch((error) => {
-            console.warn("Failed to request compass permission", error);
-          });
+          if (compassPermissionRequiresRequest()) {
+            requestCompassPermissionIfNeeded({ fromGesture: true }).catch((error) => {
+              console.warn("Error requesting compass permission", error);
+            });
+          }
 
           checkDistanceToForest(latitude, longitude);
 
@@ -2239,6 +2241,10 @@
         } catch {}
         showCompassAccessPrompt();
       }
+    }
+
+    function compassPermissionRequiresRequest() {
+      return state.compassPermission !== "granted";
     }
 
     function setupCompassListeners() {
