@@ -575,7 +575,7 @@
           setLocationGateVisible(false);
           updateLocateButtonVisibility();
           ensureLocationWatch();
-          void requestCompassPermissionIfNeeded({ fromGesture: true }).catch((error) => {
+          requestCompassPermissionIfNeeded({ fromGesture: true }).catch((error) => {
             console.warn("Compass permission sync failed", error);
           });
 

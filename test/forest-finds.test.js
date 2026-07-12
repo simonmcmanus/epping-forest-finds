@@ -78,7 +78,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
   const storage = new Map(Object.entries(initialLocalStorage));
   const localStorage = {
     getItem(key) {
-      return storage.has(String(key)) ? storage.get(String(key)) : null;
+      return storage.get(String(key)) ?? null;
     },
     setItem(key, value) {
       storage.set(String(key), String(value));
