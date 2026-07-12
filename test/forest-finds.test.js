@@ -327,13 +327,21 @@ test("compass onboarding renders permission and fallback states", () => {
 });
 
 test("stored compass permission is restored before nearby setup runs", () => {
-  const freshApp = loadAppForTests({
+  const grantedApp = loadAppForTests({
     localStorage: {
       "forest-finds-compass-permission-v1": "granted",
     },
   });
+  const deniedApp = loadAppForTests({
+    localStorage: {
+      "forest-finds-compass-permission-v1": "denied",
+    },
+  });
+  const unknownApp = loadAppForTests();
 
-  assert.equal(freshApp.state.compassPermission, "granted");
+  assert.equal(grantedApp.state.compassPermission, "granted");
+  assert.equal(deniedApp.state.compassPermission, "denied");
+  assert.equal(unknownApp.state.compassPermission, "unknown");
 });
 
 test("nearbyHeadingUpActive returns false without user location", () => {
