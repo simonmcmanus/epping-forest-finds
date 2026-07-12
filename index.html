@@ -213,6 +213,13 @@
     const EARTH_RADIUS_METRES = 6371008.8;
     const APP_VERSION = "v80";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
+    function getStoredCompassPermission() {
+      try {
+        return localStorage.getItem(COMPASS_PERMISSION_KEY) || "unknown";
+      } catch {
+        return "unknown";
+      }
+    }
     const UNDERGROUND_STATION_NAMES = new Set([
       "aldgate",
       "aldgate east",
@@ -299,13 +306,7 @@
       showAllOutsideRadius: false,
       compassHeading: null,
       compassHeadingTarget: null,
-      compassPermission: (() => {
-        try {
-          return localStorage.getItem(COMPASS_PERMISSION_KEY) || "unknown";
-        } catch {
-          return "unknown";
-        }
-      })(),
+      compassPermission: getStoredCompassPermission(),
       locationWatchId: null,
       dragging: false,
       moved: false,
@@ -574,7 +575,7 @@
           setLocationGateVisible(false);
           updateLocateButtonVisibility();
           ensureLocationWatch();
-          void requestCompassPermissionIfNeeded({ fromGesture: true });
+          void requestCompassPermissionIfNeeded({ fromGesture: true }).catch(() => {});
 
           checkDistanceToForest(latitude, longitude);
 
