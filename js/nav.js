@@ -1,6 +1,15 @@
 function setupPwa() {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(console.error);
+    navigator.serviceWorker.ready
+      .then(() => caches.keys())
+      .then(keys => {
+        const name = keys.find(k => k.startsWith("veteran-tree-finder-v"));
+        if (!name) return;
+        const el = document.getElementById("sw-version");
+        if (el) el.textContent = name.replace("veteran-tree-finder-", "");
+      })
+      .catch(() => {});
   }
 
   if (els.installButton) {

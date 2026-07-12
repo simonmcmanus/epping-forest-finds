@@ -130,6 +130,7 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
   - forest/buffer boundaries
   - live cows
 - Once loading completes, the map is rendered first, then the overlay fades out (0.32s opacity transition) so the map is revealed beneath the dissolving card.
+- A small version badge (`#sw-version`, `.version` class) is shown at the bottom-right of the loading overlay, populated via `caches.keys()` once the service worker is active. Displays the cache version (e.g. `v120`). Hidden until the SW is ready.
 - A ~500ms pause after all steps complete lets the user see the finished state before the fade begins.
 - The location gate (shown when geolocation permission is not pre-granted) also fades out on dismissal.
 - The distance warning dismisses with the same fade.
