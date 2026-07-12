@@ -167,6 +167,7 @@ globalThis.__forestFindsTest = {
   goToInitialView,
   applySelectionFromHash,
   syncHashFromSelection,
+  compassStepMarkup,
   location: window.location,
 };
 `;
@@ -174,7 +175,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/categories.js", "js/normalize.js", "js/nav.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/categories.js", "js/normalize.js", "js/onboarding.js", "js/nav.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -289,6 +290,23 @@ test("first-visit onboarding requests compass access during setup", () => {
   assert.ok(compassStep > locationStep, "compass onboarding should come after location setup");
   assert.match(onboardingSource, /DeviceOrientationEvent\.requestPermission\(\)/);
   assert.match(onboardingSource, /Compass guidance/);
+});
+
+test("compass onboarding renders permission and fallback states", () => {
+  const { compassStepMarkup: fn } = app;
+
+  const prompt = fn({ hasCompassSupport: true, needsCompassPrompt: true });
+  assert.match(prompt.subtitle, /unlock the nearby screen/);
+  assert.match(prompt.actionsHtml, /ob-compass-enable/);
+  assert.match(prompt.actionsHtml, /Continue without compass/);
+
+  const blocked = fn({ blocked: true, hasCompassSupport: true, needsCompassPrompt: true });
+  assert.match(blocked.subtitle, /Compass access was blocked/);
+  assert.match(blocked.actionsHtml, /ob-compass-finish/);
+
+  const noSupport = fn({ hasCompassSupport: false, needsCompassPrompt: false });
+  assert.match(noSupport.subtitle, /unavailable on this device or browser/);
+  assert.match(noSupport.actionsHtml, /ob-compass-finish/);
 });
 
 test("nearbyHeadingUpActive returns false without user location", () => {
