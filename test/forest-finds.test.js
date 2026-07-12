@@ -734,6 +734,39 @@ test("heading-up nearby zoom changes wait for compass settle before applying", (
   assert.ok(app.state.viewport.scale > 10, "settled compass should allow the delayed zoom fit");
 });
 
+test("heading-up selected zoom changes wait for compass settle before applying", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "ahead-tree", ...makePoint(app, 0.0025, 0) } };
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.viewport = { scale: 3000, tx: 500, ty: 420 };
+
+  app.state.compassLastEventAt = Date.now() - 1000;
+  app.alignHeadingUpNavigationViewport();
+  const settledScale = app.state.viewport.scale;
+  const settledTx = app.state.viewport.tx;
+  const settledTy = app.state.viewport.ty;
+  const userPoint = app.state.userLocation.point;
+
+  const activeScale = settledScale * 1.03;
+  app.state.viewport.scale = activeScale;
+  app.state.viewport.tx = settledTx + (settledScale - activeScale) * userPoint.x;
+  app.state.viewport.ty = settledTy + (settledScale - activeScale) * userPoint.y;
+
+  app.state.compassLastEventAt = Date.now();
+  const changedDuringCompassUpdates = app.alignHeadingUpNavigationViewport();
+
+  assert.equal(changedDuringCompassUpdates, false, "active compass updates should defer small selected-view zoom corrections");
+  assert.equal(app.state.viewport.scale, activeScale, "selected-view scale should hold while the compass is still updating");
+
+  app.state.compassLastEventAt = Date.now() - 1000;
+  const changedAfterCompassSettles = app.alignHeadingUpNavigationViewport();
+
+  assert.equal(changedAfterCompassSettles, true, "selected-view zoom correction should apply once compass updates settle");
+  assert.ok(app.state.viewport.scale < activeScale, "settled compass should apply the delayed selected-view fit");
+});
+
 test("returning to nearby waits for inspector expansion before starting the nearby camera move", async () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

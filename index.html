@@ -2413,9 +2413,11 @@
     const HEADING_UP_ANCHOR_NEARBY = 0.55; // user slightly below centre; gives balanced space for items in all compass directions
     const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
     const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
-    const HEADING_UP_SCALE_BUFFER_RATIO = 0.02; // keep a little extra room so tiny compass changes do not force zoom churn
+    const HEADING_UP_SCALE_BUFFER_RATIO = 0.04; // keep extra off-screen room so quick heading changes do not expose unrendered edges
     const HEADING_UP_SCALE_SETTLE_RATIO = 0.02; // absorb tiny settled scale corrections as visual noise
     const HEADING_UP_SCALE_SETTLE_MIN = 1; // absolute settle tolerance for low zoom values
+    const HEADING_UP_STRICT_FIT_TOLERANCE_RATIO = 0.015; // allow tiny over-scale while compass updates are still arriving
+    const HEADING_UP_STRICT_FIT_TOLERANCE_MIN = 0.75;
     const HEADING_UP_SENSOR_ACTIVE_MS = 350;
 
     function selectedNavigationHeadingUpActive() {
@@ -2499,9 +2501,13 @@
       if (!Number.isFinite(previousScale) || previousScale <= 0) return nextScale;
 
       if (headingUpCompassSensorActive()) {
+        const strictFitTolerance = Math.max(
+          HEADING_UP_STRICT_FIT_TOLERANCE_MIN,
+          maxScale * HEADING_UP_STRICT_FIT_TOLERANCE_RATIO
+        );
         // While compass events are actively arriving, defer all zoom-in and any
-        // zoom-out that still keeps all targets visible at the strict fit scale.
-        if (previousScale <= nextScale || previousScale <= (maxScale + HEADING_UP_SCALE_EPSILON)) {
+        // zoom-out that still keeps all targets visible with a small safety tolerance.
+        if (previousScale <= nextScale || previousScale <= (maxScale + strictFitTolerance)) {
           return previousScale;
         }
       }
