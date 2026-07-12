@@ -127,6 +127,13 @@ function handleEdited() {
 
   console.log(`Found bot comment id=${botComment.id}`);
 
+  // Strip any previously-appended suggested description block so the model
+  // only sees the Q&A portion when re-annotating.
+  const suggestedDescSeparator = "\n\n---\n\n**Suggested description:**";
+  const previousQuestions = botComment.body.includes(suggestedDescSeparator)
+    ? botComment.body.slice(0, botComment.body.indexOf(suggestedDescSeparator))
+    : botComment.body;
+
   const humanReplies = allComments
     .filter(c => c.user.login !== "github-actions[bot]")
     .map(c => `[${c.user.login}]: ${c.body}`)
@@ -138,7 +145,7 @@ function handleEdited() {
     "previously asked, followed by all human replies.",
     "",
     "## Previous questions",
-    botComment.body,
+    previousQuestions,
     "",
     "## Replies so far",
     humanReplies,
