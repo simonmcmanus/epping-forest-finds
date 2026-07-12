@@ -2401,7 +2401,7 @@
     function nearbyHeadingUpActive() {
       return Boolean(
         state.userLocation
-        && typeof isOverviewScreenActive === "function" && isOverviewScreenActive()
+        && !selectedCompassTarget()
         && Number.isFinite(state.compassHeading)
       );
     }
