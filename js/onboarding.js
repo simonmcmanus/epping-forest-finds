@@ -163,7 +163,6 @@ function showOnboarding() {
         if (!hasTrackingConsent()) {
           const consented = await showTrackingConsent();
           if (!consented) {
-            shouldRequestLocation = false;
             finish(false);
             return;
           }
@@ -203,18 +202,22 @@ function showOnboarding() {
       });
     }
 
-    function hasOnboardingState() {
+    function isStateInitialized() {
       return typeof state !== "undefined" && state;
     }
 
     function setCompassPermission(permission) {
-      if (hasOnboardingState()) {
+      if (isStateInitialized()) {
         state.compassPermission = permission;
       }
     }
 
+    function canUseCompassWithoutPrompt() {
+      return typeof DeviceOrientationEvent !== "undefined" && !canRequestCompassPermission();
+    }
+
     function setImplicitCompassPermission() {
-      if (typeof DeviceOrientationEvent !== "undefined" && !canRequestCompassPermission()) {
+      if (canUseCompassWithoutPrompt()) {
         setCompassPermission("granted");
       }
     }
