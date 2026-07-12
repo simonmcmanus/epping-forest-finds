@@ -425,6 +425,29 @@ test("nearby heading-up viewport keeps the user low when all highlighted locatio
   assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.65, "user should sit low on the map when nothing is behind them");
 });
 
+test("nearby heading-up viewport keeps highlighted locations visible when one sits behind the user", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
+  app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.0012, 0) });
+  app.state.landmarks.push({ id: "behind-pub", name: "Behind Pub", category: "pub", ...makePoint(app, -0.15, 0) });
+
+  app.state.overviewFilters = ["trees", "pubs"];
+  const changed = app.alignHeadingUpNavigationViewport();
+  const userScreen = app.worldToScreen(app.state.userLocation.point);
+  const treeScreen = app.worldToScreen(app.state.trees[0].point);
+  const pubScreen = app.worldToScreen(app.state.landmarks[0].point);
+
+  assert.ok(changed, "viewport should refit when a highlighted item is behind the user");
+  assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.65, "user should still sit low on the map");
+  assert.ok(treeScreen.y < userScreen.y, "the tree should remain ahead of the user");
+  assert.ok(pubScreen.y > userScreen.y, "the pub should remain behind the user");
+  assert.ok(pubScreen.y > app.els.canvas.clientHeight * 0.8, "the behind item should sit close to the bottom edge");
+});
+
 test("nearby filter updates trigger a heading-up refit that positions the user low when highlighted locations are ahead", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

@@ -2389,8 +2389,6 @@
 
     const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
     const HEADING_UP_ANCHOR_NEARBY = 0.72; // user sits lower when all nearby targets are ahead
-    const HEADING_UP_CENTER_ANCHOR = 0.5;
-    const HEADING_UP_BEHIND_THRESHOLD = 0.000001; // Treat near-zero rotated Y as side-on, not behind.
     const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
     const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
 
@@ -2439,23 +2437,6 @@
     }
 
     function nearbyHeadingUpFocusY() {
-      if (!state.userLocation) return HEADING_UP_ANCHOR_NEARBY;
-      const points = overviewTargetPoints();
-      if (points.length < 2) return HEADING_UP_ANCHOR_NEARBY;
-      const rotation = currentNavigationMapRotationDegrees();
-      const radians = toRadians(rotation);
-      const cos = Math.cos(radians);
-      const sin = Math.sin(radians);
-      const userPoint = state.userLocation.point;
-
-      for (const point of points) {
-        if (!point || point === userPoint) continue;
-        const dx = point.x - userPoint.x;
-        const dy = point.y - userPoint.y;
-        const rotatedY = dx * sin + dy * cos;
-        if (rotatedY > HEADING_UP_BEHIND_THRESHOLD) return HEADING_UP_CENTER_ANCHOR;
-      }
-
       return HEADING_UP_ANCHOR_NEARBY;
     }
 
