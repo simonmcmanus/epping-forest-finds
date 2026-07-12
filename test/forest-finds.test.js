@@ -300,31 +300,31 @@ test("treeSpeciesIconHtml returns leaf icon for known species", () => {
   assert.equal(fn("Unknown species", ""), "");
 });
 
-test("first-visit onboarding requests compass access during setup", () => {
+test("first-visit onboarding shows location step first so permission is requested immediately", () => {
   const { ONBOARDING_STEPS: steps } = app;
   const locationStep = steps.findIndex((step) => step.type === "location");
   const compassStep = steps.findIndex((step) => step.type === "compass");
 
   assert.ok(locationStep >= 0, "location onboarding step should exist");
-  assert.ok(compassStep >= 0, "compass onboarding step should exist");
-  assert.ok(compassStep > locationStep, "compass onboarding should come after location setup");
+  assert.strictEqual(locationStep, 0, "location step must be first so permission is requested as soon as data starts loading");
+  // Compass step is only included on iOS (canRequestCompassPermission). In the test
+  // environment DeviceOrientationEvent.requestPermission is not defined, so no step.
+  if (compassStep >= 0) {
+    assert.ok(compassStep > locationStep, "compass onboarding should come after location setup");
+  }
 });
 
 test("compass onboarding renders permission and fallback states", () => {
   const { compassStepMarkup: fn } = app;
 
-  const prompt = fn({ hasCompassSupport: true, needsCompassPrompt: true });
-  assert.match(prompt.subtitle, /unlock the nearby screen/);
+  const prompt = fn({});
+  assert.match(prompt.subtitle, /heading-up navigation/);
   assert.match(prompt.actionsHtml, /ob-compass-enable/);
   assert.match(prompt.actionsHtml, /Continue without compass/);
 
-  const blocked = fn({ blocked: true, hasCompassSupport: true, needsCompassPrompt: true });
+  const blocked = fn({ blocked: true });
   assert.match(blocked.subtitle, /Compass access was blocked/);
   assert.match(blocked.actionsHtml, /ob-compass-finish/);
-
-  const noSupport = fn({ hasCompassSupport: false, needsCompassPrompt: false });
-  assert.match(noSupport.subtitle, /unavailable on this device or browser/);
-  assert.match(noSupport.actionsHtml, /ob-compass-finish/);
 });
 
 test("stored compass permission is restored before nearby setup runs", () => {

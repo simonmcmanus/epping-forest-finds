@@ -4,10 +4,9 @@
 const ONBOARDING_KEY = "forest-finds-onboarding-v1";
 
 const ONBOARDING_STEPS = [
+  { type: "location" },
   { type: "welcome" },
   ...FILTER_GROUPS.map((g) => ({ type: "group", group: g })),
-  { type: "location" },
-  { type: "compass" },
 ];
 
 if (typeof globalThis !== "undefined") {
@@ -19,27 +18,15 @@ function canRequestCompassPermission() {
     && typeof DeviceOrientationEvent.requestPermission === "function";
 }
 
-function compassStepMarkup({ blocked = false, hasCompassSupport = true, needsCompassPrompt = true }) {
+function compassStepMarkup({ blocked = false }) {
   if (blocked) {
     return {
       subtitle: "Compass access was blocked. The map will still load, and nearby guidance will do the best it can without heading data.",
       actionsHtml: `<button class="button ob-compass-finish" type="button">Continue</button>`,
     };
   }
-  if (!hasCompassSupport) {
-    return {
-      subtitle: "Compass access is unavailable on this device or browser. The map will still load, and nearby guidance will do the best it can without heading data.",
-      actionsHtml: `<button class="button ob-compass-finish" type="button">Continue</button>`,
-    };
-  }
-  if (!needsCompassPrompt) {
-    return {
-      subtitle: "This browser can use compass data without an extra permission prompt. Nearby guidance will start working automatically when the device provides heading data.",
-      actionsHtml: `<button class="button ob-compass-finish" type="button">Continue</button>`,
-    };
-  }
   return {
-    subtitle: "Enable compass access to unlock the nearby screen and heading-up navigation before the map appears.",
+    subtitle: "Enable compass access to unlock heading-up navigation — the map will rotate to face the direction you're walking.",
     actionsHtml: `
       <button class="button ob-compass-enable" type="button">Enable compass</button>
       <button class="onboarding-skip-btn ob-compass-skip" type="button">Continue without compass</button>
@@ -51,7 +38,9 @@ function hasCompletedOnboarding() {
   return !!localStorage.getItem(ONBOARDING_KEY);
 }
 
-// Returns a Promise resolving to { filters: string[], requestLocation: boolean }
+// Returns a Promise resolving to { filters: string[], locationPromise: Promise|null }
+// locationPromise is a live geolocation request started the moment the user tapped
+// "Enable location", so it runs concurrently with the rest of the data loading.
 function showOnboarding() {
   return new Promise((resolve) => {
     const overlay = document.getElementById("onboardingOverlay");
@@ -60,10 +49,8 @@ function showOnboarding() {
     const actionsEl = overlay.querySelector(".onboarding-actions");
 
     let stepIndex = 0;
-    // We keep the location opt-in here so boot can request the location only after
-    // the compass step has completed and the onboarding overlay is dismissed.
-    let shouldRequestLocation = false;
     let compassPromptFailed = false;
+    let locationPromise = null;
     const total = ONBOARDING_STEPS.length;
     const selected = new Set(FILTER_GROUPS.flatMap((g) => g.subfilters.map((s) => s.key)));
 
@@ -118,31 +105,17 @@ function showOnboarding() {
           <button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>
         `;
       } else if (step.type === "location") {
+        const needsCompassPrompt = canRequestCompassPermission();
         contentEl.innerHTML = `
           <img class="onboarding-step-icon" src="data/icons/pin.png" alt="">
-          <h2 class="onboarding-step-title">Your location</h2>
-          <p class="onboarding-step-subtitle">Enable location to centre the map on you, see distances to each find, and get compass directions.</p>
+          <h2 class="onboarding-step-title">Your location${needsCompassPrompt ? " & compass" : ""}</h2>
+          <p class="onboarding-step-subtitle">Enable location to centre the map on you, see distances to each find, and get heading-up compass navigation.</p>
+          <p class="onboarding-privacy-note">We collect anonymous usage data (GPS position, navigation, interactions) to improve the app. You can withdraw at any time via Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
         `;
         actionsEl.innerHTML = `
-          <button class="button ob-location" type="button">Enable location</button>
+          <button class="button ob-location" type="button">Enable${needsCompassPrompt ? " location &amp; compass" : " location"}</button>
           <button class="onboarding-skip-btn ob-location-skip" type="button">Skip for now</button>
         `;
-      } else if (step.type === "compass") {
-        function renderCompassStep(subtitle, actionsHtml) {
-          contentEl.innerHTML = `
-            <div class="onboarding-step-icon" aria-hidden="true">🧭</div>
-            <h2 class="onboarding-step-title">Compass guidance</h2>
-            <p class="onboarding-step-subtitle">${subtitle}</p>
-          `;
-          actionsEl.innerHTML = actionsHtml;
-        }
-
-        const compassMarkup = compassStepMarkup({
-          blocked: compassPromptFailed,
-          hasCompassSupport: typeof DeviceOrientationEvent !== "undefined",
-          needsCompassPrompt: canRequestCompassPermission(),
-        });
-        renderCompassStep(compassMarkup.subtitle, compassMarkup.actionsHtml);
       }
 
       // Chip toggles
@@ -162,47 +135,42 @@ function showOnboarding() {
       actionsEl.querySelector(".ob-primary")?.addEventListener("click", goNext);
       actionsEl.querySelector(".ob-next")?.addEventListener("click", goNext);
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
-      actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish(false));
+      actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish());
       actionsEl.querySelector(".ob-location")?.addEventListener("click", async () => {
-        if (!hasTrackingConsent()) {
-          const consented = await showTrackingConsent();
-          if (!consented) {
-            finish(false);
-            return;
-          }
+        // Consent is given by tapping this button — privacy details are shown above.
+        if (typeof setTrackingConsent === "function") setTrackingConsent(true);
+
+        // Start location request — browser dialog fires from this tap.
+        if (navigator.geolocation) {
+          locationPromise = new Promise((res) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => res({ ok: true, position: pos }),
+              () => res({ ok: false }),
+              { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+            );
+          });
         }
-        shouldRequestLocation = true;
-        // Continue to the compass step; the actual geolocation request happens
-        // after onboarding so the map can still load in the background.
+
+        // Request compass in the same tap handler — iOS requires requestPermission()
+        // to be called within a user-gesture call stack, which this still satisfies.
+        if (canRequestCompassPermission()) {
+          try {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            setCompassPermission(permission === "granted" ? "granted" : "denied");
+          } catch {
+            setCompassPermission("denied");
+          }
+        } else {
+          setImplicitCompassPermission();
+        }
+
+        // Location is now the first step — continue to welcome + filter personalisation.
         goNext();
       });
-      actionsEl.querySelector(".ob-location-skip")?.addEventListener("click", () => finish(false));
-      actionsEl.querySelector(".ob-compass-enable")?.addEventListener("click", async () => {
-        if (!canRequestCompassPermission()) {
-          setImplicitCompassPermission();
-          finish(shouldRequestLocation);
-          return;
-        }
-
-        try {
-          const permission = await DeviceOrientationEvent.requestPermission();
-          setCompassPermission(permission === "granted" ? "granted" : "denied");
-          if (permission === "granted") {
-            finish(shouldRequestLocation);
-            return;
-          }
-        } catch {
-          setCompassPermission("denied");
-        }
-
-        compassPromptFailed = true;
-        renderProgress();
-        renderStep("forward");
-      });
-      actionsEl.querySelector(".ob-compass-skip")?.addEventListener("click", () => finish(shouldRequestLocation));
-      actionsEl.querySelector(".ob-compass-finish")?.addEventListener("click", () => {
+      actionsEl.querySelector(".ob-location-skip")?.addEventListener("click", () => {
         setImplicitCompassPermission();
-        finish(shouldRequestLocation);
+        // Continue to welcome + filter personalisation even when location is skipped.
+        goNext();
       });
     }
 
@@ -243,14 +211,14 @@ function showOnboarding() {
       renderStep("back");
     }
 
-    function finish(requestLocation) {
+    function finish() {
       localStorage.setItem(ONBOARDING_KEY, "1");
       overlay.classList.add("fading-out");
       overlay.addEventListener("transitionend", () => {
         overlay.hidden = true;
         overlay.classList.remove("fading-out");
       }, { once: true });
-      resolve({ filters: Array.from(selected), requestLocation });
+      resolve({ filters: Array.from(selected), locationPromise });
     }
 
     renderProgress();

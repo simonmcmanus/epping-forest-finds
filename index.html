@@ -212,7 +212,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v";
+    const APP_VERSION = "v132";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -411,23 +411,21 @@
       // Kick off location request — this fires the browser permission dialog automatically
       // and runs in parallel with data loading so the map can open centred on the user.
       let locationPromise = null;
+      let locationAskedInOnboarding = false;
 
       if (!hasCompletedOnboarding()) {
-        // First visit: show onboarding while data loads behind it
+        // First visit: show onboarding while data loads behind it.
+        // The location request is fired from within the onboarding tap handler so the
+        // browser dialog appears at the natural moment; we just pick up the live promise.
         if (els.loadingOverlay) els.loadingOverlay.hidden = true;
         const onboardResult = await showOnboarding();
         state.overviewFilters = sanitizeOverviewFilters(onboardResult.filters);
         saveFilterState();
         if (els.loadingOverlay) els.loadingOverlay.hidden = false;
-        if (onboardResult.requestLocation && navigator.geolocation) {
+        if (onboardResult.locationPromise) {
           setLoadStep("location", "loading");
-          locationPromise = new Promise((resolve) => {
-            navigator.geolocation.getCurrentPosition(
-              (pos) => resolve({ ok: true, position: pos }),
-              () => resolve({ ok: false }),
-              { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-            );
-          });
+          locationPromise = onboardResult.locationPromise;
+          locationAskedInOnboarding = true;
         }
       } else if (navigator.geolocation) {
         // Returning user: start location request immediately so the browser dialog
@@ -469,12 +467,13 @@
             checkDistanceToForest(latitude, longitude);
             ensureLocationWatch();
 
-            // Request compass immediately after location — non-iOS auto-grants;
-            // iOS shows the gate so the user can tap from a real gesture context.
-            if (compassPermissionCanBeRequested()) {
-              if (state.compassPermission !== "granted") showCompassAccessPrompt();
-            } else {
-              requestCompassPermissionIfNeeded({ fromGesture: false });
+            // Request compass only if not already handled (e.g. by onboarding).
+            if (state.compassPermission === "unknown") {
+              if (compassPermissionCanBeRequested()) {
+                showCompassAccessPrompt();
+              } else {
+                requestCompassPermissionIfNeeded({ fromGesture: false });
+              }
             }
 
             // Populate overview list and render map while overlay is still up.
@@ -496,13 +495,19 @@
             triggerInspectorEntry();
             hideWithFade(els.loadingOverlay);
           } else {
-            // Location denied or timed out — show gate and reveal map without centering.
+            // Location denied or timed out — reveal map without centering.
+            // On first visit the user already had the chance to grant via the onboarding
+            // button, so we don't show a second blocking prompt; the "Use my location"
+            // button in the inspector is available if they change their mind.
+            // On returning visits the auto-request failed, so show the gate so they can retry.
             setLoadStep("location", "error");
-            setLocationGateVisible(
-              true,
-              "Tap below to allow location so the map can centre on you and show nearby finds.",
-              "Enable location"
-            );
+            if (!locationAskedInOnboarding) {
+              setLocationGateVisible(
+                true,
+                "Tap below to allow location so the map can centre on you and show nearby finds.",
+                "Enable location"
+              );
+            }
             await new Promise((resolve) => setTimeout(resolve, 300));
             selectOverview();
             draw();

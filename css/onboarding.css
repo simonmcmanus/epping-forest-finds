@@ -100,6 +100,20 @@
   max-width: 300px;
 }
 
+.onboarding-privacy-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  max-width: 300px;
+  opacity: 0.8;
+}
+
+.onboarding-privacy-note a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .onboarding-chips {
   display: flex;
   flex-wrap: wrap;
