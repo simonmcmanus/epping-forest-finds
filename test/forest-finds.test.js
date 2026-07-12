@@ -169,6 +169,8 @@ globalThis.__forestFindsTest = {
   ensureOverviewTargetsVisible,
   alignHeadingUpNavigationViewport,
   animateToHeadingUpNavigationViewport,
+  resizeCanvas,
+  updateHeadingUpCanvasRotationTransform,
   nearbyHeadingUpActive,
   headingUpActive,
   buildNearbyIconLookup,
@@ -189,6 +191,7 @@ globalThis.__forestFindsTest = {
   compassStepMarkup,
   compassPermissionRequiresRequest,
   location: window.location,
+  windowStub: window,
 };
 `;
 
@@ -238,6 +241,10 @@ function resetData(app) {
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
   app.state.compassHeading = null;
+  app.state.canvasInsetX = 0;
+  app.state.canvasInsetY = 0;
+  app.state.canvasVisibleWidth = 1000;
+  app.state.canvasVisibleHeight = 800;
   app.els.inspector.classList.remove("minimized");
   app.els.canvas.width = 1000;
   app.els.canvas.height = 800;
@@ -710,6 +717,106 @@ test("heading-up viewport alignment preserves animation target when rotation sta
   assert.equal(app.state.viewport.scale, 1000);
   assert.equal(app.state.viewport.tx, 123);
   assert.equal(app.state.viewport.ty, 456);
+});
+
+test("heading-up nearby zoom changes wait for compass settle before applying", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) });
+  app.state.compassHeading = 0;
+  app.state.viewport = { scale: 10, tx: 500, ty: 440 };
+
+  app.state.compassLastEventAt = Date.now();
+  const changedDuringCompassUpdates = app.alignHeadingUpNavigationViewport();
+
+  assert.equal(changedDuringCompassUpdates, false, "active compass updates should defer heading-up zoom changes");
+  assert.equal(app.state.viewport.scale, 10, "scale should hold steady while the compass is still updating");
+  assert.equal(app.state.viewport.tx, 500);
+  assert.equal(app.state.viewport.ty, 440);
+
+  app.state.compassLastEventAt = Date.now() - 1000;
+  const changedAfterCompassSettles = app.alignHeadingUpNavigationViewport();
+
+  assert.equal(changedAfterCompassSettles, true, "heading-up zoom should apply once compass updates settle");
+  assert.ok(app.state.viewport.scale > 10, "settled compass should allow the delayed zoom fit");
+});
+
+test("heading-up selected zoom changes wait for compass settle before applying", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "ahead-tree", ...makePoint(app, 0.0025, 0) } };
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.viewport = { scale: 3000, tx: 500, ty: 420 };
+
+  app.state.compassLastEventAt = Date.now() - 1000;
+  app.alignHeadingUpNavigationViewport();
+  const settledScale = app.state.viewport.scale;
+  const settledTx = app.state.viewport.tx;
+  const settledTy = app.state.viewport.ty;
+  const userPoint = app.state.userLocation.point;
+
+  const activeScale = settledScale * 1.03;
+  app.state.viewport.scale = activeScale;
+  app.state.viewport.tx = settledTx + (settledScale - activeScale) * userPoint.x;
+  app.state.viewport.ty = settledTy + (settledScale - activeScale) * userPoint.y;
+
+  app.state.compassLastEventAt = Date.now();
+  const changedDuringCompassUpdates = app.alignHeadingUpNavigationViewport();
+
+  assert.equal(changedDuringCompassUpdates, false, "active compass updates should defer small selected-view zoom corrections");
+  assert.equal(app.state.viewport.scale, activeScale, "selected-view scale should hold while the compass is still updating");
+
+  app.state.compassLastEventAt = Date.now() - 1000;
+  const changedAfterCompassSettles = app.alignHeadingUpNavigationViewport();
+
+  assert.equal(changedAfterCompassSettles, true, "selected-view zoom correction should apply once compass updates settle");
+  assert.ok(app.state.viewport.scale < activeScale, "settled compass should apply the delayed selected-view fit");
+});
+
+test("heading-up resize uses oversized canvas draw area so rotation does not expose viewport edges", () => {
+  resetData(app);
+  app.resizeCanvas();
+
+  assert.equal(app.state.canvasVisibleWidth, 1000, "visible canvas width should match map stage width");
+  assert.equal(app.state.canvasVisibleHeight, 800, "visible canvas height should match map stage height");
+  assert.ok(app.els.canvas.width > app.state.canvasVisibleWidth, "map canvas bitmap should be oversized for rotation");
+  assert.ok(app.els.canvas.height > app.state.canvasVisibleHeight, "map canvas bitmap should be oversized for rotation");
+  assert.ok(app.state.canvasInsetX > 0 && app.state.canvasInsetY > 0, "oversized map canvas should keep centered insets");
+});
+
+test("heading-up resize limits effective pixel ratio so oversized canvas stays within safe limits", () => {
+  resetData(app);
+  const originalDpr = app.windowStub.devicePixelRatio;
+  try {
+    app.windowStub.devicePixelRatio = 3;
+    app.els.mapStage.clientWidth = 1800;
+    app.els.mapStage.clientHeight = 2600;
+    app.resizeCanvas();
+
+    assert.ok(app.els.canvas.width <= 3072, "oversized map canvas width should stay within safe dimension limits");
+    assert.ok(app.els.canvas.height <= 3072, "oversized map canvas height should stay within safe dimension limits");
+    assert.ok(app.els.canvas.width * app.els.canvas.height <= 9437184, "oversized map canvas pixel area should stay within safe limits");
+    assert.ok(app.els.canvas.width > app.state.canvasVisibleWidth, "oversized map canvas should still render beyond the visible viewport");
+  } finally {
+    app.windowStub.devicePixelRatio = originalDpr;
+  }
+});
+
+test("heading-up mode applies CSS delta rotation between redraws", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "tree-1", ...makePoint(app, 0.0015, 0) } };
+  app.state.compassHeading = 90;
+  app.state.renderedNavigationHeading = 80;
+  app.els.canvas.style.transform = "";
+  app.els.canvas.style.transformOrigin = "";
+
+  const usedCssRotation = app.updateHeadingUpCanvasRotationTransform();
+
+  assert.equal(usedCssRotation, true, "heading-up smoothing should apply CSS rotation when compass-only delta changes");
+  assert.match(app.els.canvas.style.transform, /rotate\(/, "canvas transform should include a CSS rotation delta");
+  assert.match(app.els.canvas.style.transformOrigin, /px/, "canvas transform origin should follow user location");
 });
 
 test("returning to nearby waits for inspector expansion before starting the nearby camera move", async () => {

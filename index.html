@@ -212,6 +212,9 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
+    const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
+    const MAX_CANVAS_DIMENSION = 3072;
+    const MAX_CANVAS_PIXEL_COUNT = 9437184;
     const APP_VERSION = "v";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
@@ -351,6 +354,10 @@
       transportLookupCache: new Map(),
       transportLookupRequests: new Map(),
       dataLoaded: false,
+      canvasInsetX: 0,
+      canvasInsetY: 0,
+      canvasVisibleWidth: 0,
+      canvasVisibleHeight: 0,
     };
 
     const els = {
@@ -742,16 +749,66 @@
       return minDistance;
     }
 
+    function visibleCanvasRect() {
+      const width = Number.isFinite(state.canvasVisibleWidth) && state.canvasVisibleWidth > 0
+        ? state.canvasVisibleWidth
+        : els.canvas.width;
+      const height = Number.isFinite(state.canvasVisibleHeight) && state.canvasVisibleHeight > 0
+        ? state.canvasVisibleHeight
+        : els.canvas.height;
+      const insetX = Number.isFinite(state.canvasInsetX) ? state.canvasInsetX : 0;
+      const insetY = Number.isFinite(state.canvasInsetY) ? state.canvasInsetY : 0;
+      return { x: insetX, y: insetY, width, height };
+    }
+
     function resizeCanvas() {
       const rect = (els.mapStage || els.canvas).getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      els.canvas.width = Math.max(1, Math.round(rect.width * dpr));
-      els.canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      const requestedDpr = window.devicePixelRatio || 1;
+      const rawWidth = Math.max(1, rect.width);
+      const rawHeight = Math.max(1, rect.height);
+      const requestedOverscanWidth = Math.round(rawWidth * requestedDpr * HEADING_UP_CANVAS_OVERSCAN_RATIO);
+      const requestedOverscanHeight = Math.round(rawHeight * requestedDpr * HEADING_UP_CANVAS_OVERSCAN_RATIO);
+      let overscanWidth = Math.max(1, Math.min(MAX_CANVAS_DIMENSION, requestedOverscanWidth));
+      let overscanHeight = Math.max(1, Math.min(MAX_CANVAS_DIMENSION, requestedOverscanHeight));
+      const cappedPixels = overscanWidth * overscanHeight;
+      if (cappedPixels > MAX_CANVAS_PIXEL_COUNT) {
+        const scaleDown = Math.sqrt(MAX_CANVAS_PIXEL_COUNT / cappedPixels);
+        overscanWidth = Math.max(1, Math.floor(overscanWidth * scaleDown));
+        overscanHeight = Math.max(1, Math.floor(overscanHeight * scaleDown));
+      }
+      // Derive effective DPR from the capped overscan dimensions so bitmap allocation
+      // stays within safe limits while preserving as much detail as possible.
+      const dpr = Math.max(1, Math.min(
+        requestedDpr,
+        overscanWidth / (rawWidth * HEADING_UP_CANVAS_OVERSCAN_RATIO),
+        overscanHeight / (rawHeight * HEADING_UP_CANVAS_OVERSCAN_RATIO)
+      ));
+      const visibleWidth = Math.max(1, Math.min(overscanWidth, Math.round(rawWidth * dpr)));
+      const visibleHeight = Math.max(1, Math.min(overscanHeight, Math.round(rawHeight * dpr)));
+      const insetX = Math.max(0, Math.round((overscanWidth - visibleWidth) / 2));
+      const insetY = Math.max(0, Math.round((overscanHeight - visibleHeight) / 2));
+
+      state.canvasInsetX = insetX;
+      state.canvasInsetY = insetY;
+      state.canvasVisibleWidth = visibleWidth;
+      state.canvasVisibleHeight = visibleHeight;
+
+      els.canvas.width = overscanWidth;
+      els.canvas.height = overscanHeight;
       els.canvas.dataset.dpr = String(dpr);
+      els.canvas.style.position = "absolute";
+      els.canvas.style.left = `${-insetX / dpr}px`;
+      els.canvas.style.top = `${-insetY / dpr}px`;
+      els.canvas.style.width = `${overscanWidth / dpr}px`;
+      els.canvas.style.height = `${overscanHeight / dpr}px`;
       if (els.overlayCanvas) {
-        els.overlayCanvas.width = els.canvas.width;
-        els.overlayCanvas.height = els.canvas.height;
+        els.overlayCanvas.width = overscanWidth;
+        els.overlayCanvas.height = overscanHeight;
         els.overlayCanvas.dataset.dpr = String(dpr);
+        els.overlayCanvas.style.left = `${-insetX / dpr}px`;
+        els.overlayCanvas.style.top = `${-insetY / dpr}px`;
+        els.overlayCanvas.style.width = `${overscanWidth / dpr}px`;
+        els.overlayCanvas.style.height = `${overscanHeight / dpr}px`;
       }
     }
 
@@ -810,12 +867,11 @@
 
     function applyBoundsToViewport(bounds, options = {}) {
       const padding = 54 * pixelRatio();
-      const width = els.canvas.width;
-      const height = els.canvas.height;
+      const defaultRect = visibleCanvasRect();
       const focusRect = options.customFocusRect
         || (options.focusVisibleArea
           ? bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) })
-          : { x: 0, y: 0, width, height });
+          : defaultRect);
       const viewportWidth = Math.max(1, focusRect.width);
       const viewportHeight = Math.max(1, focusRect.height);
       const rangeX = Math.max(0.0001, bounds.maxX - bounds.minX);
@@ -915,17 +971,23 @@
     }
 
     function bestVisibleCanvasRect({ assumeInspectorOpen = false } = {}) {
-      const width = els.canvas.width;
-      const height = els.canvas.height;
-      const full = { x: 0, y: 0, width, height };
-      const overlap = inspectorCanvasOverlapRect({ assumeInspectorOpen });
-      if (!overlap) return full;
+      const full = visibleCanvasRect();
+      const overlapRaw = inspectorCanvasOverlapRect({ assumeInspectorOpen });
+      if (!overlapRaw) return full;
+      const clampedOverlapX = clamp(overlapRaw.x, full.x, full.x + full.width);
+      const clampedOverlapY = clamp(overlapRaw.y, full.y, full.y + full.height);
+      const overlap = {
+        x: clampedOverlapX,
+        y: clampedOverlapY,
+        width: clamp(overlapRaw.width, 0, full.x + full.width - clampedOverlapX),
+        height: clamp(overlapRaw.height, 0, full.y + full.height - clampedOverlapY),
+      };
 
       const candidates = [
-        { x: 0, y: 0, width, height: overlap.y },
-        { x: 0, y: 0, width: overlap.x, height },
-        { x: overlap.x + overlap.width, y: 0, width: width - (overlap.x + overlap.width), height },
-        { x: 0, y: overlap.y + overlap.height, width, height: height - (overlap.y + overlap.height) },
+        { x: full.x, y: full.y, width: full.width, height: overlap.y - full.y },
+        { x: full.x, y: full.y, width: overlap.x - full.x, height: full.height },
+        { x: overlap.x + overlap.width, y: full.y, width: (full.x + full.width) - (overlap.x + overlap.width), height: full.height },
+        { x: full.x, y: overlap.y + overlap.height, width: full.width, height: (full.y + full.height) - (overlap.y + overlap.height) },
       ]
         .map((rect) => ({
           x: Math.max(0, rect.x),
@@ -963,8 +1025,8 @@
 
       const dpr = pixelRatio();
       return {
-        x: (overlapLeft - canvasRect.left) * dpr,
-        y: (overlapTop - canvasRect.top) * dpr,
+        x: state.canvasInsetX + (overlapLeft - canvasRect.left) * dpr,
+        y: state.canvasInsetY + (overlapTop - canvasRect.top) * dpr,
         width: (overlapRight - overlapLeft) * dpr,
         height: (overlapBottom - overlapTop) * dpr,
       };
@@ -2329,7 +2391,7 @@
 
         const remaining = Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget));
         const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
-        const sensorIsActive = lastEventAge < 350;
+        const sensorIsActive = lastEventAge < HEADING_UP_SENSOR_ACTIVE_MS;
         if (remaining < 0.05 && !sensorIsActive) {
           state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
           updateOverviewDirectionArrows();
@@ -2413,6 +2475,12 @@
     const HEADING_UP_ANCHOR_NEARBY = 0.55; // user slightly below centre; gives balanced space for items in all compass directions
     const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
     const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
+    const HEADING_UP_SCALE_BUFFER_RATIO = 0.04; // keep extra off-screen room so quick heading changes do not expose unrendered edges
+    const HEADING_UP_SCALE_SETTLE_RATIO = 0.02; // absorb tiny settled scale corrections as visual noise
+    const HEADING_UP_SCALE_SETTLE_MIN = 1; // absolute settle tolerance for low zoom values
+    const HEADING_UP_STRICT_FIT_TOLERANCE_RATIO = 0.015; // allow tiny over-scale while compass updates are still arriving
+    const HEADING_UP_STRICT_FIT_TOLERANCE_MIN = 0.75;
+    const HEADING_UP_SENSOR_ACTIVE_MS = 350;
 
     function selectedNavigationHeadingUpActive() {
       return Boolean(
@@ -2481,6 +2549,34 @@
 
     function nearbyHeadingUpTargetPoints() {
       return overviewTargetPoints();
+    }
+
+    function headingUpCompassSensorActive(now = performance.now()) {
+      if (!Number.isFinite(state.compassLastEventAt)) return false;
+      return (now - state.compassLastEventAt) < HEADING_UP_SENSOR_ACTIVE_MS;
+    }
+
+    function resolveHeadingUpTargetScale(maxScale, previousScale) {
+      if (!Number.isFinite(maxScale) || maxScale <= 0) return previousScale;
+      const bufferedScale = maxScale * (1 - HEADING_UP_SCALE_BUFFER_RATIO);
+      const nextScale = Number.isFinite(bufferedScale) && bufferedScale > 0 ? bufferedScale : maxScale;
+      if (!Number.isFinite(previousScale) || previousScale <= 0) return nextScale;
+
+      if (headingUpCompassSensorActive()) {
+        const strictFitTolerance = Math.max(
+          HEADING_UP_STRICT_FIT_TOLERANCE_MIN,
+          maxScale * HEADING_UP_STRICT_FIT_TOLERANCE_RATIO
+        );
+        // While compass events are actively arriving, defer all zoom-in and any
+        // zoom-out that still keeps all targets visible with a small safety tolerance.
+        if (previousScale <= nextScale || previousScale <= (maxScale + strictFitTolerance)) {
+          return previousScale;
+        }
+      }
+
+      const settleTolerance = Math.max(HEADING_UP_SCALE_SETTLE_MIN, previousScale * HEADING_UP_SCALE_SETTLE_RATIO);
+      if (Math.abs(previousScale - nextScale) <= settleTolerance) return previousScale;
+      return nextScale;
     }
 
     function maxHeadingUpNavigationScale(focus, focusRect) {
@@ -2568,7 +2664,7 @@
       // Use maxScale directly: heading-up mode always fits all targets in the
       // rotated focus rect. Math.min would leave scale too low when the map
       // was previously at a wider zoom (e.g. walking-radius level on first load).
-      const targetScale = maxScale;
+      const targetScale = resolveHeadingUpTargetScale(maxScale, previousScale);
       const targetViewport = {
         scale: targetScale,
         tx: focus.x - userPoint.x * targetScale,
@@ -2669,7 +2765,7 @@
     }
 
     function updateHeadingUpCanvasRotationTransform() {
-      if (state.headingUpEntryAnim != null) return false; // entry animation owns renderedNavigationHeading
+      if (state.headingUpEntryAnim != null) return false; // entry animation loop interpolates renderedNavigationHeading each frame
       if (!headingUpActive() || !Number.isFinite(state.renderedNavigationHeading)) {
         clearHeadingUpCanvasTransform();
         return false;
@@ -2773,7 +2869,7 @@
 
       const focusRect = options.focusVisibleArea
         ? bestVisibleCanvasRect({ assumeInspectorOpen: true })
-        : { x: 0, y: 0, width: els.canvas.width, height: els.canvas.height };
+        : visibleCanvasRect();
       const targetScale = Math.min(requestedScale, maxScaleForRadiusVisible(focusRect));
       const focusCenter = {
         x: focusRect.x + focusRect.width / 2,
@@ -2843,7 +2939,7 @@
 
       const focusRect = options.focusVisibleArea
         ? bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) })
-        : { x: 0, y: 0, width: els.canvas.width, height: els.canvas.height };
+        : visibleCanvasRect();
       const focusCenter = {
         x: focusRect.x + focusRect.width / 2,
         y: focusRect.y + focusRect.height / 2,
@@ -3787,11 +3883,8 @@
       return rotateScreenPoint(raw, rawWorldToScreen(state.userLocation.point), rotation);
     }
 
-    // For elements drawn on the overlay canvas (not CSS-rotated): use the current
-    // total effective rotation so the element aligns with where the feature appears
-    // on the CSS-rotated main canvas. During the entry animation the main canvas is
-    // redrawn each frame so worldToScreen() already reflects the intermediate heading;
-    // after the entry animation the CSS delta is what separates rendered from current.
+    // Overlay elements use the current heading-up rotation so they stay aligned with
+    // map features while compass updates trigger full-canvas redraws.
     function worldToScreenForOverlay(point) {
       if (state.headingUpEntryAnim != null) return worldToScreen(point);
       const raw = rawWorldToScreen(point);
@@ -3811,8 +3904,8 @@
       const rect = (els.mapStage || els.canvas).getBoundingClientRect();
       const dpr = pixelRatio();
       return {
-        x: (event.clientX - rect.left) * dpr,
-        y: (event.clientY - rect.top) * dpr,
+        x: state.canvasInsetX + (event.clientX - rect.left) * dpr,
+        y: state.canvasInsetY + (event.clientY - rect.top) * dpr,
       };
     }
 
