@@ -422,7 +422,7 @@ test("nearby heading-up viewport keeps the user low when all highlighted locatio
   assert.ok(changed, "viewport should have changed to keep highlighted locations in view");
   const focusCenter = app.els.canvas.clientWidth / 2;
   assert.equal(Math.round(app.state.viewport.tx), Math.round(focusCenter), "user should stay horizontally centered");
-  assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.65, "user should sit low on the map when nothing is behind them");
+  assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.50, "user should sit below the midpoint when nothing is behind them");
 });
 
 test("nearby heading-up viewport keeps highlighted locations visible when one sits behind the user", () => {
@@ -442,7 +442,7 @@ test("nearby heading-up viewport keeps highlighted locations visible when one si
   const pubScreen = app.worldToScreen(app.state.landmarks[0].point);
 
   assert.ok(changed, "viewport should refit when a highlighted item is behind the user");
-  assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.65, "user should still sit low on the map");
+  assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.50, "user should still sit below the midpoint");
   assert.ok(treeScreen.y < userScreen.y, "the tree should remain ahead of the user");
   assert.ok(pubScreen.y > userScreen.y, "the pub should remain behind the user");
   assert.ok(pubScreen.y > app.els.canvas.clientHeight * 0.8, "the behind item should sit close to the bottom edge");

@@ -212,7 +212,7 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
-    const APP_VERSION = "v";
+    const APP_VERSION = "v143";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -479,19 +479,41 @@
             // Populate overview list and render map while overlay is still up.
             selectOverview();
             draw();
-            applySelectionFromHash();
 
-            // Snap camera to user position but slightly zoomed out so the reveal animates in.
-            const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-            const targetScale = maxScaleForRadiusVisible(focusRect);
-            centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
+            // Snap camera to fit nearby items before the reveal animation.
+            const revealPoints = overviewTargetPoints();
+            const hasNearbyItems = revealPoints.length >= 2;
+            if (hasNearbyItems) {
+              fitToPoints(revealPoints, false, {
+                focusVisibleArea: true,
+                assumeInspectorOpen: true,
+                minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
+              });
+            } else {
+              const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+              const targetScale = maxScaleForRadiusVisible(focusRect);
+              centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
+            }
             draw();
 
             // Brief pause so the user sees the completed step list.
             await new Promise((resolve) => setTimeout(resolve, 320));
 
-            // Fade overlay, zoom in, and slide inspector in simultaneously for a clean reveal.
-            centerOverviewOnUserLocation({ animate: true, durationMs: 700, scale: targetScale, focusVisibleArea: true });
+            // Apply any URL hash selection after the wait so it overrides the overview snap.
+            applySelectionFromHash();
+
+            // Fade overlay and animate camera to final position simultaneously.
+            // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
+            // to a wider viewport if a GPS update arrived during the 320 ms wait.
+            if (state.selected) {
+              ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: 700 });
+            } else if (hasNearbyItems) {
+              ensureOverviewTargetsVisible({ animate: true, durationMs: 700 });
+            } else {
+              const focusRect2 = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+              const targetScale2 = maxScaleForRadiusVisible(focusRect2);
+              centerOverviewOnUserLocation({ animate: true, durationMs: 700, scale: targetScale2, focusVisibleArea: true });
+            }
             triggerInspectorEntry();
             hideWithFade(els.loadingOverlay);
           } else {
@@ -605,14 +627,7 @@
           if (isOverviewScreenActive()) selectOverview();
           if (!previousPoint) {
             setInspectorMinimized(false);
-            const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-            const initialScale = maxScaleForRadiusVisible(focusRect);
-            centerOverviewOnUserLocation({
-              animate: true,
-              durationMs: 1200,
-              scale: initialScale,
-              focusVisibleArea: true,
-            });
+            ensureOverviewTargetsVisible({ animate: true, durationMs: 1000 });
           } else {
             ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
             keepOverviewCenteredOnUser(previousPoint);
@@ -806,6 +821,9 @@
       const rangeX = Math.max(0.0001, bounds.maxX - bounds.minX);
       const rangeY = Math.max(0.0001, bounds.maxY - bounds.minY);
       state.fitScale = Math.min((viewportWidth - padding * 2) / rangeX, (viewportHeight - padding * 2) / rangeY);
+      if (options.minScale > 0) {
+        state.fitScale = Math.max(state.fitScale, options.minScale);
+      }
 
       const targetScale = state.fitScale;
       const targetTx = focusRect.x + (viewportWidth - rangeX * targetScale) / 2 - bounds.minX * targetScale;
@@ -2392,7 +2410,7 @@
     }
 
     const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
-    const HEADING_UP_ANCHOR_NEARBY = 0.72; // user sits lower when all nearby targets are ahead
+    const HEADING_UP_ANCHOR_NEARBY = 0.55; // user slightly below centre; gives balanced space for items in all compass directions
     const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
     const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
 
@@ -2547,7 +2565,10 @@
         ? maxHeadingUpNavigationScale(focus, focusRect)
         : maxNearbyHeadingUpScale(focus, focusRect);
       const userPoint = state.userLocation.point;
-      const targetScale = Math.min(state.viewport.scale, maxScale);
+      // Use maxScale directly: heading-up mode always fits all targets in the
+      // rotated focus rect. Math.min would leave scale too low when the map
+      // was previously at a wider zoom (e.g. walking-radius level on first load).
+      const targetScale = maxScale;
       const targetViewport = {
         scale: targetScale,
         tx: focus.x - userPoint.x * targetScale,
@@ -2595,7 +2616,9 @@
       const focusRect = bestVisibleCanvasRect();
       const focus = navigationFocusPoint();
       const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
-      const targetScale = Math.min(state.viewport.scale, maxScale);
+      // Use maxScale directly so the viewport always zooms to fit the selected
+      // target, even when coming from a wider zoom (e.g. walking-radius overview).
+      const targetScale = maxScale;
       const userPoint = state.userLocation.point;
       animateViewportTo({
         scale: targetScale,
@@ -2698,6 +2721,7 @@
         focusVisibleArea: true,
         animate: shouldAnimate,
         durationMs: options.durationMs || 800,
+        minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
       });
     }
 
@@ -2776,6 +2800,7 @@
     function keepOverviewCenteredOnUser(previousPoint) {
       if (!state.userLocation || state.selected || !isOverviewScreenActive()) return;
       if (els.inspector.classList.contains("minimized")) return;
+      if (nearbyHeadingUpActive()) return;
 
       const previousScreen = previousPoint ? worldToScreen(previousPoint) : null;
       const nextScreen = worldToScreen(state.userLocation.point);
@@ -2783,44 +2808,20 @@
         ? Math.hypot(nextScreen.x - previousScreen.x, nextScreen.y - previousScreen.y)
         : Infinity;
 
-      if (state.overviewFilters.length > 0 || state.showAllOutsideRadius) {
-        const significantMove = !previousPoint || screenMovement >= 24;
-        const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-        const anyOffscreen = !significantMove && overviewTargetPoints().some((pt) => {
-          const s = worldToScreen(pt);
-          return s.x < focusRect.x || s.x > focusRect.x + focusRect.width
-            || s.y < focusRect.y || s.y > focusRect.y + focusRect.height;
-        });
-        if (significantMove || anyOffscreen) {
-          // Animate only for large jumps (GPS correction / fast travel); small steps are instant.
-          const animate = Boolean(previousPoint) && screenMovement >= 200;
-          ensureOverviewTargetsVisible({ animate, durationMs: 300 });
-        }
-        return;
-      }
-
-      // Keep current zoom level — just pan to follow the user. Changing scale on
-      // every GPS tick causes the jarring zoom-jump the user sees.
-      const targetScale = state.viewport.scale;
-      if (!previousPoint) {
-        centerOverviewOnUserLocation({ animate: false, scale: targetScale, focusVisibleArea: true });
-        return;
-      }
-
-      // Re-centre whenever the user moves at all or drifts past the 20% edge buffer.
-      // With instant (no-animation) updates, high-accuracy GPS frequency makes this smooth.
+      const significantMove = !previousPoint || screenMovement >= 24;
       const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-      const edgeMargin = Math.min(focusRect.width, focusRect.height) * 0.20;
-      const userNearEdge = nextScreen.x < focusRect.x + edgeMargin
-        || nextScreen.x > focusRect.x + focusRect.width - edgeMargin
-        || nextScreen.y < focusRect.y + edgeMargin
-        || nextScreen.y > focusRect.y + focusRect.height - edgeMargin;
-      if (screenMovement < 4 && !userNearEdge) return;
-
-      // Large GPS correction: a brief animation avoids a disorienting instant teleport.
-      // Normal walking steps: instant snap — GPS frequency provides the smoothness.
-      const animate = screenMovement >= 200;
-      centerOverviewOnUserLocation({ animate, durationMs: 300, scale: targetScale, focusVisibleArea: true });
+      // Skip the off-screen check while a programmatic animation is running — mid-animation
+      // the points are naturally mid-transition, and interrupting causes a visible snap.
+      const anyOffscreen = !significantMove && !state.viewportAnimationFrame && overviewTargetPoints().some((pt) => {
+        const s = worldToScreen(pt);
+        return s.x < focusRect.x || s.x > focusRect.x + focusRect.width
+          || s.y < focusRect.y || s.y > focusRect.y + focusRect.height;
+      });
+      if (significantMove || anyOffscreen) {
+        // Animate only for large jumps (GPS correction / fast travel); small steps are instant.
+        const animate = Boolean(previousPoint) && screenMovement >= 200;
+        ensureOverviewTargetsVisible({ animate, durationMs: 300 });
+      }
     }
 
     function centerViewportOnPointsKeepScale(points, options = {}) {
@@ -2886,19 +2887,32 @@
           assumeInspectorOpen: true,
           animate: Boolean(options.animate),
           durationMs: options.durationMs || 520,
+          minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
+        });
+      } else if (points.length === 1) {
+        // Only user location, no nearby items — center on user without zooming out past current level
+        centerOverviewOnUserLocation({
+          animate: Boolean(options.animate),
+          durationMs: options.durationMs || 520,
+          scale: state.viewport.scale,
+          focusVisibleArea: true,
         });
       }
     }
 
     function overviewTargetPoints() {
       if (!state.userLocation) return [];
-      const points = [state.userLocation.point];
+      const points = [];
       const overviewEntries = overviewItemsForActiveFilter();
       for (const entry of overviewEntries) {
         if (!entry || !entry.item || !entry.item.point) continue;
         if (entry.outOfRadius && !state.showAllOutsideRadius) continue;
         points.push(entry.item.point);
       }
+      // With 2+ items use item-only bounding box so items fill the screen
+      // regardless of how far the user is from the cluster.
+      // With 0 or 1 items include user so there is always a meaningful anchor.
+      if (points.length < 2) points.unshift(state.userLocation.point);
       return points;
     }
 

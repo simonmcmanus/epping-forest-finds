@@ -83,8 +83,11 @@ function setupResizeHandler() {
         alignHeadingUpNavigationViewport();
       } else if (state.userLocation && selectedCompassTarget()) {
         ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
+      } else if (state.userLocation && isOverviewScreenActive()) {
+        ensureOverviewTargetsVisible({ animate: false });
+      } else {
+        fitToBounds(false);
       }
-      else fitToBounds(false);
     }
     requestDraw();
   });
