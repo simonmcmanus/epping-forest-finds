@@ -400,16 +400,7 @@
       resizeCanvas();
       draw();
 
-      // Check if geolocation permission is already granted so we can skip the gate
-      let locationPregranted = false;
-      if (navigator.permissions && navigator.geolocation) {
-        try {
-          const permStatus = await navigator.permissions.query({ name: "geolocation" });
-          locationPregranted = permStatus.state === "granted" && hasTrackingConsent();
-        } catch (_) {}
-      }
-
-      // Start data loading immediately so it runs in parallel with any onboarding/gate UI
+      // Start data loading immediately so it runs in parallel with location and onboarding
       const hasCachedCowData = applyCachedCowData();
       setLoadStep("cows", "loading");
       const cowPromise = IS_LOCAL_COW_CACHE_MODE && hasCachedCowData
@@ -417,28 +408,40 @@
         : refreshCowData({ force: true, timeoutMs: 7000 });
       const mapPromise = loadMapData();
 
+      // Kick off location request — this fires the browser permission dialog automatically
+      // and runs in parallel with data loading so the map can open centred on the user.
+      let locationPromise = null;
+
       if (!hasCompletedOnboarding()) {
-        // First visit: hide loading overlay and show onboarding while data loads behind it
+        // First visit: show onboarding while data loads behind it
         if (els.loadingOverlay) els.loadingOverlay.hidden = true;
         const onboardResult = await showOnboarding();
         state.overviewFilters = sanitizeOverviewFilters(onboardResult.filters);
         saveFilterState();
-        if (onboardResult.requestLocation && navigator.geolocation) {
-          locationPregranted = true;
-        }
         if (els.loadingOverlay) els.loadingOverlay.hidden = false;
-      } else if (!locationPregranted) {
-        // Returning user without location permission — show gate while data loads
-        if (els.loadingOverlay) els.loadingOverlay.hidden = true;
-        if (!navigator.geolocation) {
-          setLocationGateVisible(true, "This browser does not support location access.");
-        } else {
-          setLocationGateVisible(
-            true,
-            "Tap below to allow location so the map can centre on you and show nearby finds.",
-            "Enable location"
-          );
+        if (onboardResult.requestLocation && navigator.geolocation) {
+          setLoadStep("location", "loading");
+          locationPromise = new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => resolve({ ok: true, position: pos }),
+              () => resolve({ ok: false }),
+              { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+            );
+          });
         }
+      } else if (navigator.geolocation) {
+        // Returning user: start location request immediately so the browser dialog
+        // appears while data loads — no tap needed to trigger it.
+        setLoadStep("location", "loading");
+        locationPromise = new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ ok: true, position: pos }),
+            () => resolve({ ok: false }),
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+          );
+        });
+      } else {
+        setLocationGateVisible(true, "This browser does not support location access.");
       }
 
       try {
@@ -454,16 +457,9 @@
 
         state.dataLoaded = true;
 
-        if (locationPregranted) {
-          // Stage 2: get position before revealing the map so it opens in the right place.
-          setLoadStep("location", "loading");
-          const locResult = await new Promise((resolve) => {
-            navigator.geolocation.getCurrentPosition(
-              (pos) => resolve({ ok: true, position: pos }),
-              () => resolve({ ok: false }),
-              { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-            );
-          });
+        if (locationPromise) {
+          // Await the location request that was started in parallel with data loading.
+          const locResult = await locationPromise;
 
           if (locResult.ok) {
             const { latitude, longitude } = applyLocationFix(locResult.position);
@@ -472,6 +468,14 @@
             setLocationGateVisible(false);
             checkDistanceToForest(latitude, longitude);
             ensureLocationWatch();
+
+            // Request compass immediately after location — non-iOS auto-grants;
+            // iOS shows the gate so the user can tap from a real gesture context.
+            if (compassPermissionCanBeRequested()) {
+              if (state.compassPermission !== "granted") showCompassAccessPrompt();
+            } else {
+              requestCompassPermissionIfNeeded({ fromGesture: false });
+            }
 
             // Populate overview list and render map while overlay is still up.
             selectOverview();
@@ -492,8 +496,13 @@
             triggerInspectorEntry();
             hideWithFade(els.loadingOverlay);
           } else {
-            // Location timed out — fall back to forest view.
+            // Location denied or timed out — show gate and reveal map without centering.
             setLoadStep("location", "error");
+            setLocationGateVisible(
+              true,
+              "Tap below to allow location so the map can centre on you and show nearby finds.",
+              "Enable location"
+            );
             await new Promise((resolve) => setTimeout(resolve, 300));
             selectOverview();
             draw();
@@ -504,23 +513,13 @@
             updateLocateButtonVisibility();
           }
         } else {
-          // Gate was shown; location arrives separately via locateUser callback.
+          // No geolocation support or user opted out — reveal map without location.
           setStatus("Offline map data loaded.");
           selectOverview();
           draw();
           applySelectionFromHash();
-          if (state.userLocation) {
-            // Location was obtained while data was loading (user clicked gate early).
-            setInspectorMinimized(false);
-            checkDistanceToForest(state.userLocation.latitude, state.userLocation.longitude);
-            const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-            const initialScale = maxScaleForRadiusVisible(focusRect);
-            triggerInspectorEntry();
-            centerOverviewOnUserLocation({ animate: true, durationMs: 1200, scale: initialScale, focusVisibleArea: true });
-          } else {
-            triggerMapRevealZoom();
-            triggerInspectorEntry();
-          }
+          triggerMapRevealZoom();
+          triggerInspectorEntry();
           hideWithFade(els.loadingOverlay);
         }
         showFilterHintIfFirstVisit();
