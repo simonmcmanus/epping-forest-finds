@@ -169,6 +169,7 @@ globalThis.__forestFindsTest = {
   ensureOverviewTargetsVisible,
   alignHeadingUpNavigationViewport,
   animateToHeadingUpNavigationViewport,
+  updateHeadingUpCanvasRotationTransform,
   nearbyHeadingUpActive,
   headingUpActive,
   buildNearbyIconLookup,
@@ -765,6 +766,22 @@ test("heading-up selected zoom changes wait for compass settle before applying",
 
   assert.equal(changedAfterCompassSettles, true, "selected-view zoom correction should apply once compass updates settle");
   assert.ok(app.state.viewport.scale < activeScale, "settled compass should apply the delayed selected-view fit");
+});
+
+test("heading-up compass smoothing keeps canvas CSS rotation disabled to avoid clipped edges while rotating", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "tree-1", ...makePoint(app, 0.0015, 0) } };
+  app.state.compassHeading = 90;
+  app.state.renderedNavigationHeading = 80;
+  app.els.canvas.style.transform = "rotate(3deg)";
+  app.els.canvas.style.transformOrigin = "120px 240px";
+
+  const usedCssRotation = app.updateHeadingUpCanvasRotationTransform();
+
+  assert.equal(usedCssRotation, false, "heading-up smoothing should rely on redraws instead of CSS canvas rotation");
+  assert.equal(app.els.canvas.style.transform, "", "canvas transform should be cleared in heading-up mode");
+  assert.equal(app.els.canvas.style.transformOrigin, "", "canvas transform origin should be cleared in heading-up mode");
 });
 
 test("returning to nearby waits for inspector expansion before starting the nearby camera move", async () => {

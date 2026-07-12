@@ -2703,19 +2703,10 @@
     }
 
     function updateHeadingUpCanvasRotationTransform() {
-      if (state.headingUpEntryAnim != null) return false; // entry animation owns renderedNavigationHeading
-      if (!headingUpActive() || !Number.isFinite(state.renderedNavigationHeading)) {
-        clearHeadingUpCanvasTransform();
-        return false;
-      }
-      const renderedRotation = -normalizeDegrees(state.renderedNavigationHeading);
-      const currentRotation = currentNavigationMapRotationDegrees();
-      const delta = shortestCompassDelta(renderedRotation, currentRotation);
-      const origin = rawWorldToScreen(state.userLocation.point);
-      const dpr = pixelRatio();
-      els.canvas.style.transformOrigin = `${origin.x / dpr}px ${origin.y / dpr}px`;
-      els.canvas.style.transform = Math.abs(delta) < 0.01 ? "" : `rotate(${delta}deg)`;
-      return true;
+      // Keep canvas CSS transforms disabled in heading-up mode so rotating the phone
+      // never exposes clipped canvas edges. Compass updates should use full redraws.
+      clearHeadingUpCanvasTransform();
+      return false;
     }
 
     function shouldAutoRepositionSelection() {
@@ -3821,11 +3812,8 @@
       return rotateScreenPoint(raw, rawWorldToScreen(state.userLocation.point), rotation);
     }
 
-    // For elements drawn on the overlay canvas (not CSS-rotated): use the current
-    // total effective rotation so the element aligns with where the feature appears
-    // on the CSS-rotated main canvas. During the entry animation the main canvas is
-    // redrawn each frame so worldToScreen() already reflects the intermediate heading;
-    // after the entry animation the CSS delta is what separates rendered from current.
+    // Overlay elements use the current heading-up rotation so they stay aligned with
+    // map features while compass updates trigger full-canvas redraws.
     function worldToScreenForOverlay(point) {
       if (state.headingUpEntryAnim != null) return worldToScreen(point);
       const raw = rawWorldToScreen(point);
