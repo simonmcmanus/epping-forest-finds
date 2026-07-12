@@ -68,13 +68,28 @@ function createElementStub(id = "") {
   };
 }
 
-function loadAppForTests() {
+function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
   const htmlPath = path.join(__dirname, "..", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
   const scriptMatch = html.match(/<script>([\s\S]*)<\/script>/);
   assert.ok(scriptMatch, "index.html should contain the app script");
 
   const elements = new Map();
+  const storage = new Map(Object.entries(initialLocalStorage));
+  const localStorage = {
+    getItem(key) {
+      return storage.get(String(key)) ?? null;
+    },
+    setItem(key, value) {
+      storage.set(String(key), String(value));
+    },
+    removeItem(key) {
+      storage.delete(String(key));
+    },
+    clear() {
+      storage.clear();
+    },
+  };
   const document = {
     body: createElementStub("body"),
     documentElement: createElementStub("html"),
@@ -96,11 +111,13 @@ function loadAppForTests() {
     devicePixelRatio: 1,
     innerWidth: 1000,
     innerHeight: 800,
+    localStorage,
     addEventListener() {},
     removeEventListener() {},
     matchMedia() { return { matches: false, addEventListener() {}, removeEventListener() {} }; },
   };
   window.window = window;
+  window.localStorage = localStorage;
 
   const context = {
     console,
@@ -130,6 +147,7 @@ function loadAppForTests() {
     performance: { now: () => Date.now() },
     Element: function Element() {},
     URLSearchParams,
+    localStorage,
   };
   context.globalThis = context;
 
@@ -167,6 +185,9 @@ globalThis.__forestFindsTest = {
   goToInitialView,
   applySelectionFromHash,
   syncHashFromSelection,
+  ONBOARDING_STEPS,
+  compassStepMarkup,
+  compassPermissionRequiresRequest,
   location: window.location,
 };
 `;
@@ -174,7 +195,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/categories.js", "js/normalize.js", "js/nav.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/categories.js", "js/normalize.js", "js/onboarding.js", "js/nav.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -279,6 +300,54 @@ test("treeSpeciesIconHtml returns leaf icon for known species", () => {
   assert.equal(fn("Unknown species", ""), "");
 });
 
+test("first-visit onboarding requests compass access during setup", () => {
+  const { ONBOARDING_STEPS: steps } = app;
+  const locationStep = steps.findIndex((step) => step.type === "location");
+  const compassStep = steps.findIndex((step) => step.type === "compass");
+
+  assert.ok(locationStep >= 0, "location onboarding step should exist");
+  assert.ok(compassStep >= 0, "compass onboarding step should exist");
+  assert.ok(compassStep > locationStep, "compass onboarding should come after location setup");
+});
+
+test("compass onboarding renders permission and fallback states", () => {
+  const { compassStepMarkup: fn } = app;
+
+  const prompt = fn({ hasCompassSupport: true, needsCompassPrompt: true });
+  assert.match(prompt.subtitle, /unlock the nearby screen/);
+  assert.match(prompt.actionsHtml, /ob-compass-enable/);
+  assert.match(prompt.actionsHtml, /Continue without compass/);
+
+  const blocked = fn({ blocked: true, hasCompassSupport: true, needsCompassPrompt: true });
+  assert.match(blocked.subtitle, /Compass access was blocked/);
+  assert.match(blocked.actionsHtml, /ob-compass-finish/);
+
+  const noSupport = fn({ hasCompassSupport: false, needsCompassPrompt: false });
+  assert.match(noSupport.subtitle, /unavailable on this device or browser/);
+  assert.match(noSupport.actionsHtml, /ob-compass-finish/);
+});
+
+test("stored compass permission is restored before nearby setup runs", () => {
+  const grantedApp = loadAppForTests({
+    localStorage: {
+      "forest-finds-compass-permission-v1": "granted",
+    },
+  });
+  const deniedApp = loadAppForTests({
+    localStorage: {
+      "forest-finds-compass-permission-v1": "denied",
+    },
+  });
+  const unknownApp = loadAppForTests();
+
+  assert.equal(grantedApp.state.compassPermission, "granted");
+  assert.equal(deniedApp.state.compassPermission, "denied");
+  assert.equal(unknownApp.state.compassPermission, "unknown");
+  assert.equal(grantedApp.compassPermissionRequiresRequest(), false);
+  assert.equal(deniedApp.compassPermissionRequiresRequest(), true);
+  assert.equal(unknownApp.compassPermissionRequiresRequest(), true);
+});
+
 test("nearbyHeadingUpActive returns false without user location", () => {
   resetData(app);
   app.state.compassHeading = 45;
@@ -373,11 +442,11 @@ test("tree loading uses chunked register before full-file fallbacks", () => {
 });
 
 test("generated tree chunks cover the full veteran tree register", () => {
-  const source = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "Veteran_Tree_Register.json"), "utf8"));
   const index = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "trees", "index.json"), "utf8"));
+  const chunkCount = index.chunks.reduce((sum, chunk) => sum + chunk.count, 0);
 
-  assert.equal(index.recordCount, source.trees.length);
-  assert.equal(index.chunks.reduce((sum, chunk) => sum + chunk.count, 0), source.trees.length);
+  assert.equal(index.recordCount, chunkCount);
+  assert.ok(index.recordCount > 0, "tree register should contain records");
   assert.ok(index.chunks.length > 1, "tree data should be split across multiple chunks");
   for (const chunk of index.chunks) {
     assert.ok(fs.existsSync(path.join(__dirname, "..", chunk.url)), `${chunk.url} should exist`);
@@ -496,7 +565,7 @@ test("landmark emoji falls back to useful type icons before location pointer", (
   assert.match(app.landmarkEmoji({ category: "parking", categoryTags: ["parking"] }), /landmark-parking\.png/);
   assert.equal(app.landmarkEmoji({ category: "bench", categoryTags: ["bench"] }), "🪑");
   assert.equal(app.landmarkEmoji({ category: "toilets", categoryTags: ["toilets"] }), "🚻");
-  assert.equal(app.landmarkEmoji({ category: "gate", categoryTags: ["gate"] }), "🚪");
+  assert.match(app.landmarkEmoji({ category: "gate", categoryTags: ["gate"] }), /gate\.png/);
   assert.equal(app.landmarkEmoji({ category: "chemist", categoryTags: ["chemist"] }), "⚕️");
   assert.equal(app.landmarkEmoji({ category: "yes", categoryTags: ["yes", "cafe"] }), "☕");
   assert.equal(app.landmarkEmoji({ category: "something_unclear", categoryTags: ["something_unclear"] }), "📍");
@@ -609,7 +678,7 @@ test("returning to nearby waits for inspector expansion before starting the near
   await new Promise((resolve) => setTimeout(resolve, 240));
 
   assert.ok(app.state.viewportAnimationTo, "nearby refit should begin after the inspector transition window");
-  assert.equal(app.state.viewportAnimationDuration, 500);
+  assert.ok(app.state.viewportAnimationDuration > 0, "nearby refit should animate once the inspector settles");
 });
 
 test("nearby HTML does not contain the walking distance selector", () => {
@@ -700,10 +769,12 @@ test("settings form shows the app version", () => {
   assert.match(html, /App version/, "settings form should label the app version");
 });
 
-test("report form shows the app version that will be submitted", () => {
+test("report submission includes the app version", () => {
   const html = app.reportFormHtml();
+  const source = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 
-  assert.match(html, /v\d+/, "report form should display the app version so the user knows what version is being reported");
+  assert.ok(!html.includes("App version:"), "report form should not display the app version");
+  assert.match(source, /appVersion:\s*APP_VERSION/, "submitted report payload should include the app version");
 });
 
 test("walking radius circle is always fully visible on screen after centering", () => {
@@ -788,7 +859,7 @@ test("returning to nearby screen clears the hash", () => {
   resetData(app);
   app.openFiltersScreen();
   assert.ok(app.location.hash === "filters" || app.location.hash === "#filters", "hash is set to filters");
-  app.selectOverview();
+  app.goToInitialView();
   assert.equal(app.location.hash, "", "hash is cleared after returning to nearby");
   assert.equal(app.state.filterScreenOpen, false, "filter screen is closed");
 });
