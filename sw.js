@@ -1,5 +1,5 @@
 
-const CACHE_NAME = veteran-tree-finder-v130;
+const CACHE_NAME = "veteran-tree-finder-v131";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -10,8 +10,15 @@ const APP_SHELL = [
   "./css/loading.css",
   "./css/inspector.css",
   "./css/map-ui.css",
+  "./css/onboarding.css",
   "./js/categories.js",
   "./js/normalize.js",
+  "./js/loader.js",
+  "./js/renderer.js",
+  "./js/inspector.js",
+  "./js/nav.js",
+  "./js/onboarding.js",
+  "./js/tracker.js",
   "./data/trees/index.json",
   "./data/epping-forest-land.geojson",
   "./data/epping-buffer-land.geojson",
