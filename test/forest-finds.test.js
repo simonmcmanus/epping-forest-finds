@@ -68,13 +68,28 @@ function createElementStub(id = "") {
   };
 }
 
-function loadAppForTests() {
+function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
   const htmlPath = path.join(__dirname, "..", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
   const scriptMatch = html.match(/<script>([\s\S]*)<\/script>/);
   assert.ok(scriptMatch, "index.html should contain the app script");
 
   const elements = new Map();
+  const storage = new Map(Object.entries(initialLocalStorage));
+  const localStorage = {
+    getItem(key) {
+      return storage.has(String(key)) ? storage.get(String(key)) : null;
+    },
+    setItem(key, value) {
+      storage.set(String(key), String(value));
+    },
+    removeItem(key) {
+      storage.delete(String(key));
+    },
+    clear() {
+      storage.clear();
+    },
+  };
   const document = {
     body: createElementStub("body"),
     documentElement: createElementStub("html"),
@@ -96,11 +111,13 @@ function loadAppForTests() {
     devicePixelRatio: 1,
     innerWidth: 1000,
     innerHeight: 800,
+    localStorage,
     addEventListener() {},
     removeEventListener() {},
     matchMedia() { return { matches: false, addEventListener() {}, removeEventListener() {} }; },
   };
   window.window = window;
+  window.localStorage = localStorage;
 
   const context = {
     console,
@@ -130,6 +147,7 @@ function loadAppForTests() {
     performance: { now: () => Date.now() },
     Element: function Element() {},
     URLSearchParams,
+    localStorage,
   };
   context.globalThis = context;
 
@@ -306,6 +324,16 @@ test("compass onboarding renders permission and fallback states", () => {
   const noSupport = fn({ hasCompassSupport: false, needsCompassPrompt: false });
   assert.match(noSupport.subtitle, /unavailable on this device or browser/);
   assert.match(noSupport.actionsHtml, /ob-compass-finish/);
+});
+
+test("stored compass permission is restored before nearby setup runs", () => {
+  const freshApp = loadAppForTests({
+    localStorage: {
+      "forest-finds-compass-permission-v1": "granted",
+    },
+  });
+
+  assert.equal(freshApp.state.compassPermission, "granted");
 });
 
 test("nearbyHeadingUpActive returns false without user location", () => {

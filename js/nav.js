@@ -113,8 +113,6 @@ function setupInspectorHandlers() {
         if (state.compassPermission === "granted") {
           setLocationGateVisible(false);
           updateCompassOverlay();
-        } else if (compassPermissionCanBeRequested()) {
-          showCompassAccessPrompt();
         }
       }
     });

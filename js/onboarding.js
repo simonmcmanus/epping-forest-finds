@@ -214,6 +214,9 @@ function showOnboarding() {
       if (hasGlobalState()) {
         state.compassPermission = permission;
       }
+      try {
+        localStorage.setItem("forest-finds-compass-permission-v1", permission);
+      } catch {}
     }
 
     function canUseCompassWithoutPrompt() {

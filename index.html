@@ -212,6 +212,7 @@
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
     const APP_VERSION = "v80";
+    const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const UNDERGROUND_STATION_NAMES = new Set([
       "aldgate",
       "aldgate east",
@@ -298,7 +299,13 @@
       showAllOutsideRadius: false,
       compassHeading: null,
       compassHeadingTarget: null,
-      compassPermission: "unknown",
+      compassPermission: (() => {
+        try {
+          return localStorage.getItem(COMPASS_PERMISSION_KEY) || "unknown";
+        } catch {
+          return "unknown";
+        }
+      })(),
       locationWatchId: null,
       dragging: false,
       moved: false,
@@ -561,17 +568,13 @@
       els.locateButton.disabled = true;
       setStatus(initial ? "Finding your location..." : "Getting your location...");
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           els.locateButton.disabled = false;
           const { latitude, longitude, previousPoint } = applyLocationFix(position);
           setLocationGateVisible(false);
           updateLocateButtonVisibility();
           ensureLocationWatch();
-          if (compassPermissionCanBeRequested() && state.compassPermission !== "granted") {
-            showCompassAccessPrompt();
-          } else {
-            setLocationGateVisible(false);
-          }
+          await requestCompassPermissionIfNeeded({ fromGesture: true });
 
           checkDistanceToForest(latitude, longitude);
 
@@ -2200,6 +2203,13 @@
     }
 
     async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
+      try {
+        const storedPermission = localStorage.getItem(COMPASS_PERMISSION_KEY);
+        if (storedPermission === "granted") {
+          state.compassPermission = "granted";
+          return;
+        }
+      } catch {}
       if (typeof DeviceOrientationEvent === "undefined") {
         if (fromGesture && state.userLocation) {
           const message = "Compass is not available on this device or browser. You can still use the map and tap any tree to see its distance.";
@@ -2209,6 +2219,9 @@
       }
       if (typeof DeviceOrientationEvent.requestPermission !== "function") {
         if (state.compassPermission === "unknown") state.compassPermission = "granted";
+        try {
+          localStorage.setItem(COMPASS_PERMISSION_KEY, "granted");
+        } catch {}
         return;
       }
       if (state.compassPermission === "granted") return;
@@ -2217,11 +2230,17 @@
       try {
         const permission = await DeviceOrientationEvent.requestPermission();
         state.compassPermission = permission === "granted" ? "granted" : "denied";
+        try {
+          localStorage.setItem(COMPASS_PERMISSION_KEY, state.compassPermission);
+        } catch {}
         if (state.compassPermission !== "granted") {
           showCompassAccessPrompt();
         }
       } catch {
         state.compassPermission = "denied";
+        try {
+          localStorage.setItem(COMPASS_PERMISSION_KEY, "denied");
+        } catch {}
         showCompassAccessPrompt();
       }
     }
