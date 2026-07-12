@@ -160,6 +160,12 @@ function handleEdited() {
     '- "new_questions": a numbered list (with a short friendly intro line) of any important',
     '  remaining questions not yet covered — or null if nothing important is missing.',
     '  Err strongly on the side of null.',
+    '- "suggested_description": a rewritten version of the original issue body that folds in',
+    '  all clarified information so the description is self-contained and unambiguous.',
+    '  Preserve the original intent; add detail where replies have resolved ambiguity.',
+    '  Return null if the original description is already sufficiently clear OR if the',
+    '  current issue body (shown in the preamble under "Body:") already matches the',
+    '  clarifications — i.e. the author has already updated it.',
   ].join("\n");
 
   callModel({
@@ -175,13 +181,17 @@ function handleEdited() {
     }
 
     if (result.annotated) {
+      const commentBody = result.suggested_description
+        ? result.annotated + "\n\n---\n\n**Suggested description:**\n\n" + result.suggested_description
+        : result.annotated;
+
       console.log(`Patching comment ${botComment.id}…`);
       execFileSync("gh", [
         "api", `repos/${repo}/issues/comments/${botComment.id}`,
         "--method", "PATCH",
         "--input", "-",
       ], {
-        input: JSON.stringify({ body: result.annotated }),
+        input: JSON.stringify({ body: commentBody }),
         stdio: ["pipe", "inherit", "inherit"],
         env: { ...process.env },
       });
