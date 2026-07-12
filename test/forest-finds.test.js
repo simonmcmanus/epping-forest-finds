@@ -408,20 +408,70 @@ test("nearby heading-up map rotation applies compass heading to worldToScreen", 
   assert.ok(Math.abs(northScreen.y - userScreen.y) < 0.01, "north point should be on same horizontal level as user");
 });
 
-test("nearby heading-up viewport centers on user", () => {
+test("nearby heading-up viewport keeps the user low when all highlighted locations are ahead", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 90;
+  app.state.renderedNavigationHeading = 90;
   app.state.selected = null;
   app.state.viewport = { scale: 1000, tx: 999, ty: 888 };
 
   const changed = app.alignHeadingUpNavigationViewport();
+  const userScreen = app.worldToScreen(app.state.userLocation.point);
 
-  // Viewport should be repositioned to center on user
-  assert.ok(changed, "viewport should have changed to center on user");
-  // User at world (0,0); focus should be at horizontal center of canvas
+  assert.ok(changed, "viewport should have changed to keep highlighted locations in view");
   const focusCenter = app.els.canvas.clientWidth / 2;
-  assert.equal(app.state.viewport.tx, focusCenter, "user should be at horizontal center (tx = focusCenter - 0 * scale = focusCenter)");
+  assert.equal(Math.round(app.state.viewport.tx), Math.round(focusCenter), "user should stay horizontally centered");
+  assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.65, "user should sit low on the map when nothing is behind them");
+});
+
+test("nearby heading-up viewport keeps highlighted locations visible when one sits behind the user", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
+  app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.0012, 0) });
+  app.state.landmarks.push({ id: "behind-pub", name: "Behind Pub", category: "pub", ...makePoint(app, -0.15, 0) });
+
+  app.state.overviewFilters = ["trees", "pubs"];
+  const changed = app.alignHeadingUpNavigationViewport();
+  const userScreen = app.worldToScreen(app.state.userLocation.point);
+  const treeScreen = app.worldToScreen(app.state.trees[0].point);
+  const pubScreen = app.worldToScreen(app.state.landmarks[0].point);
+
+  assert.ok(changed, "viewport should refit when a highlighted item is behind the user");
+  assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.65, "user should still sit low on the map");
+  assert.ok(treeScreen.y < userScreen.y, "the tree should remain ahead of the user");
+  assert.ok(pubScreen.y > userScreen.y, "the pub should remain behind the user");
+  assert.ok(pubScreen.y > app.els.canvas.clientHeight * 0.8, "the behind item should sit close to the bottom edge");
+});
+
+test("nearby filter updates trigger a heading-up refit that positions the user low when highlighted locations are ahead", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.viewport = { scale: 1000, tx: 100, ty: 100 };
+  app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.0012, 0) });
+  app.state.landmarks.push({ id: "ahead-pub", name: "Ahead Pub", category: "pub", ...makePoint(app, 0.0016, 0.0008) });
+
+  app.state.overviewFilters = ["trees", "pubs"];
+  app.ensureOverviewTargetsVisible({ animate: true, durationMs: 300 });
+
+  assert.ok(app.state.viewportAnimationTo, "changing filters should start a nearby refit");
+  assert.ok(app.state.viewportAnimationTo.ty > app.els.canvas.clientHeight / 2, "the user should remain low on the map");
+
+  app.state.viewport = { ...app.state.viewportAnimationTo };
+  app.state.viewportAnimationTo = null;
+
+  const userScreen = app.worldToScreen(app.state.userLocation.point);
+  const treeScreen = app.worldToScreen(app.state.trees[0].point);
+  const pubScreen = app.worldToScreen(app.state.landmarks[0].point);
+  assert.ok(treeScreen.y < userScreen.y, "the tree should remain ahead of the user");
+  assert.ok(pubScreen.y < userScreen.y, "the pub should remain ahead of the user");
 });
 
 test("nav controls use generated image assets instead of text glyphs", () => {
