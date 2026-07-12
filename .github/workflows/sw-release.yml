@@ -1,0 +1,28 @@
+name: Normalise SW cache version on main
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  normalise:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Strip branch prefix and increment version
+        run: |
+          perl -i -pe \
+            's/"veteran-tree-finder.*?-v(\d+)"/"veteran-tree-finder-v".($1+1).""/e' \
+            sw.js
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet sw.js && echo "Already clean" && exit 0
+          git add sw.js
+          git commit -m "chore: normalise SW cache version for release [skip ci]"
+          git push

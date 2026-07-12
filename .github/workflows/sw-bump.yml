@@ -1,0 +1,32 @@
+name: Bump SW cache version
+
+on:
+  push:
+    branches-ignore: [main]
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Increment CACHE_NAME version with branch prefix
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr -s '-' | sed 's/^-//;s/-$//')
+          SLUG="$SLUG" perl -i -pe \
+            'BEGIN{$s=$ENV{SLUG}} s/"veteran-tree-finder.*?-v(\d+)"/"veteran-tree-finder-$s-v".($1+1).""/e' \
+            sw.js
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet sw.js && echo "No change needed" && exit 0
+          git add sw.js
+          git commit -m "chore: bump SW cache version [skip ci]"
+          git push
