@@ -425,7 +425,7 @@ test("nearby heading-up viewport keeps the user low when all highlighted locatio
   assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.65, "user should sit low on the map when nothing is behind them");
 });
 
-test("nearby filter updates trigger a heading-up refit that keeps all highlighted locations visible", () => {
+test("nearby filter updates trigger a heading-up refit that positions the user low when highlighted locations are ahead", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
