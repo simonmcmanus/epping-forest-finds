@@ -279,6 +279,18 @@ test("treeSpeciesIconHtml returns leaf icon for known species", () => {
   assert.equal(fn("Unknown species", ""), "");
 });
 
+test("first-visit onboarding requests compass access during setup", () => {
+  const onboardingSource = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
+  const locationStep = onboardingSource.indexOf('type: "location"');
+  const compassStep = onboardingSource.indexOf('type: "compass"');
+
+  assert.ok(locationStep >= 0, "location onboarding step should exist");
+  assert.ok(compassStep >= 0, "compass onboarding step should exist");
+  assert.ok(compassStep > locationStep, "compass onboarding should come after location setup");
+  assert.match(onboardingSource, /DeviceOrientationEvent\.requestPermission\(\)/);
+  assert.match(onboardingSource, /Compass guidance/);
+});
+
 test("nearbyHeadingUpActive returns false without user location", () => {
   resetData(app);
   app.state.compassHeading = 45;

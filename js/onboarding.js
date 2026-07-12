@@ -1,4 +1,4 @@
-// First-visit onboarding: progressive filter selection + location opt-in.
+// First-visit onboarding: progressive filter selection + location and compass opt-in.
 // Runs while map data loads in the background.
 
 const ONBOARDING_KEY = "forest-finds-onboarding-v1";
@@ -7,7 +7,13 @@ const ONBOARDING_STEPS = [
   { type: "welcome" },
   ...FILTER_GROUPS.map((g) => ({ type: "group", group: g })),
   { type: "location" },
+  { type: "compass" },
 ];
+
+function canRequestCompassPermission() {
+  return typeof DeviceOrientationEvent !== "undefined"
+    && typeof DeviceOrientationEvent.requestPermission === "function";
+}
 
 function hasCompletedOnboarding() {
   return !!localStorage.getItem(ONBOARDING_KEY);
@@ -22,6 +28,8 @@ function showOnboarding() {
     const actionsEl = overlay.querySelector(".onboarding-actions");
 
     let stepIndex = 0;
+    let requestLocation = false;
+    let compassPromptFailed = false;
     const total = ONBOARDING_STEPS.length;
     const selected = new Set(FILTER_GROUPS.flatMap((g) => g.subfilters.map((s) => s.key)));
 
@@ -85,6 +93,48 @@ function showOnboarding() {
           <button class="button ob-location" type="button">Enable location</button>
           <button class="onboarding-skip-btn ob-location-skip" type="button">Skip for now</button>
         `;
+      } else if (step.type === "compass") {
+        const hasCompassSupport = typeof DeviceOrientationEvent !== "undefined";
+        const needsCompassPrompt = canRequestCompassPermission();
+
+        if (compassPromptFailed) {
+          contentEl.innerHTML = `
+            <div class="onboarding-step-icon" aria-hidden="true">🧭</div>
+            <h2 class="onboarding-step-title">Compass guidance</h2>
+            <p class="onboarding-step-subtitle">Compass access was blocked. The map will still load, and nearby guidance will do the best it can without heading data.</p>
+          `;
+          actionsEl.innerHTML = `
+            <button class="button ob-compass-finish" type="button">Continue</button>
+          `;
+        } else if (!hasCompassSupport) {
+          contentEl.innerHTML = `
+            <div class="onboarding-step-icon" aria-hidden="true">🧭</div>
+            <h2 class="onboarding-step-title">Compass guidance</h2>
+            <p class="onboarding-step-subtitle">Compass access is unavailable on this device or browser. The map will still load, and nearby guidance will do the best it can without heading data.</p>
+          `;
+          actionsEl.innerHTML = `
+            <button class="button ob-compass-finish" type="button">Continue</button>
+          `;
+        } else if (!needsCompassPrompt) {
+          contentEl.innerHTML = `
+            <div class="onboarding-step-icon" aria-hidden="true">🧭</div>
+            <h2 class="onboarding-step-title">Compass guidance</h2>
+            <p class="onboarding-step-subtitle">This browser can use compass data without an extra permission prompt. Nearby guidance will start working automatically when the device provides heading data.</p>
+          `;
+          actionsEl.innerHTML = `
+            <button class="button ob-compass-finish" type="button">Continue</button>
+          `;
+        } else {
+          contentEl.innerHTML = `
+            <div class="onboarding-step-icon" aria-hidden="true">🧭</div>
+            <h2 class="onboarding-step-title">Compass guidance</h2>
+            <p class="onboarding-step-subtitle">Enable compass access to unlock the nearby screen and heading-up navigation before the map appears.</p>
+          `;
+          actionsEl.innerHTML = `
+            <button class="button ob-compass-enable" type="button">Enable compass</button>
+            <button class="onboarding-skip-btn ob-compass-skip" type="button">Continue without compass</button>
+          `;
+        }
       }
 
       // Chip toggles
@@ -106,11 +156,53 @@ function showOnboarding() {
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
       actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish(false));
       actionsEl.querySelector(".ob-location")?.addEventListener("click", async () => {
-        if (hasTrackingConsent()) { finish(true); return; }
-        const consented = await showTrackingConsent();
-        finish(consented);
+        if (!hasTrackingConsent()) {
+          const consented = await showTrackingConsent();
+          if (!consented) {
+            requestLocation = false;
+            finish(false);
+            return;
+          }
+        }
+        requestLocation = true;
+        goNext();
       });
       actionsEl.querySelector(".ob-location-skip")?.addEventListener("click", () => finish(false));
+      actionsEl.querySelector(".ob-compass-enable")?.addEventListener("click", async () => {
+        if (!canRequestCompassPermission()) {
+          if (typeof state !== "undefined" && state && typeof DeviceOrientationEvent !== "undefined") {
+            state.compassPermission = "granted";
+          }
+          finish(requestLocation);
+          return;
+        }
+
+        try {
+          const permission = await DeviceOrientationEvent.requestPermission();
+          if (typeof state !== "undefined" && state) {
+            state.compassPermission = permission === "granted" ? "granted" : "denied";
+          }
+          if (permission === "granted") {
+            finish(requestLocation);
+            return;
+          }
+        } catch {
+          if (typeof state !== "undefined" && state) {
+            state.compassPermission = "denied";
+          }
+        }
+
+        compassPromptFailed = true;
+        renderProgress();
+        renderStep("forward");
+      });
+      actionsEl.querySelector(".ob-compass-skip")?.addEventListener("click", () => finish(requestLocation));
+      actionsEl.querySelector(".ob-compass-finish")?.addEventListener("click", () => {
+        if (typeof DeviceOrientationEvent !== "undefined" && !canRequestCompassPermission() && typeof state !== "undefined" && state) {
+          state.compassPermission = "granted";
+        }
+        finish(requestLocation);
+      });
     }
 
     function goNext() {
