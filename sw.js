@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "veteran-tree-finder-v146";
+const CACHE_NAME = veteran-tree-finder-copilot-fix-distracting-map-updates-v147;
 const APP_SHELL = [
   "./",
   "./index.html",
