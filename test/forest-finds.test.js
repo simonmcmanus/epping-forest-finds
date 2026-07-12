@@ -404,6 +404,7 @@ test("generated UI icon classes render at the enlarged sizes", () => {
   assert.match(inspectorCss, /\.nav-icon\s*\{[\s\S]*width:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);/);
   assert.match(inspectorCss, /\.title-icon\s*\{[\s\S]*width:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);/);
   assert.match(mapUiCss, /\.nearest-icon\s+\.app-icon\s*\{[\s\S]*width:\s*32px;[\s\S]*height:\s*32px;/);
+  assert.match(mapUiCss, /\.nearest-arrow\s*\{[\s\S]*width:\s*20px;[\s\S]*height:\s*20px;/);
   assert.match(mapUiCss, /\.walk-icon\s*\{[\s\S]*width:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);/);
 });
 

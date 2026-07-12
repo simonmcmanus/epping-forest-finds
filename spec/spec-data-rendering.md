@@ -271,6 +271,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 - Each entry shows: emoji icon, name, distance, directional arrow
 - Nearby bus-stop entries progressively append live stop-direction context to the stop name when available, so opposite-direction stops can be distinguished from the overview list before opening the detail view.
 - The directional arrow element stores the item's fixed coordinates (`data-item-lat`, `data-item-lon`); bearing is computed live in `updateOverviewDirectionArrows()` from `state.userLocation` — never baked into the HTML template. This keeps the `listKey` stable across GPS updates, preventing unnecessary full re-renders and icon flash.
+- The directional arrow uses the same 20px footprint as the nearby item icon so the list stays visually aligned.
 - Overview chrome uses generated PNG assets from `data/icons/` for the nearby title, walking-time chip, bus entries, and inspector header nav buttons; these generated UI icons render at enlarged sizes after tight-cropping.
 - All icon paths are declared in a single `ICON_PATHS` registry in `js/categories.js`. Adding an icon requires one line there; no other file needs editing. Tree species leaf icons use `treeSpeciesIconHtml(commonName, latinName)` for fuzzy name-to-icon matching.
 - All `<img>` icons in the inspector panel use `loading="eager" decoding="sync"` so they render immediately on DOM insertion without a visible flash.
