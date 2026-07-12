@@ -794,9 +794,9 @@ test("heading-up resize limits effective pixel ratio so oversized canvas stays w
     app.els.mapStage.clientHeight = 2600;
     app.resizeCanvas();
 
-    assert.ok(app.els.canvas.width <= 4096, "oversized map canvas width should stay within safe dimension limits");
-    assert.ok(app.els.canvas.height <= 4096, "oversized map canvas height should stay within safe dimension limits");
-    assert.ok(app.els.canvas.width * app.els.canvas.height <= 16777216, "oversized map canvas pixel area should stay within safe limits");
+    assert.ok(app.els.canvas.width <= 3072, "oversized map canvas width should stay within safe dimension limits");
+    assert.ok(app.els.canvas.height <= 3072, "oversized map canvas height should stay within safe dimension limits");
+    assert.ok(app.els.canvas.width * app.els.canvas.height <= 9437184, "oversized map canvas pixel area should stay within safe limits");
     assert.ok(app.els.canvas.width > app.state.canvasVisibleWidth, "oversized map canvas should still render beyond the visible viewport");
   } finally {
     app.windowStub.devicePixelRatio = originalDpr;
