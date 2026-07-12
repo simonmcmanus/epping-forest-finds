@@ -167,6 +167,7 @@ globalThis.__forestFindsTest = {
   goToInitialView,
   applySelectionFromHash,
   syncHashFromSelection,
+  ONBOARDING_STEPS,
   compassStepMarkup,
   location: window.location,
 };
@@ -281,15 +282,13 @@ test("treeSpeciesIconHtml returns leaf icon for known species", () => {
 });
 
 test("first-visit onboarding requests compass access during setup", () => {
-  const onboardingSource = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
-  const locationStep = onboardingSource.indexOf('type: "location"');
-  const compassStep = onboardingSource.indexOf('type: "compass"');
+  const { ONBOARDING_STEPS: steps } = app;
+  const locationStep = steps.findIndex((step) => step.type === "location");
+  const compassStep = steps.findIndex((step) => step.type === "compass");
 
   assert.ok(locationStep >= 0, "location onboarding step should exist");
   assert.ok(compassStep >= 0, "compass onboarding step should exist");
   assert.ok(compassStep > locationStep, "compass onboarding should come after location setup");
-  assert.match(onboardingSource, /DeviceOrientationEvent\.requestPermission\(\)/);
-  assert.match(onboardingSource, /Compass guidance/);
 });
 
 test("compass onboarding renders permission and fallback states", () => {

@@ -10,6 +10,10 @@ const ONBOARDING_STEPS = [
   { type: "compass" },
 ];
 
+if (typeof globalThis !== "undefined") {
+  globalThis.ONBOARDING_STEPS = ONBOARDING_STEPS;
+}
+
 function canRequestCompassPermission() {
   return typeof DeviceOrientationEvent !== "undefined"
     && typeof DeviceOrientationEvent.requestPermission === "function";
@@ -56,7 +60,7 @@ function showOnboarding() {
     const actionsEl = overlay.querySelector(".onboarding-actions");
 
     let stepIndex = 0;
-    // We keep the location opt-in here so boot can request the fix only after
+    // We keep the location opt-in here so boot can request the location only after
     // the compass step has completed and the onboarding overlay is dismissed.
     let shouldRequestLocation = false;
     let compassPromptFailed = false;
@@ -202,12 +206,12 @@ function showOnboarding() {
       });
     }
 
-    function isStateInitialized() {
+    function hasGlobalState() {
       return typeof state !== "undefined" && state;
     }
 
     function setCompassPermission(permission) {
-      if (isStateInitialized()) {
+      if (hasGlobalState()) {
         state.compassPermission = permission;
       }
     }
