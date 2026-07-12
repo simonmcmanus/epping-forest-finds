@@ -44,6 +44,7 @@ Before finishing any implementation task:
 
 ## Testing
 - Run: `node --test test/forest-finds.test.js`
+- **Tests must pass before any task is considered complete.** Run the suite after every code change and fix any failures before finishing.
 - Every new feature or behaviour change needs a matching test.
 - Use BDD-style descriptions that mirror the spec wording.
 
