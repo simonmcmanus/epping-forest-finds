@@ -271,8 +271,9 @@ Marker rules:
 - Smooth heading updates for:
   - selected-location title-row compass arrow
   - nearest-list directional arrows
-- In selected-location navigation, the map becomes heading-up whenever compass heading is available, regardless of whether the inspector is expanded or minimized: the device-facing direction is always toward the top of the screen, the user stays anchored slightly below center, and the map rotates as the user turns. The selected location must stay inside the visible map area; heading-up navigation reduces zoom when needed to keep it visible.
-- While selected-location heading-up navigation is active, compass-only rotation updates should rotate the existing map canvas around the user point and redraw only the lightweight user/radar overlay rather than redrawing all map layers every animation frame.
+- In selected-location navigation, the map becomes heading-up whenever compass heading is available, regardless of whether the inspector is expanded or minimized: the device-facing direction is always toward the top of the screen, the user stays anchored slightly below center (62% down the visible area), and the map rotates as the user turns. The selected location must stay inside the visible map area; heading-up navigation reduces zoom when needed to keep it visible.
+- In nearby (overview) mode, the map also becomes heading-up whenever user location and compass heading are available: the device-facing direction is always toward the top of the screen, the user stays anchored at the vertical center (50%), and the map rotates in real-time as the user turns. Map icons always point from top to bottom of screen. The nearby button is in the active state during this mode.
+- While heading-up mode is active (either nearby or selected-navigation), compass-only rotation updates should rotate the existing map canvas around the user point and redraw only the lightweight user/radar overlay rather than redrawing all map layers every animation frame.
 - Show route lines:
   - selected mode: user → selected target
   - overview mode: user → nearest overview targets

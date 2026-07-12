@@ -151,6 +151,8 @@ globalThis.__forestFindsTest = {
   ensureOverviewTargetsVisible,
   alignHeadingUpNavigationViewport,
   animateToHeadingUpNavigationViewport,
+  nearbyHeadingUpActive,
+  headingUpActive,
   buildNearbyIconLookup,
   isNearCanvas,
   landmarkEmoji,
@@ -275,6 +277,82 @@ test("treeSpeciesIconHtml returns leaf icon for known species", () => {
   assert.match(fn("Common Beech", "Fagus sylvatica"), /trees\/beach\.png/);
   assert.match(fn("Hornbeam", "Carpinus betulus"), /trees\/hornbeam\.png/);
   assert.equal(fn("Unknown species", ""), "");
+});
+
+test("nearbyHeadingUpActive returns false without user location", () => {
+  resetData(app);
+  app.state.compassHeading = 45;
+  app.state.userLocation = null;
+  app.state.selected = null;
+  assert.equal(app.nearbyHeadingUpActive(), false);
+});
+
+test("nearbyHeadingUpActive returns false without compass heading", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = null;
+  app.state.compassHeading = null;
+  assert.equal(app.nearbyHeadingUpActive(), false);
+});
+
+test("nearbyHeadingUpActive returns false when a location is selected", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 45;
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  assert.equal(app.nearbyHeadingUpActive(), false);
+});
+
+test("nearbyHeadingUpActive returns true in overview mode with location and compass", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 45;
+  app.state.selected = null;
+  assert.equal(app.nearbyHeadingUpActive(), true);
+  assert.equal(app.headingUpActive(), true);
+});
+
+test("headingUpActive returns true for selected navigation heading-up", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  app.state.compassHeading = 45;
+  assert.equal(app.headingUpActive(), true);
+});
+
+test("nearby heading-up map rotation applies compass heading to worldToScreen", () => {
+  resetData(app);
+  // Place user at origin
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east
+  app.state.selected = null;
+  app.state.renderedNavigationHeading = 90;
+  app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
+
+  const userScreen = app.worldToScreen(app.state.userLocation.point);
+  // A point slightly north: latitude increases → y decreases in Mercator projection
+  const northWorldPoint = { x: app.state.userLocation.point.x, y: app.state.userLocation.point.y - 0.001 };
+  const northScreen = app.worldToScreen(northWorldPoint);
+
+  // With 90° heading (facing east), north becomes left on screen
+  assert.ok(northScreen.x < userScreen.x, "north should appear to the left when facing east");
+  assert.ok(Math.abs(northScreen.y - userScreen.y) < 0.01, "north point should be on same horizontal level as user");
+});
+
+test("nearby heading-up viewport centers on user", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.selected = null;
+  app.state.viewport = { scale: 1000, tx: 999, ty: 888 };
+
+  const changed = app.alignHeadingUpNavigationViewport();
+
+  // Viewport should be repositioned to center on user
+  assert.ok(changed, "viewport should have changed to center on user");
+  // User at world (0,0); focus should be at horizontal center of canvas
+  const focusCenter = app.els.canvas.clientWidth / 2;
+  assert.equal(app.state.viewport.tx, focusCenter, "user should be at horizontal center (tx = focusCenter - 0 * scale = focusCenter)");
 });
 
 test("nav controls use generated image assets instead of text glyphs", () => {
