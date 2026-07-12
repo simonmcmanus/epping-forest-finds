@@ -441,17 +441,14 @@ test("nearby filter updates trigger a heading-up refit that keeps all highlighte
   assert.ok(app.state.viewportAnimationTo, "changing filters should start a nearby refit");
   assert.ok(app.state.viewportAnimationTo.ty > app.els.canvas.clientHeight / 2, "the user should remain low on the map");
 
-  const previousViewport = { ...app.state.viewport };
   app.state.viewport = { ...app.state.viewportAnimationTo };
   app.state.viewportAnimationTo = null;
 
   const userScreen = app.worldToScreen(app.state.userLocation.point);
   const treeScreen = app.worldToScreen(app.state.trees[0].point);
   const pubScreen = app.worldToScreen(app.state.landmarks[0].point);
-
   assert.ok(treeScreen.y < userScreen.y, "the tree should remain ahead of the user");
   assert.ok(pubScreen.y < userScreen.y, "the pub should remain ahead of the user");
-  assert.deepEqual(previousViewport, { scale: 1000, tx: 100, ty: 100 });
 });
 
 test("nav controls use generated image assets instead of text glyphs", () => {

@@ -2389,6 +2389,9 @@
 
     const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
     const HEADING_UP_ANCHOR_NEARBY = 0.72; // user sits lower when all nearby targets are ahead
+    const HEADING_UP_BEHIND_TOLERANCE = 0.000001;
+    const HEADING_UP_SCALE_CHANGE_THRESHOLD = 0.000001;
+    const HEADING_UP_POSITION_CHANGE_THRESHOLD = 0.5;
 
     function selectedNavigationHeadingUpActive() {
       return Boolean(
@@ -2448,7 +2451,7 @@
         const dx = point.x - userPoint.x;
         const dy = point.y - userPoint.y;
         const rotatedY = dx * sin + dy * cos;
-        if (rotatedY > 0.000001) return 0.5;
+        if (rotatedY > HEADING_UP_BEHIND_TOLERANCE) return 0.5;
       }
 
       return HEADING_UP_ANCHOR_NEARBY;
@@ -2571,9 +2574,9 @@
         state.viewport.tx = targetViewport.tx;
         state.viewport.ty = targetViewport.ty;
       }
-      return Math.abs(previousScale - targetViewport.scale) > 0.000001
-        || Math.abs(previousTx - targetViewport.tx) > 0.5
-        || Math.abs(previousTy - targetViewport.ty) > 0.5;
+      return Math.abs(previousScale - targetViewport.scale) > HEADING_UP_SCALE_CHANGE_THRESHOLD
+        || Math.abs(previousTx - targetViewport.tx) > HEADING_UP_POSITION_CHANGE_THRESHOLD
+        || Math.abs(previousTy - targetViewport.ty) > HEADING_UP_POSITION_CHANGE_THRESHOLD;
     }
 
     function clearHeadingUpCanvasTransform() {
