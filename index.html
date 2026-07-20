@@ -2452,13 +2452,17 @@
           updateOverviewDirectionArrows();
           updateSelectedDetailFields();
           if (headingUpActive()) {
-            alignHeadingUpNavigationViewport();
+            const vpChanged = alignHeadingUpNavigationViewport();
+            keepOverviewCenteredOnUser(previousPoint);
+            updateCompassOverlay();
+            if (vpChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
+            else if (typeof drawOverlay === "function") drawOverlay();
           } else {
             ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
+            keepOverviewCenteredOnUser(previousPoint);
+            updateCompassOverlay();
+            requestDraw();
           }
-          keepOverviewCenteredOnUser(previousPoint);
-          updateCompassOverlay();
-          requestDraw();
         },
         () => {},
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 1500 }
