@@ -120,7 +120,7 @@ function handleStatic(req, res, url) {
     const stream = fs.createReadStream(resolved);
     res.writeHead(200, {
       "Content-Type": type,
-      "Cache-Control": ext === ".json" || ext === ".geojson" ? "no-store" : "public, max-age=300",
+      "Cache-Control": "no-store",
     });
     stream.pipe(res);
   });
