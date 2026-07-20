@@ -990,8 +990,8 @@
         { x: full.x, y: overlap.y + overlap.height, width: full.width, height: (full.y + full.height) - (overlap.y + overlap.height) },
       ]
         .map((rect) => ({
-          x: Math.max(0, rect.x),
-          y: Math.max(0, rect.y),
+          x: Math.max(full.x, rect.x),
+          y: Math.max(full.y, rect.y),
           width: Math.max(0, rect.width),
           height: Math.max(0, rect.height),
         }))
