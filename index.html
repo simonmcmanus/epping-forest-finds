@@ -3101,17 +3101,16 @@
       if (!state.userLocation) return [];
       const { latitude, longitude } = state.userLocation;
 
-      // Survey mode: filter panel open — fit nearest 5 items per active type, ignoring walking radius
+      // Survey mode: filter panel open — fit nearest items per active type, ignoring walking radius
       if (state.filterScreenOpen) {
         const entries = [];
         for (const filterKey of pointFilterKeysForNearestFallback()) {
-          entries.push(...nearestOverviewEntriesForFilter(filterKey, latitude, longitude, 5));
+          entries.push(...nearestOverviewEntriesForFilter(filterKey, latitude, longitude, state.nearestItemsCount));
         }
-        const pts = uniqueSortedOverviewEntries(entries)
+        const itemPts = uniqueSortedOverviewEntries(entries)
           .filter(e => e.item && e.item.point)
           .map(e => e.item.point);
-        if (pts.length >= 2) return pts;
-        if (pts.length === 1) return [state.userLocation.point, pts[0]];
+        return [state.userLocation.point, ...itemPts];
       }
 
       // Foraging mode: anchor to nearest 5 trees for a tight in-forest view
