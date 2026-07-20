@@ -157,7 +157,21 @@ Filtered to major types only. Style varies by `roadType` (motorway thicker/darke
 
 ## Marker Rendering
 
-All map marker icons (emoji and transport glyphs) are rendered at **2x** the previous baseline size for improved readability.
+### Pin geometry (`drawPngMapIcon`)
+
+The teardrop pin uses a tighter layout to reduce whitespace around icons:
+- Circle radius: `size × 0.4` (reduced from `× 0.5`)
+- Tail height: `R × 0.6` (reduced from `× 0.75`)
+- Icon fills `R × 1.75` of the circle (up from `× 1.3`)
+- Border opacity: `rgba(0,0,0,0.25)` (down from `0.45`)
+
+### Clustering
+
+All point-type overview items are clustered in screen space (30 CSS-pixel radius, greedy nearest-first) before drawing. `buildTypeClusters(itemSet, toScreen)` is the generic function used for trees, cows, paths, and water features. Landmarks are first grouped by rendered icon type (`landmarkClusterKey`) then clustered within each group via `buildLandmarkClusters`.
+
+Each cluster draws **one pin** at the screen centroid of its members. When a cluster contains more than one item, a small count badge is drawn in the top-right of the pin by `drawClusterBadge`. Badges only appear on PNG teardrop pins (not SVG roundels or emoji). Route lines use the world-space centroid of each cluster (one line per cluster for trees; individual items for other types).
+
+**Cluster tap interaction:** tapping a multi-item cluster pin (in overview mode, i.e. no current selection) triggers `findClusterHit` — which rebuilds clusters for all types at the current viewport — and, if hit, sets `state.clusterZoomed = true` and calls `fitToPoints` on the cluster members' world points with a 400 ms animation. This zooms the map until the items separate into individually tappable pins. While `state.clusterZoomed` is true, `ensureOverviewTargetsVisible` skips its GPS-driven refit so the zoom-in view is not immediately overridden. The flag is cleared when the user taps an item or empty space (via `goToInitialView`), drags the map, or scrolls/pinches to zoom. Sub-clusters at the new zoom level can be tapped to zoom in further. Single-item clusters fall through to the normal `findHit` individual-item selection path.
 
 ### Trees
 
@@ -297,12 +311,13 @@ When an item is selected, it gets a pulsing highlight overlay:
 
 - Register fields: IDs, taxonomy, status, girth, metadata, comments, grid refs
 - Enriched named-tree data: match metadata, folklore/historical notes, source links
+- Inspector title icon: `tree.png`
 - Live distance + walking time
 
 #### Place Details
 
 - Name, category, address, contact, source
-- Appropriate emoji by type
+- Inspector title icon matches the map pin: PNG from `filterKindEmoji`/`landmarkIconSlug` priority, emoji fallback for types with no PNG asset
 - OSM attribution (only for OSM-sourced places)
 - Live distance + walking time
 - Bus stop selections append live departures when online; the departures block also shows a bus-stop direction summary (`Buses towards …`) using TfL stop metadata when available, otherwise a deduplicated summary of upcoming destination names for that stop only.
@@ -312,6 +327,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 - Serial number, type, coordinates
 - Last update timestamp
 - Source attribution
+- Inspector title icon: `cow.png`
 - Live distance + walking time
 
 ### Filter Panel (Overview mode only)
@@ -354,7 +370,7 @@ Behavior:
 
 ### Selection Camera
 
-- **Expanded inspector + selected target:** camera fits user + target in the area not covered by the inspector. Uses the actual current inspector state (minimised on mobile after selection, expanded on desktop) so the route fills the full available canvas rather than a conservatively smaller area.
+- **Expanded inspector + selected target:** camera fits user + target in the area not covered by the inspector. The inspector is always expanded after a map tap selection (on both mobile and desktop) so the detail panel opens immediately; it is only auto-minimized when selecting from the overview/nearby list (`focusOverviewItem`).
 - **Navigation mode GPS follow:** on each GPS update, the camera checks whether both the user and the selected destination are comfortably inside the visible area (14% edge margin). If both are visible, no animation is triggered. If either drifts toward the edge or off-screen, `fitToPoints` runs with an 800 ms animation — long enough that consecutive GPS ticks blend smoothly rather than producing visible jumps. The fit never zooms out beyond the initial forest-level scale (`baseFitScale` floor).
 - **Heading-up selected navigation:** when a selected navigation target is active, the user location exists, and compass heading is available, the map switches from north-up to heading-up regardless of whether the inspector is expanded or minimized. The user is anchored slightly below the vertical center of the visible map (62%) and the map rotates around the user as `state.compassHeading` changes, so the direction the device is facing is always toward the top of the screen. The map/overlay canvases are rendered with an overscan bitmap area (150% of viewport, centered) while heading-up is active so CSS delta rotation can run through full compass turns without exposing clipped canvas edges; in north-up mode the canvas uses an exact-fit allocation to avoid unnecessary GPU fill-rate overhead. On mode change `prepareCanvasForDraw()` detects the transition and calls `resizeCanvas()` to expand or shrink the allocation immediately. On very large/high-DPR screens, overscan resize logic caps bitmap allocation to a conservative budget (max dimension 3072 px, max area 9,437,184 px) and lowers effective DPR as needed. During normal heading updates, `updateHeadingUpCanvasRotationTransform()` applies a CSS rotation delta around the user point and avoids full redraw churn; on heading entry animation frames the rotation is still baked into redraws. Heading-up fits in this mode keep the same scale stabilisation as nearby mode: a 4% fit buffer (extra off-screen render room), deferred non-essential zoom updates while compass sensor events are active, and a small strict-fit tolerance so tiny corrections do not trigger redraw churn. The selected destination must remain inside the visible map area while heading-up mode is active; if heading, resize, drag, or zoom would push the destination out of view, the viewport zoom is set to the exact scale that places the destination at the edge of the visible area — `Math.min` is not used here, so the viewport always zooms to the correct level even when coming from a wider zoom such as the walking-radius overview. When this mode is inactive, the map remains north-up. On entering heading-up mode for the first time (transition from north-up), `state.renderedNavigationHeading` is interpolated from 0° toward `state.compassHeading` over the same duration as the viewport animation using `state.headingUpEntryAnim` (from/to/startTime/duration). `prepareCanvasForDraw()` advances the interpolation each frame and calls `requestDraw()` while in progress, so every canvas draw already reflects the correct intermediate heading — pins always point downward throughout the transition.
 - **Heading-up nearby mode:** when there is no real navigation target (`selectedCompassTarget()` returns null) but user location and compass heading are available, `nearbyHeadingUpActive()` returns true and the map switches to heading-up. This covers the overview/nearby screen, the filter panel, and pseudo-selection screens (settings, report) — all of which show the map in the background and should continue rotating with the device heading. The user is anchored at 55% of the visible map height (slightly below centre) — this gives balanced space for items in all compass directions, keeping the scale close to what `fitToPoints` would produce even for items behind or beside the user. Heading-up fits keep a 4% zoom buffer so highlighted points stay comfortably inside the visible area with extra draw room when the device rotates; while compass sensor events are still actively arriving, non-essential zoom changes are deferred and then applied once the heading settles, with a small strict-fit tolerance to ignore micro corrections. On first activation an entry animation rotates from north-up to the current heading over 500 ms, driven by the same `headingUpEntryAnim` mechanism. Drag, zoom, resize, compass changes, and nearby filter changes all re-fit the overview targets via `alignHeadingUpNavigationViewport()` / `ensureOverviewTargetsVisible()`. The `headingUpActive()` helper returns true for either selected-navigation or nearby heading-up and is the single check used in the compass smoothing tick and CSS delta rotation path. The user radar cone points toward the top of the screen in both heading-up modes. Tree, landmark, and cow pins are drawn on `#overlayCanvas` (not `#mapCanvas`) so they remain at their correct geographic positions on screen.

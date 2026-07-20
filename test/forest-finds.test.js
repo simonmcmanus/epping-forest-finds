@@ -620,8 +620,8 @@ test("walking radius marker hides in selected-detail mode", () => {
 
 test("landmark emoji falls back to useful type icons before location pointer", () => {
   assert.match(app.landmarkEmoji({ category: "parking", categoryTags: ["parking"] }), /landmark-parking\.png/);
-  assert.equal(app.landmarkEmoji({ category: "bench", categoryTags: ["bench"] }), "🪑");
-  assert.equal(app.landmarkEmoji({ category: "toilets", categoryTags: ["toilets"] }), "🚻");
+  assert.match(app.landmarkEmoji({ category: "bench", categoryTags: ["bench"] }), /landmark-bench\.png/);
+  assert.match(app.landmarkEmoji({ category: "toilets", categoryTags: ["toilets"] }), /landmark-toilets\.png/);
   assert.match(app.landmarkEmoji({ category: "gate", categoryTags: ["gate"] }), /gate\.png/);
   assert.equal(app.landmarkEmoji({ category: "chemist", categoryTags: ["chemist"] }), "⚕️");
   assert.equal(app.landmarkEmoji({ category: "yes", categoryTags: ["yes", "cafe"] }), "☕");

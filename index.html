@@ -353,6 +353,7 @@
       buildingsLoading: false,
       buildingsRevealStartTime: null,
       overviewOutsideRadiusFallback: false,
+      clusterZoomed: false,
       transportLookupCache: new Map(),
       transportLookupRequests: new Map(),
       dataLoaded: false,
@@ -2253,6 +2254,8 @@
           return filterKindEmoji(filterKey) || "📍";
         }
       }
+      const slug = landmarkIconSlug(place);
+      if (slug) return appIconHtml(slug);
       return landmarkTypeEmoji(place) || "📍";
     }
 
@@ -2998,6 +3001,7 @@
     function ensureOverviewTargetsVisible(options = {}) {
       if (!state.userLocation) return;
       if (state.selected) return;
+      if (state.clusterZoomed) return;
       setInspectorMinimized(false);
 
       if (nearbyHeadingUpActive()) {

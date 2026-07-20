@@ -315,7 +315,7 @@ function setupMapCanvasHandlers() {
     }
     const dx = event.clientX - state.dragStart.x;
     const dy = event.clientY - state.dragStart.y;
-    if (Math.abs(dx) + Math.abs(dy) > 4) state.moved = true;
+    if (Math.abs(dx) + Math.abs(dy) > 4) { state.moved = true; state.clusterZoomed = false; }
     state.viewport.tx = state.dragStart.tx + dx;
     state.viewport.ty = state.dragStart.ty + dy;
     requestDraw();
@@ -336,6 +336,7 @@ function setupMapCanvasHandlers() {
 
   els.canvas.addEventListener("wheel", (event) => {
     event.preventDefault();
+    state.clusterZoomed = false;
     const factor = event.deltaY < 0 ? 1.22 : 1 / 1.22;
     zoomAt(factor, canvasPoint(event));
   }, { passive: false });
@@ -443,6 +444,7 @@ function setupInspectorDragResize() {
 function goToInitialView(updateHash = true) {
   const wasMinimized = els.inspector.classList.contains("minimized");
   state.selected = null;
+  state.clusterZoomed = false;
   state.filterScreenOpen = false;
   selectOverview(true);
   setInspectorMinimized(false);

@@ -5,32 +5,44 @@ const INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS = 180 + 40; // Inspector transiti
 
 function handleMapClick(event) {
   if (!state.trees.length) return;
-  setInspectorMinimized(false);
   const screen = canvasPoint(event);
+
+  // In overview mode, tapping a multi-item cluster zooms in to separate the items.
+  if (!state.selected) {
+    const cluster = findClusterHit(screen);
+    if (cluster) {
+      const points = cluster.items.map(item => item.point).filter(Boolean);
+      if (points.length) {
+        state.clusterZoomed = true;
+        fitToPoints(points, false, { animate: true, durationMs: 400 });
+        requestDraw();
+        return;
+      }
+    }
+  }
+
+  state.clusterZoomed = false;
+  setInspectorMinimized(false);
   const world = screenToWorld(screen.x, screen.y);
   const lonLat = unprojectPoint(world);
   const hit = findHit(screen, world, lonLat);
 
-  const isMobile = window.innerWidth <= 760;
   if (hit.type === "tree") {
     state.selected = { type: "tree", item: hit.item };
     syncHashFromSelection();
     showTreeDetails(hit.item, distanceFromUser(hit.item), "Tree record");
-    if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
   } else if (hit.type === "cow") {
     state.selected = { type: "cow", item: hit.item };
     syncHashFromSelection();
     showCowDetails(hit.item, distanceFromUser(hit.item));
-    if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
   } else if (hit.type === "landmark") {
     state.selected = { type: "landmark", item: hit.item };
     syncHashFromSelection();
     showLandmarkDetails(hit.item, distanceFromUser(hit.item));
-    if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
   } else if (hit.type === "area") {
@@ -49,7 +61,6 @@ function handleMapClick(event) {
     syncHashFromSelection();
     const distance = distanceFromUserToPath(hit.item);
     showPathDetails(hit.item, distance);
-    if (isMobile) setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
   } else if (hit.type === "railway") {
@@ -206,10 +217,31 @@ function findHit(screen, world, lonLat) {
   return { type: "none" };
 }
 
+function findClusterHit(screen) {
+  const dpr = pixelRatio();
+  const mapScale = mapEmojiScale();
+  // Mirrors findHit pin geometry: circle centre sits pinR*1.75 above the tip point.
+  const pinR = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE / 2;
+  const pinYOffset = pinR * 1.75;
+  const lookup = buildNearbyIconLookup();
+  const allClusters = [
+    ...buildTypeClusters(lookup.tree, worldToScreen),
+    ...buildLandmarkClusters(lookup.landmark, worldToScreen),
+    ...buildTypeClusters(lookup.cow, worldToScreen),
+    ...buildTypeClusters(lookup.path, worldToScreen),
+    ...buildTypeClusters(lookup.water, worldToScreen),
+  ];
+  for (const cluster of allClusters) {
+    if (cluster.items.length <= 1) continue;
+    if (Math.hypot(cluster.screenPt.x - screen.x, (cluster.screenPt.y - pinYOffset) - screen.y) < pinR) return cluster;
+  }
+  return null;
+}
+
 // --- Detail views ---
 
 function showTreeDetails(tree, distance, label) {
-  setInspectorSelectionChrome({ emoji: "🌳", showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true });
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = tree.commonName || "Unknown tree";
   els.inspectorType.textContent = "Veteran tree";
@@ -270,7 +302,7 @@ function showLandmarkDetails(place, distance) {
 }
 
 function showCowDetails(cow, distance) {
-  setInspectorSelectionChrome({ emoji: "🐄", showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("cow", "app-icon title-icon"), showBack: true });
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = `Cow ${displayValue(cow.serialNo)}`;
   els.inspectorType.textContent = "Grazing cow";
@@ -298,7 +330,7 @@ function showCowDetails(cow, distance) {
 }
 
 function showPathDetails(path, distance) {
-  setInspectorSelectionChrome({ emoji: "🥾", showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("waymarked", "app-icon title-icon"), showBack: true });
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = path.name || path.ref || "Waymarked trail";
   els.inspectorType.textContent = "Waymarked trail";
@@ -415,7 +447,7 @@ function showWaterDetails(water, distance) {
   const typeLabel = isArea
     ? "Pond / lake"
     : (water.waterway ? water.waterway.charAt(0).toUpperCase() + water.waterway.slice(1) : "Stream / waterway");
-  setInspectorSelectionChrome({ emoji: "💧", showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("ponds", "app-icon title-icon"), showBack: true });
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = water.name;
   els.inspectorType.textContent = typeLabel;
