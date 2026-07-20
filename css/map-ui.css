@@ -217,6 +217,10 @@
     top: 30px;
   }
 
+  .inspector-back {
+    top: 30px;
+  }
+
   .inspector-header {
     min-height: calc(36px * var(--icon-scale) + 44px);
     padding-top: 42px;

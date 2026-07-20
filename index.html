@@ -140,7 +140,7 @@
           <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings"><img class="app-icon nav-icon" src="data/icons/settings.png" alt="" loading="lazy" decoding="async"></button>
         </div>
         <div class="inspector-header">
-          <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back to nearest locations" hidden><img class="app-icon nav-icon" src="data/icons/home.png" alt="" loading="lazy" decoding="async"></button>
+          <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back to nearest locations" hidden><svg class="app-icon nav-icon" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14 4 7 11 14 18"/></svg></button>
         </div>
         <div class="inspector-tools">
           <div id="treeSearchPanel" class="search-panel" hidden>
@@ -1487,12 +1487,16 @@
       els.inspectorTools.hidden = true;
       els.inspectorTitle.textContent = "Report";
       els.inspectorType.textContent = "Missing data / feature request";
-      transitionInspectorBody(reportFormHtml(), "forward");
+      transitionInspectorBody(reportFormHtml(), "forward", () => {
+        const detailsInput = document.getElementById("reportDetails");
+        if (detailsInput) {
+          detailsInput.focus();
+          detailsInput.scrollIntoView({ block: "nearest" });
+        }
+      });
       bindReportFormHandlers();
       setReportStatus("");
       updateReportLocationLabel();
-      const detailsInput = document.getElementById("reportDetails");
-      if (detailsInput) detailsInput.focus();
       setInspectorMinimized(false);
       updateCompassOverlay();
       requestDraw();

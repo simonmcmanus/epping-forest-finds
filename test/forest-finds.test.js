@@ -484,7 +484,7 @@ test("nearby filter updates trigger a heading-up refit that positions the user l
 test("nav controls use generated image assets instead of text glyphs", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 
-  assert.match(html, /id="inspectorBack"[\s\S]*data\/icons\/home\.png/);
+  assert.match(html, /id="inspectorBack"[\s\S]*<svg[\s\S]*polyline/);
   assert.match(html, /id="filterToggle"[\s\S]*data\/icons\/filter\.png/);
   assert.match(html, /id="reportToggle"[\s\S]*data\/icons\/feedback\.png/);
   assert.match(html, /id="settingsToggle"[\s\S]*data\/icons\/settings\.png/);

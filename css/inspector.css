@@ -177,6 +177,9 @@
 }
 
 .inspector-back {
+  position: absolute;
+  top: 12px;
+  left: 14px;
   width: calc(36px * var(--icon-scale));
   height: calc(36px * var(--icon-scale));
   border-radius: 999px;
@@ -185,10 +188,9 @@
   color: var(--ink);
   display: inline-grid;
   place-items: center;
-  font-size: 2rem;
-  line-height: 1;
   flex: 0 0 auto;
   transition: background 120ms ease;
+  z-index: 3;
 }
 
 .inspector-back:hover {
