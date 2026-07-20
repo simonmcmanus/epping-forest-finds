@@ -766,8 +766,10 @@
       const requestedDpr = window.devicePixelRatio || 1;
       const rawWidth = Math.max(1, rect.width);
       const rawHeight = Math.max(1, rect.height);
-      const requestedOverscanWidth = Math.round(rawWidth * requestedDpr * HEADING_UP_CANVAS_OVERSCAN_RATIO);
-      const requestedOverscanHeight = Math.round(rawHeight * requestedDpr * HEADING_UP_CANVAS_OVERSCAN_RATIO);
+      // Overscan only while heading-up is active; north-up uses an exact-fit canvas.
+      const overscanRatio = headingUpActive() ? HEADING_UP_CANVAS_OVERSCAN_RATIO : 1;
+      const requestedOverscanWidth = Math.round(rawWidth * requestedDpr * overscanRatio);
+      const requestedOverscanHeight = Math.round(rawHeight * requestedDpr * overscanRatio);
       let overscanWidth = Math.max(1, Math.min(MAX_CANVAS_DIMENSION, requestedOverscanWidth));
       let overscanHeight = Math.max(1, Math.min(MAX_CANVAS_DIMENSION, requestedOverscanHeight));
       const cappedPixels = overscanWidth * overscanHeight;
@@ -780,8 +782,8 @@
       // stays within safe limits while preserving as much detail as possible.
       const dpr = Math.max(1, Math.min(
         requestedDpr,
-        overscanWidth / (rawWidth * HEADING_UP_CANVAS_OVERSCAN_RATIO),
-        overscanHeight / (rawHeight * HEADING_UP_CANVAS_OVERSCAN_RATIO)
+        overscanWidth / (rawWidth * overscanRatio),
+        overscanHeight / (rawHeight * overscanRatio)
       ));
       const visibleWidth = Math.max(1, Math.min(overscanWidth, Math.round(rawWidth * dpr)));
       const visibleHeight = Math.max(1, Math.min(overscanHeight, Math.round(rawHeight * dpr)));
@@ -2725,6 +2727,11 @@
 
     function prepareCanvasForDraw() {
       clearHeadingUpCanvasTransform();
+      // Resize whenever heading-up mode activates or deactivates so the canvas is
+      // only oversized while rotation is actually needed.
+      const needsOverscan = headingUpActive();
+      const hasOverscan = state.canvasVisibleWidth > 0 && els.canvas.width > state.canvasVisibleWidth;
+      if (needsOverscan !== hasOverscan) resizeCanvas();
       if (headingUpActive()) {
         if (state.headingUpEntryAnim != null) {
           const elapsed = performance.now() - state.headingUpEntryAnim.startTime;

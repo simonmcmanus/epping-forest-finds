@@ -776,6 +776,9 @@ test("heading-up selected zoom changes wait for compass settle before applying",
 
 test("heading-up resize uses oversized canvas draw area so rotation does not expose viewport edges", () => {
   resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  app.state.compassHeading = 90;
   app.resizeCanvas();
 
   assert.equal(app.state.canvasVisibleWidth, 1000, "visible canvas width should match map stage width");
@@ -787,6 +790,9 @@ test("heading-up resize uses oversized canvas draw area so rotation does not exp
 
 test("heading-up resize limits effective pixel ratio so oversized canvas stays within safe limits", () => {
   resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  app.state.compassHeading = 90;
   const originalDpr = app.windowStub.devicePixelRatio;
   try {
     app.windowStub.devicePixelRatio = 3;
