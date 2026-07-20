@@ -2931,6 +2931,7 @@
 
     function keepOverviewCenteredOnUser(previousPoint) {
       if (!state.userLocation || state.selected || !isOverviewScreenActive()) return;
+      if (state.clusterZoomed) return;
       if (els.inspector.classList.contains("minimized")) return;
       if (nearbyHeadingUpActive()) return;
 

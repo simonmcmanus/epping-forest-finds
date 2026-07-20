@@ -159,11 +159,12 @@ Filtered to major types only. Style varies by `roadType` (motorway thicker/darke
 
 ### Pin geometry (`drawPngMapIcon`)
 
-The teardrop pin uses a tighter layout to reduce whitespace around icons:
-- Circle radius: `size × 0.4` (reduced from `× 0.5`)
-- Tail height: `R × 0.6` (reduced from `× 0.75`)
-- Icon fills `R × 1.75` of the circle (up from `× 1.3`)
-- Border opacity: `rgba(0,0,0,0.25)` (down from `0.45`)
+The teardrop pin uses a compact layout with a large icon:
+- Circle radius: `size × 0.4`; tail height: `R × 0.6`; icon fills `R × 1.75`
+- Circle centre is `R × 1.6` = `size × 0.64` above the tip point
+- Border opacity: `rgba(0,0,0,0.25)`
+- Unselected scale: `MAP_ICON_SCALE_UNSELECTED = 2.2`; selected scale: `MAP_ICON_SCALE = 2` (plus animated pulse ×1.05–1.17)
+- Hit detection (`findHit`, `findClusterHit`) is derived from `MAP_ICON_SCALE_UNSELECTED`: `pinR = iconSize × 0.52` (×1.3 visual R), `pinYOffset = iconSize × 0.64` (exact circle centre), giving an accurately-centred tap target slightly larger than the visual pin
 
 ### Clustering
 
@@ -171,7 +172,7 @@ All point-type overview items are clustered in screen space (30 CSS-pixel radius
 
 Each cluster draws **one pin** at the screen centroid of its members. When a cluster contains more than one item, a small count badge is drawn in the top-right of the pin by `drawClusterBadge`. Badges only appear on PNG teardrop pins (not SVG roundels or emoji). Route lines use the world-space centroid of each cluster (one line per cluster for trees; individual items for other types).
 
-**Cluster tap interaction:** tapping a multi-item cluster pin (in overview mode, i.e. no current selection) triggers `findClusterHit` — which rebuilds clusters for all types at the current viewport — and, if hit, sets `state.clusterZoomed = true` and calls `fitToPoints` on the cluster members' world points with a 400 ms animation. This zooms the map until the items separate into individually tappable pins. While `state.clusterZoomed` is true, `ensureOverviewTargetsVisible` skips its GPS-driven refit so the zoom-in view is not immediately overridden. The flag is cleared when the user taps an item or empty space (via `goToInitialView`), drags the map, or scrolls/pinches to zoom. Sub-clusters at the new zoom level can be tapped to zoom in further. Single-item clusters fall through to the normal `findHit` individual-item selection path.
+**Cluster tap interaction:** tapping a multi-item cluster pin (in overview mode, i.e. no current selection) triggers `findClusterHit` — which rebuilds clusters for all types at the current viewport — and, if hit, sets `state.clusterZoomed = true` and calls `fitToPoints` on the cluster members' world points with a 400 ms animation using `focusVisibleArea: true, assumeInspectorOpen: true` so items are fitted into the visible area above the inspector panel. This zooms the map until the items separate into individually tappable pins. While `state.clusterZoomed` is true, both `ensureOverviewTargetsVisible` and `keepOverviewCenteredOnUser` skip their GPS-driven refits so the zoom-in view is not immediately overridden. The flag is cleared when the user taps an item or empty space (via `goToInitialView`), drags the map, or scrolls/pinches to zoom. Sub-clusters at the new zoom level can be tapped to zoom in further. Single-item clusters fall through to the normal `findHit` individual-item selection path.
 
 ### Trees
 

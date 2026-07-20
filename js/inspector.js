@@ -14,7 +14,7 @@ function handleMapClick(event) {
       const points = cluster.items.map(item => item.point).filter(Boolean);
       if (points.length) {
         state.clusterZoomed = true;
-        fitToPoints(points, false, { animate: true, durationMs: 400 });
+        fitToPoints(points, false, { animate: true, durationMs: 400, focusVisibleArea: true, assumeInspectorOpen: true });
         requestDraw();
         return;
       }
@@ -88,9 +88,11 @@ function trackSelectionClick(itemType, item, source) {
 function findHit(screen, world, lonLat) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
-  // Pin geometry mirrors drawPngMapIcon: circle centre sits R*1.75 above the tip.
-  const pinR = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE / 2;
-  const pinYOffset = pinR * 1.75;
+  // drawPngMapIcon geometry: R = size*0.4, circle centre sits R*1.6 above the tip.
+  // Unselected pins drive overview taps; use MAP_ICON_SCALE_UNSELECTED for accurate centering.
+  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
+  const pinR = iconSize * 0.4 * 1.3;   // R * 1.3 — slightly larger than visual for easy tapping
+  const pinYOffset = iconSize * 0.64;   // R * 1.6 = center of circle above tip
 
   function pinDistance(point) {
     return Math.hypot(point.x - screen.x, (point.y - pinYOffset) - screen.y);
@@ -220,9 +222,10 @@ function findHit(screen, world, lonLat) {
 function findClusterHit(screen) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
-  // Mirrors findHit pin geometry: circle centre sits pinR*1.75 above the tip point.
-  const pinR = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE / 2;
-  const pinYOffset = pinR * 1.75;
+  // Matches drawPngMapIcon geometry (R = size*0.4, centre = R*1.6 above tip).
+  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
+  const pinR = iconSize * 0.4 * 1.3;
+  const pinYOffset = iconSize * 0.64;
   const lookup = buildNearbyIconLookup();
   const allClusters = [
     ...buildTypeClusters(lookup.tree, worldToScreen),
