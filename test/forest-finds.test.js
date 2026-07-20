@@ -758,6 +758,21 @@ test("heading-up nearby zoom changes wait for compass settle before applying", (
   assert.ok(app.state.viewport.scale > 10, "settled compass should allow the delayed zoom fit");
 });
 
+test("heading-up nearby zoom updates immediately when force flag is set (returning from filter screen)", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) });
+  app.state.compassHeading = 0;
+  app.state.viewport = { scale: 10, tx: 500, ty: 440 };
+
+  // Compass is actively firing — would normally defer zoom-in
+  app.state.compassLastEventAt = Date.now();
+  const changedWithForce = app.alignHeadingUpNavigationViewport({ force: true });
+
+  assert.equal(changedWithForce, true, "force flag should bypass compass-settle deferral");
+  assert.ok(app.state.viewport.scale > 10, "scale should update immediately when force=true even with active compass");
+});
+
 test("heading-up selected zoom changes wait for compass settle before applying", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

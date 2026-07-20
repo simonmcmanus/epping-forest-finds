@@ -2645,17 +2645,19 @@
       return (now - state.compassLastEventAt) < HEADING_UP_SENSOR_ACTIVE_MS;
     }
 
-    function resolveHeadingUpTargetScale(maxScale, previousScale) {
+    function resolveHeadingUpTargetScale(maxScale, previousScale, force = false) {
       if (!Number.isFinite(maxScale) || maxScale <= 0) return previousScale;
       const bufferedScale = maxScale * (1 - HEADING_UP_SCALE_BUFFER_RATIO);
       const nextScale = Number.isFinite(bufferedScale) && bufferedScale > 0 ? bufferedScale : maxScale;
       if (!Number.isFinite(previousScale) || previousScale <= 0) return nextScale;
 
-      if (headingUpCompassSensorActive()) {
+      if (!force && headingUpCompassSensorActive()) {
         // While compass events are actively arriving, defer zoom changes that don't
         // require an immediate correction: zoom-in (target already visible at current
         // scale) and zoom-out where the target still fits (previousScale <= maxScale).
         // If previousScale > maxScale the target is off-screen and must be corrected now.
+        // Pass force=true to bypass this deferral for explicit navigation (e.g. returning
+        // from the filter screen's wide survey view back to the nearby screen).
         if (previousScale <= nextScale || previousScale <= maxScale) {
           return previousScale;
         }
@@ -2751,7 +2753,7 @@
       // Use maxScale directly: heading-up mode always fits all targets in the
       // rotated focus rect. Math.min would leave scale too low when the map
       // was previously at a wider zoom (e.g. walking-radius level on first load).
-      const targetScale = resolveHeadingUpTargetScale(maxScale, previousScale);
+      const targetScale = resolveHeadingUpTargetScale(maxScale, previousScale, Boolean(options.force));
       const targetViewport = {
         scale: targetScale,
         tx: focus.x - userPoint.x * targetScale,
@@ -3068,6 +3070,7 @@
         alignHeadingUpNavigationViewport({
           animate: Boolean(options.animate),
           durationMs: options.durationMs || 520,
+          force: Boolean(options.force),
         });
         return;
       }

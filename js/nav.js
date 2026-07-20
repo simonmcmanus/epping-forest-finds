@@ -477,7 +477,7 @@ function goToInitialView(updateHash = true) {
   setInspectorMinimized(false);
   const refitOverview = () => {
     if (state.userLocation) {
-      ensureOverviewTargetsVisible({ animate: true, durationMs: 500 });
+      ensureOverviewTargetsVisible({ animate: true, durationMs: 500, force: true });
     } else {
       fitToBounds(false, { animate: true, durationMs: 500 });
     }
