@@ -139,6 +139,16 @@ Source: `{ locations: [...] }` from folklore JSON.
 
 Filter: Discard generic/imprecise locations.
 
+#### Blue Plaque coordinate quality
+
+All 62 blue plaque entries have been verified against authoritative sources and re-geocoded:
+
+- 15 entries carry **GPS-precise** coordinates sourced from [openplaques.org](https://openplaques.org)
+- 33 entries carry **geocoded_address** coordinates from Nominatim (OpenStreetMap)
+- 14 entries carry **postcode_centroid** coordinates from postcodes.io (accurate to ~100 m)
+
+Three entries were removed as unverifiable: `William Morris birthplace site` (coordinate was 12 km off, plaque is in Walthamstow E17), `Old Watch House or Cage` (no address, wrong duplicate coordinate), and `Buckhurst Hill Heritage Locations` (vague summary, not a single physical plaque).
+
 Each item is normalized to:
 
 ```

@@ -1263,7 +1263,7 @@
       ],
       "coordinates": {
         "latitude": 51.6341,
-        "longitude": 0.0,
+        "longitude": 0,
         "accuracy": "approximate"
       },
       "location_description": "Pole Hill, Chingford, on the western edge of Epping Forest.",
@@ -2239,64 +2239,6 @@
       "has_more_detail_links": true
     },
     {
-      "name": "Blue Plaque: Ken Campbell",
-      "aliases": [
-        "Ken Campbell Loughton",
-        "Elf of Epping Forest",
-        "Ken Campbell blue plaque",
-        "Ken Campbell"
-      ],
-      "category": [
-        "celebrity association",
-        "theatre",
-        "blue plaque",
-        "Loughton",
-        "heritage plaque",
-        "Loughton Town Council blue plaques"
-      ],
-      "coordinates": {
-        "latitude": 51.6412,
-        "longitude": 0.0532,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "location_description": "Swiss Cottage, 40 Baldwins Hill, Loughton IG10 1SF",
-      "story": "Actor, director and playwright Ken Campbell lived here.",
-      "notable_people": [
-        {
-          "name": "Ken Campbell",
-          "connection": "Lived in Baldwins Hill, Loughton; nicknamed 'The Elf of Epping Forest'",
-          "privacy_level": "public plaque / historic association"
-        }
-      ],
-      "notes": "Good public-facing story because it has a Forest-specific nickname and plaque connection. Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://en.wikipedia.org/wiki/Loughton",
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "address": "Swiss Cottage, 40 Baldwins Hill, Loughton IG10 1SF",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Ken Campbell",
-        "inscription_or_summary": "Actor, director and playwright Ken Campbell lived here.",
-        "public_location": true
-      },
-      "external_links": [
-        {
-          "title": "Wikipedia: wiki",
-          "url": "https://en.wikipedia.org/wiki/Loughton",
-          "type": "reference_source"
-        },
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
       "name": "East 15 Acting School and the Corbett Theatre",
       "aliases": [
         "East 15 Loughton",
@@ -2485,2224 +2427,6 @@
         {
           "title": "thesun.co.uk: money",
           "url": "https://www.thesun.co.uk/money/31573783/house-rich-epping-big-home-chigwell-forest/",
-          "type": "reference_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Sir Jacob Epstein",
-      "aliases": [
-        "Sir Jacob Epstein",
-        "Sir Jacob Epstein blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "art"
-      ],
-      "coordinates": {
-        "latitude": 51.6412,
-        "longitude": 0.0532,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Deerhurst, 50 Baldwins Hill, Loughton IG10 1SF",
-      "location_description": "Deerhurst, 50 Baldwins Hill, Loughton IG10 1SF",
-      "story": "Sculptor Sir Jacob Epstein lived here from 1933 to 1950.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Sir Jacob Epstein",
-        "inscription_or_summary": "Sculptor Sir Jacob Epstein lived here from 1933 to 1950.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: The Revd. Robert Hunter",
-      "aliases": [
-        "The Revd. Robert Hunter",
-        "The Revd. Robert Hunter blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "natural history"
-      ],
-      "coordinates": {
-        "latitude": 51.652,
-        "longitude": 0.07,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Forest Villa, 7 Staples Road, Loughton IG10 1HP",
-      "location_description": "Forest Villa, 7 Staples Road, Loughton IG10 1HP",
-      "story": "Lexicographer and naturalist Robert Hunter lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "The Revd. Robert Hunter",
-        "inscription_or_summary": "Lexicographer and naturalist Robert Hunter lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: José Collins",
-      "aliases": [
-        "José Collins",
-        "José Collins blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "theatre"
-      ],
-      "coordinates": {
-        "latitude": 51.647,
-        "longitude": 0.055,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Loughton Park Hotel / Collins Court, 107 High Road, Loughton IG10 4JB",
-      "location_description": "Loughton Park Hotel / Collins Court, 107 High Road, Loughton IG10 4JB",
-      "story": "Music hall artiste José Collins is commemorated here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "José Collins",
-        "inscription_or_summary": "Music hall artiste José Collins is commemorated here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: William Wymark Jacobs",
-      "aliases": [
-        "William Wymark Jacobs",
-        "William Wymark Jacobs blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "literature"
-      ],
-      "coordinates": {
-        "latitude": 51.65,
-        "longitude": 0.086,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "96 Goldings Road, Loughton IG10 2QN",
-      "location_description": "96 Goldings Road, Loughton IG10 2QN",
-      "story": "Short-story writer W. W. Jacobs lived near this site.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "William Wymark Jacobs",
-        "inscription_or_summary": "Short-story writer W. W. Jacobs lived near this site.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: William Bridges Adams and Sarah Flower Adams",
-      "aliases": [
-        "William Bridges Adams and Sarah Flower Adams",
-        "William Bridges Adams and Sarah Flower Adams blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "invention",
-        "poetry"
-      ],
-      "coordinates": {
-        "latitude": 51.6468,
-        "longitude": 0.0577,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "9 Woodbury Hill, Loughton IG10 1JB",
-      "location_description": "9 Woodbury Hill, Loughton IG10 1JB",
-      "story": "Inventor William Bridges Adams and poet/hymnodist Sarah Flower Adams lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "William Bridges Adams and Sarah Flower Adams",
-        "inscription_or_summary": "Inventor William Bridges Adams and poet/hymnodist Sarah Flower Adams lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Lopping Hall",
-      "aliases": [
-        "Lopping Hall",
-        "Lopping Hall blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "Epping Forest history"
-      ],
-      "coordinates": {
-        "latitude": 51.647,
-        "longitude": 0.055,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Lopping Hall, 187-191 High Road, Loughton IG10 4LF",
-      "location_description": "Lopping Hall, 187-191 High Road, Loughton IG10 4LF",
-      "story": "Lopping Hall was built from compensation for loss of lopping rights in Epping Forest.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Lopping Hall",
-        "inscription_or_summary": "Lopping Hall was built from compensation for loss of lopping rights in Epping Forest.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Sir William Addison bookshop",
-      "aliases": [
-        "Sir William Addison bookshop",
-        "Sir William Addison bookshop blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "local history"
-      ],
-      "coordinates": {
-        "latitude": 51.647,
-        "longitude": 0.055,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "169 High Road, Loughton IG10 4LF",
-      "location_description": "169 High Road, Loughton IG10 4LF",
-      "story": "Site of a bookshop run by author, jurist and historian Sir William Addison.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Sir William Addison bookshop",
-        "inscription_or_summary": "Site of a bookshop run by author, jurist and historian Sir William Addison.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: John Strevens",
-      "aliases": [
-        "John Strevens",
-        "John Strevens blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "art"
-      ],
-      "coordinates": {
-        "latitude": 51.6497,
-        "longitude": 0.0625,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "8 Lower Park Road, Loughton IG10 4NA",
-      "location_description": "8 Lower Park Road, Loughton IG10 4NA",
-      "story": "Artist John Strevens lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "John Strevens",
-        "inscription_or_summary": "Artist John Strevens lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Capt Richard Stannard VC",
-      "aliases": [
-        "Capt Richard Stannard VC",
-        "Capt Richard Stannard VC blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "war history"
-      ],
-      "coordinates": {
-        "latitude": 51.6466,
-        "longitude": 0.0474,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "33 The Avenue, Loughton IG10 4PX",
-      "location_description": "33 The Avenue, Loughton IG10 4PX",
-      "story": "Captain Richard Stannard VC, hero of the evacuation of Namsos, lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Capt Richard Stannard VC",
-        "inscription_or_summary": "Captain Richard Stannard VC, hero of the evacuation of Namsos, lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Roding Valley High School / Winifred Darch",
-      "aliases": [
-        "Roding Valley High School / Winifred Darch",
-        "Roding Valley High School / Winifred Darch blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "education"
-      ],
-      "coordinates": {
-        "latitude": 51.6549,
-        "longitude": 0.0678,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Roding Valley High School, Alderton Hill, Loughton IG10 3JA",
-      "location_description": "Roding Valley High School, Alderton Hill, Loughton IG10 3JA",
-      "story": "County High School for Girls opened here in 1908; children's author Winifred Darch is associated with the school.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Roding Valley High School / Winifred Darch",
-        "inscription_or_summary": "County High School for Girls opened here in 1908; children's author Winifred Darch is associated with the school.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Pte Sidney Godley VC",
-      "aliases": [
-        "Pte Sidney Godley VC",
-        "Pte Sidney Godley VC blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "war history"
-      ],
-      "coordinates": {
-        "latitude": 51.6538,
-        "longitude": 0.0865,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "164 Torrington Drive, Loughton IG10 3TD",
-      "location_description": "164 Torrington Drive, Loughton IG10 3TD",
-      "story": "Private Sidney Godley, awarded the first VC of the Great War, lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Pte Sidney Godley VC",
-        "inscription_or_summary": "Private Sidney Godley, awarded the first VC of the Great War, lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Arthur Morrison",
-      "aliases": [
-        "Arthur Morrison",
-        "Arthur Morrison blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "literature"
-      ],
-      "coordinates": {
-        "latitude": 51.647,
-        "longitude": 0.055,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "70 High Road, Loughton IG10 4QU",
-      "location_description": "70 High Road, Loughton IG10 4QU",
-      "story": "Author and Japanese art writer Arthur Morrison lived near this site.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Arthur Morrison",
-        "inscription_or_summary": "Author and Japanese art writer Arthur Morrison lived near this site.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: William Chapman Waller",
-      "aliases": [
-        "William Chapman Waller",
-        "William Chapman Waller blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "local history"
-      ],
-      "coordinates": {
-        "latitude": 51.648,
-        "longitude": 0.06,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "11 Wallers Hoppett, Loughton IG10 1SP",
-      "location_description": "11 Wallers Hoppett, Loughton IG10 1SP",
-      "story": "Historian William Chapman Waller lived at Ash Green, whose garden became this street.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "William Chapman Waller",
-        "inscription_or_summary": "Historian William Chapman Waller lived at Ash Green, whose garden became this street.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: John Finlaison",
-      "aliases": [
-        "John Finlaison",
-        "John Finlaison blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "science"
-      ],
-      "coordinates": {
-        "latitude": 51.647,
-        "longitude": 0.055,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "97 High Road, Loughton IG10 4JD",
-      "location_description": "97 High Road, Loughton IG10 4JD",
-      "story": "Government actuary John Finlaison lived near this site.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "John Finlaison",
-        "inscription_or_summary": "Government actuary John Finlaison lived near this site.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: George Granville Barker",
-      "aliases": [
-        "George Granville Barker",
-        "George Granville Barker blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "poetry"
-      ],
-      "coordinates": {
-        "latitude": 51.649,
-        "longitude": 0.0495,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "116 Forest Road, Loughton IG10 1EQ",
-      "location_description": "116 Forest Road, Loughton IG10 1EQ",
-      "story": "Poet George Barker was born here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "George Granville Barker",
-        "inscription_or_summary": "Poet George Barker was born here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Marine William Sparks DSM",
-      "aliases": [
-        "Marine William Sparks DSM",
-        "Marine William Sparks DSM blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "war history"
-      ],
-      "coordinates": {
-        "latitude": 51.6535,
-        "longitude": 0.0815,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "47 Poundfield Road, Loughton IG10 3JN",
-      "location_description": "47 Poundfield Road, Loughton IG10 3JN",
-      "story": "Cockleshell Hero William Sparks lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Marine William Sparks DSM",
-        "inscription_or_summary": "Cockleshell Hero William Sparks lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Thomas Willingale",
-      "aliases": [
-        "Thomas Willingale",
-        "Thomas Willingale blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "Epping Forest history"
-      ],
-      "coordinates": {
-        "latitude": 51.649,
-        "longitude": 0.0568,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "St John's churchyard wall, Church Lane, Loughton IG10 1RZ",
-      "location_description": "St John's churchyard wall, Church Lane, Loughton IG10 1RZ",
-      "story": "Thomas Willingale, the lopper who helped save Epping Forest, is buried in this churchyard.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Thomas Willingale",
-        "inscription_or_summary": "Thomas Willingale, the lopper who helped save Epping Forest, is buried in this churchyard.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: James Cubitt",
-      "aliases": [
-        "James Cubitt",
-        "James Cubitt blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "architecture"
-      ],
-      "coordinates": {
-        "latitude": 51.647,
-        "longitude": 0.055,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "311 High Road, Loughton IG10 1AH / formerly 2 Traps Hill",
-      "location_description": "311 High Road, Loughton IG10 1AH / formerly 2 Traps Hill",
-      "story": "Architect James Cubitt lived and died here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "James Cubitt",
-        "inscription_or_summary": "Architect James Cubitt lived and died here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Samuel Hazzledine Warren",
-      "aliases": [
-        "Samuel Hazzledine Warren",
-        "Samuel Hazzledine Warren blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "geology"
-      ],
-      "coordinates": {
-        "latitude": 51.646,
-        "longitude": 0.048,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "49 Forest View Road, Loughton IG10 4DY",
-      "location_description": "49 Forest View Road, Loughton IG10 4DY",
-      "story": "Palaeontologist and geologist S. H. Warren lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Samuel Hazzledine Warren",
-        "inscription_or_summary": "Palaeontologist and geologist S. H. Warren lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Millais Culpin",
-      "aliases": [
-        "Millais Culpin",
-        "Millais Culpin blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "medicine"
-      ],
-      "coordinates": {
-        "latitude": 51.6482,
-        "longitude": 0.0565,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Meads, 77 Church Hill, Loughton IG10 1QP",
-      "location_description": "Meads, 77 Church Hill, Loughton IG10 1QP",
-      "story": "Medical psychologist Millais Culpin lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Millais Culpin",
-        "inscription_or_summary": "Medical psychologist Millais Culpin lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Ron Greenwood",
-      "aliases": [
-        "Ron Greenwood",
-        "Ron Greenwood blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "sport"
-      ],
-      "coordinates": {
-        "latitude": 51.6528,
-        "longitude": 0.0788,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "22 Brooklyn Avenue, Loughton IG10 1BL",
-      "location_description": "22 Brooklyn Avenue, Loughton IG10 1BL",
-      "story": "England football manager Ron Greenwood lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Ron Greenwood",
-        "inscription_or_summary": "England football manager Ron Greenwood lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Everard Richard Calthrop",
-      "aliases": [
-        "Everard Richard Calthrop",
-        "Everard Richard Calthrop blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "engineering"
-      ],
-      "coordinates": {
-        "latitude": 51.652,
-        "longitude": 0.089,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Goldings, Clays Lane, Loughton IG10 2RZ",
-      "location_description": "Goldings, Clays Lane, Loughton IG10 2RZ",
-      "story": "Engineer and parachute pioneer Everard Richard Calthrop lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Everard Richard Calthrop",
-        "inscription_or_summary": "Engineer and parachute pioneer Everard Richard Calthrop lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Gladys Mills",
-      "aliases": [
-        "Gladys Mills",
-        "Gladys Mills blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "music"
-      ],
-      "coordinates": {
-        "latitude": 51.6544,
-        "longitude": 0.0833,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "43 Barncroft Close, Loughton IG10 3EU",
-      "location_description": "43 Barncroft Close, Loughton IG10 3EU",
-      "story": "Pianist Gladys Mills lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Gladys Mills",
-        "inscription_or_summary": "Pianist Gladys Mills lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Doctor Fred Stoker",
-      "aliases": [
-        "Doctor Fred Stoker",
-        "Doctor Fred Stoker blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "medicine"
-      ],
-      "coordinates": {
-        "latitude": 51.6412,
-        "longitude": 0.0532,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "83 Baldwins Hill, Loughton IG10 1SN",
-      "location_description": "83 Baldwins Hill, Loughton IG10 1SN",
-      "story": "Doctor and horticulturist Fred Stoker lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Doctor Fred Stoker",
-        "inscription_or_summary": "Doctor and horticulturist Fred Stoker lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Mary Anne Clarke",
-      "aliases": [
-        "Mary Anne Clarke",
-        "Mary Anne Clarke blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "royal history"
-      ],
-      "coordinates": {
-        "latitude": 51.651,
-        "longitude": 0.0535,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Loughton Lodge, Steeds Way, Loughton IG10 1HX",
-      "location_description": "Loughton Lodge, Steeds Way, Loughton IG10 1HX",
-      "story": "Royal mistress Mary Anne Clarke lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Mary Anne Clarke",
-        "inscription_or_summary": "Royal mistress Mary Anne Clarke lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Ethel Haslam",
-      "aliases": [
-        "Ethel Haslam",
-        "Ethel Haslam blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "suffrage"
-      ],
-      "coordinates": {
-        "latitude": 51.645,
-        "longitude": 0.0515,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "3 Spareleaze Hill, Loughton IG10 1BS",
-      "location_description": "3 Spareleaze Hill, Loughton IG10 1BS",
-      "story": "Suffragette Ethel Haslam lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Ethel Haslam",
-        "inscription_or_summary": "Suffragette Ethel Haslam lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Sir Rowland Hill and Francis Worrall Stevens",
-      "aliases": [
-        "Sir Rowland Hill and Francis Worrall Stevens",
-        "Sir Rowland Hill and Francis Worrall Stevens blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "postal history"
-      ],
-      "coordinates": {
-        "latitude": 51.6464,
-        "longitude": 0.0495,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "The Hollies, 11 Albion Hill, Loughton IG10 4RA",
-      "location_description": "The Hollies, 11 Albion Hill, Loughton IG10 4RA",
-      "story": "Postage stamp pioneers Sir Rowland Hill and Francis Worrall Stevens lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Sir Rowland Hill and Francis Worrall Stevens",
-        "inscription_or_summary": "Postage stamp pioneers Sir Rowland Hill and Francis Worrall Stevens lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Rupert Arnold Brabner and Jean Gwenneth Brabner",
-      "aliases": [
-        "Rupert Arnold Brabner and Jean Gwenneth Brabner",
-        "Rupert Arnold Brabner and Jean Gwenneth Brabner blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "war history"
-      ],
-      "coordinates": {
-        "latitude": 51.645,
-        "longitude": 0.0515,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "47 Spareleaze Hill, Loughton IG10 1BS",
-      "location_description": "47 Spareleaze Hill, Loughton IG10 1BS",
-      "story": "Fleet Air Arm officer Rupert Brabner and doctor Jean Brabner lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Rupert Arnold Brabner and Jean Gwenneth Brabner",
-        "inscription_or_summary": "Fleet Air Arm officer Rupert Brabner and doctor Jean Brabner lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Donald W Gillingham",
-      "aliases": [
-        "Donald W Gillingham",
-        "Donald W Gillingham blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "literature"
-      ],
-      "coordinates": {
-        "latitude": 51.6497,
-        "longitude": 0.061,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "28 Roding Road, Loughton IG10 3ED",
-      "location_description": "28 Roding Road, Loughton IG10 3ED",
-      "story": "Author Donald W Gillingham lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Donald W Gillingham",
-        "inscription_or_summary": "Author Donald W Gillingham lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Sir Frank Baines",
-      "aliases": [
-        "Sir Frank Baines",
-        "Sir Frank Baines blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "architecture"
-      ],
-      "coordinates": {
-        "latitude": 51.6428,
-        "longitude": 0.0505,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "41 The Uplands, Loughton IG10 1NQ",
-      "location_description": "41 The Uplands, Loughton IG10 1NQ",
-      "story": "Architect Sir Frank Baines lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Sir Frank Baines",
-        "inscription_or_summary": "Architect Sir Frank Baines lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Sir Hugh Cairns",
-      "aliases": [
-        "Sir Hugh Cairns",
-        "Sir Hugh Cairns blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "medicine"
-      ],
-      "coordinates": {
-        "latitude": 51.6445,
-        "longitude": 0.0545,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Woodcroft School, Whitakers Way, Loughton IG10 1SQ",
-      "location_description": "Woodcroft School, Whitakers Way, Loughton IG10 1SQ",
-      "story": "Neurosurgeon and crash-helmet advocate Sir Hugh Cairns lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Sir Hugh Cairns",
-        "inscription_or_summary": "Neurosurgeon and crash-helmet advocate Sir Hugh Cairns lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: William Brown Macdougall and Margaret Armour",
-      "aliases": [
-        "William Brown Macdougall and Margaret Armour",
-        "William Brown Macdougall and Margaret Armour blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "art",
-        "literature"
-      ],
-      "coordinates": {
-        "latitude": 51.65,
-        "longitude": 0.09,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Elm Cottage, Debden Road, Loughton IG10 2NY",
-      "location_description": "Elm Cottage, Debden Road, Loughton IG10 2NY",
-      "story": "Artist William Brown Macdougall and author Margaret Armour lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "William Brown Macdougall and Margaret Armour",
-        "inscription_or_summary": "Artist William Brown Macdougall and author Margaret Armour lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Loughton Red Cross Military Hospital",
-      "aliases": [
-        "Loughton Red Cross Military Hospital",
-        "Loughton Red Cross Military Hospital blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "war history",
-        "medicine"
-      ],
-      "coordinates": {
-        "latitude": 51.6468,
-        "longitude": 0.0452,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "1 Connaught Avenue, Loughton IG10 4DP",
-      "location_description": "1 Connaught Avenue, Loughton IG10 4DP",
-      "story": "Braeside served as the Loughton Red Cross Military Hospital, 1914-1919.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Loughton Red Cross Military Hospital",
-        "inscription_or_summary": "Braeside served as the Loughton Red Cross Military Hospital, 1914-1919.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Ralph Russell",
-      "aliases": [
-        "Ralph Russell",
-        "Ralph Russell blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "scholarship"
-      ],
-      "coordinates": {
-        "latitude": 51.6508,
-        "longitude": 0.057,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "6 Queens Road, Loughton IG10 1RS",
-      "location_description": "6 Queens Road, Loughton IG10 1RS",
-      "story": "Urdu scholar Ralph Russell lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Ralph Russell",
-        "inscription_or_summary": "Urdu scholar Ralph Russell lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Margaret Walker and Joan Littlewood",
-      "aliases": [
-        "Margaret Walker and Joan Littlewood",
-        "Margaret Walker and Joan Littlewood blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "theatre"
-      ],
-      "coordinates": {
-        "latitude": 51.647,
-        "longitude": 0.077,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "East 15 Acting School, Hatfields, Rectory Lane, Loughton IG10 3RY",
-      "location_description": "East 15 Acting School, Hatfields, Rectory Lane, Loughton IG10 3RY",
-      "story": "Margaret Walker and Theatre Workshop director Joan Littlewood are remembered at East 15.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Margaret Walker and Joan Littlewood",
-        "inscription_or_summary": "Margaret Walker and Theatre Workshop director Joan Littlewood are remembered at East 15.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Ruth Rendell",
-      "aliases": [
-        "Ruth Rendell",
-        "Ruth Rendell blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "literature"
-      ],
-      "coordinates": {
-        "latitude": 51.6508,
-        "longitude": 0.0588,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "45 Millsmead Way, Loughton IG10 1LR",
-      "location_description": "45 Millsmead Way, Loughton IG10 1LR",
-      "story": "Crime novelist Ruth Rendell lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Ruth Rendell",
-        "inscription_or_summary": "Crime novelist Ruth Rendell lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Former Loughton Bus Garage",
-      "aliases": [
-        "Former Loughton Bus Garage",
-        "Former Loughton Bus Garage blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "transport"
-      ],
-      "coordinates": {
-        "latitude": 51.6482,
-        "longitude": 0.0565,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Homebase, 140 Church Hill, Loughton IG10 1LJ",
-      "location_description": "Homebase, 140 Church Hill, Loughton IG10 1LJ",
-      "story": "Home of the former Loughton Bus Garage, 1923-1953.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Former Loughton Bus Garage",
-        "inscription_or_summary": "Home of the former Loughton Bus Garage, 1923-1953.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Oriolet Fruitarian Hospital and Dr Josiah Oldfield",
-      "aliases": [
-        "Oriolet Fruitarian Hospital and Dr Josiah Oldfield",
-        "Oriolet Fruitarian Hospital and Dr Josiah Oldfield blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "medicine"
-      ],
-      "coordinates": {
-        "latitude": 51.652,
-        "longitude": 0.07,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "91 Staples Road, Loughton IG10 1HR",
-      "location_description": "91 Staples Road, Loughton IG10 1HR",
-      "story": "Site of the Oriolet Fruitarian Hospital and its director Dr Josiah Oldfield.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Oriolet Fruitarian Hospital and Dr Josiah Oldfield",
-        "inscription_or_summary": "Site of the Oriolet Fruitarian Hospital and its director Dr Josiah Oldfield.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Lionel Lord Murray of Epping Forest",
-      "aliases": [
-        "Lionel Lord Murray of Epping Forest",
-        "Lionel Lord Murray of Epping Forest blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "labour history"
-      ],
-      "coordinates": {
-        "latitude": 51.6463,
-        "longitude": 0.0465,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "29 The Crescent, Loughton IG10 4PY",
-      "location_description": "29 The Crescent, Loughton IG10 4PY",
-      "story": "Trade unionist Lionel Lord Murray lived here.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Lionel Lord Murray of Epping Forest",
-        "inscription_or_summary": "Trade unionist Lionel Lord Murray lived here.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Rev William Dawson",
-      "aliases": [
-        "Rev William Dawson",
-        "Rev William Dawson blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Loughton Town Council blue plaques",
-        "local history"
-      ],
-      "coordinates": {
-        "latitude": 51.6419,
-        "longitude": 0.0558,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "The Loughton Club, 8 Station Road, Loughton IG10 4NX",
-      "location_description": "The Loughton Club, 8 Station Road, Loughton IG10 4NX",
-      "story": "Rev William Dawson gave this clubhouse to Loughton in 1901.",
-      "plaque": {
-        "scheme_or_authority": "Loughton Town Council blue plaques",
-        "subject": "Rev William Dawson",
-        "inscription_or_summary": "Rev William Dawson gave this clubhouse to Loughton in 1901.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
-      ],
-      "external_links": [
-        {
-          "title": "Loughton Town Council:  UserFiles",
-          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Lucien Pissarro",
-      "aliases": [
-        "Lucien Pissarro",
-        "Lucien Pissarro blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Epping Town Council blue plaques",
-        "art"
-      ],
-      "coordinates": {
-        "latitude": 51.6985,
-        "longitude": 0.1108,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "44 Hemnall Street, Epping",
-      "location_description": "44 Hemnall Street, Epping",
-      "story": "Artist Lucien Pissarro is commemorated at 44 Hemnall Street.",
-      "plaque": {
-        "scheme_or_authority": "Epping Town Council blue plaques",
-        "subject": "Lucien Pissarro",
-        "inscription_or_summary": "Artist Lucien Pissarro is commemorated at 44 Hemnall Street.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
-      ],
-      "external_links": [
-        {
-          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
-          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Henry Doubleday",
-      "aliases": [
-        "Henry Doubleday",
-        "Henry Doubleday blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Epping Town Council blue plaques",
-        "natural history"
-      ],
-      "coordinates": {
-        "latitude": 51.6998,
-        "longitude": 0.1118,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Buttercross Lane, Epping",
-      "location_description": "Buttercross Lane, Epping",
-      "story": "Naturalist Henry Doubleday is commemorated in Buttercross Lane.",
-      "plaque": {
-        "scheme_or_authority": "Epping Town Council blue plaques",
-        "subject": "Henry Doubleday",
-        "inscription_or_summary": "Naturalist Henry Doubleday is commemorated in Buttercross Lane.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
-      ],
-      "external_links": [
-        {
-          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
-          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Winston Churchill",
-      "aliases": [
-        "Winston Churchill",
-        "Winston Churchill blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Epping Town Council blue plaques",
-        "politics"
-      ],
-      "coordinates": {
-        "latitude": 51.7005,
-        "longitude": 0.11,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Marks & Spencer, High Street, Epping",
-      "location_description": "Marks & Spencer, High Street, Epping",
-      "story": "Former Prime Minister and Epping MP Winston Churchill is commemorated on the High Street.",
-      "plaque": {
-        "scheme_or_authority": "Epping Town Council blue plaques",
-        "subject": "Winston Churchill",
-        "inscription_or_summary": "Former Prime Minister and Epping MP Winston Churchill is commemorated on the High Street.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
-      ],
-      "external_links": [
-        {
-          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
-          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: The Silley Family",
-      "aliases": [
-        "The Silley Family",
-        "The Silley Family blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Epping Town Council blue plaques",
-        "local history"
-      ],
-      "coordinates": {
-        "latitude": 51.7035,
-        "longitude": 0.1103,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "1 Theydon Grove, Epping",
-      "location_description": "1 Theydon Grove, Epping",
-      "story": "The Silley family are commemorated as kind land donors.",
-      "plaque": {
-        "scheme_or_authority": "Epping Town Council blue plaques",
-        "subject": "The Silley Family",
-        "inscription_or_summary": "The Silley family are commemorated as kind land donors.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
-      ],
-      "external_links": [
-        {
-          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
-          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Sidney Hills",
-      "aliases": [
-        "Sidney Hills",
-        "Sidney Hills blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Epping Town Council blue plaques",
-        "local history"
-      ],
-      "coordinates": {
-        "latitude": 51.7005,
-        "longitude": 0.11,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "45 High Street, Epping",
-      "location_description": "45 High Street, Epping",
-      "story": "Historian and author Sidney Hills is commemorated at 45 High Street.",
-      "plaque": {
-        "scheme_or_authority": "Epping Town Council blue plaques",
-        "subject": "Sidney Hills",
-        "inscription_or_summary": "Historian and author Sidney Hills is commemorated at 45 High Street.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
-      ],
-      "external_links": [
-        {
-          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
-          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Sir William Addison",
-      "aliases": [
-        "Sir William Addison",
-        "Sir William Addison blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Epping Town Council blue plaques",
-        "local history"
-      ],
-      "coordinates": {
-        "latitude": 51.6985,
-        "longitude": 0.1108,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Old Court House, Hemnall Street, Epping",
-      "location_description": "Old Court House, Hemnall Street, Epping",
-      "story": "Jurist, author and local historian Sir William Addison is commemorated at the old court house.",
-      "plaque": {
-        "scheme_or_authority": "Epping Town Council blue plaques",
-        "subject": "Sir William Addison",
-        "inscription_or_summary": "Jurist, author and local historian Sir William Addison is commemorated at the old court house.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
-      ],
-      "external_links": [
-        {
-          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
-          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Dr Joseph Clegg",
-      "aliases": [
-        "Dr Joseph Clegg",
-        "Dr Joseph Clegg blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Epping Town Council blue plaques",
-        "public health"
-      ],
-      "coordinates": {
-        "latitude": 51.7044,
-        "longitude": 0.111,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Epping Water Tower, High Street, Epping",
-      "location_description": "Epping Water Tower, High Street, Epping",
-      "story": "Water sanitation pioneer Dr Joseph Clegg is commemorated on Epping Water Tower.",
-      "plaque": {
-        "scheme_or_authority": "Epping Town Council blue plaques",
-        "subject": "Dr Joseph Clegg",
-        "inscription_or_summary": "Water sanitation pioneer Dr Joseph Clegg is commemorated on Epping Water Tower.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
-      ],
-      "external_links": [
-        {
-          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
-          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Jill Barklem",
-      "aliases": [
-        "Jill Barklem",
-        "Jill Barklem blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Epping Town Council blue plaques",
-        "literature"
-      ],
-      "coordinates": {
-        "latitude": 51.7004,
-        "longitude": 0.11,
-        "accuracy": "town approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Epping",
-      "location_description": "Epping",
-      "story": "Brambly Hedge author Jill Barklem is commemorated by Epping Town Council.",
-      "plaque": {
-        "scheme_or_authority": "Epping Town Council blue plaques",
-        "subject": "Jill Barklem",
-        "inscription_or_summary": "Brambly Hedge author Jill Barklem is commemorated by Epping Town Council.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
-      ],
-      "external_links": [
-        {
-          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
-          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Epping Charter Market",
-      "aliases": [
-        "Epping Charter Market",
-        "Epping Charter Market blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Epping Town Council blue plaques",
-        "market history"
-      ],
-      "coordinates": {
-        "latitude": 51.7005,
-        "longitude": 0.11,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Aves Optometrist, High Street, Epping",
-      "location_description": "Aves Optometrist, High Street, Epping",
-      "story": "Epping's Charter Market is commemorated on the High Street.",
-      "plaque": {
-        "scheme_or_authority": "Epping Town Council blue plaques",
-        "subject": "Epping Charter Market",
-        "inscription_or_summary": "Epping's Charter Market is commemorated on the High Street.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
-      ],
-      "external_links": [
-        {
-          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
-          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Ernest Wythes",
-      "aliases": [
-        "Ernest Wythes",
-        "Ernest Wythes blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Epping Town Council blue plaques",
-        "local history"
-      ],
-      "coordinates": {
-        "latitude": 51.6985,
-        "longitude": 0.1108,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Ernest Wythes House, Hemnall Street, Epping",
-      "location_description": "Ernest Wythes House, Hemnall Street, Epping",
-      "story": "Ernest Wythes is commemorated at Ernest Wythes House.",
-      "plaque": {
-        "scheme_or_authority": "Epping Town Council blue plaques",
-        "subject": "Ernest Wythes",
-        "inscription_or_summary": "Ernest Wythes is commemorated at Ernest Wythes House.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
-      ],
-      "external_links": [
-        {
-          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
-          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Epping Jaundice research",
-      "aliases": [
-        "Epping Jaundice research",
-        "Epping Jaundice research blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Epping Town Council blue plaques",
-        "medical history"
-      ],
-      "coordinates": {
-        "latitude": 51.7122,
-        "longitude": 0.1226,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "St Margaret's Hospital, Epping",
-      "location_description": "St Margaret's Hospital, Epping",
-      "story": "The work on Epping Jaundice is commemorated at St Margaret's Hospital.",
-      "plaque": {
-        "scheme_or_authority": "Epping Town Council blue plaques",
-        "subject": "Epping Jaundice research",
-        "inscription_or_summary": "The work on Epping Jaundice is commemorated at St Margaret's Hospital.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
-      ],
-      "external_links": [
-        {
-          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
-          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: William Morris birthplace site",
-      "aliases": [
-        "William Morris birthplace site",
-        "William Morris birthplace site blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Waltham Forest blue plaques",
-        "art",
-        "design"
-      ],
-      "coordinates": {
-        "latitude": 51.6538,
-        "longitude": 0.0458,
-        "accuracy": "very approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Elm House site, Walthamstow / Waltham Forest",
-      "location_description": "Elm House site, Walthamstow / Waltham Forest",
-      "story": "Plaque marking the birthplace site of William Morris.",
-      "plaque": {
-        "scheme_or_authority": "Waltham Forest blue plaques",
-        "subject": "William Morris birthplace site",
-        "inscription_or_summary": "Plaque marking the birthplace site of William Morris.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.walthamforest.gov.uk/libraries-arts-parks-and-leisure/arts-and-culture/local-heritage-blue-plaques"
-      ],
-      "external_links": [
-        {
-          "title": "Waltham Forest Council: libraries arts parks and leisure",
-          "url": "https://www.walthamforest.gov.uk/libraries-arts-parks-and-leisure/arts-and-culture/local-heritage-blue-plaques",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Old Watch House or Cage",
-      "aliases": [
-        "Old Watch House or Cage",
-        "Old Watch House or Cage blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Waltham Forest blue plaques",
-        "local history"
-      ],
-      "coordinates": {
-        "latitude": 51.6538,
-        "longitude": 0.0458,
-        "accuracy": "very approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Waltham Forest",
-      "location_description": "Waltham Forest",
-      "story": "Plaque marking the former Old Watch House or Cage, erected in 1765 and removed in 1912.",
-      "plaque": {
-        "scheme_or_authority": "Waltham Forest blue plaques",
-        "subject": "Old Watch House or Cage",
-        "inscription_or_summary": "Plaque marking the former Old Watch House or Cage, erected in 1765 and removed in 1912.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.walthamforest.gov.uk/libraries-arts-parks-and-leisure/arts-and-culture/local-heritage-blue-plaques"
-      ],
-      "external_links": [
-        {
-          "title": "Waltham Forest Council: libraries arts parks and leisure",
-          "url": "https://www.walthamforest.gov.uk/libraries-arts-parks-and-leisure/arts-and-culture/local-heritage-blue-plaques",
-          "type": "blue_plaque_or_council_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
-      "name": "Blue Plaque: Buckhurst Hill Heritage Locations",
-      "aliases": [
-        "Buckhurst Hill Heritage Locations",
-        "Buckhurst Hill Heritage Locations blue plaque"
-      ],
-      "category": [
-        "blue plaque",
-        "heritage plaque",
-        "Buckhurst Hill heritage plaques",
-        "local history"
-      ],
-      "coordinates": {
-        "latitude": 51.6241,
-        "longitude": 0.0449,
-        "accuracy": "street/area approximate"
-      },
-      "location_precision": "public_address_known_coordinates_approximate",
-      "address": "Buckhurst Hill",
-      "location_description": "Buckhurst Hill",
-      "story": "Buckhurst Hill Parish Council maintains heritage locations and plaque-style local history markers around the village.",
-      "plaque": {
-        "scheme_or_authority": "Buckhurst Hill heritage plaques",
-        "subject": "Buckhurst Hill Heritage Locations",
-        "inscription_or_summary": "Buckhurst Hill Parish Council maintains heritage locations and plaque-style local history markers around the village.",
-        "public_location": true
-      },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
-      "sources": [
-        "https://www.buckhursthillpc.gov.uk/our-community/heritage-locations/"
-      ],
-      "external_links": [
-        {
-          "title": "Buckhurst Hill Parish Council: our community",
-          "url": "https://www.buckhursthillpc.gov.uk/our-community/heritage-locations/",
           "type": "reference_source"
         }
       ],
@@ -5578,6 +3302,2210 @@
       "has_more_detail_links": true
     },
     {
+      "name": "Blue Plaque: Ken Campbell",
+      "aliases": [
+        "Ken Campbell Loughton",
+        "Elf of Epping Forest",
+        "Ken Campbell blue plaque",
+        "Ken Campbell"
+      ],
+      "category": [
+        "celebrity association",
+        "theatre",
+        "blue plaque",
+        "Loughton",
+        "heritage plaque",
+        "Loughton Town Council blue plaques"
+      ],
+      "coordinates": {
+        "latitude": 51.65946,
+        "longitude": 0.06252,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/55723"
+      },
+      "location_precision": "gps_precise",
+      "location_description": "Swiss Cottage, 40 Baldwins Hill, Loughton IG10 1SF",
+      "story": "Actor, director and playwright Ken Campbell lived here.",
+      "notable_people": [
+        {
+          "name": "Ken Campbell",
+          "connection": "Lived in Baldwins Hill, Loughton; nicknamed 'The Elf of Epping Forest'",
+          "privacy_level": "public plaque / historic association"
+        }
+      ],
+      "notes": "Good public-facing story because it has a Forest-specific nickname and plaque connection. Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Loughton",
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "address": "Swiss Cottage, 40 Baldwins Hill, Loughton IG10 1SF",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Ken Campbell",
+        "inscription_or_summary": "Actor, director and playwright Ken Campbell lived here.",
+        "public_location": true
+      },
+      "external_links": [
+        {
+          "title": "Wikipedia: wiki",
+          "url": "https://en.wikipedia.org/wiki/Loughton",
+          "type": "reference_source"
+        },
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Sir Jacob Epstein",
+      "aliases": [
+        "Sir Jacob Epstein",
+        "Sir Jacob Epstein blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "art"
+      ],
+      "coordinates": {
+        "latitude": 51.65994,
+        "longitude": 0.062773,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
+      },
+      "location_precision": "postcode_centroid",
+      "address": "Deerhurst, 50 Baldwins Hill, Loughton IG10 1SF",
+      "location_description": "Deerhurst, 50 Baldwins Hill, Loughton IG10 1SF",
+      "story": "Sculptor Sir Jacob Epstein lived here from 1933 to 1950.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Sir Jacob Epstein",
+        "inscription_or_summary": "Sculptor Sir Jacob Epstein lived here from 1933 to 1950.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: The Revd. Robert Hunter",
+      "aliases": [
+        "The Revd. Robert Hunter",
+        "The Revd. Robert Hunter blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "natural history"
+      ],
+      "coordinates": {
+        "latitude": 51.65079,
+        "longitude": 0.051345,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "Forest Villa, 7 Staples Road, Loughton IG10 1HP",
+      "location_description": "Forest Villa, 7 Staples Road, Loughton IG10 1HP",
+      "story": "Lexicographer and naturalist Robert Hunter lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "The Revd. Robert Hunter",
+        "inscription_or_summary": "Lexicographer and naturalist Robert Hunter lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: José Collins",
+      "aliases": [
+        "José Collins",
+        "José Collins blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "theatre"
+      ],
+      "coordinates": {
+        "latitude": 51.6426,
+        "longitude": 0.0497,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/1915"
+      },
+      "location_precision": "gps_precise",
+      "address": "Loughton Park Hotel / Collins Court, 107 High Road, Loughton IG10 4JB",
+      "location_description": "Loughton Park Hotel / Collins Court, 107 High Road, Loughton IG10 4JB",
+      "story": "Music hall artiste José Collins is commemorated here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "José Collins",
+        "inscription_or_summary": "Music hall artiste José Collins is commemorated here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: William Wymark Jacobs",
+      "aliases": [
+        "William Wymark Jacobs",
+        "William Wymark Jacobs blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "literature"
+      ],
+      "coordinates": {
+        "latitude": 51.658731,
+        "longitude": 0.069977,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "96 Goldings Road, Loughton IG10 2QN",
+      "location_description": "96 Goldings Road, Loughton IG10 2QN",
+      "story": "Short-story writer W. W. Jacobs lived near this site.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "William Wymark Jacobs",
+        "inscription_or_summary": "Short-story writer W. W. Jacobs lived near this site.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: William Bridges Adams and Sarah Flower Adams",
+      "aliases": [
+        "William Bridges Adams and Sarah Flower Adams",
+        "William Bridges Adams and Sarah Flower Adams blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "invention",
+        "poetry"
+      ],
+      "coordinates": {
+        "latitude": 51.654766,
+        "longitude": 0.058597,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "9 Woodbury Hill, Loughton IG10 1JB",
+      "location_description": "9 Woodbury Hill, Loughton IG10 1JB",
+      "story": "Inventor William Bridges Adams and poet/hymnodist Sarah Flower Adams lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "William Bridges Adams and Sarah Flower Adams",
+        "inscription_or_summary": "Inventor William Bridges Adams and poet/hymnodist Sarah Flower Adams lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Lopping Hall",
+      "aliases": [
+        "Lopping Hall",
+        "Lopping Hall blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "Epping Forest history"
+      ],
+      "coordinates": {
+        "latitude": 51.645063,
+        "longitude": 0.05318,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
+      },
+      "location_precision": "postcode_centroid",
+      "address": "Lopping Hall, 187-191 High Road, Loughton IG10 4LF",
+      "location_description": "Lopping Hall, 187-191 High Road, Loughton IG10 4LF",
+      "story": "Lopping Hall was built from compensation for loss of lopping rights in Epping Forest.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Lopping Hall",
+        "inscription_or_summary": "Lopping Hall was built from compensation for loss of lopping rights in Epping Forest.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Sir William Addison bookshop",
+      "aliases": [
+        "Sir William Addison bookshop",
+        "Sir William Addison bookshop blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "local history"
+      ],
+      "coordinates": {
+        "latitude": 51.64513,
+        "longitude": 0.052909,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "169 High Road, Loughton IG10 4LF",
+      "location_description": "169 High Road, Loughton IG10 4LF",
+      "story": "Site of a bookshop run by author, jurist and historian Sir William Addison.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Sir William Addison bookshop",
+        "inscription_or_summary": "Site of a bookshop run by author, jurist and historian Sir William Addison.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: John Strevens",
+      "aliases": [
+        "John Strevens",
+        "John Strevens blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "art"
+      ],
+      "coordinates": {
+        "latitude": 51.6425,
+        "longitude": 0.05058,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/1920"
+      },
+      "location_precision": "gps_precise",
+      "address": "8 Lower Park Road, Loughton IG10 4NA",
+      "location_description": "8 Lower Park Road, Loughton IG10 4NA",
+      "story": "Artist John Strevens lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "John Strevens",
+        "inscription_or_summary": "Artist John Strevens lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Capt Richard Stannard VC",
+      "aliases": [
+        "Capt Richard Stannard VC",
+        "Capt Richard Stannard VC blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "war history"
+      ],
+      "coordinates": {
+        "latitude": 51.64894,
+        "longitude": 0.08741,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/1923"
+      },
+      "location_precision": "gps_precise",
+      "address": "33 The Avenue, Loughton IG10 4PX",
+      "location_description": "33 The Avenue, Loughton IG10 4PX",
+      "story": "Captain Richard Stannard VC, hero of the evacuation of Namsos, lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Capt Richard Stannard VC",
+        "inscription_or_summary": "Captain Richard Stannard VC, hero of the evacuation of Namsos, lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Roding Valley High School / Winifred Darch",
+      "aliases": [
+        "Roding Valley High School / Winifred Darch",
+        "Roding Valley High School / Winifred Darch blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "education"
+      ],
+      "coordinates": {
+        "latitude": 51.643376,
+        "longitude": 0.056052,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
+      },
+      "location_precision": "postcode_centroid",
+      "address": "Roding Valley High School, Alderton Hill, Loughton IG10 3JA",
+      "location_description": "Roding Valley High School, Alderton Hill, Loughton IG10 3JA",
+      "story": "County High School for Girls opened here in 1908; children's author Winifred Darch is associated with the school.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Roding Valley High School / Winifred Darch",
+        "inscription_or_summary": "County High School for Girls opened here in 1908; children's author Winifred Darch is associated with the school.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Pte Sidney Godley VC",
+      "aliases": [
+        "Pte Sidney Godley VC",
+        "Pte Sidney Godley VC blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "war history"
+      ],
+      "coordinates": {
+        "latitude": 51.64894,
+        "longitude": 0.08741,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/1923"
+      },
+      "location_precision": "gps_precise",
+      "address": "164 Torrington Drive, Loughton IG10 3TD",
+      "location_description": "164 Torrington Drive, Loughton IG10 3TD",
+      "story": "Private Sidney Godley, awarded the first VC of the Great War, lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Pte Sidney Godley VC",
+        "inscription_or_summary": "Private Sidney Godley, awarded the first VC of the Great War, lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Arthur Morrison",
+      "aliases": [
+        "Arthur Morrison",
+        "Arthur Morrison blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "literature"
+      ],
+      "coordinates": {
+        "latitude": 51.6437,
+        "longitude": 0.05086,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/1924"
+      },
+      "location_precision": "gps_precise",
+      "address": "70 High Road, Loughton IG10 4QU",
+      "location_description": "70 High Road, Loughton IG10 4QU",
+      "story": "Author and Japanese art writer Arthur Morrison lived near this site.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Arthur Morrison",
+        "inscription_or_summary": "Author and Japanese art writer Arthur Morrison lived near this site.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: William Chapman Waller",
+      "aliases": [
+        "William Chapman Waller",
+        "William Chapman Waller blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "local history"
+      ],
+      "coordinates": {
+        "latitude": 51.65519,
+        "longitude": 0.059261,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
+      },
+      "location_precision": "postcode_centroid",
+      "address": "11 Wallers Hoppett, Loughton IG10 1SP",
+      "location_description": "11 Wallers Hoppett, Loughton IG10 1SP",
+      "story": "Historian William Chapman Waller lived at Ash Green, whose garden became this street.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "William Chapman Waller",
+        "inscription_or_summary": "Historian William Chapman Waller lived at Ash Green, whose garden became this street.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: John Finlaison",
+      "aliases": [
+        "John Finlaison",
+        "John Finlaison blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "science"
+      ],
+      "coordinates": {
+        "latitude": 51.641513,
+        "longitude": 0.047993,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "97 High Road, Loughton IG10 4JD",
+      "location_description": "97 High Road, Loughton IG10 4JD",
+      "story": "Government actuary John Finlaison lived near this site.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "John Finlaison",
+        "inscription_or_summary": "Government actuary John Finlaison lived near this site.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: George Granville Barker",
+      "aliases": [
+        "George Granville Barker",
+        "George Granville Barker blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "poetry"
+      ],
+      "coordinates": {
+        "latitude": 51.648579,
+        "longitude": 0.052585,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "116 Forest Road, Loughton IG10 1EQ",
+      "location_description": "116 Forest Road, Loughton IG10 1EQ",
+      "story": "Poet George Barker was born here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "George Granville Barker",
+        "inscription_or_summary": "Poet George Barker was born here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Marine William Sparks DSM",
+      "aliases": [
+        "Marine William Sparks DSM",
+        "Marine William Sparks DSM blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "war history"
+      ],
+      "coordinates": {
+        "latitude": 51.644418,
+        "longitude": 0.070226,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "47 Poundfield Road, Loughton IG10 3JN",
+      "location_description": "47 Poundfield Road, Loughton IG10 3JN",
+      "story": "Cockleshell Hero William Sparks lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Marine William Sparks DSM",
+        "inscription_or_summary": "Cockleshell Hero William Sparks lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Thomas Willingale",
+      "aliases": [
+        "Thomas Willingale",
+        "Thomas Willingale blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "Epping Forest history"
+      ],
+      "coordinates": {
+        "latitude": 51.654692,
+        "longitude": 0.062015,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
+      },
+      "location_precision": "postcode_centroid",
+      "address": "St John's churchyard wall, Church Lane, Loughton IG10 1RZ",
+      "location_description": "St John's churchyard wall, Church Lane, Loughton IG10 1RZ",
+      "story": "Thomas Willingale, the lopper who helped save Epping Forest, is buried in this churchyard.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Thomas Willingale",
+        "inscription_or_summary": "Thomas Willingale, the lopper who helped save Epping Forest, is buried in this churchyard.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: James Cubitt",
+      "aliases": [
+        "James Cubitt",
+        "James Cubitt blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "architecture"
+      ],
+      "coordinates": {
+        "latitude": 51.648937,
+        "longitude": 0.056896,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
+      },
+      "location_precision": "postcode_centroid",
+      "address": "311 High Road, Loughton IG10 1AH / formerly 2 Traps Hill",
+      "location_description": "311 High Road, Loughton IG10 1AH / formerly 2 Traps Hill",
+      "story": "Architect James Cubitt lived and died here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "James Cubitt",
+        "inscription_or_summary": "Architect James Cubitt lived and died here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Samuel Hazzledine Warren",
+      "aliases": [
+        "Samuel Hazzledine Warren",
+        "Samuel Hazzledine Warren blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "geology"
+      ],
+      "coordinates": {
+        "latitude": 51.647155,
+        "longitude": 0.049343,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "49 Forest View Road, Loughton IG10 4DY",
+      "location_description": "49 Forest View Road, Loughton IG10 4DY",
+      "story": "Palaeontologist and geologist S. H. Warren lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Samuel Hazzledine Warren",
+        "inscription_or_summary": "Palaeontologist and geologist S. H. Warren lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Millais Culpin",
+      "aliases": [
+        "Millais Culpin",
+        "Millais Culpin blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "medicine"
+      ],
+      "coordinates": {
+        "latitude": 51.653216,
+        "longitude": 0.062414,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "Meads, 77 Church Hill, Loughton IG10 1QP",
+      "location_description": "Meads, 77 Church Hill, Loughton IG10 1QP",
+      "story": "Medical psychologist Millais Culpin lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Millais Culpin",
+        "inscription_or_summary": "Medical psychologist Millais Culpin lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Ron Greenwood",
+      "aliases": [
+        "Ron Greenwood",
+        "Ron Greenwood blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "sport"
+      ],
+      "coordinates": {
+        "latitude": 51.6472,
+        "longitude": 0.05744,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/1935"
+      },
+      "location_precision": "gps_precise",
+      "address": "22 Brooklyn Avenue, Loughton IG10 1BL",
+      "location_description": "22 Brooklyn Avenue, Loughton IG10 1BL",
+      "story": "England football manager Ron Greenwood lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Ron Greenwood",
+        "inscription_or_summary": "England football manager Ron Greenwood lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Everard Richard Calthrop",
+      "aliases": [
+        "Everard Richard Calthrop",
+        "Everard Richard Calthrop blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "engineering"
+      ],
+      "coordinates": {
+        "latitude": 51.6613,
+        "longitude": 0.06768,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/1936"
+      },
+      "location_precision": "gps_precise",
+      "address": "Goldings, Clays Lane, Loughton IG10 2RZ",
+      "location_description": "Goldings, Clays Lane, Loughton IG10 2RZ",
+      "story": "Engineer and parachute pioneer Everard Richard Calthrop lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Everard Richard Calthrop",
+        "inscription_or_summary": "Engineer and parachute pioneer Everard Richard Calthrop lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Gladys Mills",
+      "aliases": [
+        "Gladys Mills",
+        "Gladys Mills blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "music"
+      ],
+      "coordinates": {
+        "latitude": 51.6416,
+        "longitude": 0.06514,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/1937"
+      },
+      "location_precision": "gps_precise",
+      "address": "43 Barncroft Close, Loughton IG10 3EU",
+      "location_description": "43 Barncroft Close, Loughton IG10 3EU",
+      "story": "Pianist Gladys Mills lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Gladys Mills",
+        "inscription_or_summary": "Pianist Gladys Mills lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Doctor Fred Stoker",
+      "aliases": [
+        "Doctor Fred Stoker",
+        "Doctor Fred Stoker blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "medicine"
+      ],
+      "coordinates": {
+        "latitude": 51.66124,
+        "longitude": 0.065059,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
+      },
+      "location_precision": "postcode_centroid",
+      "address": "83 Baldwins Hill, Loughton IG10 1SN",
+      "location_description": "83 Baldwins Hill, Loughton IG10 1SN",
+      "story": "Doctor and horticulturist Fred Stoker lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Doctor Fred Stoker",
+        "inscription_or_summary": "Doctor and horticulturist Fred Stoker lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Mary Anne Clarke",
+      "aliases": [
+        "Mary Anne Clarke",
+        "Mary Anne Clarke blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "royal history"
+      ],
+      "coordinates": {
+        "latitude": 51.653161,
+        "longitude": 0.05703,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
+      },
+      "location_precision": "postcode_centroid",
+      "address": "Loughton Lodge, Steeds Way, Loughton IG10 1HX",
+      "location_description": "Loughton Lodge, Steeds Way, Loughton IG10 1HX",
+      "story": "Royal mistress Mary Anne Clarke lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Mary Anne Clarke",
+        "inscription_or_summary": "Royal mistress Mary Anne Clarke lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Ethel Haslam",
+      "aliases": [
+        "Ethel Haslam",
+        "Ethel Haslam blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "suffrage"
+      ],
+      "coordinates": {
+        "latitude": 51.646125,
+        "longitude": 0.062017,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "3 Spareleaze Hill, Loughton IG10 1BS",
+      "location_description": "3 Spareleaze Hill, Loughton IG10 1BS",
+      "story": "Suffragette Ethel Haslam lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Ethel Haslam",
+        "inscription_or_summary": "Suffragette Ethel Haslam lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Sir Rowland Hill and Francis Worrall Stevens",
+      "aliases": [
+        "Sir Rowland Hill and Francis Worrall Stevens",
+        "Sir Rowland Hill and Francis Worrall Stevens blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "postal history"
+      ],
+      "coordinates": {
+        "latitude": 51.642098,
+        "longitude": 0.044128,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "The Hollies, 11 Albion Hill, Loughton IG10 4RA",
+      "location_description": "The Hollies, 11 Albion Hill, Loughton IG10 4RA",
+      "story": "Postage stamp pioneers Sir Rowland Hill and Francis Worrall Stevens lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Sir Rowland Hill and Francis Worrall Stevens",
+        "inscription_or_summary": "Postage stamp pioneers Sir Rowland Hill and Francis Worrall Stevens lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Rupert Arnold Brabner and Jean Gwenneth Brabner",
+      "aliases": [
+        "Rupert Arnold Brabner and Jean Gwenneth Brabner",
+        "Rupert Arnold Brabner and Jean Gwenneth Brabner blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "war history"
+      ],
+      "coordinates": {
+        "latitude": 51.646125,
+        "longitude": 0.062017,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "47 Spareleaze Hill, Loughton IG10 1BS",
+      "location_description": "47 Spareleaze Hill, Loughton IG10 1BS",
+      "story": "Fleet Air Arm officer Rupert Brabner and doctor Jean Brabner lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Rupert Arnold Brabner and Jean Gwenneth Brabner",
+        "inscription_or_summary": "Fleet Air Arm officer Rupert Brabner and doctor Jean Brabner lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Donald W Gillingham",
+      "aliases": [
+        "Donald W Gillingham",
+        "Donald W Gillingham blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "literature"
+      ],
+      "coordinates": {
+        "latitude": 51.64136,
+        "longitude": 0.05833,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/55696"
+      },
+      "location_precision": "gps_precise",
+      "address": "28 Roding Road, Loughton IG10 3ED",
+      "location_description": "28 Roding Road, Loughton IG10 3ED",
+      "story": "Author Donald W Gillingham lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Donald W Gillingham",
+        "inscription_or_summary": "Author Donald W Gillingham lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Sir Frank Baines",
+      "aliases": [
+        "Sir Frank Baines",
+        "Sir Frank Baines blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "architecture"
+      ],
+      "coordinates": {
+        "latitude": 51.651193,
+        "longitude": 0.061247,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "41 The Uplands, Loughton IG10 1NQ",
+      "location_description": "41 The Uplands, Loughton IG10 1NQ",
+      "story": "Architect Sir Frank Baines lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Sir Frank Baines",
+        "inscription_or_summary": "Architect Sir Frank Baines lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Sir Hugh Cairns",
+      "aliases": [
+        "Sir Hugh Cairns",
+        "Sir Hugh Cairns blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "medicine"
+      ],
+      "coordinates": {
+        "latitude": 51.65995,
+        "longitude": 0.06392,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/8811"
+      },
+      "location_precision": "gps_precise",
+      "address": "Woodcroft School, Whitakers Way, Loughton IG10 1SQ",
+      "location_description": "Woodcroft School, Whitakers Way, Loughton IG10 1SQ",
+      "story": "Neurosurgeon and crash-helmet advocate Sir Hugh Cairns lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Sir Hugh Cairns",
+        "inscription_or_summary": "Neurosurgeon and crash-helmet advocate Sir Hugh Cairns lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: William Brown Macdougall and Margaret Armour",
+      "aliases": [
+        "William Brown Macdougall and Margaret Armour",
+        "William Brown Macdougall and Margaret Armour blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "art",
+        "literature"
+      ],
+      "coordinates": {
+        "latitude": 51.664569,
+        "longitude": 0.077184,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
+      },
+      "location_precision": "postcode_centroid",
+      "address": "Elm Cottage, Debden Road, Loughton IG10 2NY",
+      "location_description": "Elm Cottage, Debden Road, Loughton IG10 2NY",
+      "story": "Artist William Brown Macdougall and author Margaret Armour lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "William Brown Macdougall and Margaret Armour",
+        "inscription_or_summary": "Artist William Brown Macdougall and author Margaret Armour lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Loughton Red Cross Military Hospital",
+      "aliases": [
+        "Loughton Red Cross Military Hospital",
+        "Loughton Red Cross Military Hospital blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "war history",
+        "medicine"
+      ],
+      "coordinates": {
+        "latitude": 51.64454,
+        "longitude": 0.051791,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "1 Connaught Avenue, Loughton IG10 4DP",
+      "location_description": "1 Connaught Avenue, Loughton IG10 4DP",
+      "story": "Braeside served as the Loughton Red Cross Military Hospital, 1914-1919.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Loughton Red Cross Military Hospital",
+        "inscription_or_summary": "Braeside served as the Loughton Red Cross Military Hospital, 1914-1919.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Ralph Russell",
+      "aliases": [
+        "Ralph Russell",
+        "Ralph Russell blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "scholarship"
+      ],
+      "coordinates": {
+        "latitude": 51.652846,
+        "longitude": 0.059188,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "6 Queens Road, Loughton IG10 1RS",
+      "location_description": "6 Queens Road, Loughton IG10 1RS",
+      "story": "Urdu scholar Ralph Russell lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Ralph Russell",
+        "inscription_or_summary": "Urdu scholar Ralph Russell lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Margaret Walker and Joan Littlewood",
+      "aliases": [
+        "Margaret Walker and Joan Littlewood",
+        "Margaret Walker and Joan Littlewood blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "theatre"
+      ],
+      "coordinates": {
+        "latitude": 51.649954,
+        "longitude": 0.076776,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
+      },
+      "location_precision": "postcode_centroid",
+      "address": "East 15 Acting School, Hatfields, Rectory Lane, Loughton IG10 3RY",
+      "location_description": "East 15 Acting School, Hatfields, Rectory Lane, Loughton IG10 3RY",
+      "story": "Margaret Walker and Theatre Workshop director Joan Littlewood are remembered at East 15.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Margaret Walker and Joan Littlewood",
+        "inscription_or_summary": "Margaret Walker and Theatre Workshop director Joan Littlewood are remembered at East 15.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Ruth Rendell",
+      "aliases": [
+        "Ruth Rendell",
+        "Ruth Rendell blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "literature"
+      ],
+      "coordinates": {
+        "latitude": 51.656443,
+        "longitude": 0.065121,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "45 Millsmead Way, Loughton IG10 1LR",
+      "location_description": "45 Millsmead Way, Loughton IG10 1LR",
+      "story": "Crime novelist Ruth Rendell lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Ruth Rendell",
+        "inscription_or_summary": "Crime novelist Ruth Rendell lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Former Loughton Bus Garage",
+      "aliases": [
+        "Former Loughton Bus Garage",
+        "Former Loughton Bus Garage blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "transport"
+      ],
+      "coordinates": {
+        "latitude": 51.656115,
+        "longitude": 0.066532,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
+      },
+      "location_precision": "postcode_centroid",
+      "address": "Homebase, 140 Church Hill, Loughton IG10 1LJ",
+      "location_description": "Homebase, 140 Church Hill, Loughton IG10 1LJ",
+      "story": "Home of the former Loughton Bus Garage, 1923-1953.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Former Loughton Bus Garage",
+        "inscription_or_summary": "Home of the former Loughton Bus Garage, 1923-1953.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Oriolet Fruitarian Hospital and Dr Josiah Oldfield",
+      "aliases": [
+        "Oriolet Fruitarian Hospital and Dr Josiah Oldfield",
+        "Oriolet Fruitarian Hospital and Dr Josiah Oldfield blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "medicine"
+      ],
+      "coordinates": {
+        "latitude": 51.651574,
+        "longitude": 0.053977,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "91 Staples Road, Loughton IG10 1HR",
+      "location_description": "91 Staples Road, Loughton IG10 1HR",
+      "story": "Site of the Oriolet Fruitarian Hospital and its director Dr Josiah Oldfield.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Oriolet Fruitarian Hospital and Dr Josiah Oldfield",
+        "inscription_or_summary": "Site of the Oriolet Fruitarian Hospital and its director Dr Josiah Oldfield.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Lionel Lord Murray of Epping Forest",
+      "aliases": [
+        "Lionel Lord Murray of Epping Forest",
+        "Lionel Lord Murray of Epping Forest blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "labour history"
+      ],
+      "coordinates": {
+        "latitude": 51.63953,
+        "longitude": 0.050152,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "29 The Crescent, Loughton IG10 4PY",
+      "location_description": "29 The Crescent, Loughton IG10 4PY",
+      "story": "Trade unionist Lionel Lord Murray lived here.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Lionel Lord Murray of Epping Forest",
+        "inscription_or_summary": "Trade unionist Lionel Lord Murray lived here.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Rev William Dawson",
+      "aliases": [
+        "Rev William Dawson",
+        "Rev William Dawson blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Loughton Town Council blue plaques",
+        "local history"
+      ],
+      "coordinates": {
+        "latitude": 51.64552,
+        "longitude": 0.05417,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/53205"
+      },
+      "location_precision": "gps_precise",
+      "address": "The Loughton Club, 8 Station Road, Loughton IG10 4NX",
+      "location_description": "The Loughton Club, 8 Station Road, Loughton IG10 4NX",
+      "story": "Rev William Dawson gave this clubhouse to Loughton in 1901.",
+      "plaque": {
+        "scheme_or_authority": "Loughton Town Council blue plaques",
+        "subject": "Rev William Dawson",
+        "inscription_or_summary": "Rev William Dawson gave this clubhouse to Loughton in 1901.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
+      ],
+      "external_links": [
+        {
+          "title": "Loughton Town Council:  UserFiles",
+          "url": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Lucien Pissarro",
+      "aliases": [
+        "Lucien Pissarro",
+        "Lucien Pissarro blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Epping Town Council blue plaques",
+        "art"
+      ],
+      "coordinates": {
+        "latitude": 51.699779,
+        "longitude": 0.113679,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "44 Hemnall Street, Epping",
+      "location_description": "44 Hemnall Street, Epping",
+      "story": "Artist Lucien Pissarro is commemorated at 44 Hemnall Street.",
+      "plaque": {
+        "scheme_or_authority": "Epping Town Council blue plaques",
+        "subject": "Lucien Pissarro",
+        "inscription_or_summary": "Artist Lucien Pissarro is commemorated at 44 Hemnall Street.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
+      ],
+      "external_links": [
+        {
+          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
+          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Henry Doubleday",
+      "aliases": [
+        "Henry Doubleday",
+        "Henry Doubleday blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Epping Town Council blue plaques",
+        "natural history"
+      ],
+      "coordinates": {
+        "latitude": 51.700835,
+        "longitude": 0.112284,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "Buttercross Lane, Epping",
+      "location_description": "Buttercross Lane, Epping",
+      "story": "Naturalist Henry Doubleday is commemorated in Buttercross Lane.",
+      "plaque": {
+        "scheme_or_authority": "Epping Town Council blue plaques",
+        "subject": "Henry Doubleday",
+        "inscription_or_summary": "Naturalist Henry Doubleday is commemorated in Buttercross Lane.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
+      ],
+      "external_links": [
+        {
+          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
+          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Winston Churchill",
+      "aliases": [
+        "Winston Churchill",
+        "Winston Churchill blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Epping Town Council blue plaques",
+        "politics"
+      ],
+      "coordinates": {
+        "latitude": 51.69986,
+        "longitude": 0.1122,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/40977"
+      },
+      "location_precision": "gps_precise",
+      "address": "Marks & Spencer, High Street, Epping",
+      "location_description": "Marks & Spencer, High Street, Epping",
+      "story": "Former Prime Minister and Epping MP Winston Churchill is commemorated on the High Street.",
+      "plaque": {
+        "scheme_or_authority": "Epping Town Council blue plaques",
+        "subject": "Winston Churchill",
+        "inscription_or_summary": "Former Prime Minister and Epping MP Winston Churchill is commemorated on the High Street.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
+      ],
+      "external_links": [
+        {
+          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
+          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: The Silley Family",
+      "aliases": [
+        "The Silley Family",
+        "The Silley Family blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Epping Town Council blue plaques",
+        "local history"
+      ],
+      "coordinates": {
+        "latitude": 51.701936,
+        "longitude": 0.117476,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "1 Theydon Grove, Epping",
+      "location_description": "1 Theydon Grove, Epping",
+      "story": "The Silley family are commemorated as kind land donors.",
+      "plaque": {
+        "scheme_or_authority": "Epping Town Council blue plaques",
+        "subject": "The Silley Family",
+        "inscription_or_summary": "The Silley family are commemorated as kind land donors.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
+      ],
+      "external_links": [
+        {
+          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
+          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Sidney Hills",
+      "aliases": [
+        "Sidney Hills",
+        "Sidney Hills blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Epping Town Council blue plaques",
+        "local history"
+      ],
+      "coordinates": {
+        "latitude": 51.696384,
+        "longitude": 0.106837,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "45 High Street, Epping",
+      "location_description": "45 High Street, Epping",
+      "story": "Historian and author Sidney Hills is commemorated at 45 High Street.",
+      "plaque": {
+        "scheme_or_authority": "Epping Town Council blue plaques",
+        "subject": "Sidney Hills",
+        "inscription_or_summary": "Historian and author Sidney Hills is commemorated at 45 High Street.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
+      ],
+      "external_links": [
+        {
+          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
+          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Sir William Addison",
+      "aliases": [
+        "Sir William Addison",
+        "Sir William Addison blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Epping Town Council blue plaques",
+        "local history"
+      ],
+      "coordinates": {
+        "latitude": 51.701379,
+        "longitude": 0.115411,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "Old Court House, Hemnall Street, Epping",
+      "location_description": "Old Court House, Hemnall Street, Epping",
+      "story": "Jurist, author and local historian Sir William Addison is commemorated at the old court house.",
+      "plaque": {
+        "scheme_or_authority": "Epping Town Council blue plaques",
+        "subject": "Sir William Addison",
+        "inscription_or_summary": "Jurist, author and local historian Sir William Addison is commemorated at the old court house.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
+      ],
+      "external_links": [
+        {
+          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
+          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Dr Joseph Clegg",
+      "aliases": [
+        "Dr Joseph Clegg",
+        "Dr Joseph Clegg blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Epping Town Council blue plaques",
+        "public health"
+      ],
+      "coordinates": {
+        "latitude": 51.6962,
+        "longitude": 0.10648,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/53439"
+      },
+      "location_precision": "gps_precise",
+      "address": "Epping Water Tower, High Street, Epping",
+      "location_description": "Epping Water Tower, High Street, Epping",
+      "story": "Water sanitation pioneer Dr Joseph Clegg is commemorated on Epping Water Tower.",
+      "plaque": {
+        "scheme_or_authority": "Epping Town Council blue plaques",
+        "subject": "Dr Joseph Clegg",
+        "inscription_or_summary": "Water sanitation pioneer Dr Joseph Clegg is commemorated on Epping Water Tower.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
+      ],
+      "external_links": [
+        {
+          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
+          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Jill Barklem",
+      "aliases": [
+        "Jill Barklem",
+        "Jill Barklem blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Epping Town Council blue plaques",
+        "literature"
+      ],
+      "coordinates": {
+        "latitude": 51.702605,
+        "longitude": 0.11614,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "Epping",
+      "location_description": "Epping",
+      "story": "Brambly Hedge author Jill Barklem is commemorated by Epping Town Council.",
+      "plaque": {
+        "scheme_or_authority": "Epping Town Council blue plaques",
+        "subject": "Jill Barklem",
+        "inscription_or_summary": "Brambly Hedge author Jill Barklem is commemorated by Epping Town Council.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
+      ],
+      "external_links": [
+        {
+          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
+          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Epping Charter Market",
+      "aliases": [
+        "Epping Charter Market",
+        "Epping Charter Market blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Epping Town Council blue plaques",
+        "market history"
+      ],
+      "coordinates": {
+        "latitude": 51.701372,
+        "longitude": 0.114856,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "Aves Optometrist, High Street, Epping",
+      "location_description": "Aves Optometrist, High Street, Epping",
+      "story": "Epping's Charter Market is commemorated on the High Street.",
+      "plaque": {
+        "scheme_or_authority": "Epping Town Council blue plaques",
+        "subject": "Epping Charter Market",
+        "inscription_or_summary": "Epping's Charter Market is commemorated on the High Street.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
+      ],
+      "external_links": [
+        {
+          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
+          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Ernest Wythes",
+      "aliases": [
+        "Ernest Wythes",
+        "Ernest Wythes blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Epping Town Council blue plaques",
+        "local history"
+      ],
+      "coordinates": {
+        "latitude": 51.701379,
+        "longitude": 0.115411,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "Ernest Wythes House, Hemnall Street, Epping",
+      "location_description": "Ernest Wythes House, Hemnall Street, Epping",
+      "story": "Ernest Wythes is commemorated at Ernest Wythes House.",
+      "plaque": {
+        "scheme_or_authority": "Epping Town Council blue plaques",
+        "subject": "Ernest Wythes",
+        "inscription_or_summary": "Ernest Wythes is commemorated at Ernest Wythes House.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
+      ],
+      "external_links": [
+        {
+          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
+          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
+      "name": "Blue Plaque: Epping Jaundice research",
+      "aliases": [
+        "Epping Jaundice research",
+        "Epping Jaundice research blue plaque"
+      ],
+      "category": [
+        "blue plaque",
+        "heritage plaque",
+        "Epping Town Council blue plaques",
+        "medical history"
+      ],
+      "coordinates": {
+        "latitude": 51.704388,
+        "longitude": 0.123441,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
+      },
+      "location_precision": "geocoded_address",
+      "address": "St Margaret's Hospital, Epping",
+      "location_description": "St Margaret's Hospital, Epping",
+      "story": "The work on Epping Jaundice is commemorated at St Margaret's Hospital.",
+      "plaque": {
+        "scheme_or_authority": "Epping Town Council blue plaques",
+        "subject": "Epping Jaundice research",
+        "inscription_or_summary": "The work on Epping Jaundice is commemorated at St Margaret's Hospital.",
+        "public_location": true
+      },
+      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
+      "confidence": "high for plaque/address, approximate for coordinate",
+      "sources": [
+        "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx"
+      ],
+      "external_links": [
+        {
+          "title": "Epping Town Council: Blue Plaque Scheme 35202.aspx",
+          "url": "https://www.eppingtowncouncil.gov.uk/Blue_Plaque_Scheme_35202.aspx",
+          "type": "blue_plaque_or_council_source"
+        }
+      ],
+      "has_more_detail_links": true
+    },
+    {
       "name": "Blue Plaque: Muriel Lester and Doris Lester",
       "aliases": [
         "Muriel Lester",
@@ -5592,11 +5520,12 @@
         "philanthropy"
       ],
       "coordinates": {
-        "latitude": 51.6415,
-        "longitude": 0.0532,
-        "accuracy": "street/area approximate"
+        "latitude": 51.65994,
+        "longitude": 0.062773,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "postcode_centroid",
       "address": "47/49 Baldwins Hill, Loughton IG10 1SF",
       "location_description": "47/49 Baldwins Hill, Loughton IG10 1SF",
       "story": "Peace campaigners and philanthropists Muriel Lester (1884-1968) and her sister Doris (1886-1965) lived and worked here.",
@@ -5634,11 +5563,12 @@
         "education"
       ],
       "coordinates": {
-        "latitude": 51.652,
-        "longitude": 0.07,
-        "accuracy": "street/area approximate"
+        "latitude": 51.651474,
+        "longitude": 0.054264,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "postcode_centroid",
       "address": "Staples Road Junior School, Staples Road, Loughton IG10 1HR",
       "location_description": "Staples Road Junior School, Staples Road, Loughton IG10 1HR",
       "story": "Film producer George Pearson (1875-1973) was headmaster here from 1908 to 1913.",
@@ -5677,11 +5607,12 @@
         "politics"
       ],
       "coordinates": {
-        "latitude": 51.648,
-        "longitude": 0.08,
-        "accuracy": "street/area approximate"
+        "latitude": 51.66187,
+        "longitude": 0.0676,
+        "accuracy": "gps_precise",
+        "source": "openplaques.org/plaques/55721"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "gps_precise",
       "address": "Goldings Manor Cottage, 3 Stanmore Way, Loughton IG10 2SA",
       "location_description": "Goldings Manor Cottage, 3 Stanmore Way, Loughton IG10 2SA (former site of Goldings Manor Farm)",
       "story": "Rudyard Kipling (1865-1936), his sister Alice and Stanley Baldwin (1867-?) spent time at this site in what became known as the Loughton Idyll.",
@@ -5719,11 +5650,12 @@
         "natural history"
       ],
       "coordinates": {
-        "latitude": 51.648,
-        "longitude": 0.056,
-        "accuracy": "street/area approximate"
+        "latitude": 51.654812,
+        "longitude": 0.059903,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "geocoded_address",
       "address": "19 York Hill, Loughton IG10 1RL",
       "location_description": "19 York Hill, Loughton IG10 1RL",
       "story": "Medical entomologist Arthur Bacot (1866-1922) lived here.",
@@ -5763,11 +5695,12 @@
         "public health"
       ],
       "coordinates": {
-        "latitude": 51.645,
-        "longitude": 0.052,
-        "accuracy": "street/area approximate"
+        "latitude": 51.64222,
+        "longitude": 0.047067,
+        "accuracy": "postcode_centroid",
+        "source": "postcodes.io"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "postcode_centroid",
       "address": "Gate Pier, Entrance to Nafferton Rise, Loughton IG10 1UB",
       "location_description": "Gate Pier, Entrance to Nafferton Rise, Loughton IG10 1UB (at Nafferton Lodge on this site)",
       "story": "Medical researcher Sir Leonard Hill FRS (1866-1952) and his son Austin Bradford Hill FRS (Tony, 1897-1991), joint discoverer of the link between smoking and cancer, lived here.",
@@ -5805,11 +5738,12 @@
         "local history"
       ],
       "coordinates": {
-        "latitude": 51.641,
-        "longitude": 0.053,
-        "accuracy": "street/area approximate"
+        "latitude": 51.65842,
+        "longitude": 0.063869,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "geocoded_address",
       "address": "Walnut Cottage, 18 Stony Path, Loughton IG10 1SJ",
       "location_description": "Walnut Cottage, 18 Stony Path, Loughton IG10 1SJ",
       "story": "Millican Dalton (1867-?), known as the Professor of Adventure, lived here.",
@@ -5847,11 +5781,12 @@
         "industry"
       ],
       "coordinates": {
-        "latitude": 51.646,
-        "longitude": 0.048,
-        "accuracy": "street/area approximate"
+        "latitude": 51.645338,
+        "longitude": 0.050987,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "geocoded_address",
       "address": "8 Connaught Avenue, Loughton IG10 4DP",
       "location_description": "8 Connaught Avenue, Loughton IG10 4DP",
       "story": "Industrialist and philanthropist Charles Frederick Clark (1876-1945) lived here.",
@@ -5888,11 +5823,12 @@
         "local history"
       ],
       "coordinates": {
-        "latitude": 51.648,
-        "longitude": 0.058,
-        "accuracy": "street/area approximate"
+        "latitude": 51.651193,
+        "longitude": 0.061247,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "geocoded_address",
       "address": "62 The Uplands, Loughton IG10 1NH",
       "location_description": "62 The Uplands, Loughton IG10 1NH",
       "story": "Percy Thompson (1866-1953), historian of Loughton, lived here.",
@@ -5931,11 +5867,12 @@
         "Mexico"
       ],
       "coordinates": {
-        "latitude": 51.648,
-        "longitude": 0.056,
-        "accuracy": "street/area approximate"
+        "latitude": 51.654812,
+        "longitude": 0.059903,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "geocoded_address",
       "address": "19 York Hill, Loughton IG10 1RL",
       "location_description": "19 York Hill, Loughton IG10 1RL",
       "story": "Diana Kennedy née Southwood (1923-2022), celebrated Mexicanist and food writer, was born here.",
@@ -5974,11 +5911,12 @@
         "women in history"
       ],
       "coordinates": {
-        "latitude": 51.652,
-        "longitude": 0.07,
-        "accuracy": "street/area approximate"
+        "latitude": 51.651574,
+        "longitude": 0.053977,
+        "accuracy": "geocoded_address",
+        "source": "nominatim.openstreetmap.org"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "geocoded_address",
       "address": "91 Staples Road, Loughton IG10 1HR",
       "location_description": "91 Staples Road, Loughton IG10 1HR",
       "story": "Barbara Harmer (1953-2011), the first woman supersonic airline pilot, was born here.",
