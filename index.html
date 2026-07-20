@@ -360,6 +360,10 @@
       canvasVisibleHeight: 0,
     };
 
+    // Per-frame cache for the non-assume-open overlap rect. undefined = uncached;
+    // null = cached "no overlap". Cleared at start of each draw() and compass tick.
+    let _overlapRectCache = undefined;
+
     const els = {
       canvas: document.getElementById("mapCanvas"),
       overlayCanvas: document.getElementById("overlayCanvas"),
@@ -762,6 +766,7 @@
     }
 
     function resizeCanvas() {
+      _overlapRectCache = undefined;
       const rect = (els.mapStage || els.canvas).getBoundingClientRect();
       const requestedDpr = window.devicePixelRatio || 1;
       const rawWidth = Math.max(1, rect.width);
@@ -1005,6 +1010,7 @@
 
     function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
       if (!els.inspector || els.inspector.hidden) return null;
+      if (!assumeInspectorOpen && _overlapRectCache !== undefined) return _overlapRectCache;
 
       const wasMinimized = els.inspector.classList.contains("minimized");
       if (assumeInspectorOpen && wasMinimized) {
@@ -1029,15 +1035,20 @@
       const overlapRight = Math.min(canvasRect.right, inspectorRect.right);
       const overlapBottom = Math.min(canvasRect.bottom, inspectorRect.bottom);
 
-      if (overlapRight <= overlapLeft || overlapBottom <= overlapTop) return null;
+      if (overlapRight <= overlapLeft || overlapBottom <= overlapTop) {
+        if (!assumeInspectorOpen) _overlapRectCache = null;
+        return null;
+      }
 
       const dpr = pixelRatio();
-      return {
+      const result = {
         x: (useMapStage ? state.canvasInsetX : 0) + (overlapLeft - canvasRect.left) * dpr,
         y: (useMapStage ? state.canvasInsetY : 0) + (overlapTop - canvasRect.top) * dpr,
         width: (overlapRight - overlapLeft) * dpr,
         height: (overlapBottom - overlapTop) * dpr,
       };
+      if (!assumeInspectorOpen) _overlapRectCache = result;
+      return result;
     }
 
     function centerOn(worldPoint, targetScale) {
@@ -2372,6 +2383,7 @@
       if (state.compassAnimationFrame != null) return;
 
       const tick = (timestamp) => {
+        _overlapRectCache = undefined;
         if (!Number.isFinite(state.compassHeadingTarget) || !Number.isFinite(state.compassHeading)) {
           state.compassAnimationFrame = null;
           state.compassAnimationTime = null;
@@ -2732,6 +2744,7 @@
     }
 
     function prepareCanvasForDraw() {
+      _overlapRectCache = undefined;
       clearHeadingUpCanvasTransform();
       // Resize whenever heading-up mode activates or deactivates so the canvas is
       // only oversized while rotation is actually needed.
