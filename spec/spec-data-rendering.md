@@ -426,6 +426,20 @@ Behavior:
 
 ---
 
+## GPS and Compass Resilience
+
+The app must keep location, compass, and nearest-items always current. Several recovery mechanisms ensure this on iOS where sensors can silently stall:
+
+- **`state.lastLocationUpdateAt`** — set to `performance.now()` on every successful `watchPosition` callback. Used to detect GPS silence.
+- **`visibilitychange` recovery (`setupVisibilityRecovery`)** — fires when the tab returns to foreground:
+  - If no orientation event has arrived in >15 s, `state.compassHeading` (and `compassHeadingTarget`, `renderedNavigationHeading`, `headingUpEntryAnim`) is cleared so the map goes north-up rather than showing a frozen direction. New events restart heading-up automatically.
+  - Orientation listeners are removed and re-added to coax iOS back into firing `deviceorientation` events.
+  - If the GPS watch has not delivered a position in >20 s, the watch is cleared and `ensureLocationWatch()` is called to start a fresh one.
+- **Return-to-overview compass stale check** — `goToInitialView()` checks if no orientation event has arrived in >5 s. If so, `compassHeading` is cleared before rebuilding the overview, preventing the map from snapping to a stale heading-up direction.
+- **`watchPosition` error handler** — on `PERMISSION_DENIED` (code 1, mid-session permission revoke), the watch is cleared and the location gate is shown. Transient `TIMEOUT` and `POSITION_UNAVAILABLE` errors are tolerated; `watchPosition` continues trying automatically.
+
+---
+
 ## Location Gate & Tracking Consent (offline-safe)
 
 The location gate (`#locationGate`) and tracking consent modal (`#trackingConsentModal`) must work fully offline:

@@ -89,6 +89,7 @@ function showFilterHintIfFirstVisit() {
 
 function setupInteractions() {
   setupCompassListeners();
+  setupVisibilityRecovery();
   setupResizeHandler();
   setupInspectorHandlers();
   setupInspectorDragResize();
@@ -453,6 +454,21 @@ function setupInspectorDragResize() {
 }
 
 function goToInitialView(updateHash = true) {
+  // If compass hasn't fired in >5 s, clear the heading so the map goes north-up
+  // rather than showing a frozen direction when the user returns to the overview.
+  // New orientation events will re-enable heading-up naturally.
+  if (Number.isFinite(state.compassHeading)) {
+    const compassAge = state.compassLastEventAt == null
+      ? Infinity
+      : (performance.now() - state.compassLastEventAt);
+    if (compassAge > 5000) {
+      state.compassHeading = null;
+      state.compassHeadingTarget = null;
+      state.renderedNavigationHeading = null;
+      state.headingUpEntryAnim = null;
+    }
+  }
+
   const wasMinimized = els.inspector.classList.contains("minimized");
   state.selected = null;
   state.clusterZoomed = false;

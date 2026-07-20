@@ -334,6 +334,7 @@
       compassAnimationTime: null,
       compassArrowAngle: null,
       compassLastEventAt: null,
+      lastLocationUpdateAt: null,
       navigationHeadingUp: false,
       renderedNavigationHeading: null,
       headingUpEntryAnim: null,
@@ -2380,6 +2381,48 @@
       window.addEventListener("deviceorientation", onDeviceOrientation, true);
     }
 
+    function setupVisibilityRecovery() {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "visible") return;
+
+        // If compass heading is stale (iOS can pause orientation events when the tab
+        // is backgrounded), clear it so the map goes north-up rather than showing a
+        // frozen heading. New orientation events will re-enable heading-up.
+        if (Number.isFinite(state.compassHeading)) {
+          const compassAge = state.compassLastEventAt == null
+            ? Infinity
+            : (performance.now() - state.compassLastEventAt);
+          if (compassAge > 15000) {
+            state.compassHeading = null;
+            state.compassHeadingTarget = null;
+            state.renderedNavigationHeading = null;
+            state.headingUpEntryAnim = null;
+            if (typeof updateCompassOverlay === "function") updateCompassOverlay();
+            requestDraw();
+          }
+        }
+
+        // Re-register orientation listeners; on iOS this nudges the sensor back into
+        // firing after the tab returns from background.
+        window.removeEventListener("deviceorientationabsolute", onDeviceOrientation, true);
+        window.removeEventListener("deviceorientation", onDeviceOrientation, true);
+        window.addEventListener("deviceorientationabsolute", onDeviceOrientation, true);
+        window.addEventListener("deviceorientation", onDeviceOrientation, true);
+
+        // Restart GPS watch if it has gone silent for >20 s.
+        if (navigator.geolocation && state.locationWatchId != null) {
+          const gpsAge = state.lastLocationUpdateAt == null
+            ? Infinity
+            : (performance.now() - state.lastLocationUpdateAt);
+          if (gpsAge > 20000) {
+            navigator.geolocation.clearWatch(state.locationWatchId);
+            state.locationWatchId = null;
+            ensureLocationWatch();
+          }
+        }
+      });
+    }
+
     function onDeviceOrientation(event) {
       const heading = extractCompassHeading(event);
       if (!Number.isFinite(heading)) return;
@@ -2463,6 +2506,7 @@
       startLocationTracking();
       state.locationWatchId = navigator.geolocation.watchPosition(
         (position) => {
+          state.lastLocationUpdateAt = performance.now();
           const { latitude, longitude, accuracy } = position.coords;
           const previousPoint = state.userLocation && state.userLocation.point;
           const point = projectLonLat(longitude, latitude);
@@ -2494,7 +2538,15 @@
             requestDraw();
           }
         },
-        () => {},
+        (error) => {
+          if (error && error.code === 1) {
+            // Permission revoked mid-session — clear the watch and surface the gate.
+            navigator.geolocation.clearWatch(state.locationWatchId);
+            state.locationWatchId = null;
+            setLocationGateVisible(true, "Location permission was blocked. Check browser settings and tap below to try again.");
+          }
+          // Timeout / position-unavailable: watchPosition continues automatically.
+        },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 1500 }
       );
     }
