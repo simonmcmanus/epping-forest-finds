@@ -52,7 +52,7 @@ function showOnboarding() {
     let compassPromptFailed = false;
     let locationPromise = null;
     const total = ONBOARDING_STEPS.length;
-    const selected = new Set(FILTER_GROUPS.flatMap((g) => g.subfilters.map((s) => s.key)));
+    const selected = new Set(["trees", "cows"]);
 
     overlay.hidden = false;
 
@@ -63,8 +63,22 @@ function showOnboarding() {
       }).join("");
     }
 
+    function preloadStepImages(idx) {
+      if (idx < 0 || idx >= ONBOARDING_STEPS.length) return;
+      const s = ONBOARDING_STEPS[idx];
+      const srcs = [];
+      if (s.type === "welcome") srcs.push("data/icons/trees/logo.png");
+      if (s.type === "location") srcs.push("data/icons/pin.png");
+      if (s.type === "group") {
+        srcs.push(`data/icons/${s.group.icon}.png`);
+        s.group.subfilters.forEach((sf) => srcs.push(`data/icons/${sf.icon}.png`));
+      }
+      srcs.forEach((src) => { const img = new Image(); img.src = src; });
+    }
+
     function renderStep(direction) {
       const step = ONBOARDING_STEPS[stepIndex];
+      preloadStepImages(stepIndex + 1);
 
       contentEl.classList.remove("entering-forward", "entering-backward");
       void contentEl.offsetWidth;
