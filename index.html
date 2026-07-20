@@ -3914,11 +3914,14 @@
     }
 
     function centerPoint() {
-      return { x: els.canvas.width / 2, y: els.canvas.height / 2 };
+      const r = visibleCanvasRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     }
 
     function isNearCanvas(point, margin) {
-      return point.x >= -margin && point.y >= -margin && point.x <= els.canvas.width + margin && point.y <= els.canvas.height + margin;
+      const r = visibleCanvasRect();
+      return point.x >= r.x - margin && point.y >= r.y - margin
+        && point.x <= r.x + r.width + margin && point.y <= r.y + r.height + margin;
     }
 
     function requestDraw() {
