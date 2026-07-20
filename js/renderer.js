@@ -709,14 +709,7 @@ function drawTrees(ctx, nearbyIconLookup, toScreen) {
     const isOutOfRadius = nearbyIconLookup.outOfRadius && nearbyIconLookup.outOfRadius.has(tree);
     ctx.globalAlpha = isOutOfRadius ? 0.4 : 1;
     const treeSrc = treeSpeciesIconPath(tree.commonName, tree.latinName) || iconPath("tree");
-    if (!drawPngMapIcon(ctx, treeSrc, point.x, point.y, treeEmojiSize)) {
-      drawMapEmoji(ctx, "🌳", point.x, point.y, treeEmojiSize, {
-        backgroundColor: null,
-        borderColor: null,
-        borderWidth: 2 * dpr * mapScale,
-        paddingPx: emojiCirclePadding,
-      });
-    }
+    drawPngMapIcon(ctx, treeSrc, point.x, point.y, treeEmojiSize);
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -975,15 +968,7 @@ function drawSelectedOverlay(ctx, toScreen) {
     if (isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) {
       const selectedTree = state.selected.item;
       const selectedTreeSrc = treeSpeciesIconPath(selectedTree.commonName, selectedTree.latinName) || iconPath("tree");
-      if (!drawPngMapIcon(ctx, selectedTreeSrc, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale)) {
-        drawMapEmoji(ctx, "🌳", point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
-          backgroundColor: null,
-          borderColor: null,
-          borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
-          paddingPx: selectedEmojiPadding,
-          yOffsetPx: selectedEmojiYOffset,
-        });
-      }
+      drawPngMapIcon(ctx, selectedTreeSrc, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     }
     return;
   }
