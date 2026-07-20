@@ -1421,6 +1421,9 @@
       setInspectorMinimized(false);
       syncHashFromSelection();
       requestDraw();
+      if (state.userLocation) {
+        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+      }
     }
 
     function openSettings() {
@@ -2982,6 +2985,7 @@
     }
 
     function keepOverviewCenteredOnUser(previousPoint) {
+      if (!state.dataLoaded) return;
       if (!state.userLocation || state.selected || !isOverviewScreenActive()) return;
       if (state.clusterZoomed) return;
       if (els.inspector.classList.contains("minimized")) return;
@@ -3052,6 +3056,7 @@
     }
 
     function ensureOverviewTargetsVisible(options = {}) {
+      if (!state.dataLoaded) return;
       if (!state.userLocation) return;
       if (state.selected) return;
       if (state.clusterZoomed) return;
@@ -3089,16 +3094,38 @@
 
     function overviewTargetPoints() {
       if (!state.userLocation) return [];
-      const points = [];
-      const overviewEntries = overviewItemsForActiveFilter();
-      for (const entry of overviewEntries) {
-        if (!entry || !entry.item || !entry.item.point) continue;
-        if (entry.outOfRadius && !state.showAllOutsideRadius) continue;
-        points.push(entry.item.point);
+      const { latitude, longitude } = state.userLocation;
+
+      // Survey mode: filter panel open — fit nearest 5 items per active type, ignoring walking radius
+      if (state.filterScreenOpen) {
+        const entries = [];
+        for (const filterKey of pointFilterKeysForNearestFallback()) {
+          entries.push(...nearestOverviewEntriesForFilter(filterKey, latitude, longitude, 5));
+        }
+        const pts = uniqueSortedOverviewEntries(entries)
+          .filter(e => e.item && e.item.point)
+          .map(e => e.item.point);
+        if (pts.length >= 2) return pts;
+        if (pts.length === 1) return [state.userLocation.point, pts[0]];
       }
-      // With 2+ items use item-only bounding box so items fill the screen
-      // regardless of how far the user is from the cluster.
-      // With 0 or 1 items include user so there is always a meaningful anchor.
+
+      // Foraging mode: anchor to nearest 5 trees for a tight in-forest view
+      const allFiltersOff = state.overviewFilters.length === 0;
+      const treesActive = allFiltersOff || getActivePointFilterKeys().includes("trees");
+      if (treesActive) {
+        const treePoints = nearestTreesTo(latitude, longitude, 5)
+          .filter(({ tree }) => tree.point)
+          .map(({ tree }) => tree.point);
+        if (treePoints.length >= 2) return treePoints;
+        if (treePoints.length === 1) return [state.userLocation.point, treePoints[0]];
+      }
+
+      // Fallback: nearest 5 items of any active type (respects radius toggle)
+      const overviewEntries = overviewItemsForActiveFilter();
+      const points = overviewEntries
+        .filter(e => e.item && e.item.point && (!e.outOfRadius || state.showAllOutsideRadius))
+        .slice(0, 5)
+        .map(e => e.item.point);
       if (points.length < 2) points.unshift(state.userLocation.point);
       return points;
     }

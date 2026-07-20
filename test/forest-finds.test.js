@@ -237,6 +237,7 @@ function resetData(app) {
   app.state.viewportAnimationTo = null;
   app.state.viewportAnimationStartTime = null;
   app.state.viewportAnimationDuration = 0;
+  app.state.dataLoaded = true;
   app.state.selectionViewportTransitionPending = false;
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
@@ -655,7 +656,6 @@ test("first location fix immediately scales and centers nearby map icons", () =>
   app.keepOverviewCenteredOnUser(null);
   const lookup = app.buildNearbyIconLookup();
   const treePoint = app.worldToScreen(app.state.trees[0].point);
-  const pubPoint = app.worldToScreen(app.state.landmarks[0].point);
 
   assert.equal(app.state.viewportAnimationTo, null);
   assert.ok(fittedScale > 8, "nearby targets should zoom in from the initial full-map scale");
@@ -663,6 +663,23 @@ test("first location fix immediately scales and centers nearby map icons", () =>
   assert.ok(app.state.viewport.scale <= fittedScale, "user-centered scale may be capped to keep nearby icons visible");
   assert.equal(lookup.tree.has(app.state.trees[0]), true);
   assert.equal(lookup.landmark.has(app.state.landmarks[0]), true);
+  // Foraging mode anchors to nearest trees — tree is always visible
+  assert.equal(app.isNearCanvas(treePoint, 10), true, JSON.stringify({ treePoint, viewport: app.state.viewport }));
+});
+
+test("filter screen survey mode zooms to show items of each active type ignoring walking radius", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.viewport = { scale: 8, tx: 120, ty: 120 };
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
+  app.state.landmarks.push({ id: "near-pub", name: "Near pub", category: "pub", ...makePoint(app, 0.0012, 0.0008) });
+
+  app.state.filterScreenOpen = true;
+  app.ensureOverviewTargetsVisible({ animate: false });
+  const treePoint = app.worldToScreen(app.state.trees[0].point);
+  const pubPoint = app.worldToScreen(app.state.landmarks[0].point);
+
+  assert.ok(app.state.viewport.scale > 8, "survey mode should zoom in from the initial full-map scale");
   assert.equal(app.isNearCanvas(treePoint, 10), true, JSON.stringify({ treePoint, viewport: app.state.viewport }));
   assert.equal(app.isNearCanvas(pubPoint, 16), true, JSON.stringify({ pubPoint, viewport: app.state.viewport }));
 });
