@@ -1011,6 +1011,12 @@
         els.inspector.classList.remove("minimized");
       }
 
+      // Use mapStage as the reference rect when available: its left/top align with
+      // the canvas visible origin, so adding canvasInsetX/Y converts to bitmap coords.
+      // When falling back to els.canvas, the element's left/top already incorporate
+      // the CSS −insetX/Y offset, so (overlap − canvas.left) * dpr already lands in
+      // bitmap coords and canvasInsetX/Y must not be added again.
+      const useMapStage = Boolean(els.mapStage);
       const canvasRect = (els.mapStage || els.canvas).getBoundingClientRect();
       const inspectorRect = els.inspector.getBoundingClientRect();
 
@@ -1027,8 +1033,8 @@
 
       const dpr = pixelRatio();
       return {
-        x: state.canvasInsetX + (overlapLeft - canvasRect.left) * dpr,
-        y: state.canvasInsetY + (overlapTop - canvasRect.top) * dpr,
+        x: (useMapStage ? state.canvasInsetX : 0) + (overlapLeft - canvasRect.left) * dpr,
+        y: (useMapStage ? state.canvasInsetY : 0) + (overlapTop - canvasRect.top) * dpr,
         width: (overlapRight - overlapLeft) * dpr,
         height: (overlapBottom - overlapTop) * dpr,
       };
