@@ -876,7 +876,7 @@
     }
 
     function applyBoundsToViewport(bounds, options = {}) {
-      const padding = 54 * pixelRatio();
+      const padding = (options.padding != null ? options.padding : 54) * pixelRatio();
       const defaultRect = visibleCanvasRect();
       const focusRect = options.customFocusRect
         || (options.focusVisibleArea
@@ -3022,6 +3022,7 @@
           animate: Boolean(options.animate),
           durationMs: options.durationMs || 520,
           minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
+          padding: 28,
         });
       } else if (points.length === 1) {
         // Only user location, no nearby items — center on user without zooming out past current level
