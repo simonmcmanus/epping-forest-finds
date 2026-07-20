@@ -750,15 +750,15 @@
     }
 
     function visibleCanvasRect() {
-      const width = Number.isFinite(state.canvasVisibleWidth) && state.canvasVisibleWidth > 0
-        ? state.canvasVisibleWidth
-        : els.canvas.width;
-      const height = Number.isFinite(state.canvasVisibleHeight) && state.canvasVisibleHeight > 0
-        ? state.canvasVisibleHeight
-        : els.canvas.height;
-      const insetX = Number.isFinite(state.canvasInsetX) ? state.canvasInsetX : 0;
-      const insetY = Number.isFinite(state.canvasInsetY) ? state.canvasInsetY : 0;
-      return { x: insetX, y: insetY, width, height };
+      if (state.canvasVisibleWidth > 0) {
+        return { x: state.canvasInsetX, y: state.canvasInsetY, width: state.canvasVisibleWidth, height: state.canvasVisibleHeight };
+      }
+      // Fallback before first resizeCanvas() (early-boot only): read CSS layout dimensions.
+      // Using els.canvas.width would return the oversized bitmap, not the visible viewport size.
+      const stageEl = els.mapStage || els.canvas;
+      const dpr = window.devicePixelRatio || 1;
+      const r = stageEl.getBoundingClientRect();
+      return { x: 0, y: 0, width: Math.max(1, Math.round(r.width * dpr)), height: Math.max(1, Math.round(r.height * dpr)) };
     }
 
     function resizeCanvas() {
