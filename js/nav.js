@@ -143,14 +143,25 @@ function setupInspectorHandlers() {
 
   if (els.locationGateButton) {
     els.locationGateButton.addEventListener("click", async () => {
+      els.locationGateButton.disabled = true;
       if (!state.userLocation) {
-        if (!(await ensureTrackingConsent())) return;
+        if (!(await ensureTrackingConsent())) {
+          els.locationGateButton.disabled = false;
+          return;
+        }
         locateUser({ initial: false });
+        // Button re-enabled by setLocationGateVisible(true) when locateUser's callbacks
+        // re-show the gate (error message or compass prompt), or stays disabled if gate hides.
       } else {
         await requestCompassPermissionIfNeeded({ fromGesture: true });
         if (state.compassPermission === "granted") {
           setLocationGateVisible(false);
           updateCompassOverlay();
+        } else {
+          // setLocationGateVisible(true) was called by showCompassAccessPrompt inside
+          // requestCompassPermissionIfNeeded, which already re-enabled the button.
+          // Guard in case a code path skipped that call.
+          if (els.locationGateButton.disabled) els.locationGateButton.disabled = false;
         }
       }
     });
@@ -516,6 +527,7 @@ function setLocationGateVisible(visible, message, buttonLabel, title) {
   if (visible) {
     els.locationGate.classList.remove("fading-out");
     els.locationGate.hidden = false;
+    if (els.locationGateButton) els.locationGateButton.disabled = false;
   } else {
     // When the gate is dismissed (all permissions granted), show loading overlay if data isn't ready yet
     if (!state.dataLoaded && els.loadingOverlay) {

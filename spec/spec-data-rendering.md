@@ -426,6 +426,17 @@ Behavior:
 
 ---
 
+## Location Gate & Tracking Consent (offline-safe)
+
+The location gate (`#locationGate`) and tracking consent modal (`#trackingConsentModal`) must work fully offline:
+
+- **`css/tracking.css` is in `APP_SHELL`** — the consent modal relies on `position: fixed; z-index: 130` from that file; without it the modal has no positioning and is clipped invisible by `.map-stage`'s `overflow: hidden`, making the location gate button appear completely unresponsive.
+- **Location gate button gives immediate visual feedback** — the button is disabled as soon as it is tapped (preventing confusion from the geolocation or compass-permission async wait). `setLocationGateVisible(true, ...)` always re-enables the button so it is interactive again whenever the gate re-appears with a new message (error, compass prompt, etc.).
+- **Compass permission (iOS)** — `DeviceOrientationEvent.requestPermission()` is a device API that does not require internet. On failure or denial, `showCompassAccessPrompt()` re-shows the gate; the button is re-enabled by `setLocationGateVisible`.
+- **Geolocation** — GPS works without internet. The `locateUser` callback (success or error) triggers `setLocationGateVisible` which re-enables the gate button.
+
+---
+
 ## Legend / Key
 
 Always visible, shows active marker semantics:
