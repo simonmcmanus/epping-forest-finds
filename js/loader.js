@@ -160,24 +160,16 @@ async function loadMapData() {
       return { features: [] };
     });
 
-  const roadsPromise = Promise.race([
-    fetch(ROADS_URL)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`Roads data HTTP ${r.status}`);
-        const data = await r.json();
-        setLoadStep("roads", "done", (data.features || []).length);
-        return data;
-      })
-      .catch(() => {
-        setLoadStep("roads", "error");
-        return { features: [] };
-      }),
-    // Timeout after 8 seconds to prevent indefinite hang
-    new Promise((resolve) => setTimeout(() => {
+  const roadsPromise = loadJson(ROADS_URL, 90000)
+    .catch(() => delay(2000).then(() => loadJson(ROADS_URL, 120000)))
+    .then((data) => {
+      setLoadStep("roads", "done", (data.features || []).length);
+      return data;
+    })
+    .catch(() => {
       setLoadStep("roads", "error");
-      resolve({ features: [] });
-    }, 8000))
-  ]);
+      return { features: [] };
+    });
 
   const environmentPromise = fetch(ENVIRONMENT_URL)
     .then(async (r) => {

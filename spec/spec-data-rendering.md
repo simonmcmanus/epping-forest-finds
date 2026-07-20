@@ -161,11 +161,12 @@ All map marker icons (emoji and transport glyphs) are rendered at **2x** the pre
 
 ### Trees
 
-- Rendered as 🌳 emoji at map scale
-- No background circle in default state
-- Only drawn when in active overview set (`shouldDrawMapIcon`)
-- Selected tree: full opacity, highlight ring
-- When non-tree selected: trees not drawn (filtered out by `shouldDrawMapIcon`)
+- Overview trees are **clustered in screen space** (30 CSS-pixel radius, greedy nearest-first) by `buildTreeClusters()`. One teardrop PNG pin is drawn per cluster at the cluster's screen centroid using the species leaf icon (or generic tree icon) at `MAP_ICON_SCALE_UNSELECTED` size.
+- When a cluster contains more than one tree, a small green count badge (e.g. "4" or "9+") is drawn in the top-right of the pin.
+- Only clusters whose members are all in the active overview set are drawn; `shouldDrawMapIcon` selection check applies at the function level (all tree pins hidden when any location is selected).
+- Out-of-radius clusters render at 0.4 opacity.
+- Selected tree: full-size teardrop PNG pin rendered by `drawSelectedOverlay` (species leaf icon or generic tree icon).
+- Route lines go to the **world-space centroid** of each cluster (one line per cluster, not per tree).
 
 ### Landmarks
 
@@ -214,8 +215,20 @@ Category-specific rendering:
 
 ### Cows
 
-- Rendered as 🐄 emoji at map scale
-- Pulsing radial brown gradient background
+- Rendered as cow PNG icon at map scale
+
+### Waymarked Trails (path pins)
+
+- When a waymarked trail appears in the overview list, a `waymarked` PNG icon pin is drawn at `path.point` (the path's label anchor, computed by `pathLabelAnchor`).
+- Only drawn when the path has a valid `.point` and is in the active overview set.
+- Paths without a `.point` are excluded from route lines and icons.
+- When any location is selected, all path pins are hidden (`shouldDrawMapIcon` returns `false`).
+
+### Water Features (water pins)
+
+- When a water feature (pond, stream) appears in the overview list, a `ponds` PNG icon pin is drawn at `water.point` (centroid of polygon or midpoint of line).
+- Only drawn when the water feature is in the active overview set.
+- When any location is selected, all water pins are hidden (`shouldDrawMapIcon` returns `false`).
 
 ### User Location
 
@@ -244,6 +257,7 @@ When an item is selected, it gets a pulsing highlight overlay:
   - Color: per-category color with white halo
   - Line width: 2.2px + 2.6px halo
   - Dash: 8px on, 7px off
+  - Only drawn for items with a valid `.point` (paths without a label anchor are excluded)
 
 ### Walking Radius Circle
 

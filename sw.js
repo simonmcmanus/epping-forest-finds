@@ -1,5 +1,7 @@
 
-const CACHE_NAME = "forest-finds-v159";
+const CACHE_NAME = "forest-finds-v166";
+
+// Critical assets — install blocks until all succeed
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -31,15 +33,155 @@ const APP_SHELL = [
   "./data/local-landmarks-misc.geojson",
   "./data/epping_forest_folklore_locations.json",
   "./data/local-paths.geojson",
-  "./data/local-environment.geojson"
+  "./data/local-environment.geojson",
+];
+
+// Data and asset files — cached opportunistically; individual failures do not break install
+const DATA_CACHE = [
+  // Large GeoJSON data
+  "./data/local-roads.geojson",
+  "./data/local-environment-buildings.geojson",
+
+  // Tree data chunks
+  "./data/trees/chunk-lat0_lon0.json",
+  "./data/trees/chunk-lat5158_lon0.json",
+  "./data/trees/chunk-lat5159_lon0.json",
+  "./data/trees/chunk-lat5159_lon1.json",
+  "./data/trees/chunk-lat5160_lon0.json",
+  "./data/trees/chunk-lat5161_lon0.json",
+  "./data/trees/chunk-lat5161_lon1.json",
+  "./data/trees/chunk-lat5161_lon3.json",
+  "./data/trees/chunk-lat5161_lon4.json",
+  "./data/trees/chunk-lat5162_lon1.json",
+  "./data/trees/chunk-lat5162_lon2.json",
+  "./data/trees/chunk-lat5162_lon3.json",
+  "./data/trees/chunk-lat5162_lon4.json",
+  "./data/trees/chunk-lat5163_lon-1.json",
+  "./data/trees/chunk-lat5163_lon0.json",
+  "./data/trees/chunk-lat5163_lon1.json",
+  "./data/trees/chunk-lat5163_lon2.json",
+  "./data/trees/chunk-lat5163_lon3.json",
+  "./data/trees/chunk-lat5164_lon-1.json",
+  "./data/trees/chunk-lat5164_lon0.json",
+  "./data/trees/chunk-lat5164_lon1.json",
+  "./data/trees/chunk-lat5164_lon2.json",
+  "./data/trees/chunk-lat5164_lon3.json",
+  "./data/trees/chunk-lat5164_lon4.json",
+  "./data/trees/chunk-lat5165_lon0.json",
+  "./data/trees/chunk-lat5165_lon1.json",
+  "./data/trees/chunk-lat5165_lon2.json",
+  "./data/trees/chunk-lat5165_lon3.json",
+  "./data/trees/chunk-lat5165_lon4.json",
+  "./data/trees/chunk-lat5165_lon5.json",
+  "./data/trees/chunk-lat5165_lon6.json",
+  "./data/trees/chunk-lat5166_lon1.json",
+  "./data/trees/chunk-lat5166_lon3.json",
+  "./data/trees/chunk-lat5166_lon4.json",
+  "./data/trees/chunk-lat5166_lon5.json",
+  "./data/trees/chunk-lat5166_lon6.json",
+  "./data/trees/chunk-lat5166_lon7.json",
+  "./data/trees/chunk-lat5166_lon8.json",
+  "./data/trees/chunk-lat5167_lon3.json",
+  "./data/trees/chunk-lat5167_lon4.json",
+  "./data/trees/chunk-lat5167_lon5.json",
+  "./data/trees/chunk-lat5167_lon6.json",
+  "./data/trees/chunk-lat5167_lon7.json",
+  "./data/trees/chunk-lat5167_lon8.json",
+  "./data/trees/chunk-lat5168_lon6.json",
+  "./data/trees/chunk-lat5168_lon7.json",
+  "./data/trees/chunk-lat5168_lon8.json",
+  "./data/trees/chunk-lat5169_lon10.json",
+  "./data/trees/chunk-lat5169_lon3.json",
+  "./data/trees/chunk-lat5169_lon4.json",
+  "./data/trees/chunk-lat5169_lon5.json",
+  "./data/trees/chunk-lat5170_lon12.json",
+  "./data/trees/chunk-lat5171_lon12.json",
+  "./data/trees/chunk-lat5171_lon13.json",
+  "./data/trees/chunk-lat5171_lon14.json",
+
+  // Icons
+  "./data/icons/apple-touch-icon.png",
+  "./data/icons/art.png",
+  "./data/icons/beer.png",
+  "./data/icons/blue-plaques.png",
+  "./data/icons/bus.png",
+  "./data/icons/cafe.png",
+  "./data/icons/campsite.png",
+  "./data/icons/celebreties.png",
+  "./data/icons/church.png",
+  "./data/icons/compass.png",
+  "./data/icons/cow.png",
+  "./data/icons/crown.png",
+  "./data/icons/distance.png",
+  "./data/icons/dry-cleaning.png",
+  "./data/icons/education.png",
+  "./data/icons/feedback.png",
+  "./data/icons/film.png",
+  "./data/icons/filter.png",
+  "./data/icons/food.png",
+  "./data/icons/gate.png",
+  "./data/icons/historic.png",
+  "./data/icons/history.png",
+  "./data/icons/home.png",
+  "./data/icons/icon-192.png",
+  "./data/icons/icon-512.png",
+  "./data/icons/icon-maskable-512.png",
+  "./data/icons/landmark-archaeological.png",
+  "./data/icons/landmark-bench.png",
+  "./data/icons/landmark-campsite.png",
+  "./data/icons/landmark-drinking-water.png",
+  "./data/icons/landmark-dry-cleaning.png",
+  "./data/icons/landmark-information.png",
+  "./data/icons/landmark-monument.png",
+  "./data/icons/landmark-museum.png",
+  "./data/icons/landmark-parking.png",
+  "./data/icons/landmark-taxi.png",
+  "./data/icons/landmark-toilets.png",
+  "./data/icons/legends.png",
+  "./data/icons/literature.png",
+  "./data/icons/medicine.png",
+  "./data/icons/national-rail.png",
+  "./data/icons/nature.png",
+  "./data/icons/nearby.png",
+  "./data/icons/oak.png",
+  "./data/icons/pin.png",
+  "./data/icons/plaques.png",
+  "./data/icons/politics.png",
+  "./data/icons/ponds.png",
+  "./data/icons/restaurant.png",
+  "./data/icons/science.png",
+  "./data/icons/settings.png",
+  "./data/icons/shop.png",
+  "./data/icons/signal.png",
+  "./data/icons/social-history.png",
+  "./data/icons/stories.png",
+  "./data/icons/theatre.png",
+  "./data/icons/tick.png",
+  "./data/icons/tree.png",
+  "./data/icons/trees/ash.png",
+  "./data/icons/trees/beach.png",
+  "./data/icons/trees/holly.png",
+  "./data/icons/trees/hornbeam.png",
+  "./data/icons/trees/logo.png",
+  "./data/icons/trees/oak.png",
+  "./data/icons/trees/wild.png",
+  "./data/icons/underground.png",
+  "./data/icons/walking.png",
+  "./data/icons/waymarked.png",
+  "./data/icons/wwII.png",
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
-  );
+  // Block install only on the critical shell; pre-cache data files in the background
+  const shellReady = caches.open(CACHE_NAME)
+    .then((cache) => cache.addAll(APP_SHELL))
+    .then(() => self.skipWaiting());
+
+  caches.open(CACHE_NAME).then((cache) => {
+    DATA_CACHE.forEach((url) => cache.add(url).catch(() => {}));
+  });
+
+  event.waitUntil(shellReady);
 });
 
 self.addEventListener("activate", (event) => {
