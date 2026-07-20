@@ -414,6 +414,18 @@ button.settings-toggle.active {
   color: #2d6e40;
 }
 
+.sw-update-available {
+  color: #b34733;
+  cursor: pointer;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.sw-update-available::after {
+  content: " — tap to update";
+  font-weight: 400;
+}
+
 .inspector-body {
   padding: 0 16px 16px;
   position: relative;

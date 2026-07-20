@@ -1,15 +1,37 @@
+function refreshSettingsVersionDisplay() {
+  const el = document.getElementById("appVersionDisplay");
+  if (!el) return;
+  if (state.swVersion) el.textContent = state.swVersion;
+  if (state.swUpdateAvailable) {
+    el.classList.add("sw-update-available");
+    if (!el.dataset.updateBound) {
+      el.dataset.updateBound = "1";
+      el.addEventListener("click", () => location.reload());
+    }
+  }
+}
+
 function setupPwa() {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(console.error);
     navigator.serviceWorker.ready
       .then(() => caches.keys())
       .then(keys => {
-        const name = keys.find(k => k.startsWith("veteran-tree-finder-"));
-        if (!name) return;
-        const el = document.getElementById("sw-version");
-        if (el) el.textContent = name.replace("veteran-tree-finder-", "");
+        const name = keys.find(k => k.startsWith("forest-finds-"));
+        const ver = name ? name.replace("forest-finds-", "") : "";
+        const swVerEl = document.getElementById("sw-version");
+        if (swVerEl) swVerEl.textContent = ver;
+        state.swVersion = ver;
+        refreshSettingsVersionDisplay();
       })
       .catch(() => {});
+
+    let _swControllerReady = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!_swControllerReady) { _swControllerReady = true; return; }
+      state.swUpdateAvailable = true;
+      refreshSettingsVersionDisplay();
+    });
   }
 
   if (els.installButton) {

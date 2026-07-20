@@ -926,10 +926,13 @@ test("nearby HTML does not contain the app version", () => {
 });
 
 test("settings form shows the app version", () => {
+  app.state.swVersion = "v157";
   const html = app.settingsFormHtml();
+  app.state.swVersion = "";
 
-  assert.match(html, /v\d+/, "settings form should include the app version number");
+  assert.match(html, /v157/, "settings form should include the app version number");
   assert.match(html, /App version/, "settings form should label the app version");
+  assert.match(html, /appVersionDisplay/, "settings form should include the version span for dynamic updates");
 });
 
 test("report submission includes the app version", () => {

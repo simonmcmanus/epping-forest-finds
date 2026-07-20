@@ -326,6 +326,8 @@
       moved: false,
       dragStart: null,
       installPrompt: null,
+      swUpdateAvailable: false,
+      swVersion: "",
       animationFrame: null,
       overlayAnimationFrame: null,
       compassAnimationFrame: null,
@@ -1449,13 +1451,14 @@
         </section>
         <section class="settings-section">
           <h3 class="settings-section-title">About</h3>
-          <p class="settings-description">App version: ${APP_VERSION}</p>
+          <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
           <p class="settings-description">Built by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
         </section>
       </div>`;
     }
 
     function bindSettingsHandlers() {
+      refreshSettingsVersionDisplay();
       const select = document.getElementById("settingsWalkMins");
       if (select) {
         select.addEventListener("change", () => {
