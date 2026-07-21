@@ -1,6 +1,6 @@
 const MAP_ICON_SCALE = 2;
 const MAP_ICON_SCALE_UNSELECTED = 2.2;
-const MAP_PNG_ICON_SIZE = 12;
+const MAP_PNG_ICON_SIZE = 16;
 const BEER_ICON_SCALE = 1.15;
 const MAX_MAP_TREES = 60;
 
@@ -772,8 +772,8 @@ function drawClusterBadge(ctx, x, y, count, pinSize, dpr) {
   const R = pinSize * 0.4;
   const badgeX = x + R * 0.65;
   const badgeY = y - 2.1 * R;
-  const badgeR = Math.max(6 * dpr, R * 0.42);
-  const fontSize = Math.round(Math.max(8 * dpr, badgeR * 1.2));
+  const badgeR = Math.max(8 * dpr, R * 0.56);
+  const fontSize = Math.round(Math.max(10 * dpr, badgeR * 1.3));
 
   ctx.shadowColor = "transparent";
   ctx.shadowBlur = 0;
