@@ -1,0 +1,29 @@
+{
+  "collars": [
+    {
+      "serialNo": "E2E-001",
+      "type": "cattle",
+      "position": { "coordinates": [0.0450, 51.6650] }
+    },
+    {
+      "serialNo": "E2E-002",
+      "type": "cattle",
+      "position": { "coordinates": [0.0480, 51.6670] }
+    }
+  ],
+  "pastures": [
+    {
+      "geometry": {
+        "coordinates": [
+          [
+            [0.0420, 51.6630],
+            [0.0510, 51.6630],
+            [0.0510, 51.6690],
+            [0.0420, 51.6690],
+            [0.0420, 51.6630]
+          ]
+        ]
+      }
+    }
+  ]
+}

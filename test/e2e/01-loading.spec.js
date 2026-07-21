@@ -1,0 +1,62 @@
+// @ts-check
+const { test, expect } = require("@playwright/test");
+const { skipOnboarding, mockCowApi } = require("./helpers");
+
+test.describe("Loading experience", () => {
+  test.beforeEach(async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+  });
+
+  test("shows the loading overlay at startup before data arrives", async ({ page }) => {
+    // Throttle data files so the overlay stays up long enough to assert on
+    await page.route("**/data/**", async (route) => {
+      await new Promise((r) => setTimeout(r, 500));
+      await route.continue();
+    });
+    await page.goto("/");
+    await expect(page.locator("#loadingOverlay")).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("overlay displays all eight loading step labels", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("[data-load-step='trees'] .step-label")).toContainText("Veteran trees");
+    await expect(page.locator("[data-load-step='places'] .step-label")).toContainText("Places");
+    await expect(page.locator("[data-load-step='paths'] .step-label")).toContainText("Paths");
+    await expect(page.locator("[data-load-step='roads'] .step-label")).toContainText("Roads");
+    await expect(page.locator("[data-load-step='environment'] .step-label")).toContainText("Water");
+    await expect(page.locator("[data-load-step='forest'] .step-label")).toContainText("Forest");
+    await expect(page.locator("[data-load-step='cows'] .step-label")).toContainText("cattle");
+    await expect(page.locator("[data-load-step='location'] .step-label")).toContainText("location");
+  });
+
+  test("overlay shows a version badge element", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("#sw-version")).toBeAttached();
+  });
+
+  test("overlay dismisses automatically after all steps complete", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
+  });
+
+  test("map canvas is visible once loading completes", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
+    await expect(page.locator("#mapCanvas")).toBeVisible();
+  });
+
+  test("cows step completes with fixture data count", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
+    // The fixture has 2 cows; the step-count badge should reflect that
+    await expect(page.locator("[data-step-count='cows']")).toContainText("2");
+  });
+
+  test("snapshot: map ready state", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
+    await page.waitForTimeout(600);
+    await expect(page).toHaveScreenshot("map-ready.png", { fullPage: false });
+  });
+});

@@ -43,10 +43,25 @@ Before finishing any implementation task:
 - **Service worker cache version (`CACHE_NAME` in `sw.js`) must be incremented with every client-side code or asset change.** Without a version bump, returning users will run stale cached code. Include the bump in the same commit as the change.
 
 ## Testing
+
+### Unit tests (functional behaviour)
 - Run: `node --test test/forest-finds.test.js`
-- **Tests must pass before any task is considered complete.** Run the suite after every code change and fix any failures before finishing.
-- Every new feature or behaviour change needs a matching test.
+- **Must pass before any task is considered complete.** Run after every code change and fix failures before finishing.
 - Use BDD-style descriptions that mirror the spec wording.
+
+### BDD browser tests (user experience)
+- Run: `npm run test:e2e`
+- Located in `test/e2e/` — one file per user journey, using Playwright.
+- **Both suites must pass before a task is considered complete.**
+- Every new user-facing behaviour or spec change needs a matching BDD test in `test/e2e/`.
+- If a behaviour change is implementation-only with no user-visible effect, state this explicitly.
+- Snapshots live in `test/e2e/<spec-name>-snapshots/`. Regenerate with `npm run test:e2e:update` when intentional visual changes are made.
+- `/api/cows` is always mocked via `test/e2e/fixtures/cows.json` — never hit the live Nofence API in tests.
+
+### Completion checklist for every task
+1. `node --test test/forest-finds.test.js` passes.
+2. `npm run test:e2e` passes (or snapshots are regenerated intentionally).
+3. Relevant `spec/` file is updated, or reason documented.
 
 ## Code Quality
 - Separate concerns strictly per the project structure above.
