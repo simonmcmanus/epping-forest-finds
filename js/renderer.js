@@ -104,7 +104,10 @@ function drawOverlay() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!state.bounds) return;
   const useOverlayForPins = typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive();
-  const toScreen = typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen;
+  const isTilted = typeof tiltActive === "function" && tiltActive();
+  const toScreen = isTilted && typeof worldToScreenForOverlayTilted === "function"
+    ? worldToScreenForOverlayTilted
+    : (typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen);
   if (useOverlayForPins) {
     const nearbyIconLookup = buildNearbyIconLookup();
     drawTrees(ctx, nearbyIconLookup, toScreen, applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, toScreen), toScreen));
@@ -1357,6 +1360,60 @@ function drawUserRadar(ctx, point, dpr) {
   const spread = toRadians(26);
   const outerRadius = Math.max(0.5, radarRadiusForMetres(point, 60));
   const innerRadius = Math.max(0.2, outerRadius * 0.28);
+
+  const isTilted = typeof tiltActive === "function" && tiltActive();
+  const proj = typeof projectCanvasPoint === "function" && isTilted ? projectCanvasPoint : null;
+
+  if (proj) {
+    // In tilt mode draw the radar as a projected fan with straight lines and perspective-corrected arcs.
+    const steps = 24;
+    const radii = [0.4, 0.7, 1];
+
+    ctx.save();
+
+    // Filled wedge
+    const fill = ctx.createRadialGradient(point.x, point.y, innerRadius * 0.2, point.x, point.y, outerRadius);
+    fill.addColorStop(0, "rgba(31, 94, 255, 0.30)");
+    fill.addColorStop(1, "rgba(31, 94, 255, 0.02)");
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+    for (let i = 0; i <= steps; i++) {
+      const a = (headingRad - spread) + (2 * spread * i / steps);
+      const raw = { x: point.x + Math.cos(a) * outerRadius, y: point.y + Math.sin(a) * outerRadius };
+      const p = proj(raw.x, raw.y);
+      i === 0 ? ctx.lineTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    // Arc rings
+    ctx.lineWidth = 2 * dpr;
+    ctx.strokeStyle = "rgba(31, 94, 255, 0.55)";
+    for (const ratio of radii) {
+      const r = outerRadius * ratio;
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const a = (headingRad - spread) + (2 * spread * i / steps);
+        const raw = { x: point.x + Math.cos(a) * r, y: point.y + Math.sin(a) * r };
+        const p = proj(raw.x, raw.y);
+        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+
+    // Centre direction line
+    const tip = proj(point.x + Math.cos(headingRad) * outerRadius, point.y + Math.sin(headingRad) * outerRadius);
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+    ctx.lineTo(tip.x, tip.y);
+    ctx.lineWidth = 2.6 * dpr;
+    ctx.strokeStyle = "rgba(31, 94, 255, 0.82)";
+    ctx.stroke();
+
+    ctx.restore();
+    return;
+  }
 
   ctx.save();
 

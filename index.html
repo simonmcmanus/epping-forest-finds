@@ -215,6 +215,11 @@
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
     const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
+    const TILT_BETA_THRESHOLD = 12;    // deg above flat before perspective kicks in
+    const TILT_BETA_MAX = 75;          // deg where max perspective angle is reached
+    const TILT_PERSPECTIVE_PX = 900;   // CSS perspective distance
+    const TILT_ROTATEX_MAX = 30;       // max rotateX deg — kept moderate so 2× overscan is enough to hide the canvas edge
+    const HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT = 2.0; // extra canvas needed so perspective doesn't expose the top edge
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
     const APP_VERSION = "v";
@@ -340,6 +345,9 @@
       navigationHeadingUp: false,
       renderedNavigationHeading: null,
       headingUpEntryAnim: null,
+      tiltBetaTarget: 0,
+      tiltBetaSmoothed: 0,
+      tiltWasActive: false,
       selectionViewportTransitionPending: false,
       viewportAnimationFrame: null,
       viewportAnimationFrom: null,
@@ -793,8 +801,10 @@
       const requestedDpr = window.devicePixelRatio || 1;
       const rawWidth = Math.max(1, rect.width);
       const rawHeight = Math.max(1, rect.height);
-      // Overscan only while heading-up is active; north-up uses an exact-fit canvas.
-      const overscanRatio = headingUpActive() ? HEADING_UP_CANVAS_OVERSCAN_RATIO : 1;
+      // Overscan while heading-up is active; tilt mode needs extra room so rotateX doesn't expose the canvas top edge.
+      const overscanRatio = headingUpActive()
+        ? (tiltActive() ? HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT : HEADING_UP_CANVAS_OVERSCAN_RATIO)
+        : 1;
       const requestedOverscanWidth = Math.round(rawWidth * requestedDpr * overscanRatio);
       const requestedOverscanHeight = Math.round(rawHeight * requestedDpr * overscanRatio);
       let overscanWidth = Math.max(1, Math.min(MAX_CANVAS_DIMENSION, requestedOverscanWidth));
@@ -2452,6 +2462,10 @@
     }
 
     function onDeviceOrientation(event) {
+      const rawBeta = event.beta;
+      if (Number.isFinite(rawBeta)) {
+        state.tiltBetaTarget = clamp(Math.abs(rawBeta), 0, 90);
+      }
       const heading = extractCompassHeading(event);
       if (!Number.isFinite(heading)) return;
       if (!Number.isFinite(state.compassHeading)) state.compassHeading = heading;
@@ -2479,6 +2493,16 @@
         const smoothing = 1 - Math.exp(-14 * dt);
         const nextHeading = state.compassHeading + (delta * smoothing);
         state.compassHeading = nextHeading;
+
+        const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
+        state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-8 * dt));
+
+        // Resize canvas when tilt mode activates/deactivates so the overscan ratio changes.
+        const isTiltNow = tiltActive();
+        if (isTiltNow !== state.tiltWasActive) {
+          state.tiltWasActive = isTiltNow;
+          resizeCanvas();
+        }
 
         updateOverviewDirectionArrows();
         updateCompassOverlay();
@@ -2612,6 +2636,16 @@
 
     function headingUpActive() {
       return selectedNavigationHeadingUpActive() || nearbyHeadingUpActive();
+    }
+
+    function tiltActive() {
+      return headingUpActive() && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD;
+    }
+
+    function tiltRotateXDeg() {
+      if (!tiltActive()) return 0;
+      const t = Math.min(1, (state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD));
+      return TILT_ROTATEX_MAX * t;
     }
 
     function navigationMapRotationDegrees() {
@@ -2800,6 +2834,10 @@
       if (!els.canvas) return;
       els.canvas.style.transform = "";
       els.canvas.style.transformOrigin = "";
+      if (els.overlayCanvas) {
+        els.overlayCanvas.style.transform = "";
+        els.overlayCanvas.style.transformOrigin = "";
+      }
     }
 
     function animateToHeadingUpNavigationViewport(durationMs = 500) {
@@ -2894,8 +2932,28 @@
       const delta = shortestCompassDelta(renderedRotation, currentRotation);
       const origin = rawWorldToScreen(state.userLocation.point);
       const dpr = pixelRatio();
-      els.canvas.style.transformOrigin = `${origin.x / dpr}px ${origin.y / dpr}px`;
-      els.canvas.style.transform = Math.abs(delta) < 0.01 ? "" : `rotate(${delta}deg)`;
+      const originCss = `${origin.x / dpr}px ${origin.y / dpr}px`;
+      const tiltDeg = tiltRotateXDeg();
+      const hasTilt = tiltDeg > 0.5;
+
+      els.canvas.style.transformOrigin = originCss;
+      if (hasTilt) {
+        // rotateX(+T) tilts the top AWAY from the viewer, which is the correct
+        // direction for ground-ahead perspective (distant trees recede, not loom).
+        els.canvas.style.transform = `perspective(${TILT_PERSPECTIVE_PX}px) rotateX(${tiltDeg.toFixed(2)}deg) rotate(${delta.toFixed(4)}deg)`;
+        // Overlay stays flat — pin positions are projected via worldToScreenForOverlayTilted
+        // so they appear upright (billboard) rather than lying flat on the tilted surface.
+        if (els.overlayCanvas) {
+          els.overlayCanvas.style.transformOrigin = "";
+          els.overlayCanvas.style.transform = "";
+        }
+      } else {
+        els.canvas.style.transform = Math.abs(delta) < 0.01 ? "" : `rotate(${delta}deg)`;
+        if (els.overlayCanvas) {
+          els.overlayCanvas.style.transformOrigin = "";
+          els.overlayCanvas.style.transform = "";
+        }
+      }
       return true;
     }
 
@@ -4034,6 +4092,51 @@
       const rotation = currentNavigationMapRotationDegrees();
       if (!rotation || !state.userLocation) return raw;
       return rotateScreenPoint(raw, rawWorldToScreen(state.userLocation.point), rotation);
+    }
+
+    // Projects an overlay canvas position through the active tilt perspective so pins
+    // appear at the correct depth but remain upright (billboard) on the flat overlay canvas.
+    function worldToScreenForOverlayTilted(point) {
+      const flat = worldToScreenForOverlay(point);
+      if (!tiltActive() || !state.userLocation) return flat;
+      const tiltDeg = tiltRotateXDeg();
+      if (tiltDeg <= 0) return flat;
+      const origin = rawWorldToScreen(state.userLocation.point);
+      const dpr = pixelRatio();
+      // Work in CSS pixels so perspective distance (TILT_PERSPECTIVE_PX) is consistent.
+      const dxCss = (flat.x - origin.x) / dpr;
+      const dyCss = (flat.y - origin.y) / dpr;
+      const T = tiltDeg * Math.PI / 180;
+      // rotateX(+T): y' = dy*cos(T), z' = dy*sin(T).
+      // Points above origin (dy<0, ahead) get z'<0 (behind viewer) → scale<1 → appear smaller.
+      const dyNew = dyCss * Math.cos(T);
+      const dz = dyCss * Math.sin(T);
+      const scale = TILT_PERSPECTIVE_PX / (TILT_PERSPECTIVE_PX - dz);
+      return {
+        x: origin.x + dxCss * scale * dpr,
+        y: origin.y + dyNew * scale * dpr,
+      };
+    }
+
+    // Projects a raw canvas-pixel point through the active tilt perspective.
+    // Used to place radar/overlay elements in the same 3D space as the terrain canvas.
+    function projectCanvasPoint(px, py) {
+      if (!tiltActive() || !state.userLocation) return { x: px, y: py, scale: 1 };
+      const tiltDeg = tiltRotateXDeg();
+      if (tiltDeg <= 0) return { x: px, y: py, scale: 1 };
+      const origin = rawWorldToScreen(state.userLocation.point);
+      const dpr = pixelRatio();
+      const dxCss = (px - origin.x) / dpr;
+      const dyCss = (py - origin.y) / dpr;
+      const T = tiltDeg * Math.PI / 180;
+      const dyNew = dyCss * Math.cos(T);
+      const dz = dyCss * Math.sin(T);
+      const scale = TILT_PERSPECTIVE_PX / (TILT_PERSPECTIVE_PX - dz);
+      return {
+        x: origin.x + dxCss * scale * dpr,
+        y: origin.y + dyNew * scale * dpr,
+        scale,
+      };
     }
 
     function screenToWorld(x, y) {

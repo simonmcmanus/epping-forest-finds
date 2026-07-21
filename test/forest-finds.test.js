@@ -173,6 +173,8 @@ globalThis.__forestFindsTest = {
   updateHeadingUpCanvasRotationTransform,
   nearbyHeadingUpActive,
   headingUpActive,
+  tiltActive,
+  tiltRotateXDeg,
   buildNearbyIconLookup,
   isNearCanvas,
   landmarkEmoji,
@@ -396,6 +398,56 @@ test("headingUpActive returns true for selected navigation heading-up", () => {
   app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
   app.state.compassHeading = 45;
   assert.equal(app.headingUpActive(), true);
+});
+
+test("tiltActive returns false when heading-up is not active", () => {
+  resetData(app);
+  app.state.compassHeading = null;
+  app.state.tiltBetaSmoothed = 45;
+  assert.equal(app.tiltActive(), false, "tilt requires heading-up to be active");
+});
+
+test("tiltActive returns false when phone is nearly flat (beta below threshold)", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 8; // below TILT_BETA_THRESHOLD (12)
+  assert.equal(app.tiltActive(), false, "no tilt when beta below threshold");
+});
+
+test("tiltActive returns true when heading-up is active and phone is tilted past threshold", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 30; // well above TILT_BETA_THRESHOLD
+  assert.equal(app.tiltActive(), true, "tilt mode should activate above threshold");
+});
+
+test("tiltRotateXDeg returns 0 when tilt is not active", () => {
+  resetData(app);
+  app.state.compassHeading = null;
+  app.state.tiltBetaSmoothed = 60;
+  assert.equal(app.tiltRotateXDeg(), 0, "no rotation when heading-up inactive");
+});
+
+test("tiltRotateXDeg scales smoothly between threshold and max", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.selected = null;
+
+  app.state.tiltBetaSmoothed = 12; // exactly at threshold
+  assert.equal(app.tiltRotateXDeg(), 0, "no rotation at threshold boundary");
+
+  app.state.tiltBetaSmoothed = 75; // at max
+  const maxAngle = app.tiltRotateXDeg();
+  assert.ok(maxAngle > 25 && maxAngle <= 30, `max tilt angle should be near 30°, got ${maxAngle}`);
+
+  app.state.tiltBetaSmoothed = 43.5; // midpoint ~(12+75)/2
+  const midAngle = app.tiltRotateXDeg();
+  assert.ok(midAngle > 0 && midAngle < maxAngle, "mid-tilt angle should be between 0 and max");
 });
 
 test("nearby heading-up map rotation applies compass heading to worldToScreen", () => {
