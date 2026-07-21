@@ -33,11 +33,16 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Run E2E tests
+        id: e2e
+        # continue-on-error so the commit step always runs even when baselines are missing.
+        # Playwright's "missing" mode writes new baselines but still exits non-zero —
+        # the explicit fail step below re-surfaces any genuine failures.
         run: npx playwright test --update-snapshots=missing
+        continue-on-error: true
       - name: Commit new snapshot baselines
-        # Only auto-commit on pushes to main. On first run this generates the linux
-        # baselines that don't exist yet; subsequent runs find them and compare normally.
-        if: github.ref == 'refs/heads/main'
+        # Runs even after test failure. git add only touches *-snapshots/ directories,
+        # so regression diffs (written to test-results/ as "actual") are never committed.
+        # New linux PNGs committed here will be found on the next CI run.
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -50,3 +55,6 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 14
+      - name: Fail if E2E tests had failures
+        if: steps.e2e.outcome == 'failure'
+        run: exit 1
