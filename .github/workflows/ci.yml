@@ -6,8 +6,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: Tests
+  unit:
+    name: Unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -17,3 +17,36 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        run: npx playwright test --update-snapshots=missing
+      - name: Commit new snapshot baselines
+        # Only auto-commit on pushes to main. On first run this generates the linux
+        # baselines that don't exist yet; subsequent runs find them and compare normally.
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 'test/e2e/*-snapshots/'
+          git diff --staged --quiet || (git commit -m "chore: add CI snapshot baselines [skip ci]" && git push)
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
