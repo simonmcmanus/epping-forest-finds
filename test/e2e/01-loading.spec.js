@@ -18,18 +18,6 @@ test.describe("Loading experience", () => {
     await expect(page.locator("#loadingOverlay")).toBeVisible({ timeout: 5_000 });
   });
 
-  test("overlay displays all eight loading step labels", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.locator("[data-load-step='trees'] .step-label")).toContainText("Veteran trees");
-    await expect(page.locator("[data-load-step='places'] .step-label")).toContainText("Places");
-    await expect(page.locator("[data-load-step='paths'] .step-label")).toContainText("Paths");
-    await expect(page.locator("[data-load-step='roads'] .step-label")).toContainText("Roads");
-    await expect(page.locator("[data-load-step='environment'] .step-label")).toContainText("Water");
-    await expect(page.locator("[data-load-step='forest'] .step-label")).toContainText("Forest");
-    await expect(page.locator("[data-load-step='cows'] .step-label")).toContainText("cattle");
-    await expect(page.locator("[data-load-step='location'] .step-label")).toContainText("location");
-  });
-
   test("overlay shows a version badge element", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("#sw-version")).toBeAttached();

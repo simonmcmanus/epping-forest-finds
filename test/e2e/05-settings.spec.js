@@ -18,13 +18,6 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#settingsWalkMins")).toBeVisible();
   });
 
-  test("walking radius options are 1 2 5 10 15 20 30 minutes", async ({ page }) => {
-    const values = await page
-      .locator("#settingsWalkMins option")
-      .evaluateAll((els) => els.map((e) => e.value));
-    expect(values).toEqual(expect.arrayContaining(["1", "2", "5", "10", "15", "20", "30"]));
-  });
-
   test("settings screen shows the app version in the About section", async ({ page }) => {
     await expect(page.locator("#appVersionDisplay")).toBeVisible();
     // Should start with 'v' — e.g. "v120"

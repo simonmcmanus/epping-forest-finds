@@ -180,6 +180,7 @@ globalThis.__forestFindsTest = {
   treeSpeciesIconHtml,
   placeTitle,
   ICON_PATHS,
+  FILTER_GROUPS,
   worldToScreen,
   settingsFormHtml,
   reportFormHtml,
@@ -981,6 +982,29 @@ test("settings form shows the app version", () => {
   assert.match(html, /v157/, "settings form should include the app version number");
   assert.match(html, /App version/, "settings form should label the app version");
   assert.match(html, /appVersionDisplay/, "settings form should include the version span for dynamic updates");
+});
+
+test("filter groups include all six labelled categories", () => {
+  const { FILTER_GROUPS: groups } = app;
+  assert.equal(groups.length, 6, "should have exactly six filter groups");
+  const labels = groups.map((g) => g.label);
+  for (const expected of ["Nature", "Food", "Transport", "History", "Locations", "Stories"]) {
+    assert.ok(labels.includes(expected), `missing filter group: ${expected}`);
+  }
+});
+
+test("settings form includes all walking radius options", () => {
+  const html = app.settingsFormHtml();
+  for (const mins of [1, 2, 5, 10, 15, 20, 30]) {
+    assert.match(html, new RegExp(`value="${mins}"`), `missing walk option: ${mins} min`);
+  }
+});
+
+test("loading overlay markup includes all eight step labels", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  for (const label of ["Veteran trees", "Places", "Paths", "Roads", "Water", "Forest", "cattle", "location"]) {
+    assert.ok(html.includes(label), `loading overlay missing step label: "${label}"`);
+  }
 });
 
 test("report submission includes the app version", () => {

@@ -17,18 +17,6 @@ test.describe("Filter panel", () => {
     await expect(page).toHaveURL(/#filters$/, { timeout: 3_000 });
   });
 
-  test("filter panel contains all six filter groups", async ({ page }) => {
-    await page.click("#filterToggle");
-    // transitionInspectorBody() briefly creates two #inspectorBody elements; use .first() to avoid strict mode
-    const body = page.locator("#inspectorBody").first();
-    await expect(body).toContainText("Nature", { timeout: 3_000 });
-    await expect(body).toContainText("Food");
-    await expect(body).toContainText("Transport");
-    await expect(body).toContainText("History");
-    await expect(body).toContainText("Locations");
-    await expect(body).toContainText("Stories");
-  });
-
   test("filter screen stays open when the map canvas is tapped", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page).toHaveURL(/#filters$/, { timeout: 3_000 });
