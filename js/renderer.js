@@ -154,12 +154,12 @@ function drawPaths(ctx) {
   const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
   const baseWidth = clamp(1.35 + zoomLevel * 0.18, 1.35, isCoarsePointer ? 2.5 : 2.2) * dpr;
   const namedLabels = [];
-  const worldTopLeft = screenToWorld(0, 0);
-  const worldBottomRight = screenToWorld(els.canvas.width, els.canvas.height);
-  const minWorldX = Math.min(worldTopLeft.x, worldBottomRight.x);
-  const maxWorldX = Math.max(worldTopLeft.x, worldBottomRight.x);
-  const minWorldY = Math.min(worldTopLeft.y, worldBottomRight.y);
-  const maxWorldY = Math.max(worldTopLeft.y, worldBottomRight.y);
+  const w = els.canvas.width, h = els.canvas.height;
+  const corners = [screenToWorld(0, 0), screenToWorld(w, 0), screenToWorld(0, h), screenToWorld(w, h)];
+  const minWorldX = Math.min(...corners.map(c => c.x));
+  const maxWorldX = Math.max(...corners.map(c => c.x));
+  const minWorldY = Math.min(...corners.map(c => c.y));
+  const maxWorldY = Math.max(...corners.map(c => c.y));
   const margin = (maxWorldX - minWorldX) * 0.05;
 
   ctx.save();
@@ -244,12 +244,12 @@ function drawRoads(ctx) {
 
   if (zoomLevel < -0.5) return;
 
-  const worldTopLeft = screenToWorld(0, 0);
-  const worldBottomRight = screenToWorld(els.canvas.width, els.canvas.height);
-  const minWorldX = Math.min(worldTopLeft.x, worldBottomRight.x);
-  const maxWorldX = Math.max(worldTopLeft.x, worldBottomRight.x);
-  const minWorldY = Math.min(worldTopLeft.y, worldBottomRight.y);
-  const maxWorldY = Math.max(worldTopLeft.y, worldBottomRight.y);
+  const w = els.canvas.width, h = els.canvas.height;
+  const corners = [screenToWorld(0, 0), screenToWorld(w, 0), screenToWorld(0, h), screenToWorld(w, h)];
+  const minWorldX = Math.min(...corners.map(c => c.x));
+  const maxWorldX = Math.max(...corners.map(c => c.x));
+  const minWorldY = Math.min(...corners.map(c => c.y));
+  const maxWorldY = Math.max(...corners.map(c => c.y));
   const margin = (maxWorldX - minWorldX) * 0.05;
 
   ctx.save();
@@ -395,12 +395,12 @@ function drawEnvironment(ctx) {
       ? Math.min(1, (performance.now() - state.buildingsRevealStartTime) / BUILDINGS_FADE_MS)
       : 1;
 
-    const worldTopLeft = screenToWorld(0, 0);
-    const worldBottomRight = screenToWorld(els.canvas.width, els.canvas.height);
-    const wMinX = Math.min(worldTopLeft.x, worldBottomRight.x);
-    const wMaxX = Math.max(worldTopLeft.x, worldBottomRight.x);
-    const wMinY = Math.min(worldTopLeft.y, worldBottomRight.y);
-    const wMaxY = Math.max(worldTopLeft.y, worldBottomRight.y);
+    const bw = els.canvas.width, bh = els.canvas.height;
+    const bCorners = [screenToWorld(0, 0), screenToWorld(bw, 0), screenToWorld(0, bh), screenToWorld(bw, bh)];
+    const wMinX = Math.min(...bCorners.map(c => c.x));
+    const wMaxX = Math.max(...bCorners.map(c => c.x));
+    const wMinY = Math.min(...bCorners.map(c => c.y));
+    const wMaxY = Math.max(...bCorners.map(c => c.y));
     const marginX = (wMaxX - wMinX) * 0.05;
     const marginY = (wMaxY - wMinY) * 0.05;
 
@@ -944,7 +944,7 @@ function buildNearbyIconLookup() {
   const path = new Set();
   const water = new Set();
   const outOfRadius = new Set();
-  const inFilterScreen = state.filterScreenOpen && state.userLocation;
+  const inFilterScreen = (state.filterScreenOpen || state.selected?.type === "settings" || state.selected?.type === "report") && state.userLocation;
   const items = inFilterScreen
     ? overviewItemsUnlimited(state.userLocation.latitude, state.userLocation.longitude)
     : overviewItemsForActiveFilter();

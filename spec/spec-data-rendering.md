@@ -341,6 +341,13 @@ When an item is selected, it gets a pulsing highlight overlay:
 - Inspector title icon: `cow.png`
 - Live distance + walking time
 
+### Secondary Screens (Filter, Settings, Report)
+
+Filter, Settings, and Report share identical navigation behaviour:
+
+- **Map canvas tap on empty space does not dismiss the screen.** Only the Nearby button returns to overview. This is enforced in `handleMapClick` (the `else`/no-hit branch checks `state.filterScreenOpen || state.selected?.type === "settings" || state.selected?.type === "report"` before calling `goToInitialView`) and in the `hashchange` handler (same guard).
+- **Map icon set:** all three screens use `overviewItemsUnlimited()` to build the nearby icon lookup, showing all items regardless of walking radius. The walking-radius filter only applies in the standard Nearby/overview view.
+
 ### Filter Panel (Overview mode only)
 
 - Hidden when in selected-detail mode

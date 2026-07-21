@@ -19,7 +19,8 @@
       "Bash(node -e \"require\\('playwright'\\); console.log\\('playwright ok'\\)\")",
       "Bash(mkdir -p /tmp/onboarding-screenshots && npx playwright codegen --no-headless 2>/dev/null; echo \"done\")",
       "Bash(git -C /Users/simonmcmanus/node/trees rm -r --cached test-results/)",
-      "Bash(git -C /Users/simonmcmanus/node/trees status --short)"
+      "Bash(git -C /Users/simonmcmanus/node/trees status --short)",
+      "Bash(npm run *)"
     ],
     "additionalDirectories": [
       "/tmp"

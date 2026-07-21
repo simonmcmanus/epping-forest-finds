@@ -24,6 +24,11 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#appVersionDisplay")).toContainText("v");
   });
 
+  test("settings screen stays open when the map canvas is tapped", async ({ page }) => {
+    await page.locator("#mapCanvas").click({ position: { x: 200, y: 200 } });
+    await expect(page.locator("#settingsToggle")).toHaveClass(/screen-active/);
+  });
+
   test("nearby button returns to overview from settings", async ({ page }) => {
     await page.click("#nearbyToggle");
     // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction

@@ -27,6 +27,20 @@ test.describe("Feedback / Report screen", () => {
     await expect(page.locator("#reportSubmit")).toBeVisible();
   });
 
+  test("report screen stays open when the map canvas is tapped", async ({ page }) => {
+    await page.locator("#mapCanvas").click({ position: { x: 200, y: 200 } });
+    await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
+  });
+
+  test("Nearby button closes the report screen and returns to overview", async ({ page }) => {
+    await page.click("#nearbyToggle");
+    await page.waitForFunction(
+      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
+      { timeout: 5_000 }
+    );
+    await expect(page.locator("#reportToggle")).not.toHaveClass(/screen-active/);
+  });
+
   test("report form has a Cancel button that returns to overview", async ({ page }) => {
     await page.click("#reportCancel");
     // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction

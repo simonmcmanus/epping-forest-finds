@@ -268,7 +268,10 @@ function setupSearchAndNavHandlers() {
 
   window.addEventListener("hashchange", () => {
     if (!window.location.hash) {
-      if (!state.filterScreenOpen) goToInitialView(false);
+      const screenOpen = state.filterScreenOpen
+        || state.selected?.type === "settings"
+        || state.selected?.type === "report";
+      if (!screenOpen) goToInitialView(false);
       return;
     }
     applySelectionFromHash(false);

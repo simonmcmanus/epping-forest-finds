@@ -93,7 +93,10 @@ function handleMapClick(event) {
     showRailwayDetails(hit.item);
     updateCompassOverlay();
   } else {
-    if (!state.filterScreenOpen) goToInitialView();
+    const screenOpen = state.filterScreenOpen
+      || state.selected?.type === "settings"
+      || state.selected?.type === "report";
+    if (!screenOpen) goToInitialView();
     return;
   }
   if (hit.type && hit.item && typeof trackClick === "function") {
