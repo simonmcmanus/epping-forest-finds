@@ -17,7 +17,9 @@
       "Bash(/usr/bin/gh --version)",
       "Bash(/opt/homebrew/bin/gh --version)",
       "Bash(node -e \"require\\('playwright'\\); console.log\\('playwright ok'\\)\")",
-      "Bash(mkdir -p /tmp/onboarding-screenshots && npx playwright codegen --no-headless 2>/dev/null; echo \"done\")"
+      "Bash(mkdir -p /tmp/onboarding-screenshots && npx playwright codegen --no-headless 2>/dev/null; echo \"done\")",
+      "Bash(git -C /Users/simonmcmanus/node/trees rm -r --cached test-results/)",
+      "Bash(git -C /Users/simonmcmanus/node/trees status --short)"
     ],
     "additionalDirectories": [
       "/tmp"
