@@ -55,11 +55,11 @@ function draw() {
   const height = els.canvas.height;
   const animatedEmojiScale = updateAnimatedEmojiScale();
   const nearbyIconLookup = buildNearbyIconLookup();
-  const treeClusters = buildTypeClusters(nearbyIconLookup.tree, worldToScreen);
-  const landmarkClusters = buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen);
-  const cowClusters = buildTypeClusters(nearbyIconLookup.cow, worldToScreen);
-  const pathClusters = buildTypeClusters(nearbyIconLookup.path, worldToScreen);
-  const waterClusters = buildTypeClusters(nearbyIconLookup.water, worldToScreen);
+  const treeClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, worldToScreen), worldToScreen);
+  const landmarkClusters = applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen), worldToScreen);
+  const cowClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, worldToScreen), worldToScreen);
+  const pathClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, worldToScreen), worldToScreen);
+  const waterClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, worldToScreen), worldToScreen);
   ctx.clearRect(0, 0, width, height);
   drawBase(ctx, width, height);
 
@@ -107,11 +107,11 @@ function drawOverlay() {
   const toScreen = typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen;
   if (useOverlayForPins) {
     const nearbyIconLookup = buildNearbyIconLookup();
-    drawTrees(ctx, nearbyIconLookup, toScreen, buildTypeClusters(nearbyIconLookup.tree, toScreen));
-    drawLandmarks(ctx, nearbyIconLookup, toScreen, buildLandmarkClusters(nearbyIconLookup.landmark, toScreen));
-    drawCows(ctx, nearbyIconLookup, toScreen, buildTypeClusters(nearbyIconLookup.cow, toScreen));
-    drawPathPins(ctx, nearbyIconLookup, toScreen, buildTypeClusters(nearbyIconLookup.path, toScreen));
-    drawWaterPins(ctx, nearbyIconLookup, toScreen, buildTypeClusters(nearbyIconLookup.water, toScreen));
+    drawTrees(ctx, nearbyIconLookup, toScreen, applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, toScreen), toScreen));
+    drawLandmarks(ctx, nearbyIconLookup, toScreen, applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, toScreen), toScreen));
+    drawCows(ctx, nearbyIconLookup, toScreen, applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, toScreen), toScreen));
+    drawPathPins(ctx, nearbyIconLookup, toScreen, applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, toScreen), toScreen));
+    drawWaterPins(ctx, nearbyIconLookup, toScreen, applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, toScreen), toScreen));
   }
   drawUser(ctx);
   drawSelectedOverlay(ctx, toScreen);
@@ -708,6 +708,28 @@ function drawLayer(ctx, layer) {
     }
   }
   ctx.restore();
+}
+
+// When a cluster is expanded via state.clusterExpanded, split any cluster that
+// contains one of the expanded items into individual 1-item clusters so each
+// member is always tappable regardless of screen proximity.
+function applySingletonExpansion(clusters, toScreen) {
+  if (!state.clusterExpanded) return clusters;
+  const expandedSet = new Set(state.clusterExpanded.items);
+  const result = [];
+  for (const cluster of clusters) {
+    if (cluster.items.some(item => expandedSet.has(item))) {
+      for (const item of cluster.items) {
+        if (item.point) {
+          const sp = toScreen(item.point);
+          result.push({ items: [item], screenPt: sp, worldPt: item.point });
+        }
+      }
+    } else {
+      result.push(cluster);
+    }
+  }
+  return result;
 }
 
 function buildTypeClusters(itemSet, toScreen) {

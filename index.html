@@ -357,6 +357,7 @@
       buildingsRevealStartTime: null,
       overviewOutsideRadiusFallback: false,
       clusterZoomed: false,
+      clusterExpanded: null,
       transportLookupCache: new Map(),
       transportLookupRequests: new Map(),
       dataLoaded: false,
@@ -2738,6 +2739,7 @@
     function alignHeadingUpNavigationViewport(options = {}) {
       if (!headingUpActive()) return false;
       if (selectionCameraTransitionActive()) return false;
+      if (state.clusterZoomed) return false;
       clearHeadingUpCanvasTransform();
       const previousScale = state.viewport.scale;
       const previousTx = state.viewport.tx;

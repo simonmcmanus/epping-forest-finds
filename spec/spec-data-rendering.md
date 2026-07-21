@@ -172,7 +172,16 @@ All point-type overview items are clustered in screen space (30 CSS-pixel radius
 
 Each cluster draws **one pin** at the screen centroid of its members. When a cluster contains more than one item, a small count badge is drawn in the top-right of the pin by `drawClusterBadge`. Badges only appear on PNG teardrop pins (not SVG roundels or emoji). Route lines use the world-space centroid of each cluster (one line per cluster for trees; individual items for other types).
 
-**Cluster tap interaction:** tapping a multi-item cluster pin (in overview mode, i.e. no current selection) triggers `findClusterHit` — which rebuilds clusters for all types at the current viewport — and, if hit, sets `state.clusterZoomed = true` and calls `fitToPoints` on the cluster members' world points with a 400 ms animation using `focusVisibleArea: true, assumeInspectorOpen: true` so items are fitted into the visible area above the inspector panel. This zooms the map until the items separate into individually tappable pins. While `state.clusterZoomed` is true, both `ensureOverviewTargetsVisible` and `keepOverviewCenteredOnUser` skip their GPS-driven refits so the zoom-in view is not immediately overridden. The flag is cleared when the user taps an item or empty space (via `goToInitialView`), drags the map, or scrolls/pinches to zoom. Sub-clusters at the new zoom level can be tapped to zoom in further. Single-item clusters fall through to the normal `findHit` individual-item selection path.
+**Cluster tap interaction:** tapping a multi-item cluster pin (in overview mode, i.e. no current selection) triggers `findClusterHit` — which rebuilds clusters for all types at the current viewport and tags each cluster with its `itemType` (`"tree"`, `"landmark"`, `"cow"`, `"path"`, or `"water"`) — and, if hit:
+1. Sets `state.clusterZoomed = true` and `state.clusterExpanded = cluster`.
+2. Animates the viewport to centre on the user's location and scale so the farthest cluster item fills to the edge of the visible focus rect (area above the inspector), using `bestVisibleCanvasRect({ assumeInspectorOpen: true })` with 40 CSS-pixel padding. This keeps the user at the centre of the view and scales to show all cluster items at the edges, matching the "nearby view centred on my location" intent. `state.fitScale` is not modified by this zoom. When user location is unavailable it falls back to `fitToPoints` on cluster item points only.
+3. Switches the inspector to **cluster detail mode** via `showClusterDetail(cluster)`: shows the back button, a title (e.g. "4 Trees"), and a nearest-item list of all items in the cluster (icon, name, walk time, direction arrow). Items are tappable to open full detail via the existing `focusOverviewItem` path.
+
+While `state.clusterZoomed` is true, `ensureOverviewTargetsVisible`, `keepOverviewCenteredOnUser`, and `alignHeadingUpNavigationViewport` all skip their GPS/compass-driven refits so the zoom-in view is not immediately overridden. `selectOverview` also skips its re-render while `state.clusterExpanded` is set, preventing GPS updates from replacing the cluster detail list.
+
+`state.clusterZoomed` and `state.clusterExpanded` are both cleared when: the user taps an item (via `focusOverviewItem`), taps empty space or presses the back button (via `goToInitialView`), drags the map, scrolls/pinches to zoom, or taps any non-cluster target (the `handleMapClick` fall-through path clears both before proceeding to `findHit`). Single-item clusters fall through to the normal `findHit` individual-item selection path.
+
+**Singleton expansion (`applySingletonExpansion`):** when `state.clusterExpanded` is set, this post-processing step runs on all cluster lists in both `draw()` and `drawOverlay()`. Any cluster containing an expanded item is split into individual 1-item clusters so that every member is always rendered as a separate tappable pin regardless of screen proximity. This guarantees the individual items are visible on the map even when they are geographically close enough to fall within the normal 30 CSS-pixel clustering radius.
 
 ### Trees
 
@@ -289,8 +298,9 @@ When an item is selected, it gets a pulsing highlight overlay:
 ### Modes
 
 1. **Overview mode** — nearest list + filter controls
-2. **Selected-detail mode** — details for selected tree/landmark/cow/path/road
-3. **Minimized mode** — collapsed header only, click to expand
+2. **Cluster detail mode** — list of items in a tapped cluster (`state.clusterExpanded` set, `state.selected` null); shows back button, item count title, and nearest-item rows for each cluster member; back button or empty-space map tap returns to overview
+3. **Selected-detail mode** — details for selected tree/landmark/cow/path/road
+4. **Minimized mode** — collapsed header only, click to expand
 
 ### Overview Content
 

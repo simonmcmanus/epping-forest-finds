@@ -7,14 +7,37 @@ function handleMapClick(event) {
   if (!state.trees.length) return;
   const screen = canvasPoint(event);
 
-  // In overview mode, tapping a multi-item cluster zooms in to separate the items.
+  // In overview mode, tapping a multi-item cluster expands it: zooms to separate
+  // the items and shows a cluster detail list in the inspector.
   if (!state.selected) {
     const cluster = findClusterHit(screen);
     if (cluster) {
-      const points = cluster.items.map(item => item.point).filter(Boolean);
-      if (points.length) {
+      const itemPoints = cluster.items.map(item => item.point).filter(Boolean);
+      if (itemPoints.length) {
         state.clusterZoomed = true;
-        fitToPoints(points, false, { animate: true, durationMs: 400, focusVisibleArea: true, assumeInspectorOpen: true });
+        state.clusterExpanded = cluster;
+        if (state.userLocation && state.userLocation.point) {
+          const user = state.userLocation.point;
+          const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+          const dpr = pixelRatio();
+          const padding = 40 * dpr;
+          const halfW = Math.max(1, focusRect.width / 2 - padding);
+          const halfH = Math.max(1, focusRect.height / 2 - padding);
+          let maxDx = 0, maxDy = 0;
+          for (const pt of itemPoints) {
+            maxDx = Math.max(maxDx, Math.abs(pt.x - user.x));
+            maxDy = Math.max(maxDy, Math.abs(pt.y - user.y));
+          }
+          const targetScale = (maxDx > 0 || maxDy > 0)
+            ? Math.min(maxDx > 0 ? halfW / maxDx : Infinity, maxDy > 0 ? halfH / maxDy : Infinity)
+            : state.viewport.scale;
+          const focusCx = focusRect.x + focusRect.width / 2;
+          const focusCy = focusRect.y + focusRect.height / 2;
+          animateViewportTo({ scale: targetScale, tx: focusCx - user.x * targetScale, ty: focusCy - user.y * targetScale }, 400);
+        } else {
+          fitToPoints(itemPoints, false, { animate: true, durationMs: 400, focusVisibleArea: true, assumeInspectorOpen: true });
+        }
+        showClusterDetail(cluster);
         requestDraw();
         return;
       }
@@ -22,6 +45,7 @@ function handleMapClick(event) {
   }
 
   state.clusterZoomed = false;
+  state.clusterExpanded = null;
   setInspectorMinimized(false);
   const world = screenToWorld(screen.x, screen.y);
   const lonLat = unprojectPoint(world);
@@ -76,6 +100,73 @@ function handleMapClick(event) {
     trackSelectionClick(hit.type, hit.item, "map");
   }
   requestDraw();
+}
+
+function showClusterDetail(cluster) {
+  const { itemType, items } = cluster;
+  const count = items.length;
+
+  const typeLabels = { tree: "Trees", cow: "Cows", path: "Trails", water: "Water features", landmark: "Places" };
+  const emojiSlugs = { tree: "tree", cow: "cow" };
+
+  const titleText = `${count} ${typeLabels[itemType] || "Places"}`;
+  const emoji = emojiSlugs[itemType]
+    ? appIconHtml(emojiSlugs[itemType], "app-icon title-icon")
+    : filterKindEmoji(itemType === "path" ? "waymarked_trails" : "ponds") || "📍";
+
+  setInspectorSelectionChrome({ emoji, showBack: true });
+  els.inspectorTools.hidden = true;
+  els.inspectorTitle.textContent = titleText;
+  els.inspectorType.textContent = "Tap to navigate";
+
+  const itemsHtml = items.map(item => {
+    let name, key, iconHtml;
+    const lat = item.latitude ?? "";
+    const lon = item.longitude ?? "";
+
+    if (itemType === "tree") {
+      name = item.commonName || item.tagNumber || item.recordNumber || "Unknown tree";
+      key = treeHashKey(item);
+      iconHtml = treeSpeciesIconHtml(item.commonName, item.latinName) || filterKindEmoji("trees") || "🌳";
+    } else if (itemType === "cow") {
+      name = "Cow";
+      key = cowKey(item);
+      iconHtml = filterKindEmoji("cows") || "🐄";
+    } else if (itemType === "path") {
+      name = item.name || item.ref || "Waymarked trail";
+      key = pathHashKey(item);
+      iconHtml = filterKindEmoji("waymarked_trails") || "🥾";
+    } else if (itemType === "water") {
+      name = item.name || "Water feature";
+      key = waterHashKey(item);
+      iconHtml = filterKindEmoji("ponds") || "💧";
+    } else {
+      name = placeTitle(item);
+      key = placeHashKey(item);
+      iconHtml = landmarkEmoji(item);
+    }
+
+    const metres = distanceFromUser(item);
+    const walkTime = metres != null ? walkTimeStr(metres).replace(/~/g, "") : "";
+    const walkHtml = walkTime
+      ? `${escapeHtml(walkTime)} ${appIconHtml("walking", "app-icon walk-icon")}`
+      : "";
+
+    return `<li><button class="nearest-item" type="button" data-overview-type="${escapeHtml(itemType)}" data-overview-key="${escapeHtml(key)}">
+      <div class="nearest-header">
+        <span class="nearest-icon" aria-hidden="true">${iconHtml}</span>
+        <span class="nearest-name">${escapeHtml(name)}</span>
+      </div>
+      <div class="nearest-footer">
+        <span class="nearest-meta">${walkHtml}</span>
+        <span class="nearest-arrow" data-item-lat="${lat}" data-item-lon="${lon}" aria-hidden="true">↑</span>
+      </div>
+    </button></li>`;
+  }).join("");
+
+  transitionInspectorBody(`<ul class="nearest-list">${itemsHtml}</ul>`, null, () => {
+    updateOverviewDirectionArrows();
+  });
 }
 
 function trackSelectionClick(itemType, item, source) {
@@ -227,12 +318,13 @@ function findClusterHit(screen) {
   const pinR = iconSize * 0.4 * 1.3;
   const pinYOffset = iconSize * 0.64;
   const lookup = buildNearbyIconLookup();
+  const tag = (clusters, itemType) => clusters.map(c => ({ ...c, itemType }));
   const allClusters = [
-    ...buildTypeClusters(lookup.tree, worldToScreen),
-    ...buildLandmarkClusters(lookup.landmark, worldToScreen),
-    ...buildTypeClusters(lookup.cow, worldToScreen),
-    ...buildTypeClusters(lookup.path, worldToScreen),
-    ...buildTypeClusters(lookup.water, worldToScreen),
+    ...tag(buildTypeClusters(lookup.tree, worldToScreen), "tree"),
+    ...tag(buildLandmarkClusters(lookup.landmark, worldToScreen), "landmark"),
+    ...tag(buildTypeClusters(lookup.cow, worldToScreen), "cow"),
+    ...tag(buildTypeClusters(lookup.path, worldToScreen), "path"),
+    ...tag(buildTypeClusters(lookup.water, worldToScreen), "water"),
   ];
   for (const cluster of allClusters) {
     if (cluster.items.length <= 1) continue;
@@ -526,6 +618,7 @@ let _overviewListKey;
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen) return;
+  if (state.clusterExpanded) return;
   [els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
     if (el) el.classList.remove("screen-active", "active");
   });
@@ -748,6 +841,8 @@ function focusOverviewItem(type, key) {
     setStatus("Use my location first.");
     return;
   }
+  state.clusterZoomed = false;
+  state.clusterExpanded = null;
 
   if (type === "tree") {
     const tree = findTreeByHashKey(key);
