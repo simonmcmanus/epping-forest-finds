@@ -1108,19 +1108,23 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
 function drawUser(ctx) {
   if (!state.userLocation || !state.userInMapArea) return;
   const dpr = pixelRatio();
+  // Scale proportionally with actual zoom (not mapEmojiScale which has a high floor).
+  const baseScale = state.baseFitScale > 0 ? state.baseFitScale : Math.max(state.fitScale, 1);
+  const dotScale = clamp(state.viewport.scale / baseScale, 0.1, 1.5);
+  const radius = 4 * dpr * dotScale;
   const point = worldToScreen(state.userLocation.point);
   drawUserRadar(ctx, point, dpr);
   ctx.save();
   ctx.beginPath();
-  ctx.arc(point.x, point.y, 12 * dpr, 0, Math.PI * 2);
+  ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
   ctx.fillStyle = "#1f5eff";
   ctx.fill();
   ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 4 * dpr;
+  ctx.lineWidth = 2 * dpr * dotScale;
   ctx.stroke();
   ctx.fillStyle = "#14211d";
-  ctx.font = `800 ${14 * dpr}px system-ui`;
-  ctx.fillText("You", point.x + 17 * dpr, point.y + 5 * dpr);
+  ctx.font = `800 ${11 * dpr * dotScale}px system-ui`;
+  ctx.fillText("You", point.x + radius + 3 * dpr, point.y + 4 * dpr * dotScale);
   ctx.restore();
 }
 

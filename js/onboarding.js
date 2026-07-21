@@ -5,8 +5,6 @@ const ONBOARDING_KEY = "forest-finds-onboarding-v1";
 
 const ONBOARDING_STEPS = [
   { type: "location" },
-  { type: "welcome" },
-  ...FILTER_GROUPS.map((g) => ({ type: "group", group: g })),
 ];
 
 if (typeof globalThis !== "undefined") {
@@ -178,13 +176,11 @@ function showOnboarding() {
           setImplicitCompassPermission();
         }
 
-        // Location is now the first step — continue to welcome + filter personalisation.
-        goNext();
+        finish();
       });
       actionsEl.querySelector(".ob-location-skip")?.addEventListener("click", () => {
         setImplicitCompassPermission();
-        // Continue to welcome + filter personalisation even when location is skipped.
-        goNext();
+        finish();
       });
     }
 
