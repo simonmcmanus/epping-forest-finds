@@ -42,7 +42,7 @@ Compass-driven map orientation: the direction the device is facing is always tow
 Zoom behaviour when the filter panel is closed: the viewport anchors to the nearest 3–5 active trees, giving a tight in-forest view where individual tree positions are distinguishable. Falls back to nearest items of any active type if trees are filtered off.
 
 **Survey mode**
-Zoom behaviour when the filter panel is open: the viewport expands to show the user location plus the nearest `nearestItemsCount` items per active type, ignoring the walking radius. Allows the user to see how far away transport, food, or other points of interest are without leaving the filter screen. Snaps back to foraging zoom on close.
+Zoom behaviour when the filter panel is open: both the zoom calculation and the map pin rendering use `overviewItemsUnlimited()` — the nearest `nearestItemsCount` items per active type, ignoring the walking radius — so pins are always visible wherever the camera zooms. Allows the user to see how far away transport, food, or other points of interest are without leaving the filter screen. Snaps back to foraging zoom on close.
 
 ---
 

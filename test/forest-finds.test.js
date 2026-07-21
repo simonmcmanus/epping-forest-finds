@@ -667,7 +667,7 @@ test("first location fix immediately scales and centers nearby map icons", () =>
   assert.equal(app.isNearCanvas(treePoint, 10), true, JSON.stringify({ treePoint, viewport: app.state.viewport }));
 });
 
-test("filter screen survey mode zooms to show items of each active type ignoring walking radius", () => {
+test("filter screen with active filters zooms to fit only filtered items, not all locations", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.viewport = { scale: 8, tx: 120, ty: 120 };
@@ -675,13 +675,29 @@ test("filter screen survey mode zooms to show items of each active type ignoring
   app.state.landmarks.push({ id: "near-pub", name: "Near pub", category: "pub", ...makePoint(app, 0.0012, 0.0008) });
 
   app.state.filterScreenOpen = true;
+  app.state.overviewFilters = ["pubs"];
   app.ensureOverviewTargetsVisible({ animate: false });
-  const treePoint = app.worldToScreen(app.state.trees[0].point);
   const pubPoint = app.worldToScreen(app.state.landmarks[0].point);
 
-  assert.ok(app.state.viewport.scale > 8, "survey mode should zoom in from the initial full-map scale");
-  assert.equal(app.isNearCanvas(treePoint, 10), true, JSON.stringify({ treePoint, viewport: app.state.viewport }));
+  assert.ok(app.state.viewport.scale > 8, "filter screen should zoom in from the initial full-map scale");
   assert.equal(app.isNearCanvas(pubPoint, 16), true, JSON.stringify({ pubPoint, viewport: app.state.viewport }));
+});
+
+test("filter screen with no active filters falls through to foraging zoom (nearest trees)", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.viewport = { scale: 8, tx: 120, ty: 120 };
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
+  app.state.trees.push({ id: "near-tree-2", commonName: "Near tree 2", ...makePoint(app, 0.0015, 0) });
+  app.state.landmarks.push({ id: "far-pub", name: "Far pub", category: "pub", ...makePoint(app, 5, 5) });
+
+  app.state.filterScreenOpen = true;
+  // no overviewFilters set — falls through to foraging mode
+  app.ensureOverviewTargetsVisible({ animate: false });
+  const treePoint = app.worldToScreen(app.state.trees[0].point);
+
+  assert.ok(app.state.viewport.scale > 8, "should zoom in to tree level, not stay at full-map scale");
+  assert.equal(app.isNearCanvas(treePoint, 10), true, JSON.stringify({ treePoint, viewport: app.state.viewport }));
 });
 
 test("minimized inspector preserves user-controlled map position on GPS updates", () => {

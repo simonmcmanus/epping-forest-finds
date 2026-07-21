@@ -1296,7 +1296,7 @@
         selectOverview();
         ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
       } else if (state.filterScreenOpen) {
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+        ensureOverviewTargetsVisible({ animate: true, durationMs: 420, force: true });
       }
       requestDraw();
     }
@@ -2041,7 +2041,7 @@
     }
 
     function overviewItemsUnlimited(latitude, longitude) {
-      const limit = 10;
+      const limit = state.nearestItemsCount;
       const hasFilters = state.overviewFilters.length > 0;
       if (hasFilters) {
         const activePointFilters = getActivePointFilterKeys();
@@ -3101,16 +3101,13 @@
       if (!state.userLocation) return [];
       const { latitude, longitude } = state.userLocation;
 
-      // Survey mode: filter panel open — fit nearest items per active type, ignoring walking radius
-      if (state.filterScreenOpen) {
-        const entries = [];
-        for (const filterKey of pointFilterKeysForNearestFallback()) {
-          entries.push(...nearestOverviewEntriesForFilter(filterKey, latitude, longitude, state.nearestItemsCount));
-        }
-        const itemPts = uniqueSortedOverviewEntries(entries)
+      // Filter screen: zoom to fit only the highlighted (filtered) items, not all locations
+      if (state.filterScreenOpen && state.overviewFilters.length > 0) {
+        const entries = overviewItemsUnlimited(latitude, longitude);
+        const itemPts = entries
           .filter(e => e.item && e.item.point)
           .map(e => e.item.point);
-        return [state.userLocation.point, ...itemPts];
+        if (itemPts.length > 0) return [state.userLocation.point, ...itemPts];
       }
 
       // Foraging mode: anchor to nearest 5 trees for a tight in-forest view

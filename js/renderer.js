@@ -922,9 +922,13 @@ function buildNearbyIconLookup() {
   const path = new Set();
   const water = new Set();
   const outOfRadius = new Set();
-  for (const entry of overviewItemsForActiveFilter()) {
+  const inFilterScreen = state.filterScreenOpen && state.userLocation;
+  const items = inFilterScreen
+    ? overviewItemsUnlimited(state.userLocation.latitude, state.userLocation.longitude)
+    : overviewItemsForActiveFilter();
+  for (const entry of items) {
     if (!entry || !entry.item) continue;
-    if (entry.outOfRadius) {
+    if (!inFilterScreen && entry.outOfRadius) {
       outOfRadius.add(entry.item);
       if (!state.showAllOutsideRadius) continue;
     }
