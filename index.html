@@ -2416,17 +2416,24 @@
         window.addEventListener("deviceorientation", onDeviceOrientation, true);
 
         // Restart GPS watch if it has gone silent for >20 s.
-        if (navigator.geolocation && state.locationWatchId != null) {
-          const gpsAge = state.lastLocationUpdateAt == null
-            ? Infinity
-            : (performance.now() - state.lastLocationUpdateAt);
-          if (gpsAge > 20000) {
-            navigator.geolocation.clearWatch(state.locationWatchId);
-            state.locationWatchId = null;
-            ensureLocationWatch();
-          }
-        }
+        restartStaleGpsWatch();
       });
+
+      // Also check in the foreground — iOS can silently stall watchPosition without
+      // triggering an error or a visibilitychange event.
+      window.setInterval(restartStaleGpsWatch, 10000);
+    }
+
+    function restartStaleGpsWatch() {
+      if (!navigator.geolocation || state.locationWatchId == null) return;
+      const gpsAge = state.lastLocationUpdateAt == null
+        ? Infinity
+        : (performance.now() - state.lastLocationUpdateAt);
+      if (gpsAge > 20000) {
+        navigator.geolocation.clearWatch(state.locationWatchId);
+        state.locationWatchId = null;
+        ensureLocationWatch();
+      }
     }
 
     function onDeviceOrientation(event) {
