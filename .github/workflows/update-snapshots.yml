@@ -1,0 +1,38 @@
+name: Update Snapshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to update snapshots on
+        required: false
+        default: main
+
+jobs:
+  update:
+    name: Regenerate snapshot baselines
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.branch }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Regenerate all snapshot baselines
+        run: npx playwright test --update-snapshots=all
+      - name: Commit updated baselines
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          find test/e2e -maxdepth 1 -type d -name '*-snapshots' -print0 | xargs -0r git add
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update CI snapshot baselines [skip ci]"
+            git push origin HEAD:${{ github.event.inputs.branch }}
+          fi

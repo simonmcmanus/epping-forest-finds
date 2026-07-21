@@ -6,8 +6,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: Tests
+  unit:
+    name: Unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -17,3 +17,50 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        id: e2e
+        # continue-on-error so the commit step always runs even when baselines are missing.
+        # Playwright's "missing" mode writes new baselines but still exits non-zero —
+        # the explicit fail step below re-surfaces any genuine failures.
+        run: npx playwright test --update-snapshots=missing
+        continue-on-error: true
+      - name: Commit new snapshot baselines
+        # Runs even after test failure. git add only touches *-snapshots/ directories,
+        # so regression diffs (written to test-results/ as "actual") are never committed.
+        # New linux PNGs committed here will be found on the next CI run.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          find test/e2e -maxdepth 1 -type d -name '*-snapshots' -print0 | xargs -0r git add
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: add CI snapshot baselines [skip ci]"
+            git checkout -- .
+            git clean -fd
+            git pull --rebase origin ${{ github.head_ref || github.ref_name }}
+            git push origin HEAD:${{ github.head_ref || github.ref_name }}
+          fi
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+      - name: Fail if E2E tests had failures
+        if: steps.e2e.outcome == 'failure'
+        run: exit 1
