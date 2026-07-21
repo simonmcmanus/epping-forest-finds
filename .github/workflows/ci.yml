@@ -49,6 +49,8 @@ jobs:
           find test/e2e -maxdepth 1 -type d -name '*-snapshots' -print0 | xargs -0r git add
           if ! git diff --staged --quiet; then
             git commit -m "chore: add CI snapshot baselines [skip ci]"
+            git checkout -- .
+            git clean -fd
             git pull --rebase origin ${{ github.head_ref || github.ref_name }}
             git push origin HEAD:${{ github.head_ref || github.ref_name }}
           fi
