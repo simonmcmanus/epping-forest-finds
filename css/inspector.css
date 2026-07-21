@@ -28,7 +28,8 @@
   animation: inspector-slide-in-right 0.52s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 760px),
+(orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
   .inspector.entering {
     animation-name: inspector-slide-in-up;
   }

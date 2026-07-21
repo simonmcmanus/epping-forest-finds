@@ -507,6 +507,7 @@ Always visible, shows active marker semantics:
 - Filter panel adapts to screen width with auto-fit grid
 - Subfilter rows scroll horizontally with scroll indicator
 - Map controls repositioned based on viewport
+- **Portrait lock on mobile:** the inspector is always a bottom sheet on touch devices. Rotating a phone to landscape does not move the inspector to the side. This is enforced by: (1) `"orientation": "portrait"` in the web app manifest (locks installed PWA), and (2) a CSS override — `@media (orientation: landscape) and (pointer: coarse) and (max-height: 500px)` — that re-applies the mobile bottom-sheet layout for any touch device whose height is ≤ 500 px (phone portrait: ~360–430 px; tablets: 768 px+, unaffected). The threshold distinguishes phones in landscape from tablets in landscape.
 
 ---
 

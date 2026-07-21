@@ -170,6 +170,44 @@
   }
 }
 
+/* Phones held in landscape hit the ≥761px breakpoint and get the desktop side-panel layout.
+   This overrides that and keeps the portrait bottom-sheet layout on any touch device
+   with a small height (phones in landscape: ~360–430 px; tablets: 768 px+). */
+@media (orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
+  .bottom-search {
+    display: block;
+    left: auto;
+    right: 10px;
+    transform: none;
+    bottom: 10px;
+  }
+
+  .search-toggle { flex: 0 0 auto; }
+  .search-panel { flex: 1 1 auto; }
+  .search-number { flex: 1 1 auto; width: 100%; }
+
+  .inspector {
+    top: auto;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+    max-height: var(--inspector-height, 48%);
+    transition: max-height 120ms ease-out;
+  }
+
+  .inspector-drag-handle { display: flex; }
+  .inspector-actions { top: 30px; }
+  .inspector-back { top: 30px; }
+
+  .inspector-header {
+    min-height: calc(36px * var(--icon-scale) + 44px);
+    padding-top: 42px;
+  }
+
+  .row { grid-template-columns: 1fr; gap: 3px; }
+}
+
 @media (max-width: 760px) {
   .button {
     flex: 1;
