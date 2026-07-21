@@ -49,7 +49,8 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#reportToggle")).toBeVisible();
   });
 
-  test("snapshot: overview state", async ({ page }) => {
+  test("snapshot: overview state", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.waitForTimeout(400);
     await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
     await page.waitForTimeout(50);

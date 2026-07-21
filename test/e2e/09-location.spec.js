@@ -41,7 +41,8 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#inspectorBody").first()).toContainText(/\d/, { timeout: 5_000 });
     });
 
-    test("snapshot: map with user location active", async ({ page }) => {
+    test("snapshot: map with user location active", async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
       await page.waitForTimeout(800);
       await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
       await page.waitForTimeout(50);

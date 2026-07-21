@@ -47,7 +47,8 @@ test.describe("Filter panel", () => {
     await expect(badge).toBeVisible({ timeout: 3_000 });
   });
 
-  test("snapshot: filter screen open", async ({ page }) => {
+  test("snapshot: filter screen open", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.click("#filterToggle");
     await expect(page).toHaveURL(/#filters$/, { timeout: 3_000 });
     await page.waitForTimeout(300);

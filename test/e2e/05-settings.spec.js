@@ -33,7 +33,8 @@ test.describe("Settings screen", () => {
     );
   });
 
-  test("snapshot: settings screen", async ({ page }) => {
+  test("snapshot: settings screen", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.waitForTimeout(300);
     await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
     await page.waitForTimeout(50);
