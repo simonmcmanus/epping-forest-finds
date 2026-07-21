@@ -46,7 +46,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add 'test/e2e/*-snapshots/'
+          find test/e2e -maxdepth 1 -type d -name '*-snapshots' -print0 | xargs -0r git add
           git diff --staged --quiet || (git commit -m "chore: add CI snapshot baselines [skip ci]" && git push)
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
