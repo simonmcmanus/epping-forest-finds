@@ -52,7 +52,7 @@ function showOnboarding() {
     let compassPromptFailed = false;
     let locationPromise = null;
     const total = ONBOARDING_STEPS.length;
-    const selected = new Set(["trees", "cows"]);
+    const selected = new Set(["trees", "cows", "pubs"]);
 
     overlay.hidden = false;
 
