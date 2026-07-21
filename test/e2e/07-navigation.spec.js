@@ -14,6 +14,10 @@ test.describe("URL hash navigation", () => {
   });
 
   test.describe("hash #tree=<key>", () => {
+    // #treeSearchToggle is hidden at desktop widths (display:none at ≥761px).
+    // Use mobile viewport so tree search is accessible for the replaceState history test.
+    test.use({ viewport: { width: 390, height: 844 } });
+
     test("navigating with a tree hash selects that tree", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
@@ -23,16 +27,24 @@ test.describe("URL hash navigation", () => {
 
     test("selecting a tree sets the URL hash via replaceState", async ({ page }) => {
       await setup(page);
-      // Select via search so we can verify a replaceState (no new history entry)
-      await page.click("#treeSearchToggle");
+      // Capture history before any tree selection
+      const historyBefore = await page.evaluate(() => window.history.length);
+
+      // Select tree via search — internally calls setHashFromSelection → replaceState.
+      // #inspectorBody overlaps .bottom-search on mobile; dispatch click via JS to bypass hitTest.
+      await page.evaluate(() =>
+        document.getElementById("treeSearchToggle").dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true })
+        )
+      );
+      // After toggle, #treeSearchInput and #treeSearchButton are in inspector-tools (not covered)
       await page.fill("#treeSearchInput", FIXTURE_TREE.tagNumber);
       await page.click("#treeSearchButton");
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`), { timeout: 5_000 });
 
-      // replaceState means pressing back exits the app rather than deselecting the tree
-      const historyLength = await page.evaluate(() => window.history.length);
-      // After a replaceState, history.length should be the same as after the initial navigation (1)
-      expect(historyLength).toBe(1);
+      // replaceState must not add a history entry (pressing back should exit the app)
+      const historyAfter = await page.evaluate(() => window.history.length);
+      expect(historyAfter).toBe(historyBefore);
     });
   });
 
@@ -43,7 +55,11 @@ test.describe("URL hash navigation", () => {
       // Manually clear hash to trigger hashchange
       await page.evaluate(() => history.replaceState(null, "", "/"));
       await page.evaluate(() => window.dispatchEvent(new HashChangeEvent("hashchange")));
-      await expect(page.locator("#inspectorTitle")).toContainText("Nearby", { timeout: 3_000 });
+      // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
+      await page.waitForFunction(
+        () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
+        { timeout: 5_000 }
+      );
     });
 
     test("an empty hashchange does not close the filter screen", async ({ page }) => {

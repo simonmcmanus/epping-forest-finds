@@ -57,6 +57,8 @@ test.describe("Loading experience", () => {
     await page.goto("/");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
     await page.waitForTimeout(600);
+    await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
+    await page.waitForTimeout(50);
     await expect(page).toHaveScreenshot("map-ready.png", { fullPage: false });
   });
 });

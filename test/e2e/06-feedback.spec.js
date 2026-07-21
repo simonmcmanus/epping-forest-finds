@@ -29,6 +29,10 @@ test.describe("Feedback / Report screen", () => {
 
   test("report form has a Cancel button that returns to overview", async ({ page }) => {
     await page.click("#reportCancel");
-    await expect(page.locator("#inspectorTitle")).toContainText("Nearby", { timeout: 3_000 });
+    // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
+    await page.waitForFunction(
+      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
+      { timeout: 5_000 }
+    );
   });
 });

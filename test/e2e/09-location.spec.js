@@ -29,16 +29,22 @@ test.describe("Location and GPS — happy path", () => {
     });
 
     test("distance info appears in the inspector after a GPS fix", async ({ page }) => {
-      // Navigate to a tree and check that distance is shown
-      await page.click("#treeSearchToggle");
-      await page.fill("#treeSearchInput", "11383");
-      await page.click("#treeSearchButton");
-      // Inspector body should show something like "X min walk" or "Xm"
-      await expect(page.locator("#inspectorBody")).toContainText(/\d/, { timeout: 5_000 });
+      // Navigate to a tree via URL hash (tree search toggle is hidden on desktop viewports)
+      await page.goto("/#tree=11383");
+      await page.waitForFunction(
+        () => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; },
+        { timeout: 30_000 }
+      );
+      await page.evaluate(() => { const g = document.getElementById("locationGate"); if (g && !g.hidden) g.hidden = true; });
+      // Inspector body should contain distance info (digits like "Xm" or "X min walk").
+      // transitionInspectorBody() briefly creates two #inspectorBody elements; use .first()
+      await expect(page.locator("#inspectorBody").first()).toContainText(/\d/, { timeout: 5_000 });
     });
 
     test("snapshot: map with user location active", async ({ page }) => {
       await page.waitForTimeout(800);
+      await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
+      await page.waitForTimeout(50);
       await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
     });
   });

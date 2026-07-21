@@ -14,6 +14,7 @@
   "pastures": [
     {
       "geometry": {
+        "type": "Polygon",
         "coordinates": [
           [
             [0.0420, 51.6630],

@@ -33,11 +33,17 @@ test.describe("Settings screen", () => {
 
   test("nearby button returns to overview from settings", async ({ page }) => {
     await page.click("#nearbyToggle");
-    await expect(page.locator("#inspectorTitle")).toContainText("Nearby", { timeout: 3_000 });
+    // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
+    await page.waitForFunction(
+      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
+      { timeout: 5_000 }
+    );
   });
 
   test("snapshot: settings screen", async ({ page }) => {
     await page.waitForTimeout(300);
+    await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
+    await page.waitForTimeout(50);
     await expect(page).toHaveScreenshot("settings-screen.png", { fullPage: false });
   });
 });

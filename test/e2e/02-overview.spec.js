@@ -51,6 +51,8 @@ test.describe("Overview / Nearby screen", () => {
 
   test("snapshot: overview state", async ({ page }) => {
     await page.waitForTimeout(400);
+    await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
+    await page.waitForTimeout(50);
     await expect(page).toHaveScreenshot("overview.png", { fullPage: false });
   });
 });

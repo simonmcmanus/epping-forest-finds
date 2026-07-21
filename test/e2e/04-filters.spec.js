@@ -19,7 +19,8 @@ test.describe("Filter panel", () => {
 
   test("filter panel contains all six filter groups", async ({ page }) => {
     await page.click("#filterToggle");
-    const body = page.locator("#inspectorBody");
+    // transitionInspectorBody() briefly creates two #inspectorBody elements; use .first() to avoid strict mode
+    const body = page.locator("#inspectorBody").first();
     await expect(body).toContainText("Nature", { timeout: 3_000 });
     await expect(body).toContainText("Food");
     await expect(body).toContainText("Transport");
@@ -40,7 +41,11 @@ test.describe("Filter panel", () => {
     await page.click("#filterToggle");
     await expect(page).toHaveURL(/#filters$/, { timeout: 3_000 });
     await page.click("#nearbyToggle");
-    await expect(page.locator("#inspectorTitle")).toContainText("Nearby", { timeout: 3_000 });
+    // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
+    await page.waitForFunction(
+      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
+      { timeout: 5_000 }
+    );
     await expect(page).not.toHaveURL(/#filters$/);
   });
 
@@ -58,6 +63,8 @@ test.describe("Filter panel", () => {
     await page.click("#filterToggle");
     await expect(page).toHaveURL(/#filters$/, { timeout: 3_000 });
     await page.waitForTimeout(300);
+    await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
+    await page.waitForTimeout(50);
     await expect(page).toHaveScreenshot("filter-screen.png", { fullPage: false });
   });
 });

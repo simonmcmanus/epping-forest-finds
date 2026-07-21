@@ -3,6 +3,7 @@ const { defineConfig, devices } = require("@playwright/test");
 module.exports = defineConfig({
   testDir: "./test/e2e",
   timeout: 60_000,
+  workers: 2,
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
 

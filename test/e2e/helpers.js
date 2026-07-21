@@ -53,11 +53,19 @@ async function gotoAndWaitForMap(page, path = "/") {
 
 /**
  * Full standard setup: skip onboarding, mock cows, navigate, wait for map.
+ * Also force-hides the location gate if it appeared (location always fails in tests
+ * because no geolocation permission is granted). The gate is full-screen and would
+ * block all button clicks — hiding it here leaves state.userLocation null so the
+ * overview empty-state assertion in 02-overview still works.
  */
 async function setup(page, urlPath = "/") {
   await skipOnboarding(page);
   await mockCowApi(page);
   await gotoAndWaitForMap(page, urlPath);
+  await page.evaluate(() => {
+    const gate = document.getElementById("locationGate");
+    if (gate && !gate.hidden) gate.hidden = true;
+  });
 }
 
 module.exports = { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE };

@@ -60,7 +60,10 @@ test.describe("Onboarding", () => {
         localStorage.setItem("forest-finds-onboarding-v1", "done");
       });
       await page.goto("/");
-      await page.waitForSelector("#loadingOverlay[hidden]", { timeout: 30_000 });
+      await page.waitForFunction(
+        () => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; },
+        { timeout: 30_000 }
+      );
       await expect(page.locator("#mapCanvas")).toBeVisible();
     });
   });
