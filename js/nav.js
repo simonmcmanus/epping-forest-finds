@@ -11,10 +11,18 @@ function refreshSettingsVersionDisplay() {
   }
 }
 
+function _markSwUpdateAvailable(waiting) {
+  if (waiting) state.swWaiting = waiting;
+  state.swUpdateAvailable = true;
+  if (els.settingsToggle) els.settingsToggle.classList.add("has-update");
+  refreshSettingsVersionDisplay();
+}
+
 function applySwUpdate() {
   if (state.swWaiting) {
     state.swPendingReload = true;
     state.swWaiting.postMessage({ type: "SKIP_WAITING" });
+    setTimeout(() => location.reload(), 2000);
   } else {
     location.reload();
   }
@@ -22,24 +30,25 @@ function applySwUpdate() {
 
 function setupPwa() {
   if ("serviceWorker" in navigator) {
-    let _swReg = null;
+    let _firstChange = !navigator.serviceWorker.controller;
 
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (state.swPendingReload) location.reload();
+      if (_firstChange) { _firstChange = false; return; }
+      if (state.swPendingReload) { location.reload(); return; }
+      _markSwUpdateAvailable(null);
     });
 
     navigator.serviceWorker.register("sw.js")
       .then((reg) => {
-        _swReg = reg;
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          _markSwUpdateAvailable(reg.waiting);
+        }
         reg.addEventListener("updatefound", () => {
           const installing = reg.installing;
           if (!installing) return;
           installing.addEventListener("statechange", () => {
             if (installing.state === "installed" && navigator.serviceWorker.controller) {
-              state.swWaiting = installing;
-              state.swUpdateAvailable = true;
-              if (els.settingsToggle) els.settingsToggle.classList.add("has-update");
-              refreshSettingsVersionDisplay();
+              _markSwUpdateAvailable(installing);
             }
           });
         });
