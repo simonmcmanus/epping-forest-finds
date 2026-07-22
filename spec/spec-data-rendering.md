@@ -113,7 +113,7 @@ The main `draw()` function is called via `requestAnimationFrame`. Draw order (ba
 - Only markers in the active overview set are drawn on map (`shouldDrawMapIcon`)
 - When a tree, landmark, cow, or path is selected (navigation mode), `shouldDrawMapIcon` returns `false` for **all** items — the selected item is rendered exclusively by `drawSelectedOverlay`. This clears the map of all other pins while navigating.
 - `drawSelectedOverlay` runs on `#overlayCanvas` (not `#mapCanvas`) and uses `worldToScreenForOverlay()` so the selected pin stays locked to its geographic location while heading-up uses CSS delta rotation between redraws.
-- When `nearbyHeadingUpActive()` is true, tree/landmark/cow pins are also moved from `#mapCanvas` to `#overlayCanvas` (drawn in `drawOverlay()` before the user dot, using `worldToScreenForOverlay()`), keeping pin placement consistent in both nearby and selected heading-up flows.
+- When `nearbyHeadingUpActive()` is true **or** `tiltActive()` is true, tree/landmark/cow pins are moved from `#mapCanvas` to `#overlayCanvas` (drawn in `drawOverlay()` before the user dot). In tilt mode the projected `worldToScreenForOverlayTilted` function is used so pins appear to lie flat on the tilted ground plane rather than being CSS-rotated as if they were flat objects leaning back. This makes 3D behaviour consistent across all screens — nearby overview, selected navigation (location detail), filter panel, and settings.
 - Emoji scale animation uses `requestAnimationFrame` scheduling
 
 ---

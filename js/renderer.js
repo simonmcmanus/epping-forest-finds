@@ -82,7 +82,8 @@ function draw() {
   drawOverviewRoutes(ctx, treeClusters);
   drawSelectedRoute(ctx);
   drawUserRadarMainCanvas(ctx);
-  const useOverlayForPins = typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive();
+  const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
+    || (typeof tiltActive === "function" && tiltActive());
   if (!useOverlayForPins) {
     drawTrees(ctx, nearbyIconLookup, undefined, treeClusters);
     drawLandmarks(ctx, nearbyIconLookup, undefined, landmarkClusters);
@@ -111,8 +112,9 @@ function drawOverlay() {
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!state.bounds) return;
-  const useOverlayForPins = typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive();
   const isTilted = typeof tiltActive === "function" && tiltActive();
+  const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
+    || isTilted;
   // When tilt mode changes, the compass tick calls only drawOverlay (not draw()), so
   // the main-canvas radar from the previous state is stale. Force a full redraw to
   // synchronise both canvases without introducing a radar gap.
