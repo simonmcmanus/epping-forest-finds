@@ -432,6 +432,7 @@ Behavior:
 - Shows directional arrow smoothed with device heading
 - Updates continuously via `requestAnimationFrame`
 - In heading-up selected navigation mode, the radar cone around the user is drawn on `#overlayCanvas` and points straight ahead on screen while the map rotates underneath it. Outside heading-up mode, the radar cone is drawn at the absolute compass heading on the north-up map. The radar cone outer edge represents roughly 60 metres in front of the user's current GPS position at the current map zoom, so it naturally grows when zooming in and shrinks when zooming out.
+- **3D tilt mode radar:** When tilt is active (`tiltActive()` true), the radar is moved from `#mapCanvas` to `#overlayCanvas` and each arc point is explicitly projected through `projectCanvasPoint` (the same perspective math used for overlay pins). The arc is drawn as a series of 24 line-segment steps rather than `ctx.arc()` so the foreshortening is geometrically correct. This makes the cone appear to lie flat on the tilted ground plane — a `ctx.arc()` circle on the CSS-tilted main canvas is visually ambiguous and reads as a vertical fin. In non-tilted heading-up mode the radar remains on `#mapCanvas` as before.
 - Selected tree, landmark, and cow markers do not force a continuous full-canvas redraw just to animate marker pulse; selected road and path overlays may redraw because their highlighted line animation is intentionally time-based.
 
 ---

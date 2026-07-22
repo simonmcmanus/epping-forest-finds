@@ -270,6 +270,19 @@ button.settings-toggle {
   font-size: 1rem;
   display: inline-grid;
   place-items: center;
+  position: relative;
+}
+
+button.settings-toggle.has-update::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 8px;
+  height: 8px;
+  background: #b34733;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
 }
 
 button.filter-toggle[aria-expanded="true"]:not(.active) {

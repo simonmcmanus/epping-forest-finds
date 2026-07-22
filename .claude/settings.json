@@ -20,7 +20,9 @@
       "Bash(mkdir -p /tmp/onboarding-screenshots && npx playwright codegen --no-headless 2>/dev/null; echo \"done\")",
       "Bash(git -C /Users/simonmcmanus/node/trees rm -r --cached test-results/)",
       "Bash(git -C /Users/simonmcmanus/node/trees status --short)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(awk -F: '{print NR, $1, $2}')",
+      "Bash(node --check /Users/simonmcmanus/node/trees/js/renderer.js)"
     ],
     "additionalDirectories": [
       "/tmp"

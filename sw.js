@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "forest-finds-v206";
+const CACHE_NAME = "forest-finds-v217";
 
 // Critical assets — install blocks until all succeed
 const APP_SHELL = [
@@ -175,8 +175,7 @@ const DATA_CACHE = [
 self.addEventListener("install", (event) => {
   // Block install only on the critical shell; pre-cache data files in the background
   const shellReady = caches.open(CACHE_NAME)
-    .then((cache) => cache.addAll(APP_SHELL))
-    .then(() => self.skipWaiting());
+    .then((cache) => cache.addAll(APP_SHELL));
 
   caches.open(CACHE_NAME).then((cache) => {
     DATA_CACHE.forEach((url) => cache.add(url).catch(() => {}));
@@ -191,6 +190,10 @@ self.addEventListener("activate", (event) => {
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("fetch", (event) => {

@@ -188,6 +188,7 @@ Marker rules:
 - Minimized mode: collapsed header only.
 - On desktop (>760px) selecting a location keeps the inspector expanded. On mobile (≤760px) selecting a location collapses the inspector so the map is visible.
 - Tapping the Nearby button always calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone.
+- Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) plays a spring bounce animation (`.nav-reselect`) on the button instead of re-entering the screen. This gives tactile confirmation that the user is already on that screen.
 
 ### URL hash / navigation state
 
@@ -278,12 +279,16 @@ Marker rules:
 - In selected-location navigation, the map becomes heading-up whenever compass heading is available, regardless of whether the inspector is expanded or minimized: the device-facing direction is always toward the top of the screen, the user stays anchored slightly below center (62% down the visible area), and the map rotates as the user turns. The selected location must stay inside the visible map area; heading-up navigation reduces zoom when needed to keep it visible.
 - In nearby (overview) mode, the map also becomes heading-up whenever user location and compass heading are available: the device-facing direction is always toward the top of the screen, the user stays anchored at the vertical center (50%), and the map rotates in real-time as the user turns. Map icons always point from top to bottom of screen. The nearby button is in the active state during this mode.
 - While heading-up mode is active (either nearby or selected-navigation), compass-only rotation updates should rotate the existing map canvas around the user point and redraw only the lightweight user/radar overlay rather than redrawing all map layers every animation frame.
-- **3D tilt mode:** When heading-up is active and `DeviceOrientationEvent.beta` exceeds 12° (phone tilted from flat), a CSS `perspective(900px) rotateX(+N deg)` transform is applied to the map canvas — pivoting around the user's on-screen position — so the area ahead recedes in the distance (positive rotateX tilts the top away from the viewer, correct for ground-ahead perspective). The tilt angle is proportional to beta: 12° = 0° rotateX, 75° = 30° rotateX. Beta is smoothed with an exponential filter (τ ≈ 1/8 s) in the same animation loop as compass heading. When tilt mode activates or deactivates, `resizeCanvas()` is called immediately to switch between the normal heading-up overscan (1.5×) and the larger tilt overscan (2.0×); the extra canvas area prevents the rotateX perspective from exposing the canvas top edge as a visible horizon cutoff. The overlay canvas is kept flat (no CSS tilt); pin positions are projected mathematically via `worldToScreenForOverlayTilted` so pins appear upright (billboard) at the correct perspective depth. The user radar cone is also perspective-projected using `projectCanvasPoint` so its rings and direction line appear in the same 3D space as the terrain. When tilt is inactive, the CSS transform is cleared and plain 2D rotation resumes.
+- The CSS rotation transform must always be re-applied after `alignHeadingUpNavigationViewport()` (which clears it for clean layout measurement) and after every full canvas redraw via a `postDraw()` hook — preventing the one-frame flash where the map appears un-rotated.
+- The tilt-threshold `resizeCanvas()` call happens inside `prepareCanvasForDraw()` (not the compass tick), so the canvas resize and redraw are atomic within the same rAF callback and no blank-canvas frame is ever composited.
+- **3D tilt mode:** When heading-up is active and `DeviceOrientationEvent.beta` exceeds 12° (phone tilted from flat), a CSS `perspective(900px) rotateX(+N deg)` transform is applied to the map canvas — pivoting around the user's on-screen position — so the area ahead recedes in the distance (positive rotateX tilts the top away from the viewer, correct for ground-ahead perspective). The tilt angle is proportional to beta: 12° = 0° rotateX, 85° = 60° rotateX. Beta is smoothed with an exponential filter (τ ≈ 1/8 s) in the same animation loop as compass heading. When tilt mode activates or deactivates, `resizeCanvas()` is called immediately to switch between the normal heading-up overscan (1.5×) and the larger tilt overscan (2.0×); the extra canvas area prevents the rotateX perspective from exposing the canvas top edge as a visible horizon cutoff. The overlay canvas is kept flat (no CSS tilt); pin positions are projected mathematically via `worldToScreenForOverlayTilted` so pins appear upright (billboard) at the correct perspective depth. The user radar cone is also perspective-projected using `projectCanvasPoint` so its rings and direction line appear in the same 3D space as the terrain. When tilt is inactive, the CSS transform is cleared and plain 2D rotation resumes.
 - Show route lines:
   - selected mode: user → selected target
   - overview mode: user → nearest overview targets
 - The selected-location compass arrow appears only when user location and a selected navigation target exist. It lives in the inspector title row, aligned to the far right edge of the modal and roughly three times the normal title-row arrow size; no separate top-of-screen title/distance box is shown.
+- The user radar cone is drawn on the **main canvas** in non-tilt heading-up mode so the CSS `rotate` transform keeps it aligned. In selected-navigation mode the cone's centre line points toward the selected destination; in nearby/flat mode it points forward (straight up in canvas space = heading direction). **In 3D tilt mode** (`tiltActive()` true), the radar moves to `#overlayCanvas` and each arc point is explicitly projected through `projectCanvasPoint` (same perspective math as overlay pins), drawing the cone as 24 line-segment steps so it appears to lie flat on the tilted ground plane instead of as a vertical fin.
 - The user radar cone outer edge represents roughly 60 metres in front of the user's current GPS position at the current map zoom.
+- In heading-up mode (nearby or selected), all overlay pins are drawn using a **depth-sorted painter's algorithm**: clusters from all types (trees, landmarks, cows, paths, water) are collected into a single list, sorted ascending by screen Y (distant items at the top of the screen first), then drawn in that order so nearer items always paint over farther ones. The selected item is drawn last via `drawSelectedOverlay` and is always on top.
 
 ## Details Content Requirements
 
@@ -333,6 +338,14 @@ Legend reflects active marker semantics:
 - Cache name is versioned and bumped with behavior/data wiring changes.
 - Cow proxy endpoint bypasses service-worker caching.
 - Cow data is cached in browser storage and refreshed on interval (every 5 minutes).
+
+### Service Worker Update Flow
+
+1. When a new SW version is detected (`updatefound` → `statechange: installed`), the new SW waits — it does **not** auto-activate via `skipWaiting()` in the install handler.
+2. A red dot badge appears on the settings toggle button (always visible, not just inside the settings panel).
+3. Inside the settings panel, the app version turns red with a "— tap to update" label.
+4. Clicking either indicator triggers `SKIP_WAITING` (posted to the waiting SW), the SW activates, and the page reloads automatically on `controllerchange`.
+5. `skipWaiting()` in the SW is triggered only via the `message` event (`event.data.type === "SKIP_WAITING"`), never automatically on install.
 
 ## Data Statistics (as of May 2026)
 

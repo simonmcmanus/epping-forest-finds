@@ -216,9 +216,9 @@
     const EARTH_RADIUS_METRES = 6371008.8;
     const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
     const TILT_BETA_THRESHOLD = 12;    // deg above flat before perspective kicks in
-    const TILT_BETA_MAX = 75;          // deg where max perspective angle is reached
+    const TILT_BETA_MAX = 85;          // deg where max perspective angle is reached
     const TILT_PERSPECTIVE_PX = 900;   // CSS perspective distance
-    const TILT_ROTATEX_MAX = 30;       // max rotateX deg — kept moderate so 2× overscan is enough to hide the canvas edge
+    const TILT_ROTATEX_MAX = 60;       // max rotateX deg — 2× overscan hides the canvas edge even at this angle
     const HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT = 2.0; // extra canvas needed so perspective doesn't expose the top edge
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
@@ -335,6 +335,8 @@
       installPrompt: null,
       swUpdateAvailable: false,
       swVersion: "",
+      swWaiting: null,
+      swPendingReload: false,
       animationFrame: null,
       overlayAnimationFrame: null,
       compassAnimationFrame: null,
@@ -2497,18 +2499,12 @@
         const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
         state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-8 * dt));
 
-        // Resize canvas when tilt mode activates/deactivates so the overscan ratio changes.
-        const isTiltNow = tiltActive();
-        if (isTiltNow !== state.tiltWasActive) {
-          state.tiltWasActive = isTiltNow;
-          resizeCanvas();
-        }
-
         updateOverviewDirectionArrows();
         updateCompassOverlay();
         const viewportChanged = alignHeadingUpNavigationViewport();
         if (headingUpActive()) {
-          if (viewportChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
+          updateHeadingUpCanvasRotationTransform();
+          if (viewportChanged) requestDraw();
           else if (typeof drawOverlay === "function") drawOverlay();
         } else {
           requestDraw();
@@ -2523,7 +2519,8 @@
           updateCompassOverlay();
           const finalViewportChanged = alignHeadingUpNavigationViewport();
           if (headingUpActive()) {
-            if (finalViewportChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
+            updateHeadingUpCanvasRotationTransform();
+            if (finalViewportChanged) requestDraw();
             else if (typeof drawOverlay === "function") drawOverlay();
           } else {
             requestDraw();
@@ -2581,7 +2578,8 @@
             const vpChanged = alignHeadingUpNavigationViewport();
             keepOverviewCenteredOnUser(previousPoint);
             updateCompassOverlay();
-            if (vpChanged || !updateHeadingUpCanvasRotationTransform()) requestDraw();
+            updateHeadingUpCanvasRotationTransform();
+            if (vpChanged) requestDraw();
             else if (typeof drawOverlay === "function") drawOverlay();
           } else {
             ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
@@ -2878,10 +2876,16 @@
       _overlapRectCache = undefined;
       clearHeadingUpCanvasTransform();
       // Resize whenever heading-up mode activates or deactivates so the canvas is
-      // only oversized while rotation is actually needed.
+      // only oversized while rotation is actually needed. Also resize when the tilt
+      // overscan ratio changes so the resize happens atomically with the redraw (no blank frame).
       const needsOverscan = headingUpActive();
       const hasOverscan = state.canvasVisibleWidth > 0 && els.canvas.width > state.canvasVisibleWidth;
-      if (needsOverscan !== hasOverscan) resizeCanvas();
+      const isTiltNow = tiltActive();
+      const tiltRatioChanged = needsOverscan && isTiltNow !== state.tiltWasActive;
+      if (needsOverscan !== hasOverscan || tiltRatioChanged) {
+        state.tiltWasActive = isTiltNow;
+        resizeCanvas();
+      }
       if (headingUpActive()) {
         if (state.headingUpEntryAnim != null) {
           const elapsed = performance.now() - state.headingUpEntryAnim.startTime;
@@ -4169,6 +4173,10 @@
     function requestDraw() {
       if (state.animationFrame) return;
       state.animationFrame = requestAnimationFrame(draw);
+    }
+
+    function postDraw() {
+      if (headingUpActive()) updateHeadingUpCanvasRotationTransform();
     }
 
     function requestOverlayDraw() {

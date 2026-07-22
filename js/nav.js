@@ -6,14 +6,46 @@ function refreshSettingsVersionDisplay() {
     el.classList.add("sw-update-available");
     if (!el.dataset.updateBound) {
       el.dataset.updateBound = "1";
-      el.addEventListener("click", () => location.reload());
+      el.addEventListener("click", applySwUpdate);
     }
+  }
+}
+
+function applySwUpdate() {
+  if (state.swWaiting) {
+    state.swPendingReload = true;
+    state.swWaiting.postMessage({ type: "SKIP_WAITING" });
+  } else {
+    location.reload();
   }
 }
 
 function setupPwa() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").catch(console.error);
+    let _swReg = null;
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (state.swPendingReload) location.reload();
+    });
+
+    navigator.serviceWorker.register("sw.js")
+      .then((reg) => {
+        _swReg = reg;
+        reg.addEventListener("updatefound", () => {
+          const installing = reg.installing;
+          if (!installing) return;
+          installing.addEventListener("statechange", () => {
+            if (installing.state === "installed" && navigator.serviceWorker.controller) {
+              state.swWaiting = installing;
+              state.swUpdateAvailable = true;
+              if (els.settingsToggle) els.settingsToggle.classList.add("has-update");
+              refreshSettingsVersionDisplay();
+            }
+          });
+        });
+      })
+      .catch(console.error);
+
     navigator.serviceWorker.ready
       .then(() => caches.keys())
       .then(keys => {
@@ -25,13 +57,6 @@ function setupPwa() {
         refreshSettingsVersionDisplay();
       })
       .catch(() => {});
-
-    let _swControllerReady = !!navigator.serviceWorker.controller;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!_swControllerReady) { _swControllerReady = true; return; }
-      state.swUpdateAvailable = true;
-      refreshSettingsVersionDisplay();
-    });
   }
 
   if (els.installButton) {
@@ -176,8 +201,19 @@ function setupInspectorHandlers() {
   }
 }
 
+function pulseNavButton(el) {
+  el.classList.remove("nav-reselect");
+  void el.offsetWidth;
+  el.classList.add("nav-reselect");
+  el.addEventListener("animationend", () => el.classList.remove("nav-reselect"), { once: true });
+}
+
 function setupFilterPanelHandlers() {
   els.filterToggle.addEventListener("click", () => {
+    if (els.filterToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+      pulseNavButton(els.filterToggle);
+      return;
+    }
     if (els.inspector.classList.contains("minimized")) {
       setInspectorMinimized(false);
     }
@@ -185,17 +221,31 @@ function setupFilterPanelHandlers() {
   });
 
   if (els.nearbyToggle) {
-    els.nearbyToggle.addEventListener("click", () => goToInitialView());
+    els.nearbyToggle.addEventListener("click", () => {
+      if (els.nearbyToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+        pulseNavButton(els.nearbyToggle);
+        return;
+      }
+      goToInitialView();
+    });
   }
 
   if (els.reportToggle) {
     els.reportToggle.addEventListener("click", () => {
+      if (els.reportToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+        pulseNavButton(els.reportToggle);
+        return;
+      }
       openReportModal();
     });
   }
 
   if (els.settingsToggle) {
     els.settingsToggle.addEventListener("click", () => {
+      if (els.settingsToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+        pulseNavButton(els.settingsToggle);
+        return;
+      }
       openSettings();
     });
   }

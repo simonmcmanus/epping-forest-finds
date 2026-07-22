@@ -6,6 +6,11 @@ const MAX_MAP_TREES = 60;
 
 const mapImageCache = new Map();
 
+// Tracks the previous tilt state so drawOverlay can detect transitions and trigger
+// a full canvas redraw when tilt activates/deactivates. Without this, the compass
+// tick calls only drawOverlay (not draw()), leaving the main-canvas radar stale.
+let _overlayWasTilted = false;
+
 function getMapImage(src) {
   if (!mapImageCache.has(src)) {
     const img = new Image();
@@ -76,6 +81,7 @@ function draw() {
   drawWalkingRadius(ctx);
   drawOverviewRoutes(ctx, treeClusters);
   drawSelectedRoute(ctx);
+  drawUserRadarMainCanvas(ctx);
   const useOverlayForPins = typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive();
   if (!useOverlayForPins) {
     drawTrees(ctx, nearbyIconLookup, undefined, treeClusters);
@@ -95,6 +101,8 @@ function draw() {
   if (state.selected && ["road", "path"].includes(state.selected.type)) {
     requestDraw();
   }
+
+  if (typeof postDraw === "function") postDraw();
 }
 
 function drawOverlay() {
@@ -105,16 +113,19 @@ function drawOverlay() {
   if (!state.bounds) return;
   const useOverlayForPins = typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive();
   const isTilted = typeof tiltActive === "function" && tiltActive();
+  // When tilt mode changes, the compass tick calls only drawOverlay (not draw()), so
+  // the main-canvas radar from the previous state is stale. Force a full redraw to
+  // synchronise both canvases without introducing a radar gap.
+  if (isTilted !== _overlayWasTilted) {
+    _overlayWasTilted = isTilted;
+    if (typeof requestDraw === "function") requestDraw();
+  }
   const toScreen = isTilted && typeof worldToScreenForOverlayTilted === "function"
     ? worldToScreenForOverlayTilted
     : (typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen);
+  if (isTilted) drawUserRadarOverlayTilted(ctx);
   if (useOverlayForPins) {
-    const nearbyIconLookup = buildNearbyIconLookup();
-    drawTrees(ctx, nearbyIconLookup, toScreen, applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, toScreen), toScreen));
-    drawLandmarks(ctx, nearbyIconLookup, toScreen, applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, toScreen), toScreen));
-    drawCows(ctx, nearbyIconLookup, toScreen, applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, toScreen), toScreen));
-    drawPathPins(ctx, nearbyIconLookup, toScreen, applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, toScreen), toScreen));
-    drawWaterPins(ctx, nearbyIconLookup, toScreen, applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, toScreen), toScreen));
+    drawAllPinsSorted(ctx, buildNearbyIconLookup(), toScreen);
   }
   drawUser(ctx);
   drawSelectedOverlay(ctx, toScreen);
@@ -1108,6 +1119,272 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
   ctx.restore();
 }
 
+// Draws the radar cone on the main canvas so CSS perspective+rotation places it in the
+// 3D ground plane alongside the route lines. Points toward the selected navigation
+// target (aligning with the dotted route line); falls back to forward in nearby
+// heading-up mode, or the compass direction in flat mode.
+function drawUserRadarMainCanvas(ctx) {
+  if (!state.userLocation || !state.userInMapArea) return;
+  if (!Number.isFinite(state.compassHeading)) return;
+  if (typeof tiltActive === "function" && tiltActive()) return;
+  const dpr = pixelRatio();
+  const point = worldToScreen(state.userLocation.point);
+  const outerRadius = Math.max(0.5, radarRadiusForMetres(point, 60));
+  const innerRadius = Math.max(0.2, outerRadius * 0.28);
+  const spread = toRadians(26);
+
+  let headingRad;
+  const isHeadingUp = typeof headingUpActive === "function" && headingUpActive();
+  const target = typeof selectedCompassTarget === "function" && selectedCompassTarget();
+  if (target && target.point) {
+    const dest = worldToScreen(target.point);
+    headingRad = Math.atan2(dest.y - point.y, dest.x - point.x);
+  } else if (isHeadingUp) {
+    headingRad = toRadians(-90);
+  } else {
+    headingRad = toRadians(normalizeDegrees(state.compassHeading) - 90);
+  }
+
+  ctx.save();
+  const fill = ctx.createRadialGradient(point.x, point.y, innerRadius * 0.2, point.x, point.y, outerRadius);
+  fill.addColorStop(0, "rgba(31, 94, 255, 0.30)");
+  fill.addColorStop(1, "rgba(31, 94, 255, 0.02)");
+  ctx.beginPath();
+  ctx.moveTo(point.x, point.y);
+  ctx.arc(point.x, point.y, outerRadius, headingRad - spread, headingRad + spread);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  ctx.lineWidth = 2 * dpr;
+  ctx.strokeStyle = "rgba(31, 94, 255, 0.55)";
+  for (const ratio of [0.4, 0.7, 1]) {
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, outerRadius * ratio, headingRad - spread, headingRad + spread);
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(point.x, point.y);
+  ctx.lineTo(point.x + Math.cos(headingRad) * outerRadius, point.y + Math.sin(headingRad) * outerRadius);
+  ctx.lineWidth = 2.6 * dpr;
+  ctx.strokeStyle = "rgba(31, 94, 255, 0.82)";
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Draws the radar cone on the overlay canvas using explicit perspective projection so it
+// appears to lie flat on the tilted ground plane. Each arc point is projected through
+// projectCanvasPoint (same math the pins use) rather than relying on CSS rotateX, which
+// produces a visually ambiguous fin shape for simple geometric arcs.
+function drawUserRadarOverlayTilted(ctx) {
+  if (!state.userLocation || !state.userInMapArea) return;
+  if (!Number.isFinite(state.compassHeading)) return;
+  if (typeof tiltActive !== "function" || !tiltActive()) return;
+  if (typeof projectCanvasPoint !== "function") return;
+
+  const dpr = pixelRatio();
+  const U = typeof rawWorldToScreen === "function"
+    ? rawWorldToScreen(state.userLocation.point)
+    : worldToScreen(state.userLocation.point);
+
+  const outerRadius = Math.max(0.5, radarRadiusForMetres(U, 60));
+  const innerRadius = Math.max(0.2, outerRadius * 0.28);
+  const spread = toRadians(26);
+
+  // Heading direction in overlay canvas space (heading rotation centred on user, so
+  // "up" = -y = ahead when heading-up is active).
+  let headingRad;
+  const target = typeof selectedCompassTarget === "function" && selectedCompassTarget();
+  if (target && target.point && typeof worldToScreenForOverlay === "function") {
+    const dest = worldToScreenForOverlay(target.point);
+    headingRad = Math.atan2(dest.y - U.y, dest.x - U.x);
+  } else {
+    headingRad = toRadians(-90); // up = forward in heading-up overlay
+  }
+
+  const startAngle = headingRad - spread;
+  const endAngle = headingRad + spread;
+  const STEPS = 24;
+
+  // Project a canvas-pixel point through the tilt perspective into the flat overlay plane.
+  function proj(px, py) {
+    const r = projectCanvasPoint(px, py);
+    return { x: r.x, y: r.y };
+  }
+
+  const apex = proj(U.x, U.y); // user is the transform origin, so apex === U
+
+  ctx.save();
+
+  const fill = ctx.createRadialGradient(apex.x, apex.y, innerRadius * 0.2, apex.x, apex.y, outerRadius);
+  fill.addColorStop(0, "rgba(31, 94, 255, 0.30)");
+  fill.addColorStop(1, "rgba(31, 94, 255, 0.02)");
+
+  // Filled cone
+  ctx.beginPath();
+  ctx.moveTo(apex.x, apex.y);
+  for (let i = 0; i <= STEPS; i++) {
+    const a = startAngle + (endAngle - startAngle) * i / STEPS;
+    const p = proj(U.x + outerRadius * Math.cos(a), U.y + outerRadius * Math.sin(a));
+    ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  // Concentric rings at 40 %, 70 %, 100 %
+  ctx.lineWidth = 2 * dpr;
+  ctx.strokeStyle = "rgba(31, 94, 255, 0.55)";
+  for (const ratio of [0.4, 0.7, 1]) {
+    ctx.beginPath();
+    let first = true;
+    for (let i = 0; i <= STEPS; i++) {
+      const a = startAngle + (endAngle - startAngle) * i / STEPS;
+      const p = proj(U.x + outerRadius * ratio * Math.cos(a), U.y + outerRadius * ratio * Math.sin(a));
+      if (first) { ctx.moveTo(p.x, p.y); first = false; }
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+  }
+
+  // Centre direction line
+  const lineEnd = proj(U.x + outerRadius * Math.cos(headingRad), U.y + outerRadius * Math.sin(headingRad));
+  ctx.beginPath();
+  ctx.moveTo(apex.x, apex.y);
+  ctx.lineTo(lineEnd.x, lineEnd.y);
+  ctx.lineWidth = 2.6 * dpr;
+  ctx.strokeStyle = "rgba(31, 94, 255, 0.82)";
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// Collects all pin clusters across every type, sorts them by screen Y so items closer
+// to the user (higher Y in heading-up mode) paint over distant ones (painter's algorithm),
+// then draws them in a single pass. Selected item is still drawn last via drawSelectedOverlay.
+function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
+  if (state.selected && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
+  const dpr = pixelRatio();
+  const mapScale = mapEmojiScale();
+  const uScale = MAP_ICON_SCALE_UNSELECTED;
+  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * uScale;
+  const emojiBadge = {
+    backgroundColor: null, borderColor: null,
+    borderWidth: 2 * dpr * mapScale * uScale,
+    paddingPx: 5.6 * dpr * mapScale * uScale,
+  };
+
+  const calls = [];
+
+  const treeClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, toScreen), toScreen);
+  for (const cluster of treeClusters) {
+    const { screenPt, items } = cluster;
+    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(t => nearbyIconLookup.outOfRadius.has(t));
+    const repr = items[0];
+    const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
+    calls.push({ y: screenPt.y, fn(c) {
+      c.globalAlpha = isOutOfRadius ? 0.4 : 1;
+      const drawn = drawPngMapIcon(c, src, screenPt.x, screenPt.y, iconSize);
+      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    }});
+  }
+
+  const landmarkClusters = applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, toScreen), toScreen);
+  for (const cluster of landmarkClusters) {
+    const { screenPt, items } = cluster;
+    if (!isNearCanvas(screenPt, 16 * dpr * uScale)) continue;
+    const place = items[0];
+    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
+    const baseOpacity = markerOpacityFor("landmark", place);
+    const isPub = isPubCategory(place);
+    const isCafe = isCafeCategory(place);
+    const isShop = isShopCategory(place);
+    const isTransport = isTransportCategory(place);
+    const transportType = isTransport ? getTransportType(place) : null;
+    let iconSlug = null;
+    if (!isPub && !isCafe && !isShop && !isTransport) {
+      for (const filterKey of PLACE_FILTER_PRIORITY) {
+        if (matchesPlaceFilter(place, filterKey)) { iconSlug = filterKindIconSlug(filterKey); break; }
+      }
+      if (!iconSlug) iconSlug = landmarkIconSlug(place);
+    }
+    calls.push({ y: screenPt.y, fn(c) {
+      c.globalAlpha = isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity;
+      let drawnAsPng = false;
+      if (isPub) {
+        drawnAsPng = drawPngMapIcon(c, iconPath("beer"), screenPt.x, screenPt.y, iconSize * BEER_ICON_SCALE);
+      } else if (isCafe) {
+        drawnAsPng = drawPngMapIcon(c, iconPath("cafe"), screenPt.x, screenPt.y, iconSize);
+      } else if (isShop) {
+        drawnAsPng = drawPngMapIcon(c, iconPath("shop"), screenPt.x, screenPt.y, iconSize);
+      } else if (isTransport) {
+        if (transportType === "underground") {
+          drawUndergroundRoundel(c, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale);
+        } else if (transportType === "national_rail") {
+          drawNationalRailLogo(c, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale);
+        } else if (transportType === "parking") {
+          drawnAsPng = drawPngMapIcon(c, iconPath("landmark-parking"), screenPt.x, screenPt.y, iconSize);
+        } else {
+          drawnAsPng = drawPngMapIcon(c, iconPath("bus"), screenPt.x, screenPt.y, iconSize);
+        }
+      } else if (iconSlug && iconPath(iconSlug)) {
+        drawnAsPng = drawPngMapIcon(c, iconPath(iconSlug), screenPt.x, screenPt.y, iconSize);
+      } else {
+        drawMapEmoji(c, landmarkEmoji(place), screenPt.x, screenPt.y, 22 * dpr * mapScale * uScale, emojiBadge);
+      }
+      if (drawnAsPng && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    }});
+  }
+
+  const cowClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, toScreen), toScreen);
+  for (const cluster of cowClusters) {
+    const { screenPt, items } = cluster;
+    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(c => nearbyIconLookup.outOfRadius.has(c));
+    const baseOpacity = markerOpacityFor("cow", items[0]);
+    calls.push({ y: screenPt.y, fn(c) {
+      c.globalAlpha = isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity;
+      const drawn = drawPngMapIcon(c, iconPath("cow"), screenPt.x, screenPt.y, iconSize);
+      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    }});
+  }
+
+  const pathClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, toScreen), toScreen);
+  for (const cluster of pathClusters) {
+    const { screenPt, items } = cluster;
+    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
+    calls.push({ y: screenPt.y, fn(c) {
+      c.globalAlpha = isOutOfRadius ? 0.4 : 1;
+      const drawn = drawPngMapIcon(c, iconPath("waymarked"), screenPt.x, screenPt.y, iconSize);
+      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    }});
+  }
+
+  const waterClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, toScreen), toScreen);
+  for (const cluster of waterClusters) {
+    const { screenPt, items } = cluster;
+    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(w => nearbyIconLookup.outOfRadius.has(w));
+    calls.push({ y: screenPt.y, fn(c) {
+      c.globalAlpha = isOutOfRadius ? 0.4 : 1;
+      const drawn = drawPngMapIcon(c, iconPath("ponds"), screenPt.x, screenPt.y, iconSize);
+      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    }});
+  }
+
+  // Ascending by Y: distant items (small Y = top of screen in heading-up) drawn first.
+  calls.sort((a, b) => a.y - b.y);
+  ctx.save();
+  for (const { fn } of calls) {
+    fn(ctx);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
 function drawUser(ctx) {
   if (!state.userLocation || !state.userInMapArea) return;
   const dpr = pixelRatio();
@@ -1116,7 +1393,6 @@ function drawUser(ctx) {
   const dotScale = clamp(state.viewport.scale / baseScale, 0.1, 1.5);
   const radius = 4 * dpr * dotScale;
   const point = worldToScreen(state.userLocation.point);
-  drawUserRadar(ctx, point, dpr);
   ctx.save();
   ctx.beginPath();
   ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
@@ -1351,98 +1627,3 @@ function radarRadiusForMetres(point, metres) {
   return Math.hypot(destinationScreen.x - point.x, destinationScreen.y - point.y);
 }
 
-function drawUserRadar(ctx, point, dpr) {
-  if (!Number.isFinite(state.compassHeading)) return;
-
-  const headingRad = typeof headingUpActive === "function" && headingUpActive()
-    ? toRadians(-90)
-    : toRadians(normalizeDegrees(state.compassHeading) - 90);
-  const spread = toRadians(26);
-  const outerRadius = Math.max(0.5, radarRadiusForMetres(point, 60));
-  const innerRadius = Math.max(0.2, outerRadius * 0.28);
-
-  const isTilted = typeof tiltActive === "function" && tiltActive();
-  const proj = typeof projectCanvasPoint === "function" && isTilted ? projectCanvasPoint : null;
-
-  if (proj) {
-    // In tilt mode draw the radar as a projected fan with straight lines and perspective-corrected arcs.
-    const steps = 24;
-    const radii = [0.4, 0.7, 1];
-
-    ctx.save();
-
-    // Filled wedge
-    const fill = ctx.createRadialGradient(point.x, point.y, innerRadius * 0.2, point.x, point.y, outerRadius);
-    fill.addColorStop(0, "rgba(31, 94, 255, 0.30)");
-    fill.addColorStop(1, "rgba(31, 94, 255, 0.02)");
-    ctx.beginPath();
-    ctx.moveTo(point.x, point.y);
-    for (let i = 0; i <= steps; i++) {
-      const a = (headingRad - spread) + (2 * spread * i / steps);
-      const raw = { x: point.x + Math.cos(a) * outerRadius, y: point.y + Math.sin(a) * outerRadius };
-      const p = proj(raw.x, raw.y);
-      i === 0 ? ctx.lineTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
-    }
-    ctx.closePath();
-    ctx.fillStyle = fill;
-    ctx.fill();
-
-    // Arc rings
-    ctx.lineWidth = 2 * dpr;
-    ctx.strokeStyle = "rgba(31, 94, 255, 0.55)";
-    for (const ratio of radii) {
-      const r = outerRadius * ratio;
-      ctx.beginPath();
-      for (let i = 0; i <= steps; i++) {
-        const a = (headingRad - spread) + (2 * spread * i / steps);
-        const raw = { x: point.x + Math.cos(a) * r, y: point.y + Math.sin(a) * r };
-        const p = proj(raw.x, raw.y);
-        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
-      }
-      ctx.stroke();
-    }
-
-    // Centre direction line
-    const tip = proj(point.x + Math.cos(headingRad) * outerRadius, point.y + Math.sin(headingRad) * outerRadius);
-    ctx.beginPath();
-    ctx.moveTo(point.x, point.y);
-    ctx.lineTo(tip.x, tip.y);
-    ctx.lineWidth = 2.6 * dpr;
-    ctx.strokeStyle = "rgba(31, 94, 255, 0.82)";
-    ctx.stroke();
-
-    ctx.restore();
-    return;
-  }
-
-  ctx.save();
-
-  const radarGradient = ctx.createRadialGradient(point.x, point.y, innerRadius * 0.2, point.x, point.y, outerRadius);
-  radarGradient.addColorStop(0, "rgba(31, 94, 255, 0.30)");
-  radarGradient.addColorStop(1, "rgba(31, 94, 255, 0.02)");
-
-  ctx.beginPath();
-  ctx.moveTo(point.x, point.y);
-  ctx.arc(point.x, point.y, outerRadius, headingRad - spread, headingRad + spread);
-  ctx.closePath();
-  ctx.fillStyle = radarGradient;
-  ctx.fill();
-
-  ctx.lineWidth = 2 * dpr;
-  ctx.strokeStyle = "rgba(31, 94, 255, 0.55)";
-  for (const ratio of [0.4, 0.7, 1]) {
-    const radius = outerRadius * ratio;
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, radius, headingRad - spread, headingRad + spread);
-    ctx.stroke();
-  }
-
-  ctx.beginPath();
-  ctx.moveTo(point.x, point.y);
-  ctx.lineTo(point.x + Math.cos(headingRad) * outerRadius, point.y + Math.sin(headingRad) * outerRadius);
-  ctx.lineWidth = 2.6 * dpr;
-  ctx.strokeStyle = "rgba(31, 94, 255, 0.82)";
-  ctx.stroke();
-
-  ctx.restore();
-}

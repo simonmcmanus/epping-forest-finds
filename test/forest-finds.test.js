@@ -441,11 +441,11 @@ test("tiltRotateXDeg scales smoothly between threshold and max", () => {
   app.state.tiltBetaSmoothed = 12; // exactly at threshold
   assert.equal(app.tiltRotateXDeg(), 0, "no rotation at threshold boundary");
 
-  app.state.tiltBetaSmoothed = 75; // at max
+  app.state.tiltBetaSmoothed = 85; // at max
   const maxAngle = app.tiltRotateXDeg();
-  assert.ok(maxAngle > 25 && maxAngle <= 30, `max tilt angle should be near 30°, got ${maxAngle}`);
+  assert.ok(maxAngle > 55 && maxAngle <= 60, `max tilt angle should be near 60°, got ${maxAngle}`);
 
-  app.state.tiltBetaSmoothed = 43.5; // midpoint ~(12+75)/2
+  app.state.tiltBetaSmoothed = 48.5; // midpoint ~(12+85)/2
   const midAngle = app.tiltRotateXDeg();
   assert.ok(midAngle > 0 && midAngle < maxAngle, "mid-tilt angle should be between 0 and max");
 });
