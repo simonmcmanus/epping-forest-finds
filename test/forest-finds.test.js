@@ -245,6 +245,8 @@ function resetData(app) {
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
   app.state.compassHeading = null;
+  app.state.tiltBetaSmoothed = 0;
+  app.state.tiltBetaTarget = 0;
   app.state.canvasInsetX = 0;
   app.state.canvasInsetY = 0;
   app.state.canvasVisibleWidth = 1000;

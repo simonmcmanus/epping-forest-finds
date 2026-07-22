@@ -4,23 +4,32 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 server_pid=""
+tunnel_pid=""
 
 cleanup() {
-  if [[ -n "${server_pid}" ]]; then
-    kill "${server_pid}" >/dev/null 2>&1 || true
-  fi
+  [[ -n "${tunnel_pid}" ]] && kill "${tunnel_pid}" >/dev/null 2>&1 || true
+  [[ -n "${server_pid}" ]] && kill "${server_pid}" >/dev/null 2>&1 || true
 }
 
 trap cleanup EXIT INT TERM
 
-if lsof -nP -iTCP:8080 -sTCP:LISTEN >/dev/null 2>&1; then
-  echo "Port 8080 already in use; reusing existing server."
-else
-  echo "Starting local app server on http://localhost:8080 ..."
+if ! lsof -nP -iTCP:8080 -sTCP:LISTEN >/dev/null 2>&1; then
   node server.js &
   server_pid="$!"
   sleep 1
 fi
 
-echo "Starting Cloudflare tunnel..."
-cloudflared tunnel --url http://localhost:8080 --logfile .cloudflared-tunnel.log
+: > .cloudflared-tunnel.log
+cloudflared tunnel --url http://localhost:8080 --logfile .cloudflared-tunnel.log &
+tunnel_pid="$!"
+
+while kill -0 "${tunnel_pid}" 2>/dev/null; do
+  url=$(grep -o 'https://[^ ]*\.trycloudflare\.com' .cloudflared-tunnel.log 2>/dev/null | head -1)
+  if [[ -n "$url" ]]; then
+    echo "$url"
+    break
+  fi
+  sleep 0.3
+done
+
+wait "${tunnel_pid}"

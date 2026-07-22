@@ -2609,6 +2609,8 @@
 
     const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
     const HEADING_UP_ANCHOR_NEARBY = 0.55; // user slightly below centre; gives balanced space for items in all compass directions
+    const HEADING_UP_ANCHOR_SELECTED_TILT = 0.70; // at max tilt, push user lower so more distant map fills the canvas ahead
+    const HEADING_UP_ANCHOR_NEARBY_TILT = 0.72;   // at max tilt, push user lower so more distant map fills the canvas ahead
     const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
     const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
     const HEADING_UP_SCALE_BUFFER_RATIO = 0.04; // keep extra off-screen room so quick heading changes do not expose unrendered edges
@@ -2646,6 +2648,12 @@
       return TILT_ROTATEX_MAX * t;
     }
 
+    // 0 when tilt is inactive, 1 at TILT_BETA_MAX — same ramp as tiltRotateXDeg.
+    function tiltAnchorFraction() {
+      if (!tiltActive()) return 0;
+      return Math.min(1, (state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD));
+    }
+
     function navigationMapRotationDegrees() {
       if (!headingUpActive()) return 0;
       const heading = Number.isFinite(state.renderedNavigationHeading)
@@ -2664,14 +2672,20 @@
 
     function navigationFocusPoint() {
       const focusRect = bestVisibleCanvasRect();
+      const t = tiltAnchorFraction();
+      const isSelected = selectedNavigationHeadingUpActive();
+      const base = isSelected ? HEADING_UP_ANCHOR_SELECTED : HEADING_UP_ANCHOR_NEARBY;
+      const far  = isSelected ? HEADING_UP_ANCHOR_SELECTED_TILT : HEADING_UP_ANCHOR_NEARBY_TILT;
+      const anchor = base + (far - base) * t;
       return {
         x: focusRect.x + focusRect.width / 2,
-        y: focusRect.y + focusRect.height * (selectedNavigationHeadingUpActive() ? HEADING_UP_ANCHOR_SELECTED : HEADING_UP_ANCHOR_NEARBY),
+        y: focusRect.y + focusRect.height * anchor,
       };
     }
 
     function nearbyHeadingUpFocusY() {
-      return HEADING_UP_ANCHOR_NEARBY;
+      const t = tiltAnchorFraction();
+      return HEADING_UP_ANCHOR_NEARBY + (HEADING_UP_ANCHOR_NEARBY_TILT - HEADING_UP_ANCHOR_NEARBY) * t;
     }
 
     function nearbyNavigationFocusPoint() {
