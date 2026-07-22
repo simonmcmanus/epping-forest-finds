@@ -93,6 +93,7 @@ function draw() {
   }
   drawSelectedRoadOverlay(ctx);
   drawSelectedPathOverlay(ctx);
+  drawTiltDistanceFade(ctx, width, height);
   drawOverlay();
 
   if (Math.abs(animatedEmojiScale.target - animatedEmojiScale.value) > 0.001) {
@@ -688,6 +689,22 @@ function drawBase(ctx, width, height) {
     ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
     ctx.stroke();
   }
+}
+
+function drawTiltDistanceFade(ctx, width, height) {
+  if (typeof tiltActive !== "function" || !tiltActive()) return;
+  // Erase canvas pixels in the far-distance zone so the .map-stage background shows
+  // through, matching whatever is visible above the canvas edge with no colour mismatch.
+  const fadeHeight = height * 0.38;
+  const gradient = ctx.createLinearGradient(0, 0, 0, fadeHeight);
+  gradient.addColorStop(0,    "rgba(0,0,0,1)");
+  gradient.addColorStop(0.55, "rgba(0,0,0,0.45)");
+  gradient.addColorStop(1,    "rgba(0,0,0,0)");
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, fadeHeight);
+  ctx.restore();
 }
 
 function drawLoading(ctx) {
