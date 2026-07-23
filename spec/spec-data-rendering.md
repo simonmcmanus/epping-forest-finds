@@ -61,6 +61,7 @@ interface RenderState {
   fitScale: number;
   baseFitScale: number;
   selected: { type: string; item: any } | null;
+  demoMode: boolean;
   userLocation: { latitude: number; longitude: number; point: {x,y} } | null;
   userInMapArea: boolean;
   overviewFilters: string[];
@@ -306,6 +307,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 
 - List of nearest items across active filter types
 - If no active type has a result within the selected walking radius, show the closest available item for each active type and display a notice naming the selected walking-time radius.
+- When `demoMode` is true, show a persistent “Demo mode” label in the inspector and a notice explaining that nearby results are anchored to High Beach Visitor Centre Car Park until the user shares their real location.
 - The walking-time chip in the overview heading doubles as a **radius filter toggle** (`data-action="toggle-radius"`). When active (green, `aria-pressed="true"`), only items within the walking radius are shown (`state.showAllOutsideRadius = false`). When inactive (grey, `aria-pressed="false"`), items across all distances are shown (up to 10 nearest per type) with no fallback notice. Clicking toggles `state.showAllOutsideRadius` and triggers a full `selectOverview()` re-render.
 - Each entry shows: emoji icon, name, distance, directional arrow
 - Nearby bus-stop entries progressively append live stop-direction context to the stop name when available, so opposite-direction stops can be distinguished from the overview list before opening the detail view.
@@ -443,6 +445,7 @@ Behavior:
 - Blocking overlay at startup
 - Shows step-by-step progress for each data source
 - Each step renders: icon (spinner/checkmark/error), label, count
+- A denied, skipped, or unavailable location request resolves into demo mode instead of leaving the user without nearby context; the fixed demo coordinates are High Beach Visitor Centre Car Park.
 - Dismisses ~600ms after all steps complete
 - Subscribes to `setLoadStep` callbacks from data-fetching layer
 

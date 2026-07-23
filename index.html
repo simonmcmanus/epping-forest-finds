@@ -76,10 +76,12 @@
         <div class="location-gate-card">
           <div class="location-gate-icon" aria-hidden="true">🗺️</div>
           <h2 class="location-gate-title">You're not near the forest yet</h2>
-          <p id="distanceWarningMessage" class="location-gate-text">You're more than 15 minutes' walk from Epping Forest. The map is fully loaded and ready to explore — all features will kick in when you visit.</p>
-          <button id="distanceWarningButton" class="button" type="button">Explore the map</button>
+          <p id="distanceWarningMessage" class="location-gate-text">You're more than 15 minutes' walk from Epping Forest. Enter demo mode to explore from High Beach Visitor Centre Car Park.</p>
+          <button id="distanceWarningButton" class="button" type="button">Enter demo mode</button>
         </div>
       </div>
+
+      <div id="demoModeBadge" class="demo-mode-badge" hidden>Demo mode · High Beach Visitor Centre Car Park</div>
 
       <div id="trackingConsentModal" class="tracking-consent-overlay" hidden>
         <div class="tracking-consent-card">
@@ -209,6 +211,7 @@
     const COW_REFRESH_MS = 5 * 60 * 1000;
     const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
     const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
+    const DEMO_LOCATION = { longitude: 0.0408872, latitude: 51.664534, accuracy: 0, label: "High Beach Visitor Centre Car Park" };
     const FEATURE_LAYERS = [
       { key: "forest", label: "Epping Forest land", url: "data/epping-forest-land.geojson" },
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
@@ -321,6 +324,7 @@
       })(),
       filterScreenOpen: false,
       initialUserRevealDone: false,
+      demoMode: false,
       distanceWarningShown: false,
       nearestItemsCount: 10,
       walkingDistanceMinutes: 5,
@@ -400,6 +404,7 @@
       distanceWarning: document.getElementById("distanceWarning"),
       distanceWarningMessage: document.getElementById("distanceWarningMessage"),
       distanceWarningButton: document.getElementById("distanceWarningButton"),
+      demoModeBadge: document.getElementById("demoModeBadge"),
       inspector: document.getElementById("inspector"),
       inspectorBack: document.getElementById("inspectorBack"),
       inspectorTitleEmoji: document.getElementById("inspectorTitleEmoji"),
@@ -507,90 +512,15 @@
               }
             }
 
-            // Populate overview list and render map while overlay is still up.
-            selectOverview();
-            draw();
-
-            // Snap camera to fit nearby items before the reveal animation.
-            const revealPoints = overviewTargetPoints();
-            const hasNearbyItems = revealPoints.length >= 2;
-            if (hasNearbyItems) {
-              fitToPoints(revealPoints, false, {
-                focusVisibleArea: true,
-                assumeInspectorOpen: true,
-                minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
-              });
-            } else {
-              const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-              const targetScale = maxScaleForRadiusVisible(focusRect);
-              centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
-            }
-            draw();
-
-            // Brief pause so the user sees the completed step list.
-            await new Promise((resolve) => setTimeout(resolve, 320));
-
-            // selectOverview() above clears the hash via syncHashFromSelection(); restore it
-            // so applySelectionFromHash() can honour deep-link URLs like /#tree=11383.
-            if (startHash && !window.location.hash) {
-              history.replaceState(null, "", location.pathname + location.search + startHash);
-            }
-
-            // Apply any URL hash selection after the wait so it overrides the overview snap.
-            applySelectionFromHash();
-
-            // Fade overlay and animate camera to final position simultaneously.
-            // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
-            // to a wider viewport if a GPS update arrived during the 320 ms wait.
-            if (state.selected) {
-              ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: 700 });
-            } else if (hasNearbyItems) {
-              ensureOverviewTargetsVisible({ animate: true, durationMs: 700 });
-            } else {
-              const focusRect2 = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-              const targetScale2 = maxScaleForRadiusVisible(focusRect2);
-              centerOverviewOnUserLocation({ animate: true, durationMs: 700, scale: targetScale2, focusVisibleArea: true });
-            }
-            triggerInspectorEntry();
-            hideWithFade(els.loadingOverlay);
+            await revealBootLocationExperience(startHash);
           } else {
-            // Location denied or timed out — reveal map without centering.
-            // On first visit the user already had the chance to grant via the onboarding
-            // button, so we don't show a second blocking prompt; the "Use my location"
-            // button in the inspector is available if they change their mind.
-            // On returning visits the auto-request failed, so show the gate so they can retry.
-            setLoadStep("location", "error");
-            if (!locationAskedInOnboarding) {
-              setLocationGateVisible(
-                true,
-                "Tap below to allow location so the map can centre on you and show nearby finds.",
-                "Enable location"
-              );
-            }
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            selectOverview();
-            draw();
-            if (startHash && !window.location.hash) {
-              history.replaceState(null, "", location.pathname + location.search + startHash);
-            }
-            applySelectionFromHash();
-            triggerMapRevealZoom();
-            triggerInspectorEntry();
-            hideWithFade(els.loadingOverlay);
-            updateLocateButtonVisibility();
+            setLoadStep("location", locationAskedInOnboarding ? "done" : "error");
+            activateDemoMode();
+            await revealBootLocationExperience(startHash);
           }
         } else {
-          // No geolocation support or user opted out — reveal map without location.
-          setStatus("Offline map data loaded.");
-          selectOverview();
-          draw();
-          if (startHash && !window.location.hash) {
-            history.replaceState(null, "", location.pathname + location.search + startHash);
-          }
-          applySelectionFromHash();
-          triggerMapRevealZoom();
-          triggerInspectorEntry();
-          hideWithFade(els.loadingOverlay);
+          activateDemoMode();
+          await revealBootLocationExperience(startHash);
         }
         showFilterHintIfFirstVisit();
       } catch (error) {
@@ -603,11 +533,27 @@
       }
     }
 
-    function applyLocationFix(position) {
+    function updateDemoModeUi() {
+      if (els.demoModeBadge) {
+        els.demoModeBadge.hidden = !state.demoMode;
+        els.demoModeBadge.textContent = state.demoMode ? `Demo mode · ${DEMO_LOCATION.label}` : "";
+      }
+      if (els.locateButton) {
+        els.locateButton.textContent = state.demoMode ? "Use my real location" : "Use my location";
+      }
+    }
+
+    function applyLocationFix(position, { demo = false } = {}) {
       const { latitude, longitude, accuracy } = position.coords;
       const previousPoint = state.userLocation && state.userLocation.point;
+      const wasDemoMode = state.demoMode;
       const point = projectLonLat(longitude, latitude);
+      state.demoMode = Boolean(demo);
+      if (wasDemoMode && !state.demoMode) {
+        state.distanceWarningShown = false;
+      }
       state.userLocation = { latitude, longitude, accuracy, point };
+      updateDemoModeUi();
       state.userInMapArea = pointInsideBounds(point, state.bounds);
       const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
       state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
@@ -618,6 +564,60 @@
       state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
       state.selected = null;
       return { latitude, longitude, previousPoint };
+    }
+
+    function activateDemoMode() {
+      if (navigator.geolocation && state.locationWatchId != null) {
+        navigator.geolocation.clearWatch(state.locationWatchId);
+        state.locationWatchId = null;
+      }
+      setLoadStep("location", "done");
+      state.distanceWarningShown = true;
+      hideWithFade(els.distanceWarning);
+      setLocationGateVisible(false);
+      const demoFix = applyLocationFix({ coords: DEMO_LOCATION }, { demo: true });
+      updateLocateButtonVisibility();
+      return demoFix;
+    }
+
+    async function revealBootLocationExperience(startHash) {
+      selectOverview();
+      draw();
+
+      const revealPoints = overviewTargetPoints();
+      const hasNearbyItems = revealPoints.length >= 2;
+      if (hasNearbyItems) {
+        fitToPoints(revealPoints, false, {
+          focusVisibleArea: true,
+          assumeInspectorOpen: true,
+          minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
+        });
+      } else {
+        const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+        const targetScale = maxScaleForRadiusVisible(focusRect);
+        centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
+      }
+      draw();
+
+      await new Promise((resolve) => setTimeout(resolve, 320));
+
+      if (startHash && !window.location.hash) {
+        history.replaceState(null, "", location.pathname + location.search + startHash);
+      }
+
+      applySelectionFromHash();
+
+      if (state.selected) {
+        ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: 700 });
+      } else if (hasNearbyItems) {
+        ensureOverviewTargetsVisible({ animate: true, durationMs: 700 });
+      } else {
+        const focusRect2 = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+        const targetScale2 = maxScaleForRadiusVisible(focusRect2);
+        centerOverviewOnUserLocation({ animate: true, durationMs: 700, scale: targetScale2, focusVisibleArea: true });
+      }
+      triggerInspectorEntry();
+      hideWithFade(els.loadingOverlay);
     }
 
     function triggerInspectorEntry() {
@@ -693,8 +693,12 @@
           els.locateButton.disabled = false;
           const denied = error && error.code === 1;
           if (denied) {
-            const gateMessage = "Location permission was blocked. Use the browser site settings to allow location for this page, then tap Enable location again.";
-            setLocationGateVisible(true, gateMessage);
+            activateDemoMode();
+            setInspectorMinimized(false);
+            selectOverview();
+            ensureOverviewTargetsVisible({ animate: true, durationMs: 700, force: true });
+            updateCompassOverlay();
+            requestDraw();
           } else {
             setLocationGateVisible(
               true,
@@ -711,6 +715,7 @@
     }
 
     function checkDistanceToForest(latitude, longitude) {
+      if (state.demoMode) return;
       // Don't show warning if already shown
       if (state.distanceWarningShown) return;
       
@@ -729,7 +734,7 @@
         const walkMins = Math.ceil(minDistance / 80); // 80m/min walking speed
         
         if (els.distanceWarningMessage) {
-          els.distanceWarningMessage.textContent = `You're about ${formatDistance(minDistance)} from the forest boundary — roughly ${Math.round(minDistance / (5000 / 60))} minutes on foot. The map is fully loaded and ready to explore when you visit.`;
+          els.distanceWarningMessage.textContent = `You're about ${formatDistance(minDistance)} from the forest boundary — roughly ${Math.round(minDistance / (5000 / 60))} minutes on foot. Enter demo mode to explore from ${DEMO_LOCATION.label}.`;
         }
         
         if (els.distanceWarning) {
@@ -2240,6 +2245,9 @@
         : state.overviewFilters.length > 0
           ? "Nearest selected filters around you"
           : "Nearest around you";
+      const demoNotice = state.demoMode
+        ? `<p class="source-note"><strong>Demo mode.</strong><br><small>Nearby results are centred on ${escapeHtml(DEMO_LOCATION.label)} until you share your real location.</small></p>`
+        : "";
 
       const itemsHtml = entries.map((entry) => {
         const name = entry.type === "tree"
@@ -2279,7 +2287,7 @@
         : `Showing all distances — tap to filter to ${state.walkingDistanceMinutes} min walk`;
       const chipLabel = radiusActive ? `${state.walkingDistanceMinutes} min` : "All";
       const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}">${appIconHtml("walking", "app-icon walk-icon")} <span class="walk-time">${chipLabel}</span></button>`;
-      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong>${walkChip}</div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+      return `${demoNotice}<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong>${walkChip}</div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
 
     function landmarkEmoji(place) {
@@ -2361,7 +2369,7 @@
 
     function showCompassAccessPrompt() {
       const message = "On iPhone, go to Settings → Safari → Motion & Orientation Access → On, then tap below to enable compass guidance.";
-      setLocationGateVisible(true, message, "Enable compass and location", "Allow compass access");
+      setLocationGateVisible(true, message, state.demoMode ? "Enable compass" : "Enable compass and location", "Allow compass access");
     }
 
     function compassPermissionCanBeRequested() {
@@ -2551,7 +2559,7 @@
     }
 
     function ensureLocationWatch() {
-      if (!navigator.geolocation || state.locationWatchId != null) return;
+      if (!navigator.geolocation || state.locationWatchId != null || state.demoMode) return;
       startLocationTracking();
       state.locationWatchId = navigator.geolocation.watchPosition(
         (position) => {

@@ -188,12 +188,15 @@ globalThis.__forestFindsTest = {
   reportFormHtml,
   openFiltersScreen,
   goToInitialView,
+  activateDemoMode,
   applySelectionFromHash,
   syncHashFromSelection,
   ONBOARDING_STEPS,
   compassStepMarkup,
   compassPermissionRequiresRequest,
+  DEMO_LOCATION,
   location: window.location,
+  navigatorStub: navigator,
   windowStub: window,
 };
 `;
@@ -1265,6 +1268,23 @@ test("location gate button is re-enabled when the gate is made visible", () => {
   assert.equal(btn.disabled, false, "button must be re-enabled whenever the gate becomes visible");
 });
 
+test("demo mode uses the fixed High Beach location and keeps the real-location button available", () => {
+  const app = loadAppForTests();
+  app.navigatorStub.geolocation = {
+    clearWatch() {},
+  };
+
+  app.activateDemoMode();
+
+  assert.equal(app.state.demoMode, true);
+  assert.equal(app.state.userLocation.latitude, app.DEMO_LOCATION.latitude);
+  assert.equal(app.state.userLocation.longitude, app.DEMO_LOCATION.longitude);
+  assert.equal(app.els.demoModeBadge.hidden, false);
+  assert.match(app.els.demoModeBadge.textContent, /Demo mode/);
+  assert.equal(app.els.locateButton.hidden, false);
+  assert.equal(app.els.locateButton.textContent, "Use my real location");
+});
+
 test("nav.js setLocationGateVisible re-enables button on show via source code check", () => {
   const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
   assert.match(
@@ -1280,5 +1300,14 @@ test("nav.js locationGateButton handler disables button immediately on click for
     nav,
     /locationGateButton\.addEventListener[\s\S]{0,100}locationGateButton\.disabled\s*=\s*true/,
     "locationGateButton click handler must disable the button immediately to give visual feedback"
+  );
+});
+
+test("nav.js distance warning button switches into demo mode", () => {
+  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
+  assert.match(
+    nav,
+    /distanceWarningButton\.addEventListener[\s\S]{0,240}activateDemoMode\(/,
+    "distance warning CTA should enter demo mode instead of only dismissing the warning"
   );
 });

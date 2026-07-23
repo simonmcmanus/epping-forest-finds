@@ -133,7 +133,8 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
 - A small version badge (`#sw-version`, `.version` class) is shown at the bottom-right of the loading overlay, populated via `caches.keys()` once the service worker is active. Displays the cache version (e.g. `v120`). Hidden until the SW is ready.
 - A ~500ms pause after all steps complete lets the user see the finished state before the fade begins.
 - The location gate (shown when geolocation permission is not pre-granted) also fades out on dismissal.
-- The distance warning dismisses with the same fade.
+- If geolocation is denied, skipped, or unavailable, the app automatically switches into a clearly labelled demo mode centred on High Beach Visitor Centre Car Park. Nearby lists, distances, and map centring behave as if the user were standing there until they request their real location.
+- The distance warning dismisses with the same fade, and its CTA enters that same High Beach demo mode for users who are too far from the forest.
 - A `hideWithFade(el, onDone?)` utility handles all fade-out transitions: adds `.fading-out` class, waits for `transitionend` (420ms fallback), then sets `hidden = true`.
 
 **Performance optimizations:**

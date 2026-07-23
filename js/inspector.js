@@ -630,7 +630,7 @@ function selectOverview(animate = false) {
   if (els.nearbyToggle) els.nearbyToggle.classList.add("screen-active");
   els.inspectorTools.hidden = false;
   els.inspectorTitle.textContent = "Nearby";
-  els.inspectorType.textContent = "";
+  els.inspectorType.textContent = state.demoMode ? `Demo mode · ${DEMO_LOCATION.label}` : "";
   const nearestSummary = overviewNearestHtml();
   const listKey = nearestSummary.replace(/<span class="walk-time">[^<]*<\/span>/, "");
 

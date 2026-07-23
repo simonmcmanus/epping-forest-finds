@@ -204,8 +204,12 @@ function setupInspectorHandlers() {
 
   if (els.distanceWarningButton) {
     els.distanceWarningButton.addEventListener("click", () => {
-      state.distanceWarningShown = true;
-      hideWithFade(els.distanceWarning);
+      activateDemoMode();
+      setInspectorMinimized(false);
+      selectOverview();
+      ensureOverviewTargetsVisible({ animate: true, durationMs: 700, force: true });
+      updateCompassOverlay();
+      requestDraw();
     });
   }
 }
@@ -574,7 +578,7 @@ function updateMapControlVisibility() {
 
 function updateLocateButtonVisibility() {
   const geolocationAvailable = typeof navigator !== "undefined" && Boolean(navigator.geolocation);
-  els.locateButton.hidden = !geolocationAvailable || Boolean(state.userLocation);
+  els.locateButton.hidden = !geolocationAvailable || (Boolean(state.userLocation) && !state.demoMode);
   syncInspectorToolsVisibility();
 }
 

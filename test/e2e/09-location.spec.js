@@ -59,15 +59,38 @@ test.describe("Location and GPS — happy path", () => {
       // Grant no permissions — geolocation will be blocked at OS level in the test browser
     });
 
-    test("location gate is shown after geolocation is denied or times out", async ({ page }) => {
+    test("demo mode starts automatically after geolocation is denied or times out", async ({ page }) => {
       await gotoAndWaitForMap(page);
-      // The location gate should become visible once the error/timeout path runs
-      await expect(page.locator("#locationGate")).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#demoModeBadge")).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#locationGate")).toBeHidden();
+      await expect(page.locator("#inspectorType")).toContainText("Demo mode");
     });
 
-    test("location gate button re-enables after the gate re-appears", async ({ page }) => {
+    test("demo mode nearby list is populated from the fixed High Beach location", async ({ page }) => {
       await gotoAndWaitForMap(page);
-      await expect(page.locator("#locationGateButton")).toBeEnabled({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody")).toContainText("High Beach Visitor Centre Car Park", { timeout: 15_000 });
+      await expect(page.locator("#inspectorBody")).not.toContainText("Use your location");
+    });
+  });
+
+  test.describe("geolocation granted but too far away", () => {
+    test.use({
+      geolocation: { latitude: 51.5074, longitude: -0.1278, accuracy: 10 },
+      permissions: ["geolocation"],
+    });
+
+    test.beforeEach(async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await gotoAndWaitForMap(page);
+    });
+
+    test("distance warning offers demo mode and switches to the fixed High Beach view", async ({ page }) => {
+      await expect(page.locator("#distanceWarning")).toBeVisible({ timeout: 15_000 });
+      await page.locator("#distanceWarningButton").click();
+      await expect(page.locator("#distanceWarning")).toBeHidden();
+      await expect(page.locator("#demoModeBadge")).toBeVisible();
+      await expect(page.locator("#inspectorType")).toContainText("Demo mode");
     });
   });
 });
