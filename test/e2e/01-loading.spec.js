@@ -45,8 +45,16 @@ test.describe("Loading experience", () => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.goto("/");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
-    await page.waitForTimeout(600);
-    await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
+    await page.waitForFunction(
+      () => !state.viewportAnimationFrame && !document.getElementById("inspector")?.classList.contains("entering"),
+      { timeout: 30_000 }
+    );
+    await page.evaluate(() => {
+      stopViewportAnimation();
+      state.emojiScaleAnimated = zoomEmojiScaleTarget();
+      if (typeof selectOverview === "function") selectOverview();
+      draw();
+    });
     await page.waitForTimeout(50);
     await expect(page).toHaveScreenshot("map-ready.png", { fullPage: false });
   });

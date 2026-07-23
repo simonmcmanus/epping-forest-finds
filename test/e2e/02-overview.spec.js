@@ -12,9 +12,9 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
   });
 
-  test("inspector body prompts for location when GPS is not available", async ({ page }) => {
-    // Without geolocation, overviewNearestHtml() returns an empty-state message
-    await expect(page.locator("#inspectorBody .empty")).toBeVisible({ timeout: 5_000 });
+  test("inspector body explains demo mode when GPS is not available", async ({ page }) => {
+    await expect(page.locator("#inspectorType")).toContainText("Demo mode", { timeout: 5_000 });
+    await expect(page.locator("#inspectorBody")).toContainText("High Beach Visitor Centre Car Park");
   });
 
   test.describe("with mocked GPS inside the forest", () => {
@@ -51,8 +51,16 @@ test.describe("Overview / Nearby screen", () => {
 
   test("snapshot: overview state", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
-    await page.waitForTimeout(400);
-    await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
+    await page.waitForFunction(
+      () => !state.viewportAnimationFrame && !document.getElementById("inspector")?.classList.contains("entering"),
+      { timeout: 30_000 }
+    );
+    await page.evaluate(() => {
+      stopViewportAnimation();
+      state.emojiScaleAnimated = zoomEmojiScaleTarget();
+      if (typeof selectOverview === "function") selectOverview();
+      draw();
+    });
     await page.waitForTimeout(50);
     await expect(page).toHaveScreenshot("overview.png", { fullPage: false });
   });

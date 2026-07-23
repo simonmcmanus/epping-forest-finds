@@ -114,7 +114,7 @@ test.describe("Selection and Inspector", () => {
   test.describe("inspector state when location is selected", () => {
     test.beforeEach(async ({ page }) => {
       await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
-      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+      await expect(page.locator("#inspectorTitle").first()).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
     });
 
     test("inspector tools section is hidden in selected-detail mode", async ({ page }) => {

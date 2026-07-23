@@ -16,6 +16,7 @@ const FIXTURE_TREE = {
 async function skipOnboarding(page) {
   await page.addInitScript(() => {
     localStorage.setItem("forest-finds-onboarding-v1", "done");
+    localStorage.setItem("forest-finds-filter-hint-v1", "1");
   });
 }
 
