@@ -179,6 +179,8 @@ globalThis.__forestFindsTest = {
   isNearCanvas,
   landmarkEmoji,
   appIconHtml,
+  walkDistanceStr,
+  walkInfoExpandableHtml,
   treeSpeciesIconHtml,
   placeTitle,
   ICON_PATHS,
@@ -956,6 +958,20 @@ test("nearby HTML does not contain the walking distance selector", () => {
 
   assert.ok(!html.includes("nearestItemsSelect"), "nearby should not contain the walking distance select control");
   assert.ok(!html.includes("Walking distance:"), "nearby should not contain the walking distance label");
+});
+
+test("inspector walking info shows time and metres for nearby distances", () => {
+  const html = app.walkInfoExpandableHtml(245);
+  assert.match(html, /~3 min/);
+  assert.match(html, /245 m/);
+  assert.match(html, /📏/);
+  assert.ok(!html.includes("walk-chip-btn"), "walking info should not require expand/collapse");
+});
+
+test("inspector walking info shows miles for farther distances", () => {
+  const html = app.walkInfoExpandableHtml(3218.688);
+  assert.match(html, /~39 min/);
+  assert.match(html, /2\.0 mi/);
 });
 
 test("nearby summary uses the generated walking icon asset", () => {

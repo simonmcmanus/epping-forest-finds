@@ -962,6 +962,17 @@ function walkTimeStr(distance) {
   return mins > 0 ? `~${hours}h ${mins}min` : `~${hours}h`;
 }
 
+const WALK_DISTANCE_METRES_THRESHOLD = 1000;
+const METRES_PER_MILE = 1609.344;
+const WALK_MILES_DECIMAL_THRESHOLD = 10;
+
+function walkDistanceStr(distance) {
+  if (!Number.isFinite(distance)) return "Not recorded";
+  if (distance < WALK_DISTANCE_METRES_THRESHOLD) return `${Math.round(distance)} m`;
+  const miles = distance / METRES_PER_MILE;
+  return `${miles.toFixed(miles < WALK_MILES_DECIMAL_THRESHOLD ? 1 : 0)} mi`;
+}
+
 function walkInfoHtml(distance) {
   if (distance == null || !Number.isFinite(distance)) return "";
   return `<span class="walk-chip">${appIconHtml("walking", "app-icon walk-icon")} ${walkTimeStr(distance)}</span>`;
@@ -970,13 +981,13 @@ function walkInfoHtml(distance) {
 function walkInfoExpandableHtml(distance) {
   if (distance == null || !Number.isFinite(distance)) return "";
   const timeStr = walkTimeStr(distance);
-  const distStr = formatDistance(distance);
-  return `<button class="walk-chip walk-chip-btn" type="button" aria-expanded="false">${appIconHtml("walking", "app-icon walk-icon")}<span data-walk-short="${timeStr}" data-walk-full="${timeStr} · 📏 ${distStr}">${timeStr}</span></button>`;
+  const distStr = walkDistanceStr(distance);
+  return `<span class="walk-chip">${appIconHtml("walking", "app-icon walk-icon")} ${timeStr} · 📏 ${distStr}</span>`;
 }
 
 function detailTypeLabel(distance) {
   if (distance == null || !Number.isFinite(distance)) return "";
-  return `🚶 ${walkTimeStr(distance)} · ${formatDistance(distance)}`;
+  return `🚶 ${walkTimeStr(distance)} · ${walkDistanceStr(distance)}`;
 }
 
 function openInMapsHtml(lat, lon, name) {

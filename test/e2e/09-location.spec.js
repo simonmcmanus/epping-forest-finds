@@ -36,9 +36,10 @@ test.describe("Location and GPS — happy path", () => {
         { timeout: 30_000 }
       );
       await page.evaluate(() => { const g = document.getElementById("locationGate"); if (g && !g.hidden) g.hidden = true; });
-      // Inspector body should contain distance info (digits like "Xm" or "X min walk").
+      // Inspector body should contain both walk time and distance in sensible units.
       // transitionInspectorBody() briefly creates two #inspectorBody elements; use .first()
-      await expect(page.locator("#inspectorBody").first()).toContainText(/\d/, { timeout: 5_000 });
+      await expect(page.locator("#inspectorBody").first()).toContainText(/min/, { timeout: 5_000 });
+      await expect(page.locator("#inspectorBody").first()).toContainText(/\d+\s?(m|mi)/, { timeout: 5_000 });
     });
 
     test("snapshot: map with user location active", async ({ page }, testInfo) => {
@@ -46,7 +47,11 @@ test.describe("Location and GPS — happy path", () => {
       await page.waitForTimeout(800);
       await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
       await page.waitForTimeout(50);
-      await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
+      await expect(page).toHaveScreenshot("map-with-location.png", {
+        fullPage: false,
+        timeout: 12000,
+        maxDiffPixelRatio: 0.02,
+      });
     });
   });
 

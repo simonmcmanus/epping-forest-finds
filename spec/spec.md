@@ -177,7 +177,7 @@ Marker rules:
 ### Selection
 
 - Click tree/cow/place to open details.
-- Details include live distance + walking time (when user location is available).
+- Details include live distance + walking time (when user location is available), shown together in the info modal; distance is metres when near and miles when farther away.
 - Selection is reflected in URL hash for restore/share behavior.
 
 ### Inspector modes

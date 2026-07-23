@@ -323,14 +323,14 @@ When an item is selected, it gets a pulsing highlight overlay:
 - Register fields: IDs, taxonomy, status, girth, metadata, comments, grid refs
 - Enriched named-tree data: match metadata, folklore/historical notes, source links
 - Inspector title icon: `tree.png`
-- Live distance + walking time
+- Live distance + walking time in the inspector top row, shown together without an expand/collapse control. Distance uses sensible units: metres for nearby targets and miles for farther targets.
 
 #### Place Details
 
 - Name, category, address, contact, source
 - Inspector title icon matches the map pin: PNG from `filterKindEmoji`/`landmarkIconSlug` priority, emoji fallback for types with no PNG asset
 - OSM attribution (only for OSM-sourced places)
-- Live distance + walking time
+- Live distance + walking time in the inspector top row, shown together without an expand/collapse control. Distance uses sensible units: metres for nearby targets and miles for farther targets.
 - Bus stop selections append live departures when online; the departures block also shows a bus-stop direction summary (`Buses towards …`) using TfL stop metadata when available, otherwise a deduplicated summary of upcoming destination names for that stop only.
 
 #### Cow Details
@@ -339,7 +339,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 - Last update timestamp
 - Source attribution
 - Inspector title icon: `cow.png`
-- Live distance + walking time
+- Live distance + walking time in the inspector top row, shown together without an expand/collapse control. Distance uses sensible units: metres for nearby targets and miles for farther targets.
 
 ### Secondary Screens (Filter, Settings, Report)
 

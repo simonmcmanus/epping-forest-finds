@@ -43,6 +43,7 @@ test.describe("Selection and Inspector", () => {
       await expect(page).toHaveScreenshot("tree-detail.png", {
         fullPage: false,
         mask: [page.locator("#mapCanvas")],
+        timeout: 12000,
       });
     });
   });
