@@ -60,6 +60,17 @@ function drawPngMapIcon(ctx, src, x, y, size) {
 
 function draw() {
   state.animationFrame = null;
+  // Screen changes (opening filters/settings/feedback, selecting/deselecting an item) can
+  // shift tiltAllowedForCurrentScreen()'s answer without a fresh device-orientation event to
+  // restart the beta-smoothing loop. Every such change already ends up calling draw() to
+  // update the map, so nudge the loop back on here whenever the smoothed tilt is out of sync
+  // with its (possibly newly gated) target — this is what makes 3D ease in/out smoothly when
+  // switching screens rather than snapping.
+  if (Number.isFinite(state.compassHeading) && typeof tiltAllowedForCurrentScreen === "function"
+      && typeof startCompassSmoothing === "function") {
+    const gatedBetaTarget = tiltAllowedForCurrentScreen() ? state.tiltBetaTarget : 0;
+    if (Math.abs(gatedBetaTarget - state.tiltBetaSmoothed) > 0.05) startCompassSmoothing();
+  }
   if (typeof prepareCanvasForDraw === "function") prepareCanvasForDraw();
   const ctx = els.canvas.getContext("2d");
   const width = els.canvas.width;

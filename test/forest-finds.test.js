@@ -172,9 +172,12 @@ globalThis.__forestFindsTest = {
   resizeCanvas,
   prepareCanvasForDraw,
   updateHeadingUpCanvasRotationTransform,
+  startCompassSmoothing,
   nearbyHeadingUpActive,
   headingUpActive,
   tiltActive,
+  tiltAllowedForCurrentScreen,
+  isOverviewScreenActive,
   tiltRotateXDeg,
   tiltAnchorFraction,
   isBehindTiltHeading,
@@ -253,6 +256,7 @@ function resetData(app) {
   app.state.renderedNavigationHeading = null;
   app.state.compassHeading = null;
   app.state.tiltBetaSmoothed = 0;
+  app.state.tiltBetaPhysicalSmoothed = 0;
   app.state.tiltBetaTarget = 0;
   app.state.tiltWasActive = false;
   app.state.canvasInsetX = 0;
@@ -433,6 +437,54 @@ test("tiltActive returns true when heading-up is active and phone is tilted past
   app.state.selected = null;
   app.state.tiltBetaSmoothed = 30; // well above TILT_BETA_THRESHOLD
   assert.equal(app.tiltActive(), true, "tilt mode should activate above threshold");
+});
+
+test("tiltAllowedForCurrentScreen allows 3D on the nearby overview screen and during selected-item navigation, not on filter/settings/feedback screens", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+
+  app.state.selected = null;
+  app.state.filterScreenOpen = false;
+  assert.equal(app.tiltAllowedForCurrentScreen(), true, "nearby overview should allow 3D");
+
+  app.state.filterScreenOpen = true;
+  assert.equal(app.tiltAllowedForCurrentScreen(), false, "filter screen should not allow 3D");
+
+  app.state.filterScreenOpen = false;
+  app.state.selected = { type: "settings", item: null };
+  assert.equal(app.tiltAllowedForCurrentScreen(), false, "settings screen should not allow 3D");
+
+  app.state.selected = { type: "report", item: null };
+  assert.equal(app.tiltAllowedForCurrentScreen(), false, "feedback screen should not allow 3D");
+
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  assert.equal(app.tiltAllowedForCurrentScreen(), true, "selected-item navigation should allow 3D");
+});
+
+test("beta smoothing eases tilt back to flat through the same exponential filter as a physical phone tilt when the active screen stops allowing 3D, and the loop doesn't stop before it converges", async () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.compassHeadingTarget = 90;
+  app.state.compassAnimationTime = null;
+  app.state.selected = null;
+  app.state.filterScreenOpen = false;
+  app.state.tiltBetaTarget = 60;
+  app.state.tiltBetaSmoothed = 60;
+  assert.equal(app.tiltActive(), true, "tilt should start active on the nearby overview screen");
+
+  app.state.filterScreenOpen = true; // switch to a screen that doesn't allow 3D
+  // tiltBetaTarget (the raw device beta) is untouched — only the gated target the smoothing
+  // loop eases toward drops to 0, exactly like a physical un-tilt would, so this exercises
+  // the same "ease down over ~1/4s tau, don't snap" filter rather than a special code path.
+  assert.equal(app.state.tiltBetaTarget, 60, "raw device beta is unaffected by the screen change");
+  app.startCompassSmoothing();
+
+  await new Promise((resolve) => setTimeout(resolve, 1800));
+  assert.ok(app.state.tiltBetaSmoothed < 1.5, `tilt should settle back to flat once fully eased (got ${app.state.tiltBetaSmoothed})`);
+  assert.equal(app.tiltActive(), false, "tilt should be inactive once eased down on a screen that doesn't allow 3D");
+  assert.equal(app.state.compassAnimationFrame, null, "smoothing loop should stop cleanly once beta has actually converged");
 });
 
 test("tiltRotateXDeg returns 0 when tilt is not active", () => {
@@ -1097,14 +1149,17 @@ test("canvas overscan switches to the tilt ratio before rotateX starts, so the r
   app.state.compassHeading = 90;
 
   app.state.tiltBetaSmoothed = 0;
+  app.state.tiltBetaPhysicalSmoothed = 0;
   app.prepareCanvasForDraw();
   assert.equal(app.state.tiltWasActive, false);
   const flatWidth = app.els.canvas.width;
 
   // Grows at TILT_OVERSCAN_GROW_BETA (8), well below TILT_BETA_THRESHOLD (12) where
   // rotateX actually starts ramping — so the canvas is already correctly sized
-  // before any visible tilt transform appears.
+  // before any visible tilt transform appears. Driven by tiltBetaPhysicalSmoothed (the
+  // real device tilt, un-gated by which screen is open) rather than tiltBetaSmoothed.
   app.state.tiltBetaSmoothed = 9;
+  app.state.tiltBetaPhysicalSmoothed = 9;
   app.prepareCanvasForDraw();
   assert.equal(app.tiltActive(), false, "tilt should not be visually active yet at beta 9");
   assert.equal(app.state.tiltWasActive, true, "overscan should already be switched to the tilt ratio");
@@ -1113,19 +1168,45 @@ test("canvas overscan switches to the tilt ratio before rotateX starts, so the r
 
   // Crossing the real activation threshold should not trigger a second resize.
   app.state.tiltBetaSmoothed = 30;
+  app.state.tiltBetaPhysicalSmoothed = 30;
   app.prepareCanvasForDraw();
   assert.equal(app.els.canvas.width, grownWidth, "no resize should coincide with tiltActive() switching on");
 
   // Coming back down, the canvas stays oversized through the flat dead zone below
   // TILT_BETA_THRESHOLD, only shrinking once well clear of it (TILT_OVERSCAN_SHRINK_BETA).
   app.state.tiltBetaSmoothed = 6;
+  app.state.tiltBetaPhysicalSmoothed = 6;
   app.prepareCanvasForDraw();
   assert.equal(app.els.canvas.width, grownWidth, "canvas should not shrink immediately when tiltActive() switches off");
 
   app.state.tiltBetaSmoothed = 2;
+  app.state.tiltBetaPhysicalSmoothed = 2;
   app.prepareCanvasForDraw();
   assert.equal(app.state.tiltWasActive, false);
   assert.equal(app.els.canvas.width, flatWidth, "canvas should shrink back only once tilt is well past flat again");
+});
+
+test("tilt-overscan resize reacts to the real physical device tilt even when the current screen doesn't allow 3D, so leaving/entering the filter screen while tilted doesn't reallocate the canvas", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = null;
+  app.state.compassHeading = 90;
+
+  // Phone is genuinely tilted (physical beta above TILT_OVERSCAN_GROW_BETA), but the
+  // screen-gated tiltBetaSmoothed has already eased down to flat because the filter panel
+  // is open (tiltAllowedForCurrentScreen() is false there).
+  app.state.filterScreenOpen = true;
+  app.state.tiltBetaSmoothed = 0;
+  app.state.tiltBetaPhysicalSmoothed = 30;
+  app.prepareCanvasForDraw();
+  assert.equal(app.state.tiltWasActive, true, "overscan should track the real device tilt, not the screen-gated value");
+  const grownWidth = app.els.canvas.width;
+
+  // Returning to the nearby overview screen with the phone still at the same physical tilt
+  // must not trigger another resize — the overscan decision never changed.
+  app.state.filterScreenOpen = false;
+  app.prepareCanvasForDraw();
+  assert.equal(app.els.canvas.width, grownWidth, "no resize should occur purely from a screen change at a constant physical tilt");
 });
 
 test("heading-up mode applies CSS delta rotation between redraws", () => {

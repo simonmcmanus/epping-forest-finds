@@ -25,7 +25,8 @@
       "Bash(node --check /Users/simonmcmanus/node/trees/js/renderer.js)",
       "Bash(git -C /Users/simonmcmanus/node/trees show 3919be1 -- index.html)",
       "Bash(git checkout *)",
-      "Bash(git clean *)"
+      "Bash(git clean *)",
+      "Bash(grep -n \"pseudo-selection screens\\\\|Heading-up nearby mode\\\\|Heading-up selected navigation\\\\|tiltActive\\(\\)\\\\` true\" /Users/simonmcmanus/node/trees/spec/spec-data-rendering.md)"
     ],
     "additionalDirectories": [
       "/tmp"

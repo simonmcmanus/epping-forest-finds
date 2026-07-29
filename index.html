@@ -357,6 +357,7 @@
       headingUpEntryAnim: null,
       tiltBetaTarget: 0,
       tiltBetaSmoothed: 0,
+      tiltBetaPhysicalSmoothed: 0,
       tiltWasActive: false,
       selectionViewportTransitionPending: false,
       viewportAnimationFrame: null,
@@ -2527,8 +2528,24 @@
         // collapse (tiltInfluence) as well as the rotateX camera tilt, and a phone lifts
         // through the whole 0-12deg dead zone quickly, so a fast filter here reads as the
         // collapsing map pins snapping to size rather than easing in.
-        const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
+        // The target is forced to 0 on screens where tilt isn't allowed (see
+        // tiltAllowedForCurrentScreen), so switching to/from the filter/settings/feedback
+        // screens eases the perspective in and out through this same filter rather than
+        // snapping — no separate transition code needed downstream.
+        const gatedBetaTarget = tiltAllowedForCurrentScreen() ? state.tiltBetaTarget : 0;
+        const betaDiff = gatedBetaTarget - state.tiltBetaSmoothed;
         state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
+
+        // Tracks the same real device beta through the same filter, but never screen-gated.
+        // The tilt-overscan hysteresis below reads this rather than the gated value above:
+        // it must only react to the phone's actual physical tilt, not to which screen is
+        // open, or leaving/entering the filter/settings/feedback screens while the phone is
+        // physically tilted would force a canvas resize (a bitmap reallocation, not just a
+        // CSS change) it doesn't need — a visible stutter, and (because the resize briefly
+        // desyncs the CSS rotation transform's origin from the canvas box) the cause of the
+        // radar cone visibly lagging the compass heading right after such a screen switch.
+        const physicalBetaDiff = state.tiltBetaTarget - state.tiltBetaPhysicalSmoothed;
+        state.tiltBetaPhysicalSmoothed += physicalBetaDiff * (1 - Math.exp(-4 * dt));
 
         updateOverviewDirectionArrows();
         updateCompassOverlay();
@@ -2544,7 +2561,9 @@
         const remaining = Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget));
         const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
         const sensorIsActive = lastEventAge < HEADING_UP_SENSOR_ACTIVE_MS;
-        if (remaining < 0.05 && !sensorIsActive) {
+        const betaSettled = Math.abs(gatedBetaTarget - state.tiltBetaSmoothed) < 0.1
+          && Math.abs(state.tiltBetaTarget - state.tiltBetaPhysicalSmoothed) < 0.1;
+        if (remaining < 0.05 && !sensorIsActive && betaSettled) {
           state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
           updateOverviewDirectionArrows();
           updateCompassOverlay();
@@ -2674,6 +2693,16 @@
 
     function headingUpActive() {
       return selectedNavigationHeadingUpActive() || nearbyHeadingUpActive();
+    }
+
+    // 3D perspective (tiltActive()) is only available on the plain nearby overview screen
+    // and while actively navigating to a selected item — the filter panel, feedback, and
+    // settings screens keep flat heading-up rotation but never escalate into 3D. This feeds
+    // into the beta smoothing loop's target (see startCompassSmoothing) rather than gating
+    // tiltActive() directly, so leaving/entering an allowed screen eases the perspective
+    // in/out through the same filter as a physical phone tilt, instead of snapping flat.
+    function tiltAllowedForCurrentScreen() {
+      return selectedNavigationHeadingUpActive() || isOverviewScreenActive();
     }
 
     function tiltActive() {
@@ -2833,6 +2862,7 @@
       const left = focusRect.x + margin;
       const right = focusRect.x + focusRect.width - margin;
       const top = focusRect.y + margin;
+      const bottom = focusRect.y + focusRect.height - margin;
       const rotation = currentNavigationMapRotationDegrees();
       const radians = toRadians(rotation);
       const cos = Math.cos(radians);
@@ -2845,12 +2875,18 @@
         const rotatedX = dx * cos - dy * sin;
         const rotatedY = dx * sin + dy * cos;
 
-        // Points behind the user (rotatedY > 0) are excluded: the heading-up anchor is
-        // pushed toward the bottom of the focus rect (more so as tilt deepens), so fitting
-        // a behind point there would force an unnecessarily wide zoom-out, and under the
-        // tilt perspective transform a point that close behind the camera balloons in size
-        // and looms over the view instead of receding like points ahead do.
-        if (rotatedY > 0) continue;
+        // Points behind the user (rotatedY > 0) are only excluded from the fit while tilt
+        // is active, since that's the only time isBehindTiltHeading() actually hides them
+        // from the canvas (see that function) — fitting a hidden point there would force an
+        // unnecessarily wide zoom-out, and under the tilt perspective transform a point that
+        // close behind the camera balloons in size and looms over the view instead of
+        // receding like points ahead do. When tilt is inactive, behind points are still
+        // drawn, so they must still constrain the bottom edge or they end up off-screen.
+        if (rotatedY > 0) {
+          if (tiltActive()) continue;
+          maxScale = Math.min(maxScale, (bottom - focus.y) / rotatedY);
+          continue;
+        }
 
         if (rotatedX > 0) maxScale = Math.min(maxScale, (right - focus.x) / rotatedX);
         if (rotatedX < 0) maxScale = Math.min(maxScale, (left - focus.x) / rotatedX);
@@ -2872,6 +2908,7 @@
       const left = focusRect.x + margin;
       const right = focusRect.x + focusRect.width - margin;
       const top = focusRect.y + margin;
+      const bottom = focusRect.y + focusRect.height - margin;
       const rotation = currentNavigationMapRotationDegrees();
       const radians = toRadians(rotation);
       const cos = Math.cos(radians);
@@ -2885,8 +2922,14 @@
         const rotatedX = dx * cos - dy * sin;
         const rotatedY = dx * sin + dy * cos;
 
-        // See maxHeadingUpNavigationScale: behind-the-user points don't constrain zoom.
-        if (rotatedY > 0) continue;
+        // See maxHeadingUpNavigationScale: behind-the-user points only skip the fit while
+        // tilt is active (the only time they're actually hidden from the canvas); otherwise
+        // they still constrain the bottom edge so they don't end up off-screen.
+        if (rotatedY > 0) {
+          if (tiltActive()) continue;
+          maxScale = Math.min(maxScale, (bottom - focus.y) / rotatedY);
+          continue;
+        }
 
         if (rotatedX > 0) maxScale = Math.min(maxScale, (right - focus.x) / rotatedX);
         if (rotatedX < 0) maxScale = Math.min(maxScale, (left - focus.x) / rotatedX);
@@ -2988,11 +3031,17 @@
       // overscan ratio changes — using hysteresis (see TILT_OVERSCAN_GROW_BETA /
       // TILT_OVERSCAN_SHRINK_BETA) rather than tiltActive() so the resize always lands while
       // the view is still flat, never mid-transform where it would read as a snap/pop.
+      // Reads tiltBetaPhysicalSmoothed (the real, un-gated device tilt) rather than
+      // tiltBetaSmoothed: the latter is forced toward 0 on screens that don't allow 3D (see
+      // tiltAllowedForCurrentScreen), and reacting to that here would resize the canvas
+      // bitmap — a real reallocation, not just a CSS change — every time the user leaves a
+      // 3D-allowed screen while still physically holding the phone tilted, for no visual
+      // benefit (3D isn't rendering there either way).
       const needsOverscan = headingUpActive();
       const hasOverscan = state.canvasVisibleWidth > 0 && els.canvas.width > state.canvasVisibleWidth;
       const wantsTiltOverscan = state.tiltWasActive
-        ? state.tiltBetaSmoothed > TILT_OVERSCAN_SHRINK_BETA
-        : state.tiltBetaSmoothed > TILT_OVERSCAN_GROW_BETA;
+        ? state.tiltBetaPhysicalSmoothed > TILT_OVERSCAN_SHRINK_BETA
+        : state.tiltBetaPhysicalSmoothed > TILT_OVERSCAN_GROW_BETA;
       const tiltRatioChanged = needsOverscan && wantsTiltOverscan !== state.tiltWasActive;
       if (needsOverscan !== hasOverscan || tiltRatioChanged) {
         state.tiltWasActive = wantsTiltOverscan;
