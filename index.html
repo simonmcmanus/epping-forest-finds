@@ -2506,8 +2506,12 @@
         const nextHeading = state.compassHeading + (delta * smoothing);
         state.compassHeading = nextHeading;
 
+        // Slower than the compass heading filter above (rate 14): beta gates pin/pointer
+        // collapse (tiltInfluence) as well as the rotateX camera tilt, and a phone lifts
+        // through the whole 0-12deg dead zone quickly, so a fast filter here reads as the
+        // collapsing map pins snapping to size rather than easing in.
         const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
-        state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-8 * dt));
+        state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
 
         updateOverviewDirectionArrows();
         updateCompassOverlay();
