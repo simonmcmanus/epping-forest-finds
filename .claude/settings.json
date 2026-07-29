@@ -23,7 +23,9 @@
       "Bash(npm run *)",
       "Bash(awk -F: '{print NR, $1, $2}')",
       "Bash(node --check /Users/simonmcmanus/node/trees/js/renderer.js)",
-      "Bash(git -C /Users/simonmcmanus/node/trees show 3919be1 -- index.html)"
+      "Bash(git -C /Users/simonmcmanus/node/trees show 3919be1 -- index.html)",
+      "Bash(git checkout *)",
+      "Bash(git clean *)"
     ],
     "additionalDirectories": [
       "/tmp"

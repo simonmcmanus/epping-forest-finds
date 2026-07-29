@@ -220,6 +220,12 @@
     const TILT_PERSPECTIVE_PX = 900;   // CSS perspective distance
     const TILT_ROTATEX_MAX = 75;       // max rotateX deg — 2× overscan hides the canvas edge even at this angle
     const HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT = 2.0; // extra canvas needed so perspective doesn't expose the top edge
+    // The canvas resize needed to switch overscan ratios is a discrete, unavoidably instant
+    // change — so it must never land while the tilt transform is visibly animating. Both
+    // thresholds sit well clear of TILT_BETA_THRESHOLD (12, where rotateX starts ramping),
+    // so the resize always happens while the view is still flat in both directions of travel.
+    const TILT_OVERSCAN_GROW_BETA = 8;   // grow to the tilt overscan on the way up, before rotateX starts
+    const TILT_OVERSCAN_SHRINK_BETA = 4; // shrink back down only once well past flat again
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
     const APP_VERSION = "v";
@@ -804,8 +810,10 @@
       const rawWidth = Math.max(1, rect.width);
       const rawHeight = Math.max(1, rect.height);
       // Overscan while heading-up is active; tilt mode needs extra room so rotateX doesn't expose the canvas top edge.
+      // Uses the latched state.tiltWasActive (hysteresis, see wantsTiltOverscan) rather than
+      // tiltActive() directly, so this stays in sync with whichever ratio the canvas was last sized for.
       const overscanRatio = headingUpActive()
-        ? (tiltActive() ? HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT : HEADING_UP_CANVAS_OVERSCAN_RATIO)
+        ? (state.tiltWasActive ? HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT : HEADING_UP_CANVAS_OVERSCAN_RATIO)
         : 1;
       const requestedOverscanWidth = Math.round(rawWidth * requestedDpr * overscanRatio);
       const requestedOverscanHeight = Math.round(rawHeight * requestedDpr * overscanRatio);
@@ -2609,8 +2617,8 @@
 
     const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
     const HEADING_UP_ANCHOR_NEARBY = 0.55; // user slightly below centre; gives balanced space for items in all compass directions
-    const HEADING_UP_ANCHOR_SELECTED_TILT = 0.70; // at max tilt, push user lower so more distant map fills the canvas ahead
-    const HEADING_UP_ANCHOR_NEARBY_TILT = 0.72;   // at max tilt, push user lower so more distant map fills the canvas ahead
+    const HEADING_UP_ANCHOR_SELECTED_TILT = 0.88; // at max tilt (full 3D), user sits near the bottom edge with a small gap so the view isn't obscured by anything behind
+    const HEADING_UP_ANCHOR_NEARBY_TILT = 0.90;   // at max tilt (full 3D), user sits near the bottom edge with a small gap so the view isn't obscured by anything behind
     const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
     const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
     const HEADING_UP_SCALE_BUFFER_RATIO = 0.04; // keep extra off-screen room so quick heading changes do not expose unrendered edges
@@ -2652,6 +2660,21 @@
     function tiltAnchorFraction() {
       if (!tiltActive()) return 0;
       return Math.min(1, (state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD));
+    }
+
+    // In full 3D (tilt active), map/landmark/cow/path pins and road/path lines behind the
+    // user's heading are not drawn at all — full 3D is a "look ahead" view, and anything
+    // behind is meant to be revealed by physically turning around rather than staying
+    // visible in a squashed/ballooned state at the bottom of the tilted view. Returns false
+    // (nothing hidden) whenever tilt is not active, so this only changes rendering in 3D mode.
+    function isBehindTiltHeading(worldPoint) {
+      if (!tiltActive() || !state.userLocation || !worldPoint) return false;
+      const rotation = currentNavigationMapRotationDegrees();
+      const radians = toRadians(rotation);
+      const dx = worldPoint.x - state.userLocation.point.x;
+      const dy = worldPoint.y - state.userLocation.point.y;
+      const rotatedY = dx * Math.sin(radians) + dy * Math.cos(radians);
+      return rotatedY > 0;
     }
 
     function navigationMapRotationDegrees() {
@@ -2747,7 +2770,6 @@
       const left = focusRect.x + margin;
       const right = focusRect.x + focusRect.width - margin;
       const top = focusRect.y + margin;
-      const bottom = focusRect.y + focusRect.height - margin;
       const rotation = currentNavigationMapRotationDegrees();
       const radians = toRadians(rotation);
       const cos = Math.cos(radians);
@@ -2760,9 +2782,15 @@
         const rotatedX = dx * cos - dy * sin;
         const rotatedY = dx * sin + dy * cos;
 
+        // Points behind the user (rotatedY > 0) are excluded: the heading-up anchor is
+        // pushed toward the bottom of the focus rect (more so as tilt deepens), so fitting
+        // a behind point there would force an unnecessarily wide zoom-out, and under the
+        // tilt perspective transform a point that close behind the camera balloons in size
+        // and looms over the view instead of receding like points ahead do.
+        if (rotatedY > 0) continue;
+
         if (rotatedX > 0) maxScale = Math.min(maxScale, (right - focus.x) / rotatedX);
         if (rotatedX < 0) maxScale = Math.min(maxScale, (left - focus.x) / rotatedX);
-        if (rotatedY > 0) maxScale = Math.min(maxScale, (bottom - focus.y) / rotatedY);
         if (rotatedY < 0) maxScale = Math.min(maxScale, (top - focus.y) / rotatedY);
       }
 
@@ -2780,7 +2808,6 @@
       const left = focusRect.x + margin;
       const right = focusRect.x + focusRect.width - margin;
       const top = focusRect.y + margin;
-      const bottom = focusRect.y + focusRect.height - margin;
       const rotation = currentNavigationMapRotationDegrees();
       const radians = toRadians(rotation);
       const cos = Math.cos(radians);
@@ -2794,9 +2821,11 @@
         const rotatedX = dx * cos - dy * sin;
         const rotatedY = dx * sin + dy * cos;
 
+        // See maxHeadingUpNavigationScale: behind-the-user points don't constrain zoom.
+        if (rotatedY > 0) continue;
+
         if (rotatedX > 0) maxScale = Math.min(maxScale, (right - focus.x) / rotatedX);
         if (rotatedX < 0) maxScale = Math.min(maxScale, (left - focus.x) / rotatedX);
-        if (rotatedY > 0) maxScale = Math.min(maxScale, (bottom - focus.y) / rotatedY);
         if (rotatedY < 0) maxScale = Math.min(maxScale, (top - focus.y) / rotatedY);
       }
 
@@ -2890,14 +2919,18 @@
       _overlapRectCache = undefined;
       clearHeadingUpCanvasTransform();
       // Resize whenever heading-up mode activates or deactivates so the canvas is
-      // only oversized while rotation is actually needed. Also resize when the tilt
-      // overscan ratio changes so the resize happens atomically with the redraw (no blank frame).
+      // only oversized while rotation is actually needed. Also resize when the desired tilt
+      // overscan ratio changes — using hysteresis (see TILT_OVERSCAN_GROW_BETA /
+      // TILT_OVERSCAN_SHRINK_BETA) rather than tiltActive() so the resize always lands while
+      // the view is still flat, never mid-transform where it would read as a snap/pop.
       const needsOverscan = headingUpActive();
       const hasOverscan = state.canvasVisibleWidth > 0 && els.canvas.width > state.canvasVisibleWidth;
-      const isTiltNow = tiltActive();
-      const tiltRatioChanged = needsOverscan && isTiltNow !== state.tiltWasActive;
+      const wantsTiltOverscan = state.tiltWasActive
+        ? state.tiltBetaSmoothed > TILT_OVERSCAN_SHRINK_BETA
+        : state.tiltBetaSmoothed > TILT_OVERSCAN_GROW_BETA;
+      const tiltRatioChanged = needsOverscan && wantsTiltOverscan !== state.tiltWasActive;
       if (needsOverscan !== hasOverscan || tiltRatioChanged) {
-        state.tiltWasActive = isTiltNow;
+        state.tiltWasActive = wantsTiltOverscan;
         resizeCanvas();
       }
       if (headingUpActive()) {

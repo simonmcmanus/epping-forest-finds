@@ -163,6 +163,24 @@ function drawCowPastures(ctx) {
   ctx.restore();
 }
 
+// Traces a polyline into the current path, skipping any points behind the user's heading
+// in full 3D (tilt) mode — breaking into a fresh moveTo whenever the line re-enters the
+// ahead half so a road/path that dips behind and back doesn't get an incorrect connecting
+// stroke across the hidden gap. Returns false when nothing ahead was drawn (nothing to stroke).
+function traceAheadOnlyPath(ctx, worldPoints) {
+  let drawing = false;
+  let any = false;
+  for (let i = 0; i < worldPoints.length; i += 1) {
+    const worldPoint = worldPoints[i];
+    if (isBehindTiltHeading(worldPoint)) { drawing = false; continue; }
+    const screenPoint = worldToScreen(worldPoint);
+    if (!drawing) { ctx.moveTo(screenPoint.x, screenPoint.y); drawing = true; }
+    else ctx.lineTo(screenPoint.x, screenPoint.y);
+    any = true;
+  }
+  return any;
+}
+
 function drawPaths(ctx) {
   if (!state.paths.length) return;
 
@@ -211,11 +229,7 @@ function drawPaths(ctx) {
     for (const segment of path.segments) {
       if (!segment || segment.length < 2) continue;
       ctx.beginPath();
-      for (let i = 0; i < segment.length; i += 1) {
-        const screenPoint = worldToScreen(segment[i]);
-        if (i === 0) ctx.moveTo(screenPoint.x, screenPoint.y);
-        else ctx.lineTo(screenPoint.x, screenPoint.y);
-      }
+      if (!traceAheadOnlyPath(ctx, segment)) continue;
 
       ctx.setLineDash(dash);
       ctx.lineWidth = baseWidth + 1.9 * dpr;
@@ -240,6 +254,7 @@ function drawPaths(ctx) {
     ctx.textBaseline = "middle";
     ctx.font = `700 ${Math.max(isCoarsePointer ? 9 : 10, Math.round((isCoarsePointer ? 9 : 10) * dpr))}px system-ui`;
     for (const item of limitedLabels) {
+      if (isBehindTiltHeading(item.anchor)) continue;
       const point = worldToScreen(item.anchor);
       if (!isNearCanvas(point, 28 * dpr)) continue;
       ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
@@ -322,11 +337,7 @@ function drawRoads(ctx) {
       if (segment.length < 2) continue;
 
       ctx.beginPath();
-      for (let i = 0; i < segment.length; i += 1) {
-        const point = worldToScreen(segment[i]);
-        if (i === 0) ctx.moveTo(point.x, point.y);
-        else ctx.lineTo(point.x, point.y);
-      }
+      if (!traceAheadOnlyPath(ctx, segment)) continue;
 
       ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
       ctx.lineWidth = roadWidth + (1.5 * dpr);
@@ -1298,8 +1309,9 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 
   const treeClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, toScreen), toScreen);
   for (const cluster of treeClusters) {
-    const { screenPt, items } = cluster;
+    const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    if (isBehindTiltHeading(worldPt)) continue;
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(t => nearbyIconLookup.outOfRadius.has(t));
     const repr = items[0];
     const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
@@ -1312,8 +1324,9 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 
   const landmarkClusters = applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, toScreen), toScreen);
   for (const cluster of landmarkClusters) {
-    const { screenPt, items } = cluster;
+    const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, 16 * dpr * uScale)) continue;
+    if (isBehindTiltHeading(worldPt)) continue;
     const place = items[0];
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
     const baseOpacity = markerOpacityFor("landmark", place);
@@ -1359,8 +1372,9 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 
   const cowClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, toScreen), toScreen);
   for (const cluster of cowClusters) {
-    const { screenPt, items } = cluster;
+    const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    if (isBehindTiltHeading(worldPt)) continue;
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(c => nearbyIconLookup.outOfRadius.has(c));
     const baseOpacity = markerOpacityFor("cow", items[0]);
     calls.push({ y: screenPt.y, fn(c) {
@@ -1372,8 +1386,9 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 
   const pathClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, toScreen), toScreen);
   for (const cluster of pathClusters) {
-    const { screenPt, items } = cluster;
+    const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    if (isBehindTiltHeading(worldPt)) continue;
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = isOutOfRadius ? 0.4 : 1;
@@ -1384,8 +1399,9 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 
   const waterClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, toScreen), toScreen);
   for (const cluster of waterClusters) {
-    const { screenPt, items } = cluster;
+    const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    if (isBehindTiltHeading(worldPt)) continue;
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(w => nearbyIconLookup.outOfRadius.has(w));
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = isOutOfRadius ? 0.4 : 1;

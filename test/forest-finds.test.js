@@ -170,11 +170,14 @@ globalThis.__forestFindsTest = {
   alignHeadingUpNavigationViewport,
   animateToHeadingUpNavigationViewport,
   resizeCanvas,
+  prepareCanvasForDraw,
   updateHeadingUpCanvasRotationTransform,
   nearbyHeadingUpActive,
   headingUpActive,
   tiltActive,
   tiltRotateXDeg,
+  tiltAnchorFraction,
+  isBehindTiltHeading,
   buildNearbyIconLookup,
   isNearCanvas,
   landmarkEmoji,
@@ -247,6 +250,7 @@ function resetData(app) {
   app.state.compassHeading = null;
   app.state.tiltBetaSmoothed = 0;
   app.state.tiltBetaTarget = 0;
+  app.state.tiltWasActive = false;
   app.state.canvasInsetX = 0;
   app.state.canvasInsetY = 0;
   app.state.canvasVisibleWidth = 1000;
@@ -452,6 +456,66 @@ test("tiltRotateXDeg scales smoothly between threshold and max", () => {
   assert.ok(midAngle > 0 && midAngle < maxAngle, "mid-tilt angle should be between 0 and max");
 });
 
+test("isBehindTiltHeading returns false when tilt is not active, regardless of geometry", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0; // facing north
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 0; // flat, tilt inactive
+
+  const southPoint = makePoint(app, -0.01, 0).point; // directly behind (south) if tilt were active
+  assert.equal(app.isBehindTiltHeading(southPoint), false, "no culling until tilt is actually active");
+});
+
+test("isBehindTiltHeading distinguishes ahead from behind once full 3D tilt is active", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0; // facing north
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 60; // well past TILT_BETA_THRESHOLD
+
+  const ahead = makePoint(app, 0.01, 0).point; // north of user: ahead
+  const behind = makePoint(app, -0.01, 0).point; // south of user: behind
+
+  assert.equal(app.isBehindTiltHeading(ahead), false, "point ahead of heading should not be hidden");
+  assert.equal(app.isBehindTiltHeading(behind), true, "point behind heading should be hidden in full 3D");
+});
+
+test("full 3D (max tilt) pushes the nearby user anchor to near the bottom edge with a small gap", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 85; // max tilt — full 3D
+  app.state.viewport = { scale: 1000, tx: 999, ty: 888 };
+
+  app.alignHeadingUpNavigationViewport();
+  const userScreen = app.worldToScreen(app.state.userLocation.point);
+  const fraction = userScreen.y / app.els.canvas.clientHeight;
+
+  assert.ok(fraction > 0.85, `user dot should sit near the bottom edge at max tilt, got fraction ${fraction}`);
+  assert.ok(fraction < 1, "a small gap should remain so the dot isn't flush against the edge");
+});
+
+test("full 3D (max tilt) pushes the selected-navigation user anchor to near the bottom edge with a small gap", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  app.state.compassHeading = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.tiltBetaSmoothed = 85; // max tilt — full 3D
+  app.state.viewport = { scale: 1000, tx: 999, ty: 888 };
+
+  app.alignHeadingUpNavigationViewport();
+  const userScreen = app.worldToScreen(app.state.userLocation.point);
+  const fraction = userScreen.y / app.els.canvas.clientHeight;
+
+  assert.ok(fraction > 0.85, `user dot should sit near the bottom edge at max tilt, got fraction ${fraction}`);
+  assert.ok(fraction < 1, "a small gap should remain so the dot isn't flush against the edge");
+});
+
 test("nearby heading-up map rotation applies compass heading to worldToScreen", () => {
   resetData(app);
   // Place user at origin
@@ -488,7 +552,7 @@ test("nearby heading-up viewport keeps the user low when all highlighted locatio
   assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.50, "user should sit below the midpoint when nothing is behind them");
 });
 
-test("nearby heading-up viewport keeps highlighted locations visible when one sits behind the user", () => {
+test("nearby heading-up viewport ignores a highlighted location behind the user so zoom is not pulled out to fit it", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
@@ -500,6 +564,7 @@ test("nearby heading-up viewport keeps highlighted locations visible when one si
 
   app.state.overviewFilters = ["trees", "pubs"];
   const changed = app.alignHeadingUpNavigationViewport();
+  const scaleWithBehindPub = app.state.viewport.scale;
   const userScreen = app.worldToScreen(app.state.userLocation.point);
   const treeScreen = app.worldToScreen(app.state.trees[0].point);
   const pubScreen = app.worldToScreen(app.state.landmarks[0].point);
@@ -508,7 +573,20 @@ test("nearby heading-up viewport keeps highlighted locations visible when one si
   assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.50, "user should still sit below the midpoint");
   assert.ok(treeScreen.y < userScreen.y, "the tree should remain ahead of the user");
   assert.ok(pubScreen.y > userScreen.y, "the pub should remain behind the user");
-  assert.ok(pubScreen.y > app.els.canvas.clientHeight * 0.8, "the behind item should sit close to the bottom edge");
+  assert.ok(
+    pubScreen.y > app.els.canvas.clientHeight * 2,
+    "the far-behind item should be excluded from the fit rather than dragging the whole view out to include it",
+  );
+
+  // Removing the far-behind pub should not change the zoom at all, proving it
+  // was not constraining the fit in the first place.
+  app.state.landmarks = [];
+  app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
+  app.alignHeadingUpNavigationViewport();
+  assert.ok(
+    Math.abs(app.state.viewport.scale - scaleWithBehindPub) < scaleWithBehindPub * 0.001,
+    "zoom should match fitting the ahead tree alone, unaffected by the far-behind pub",
+  );
 });
 
 test("nearby filter updates trigger a heading-up refit that positions the user low when highlighted locations are ahead", () => {
@@ -910,6 +988,44 @@ test("heading-up resize limits effective pixel ratio so oversized canvas stays w
   } finally {
     app.windowStub.devicePixelRatio = originalDpr;
   }
+});
+
+test("canvas overscan switches to the tilt ratio before rotateX starts, so the resize never lands mid-transition", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = null;
+  app.state.compassHeading = 90;
+
+  app.state.tiltBetaSmoothed = 0;
+  app.prepareCanvasForDraw();
+  assert.equal(app.state.tiltWasActive, false);
+  const flatWidth = app.els.canvas.width;
+
+  // Grows at TILT_OVERSCAN_GROW_BETA (8), well below TILT_BETA_THRESHOLD (12) where
+  // rotateX actually starts ramping — so the canvas is already correctly sized
+  // before any visible tilt transform appears.
+  app.state.tiltBetaSmoothed = 9;
+  app.prepareCanvasForDraw();
+  assert.equal(app.tiltActive(), false, "tilt should not be visually active yet at beta 9");
+  assert.equal(app.state.tiltWasActive, true, "overscan should already be switched to the tilt ratio");
+  const grownWidth = app.els.canvas.width;
+  assert.ok(grownWidth > flatWidth, "canvas should be oversized for tilt ahead of the rotateX transition");
+
+  // Crossing the real activation threshold should not trigger a second resize.
+  app.state.tiltBetaSmoothed = 30;
+  app.prepareCanvasForDraw();
+  assert.equal(app.els.canvas.width, grownWidth, "no resize should coincide with tiltActive() switching on");
+
+  // Coming back down, the canvas stays oversized through the flat dead zone below
+  // TILT_BETA_THRESHOLD, only shrinking once well clear of it (TILT_OVERSCAN_SHRINK_BETA).
+  app.state.tiltBetaSmoothed = 6;
+  app.prepareCanvasForDraw();
+  assert.equal(app.els.canvas.width, grownWidth, "canvas should not shrink immediately when tiltActive() switches off");
+
+  app.state.tiltBetaSmoothed = 2;
+  app.prepareCanvasForDraw();
+  assert.equal(app.state.tiltWasActive, false);
+  assert.equal(app.els.canvas.width, flatWidth, "canvas should shrink back only once tilt is well past flat again");
 });
 
 test("heading-up mode applies CSS delta rotation between redraws", () => {
