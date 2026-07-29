@@ -178,6 +178,7 @@ globalThis.__forestFindsTest = {
   tiltRotateXDeg,
   tiltAnchorFraction,
   isBehindTiltHeading,
+  tiltPinScale,
   buildNearbyIconLookup,
   isNearCanvas,
   landmarkEmoji,
@@ -238,6 +239,9 @@ function resetData(app) {
   app.state.transportLookupRequests = new Map();
   app.state.filterScreenOpen = false;
   app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
+  // Realistic "whole forest fit" scale, so HEADING_UP_MAX_SCALE_RATIO doesn't clip
+  // legitimate close-range heading-up fits in tests (see maxNearbyHeadingUpScale).
+  app.state.fitScale = 10000;
   app.state.viewportAnimationFrame = null;
   app.state.viewportAnimationFrom = null;
   app.state.viewportAnimationTo = null;
@@ -482,6 +486,81 @@ test("isBehindTiltHeading distinguishes ahead from behind once full 3D tilt is a
   assert.equal(app.isBehindTiltHeading(behind), true, "point behind heading should be hidden in full 3D");
 });
 
+test("tiltPinScale returns full size when tilt is not active, regardless of geometry", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 0;
+
+  const southPoint = makePoint(app, -1, 0).point;
+  assert.equal(app.tiltPinScale(southPoint), 1, "no shrinking until tilt is actually active");
+});
+
+test("tiltPinScale settles at a small floor (not zero) for pins well behind, and full size well ahead", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 60; // well past TILT_BETA_THRESHOLD
+  app.state.viewport = { scale: 1000, tx: 0, ty: 0 };
+
+  const wellAhead = makePoint(app, 1, 0).point;
+  const wellBehind = makePoint(app, -1, 0).point;
+
+  assert.equal(app.tiltPinScale(wellAhead), 1, "pins clearly ahead should render at full size");
+  assert.equal(app.tiltPinScale(wellBehind), 0.3, "pins clearly behind should collapse to a small floor rather than vanish");
+});
+
+test("tiltPinScale shrinks smoothly through the ahead/behind boundary instead of snapping", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 60;
+  app.state.viewport = { scale: 1000, tx: 0, ty: 0 };
+
+  // TILT_PIN_COLLAPSE_BAND_PX (130) / viewport.scale (1000) = 0.13 world-unit band width,
+  // so points within +/-0.065 of the user straddle the transition rather than sitting at an extreme.
+  const justAhead = app.tiltPinScale(makePoint(app, 0.03, 0).point);
+  const atBoundary = app.tiltPinScale(makePoint(app, 0, 0).point);
+  const justBehind = app.tiltPinScale(makePoint(app, -0.03, 0).point);
+
+  assert.ok(justAhead > atBoundary && atBoundary > justBehind, "scale should shrink monotonically as a pin crosses from ahead to behind");
+  assert.ok(atBoundary > 0.3 && atBoundary < 1, "at the exact boundary the pin should be mid-transition, not at either extreme");
+});
+
+test("tiltPinScale does not jump when tiltActive() itself switches on/off — collapse eases out over the same flat range rotateX does", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.viewport = { scale: 1000, tx: 0, ty: 0 };
+
+  const wellBehind = makePoint(app, -1, 0).point;
+
+  // Either side of TILT_BETA_THRESHOLD (12), where tiltActive() itself flips — collapse
+  // used to be gated directly on tiltActive(), so a pin sitting behind the heading would
+  // snap from its collapsed scale to full size (or vice versa) right at this boundary.
+  app.state.tiltBetaSmoothed = 11.99;
+  app.state.tiltWasActive = false;
+  assert.equal(app.tiltActive(), false, "just below the threshold, tiltActive() is still off");
+  const justBelow = app.tiltPinScale(wellBehind);
+
+  app.state.tiltBetaSmoothed = 12.01;
+  assert.equal(app.tiltActive(), true, "just above the threshold, tiltActive() is now on");
+  const justAbove = app.tiltPinScale(wellBehind);
+
+  assert.ok(Math.abs(justAbove - justBelow) < 0.01, "scale should barely change across the tiltActive() boundary, not snap");
+
+  // Leveling all the way back to flat (map mode) should fully restore scale, still smoothly.
+  app.state.tiltBetaSmoothed = 0;
+  assert.equal(app.tiltPinScale(wellBehind), 1, "back at full size once flat, even for a point behind the heading");
+});
+
 test("full 3D (max tilt) pushes the nearby user anchor to near the bottom edge with a small gap", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -586,6 +665,27 @@ test("nearby heading-up viewport ignores a highlighted location behind the user 
   assert.ok(
     Math.abs(app.state.viewport.scale - scaleWithBehindPub) < scaleWithBehindPub * 0.001,
     "zoom should match fitting the ahead tree alone, unaffected by the far-behind pub",
+  );
+});
+
+test("nearby heading-up zoom is capped rather than zooming in absurdly for a location right next to the user", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
+  // A tree essentially at the user's feet (~1m away) would otherwise force an enormous
+  // scale to fit that tiny distance against the focus-rect margin — this is the "loads
+  // zoomed in so far you can't see any locations" bug: without a ceiling, the fit chases
+  // whichever nearby point happens to be closest rather than settling on a usable zoom.
+  app.state.trees.push({ id: "at-feet-tree", commonName: "At-feet tree", ...makePoint(app, 0.00001, 0) });
+
+  app.alignHeadingUpNavigationViewport();
+
+  assert.ok(
+    app.state.viewport.scale <= app.state.fitScale * 180 + 1,
+    "zoom should be capped at HEADING_UP_MAX_SCALE_RATIO x the full-forest fit scale, not chase the closest point unbounded",
   );
 });
 

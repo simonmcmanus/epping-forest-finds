@@ -226,6 +226,8 @@
     // so the resize always happens while the view is still flat in both directions of travel.
     const TILT_OVERSCAN_GROW_BETA = 8;   // grow to the tilt overscan on the way up, before rotateX starts
     const TILT_OVERSCAN_SHRINK_BETA = 4; // shrink back down only once well past flat again
+    const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind transition band pins shrink across
+    const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
     const APP_VERSION = "v";
@@ -2625,6 +2627,13 @@
     const HEADING_UP_SCALE_SETTLE_RATIO = 0.02; // absorb tiny settled scale corrections as visual noise
     const HEADING_UP_SCALE_SETTLE_MIN = 1; // absolute settle tolerance for low zoom values
     const HEADING_UP_SENSOR_ACTIVE_MS = 350;
+    // Sane ceiling on how tight a heading-up auto-fit can zoom. Without this, a single very
+    // close nearby point (a tree a few metres away, common in a dense forest) can force the
+    // fit-to-top-edge or fit-to-side-edge constraint to a huge scale, since fitting a point
+    // that's almost at the user's feet into the same rect as points metres away requires
+    // very little zoom change per pixel — most visible right after load, when the first
+    // heading-up fit runs with no previous scale to reconcile against.
+    const HEADING_UP_MAX_SCALE_RATIO = 180; // × state.fitScale (the full-forest-fit scale)
 
     function selectedNavigationHeadingUpActive() {
       return Boolean(
@@ -2669,12 +2678,45 @@
     // (nothing hidden) whenever tilt is not active, so this only changes rendering in 3D mode.
     function isBehindTiltHeading(worldPoint) {
       if (!tiltActive() || !state.userLocation || !worldPoint) return false;
+      return tiltRotatedHeadingOffset(worldPoint) > 0;
+    }
+
+    // Signed distance (world units) of a point from the ahead/behind boundary used by
+    // isBehindTiltHeading: negative is ahead, positive is behind, zero is the boundary itself.
+    function tiltRotatedHeadingOffset(worldPoint) {
       const rotation = currentNavigationMapRotationDegrees();
       const radians = toRadians(rotation);
       const dx = worldPoint.x - state.userLocation.point.x;
       const dy = worldPoint.y - state.userLocation.point.y;
-      const rotatedY = dx * Math.sin(radians) + dy * Math.cos(radians);
-      return rotatedY > 0;
+      return dx * Math.sin(radians) + dy * Math.cos(radians);
+    }
+
+    // Continuous companion to isBehindTiltHeading for pins: rather than a hard cutoff, this
+    // shrinks smoothly toward TILT_PIN_COLLAPSE_MIN_SCALE across a band straddling the same
+    // boundary, so turning the heading reads as pins growing/shrinking from their own point
+    // instead of popping in and out. The band is sized in screen px via viewport.scale so it
+    // covers a consistent visual width regardless of zoom level.
+    //
+    // Gated on headingUpActive() rather than tiltActive(), and blended in by tiltInfluence()
+    // (0 at flat, ramping to 1 by TILT_BETA_THRESHOLD) rather than switched on at that same
+    // threshold: a pin sitting behind the heading would otherwise jump from its collapsed
+    // scale straight to full size the instant tiltActive() flips off while leaving 3D — this
+    // way the collapse itself eases out over the same flat dead-zone tiltRotateXDeg is already
+    // 0 across, so a currently-collapsed pin grows back in step with the map leveling out
+    // rather than popping the moment full 3D deactivates.
+    function tiltInfluence() {
+      if (!headingUpActive()) return 0;
+      return clamp(state.tiltBetaSmoothed / TILT_BETA_THRESHOLD, 0, 1);
+    }
+
+    function tiltPinScale(worldPoint) {
+      const influence = tiltInfluence();
+      if (influence <= 0 || !state.userLocation || !worldPoint) return 1;
+      const bandWorld = TILT_PIN_COLLAPSE_BAND_PX / state.viewport.scale;
+      const raw = clamp(0.5 - tiltRotatedHeadingOffset(worldPoint) / bandWorld, 0, 1);
+      const eased = raw * raw * (3 - 2 * raw);
+      const collapsedScale = TILT_PIN_COLLAPSE_MIN_SCALE + (1 - TILT_PIN_COLLAPSE_MIN_SCALE) * eased;
+      return influence >= 1 ? collapsedScale : 1 + (collapsedScale - 1) * influence;
     }
 
     function navigationMapRotationDegrees() {
@@ -2795,6 +2837,7 @@
       }
 
       if (!Number.isFinite(maxScale) || maxScale <= 0) return state.viewport.scale;
+      if (state.fitScale > 0) maxScale = Math.min(maxScale, state.fitScale * HEADING_UP_MAX_SCALE_RATIO);
       return maxScale;
     }
 
@@ -2830,6 +2873,7 @@
       }
 
       if (!Number.isFinite(maxScale) || maxScale <= 0) return state.viewport.scale;
+      if (state.fitScale > 0) maxScale = Math.min(maxScale, state.fitScale * HEADING_UP_MAX_SCALE_RATIO);
       return maxScale;
     }
 

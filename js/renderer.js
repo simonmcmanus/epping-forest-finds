@@ -1311,14 +1311,14 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
   for (const cluster of treeClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    if (isBehindTiltHeading(worldPt)) continue;
+    const pinScale = tiltPinScale(worldPt);
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(t => nearbyIconLookup.outOfRadius.has(t));
     const repr = items[0];
     const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = isOutOfRadius ? 0.4 : 1;
-      const drawn = drawPngMapIcon(c, src, screenPt.x, screenPt.y, iconSize);
-      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+      const drawn = drawPngMapIcon(c, src, screenPt.x, screenPt.y, iconSize * pinScale);
+      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
   }
 
@@ -1326,7 +1326,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
   for (const cluster of landmarkClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, 16 * dpr * uScale)) continue;
-    if (isBehindTiltHeading(worldPt)) continue;
+    const pinScale = tiltPinScale(worldPt);
     const place = items[0];
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
     const baseOpacity = markerOpacityFor("landmark", place);
@@ -1345,28 +1345,30 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity;
       let drawnAsPng = false;
+      const scaledIconSize = iconSize * pinScale;
       if (isPub) {
-        drawnAsPng = drawPngMapIcon(c, iconPath("beer"), screenPt.x, screenPt.y, iconSize * BEER_ICON_SCALE);
+        drawnAsPng = drawPngMapIcon(c, iconPath("beer"), screenPt.x, screenPt.y, scaledIconSize * BEER_ICON_SCALE);
       } else if (isCafe) {
-        drawnAsPng = drawPngMapIcon(c, iconPath("cafe"), screenPt.x, screenPt.y, iconSize);
+        drawnAsPng = drawPngMapIcon(c, iconPath("cafe"), screenPt.x, screenPt.y, scaledIconSize);
       } else if (isShop) {
-        drawnAsPng = drawPngMapIcon(c, iconPath("shop"), screenPt.x, screenPt.y, iconSize);
+        drawnAsPng = drawPngMapIcon(c, iconPath("shop"), screenPt.x, screenPt.y, scaledIconSize);
       } else if (isTransport) {
         if (transportType === "underground") {
-          drawUndergroundRoundel(c, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale);
+          drawUndergroundRoundel(c, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale * pinScale);
         } else if (transportType === "national_rail") {
-          drawNationalRailLogo(c, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale);
+          drawNationalRailLogo(c, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale * pinScale);
         } else if (transportType === "parking") {
-          drawnAsPng = drawPngMapIcon(c, iconPath("landmark-parking"), screenPt.x, screenPt.y, iconSize);
+          drawnAsPng = drawPngMapIcon(c, iconPath("landmark-parking"), screenPt.x, screenPt.y, scaledIconSize);
         } else {
-          drawnAsPng = drawPngMapIcon(c, iconPath("bus"), screenPt.x, screenPt.y, iconSize);
+          drawnAsPng = drawPngMapIcon(c, iconPath("bus"), screenPt.x, screenPt.y, scaledIconSize);
         }
       } else if (iconSlug && iconPath(iconSlug)) {
-        drawnAsPng = drawPngMapIcon(c, iconPath(iconSlug), screenPt.x, screenPt.y, iconSize);
+        drawnAsPng = drawPngMapIcon(c, iconPath(iconSlug), screenPt.x, screenPt.y, scaledIconSize);
       } else {
-        drawMapEmoji(c, landmarkEmoji(place), screenPt.x, screenPt.y, 22 * dpr * mapScale * uScale, emojiBadge);
+        const scaledBadge = { ...emojiBadge, borderWidth: emojiBadge.borderWidth * pinScale, paddingPx: emojiBadge.paddingPx * pinScale };
+        drawMapEmoji(c, landmarkEmoji(place), screenPt.x, screenPt.y, 22 * dpr * mapScale * uScale * pinScale, scaledBadge);
       }
-      if (drawnAsPng && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+      if (drawnAsPng && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, scaledIconSize, dpr);
     }});
   }
 
@@ -1374,13 +1376,13 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
   for (const cluster of cowClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    if (isBehindTiltHeading(worldPt)) continue;
+    const pinScale = tiltPinScale(worldPt);
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(c => nearbyIconLookup.outOfRadius.has(c));
     const baseOpacity = markerOpacityFor("cow", items[0]);
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity;
-      const drawn = drawPngMapIcon(c, iconPath("cow"), screenPt.x, screenPt.y, iconSize);
-      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+      const drawn = drawPngMapIcon(c, iconPath("cow"), screenPt.x, screenPt.y, iconSize * pinScale);
+      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
   }
 
@@ -1388,12 +1390,12 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
   for (const cluster of pathClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    if (isBehindTiltHeading(worldPt)) continue;
+    const pinScale = tiltPinScale(worldPt);
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = isOutOfRadius ? 0.4 : 1;
-      const drawn = drawPngMapIcon(c, iconPath("waymarked"), screenPt.x, screenPt.y, iconSize);
-      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+      const drawn = drawPngMapIcon(c, iconPath("waymarked"), screenPt.x, screenPt.y, iconSize * pinScale);
+      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
   }
 
@@ -1401,12 +1403,12 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
   for (const cluster of waterClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    if (isBehindTiltHeading(worldPt)) continue;
+    const pinScale = tiltPinScale(worldPt);
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(w => nearbyIconLookup.outOfRadius.has(w));
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = isOutOfRadius ? 0.4 : 1;
-      const drawn = drawPngMapIcon(c, iconPath("ponds"), screenPt.x, screenPt.y, iconSize);
-      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+      const drawn = drawPngMapIcon(c, iconPath("ponds"), screenPt.x, screenPt.y, iconSize * pinScale);
+      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
   }
 
