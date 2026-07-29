@@ -1150,9 +1150,9 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
 }
 
 // Draws the radar cone on the main canvas so CSS perspective+rotation places it in the
-// 3D ground plane alongside the route lines. Points toward the selected navigation
-// target (aligning with the dotted route line); falls back to forward in nearby
-// heading-up mode, or the compass direction in flat mode.
+// 3D ground plane alongside the route lines. Always points in the direction the user is
+// facing (forward in heading-up mode, or the compass heading in flat mode) — the dotted
+// route line, not the radar cone, is what shows the bearing to a selected target.
 function drawUserRadarMainCanvas(ctx) {
   if (!state.userLocation || !state.userInMapArea) return;
   if (!Number.isFinite(state.compassHeading)) return;
@@ -1163,17 +1163,10 @@ function drawUserRadarMainCanvas(ctx) {
   const innerRadius = Math.max(0.2, outerRadius * 0.28);
   const spread = toRadians(26);
 
-  let headingRad;
   const isHeadingUp = typeof headingUpActive === "function" && headingUpActive();
-  const target = typeof selectedCompassTarget === "function" && selectedCompassTarget();
-  if (target && target.point) {
-    const dest = worldToScreen(target.point);
-    headingRad = Math.atan2(dest.y - point.y, dest.x - point.x);
-  } else if (isHeadingUp) {
-    headingRad = toRadians(-90);
-  } else {
-    headingRad = toRadians(normalizeDegrees(state.compassHeading) - 90);
-  }
+  const headingRad = isHeadingUp
+    ? toRadians(-90)
+    : toRadians(normalizeDegrees(state.compassHeading) - 90);
 
   ctx.save();
   const fill = ctx.createRadialGradient(point.x, point.y, innerRadius * 0.2, point.x, point.y, outerRadius);
@@ -1223,15 +1216,8 @@ function drawUserRadarOverlayTilted(ctx) {
   const spread = toRadians(26);
 
   // Heading direction in overlay canvas space (heading rotation centred on user, so
-  // "up" = -y = ahead when heading-up is active).
-  let headingRad;
-  const target = typeof selectedCompassTarget === "function" && selectedCompassTarget();
-  if (target && target.point && typeof worldToScreenForOverlay === "function") {
-    const dest = worldToScreenForOverlay(target.point);
-    headingRad = Math.atan2(dest.y - U.y, dest.x - U.x);
-  } else {
-    headingRad = toRadians(-90); // up = forward in heading-up overlay
-  }
+  // "up" = -y = ahead, and this mode is only active while heading-up is active).
+  const headingRad = toRadians(-90); // up = forward in heading-up overlay
 
   const startAngle = headingRad - spread;
   const endAngle = headingRad + spread;
