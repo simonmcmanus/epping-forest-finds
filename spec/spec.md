@@ -421,7 +421,7 @@ Users are shown a privacy/consent modal before location is enabled. Consent is s
 Full terms are at `/terms.html`. The modal links to this page.
 
 ### Data collected (with consent)
-- **Location pings** — lat/lng, heading, current nav target — sent every 60 seconds while location is active
+- **Location pings** — lat/lng, heading, current nav target — sent every 60 seconds while location is active. Paused while the tab/screen is hidden (`document.visibilitychange`) along with the GPS watch, and resumed on return to foreground, to avoid draining battery in the background.
 - **Click events** — item type, item ID, item name, user position — sent on every map-item selection
 - Each event is tagged with a random anonymous user ID (`ff-uid` in `localStorage`) and ISO timestamp
 

@@ -11,6 +11,12 @@ const mapImageCache = new Map();
 // tick calls only drawOverlay (not draw()), leaving the main-canvas radar stale.
 let _overlayWasTilted = false;
 
+// The selected road/path overlay pulses (see drawSelectedRoadOverlay/drawSelectedPathOverlay)
+// via a sine wave with a ~350-400ms period, so redrawing at full display refresh rate (up to
+// 120Hz) wastes CPU/GPU for no visible benefit. Throttle re-draws to a fixed interval instead.
+const SELECTED_PULSE_REDRAW_INTERVAL_MS = 50;
+let _selectedPulseTimer = null;
+
 function getMapImage(src) {
   if (!mapImageCache.has(src)) {
     const img = new Image();
@@ -101,7 +107,8 @@ function draw() {
   }
 
   if (state.selected && ["road", "path"].includes(state.selected.type)) {
-    requestDraw();
+    clearTimeout(_selectedPulseTimer);
+    _selectedPulseTimer = setTimeout(requestDraw, SELECTED_PULSE_REDRAW_INTERVAL_MS);
   }
 
   if (typeof postDraw === "function") postDraw();

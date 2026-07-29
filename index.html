@@ -2426,7 +2426,13 @@
 
     function setupVisibilityRecovery() {
       document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState !== "visible") return;
+        if (document.visibilityState !== "visible") {
+          pauseBackgroundedTracking();
+          return;
+        }
+
+        // Resume GPS watch + location-tracking interval paused on backgrounding.
+        ensureLocationWatch();
 
         // If compass heading is stale (iOS can pause orientation events when the tab
         // is backgrounded), clear it so the map goes north-up rather than showing a
@@ -2459,6 +2465,17 @@
       // Also check in the foreground — iOS can silently stall watchPosition without
       // triggering an error or a visibilitychange event.
       window.setInterval(restartStaleGpsWatch, 10000);
+    }
+
+    // Stop high-accuracy GPS polling and the periodic location-tracking beacon while
+    // the tab/screen is not visible, so the app doesn't keep draining battery in the
+    // background. Both are restarted from setupVisibilityRecovery on return to visible.
+    function pauseBackgroundedTracking() {
+      if (navigator.geolocation && state.locationWatchId != null) {
+        navigator.geolocation.clearWatch(state.locationWatchId);
+        state.locationWatchId = null;
+      }
+      if (typeof stopLocationTracking === "function") stopLocationTracking();
     }
 
     function restartStaleGpsWatch() {
