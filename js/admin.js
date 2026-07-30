@@ -1289,6 +1289,27 @@ function renderClickDetails(key) {
 
 // ---- Data loading ----
 
+function updateEnvBadge(meta) {
+  const badge = document.getElementById("adminEnvBadge");
+  if (!badge) return;
+  const storeName = meta?.storeName || "";
+  const context = meta?.context || "local";
+  let label, cssClass;
+  if (!storeName || context === "local") {
+    label = "local";
+    cssClass = "";
+  } else if (storeName === "tracking") {
+    label = "production";
+    cssClass = "env-prod";
+  } else {
+    label = storeName.replace(/^tracking-/, "preview: ");
+    cssClass = "env-preview";
+  }
+  badge.textContent = label;
+  badge.className = "admin-env-badge" + (cssClass ? ` ${cssClass}` : "");
+  badge.hidden = false;
+}
+
 async function loadData(password) {
   const url = "/api/admin/tracks";
   console.log("[admin] fetching", url);
@@ -1301,6 +1322,7 @@ async function loadData(password) {
     locations: Array.isArray(data.locations) ? data.locations.length : 0,
     clicks: Array.isArray(data.clicks) ? data.clicks.length : 0,
   });
+  updateEnvBadge(data.meta);
   return data;
 }
 

@@ -115,6 +115,21 @@ html, body {
   margin-right: auto;
 }
 
+.admin-env-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.85);
+  letter-spacing: 0.02em;
+  margin-right: auto;
+}
+
+.admin-env-badge.env-prod { background: rgba(79,201,126,0.25); border-color: rgba(79,201,126,0.5); color: #a8f0c6; }
+.admin-env-badge.env-preview { background: rgba(232,169,60,0.25); border-color: rgba(232,169,60,0.5); color: #f5d58a; }
+
 .admin-btn {
   padding: 6px 14px;
   border-radius: 8px;

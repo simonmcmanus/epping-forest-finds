@@ -172,7 +172,7 @@ const server = http.createServer((req, res) => {
     }
     const locations = readNdjson("location.ndjson");
     const clicks = readNdjson("click.ndjson");
-    send(res, 200, JSON.stringify({ locations, clicks }), "application/json; charset=utf-8");
+    send(res, 200, JSON.stringify({ locations, clicks, meta: { storeName: "local", context: "local" } }), "application/json; charset=utf-8");
     return;
   }
 
