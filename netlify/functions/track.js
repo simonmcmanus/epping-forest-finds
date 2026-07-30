@@ -20,7 +20,7 @@ const TRACKING_DIR = path.join(__dirname, "..", "..", "data", "tracking");
 // test data never appears in the production admin dashboard.
 function getTrackingStoreName() {
   const context = process.env.CONTEXT;
-  if (!context || context === "production") return "tracking";
+  if (context === "production") return "tracking";
   const branch = (process.env.BRANCH || "dev")
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "-")
