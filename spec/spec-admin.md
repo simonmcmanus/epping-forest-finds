@@ -154,8 +154,24 @@ The `netlify/functions/track.js` function tries Netlify Blobs first, and automat
 |---|---|
 | `node server.js` | `data/tracking/*.ndjson` (via server.js directly) |
 | `netlify dev` (no linked site) | `data/tracking/*.ndjson` (Blobs fallback in function) |
-| `netlify dev` (linked site) | Netlify Blobs |
-| Deployed to Netlify | Netlify Blobs |
+| `netlify dev` (linked site) | Netlify Blobs, `tracking-<branch>` store |
+| Branch deploy / deploy preview | Netlify Blobs, `tracking-<branch>` store |
+| Production deploy | Netlify Blobs, `tracking` store |
+
+### Environment isolation
+
+The blob store name is derived from the Netlify `CONTEXT` environment variable, which Netlify sets automatically on every deploy:
+
+| `CONTEXT` value | Store name |
+|---|---|
+| `production` | `tracking` |
+| `deploy-preview` | `tracking-<branch>` |
+| `branch-deploy` | `tracking-<branch>` |
+| unset (local) | falls back to NDJSON files |
+
+`<branch>` is the value of the Netlify `BRANCH` env var, lowercased and with non-alphanumeric characters replaced by `-`. This ensures that production data is never mixed with test or preview data, and the production admin dashboard only shows interactions from the production URL.
+
+Users cannot switch environments: the store used is determined entirely by the Netlify deploy context, not by any client-side or user-controlled value.
 
 ### Local NDJSON files
 Path: `data/tracking/` (gitignored)
