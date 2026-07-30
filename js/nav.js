@@ -542,7 +542,7 @@ function goToInitialView(updateHash = true) {
   }
 
   const wasMinimized = els.inspector.classList.contains("minimized");
-  // Leaving a tilted 3D navigation view for the nearby overview: both screens allow tilt
+  // Leaving a tilted 3D navigation view for the nearby overview: every screen allows tilt
   // (see tiltAllowedForCurrentScreen), so nothing here naturally flattens the perspective.
   // Without this, the camera would pan/zoom straight to the nearby fit while still mid-tilt,
   // warping the pan through the 3D perspective. Force a flatten to 2D first (see
@@ -581,8 +581,8 @@ function goToInitialView(updateHash = true) {
 
 // Sets the one-shot override that forces tiltAllowedForCurrentScreen() to false, so the
 // existing compass-tick easing (see startCompassSmoothing) drives the 3D perspective back
-// down to flat exactly as it does when leaving to the filter/settings screens. Restarts the
-// tick loop in case it had already settled and gone idle.
+// down to flat for this transition. Restarts the tick loop in case it had already settled
+// and gone idle.
 function flattenTiltForTransition() {
   state.tiltFlattenTransition = true;
   startCompassSmoothing();

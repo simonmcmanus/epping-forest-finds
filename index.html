@@ -2705,15 +2705,13 @@
       return selectedNavigationHeadingUpActive() || nearbyHeadingUpActive();
     }
 
-    // 3D perspective (tiltActive()) is only available on the plain nearby overview screen
-    // and while actively navigating to a selected item — the filter panel, feedback, and
-    // settings screens keep flat heading-up rotation but never escalate into 3D. This feeds
-    // into the beta smoothing loop's target (see startCompassSmoothing) rather than gating
-    // tiltActive() directly, so leaving/entering an allowed screen eases the perspective
-    // in/out through the same filter as a physical phone tilt, instead of snapping flat.
+    // 3D perspective (tiltActive()) is available on every screen — nearby overview,
+    // selected navigation, and the filter/settings/feedback screens all allow full tilt.
+    // The only time it's forced flat is a `flattenTiltForTransition()` transition (see
+    // startCompassSmoothing), so leaving/entering the app's screens never causes tilt to
+    // snap — it only ever eases via the beta smoothing filter, same as a physical tilt.
     function tiltAllowedForCurrentScreen() {
-      if (state.tiltFlattenTransition) return false;
-      return selectedNavigationHeadingUpActive() || isOverviewScreenActive();
+      return !state.tiltFlattenTransition;
     }
 
     function tiltActive() {
