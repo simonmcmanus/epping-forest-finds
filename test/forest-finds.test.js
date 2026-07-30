@@ -1307,6 +1307,56 @@ test("returning to nearby waits for inspector expansion before starting the near
   assert.ok(app.state.viewportAnimationDuration > 0, "nearby refit should animate once the inspector settles");
 });
 
+test("returning to nearby from a tilted selected-item navigation flattens 3D before re-fitting the camera, without snapping the viewport mid-flatten", async () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  app.state.compassHeading = 90;
+  app.state.compassHeadingTarget = 90;
+  app.state.compassAnimationTime = null;
+  app.state.compassLastEventAt = Date.now(); // recent, so goToInitialView's staleness check doesn't clear compassHeading
+  app.state.tiltBetaTarget = 60;
+  app.state.tiltBetaSmoothed = 60;
+  app.state.viewport = { scale: 1000, tx: 123, ty: 456 };
+  assert.equal(app.tiltActive(), true, "should start in full 3D while navigating to a selected item");
+
+  const frozenViewport = { ...app.state.viewport };
+  app.goToInitialView();
+
+  assert.equal(app.state.selected, null);
+  // Both the selected-navigation screen and the nearby overview allow 3D, so nothing about
+  // the screen change alone drops tilt — the camera must stay frozen at the pre-transition
+  // viewport rather than immediately hard-snapping to the (very different) nearby-fit target
+  // the instant selection clears.
+  assert.deepEqual(app.state.viewport, frozenViewport, "viewport should stay frozen the instant selection clears");
+  assert.equal(app.state.tiltFlattenTransition, true, "flatten override should be active immediately");
+
+  await new Promise((resolve) => setTimeout(resolve, 1800));
+  assert.equal(app.tiltActive(), false, "tilt should have eased down to flat");
+  assert.equal(app.state.tiltFlattenTransition, false, "flatten override should clear once flat");
+  assert.notDeepEqual(app.state.viewport, frozenViewport, "camera should have moved to the nearby fit only after flattening");
+});
+
+test("alignHeadingUpNavigationViewport's per-tick unanimated call does not move the camera while a tilt-flatten transition is in progress", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
+  app.state.selected = null;
+  app.state.compassHeading = 90;
+  app.state.viewport = { scale: 1000, tx: 123, ty: 456 };
+  const frozenViewport = { ...app.state.viewport };
+
+  app.state.tiltFlattenTransition = true;
+  const changedWhileFlattening = app.alignHeadingUpNavigationViewport();
+  assert.equal(changedWhileFlattening, false, "unanimated per-tick align should no-op during a flatten transition");
+  assert.deepEqual(app.state.viewport, frozenViewport, "viewport must not move during a flatten transition");
+
+  app.state.tiltFlattenTransition = false;
+  app.alignHeadingUpNavigationViewport();
+  assert.notDeepEqual(app.state.viewport, frozenViewport, "once the flatten transition clears, the align call should move the camera again");
+});
+
 test("nearby HTML does not contain the walking distance selector", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

@@ -359,6 +359,10 @@
       tiltBetaSmoothed: 0,
       tiltBetaPhysicalSmoothed: 0,
       tiltWasActive: false,
+      // One-shot override: true while goToInitialView() is forcing the perspective flat
+      // before it re-fits the camera to the nearby overview (see flattenTiltForTransition
+      // in nav.js). Read by tiltAllowedForCurrentScreen().
+      tiltFlattenTransition: false,
       selectionViewportTransitionPending: false,
       viewportAnimationFrame: null,
       viewportAnimationFrom: null,
@@ -2708,6 +2712,7 @@
     // tiltActive() directly, so leaving/entering an allowed screen eases the perspective
     // in/out through the same filter as a physical phone tilt, instead of snapping flat.
     function tiltAllowedForCurrentScreen() {
+      if (state.tiltFlattenTransition) return false;
       return selectedNavigationHeadingUpActive() || isOverviewScreenActive();
     }
 
@@ -2951,6 +2956,15 @@
       if (!headingUpActive()) return false;
       if (selectionCameraTransitionActive()) return false;
       if (state.clusterZoomed) return false;
+      // While a flattenTiltForTransition() flatten is in progress, state.selected has
+      // already been cleared (see goToInitialView) but the deliberate animated re-fit is
+      // still waiting on waitForTiltFlatten. Without this guard, the per-tick unanimated
+      // call from startCompassSmoothing below would immediately hard-snap scale/tx/ty from
+      // the selected-target fit to the nearby fit the instant selection clears — well before
+      // the perspective has actually leveled out — which is exactly the jump this transition
+      // is meant to avoid. Freeze the viewport here so the only camera move is the single
+      // animated call ensureOverviewTargetsVisible fires once flat.
+      if (options.animate !== true && state.tiltFlattenTransition) return false;
       clearHeadingUpCanvasTransform();
       const previousScale = state.viewport.scale;
       const previousTx = state.viewport.tx;
