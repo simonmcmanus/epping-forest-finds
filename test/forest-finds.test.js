@@ -985,6 +985,69 @@ test("filter screen with no active filters falls through to foraging zoom (neare
   assert.equal(app.isNearCanvas(treePoint, 10), true, JSON.stringify({ treePoint, viewport: app.state.viewport }));
 });
 
+test("settings screen zooms to fit only filtered items, same as filter screen", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.viewport = { scale: 8, tx: 120, ty: 120 };
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
+  app.state.landmarks.push({ id: "near-pub", name: "Near pub", category: "pub", ...makePoint(app, 0.0012, 0.0008) });
+
+  app.state.selected = { type: "settings", item: null };
+  app.state.overviewFilters = ["pubs"];
+  app.ensureOverviewTargetsVisible({ animate: false });
+  const pubPoint = app.worldToScreen(app.state.landmarks[0].point);
+
+  assert.ok(app.state.viewport.scale > 8, "settings screen should zoom in from the initial full-map scale");
+  assert.equal(app.isNearCanvas(pubPoint, 16), true, JSON.stringify({ pubPoint, viewport: app.state.viewport }));
+});
+
+test("report screen zooms to fit only filtered items, same as filter screen", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.viewport = { scale: 8, tx: 120, ty: 120 };
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
+  app.state.landmarks.push({ id: "near-pub", name: "Near pub", category: "pub", ...makePoint(app, 0.0012, 0.0008) });
+
+  app.state.selected = { type: "report", item: null };
+  app.state.overviewFilters = ["pubs"];
+  app.ensureOverviewTargetsVisible({ animate: false });
+  const pubPoint = app.worldToScreen(app.state.landmarks[0].point);
+
+  assert.ok(app.state.viewport.scale > 8, "report screen should zoom in from the initial full-map scale");
+  assert.equal(app.isNearCanvas(pubPoint, 16), true, JSON.stringify({ pubPoint, viewport: app.state.viewport }));
+});
+
+test("GPS updates keep re-centering the map on settings and report screens, not just overview", () => {
+  resetData(app);
+  const previous = makePoint(app, 0, 0).point;
+  app.state.userLocation = makePoint(app, 0.2, 0.2);
+  app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
+  app.state.selected = { type: "settings", item: null };
+
+  app.keepOverviewCenteredOnUser(previous);
+
+  assert.ok(app.state.viewportAnimationTo, "large movement should re-fit the settings screen too");
+});
+
+test("walking radius marker draws on the report (feedback) screen", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "report", item: null };
+
+  let arcCount = 0;
+  app.drawWalkingRadius({
+    save() {},
+    restore() {},
+    beginPath() {},
+    arc() { arcCount += 1; },
+    fill() {},
+    stroke() {},
+    setLineDash() {},
+  });
+
+  assert.equal(arcCount, 1);
+});
+
 test("minimized inspector preserves user-controlled map position on GPS updates", () => {
   resetData(app);
   const previous = makePoint(app, 0, 0).point;

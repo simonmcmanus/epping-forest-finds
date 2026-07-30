@@ -1,3 +1,15 @@
+// Filter, Settings, and Report screens all show the map in the background and must
+// present the same fixed "zoomed out to show all highlighted locations" view (see
+// overviewTargetPoints/ensureOverviewTargetsVisible in index.html and
+// drawWalkingRadius/buildNearbyIconLookup in renderer.js).
+function secondaryScreenActive() {
+  return Boolean(
+    state.filterScreenOpen
+    || state.selected?.type === "settings"
+    || state.selected?.type === "report"
+  );
+}
+
 function refreshSettingsVersionDisplay() {
   const el = document.getElementById("appVersionDisplay");
   if (!el) return;
@@ -144,7 +156,7 @@ function setupResizeHandler() {
         alignHeadingUpNavigationViewport();
       } else if (state.userLocation && selectedCompassTarget()) {
         ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
-      } else if (state.userLocation && isOverviewScreenActive()) {
+      } else if (state.userLocation && (isOverviewScreenActive() || secondaryScreenActive())) {
         ensureOverviewTargetsVisible({ animate: false });
       } else {
         fitToBounds(false);
@@ -327,10 +339,7 @@ function setupSearchAndNavHandlers() {
 
   window.addEventListener("hashchange", () => {
     if (!window.location.hash) {
-      const screenOpen = state.filterScreenOpen
-        || state.selected?.type === "settings"
-        || state.selected?.type === "report";
-      if (!screenOpen) goToInitialView(false);
+      if (!secondaryScreenActive()) goToInitialView(false);
       return;
     }
     applySelectionFromHash(false);

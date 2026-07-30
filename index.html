@@ -1480,6 +1480,9 @@
       setInspectorMinimized(false);
       updateCompassOverlay();
       requestDraw();
+      if (state.userLocation) {
+        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+      }
     }
 
     function settingsFormHtml() {
@@ -1549,6 +1552,9 @@
       setInspectorMinimized(false);
       updateCompassOverlay();
       requestDraw();
+      if (state.userLocation) {
+        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+      }
     }
 
     function reportFormHtml() {
@@ -3206,7 +3212,8 @@
     }
 
     function centerOverviewOnUserLocation(options = {}) {
-      if (!state.userLocation || !isOverviewScreenActive() || state.selected) return;
+      if (!state.userLocation) return;
+      if (state.selected && !secondaryScreenActive()) return;
       const requestedScale = Number.isFinite(options.scale) ? options.scale : state.viewport.scale;
 
       const focusRect = options.focusVisibleArea
@@ -3237,7 +3244,8 @@
 
     function keepOverviewCenteredOnUser(previousPoint) {
       if (!state.dataLoaded) return;
-      if (!state.userLocation || state.selected || !isOverviewScreenActive()) return;
+      if (!state.userLocation) return;
+      if (state.selected && !secondaryScreenActive()) return;
       if (state.clusterZoomed) return;
       if (els.inspector.classList.contains("minimized")) return;
       if (nearbyHeadingUpActive()) return;
@@ -3309,7 +3317,7 @@
     function ensureOverviewTargetsVisible(options = {}) {
       if (!state.dataLoaded) return;
       if (!state.userLocation) return;
-      if (state.selected) return;
+      if (state.selected && !secondaryScreenActive()) return;
       if (state.clusterZoomed) return;
       setInspectorMinimized(false);
 
@@ -3348,8 +3356,9 @@
       if (!state.userLocation) return [];
       const { latitude, longitude } = state.userLocation;
 
-      // Filter screen: zoom to fit only the highlighted (filtered) items, not all locations
-      if (state.filterScreenOpen && state.overviewFilters.length > 0) {
+      // Secondary screens (filter, settings, report): zoom to fit only the highlighted
+      // (filtered) items, not all locations, so the map view is identical across all three.
+      if (secondaryScreenActive() && state.overviewFilters.length > 0) {
         const entries = overviewItemsUnlimited(latitude, longitude);
         const itemPts = entries
           .filter(e => e.item && e.item.point)

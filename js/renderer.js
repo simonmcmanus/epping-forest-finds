@@ -584,7 +584,9 @@ function drawOverviewRoutes(ctx, treeClusters) {
 }
 
 function drawWalkingRadius(ctx) {
-  if (!state.userLocation || (state.selected && state.selected.type !== "settings")) return;
+  if (!state.userLocation) return;
+  const isRealSelection = state.selected && !["settings", "report"].includes(state.selected.type);
+  if (isRealSelection) return;
 
   const dpr = pixelRatio();
   const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
@@ -1006,7 +1008,7 @@ function buildNearbyIconLookup() {
   const path = new Set();
   const water = new Set();
   const outOfRadius = new Set();
-  const inFilterScreen = (state.filterScreenOpen || state.selected?.type === "settings" || state.selected?.type === "report") && state.userLocation;
+  const inFilterScreen = secondaryScreenActive() && state.userLocation;
   const items = inFilterScreen
     ? overviewItemsUnlimited(state.userLocation.latitude, state.userLocation.longitude)
     : overviewItemsForActiveFilter();

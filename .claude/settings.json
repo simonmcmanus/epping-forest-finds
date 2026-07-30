@@ -26,7 +26,10 @@
       "Bash(git -C /Users/simonmcmanus/node/trees show 3919be1 -- index.html)",
       "Bash(git checkout *)",
       "Bash(git clean *)",
-      "Bash(grep -n \"pseudo-selection screens\\\\|Heading-up nearby mode\\\\|Heading-up selected navigation\\\\|tiltActive\\(\\)\\\\` true\" /Users/simonmcmanus/node/trees/spec/spec-data-rendering.md)"
+      "Bash(grep -n \"pseudo-selection screens\\\\|Heading-up nearby mode\\\\|Heading-up selected navigation\\\\|tiltActive\\(\\)\\\\` true\" /Users/simonmcmanus/node/trees/spec/spec-data-rendering.md)",
+      "Bash(node --check index.html)",
+      "Bash(node --test test/forest-finds.test.js > /tmp/out.txt 2>&1; grep -n \"tests \\\\|pass \\\\|fail \\\\|not ok\" /tmp/out.txt | tail -20)",
+      "Read(//tmp/**)"
     ],
     "additionalDirectories": [
       "/tmp"

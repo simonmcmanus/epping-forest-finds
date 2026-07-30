@@ -262,6 +262,7 @@ Marker rules:
 - Contains a **Walking radius** control: a dropdown to choose how far to walk when listing nearby places (1, 2, 5, 10, 15, 20, 30 min options).
 - Contains an **About** section displaying the current app version (e.g. `v80`).
 - Changing the walking radius stays on the settings screen, immediately animates the map to fit the new radius, updates the nearby list and nearest tree selection, and keeps the walking radius ring visible.
+- Opening Settings shows the same map view as the Filter and Feedback screens (see below).
 
 ## Feedback / Report Screen
 
@@ -269,6 +270,16 @@ Marker rules:
 - Allows users to report missing data or request features; submissions are tracked as GitHub issues.
 - The current app version is displayed in the form so the user can see which version will be reported.
 - The app version, user agent, page URL, and optional geolocation are included in every submission payload.
+- Opening Feedback shows the same map view as the Filter and Settings screens (see below).
+
+## Secondary Screen Map Consistency
+
+The Filter, Settings, and Feedback screens all display the same fixed map view in the background, so switching between them never changes what's shown:
+
+- The camera zooms out to fit the user plus every location matching the active filters (survey mode — see `spec-data-rendering.md`), falling back to the nearest trees when no filters are active.
+- The walking-radius ring is always visible on all three screens.
+- The view keeps updating live with GPS movement and (flat, non-3D) heading-up compass rotation while any of the three screens is open; full 3D tilt is not available on these screens.
+- Any change to the view (opening a screen, GPS movement, resize) animates smoothly rather than snapping.
 
 ## Compass and Direction Guidance
 
