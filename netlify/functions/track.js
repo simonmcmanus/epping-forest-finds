@@ -186,13 +186,15 @@ exports.handler = async (event) => {
       return response(200, {
         locations,
         clicks,
-        ...(debug ? {
-          meta: {
+        meta: {
+          storeName: getTrackingStoreName(),
+          context: process.env.CONTEXT || "local",
+          ...(debug ? {
             storage: "blobs",
             locationBlobCount: locBlobs.length,
             clickBlobCount: clickBlobs.length,
-          },
-        } : {}),
+          } : {}),
+        },
       });
     } catch (blobErr) {
       warnTrack("blob-read-failed", errorDetails(blobErr));
@@ -208,7 +210,11 @@ exports.handler = async (event) => {
         return response(200, {
           locations,
           clicks,
-          ...(debug ? { meta: { storage: "file-fallback", blobError: errorDetails(blobErr) } } : {}),
+          meta: {
+            storeName: getTrackingStoreName(),
+            context: process.env.CONTEXT || "local",
+            ...(debug ? { storage: "file-fallback", blobError: errorDetails(blobErr) } : {}),
+          },
         });
       } catch (fileErr) {
         return response(500, { error: String(fileErr.message) });
