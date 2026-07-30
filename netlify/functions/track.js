@@ -15,6 +15,19 @@ const { connectLambda, getStore } = require("@netlify/blobs");
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const TRACKING_DIR = path.join(__dirname, "..", "..", "data", "tracking");
 
+// ---- Environment-scoped blob store ----
+// Production uses "tracking"; preview/branch deploys use "tracking-<branch>" so
+// test data never appears in the production admin dashboard.
+function getTrackingStoreName() {
+  const context = process.env.CONTEXT;
+  if (!context || context === "production") return "tracking";
+  const branch = (process.env.BRANCH || "dev")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .slice(0, 48);
+  return `tracking-${branch}`;
+}
+
 function ensureTrackingDir() {
   if (!fs.existsSync(TRACKING_DIR)) fs.mkdirSync(TRACKING_DIR, { recursive: true });
 }
@@ -130,6 +143,7 @@ exports.handler = async (event) => {
     hasBlobContext: Boolean(event.blobs),
     blobContextConnected,
     allowFileFallback,
+    storeName: getTrackingStoreName(),
   });
 
   if (event.httpMethod === "OPTIONS") {
@@ -152,7 +166,7 @@ exports.handler = async (event) => {
 
     let store;
     try {
-      store = getStore("tracking");
+      store = getStore(getTrackingStoreName());
       const [locBlobs, clickBlobs] = await Promise.all([
         listAllBlobs(store, "location/"),
         listAllBlobs(store, "click/"),
@@ -229,7 +243,7 @@ exports.handler = async (event) => {
 
     let store;
     try {
-      store = getStore("tracking");
+      store = getStore(getTrackingStoreName());
       const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const locationKey = locationEvents.length ? `location/${suffix}.json` : null;
       const clickKey = clickEvents.length ? `click/${suffix}.json` : null;
