@@ -7,6 +7,14 @@ module.exports = defineConfig({
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
 
+  // Flat, screenshot-name-only path (not derived from the spec file path or
+  // test title). Renaming/splitting/moving a spec file must never rename its
+  // snapshot files — that turns a real visual diff into an unreviewable
+  // delete+create pair in git. The `{arg}` passed to toHaveScreenshot() is
+  // the only thing that identifies a snapshot, so it must stay unique
+  // project-wide and stable across refactors.
+  snapshotPathTemplate: "test/e2e/__screenshots__/{arg}{-projectName}{-platform}{ext}",
+
   use: {
     baseURL: "http://localhost:8080",
     trace: "on-first-retry",
