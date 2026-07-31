@@ -467,10 +467,11 @@ Events are stored in `localStorage` (`ff-track-queue`) when offline and flushed 
 
 ## GitHub Issue Clarification Workflow
 
-- `.github/workflows/issue-clarify.yml` (via `.github/scripts/issue-clarify.js`) keeps clarification questions in-place on issue/comment edits by re-annotating the same numbered question list (same numbering/order/wording) with traffic-light status emojis (`🟢` answered, `🟡` partial, `🔴` unanswered) plus short answer-understanding blockquotes for answered/partial items; malformed model payloads are ignored so valid existing questions are not overwritten.
-- New follow-up questions are folded into that same comment (continuing the numbering) rather than posted separately, so there is always exactly one canonical bot comment to track per issue.
-- When clarification data is sufficient, the bot appends a **Suggested description** that keeps the same issue template structure already used in the issue body (for example bug report vs feature request) while filling in clarified answers.
-- The workflow uses GitHub Actions' built-in `GITHUB_TOKEN` for issue comments; no personal GitHub token is required. There is no downstream agent that automatically implements the issue — clarification is the full extent of this workflow.
+- `.github/workflows/issue-clarify.yml` runs `anthropics/claude-code-action@v1` (authenticated via the `CLAUDE_CODE_OAUTH_TOKEN` repo secret, tied to a Claude Pro/Max subscription) on issue opened/edited and issue comment created/edited events. It replaced an earlier hand-rolled script that called the free GitHub Models inference API, which GitHub permanently retired on 2026-07-30.
+- The action reads `CLAUDE.md` and the `spec/*.md` files itself, uses `gh issue view --comments` to inspect the issue and prior replies, and keeps clarification to a single comment via `use_sticky_comment: true` (no separate comment per follow-up question).
+- The comment re-annotates the same numbered question list on each pass (same numbering/order/wording) with traffic-light status emojis (`🟢` answered, `🟡` partial, `🔴` unanswered) plus short answer-understanding blockquotes for answered/partial items; new follow-up questions are only appended, continuing the numbering, and only when genuinely needed.
+- When clarification data is sufficient, the comment appends a **Suggested description** that keeps the same issue template structure already used in the issue body (for example bug report vs feature request) while filling in clarified answers.
+- The job guards against re-triggering on its own comments by skipping `issue_comment` events authored by `claude[bot]`. There is no downstream agent that automatically implements the issue — clarification is the full extent of this workflow.
 
 ## Technical Constraints
 

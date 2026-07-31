@@ -7,24 +7,71 @@ on:
     types: [created, edited]
 
 permissions:
+  contents: read
   issues: write
-  models: read
 
 jobs:
   clarify:
     name: Ask clarifying questions
     runs-on: ubuntu-latest
-    if: github.event.comment.user.login != 'github-actions[bot]'
+    if: github.event_name != 'issue_comment' || github.event.comment.user.login != 'claude[bot]'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Generate and post clarifying questions
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GH_TOKEN: ${{ github.token }}
-          EVENT_ACTION: ${{ github.event.action }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
-        run: node .github/scripts/issue-clarify.js
+      - name: Grill the issue
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          use_sticky_comment: "true"
+          prompt: |
+            You are grilling a GitHub issue on the Epping Forest Finds project
+            before any code gets written against it, using the same discipline as
+            this repo's `/grilling` skill (see `.claude/skills/grilling/SKILL.md`).
+
+            Ground yourself first by reading:
+            - CLAUDE.md
+            - spec/spec.md
+            - spec/spec-data-rendering.md
+            - spec/spec-data-fetching.md
+            - spec/spec-admin.md
+            - spec/spec-icons.md
+            - spec/glossary.md
+
+            Then use `gh issue view ${{ github.event.issue.number }} --comments`
+            to see the issue body and every comment so far.
+
+            Case 1 — no clarifying-questions comment from you exists yet:
+            Post 3-5 focused numbered questions (with a short friendly intro line)
+            that surface real ambiguities in scope, UX behaviour, data handling,
+            architecture (which file owns the logic: renderer, inspector, nav,
+            categories, tracker), performance, or spec alignment. Skip anything
+            already clearly answered in the issue body. If a fact can be settled
+            by reading the spec files or the codebase, don't ask it.
+
+            Case 2 — a clarifying-questions comment from you already exists:
+            Re-evaluate it against every reply since. Output the full comment
+            again, in full, following these rules:
+            - Keep every original question with its original number and wording,
+              never renumber or remove one.
+            - Prefix each question with a status emoji: 🟢 clearly and fully
+              answered, 🟡 partially answered or needs more detail, 🔴 not yet
+              answered.
+            - For 🟢/🟡 questions, add a one-line blockquote directly below summarising
+              what was understood from the replies.
+            - Only if something important is still genuinely missing, append new
+              questions at the end, continuing the numbering (e.g. after 5, next is 6).
+              Err strongly toward not adding new ones.
+            - Keep the original intro line.
+
+            In both cases, if you now have enough clarified detail to make the
+            issue self-contained, append a horizontal rule followed by
+            "**Suggested description:**" and a rewritten version of the issue body
+            that keeps the same template structure/headings already used in the
+            issue (bug report vs feature request) but fills in the clarified
+            answers. Omit this section entirely if the description is already
+            clear, or if the issue body has already been updated to match.
+
+            Post your result as a single issue comment (the action keeps this to
+            one comment automatically). Do not open a PR or write any code —
+            this workflow only clarifies requirements.
