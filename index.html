@@ -2089,8 +2089,7 @@
       return uniqueSortedOverviewEntries(entries);
     }
 
-    function overviewItemsUnlimited(latitude, longitude) {
-      const limit = state.nearestItemsCount;
+    function overviewItemsUnlimited(latitude, longitude, limit = state.nearestItemsCount) {
       const hasFilters = state.overviewFilters.length > 0;
       if (hasFilters) {
         const activePointFilters = getActivePointFilterKeys();
@@ -3371,7 +3370,7 @@
       // Secondary screens (filter, settings, report): zoom to fit only the highlighted
       // (filtered) items, not all locations, so the map view is identical across all three.
       if (secondaryScreenActive() && state.overviewFilters.length > 0) {
-        const entries = overviewItemsUnlimited(latitude, longitude);
+        const entries = overviewItemsUnlimited(latitude, longitude, 5);
         const itemPts = entries
           .filter(e => e.item && e.item.point)
           .map(e => e.item.point);
