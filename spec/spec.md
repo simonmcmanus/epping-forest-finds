@@ -465,16 +465,12 @@ Events are stored in `localStorage` (`ff-track-queue`) when offline and flushed 
 - Auto-refreshes every 5 minutes; manual refresh button available
 - Data served from `GET /api/admin/tracks?pw=...`
 
-## GitHub Issue Agent Workflow
+## GitHub Issue Clarification Workflow
 
-- `.github/workflows/codex-issue-agent.yml` runs a Codex attempt when an issue is opened, edited, or labelled while carrying the `codex` label, or when manually dispatched with an issue number.
-- The existing `.github/workflows/issue-clarify.yml` workflow keeps clarification questions in-place on issue/comment edits by re-annotating the same numbered question list (same numbering/order/wording) with traffic-light status emojis (`🟢` answered, `🟡` partial, `🔴` unanswered) plus short answer-understanding blockquotes for answered/partial items; malformed model payloads are ignored so valid existing questions are not overwritten.
+- `.github/workflows/issue-clarify.yml` (via `.github/scripts/issue-clarify.js`) keeps clarification questions in-place on issue/comment edits by re-annotating the same numbered question list (same numbering/order/wording) with traffic-light status emojis (`🟢` answered, `🟡` partial, `🔴` unanswered) plus short answer-understanding blockquotes for answered/partial items; malformed model payloads are ignored so valid existing questions are not overwritten.
+- New follow-up questions are folded into that same comment (continuing the numbering) rather than posted separately, so there is always exactly one canonical bot comment to track per issue.
 - When clarification data is sufficient, the bot appends a **Suggested description** that keeps the same issue template structure already used in the issue body (for example bug report vs feature request) while filling in clarified answers.
-- The workflow uses GitHub Actions' built-in `GITHUB_TOKEN` for branch, PR, and issue comments; no personal GitHub token is required.
-- Codex authentication is provided by either a `CODEX_ACCESS_TOKEN` repository secret or an `OPENAI_API_KEY` repository secret. `OPEN_API_KEY` is also accepted as a compatibility alias, but `OPENAI_API_KEY` is the preferred name.
-- The agent receives the issue title/body as requirements, makes focused repository changes, updates specs when behaviour changes, and leaves branch/PR creation to the workflow.
-- If changes are produced, the workflow pushes a `codex/issue-<number>-<run>` branch, opens a PR against the default branch, links it to the issue, includes the Codex summary and `npm test` output, and comments the PR URL back on the issue.
-- Netlify deploy previews are expected to be posted by the Netlify GitHub integration on the generated PR.
+- The workflow uses GitHub Actions' built-in `GITHUB_TOKEN` for issue comments; no personal GitHub token is required. There is no downstream agent that automatically implements the issue — clarification is the full extent of this workflow.
 
 ## Technical Constraints
 

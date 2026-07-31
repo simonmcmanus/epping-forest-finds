@@ -18,6 +18,9 @@ const clip = (str, max) => str.length > max ? str.slice(0, max) + "\n...(clipped
 const projectGuidelines = clip(readFile("CLAUDE.md"), 2000);
 const specMain = clip(readFile("spec/spec.md"), 3000);
 const specRendering = clip(readFile("spec/spec-data-rendering.md"), 2000);
+const specFetching = clip(readFile("spec/spec-data-fetching.md"), 2000);
+const specAdmin = clip(readFile("spec/spec-admin.md"), 1500);
+const specIcons = clip(readFile("spec/spec-icons.md"), 1000);
 const glossary = clip(readFile("spec/glossary.md"), 1000);
 
 const preamble = [
@@ -33,6 +36,15 @@ const preamble = [
   "",
   "## Rendering spec",
   specRendering,
+  "",
+  "## Data fetching spec",
+  specFetching,
+  "",
+  "## Admin spec",
+  specAdmin,
+  "",
+  "## Icons spec",
+  specIcons,
   "",
   "## Glossary",
   glossary,
@@ -108,7 +120,6 @@ function normalizeOptionalString(value) {
 function normalizeModelResult(result) {
   return {
     annotated: normalizeOptionalString(result?.annotated),
-    newQuestions: normalizeOptionalString(result?.new_questions ?? result?.newQuestions),
     suggestedDescription: normalizeOptionalString(result?.suggested_description ?? result?.suggestedDescription),
   };
 }
@@ -201,12 +212,12 @@ function handleEdited() {
     "",
     "---",
     "",
-    'Return a JSON object with exactly three fields: "annotated", "new_questions", and "suggested_description".',
+    'Return a JSON object with exactly two fields: "annotated" and "suggested_description".',
     'Each field value must be either a string or null (never objects or arrays).',
     '- "annotated": a fully re-evaluated version of the previous questions comment.',
     '  The comment may already contain emojis and blockquote summaries from a prior pass —',
     '  treat those as stale and replace them entirely based on the current replies.',
-    '  For each numbered question, output:',
+    '  For each original numbered question, output:',
     '    <emoji> <number>. <original question text>',
     '    > <one or two sentences summarising the current answer from the replies>',
     '  Emojis:',
@@ -215,9 +226,11 @@ function handleEdited() {
     '  🔴 not yet answered — omit the blockquote line for these',
     '  Keep the intro line exactly as it was (strip any stale emoji/blockquote from it).',
     '  Keep every original numbered question with the same numbering and wording.',
-    '- "new_questions": a numbered list (with a short friendly intro line) of any important',
-    '  remaining questions not yet covered — or null if nothing important is missing.',
-    '  Err strongly on the side of null.',
+    '  If — and only if — there are important remaining questions not yet covered, append them',
+    '  to the end of the SAME list, continuing the numbering from the highest existing number',
+    '  (e.g. if questions go up to 5, new ones start at 6. unannotated, since they are unanswered).',
+    '  Err strongly on the side of not adding new questions — this list must never shrink or',
+    '  renumber, only gain 🟢/🟡 annotations and, occasionally, new questions at the end.',
     '- "suggested_description": a rewritten version of the original issue body that folds in',
     '  all clarified information so the description is self-contained and unambiguous.',
     '  Preserve the original intent; add detail where replies have resolved ambiguity.',
@@ -241,10 +254,8 @@ function handleEdited() {
       process.exit(1);
     }
 
-    const normalizedResult = normalizeModelResult(result);
     const commentBody = buildAnnotatedCommentBody(result, previousQuestions);
     if (commentBody) {
-
       console.log(`Patching comment ${botComment.id}…`);
       execFileSync("gh", [
         "api", `repos/${repo}/issues/comments/${botComment.id}`,
@@ -258,12 +269,6 @@ function handleEdited() {
       console.log("Comment updated.");
     } else {
       console.log("Model returned invalid annotated body; preserving existing questions.");
-    }
-
-    if (normalizedResult.newQuestions) {
-      postComment(normalizedResult.newQuestions);
-    } else {
-      console.log("No new questions needed.");
     }
   });
 }
