@@ -176,7 +176,7 @@ Each cluster draws **one pin** at the screen centroid of its members. When a clu
 **Cluster tap interaction:** tapping a multi-item cluster pin (in overview mode, i.e. no current selection) triggers `findClusterHit` — which rebuilds clusters for all types at the current viewport and tags each cluster with its `itemType` (`"tree"`, `"landmark"`, `"cow"`, `"path"`, or `"water"`) — and, if hit:
 1. Sets `state.clusterZoomed = true` and `state.clusterExpanded = cluster`.
 2. Animates the viewport to centre on the user's location and scale so the farthest cluster item fills to the edge of the visible focus rect (area above the inspector), using `bestVisibleCanvasRect({ assumeInspectorOpen: true })` with 40 CSS-pixel padding. This keeps the user at the centre of the view and scales to show all cluster items at the edges, matching the "nearby view centred on my location" intent. `state.fitScale` is not modified by this zoom. When user location is unavailable it falls back to `fitToPoints` on cluster item points only.
-3. Switches the inspector to **cluster detail mode** via `showClusterDetail(cluster)`: shows the back button, a title (e.g. "4 Trees"), and a nearest-item list of all items in the cluster (icon, name, walk time, direction arrow). Items are tappable to open full detail via the existing `focusOverviewItem` path.
+3. Switches the inspector to **cluster detail mode** via `showClusterDetail(cluster)`: shows the back button, a title (e.g. "4 Trees"), and a nearest-item list of all items in the cluster (icon, name, combined distance + walk-time chip, direction arrow). Items are tappable to open full detail via the existing `focusOverviewItem` path.
 
 While `state.clusterZoomed` is true, `ensureOverviewTargetsVisible`, `keepOverviewCenteredOnUser`, and `alignHeadingUpNavigationViewport` all skip their GPS/compass-driven refits so the zoom-in view is not immediately overridden. `selectOverview` also skips its re-render while `state.clusterExpanded` is set, preventing GPS updates from replacing the cluster detail list.
 
@@ -299,7 +299,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 ### Modes
 
 1. **Overview mode** — nearest list + filter controls
-2. **Cluster detail mode** — list of items in a tapped cluster (`state.clusterExpanded` set, `state.selected` null); shows back button, item count title, and nearest-item rows for each cluster member; back button or empty-space map tap returns to overview
+2. **Cluster detail mode** — list of items in a tapped cluster (`state.clusterExpanded` set, `state.selected` null); shows back button, item count title, and nearest-item rows for each cluster member. Each row includes an always-visible combined distance + walk-time chip (`{distance} · {walk time}` with the walking icon). Back button or empty-space map tap returns to overview.
 3. **Selected-detail mode** — details for selected tree/landmark/cow/path/road
 4. **Minimized mode** — collapsed header only, click to expand
 
@@ -308,7 +308,9 @@ When an item is selected, it gets a pulsing highlight overlay:
 - List of nearest items across active filter types
 - If no active type has a result within the selected walking radius, show the closest available item for each active type and display a notice naming the selected walking-time radius.
 - The walking-time chip in the overview heading doubles as a **radius filter toggle** (`data-action="toggle-radius"`). When active (green, `aria-pressed="true"`), only items within the walking radius are shown (`state.showAllOutsideRadius = false`). When inactive (grey, `aria-pressed="false"`), items across all distances are shown (up to 10 nearest per type) with no fallback notice. Clicking toggles `state.showAllOutsideRadius` and triggers a full `selectOverview()` re-render.
-- Each entry shows: emoji icon, name, distance, directional arrow
+- Each entry shows: emoji icon, name, type label, and directional arrow.
+- Each entry includes an always-visible combined distance + walk-time chip (`{distance} · {walk time}`) using the existing walking icon (`appIconHtml("walking", ...)`).
+- `{distance}` is formatted by `formatDistance()`: whole metres below 1km (`850 m`); above 1km, kilometres to 1 decimal place below 10km and to a whole number at 10km+, with a trailing `.0` trimmed (`1.5 km`, `5 km`, `12 km`) — this keeps the unit and precision human-readable at both close and far range.
 - Nearby bus-stop entries progressively append live stop-direction context to the stop name when available, so opposite-direction stops can be distinguished from the overview list before opening the detail view.
 - The directional arrow element stores the item's fixed coordinates (`data-item-lat`, `data-item-lon`); bearing is computed live in `updateOverviewDirectionArrows()` from `state.userLocation` — never baked into the HTML template. This keeps the `listKey` stable across GPS updates, preventing unnecessary full re-renders and icon flash.
 - Overview chrome uses generated PNG assets from `data/icons/` for the nearby title, walking-time chip, bus entries, and inspector header nav buttons; these generated UI icons render at enlarged sizes after tight-cropping.
@@ -318,6 +320,8 @@ When an item is selected, it gets a pulsing highlight overlay:
 - Filter panel toggle visible in overview mode
 
 ### Selected Detail Content
+
+All selected detail screens with a distance pill (trees, places, cows, and paths) show an always-visible combined distance + walk-time chip (`{distance} · {walk time}`) using the walking icon. This chip is not expandable/tap-to-reveal and follows the same readable unit formatting (`formatDistance()`: metres below 1km, kilometres above 1km with trimmed precision).
 
 #### Tree Details
 

@@ -150,10 +150,7 @@ function showClusterDetail(cluster) {
     }
 
     const metres = distanceFromUser(item);
-    const walkTime = metres != null ? walkTimeStr(metres).replace(/~/g, "") : "";
-    const walkHtml = walkTime
-      ? `${escapeHtml(walkTime)} ${appIconHtml("walking", "app-icon walk-icon")}`
-      : "";
+    const walkHtml = walkInfoHtml(metres);
 
     return `<li><button class="nearest-item" type="button" data-overview-type="${escapeHtml(itemType)}" data-overview-key="${escapeHtml(key)}">
       <div class="nearest-header">
@@ -964,14 +961,12 @@ function walkTimeStr(distance) {
 
 function walkInfoHtml(distance) {
   if (distance == null || !Number.isFinite(distance)) return "";
-  return `<span class="walk-chip">${appIconHtml("walking", "app-icon walk-icon")} ${walkTimeStr(distance)}</span>`;
+  const walkTime = walkTimeStr(distance).replace(/~/g, "");
+  return `<span class="walk-chip">${appIconHtml("walking", "app-icon walk-icon")} ${formatDistance(distance)} · ${walkTime}</span>`;
 }
 
 function walkInfoExpandableHtml(distance) {
-  if (distance == null || !Number.isFinite(distance)) return "";
-  const timeStr = walkTimeStr(distance);
-  const distStr = formatDistance(distance);
-  return `<button class="walk-chip walk-chip-btn" type="button" aria-expanded="false">${appIconHtml("walking", "app-icon walk-icon")}<span data-walk-short="${timeStr}" data-walk-full="${timeStr} · 📏 ${distStr}">${timeStr}</span></button>`;
+  return walkInfoHtml(distance);
 }
 
 function detailTypeLabel(distance) {

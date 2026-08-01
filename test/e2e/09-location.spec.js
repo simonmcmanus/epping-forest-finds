@@ -28,7 +28,7 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#locationGate")).toBeHidden({ timeout: 5_000 });
     });
 
-    test("distance info appears in the inspector after a GPS fix", async ({ page }) => {
+    test("distance info appears as an always-visible combined distance and walk chip after a GPS fix", async ({ page }) => {
       // Navigate to a tree via URL hash (tree search toggle is hidden on desktop viewports)
       await page.goto("/#tree=11383");
       await page.waitForFunction(
@@ -36,9 +36,10 @@ test.describe("Location and GPS — happy path", () => {
         { timeout: 30_000 }
       );
       await page.evaluate(() => { const g = document.getElementById("locationGate"); if (g && !g.hidden) g.hidden = true; });
-      // Inspector body should contain distance info (digits like "Xm" or "X min walk").
-      // transitionInspectorBody() briefly creates two #inspectorBody elements; use .first()
-      await expect(page.locator("#inspectorBody").first()).toContainText(/\d/, { timeout: 5_000 });
+      const walkChip = page.locator("#inspectorBody .walk-chip").first();
+      await expect(walkChip).toHaveCount(1, { timeout: 5_000 });
+      await expect(walkChip).toContainText(/\b(?:\d+\s*m|\d+(?:\.\d+)?\s*km)\s*·\s*(?:<\s*1\s*min|\d+\s*min|\d+h(?:\s*\d+min)?)/);
+      await expect(page.locator("#inspectorBody .walk-chip-btn")).toHaveCount(0);
     });
 
     test("snapshot: map with user location active", async ({ page }, testInfo) => {
