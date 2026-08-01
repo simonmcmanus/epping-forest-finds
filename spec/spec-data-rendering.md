@@ -321,7 +321,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 
 ### Selected Detail Content
 
-All selected detail screens with a distance pill (trees, places, cows, and paths) show an always-visible combined distance + walk-time chip (`{distance} · {walk time}`) using the walking icon. This chip is not expandable/tap-to-reveal.
+All selected detail screens with a distance pill (trees, places, cows, and paths) show an always-visible combined distance + walk-time chip (`{distance} · {walk time}`) using the walking icon. This chip is not expandable/tap-to-reveal and follows the same readable unit formatting (`formatDistance()`: metres below 1km, kilometres above 1km with trimmed precision).
 
 #### Tree Details
 
