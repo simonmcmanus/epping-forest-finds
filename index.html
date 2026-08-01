@@ -2275,7 +2275,7 @@
           ? (treeSpeciesIconHtml(entry.item.commonName, entry.item.latinName) || filterKindEmoji(entry.kind))
           : (filterKindEmoji(entry.kind) || landmarkEmoji(entry.item));
         const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
-        const walkTime = walkTimeStr(entry.metres).replace(/~/g, "");
+        const walkChip = walkInfoHtml(entry.metres);
         const typeLabel = filterMeta(entry.kind)?.label || (entry.type === "tree" ? "Tree" : entry.type === "cow" ? "Cow" : entry.type === "path" ? "Trail" : entry.type === "water" ? "Water" : "Place");
         const outOfRadiusClass = entry.outOfRadius ? " out-of-radius" : "";
         return `<li><button class="nearest-item${outOfRadiusClass}" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}">
@@ -2284,7 +2284,7 @@
             <span class="nearest-name">${escapeHtml(name)}</span>
           </div>
           <div class="nearest-footer">
-            <span class="nearest-meta">${escapeHtml(typeLabel)} · <span class="nearest-walk">${escapeHtml(walkTime)} ${appIconHtml("walking", "app-icon walk-icon")}</span></span>
+            <span class="nearest-meta">${escapeHtml(typeLabel)}${walkChip ? ` · ${walkChip}` : ""}</span>
             <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true">↑</span>
           </div>
         </button></li>`;
