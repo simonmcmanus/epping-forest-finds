@@ -44,12 +44,10 @@ jobs:
             left on the issue. Do not worry about it or reference it.
 
             As your very first action, before reading anything else, set your
-            tracking comment to "🤔 Thinking…" followed by the current known
-            question/status list so far, unchanged (copy it from your previous
-            tracking comment if one exists, otherwise omit it) — so there's a
-            clear in-progress indicator while people can still see where things
-            stood. Replace the whole comment with the real, updated content below
-            once you're done.
+            tracking comment to just "🤔 Thinking…" — a plain in-progress
+            indicator with no question list, since the old statuses would be
+            stale and confusing sitting under a "thinking" label. Replace the
+            whole comment with the real, updated content below once you're done.
 
             Ground yourself first by reading:
             - CLAUDE.md
