@@ -157,6 +157,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
 globalThis.__forestFindsTest = {
   state,
   els,
+  formatDistance,
   projectLonLat,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
@@ -184,6 +185,7 @@ globalThis.__forestFindsTest = {
   tiltPinScale,
   buildNearbyIconLookup,
   isNearCanvas,
+  showClusterDetail,
   landmarkEmoji,
   appIconHtml,
   treeSpeciesIconHtml,
@@ -1381,7 +1383,29 @@ test("nearby summary uses the generated walking icon asset", () => {
   const html = app.overviewNearestHtml();
 
   assert.match(html, /data\/icons\/walking\.png/);
+  assert.match(html, /\d+\s*m\s*·\s*(?:<\s*1|\d+)\s*min/);
   assert.match(app.appIconHtml("nearby", "app-icon title-icon"), /data\/icons\/nearby\.png/);
+});
+
+test("formatDistance uses metres under 1km and trims unnecessary km decimals", () => {
+  assert.equal(app.formatDistance(850), "850 m");
+  assert.equal(app.formatDistance(1500), "1.5 km");
+  assert.equal(app.formatDistance(5000), "5 km");
+  assert.equal(app.formatDistance(9940), "9.9 km");
+  assert.equal(app.formatDistance(12300), "12 km");
+});
+
+test("cluster detail rows show always-visible combined distance and walk time chips", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  const tree = { id: "cluster-tree", commonName: "Cluster tree", ...makePoint(app, 0.001, 0) };
+
+  app.showClusterDetail({ itemType: "tree", items: [tree] });
+
+  const html = app.els.inspectorBody.innerHTML;
+  assert.match(html, /class="walk-chip"/);
+  assert.match(html, /data\/icons\/walking\.png/);
+  assert.match(html, /\d+\s*m\s*·\s*(?:<\s*1|\d+)\s*min/);
 });
 
 test("nearby transport entries use the generated bus icon asset", () => {

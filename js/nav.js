@@ -356,14 +356,6 @@ function setupSearchAndNavHandlers() {
       requestDraw();
       return;
     }
-    const walkBtn = event.target.closest(".walk-chip-btn");
-    if (walkBtn) {
-      const expanded = walkBtn.getAttribute("aria-expanded") === "true";
-      const span = walkBtn.querySelector("[data-walk-short]");
-      if (span) span.textContent = expanded ? span.dataset.walkShort : span.dataset.walkFull;
-      walkBtn.setAttribute("aria-expanded", String(!expanded));
-      return;
-    }
     const button = event.target.closest("[data-overview-type][data-overview-key]");
     if (!button) return;
     focusOverviewItem(button.dataset.overviewType, button.dataset.overviewKey);

@@ -230,7 +230,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v244";
+    const APP_VERSION = "v246";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -2275,7 +2275,7 @@
           ? (treeSpeciesIconHtml(entry.item.commonName, entry.item.latinName) || filterKindEmoji(entry.kind))
           : (filterKindEmoji(entry.kind) || landmarkEmoji(entry.item));
         const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
-        const walkTime = walkTimeStr(entry.metres).replace(/~/g, "");
+        const walkChip = walkInfoHtml(entry.metres);
         const typeLabel = filterMeta(entry.kind)?.label || (entry.type === "tree" ? "Tree" : entry.type === "cow" ? "Cow" : entry.type === "path" ? "Trail" : entry.type === "water" ? "Water" : "Place");
         const outOfRadiusClass = entry.outOfRadius ? " out-of-radius" : "";
         return `<li><button class="nearest-item${outOfRadiusClass}" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}">
@@ -2284,7 +2284,7 @@
             <span class="nearest-name">${escapeHtml(name)}</span>
           </div>
           <div class="nearest-footer">
-            <span class="nearest-meta">${escapeHtml(typeLabel)} · <span class="nearest-walk">${escapeHtml(walkTime)} ${appIconHtml("walking", "app-icon walk-icon")}</span></span>
+            <span class="nearest-meta">${escapeHtml(typeLabel)}${walkChip ? ` · ${walkChip}` : ""}</span>
             <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true">↑</span>
           </div>
         </button></li>`;
@@ -4387,7 +4387,10 @@
     function formatDistance(metres) {
       if (!Number.isFinite(metres)) return "Not recorded";
       if (metres < 1000) return `${Math.round(metres)} m`;
-      return `${(metres / 1000).toFixed(metres < 10000 ? 2 : 1)} km`;
+      const km = metres / 1000;
+      const decimals = km < 10 ? 1 : 0;
+      const kmStr = km.toFixed(decimals).replace(/\.0$/, "");
+      return `${kmStr} km`;
     }
 
     function formatWalkTime(metres) {

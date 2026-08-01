@@ -27,6 +27,13 @@ test.describe("Overview / Nearby screen", () => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
     });
+
+    test("nearby entries show a combined distance and walk-time chip", async ({ page }) => {
+      await setup(page);
+      const walkChip = page.locator("#inspectorBody .nearest-item .walk-chip").first();
+      await expect(walkChip).toBeVisible({ timeout: 15_000 });
+      await expect(walkChip).toContainText(/\b(?:\d+\s*m|\d+(?:\.\d+)?\s*km)\s*·\s*(?:<\s*1\s*min|\d+\s*min|\d+h(?:\s*\d+min)?)/);
+    });
   });
 
   test("nearby list does not contain the walking distance selector", async ({ page }) => {
