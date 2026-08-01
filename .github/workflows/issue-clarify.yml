@@ -3,8 +3,6 @@ name: Issue clarification
 on:
   issues:
     types: [opened, edited]
-  issue_comment:
-    types: [created, edited]
 
 permissions:
   contents: read
@@ -15,7 +13,7 @@ jobs:
   clarify:
     name: Ask clarifying questions
     runs-on: ubuntu-latest
-    if: github.event_name != 'issue_comment' || github.event.comment.user.login != 'claude[bot]'
+    if: github.event.sender.login != 'claude[bot]'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -25,13 +23,18 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           track_progress: true
-          show_full_output: "true" # TEMPORARY — for debugging is_error:true, remove once fixed
+          claude_args: |
+            --allowedTools "mcp__github__update_issue"
           prompt: |
             You are grilling a GitHub issue on the Epping Forest Finds project
             before any code gets written against it, using the same discipline as
             this repo's `/grilling` skill (see `.claude/skills/grilling/SKILL.md`).
-            You already have the issue body and full comment thread in context —
-            do not run any commands to fetch them.
+            You already have the issue body and your own tracking comment (if any
+            exists yet) in context — do not run any commands to fetch them.
+
+            Answers are given by editing the issue description, not by commenting —
+            this repo has no tool for editing an existing comment other than your
+            own tracking comment, so all clarification happens through issue edits.
 
             Ground yourself first by reading:
             - CLAUDE.md
@@ -50,28 +53,28 @@ jobs:
             already clearly answered in the issue body. If a fact can be settled
             by reading the spec files or the codebase, don't ask it.
 
-            Case 2 — you already asked clarifying questions (visible earlier in
-            this comment thread): Re-evaluate them against every reply since.
-            Write out the full list again, in full, following these rules:
+            Case 2 — you already asked clarifying questions (visible in your own
+            tracking comment) and the issue has just been edited: re-evaluate them
+            against the current issue body. Write out the full list again, in full,
+            following these rules:
             - Keep every original question with its original number and wording,
               never renumber or remove one.
             - Prefix each question with a status emoji: 🟢 clearly and fully
               answered, 🟡 partially answered or needs more detail, 🔴 not yet
               answered.
             - For 🟢/🟡 questions, add a one-line blockquote directly below summarising
-              what was understood from the replies.
+              what was understood from the edited description.
             - Only if something important is still genuinely missing, append new
               questions at the end, continuing the numbering (e.g. after 5, next is 6).
               Err strongly toward not adding new ones.
             - Keep the original intro line.
 
-            In both cases, if you now have enough clarified detail to make the
-            issue self-contained, append a horizontal rule followed by
-            "**Suggested description:**" and a rewritten version of the issue body
-            that keeps the same template structure/headings already used in the
-            issue (bug report vs feature request) but fills in the clarified
-            answers. Omit this section entirely if the description is already
-            clear, or if the issue body has already been updated to match.
+            Once every question is 🟢, use the update_issue tool to rewrite the
+            issue body itself: keep the same template structure/headings already
+            used (bug report vs feature request), but fill in the clarified
+            answers so it's fully self-contained. Then update your tracking
+            comment to a short confirmation (e.g. "✅ All clarified — issue
+            description updated.") instead of repeating the question list.
 
             Do not create a branch, commit any code, or open a PR — this workflow
             only clarifies requirements.
