@@ -35,17 +35,20 @@ jobs:
             any of your own prior clarifying-questions messages) in context — do
             not run any commands to fetch them.
 
-            You can answer either by editing the issue description or by replying
-            in a comment. If you're triggered by an issue edit and already have a
-            tracking comment, you can update it in place. If you're triggered by a
-            new comment, there is no tool to edit a past comment other than your
-            own current tracking comment, so post a fresh comment with the
-            up-to-date state instead — that's expected, not an error.
+            You always have a fresh tracking comment of your own to work with this
+            run, regardless of whether you were triggered by an issue edit or a
+            new comment — an older tracking comment of yours from a previous run
+            may still be visible for now, but it will be cleaned up automatically
+            once this run finishes, so there is only ever one of your comments
+            left on the issue. Do not worry about it or reference it.
 
-            If you have a tracking comment available to update, set it to just
-            "🤔 Thinking…" as your very first action, before reading anything else,
-            so there's a clear in-progress indicator while you work. Replace it
-            with the real content below once you're done.
+            As your very first action, before reading anything else, set your
+            tracking comment to "🤔 Thinking…" followed by the current known
+            question/status list so far, unchanged (copy it from your previous
+            tracking comment if one exists, otherwise omit it) — so there's a
+            clear in-progress indicator while people can still see where things
+            stood. Replace the whole comment with the real, updated content below
+            once you're done.
 
             Ground yourself first by reading:
             - CLAUDE.md
@@ -100,3 +103,17 @@ jobs:
 
             Do not create a branch, commit any code, or open a PR — this workflow
             only clarifies requirements.
+
+      - name: Remove older tracking comments
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          NUMBER="${{ github.event.issue.number }}"
+          COMMENTS=$(gh api "repos/${{ github.repository }}/issues/$NUMBER/comments" --paginate \
+            --jq '[.[] | select(.user.login == "claude[bot]")] | sort_by(.id) | .[:-1][].id')
+          for id in $COMMENTS; do
+            echo "Deleting older tracking comment $id"
+            gh api -X DELETE "repos/${{ github.repository }}/issues/comments/$id"
+          done
