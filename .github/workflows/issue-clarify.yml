@@ -24,11 +24,13 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          use_sticky_comment: "true"
+          track_progress: true
           prompt: |
             You are grilling a GitHub issue on the Epping Forest Finds project
             before any code gets written against it, using the same discipline as
             this repo's `/grilling` skill (see `.claude/skills/grilling/SKILL.md`).
+            You already have the issue body and full comment thread in context —
+            do not run any commands to fetch them.
 
             Ground yourself first by reading:
             - CLAUDE.md
@@ -39,20 +41,17 @@ jobs:
             - spec/spec-icons.md
             - spec/glossary.md
 
-            Then use `gh issue view ${{ github.event.issue.number }} --comments`
-            to see the issue body and every comment so far.
-
-            Case 1 — no clarifying-questions comment from you exists yet:
-            Post 3-5 focused numbered questions (with a short friendly intro line)
+            Case 1 — you have not asked clarifying questions on this issue yet:
+            Write 3-5 focused numbered questions (with a short friendly intro line)
             that surface real ambiguities in scope, UX behaviour, data handling,
             architecture (which file owns the logic: renderer, inspector, nav,
             categories, tracker), performance, or spec alignment. Skip anything
             already clearly answered in the issue body. If a fact can be settled
             by reading the spec files or the codebase, don't ask it.
 
-            Case 2 — a clarifying-questions comment from you already exists:
-            Re-evaluate it against every reply since. Output the full comment
-            again, in full, following these rules:
+            Case 2 — you already asked clarifying questions (visible earlier in
+            this comment thread): Re-evaluate them against every reply since.
+            Write out the full list again, in full, following these rules:
             - Keep every original question with its original number and wording,
               never renumber or remove one.
             - Prefix each question with a status emoji: 🟢 clearly and fully
@@ -73,6 +72,5 @@ jobs:
             answers. Omit this section entirely if the description is already
             clear, or if the issue body has already been updated to match.
 
-            Post your result as a single issue comment (the action keeps this to
-            one comment automatically). Do not open a PR or write any code —
-            this workflow only clarifies requirements.
+            Do not create a branch, commit any code, or open a PR — this workflow
+            only clarifies requirements.
