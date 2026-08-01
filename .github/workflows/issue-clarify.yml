@@ -15,6 +15,7 @@ jobs:
   clarify:
     name: Ask clarifying questions
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event.sender.login != 'claude[bot]'
     steps:
       - name: Checkout repository
