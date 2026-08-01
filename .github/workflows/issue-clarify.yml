@@ -25,6 +25,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           track_progress: true
+          show_full_output: "true" # TEMPORARY — for debugging is_error:true, remove once fixed
           prompt: |
             You are grilling a GitHub issue on the Epping Forest Finds project
             before any code gets written against it, using the same discipline as
