@@ -20,7 +20,7 @@ jobs:
         run: |
           SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr -s '-' | sed 's/^-//;s/-$//')
           SLUG="$SLUG" perl -i -pe \
-            'BEGIN{$s=$ENV{SLUG}} s/"forest-finds.*?-v(\d+)"/"forest-finds-$s-v".($1+1).""/e' \
+            'BEGIN{$s=$ENV{SLUG}} s/"forest-finds.*?-v(\d+)"/"\"forest-finds-$s-v".($1+1)."\""/e' \
             sw.js
       - name: Sync APP_VERSION in index.html
         run: |
