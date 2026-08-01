@@ -83,9 +83,20 @@ jobs:
             Once every question is 🟢, use the update_issue tool to rewrite the
             issue body itself: keep the same template structure/headings already
             used (bug report vs feature request), but fill in the clarified
-            answers so it's fully self-contained. Then post/update a short
-            confirmation (e.g. "✅ All clarified — issue description updated.")
-            instead of repeating the question list.
+            answers so it's fully self-contained.
+
+            Then work out which `spec/*.md` file(s) (per the list in `CLAUDE.md`)
+            would need updating to document this change, per this repo's own
+            spec-sync convention. Read the affected section(s) and draft a
+            suggested diff — do not edit any file on disk, just compose it by
+            hand as a unified diff in a ```diff code block (with `--- a/...` /
+            `+++ b/...` file headers). This is a preview for whoever implements
+            the issue, not a change you're making now.
+
+            Post/update a short confirmation (e.g. "✅ All clarified — issue
+            description updated.") instead of repeating the question list,
+            followed by "**Suggested spec update:**" and the diff block. If no
+            spec change would be needed, say so explicitly instead of a diff.
 
             Do not create a branch, commit any code, or open a PR — this workflow
             only clarifies requirements.
