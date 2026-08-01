@@ -230,7 +230,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v245";
+    const APP_VERSION = "v246";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -4387,7 +4387,10 @@
     function formatDistance(metres) {
       if (!Number.isFinite(metres)) return "Not recorded";
       if (metres < 1000) return `${Math.round(metres)} m`;
-      return `${(metres / 1000).toFixed(metres < 10000 ? 2 : 1)} km`;
+      const km = metres / 1000;
+      const decimals = km < 10 ? 1 : 0;
+      const kmStr = km.toFixed(decimals).replace(/\.0$/, "");
+      return `${kmStr} km`;
     }
 
     function formatWalkTime(metres) {
