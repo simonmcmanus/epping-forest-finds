@@ -8,6 +8,7 @@ Update the relevant spec file(s) with every code change that adds, removes, or a
 - `spec/spec-data-rendering.md` — drawing, interaction, inspector, UI state
 - `spec/spec-admin.md` — admin dashboard, tracking data API, Netlify routing
 - `spec/spec-icons.md` — icon registry, icon rendering, generated icon asset requirements
+- `spec/spec-issue-workflow.md` — GitHub issue clarification automation (`.github/workflows/issue-clarify.yml`)
 - `spec/glossary.md` — product terminology
 
 Update the affected section only; do not pad.
