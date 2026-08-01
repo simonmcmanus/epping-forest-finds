@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "forest-finds-copilot-show-meter-distance-v247";
+const CACHE_NAME = "forest-finds-v244";
 
 // Critical assets — install blocks until all succeed
 const APP_SHELL = [
