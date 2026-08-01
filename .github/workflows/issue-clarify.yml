@@ -83,10 +83,16 @@ jobs:
               Err strongly toward not adding new ones.
             - Keep the original intro line.
 
-            Once every question is 🟢, use the update_issue tool to rewrite the
-            issue body itself: keep the same template structure/headings already
-            used (bug report vs feature request), but fill in the clarified
-            answers so it's fully self-contained.
+            Once every question is 🟢, decide whether this is fundamentally a
+            **bug** (the clarified behaviour contradicts something already
+            documented in the spec files) or a **feature request** (it proposes
+            behaviour the spec doesn't cover yet) — regardless of which template
+            the issue originally used. Read `.github/ISSUE_TEMPLATE/bug_report.md`
+            and `.github/ISSUE_TEMPLATE/feature_request.md` and use the matching
+            one's headings. Then use the update_issue tool to rewrite the issue
+            body itself with those headings, filling in the clarified answers so
+            it's fully self-contained. If you switched template from the
+            original, say so in one line in your confirmation below.
 
             Then work out which `spec/*.md` file(s) (per the list in `CLAUDE.md`)
             would need updating to document this change, per this repo's own
