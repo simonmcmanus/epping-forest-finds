@@ -1480,7 +1480,7 @@ test("report submission includes the app version", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 
   assert.ok(!html.includes("App version:"), "report form should not display the app version");
-  assert.match(source, /appVersion:\s*APP_VERSION/, "submitted report payload should include the app version");
+  assert.match(source, /appVersion:\s*state\.swVersion \|\| APP_VERSION/, "submitted report payload should include the live service worker version, falling back to APP_VERSION");
 });
 
 test("walking radius circle is always fully visible on screen after centering", () => {

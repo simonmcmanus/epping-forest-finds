@@ -16,11 +16,11 @@ jobs:
       - name: Strip branch prefix and increment version
         run: |
           perl -i -pe \
-            's/"veteran-tree-finder.*?-v(\d+)"/"veteran-tree-finder-v".($1+1).""/e' \
+            's/"forest-finds.*?-v(\d+)"/"forest-finds-v".($1+1).""/e' \
             sw.js
       - name: Sync APP_VERSION in index.html
         run: |
-          VERSION=$(perl -ne 'print $1 if /"veteran-tree-finder.*?-v(\d+)"/' sw.js)
+          VERSION=$(perl -ne 'print $1 if /"forest-finds.*?-v(\d+)"/' sw.js)
           perl -i -pe "s/const APP_VERSION = \"v\\d+\"/const APP_VERSION = \"v$VERSION\"/" index.html
       - name: Commit and push
         run: |

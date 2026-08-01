@@ -230,7 +230,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v";
+    const APP_VERSION = "v241";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -1687,7 +1687,7 @@
         reportType: "feedback",
         details,
         location: currentReportLocation(),
-        appVersion: APP_VERSION,
+        appVersion: state.swVersion || APP_VERSION,
         userAgent: navigator.userAgent,
         pageUrl: window.location.href,
       };
