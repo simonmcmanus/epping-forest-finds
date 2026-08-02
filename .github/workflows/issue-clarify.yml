@@ -16,7 +16,7 @@ jobs:
     name: Ask clarifying questions
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event.sender.login != 'claude[bot]'
+    if: github.event.sender.login != 'claude[bot]' && !github.event.issue.pull_request
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
