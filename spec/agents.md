@@ -58,6 +58,7 @@ Before finishing any implementation task:
 - If a behaviour change is implementation-only with no user-visible effect, state this explicitly.
 - Snapshots live in the flat `test/e2e/__screenshots__/` directory (per `snapshotPathTemplate` in `playwright.config.js`, keyed only on the `toHaveScreenshot()` name so a real visual diff stays a reviewable update instead of a delete+create pair). Regenerate with `npm run test:e2e:update` locally, or trigger the `Update Snapshots` GitHub Action for a Linux-matching baseline, when intentional visual changes are made.
 - `/api/cows` is always mocked via `test/e2e/fixtures/cows.json` — never hit the live Nofence API in tests.
+- `playwright.config.js` caps `workers` to 2 under `process.env.CI` (GitHub-hosted runners only have 2 vCPUs) — more workers there oversubscribes the CPU and can starve a page's animation-frame loop enough that `toHaveScreenshot()` times out waiting for a stable frame, before it ever gets to compare pixels. Locally it uses Playwright's default (half of available cores).
 
 ### Completion checklist for every task
 1. `node --test test/forest-finds.test.js` passes.

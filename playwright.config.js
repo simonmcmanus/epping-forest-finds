@@ -3,7 +3,11 @@ const { defineConfig, devices } = require("@playwright/test");
 module.exports = defineConfig({
   testDir: "./test/e2e",
   timeout: 60_000,
-  workers: 4,
+  // GitHub-hosted runners only get 2 vCPUs; 4 workers there oversubscribes
+  // the CPU and starves each page's animation-frame loop, causing
+  // toHaveScreenshot() to time out waiting for a stable frame rather than
+  // ever comparing pixels. Locally, default to Playwright's usual half-of-cores.
+  workers: process.env.CI ? 2 : undefined,
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
 
