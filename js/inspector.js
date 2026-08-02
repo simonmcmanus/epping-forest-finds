@@ -963,7 +963,7 @@ function walkTimeStr(distance) {
 function walkInfoHtml(distance) {
   if (distance == null || !Number.isFinite(distance)) return "";
   const walkTime = walkTimeStr(distance).replace(/~/g, "");
-  return `<span class="walk-chip">${appIconHtml("walking", "app-icon walk-icon")} ${formatDistance(distance)} · ${walkTime}</span>`;
+  return `<span class="walk-chip">${formatDistance(distance)} · ${walkTime} ${appIconHtml("walking", "app-icon walk-icon")}</span>`;
 }
 
 function walkInfoExpandableHtml(distance) {

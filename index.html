@@ -2299,7 +2299,7 @@
         ? `Showing within ${state.walkingDistanceMinutes} min walk — tap to show all`
         : `Showing all distances — tap to filter to ${state.walkingDistanceMinutes} min walk`;
       const chipLabel = radiusActive ? `${state.walkingDistanceMinutes} min` : "All";
-      const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}">${appIconHtml("walking", "app-icon walk-icon")} <span class="walk-time">${chipLabel}</span></button>`;
+      const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
       return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong>${walkChip}</div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
 
