@@ -23,9 +23,26 @@ jobs:
           fetch-depth: 0
 
       - name: Run Claude Code
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           label_trigger: "claude"
           claude_args: |
             --allowedTools "Bash(git fetch:*),Bash(git pull:*),Bash(git rebase:*),Bash(node --test:*),Bash(npm test:*),Bash(npm run test:*)"
+
+      - name: Open pull request
+        if: steps.claude.outputs.branch_name != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.claude.outputs.branch_name }}
+          TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          if [ -z "$(gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open --json number -q '.[0].number')" ]; then
+            gh pr create \
+              --repo "${{ github.repository }}" \
+              --head "$BRANCH" \
+              --title "$TITLE" \
+              --body "Closes #$ISSUE_NUMBER"
+          fi
