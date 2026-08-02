@@ -3,13 +3,20 @@ const { defineConfig, devices } = require("@playwright/test");
 module.exports = defineConfig({
   testDir: "./test/e2e",
   timeout: 60_000,
-  // GitHub-hosted runners only get 2 vCPUs; 4 workers there oversubscribes
-  // the CPU and starves each page's animation-frame loop, causing
-  // toHaveScreenshot() to time out waiting for a stable frame rather than
-  // ever comparing pixels. Locally, default to Playwright's usual half-of-cores.
-  workers: process.env.CI ? 2 : undefined,
+  workers: 4,
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
+
+  // GitHub-hosted runners only get 2 vCPUs; 4 workers there oversubscribes
+  // the CPU and slows each page's animation-frame loop enough that the
+  // default 5s toHaveScreenshot() stability check can time out waiting for
+  // a stable frame, before it ever compares pixels. Rather than cutting
+  // parallelism (and CI wall-clock time) to fix that, just give screenshot
+  // assertions more real time to converge under contention; other
+  // assertions keep the fast default everywhere.
+  expect: {
+    toHaveScreenshot: { timeout: process.env.CI ? 15_000 : 5_000 },
+  },
 
   // Flat, screenshot-name-only path (not derived from the spec file path or
   // test title). Renaming/splitting/moving a spec file must never rename its
