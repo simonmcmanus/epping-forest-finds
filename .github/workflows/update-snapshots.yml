@@ -26,7 +26,9 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Regenerate all snapshot baselines
+        id: e2e
         run: npx playwright test --update-snapshots=all
+        continue-on-error: true
       - name: Commit updated baselines
         run: |
           git config user.name "github-actions[bot]"
@@ -36,3 +38,6 @@ jobs:
             git commit -m "chore: update CI snapshot baselines [skip ci]"
             git push origin HEAD:${{ github.event.inputs.branch }}
           fi
+      - name: Fail if any test had a non-screenshot failure
+        if: steps.e2e.outcome == 'failure'
+        run: exit 1
