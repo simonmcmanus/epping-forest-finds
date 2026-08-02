@@ -43,7 +43,14 @@ jobs:
             exit 0
           fi
 
-          git fetch origin main "$BRANCH"
+          # The Claude Code step leaves behind a scoped push-only git credential
+          # (set via a local http.extraheader) for pushing the claude/* branch.
+          # A plain `git fetch` inherits that and fails with "Invalid username
+          # or token" since it isn't valid for fetch. Clear it and supply our
+          # own auth header from GH_TOKEN, scoped to just this command.
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
+            fetch origin main "$BRANCH"
 
           # Use Claude's own commit message as the PR body — it already has a
           # proper summary/root-cause writeup. Skip the automated SW-cache-bump
