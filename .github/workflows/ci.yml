@@ -41,13 +41,13 @@ jobs:
         run: npx playwright test --update-snapshots=missing
         continue-on-error: true
       - name: Commit new snapshot baselines
-        # Runs even after test failure. git add only touches *-snapshots/ directories,
+        # Runs even after test failure. git add only touches test/e2e/__screenshots__/,
         # so regression diffs (written to test-results/ as "actual") are never committed.
         # New linux PNGs committed here will be found on the next CI run.
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          find test/e2e -maxdepth 1 -type d -name '*-snapshots' -print0 | xargs -0r git add
+          git add test/e2e/__screenshots__/
           if ! git diff --staged --quiet; then
             git commit -m "chore: add CI snapshot baselines [skip ci]"
             git checkout -- .

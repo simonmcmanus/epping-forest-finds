@@ -23,9 +23,46 @@ jobs:
           fetch-depth: 0
 
       - name: Run Claude Code
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           label_trigger: "claude"
           claude_args: |
             --allowedTools "Bash(git fetch:*),Bash(git pull:*),Bash(git rebase:*),Bash(node --test:*),Bash(npm test:*),Bash(npm run test:*)"
+
+      - name: Open pull request
+        if: steps.claude.outputs.branch_name != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.claude.outputs.branch_name }}
+          TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          if [ -n "$(gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open --json number -q '.[0].number')" ]; then
+            exit 0
+          fi
+
+          git fetch origin main "$BRANCH"
+
+          # Use Claude's own commit message as the PR body — it already has a
+          # proper summary/root-cause writeup. Skip the automated SW-cache-bump
+          # chore commits that land on top of it after the push.
+          BODY_COMMIT=$(git log "origin/main..origin/$BRANCH" --format="%H %s" \
+            | grep -vE "chore: (bump|normalise) SW cache version" \
+            | head -1 | cut -d' ' -f1)
+
+          if [ -n "$BODY_COMMIT" ]; then
+            BODY=$(git show -s --format=%B "$BODY_COMMIT")
+          else
+            BODY="Closes #$ISSUE_NUMBER"
+          fi
+          if ! grep -qiE "(closes|fixes|resolves) #$ISSUE_NUMBER" <<< "$BODY"; then
+            BODY="$(printf '%s\n\nCloses #%s' "$BODY" "$ISSUE_NUMBER")"
+          fi
+
+          gh pr create \
+            --repo "${{ github.repository }}" \
+            --head "$BRANCH" \
+            --title "$TITLE" \
+            --body "$BODY"
