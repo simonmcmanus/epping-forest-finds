@@ -56,7 +56,7 @@ Before finishing any implementation task:
 - **Both suites must pass before a task is considered complete.**
 - Every new user-facing behaviour or spec change needs a matching BDD test in `test/e2e/`.
 - If a behaviour change is implementation-only with no user-visible effect, state this explicitly.
-- Snapshots live in `test/e2e/<spec-name>-snapshots/`. Regenerate with `npm run test:e2e:update` when intentional visual changes are made.
+- Snapshots live in the flat `test/e2e/__screenshots__/` directory (per `snapshotPathTemplate` in `playwright.config.js`, keyed only on the `toHaveScreenshot()` name so a real visual diff stays a reviewable update instead of a delete+create pair). Regenerate with `npm run test:e2e:update` locally, or trigger the `Update Snapshots` GitHub Action for a Linux-matching baseline, when intentional visual changes are made.
 - `/api/cows` is always mocked via `test/e2e/fixtures/cows.json` — never hit the live Nofence API in tests.
 
 ### Completion checklist for every task
