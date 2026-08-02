@@ -561,7 +561,7 @@ test("tiltPinScale settles at a small floor (not zero) for pins well behind, and
   app.state.compassHeading = 0;
   app.state.renderedNavigationHeading = 0;
   app.state.selected = null;
-  app.state.tiltBetaSmoothed = 60; // well past TILT_BETA_THRESHOLD
+  app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX — collapse only reaches its floor at max tilt
   app.state.viewport = { scale: 1000, tx: 0, ty: 0 };
 
   const wellAhead = makePoint(app, 1, 0).point;
@@ -569,6 +569,33 @@ test("tiltPinScale settles at a small floor (not zero) for pins well behind, and
 
   assert.equal(app.tiltPinScale(wellAhead), 1, "pins clearly ahead should render at full size");
   assert.equal(app.tiltPinScale(wellBehind), 0.3, "pins clearly behind should collapse to a small floor rather than vanish");
+});
+
+test("tiltPinScale ramps collapse across the whole active-tilt range, not just as tilt engages", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.viewport = { scale: 1000, tx: 0, ty: 0 };
+
+  const wellBehind = makePoint(app, -1, 0).point;
+
+  // Just past TILT_BETA_THRESHOLD (12), where full 3D first engages, pins behind the heading
+  // should still be close to full size rather than already collapsed to the floor.
+  app.state.tiltBetaSmoothed = 14;
+  const justEngaged = app.tiltPinScale(wellBehind);
+  assert.ok(justEngaged > 0.9, `pins should stay close to full size as tilt begins, got ${justEngaged}`);
+
+  // Midway through the active-tilt range, collapse should be partial, not yet at the floor.
+  app.state.tiltBetaSmoothed = 48.5; // midpoint of 12-85
+  const midTilt = app.tiltPinScale(wellBehind);
+  assert.ok(midTilt > 0.3 && midTilt < justEngaged, "collapse should progress gradually through the mid tilt range");
+
+  // Only near TILT_BETA_MAX (85) should the pin approach the collapsed floor.
+  app.state.tiltBetaSmoothed = 85;
+  const maxTilt = app.tiltPinScale(wellBehind);
+  assert.ok(maxTilt < midTilt, "collapse should be greatest near max tilt");
 });
 
 test("tiltPinScale shrinks smoothly through the ahead/behind boundary instead of snapping", () => {
