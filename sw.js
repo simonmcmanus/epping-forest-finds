@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "forest-finds-v251";
+const CACHE_NAME = "forest-finds-v252";
 
 // Critical assets — install blocks until all succeed
 const APP_SHELL = [
