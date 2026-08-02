@@ -231,7 +231,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v265";
+    const APP_VERSION = "v267";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -2787,15 +2787,16 @@
     // covers a consistent visual width regardless of zoom level.
     //
     // Gated on headingUpActive() rather than tiltActive(), and blended in by tiltInfluence()
-    // (0 at flat, ramping to 1 by TILT_BETA_THRESHOLD) rather than switched on at that same
-    // threshold: a pin sitting behind the heading would otherwise jump from its collapsed
-    // scale straight to full size the instant tiltActive() flips off while leaving 3D — this
-    // way the collapse itself eases out over the same flat dead-zone tiltRotateXDeg is already
-    // 0 across, so a currently-collapsed pin grows back in step with the map leveling out
-    // rather than popping the moment full 3D deactivates.
+    // (0 at TILT_BETA_THRESHOLD, ramping to 1 by TILT_BETA_MAX — the same active-tilt range
+    // as tiltRotateXDeg/tiltAnchorFraction) rather than switched on at the tiltActive()
+    // threshold itself: this keeps pins close to full size as tilt begins and only collapses
+    // them toward minimum size near max tilt, instead of hitting minimum collapse the instant
+    // tilt engages and sitting there for nearly the whole active-tilt range. Because the ramp's
+    // lower bound is exactly TILT_BETA_THRESHOLD (where tiltActive() itself flips), influence
+    // is already 0 right as tilt deactivates, so leaving 3D still eases smoothly with no jump.
     function tiltInfluence() {
       if (!headingUpActive()) return 0;
-      return clamp(state.tiltBetaSmoothed / TILT_BETA_THRESHOLD, 0, 1);
+      return clamp((state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD), 0, 1);
     }
 
     function tiltPinScale(worldPoint) {
