@@ -231,7 +231,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v268";
+    const APP_VERSION = "v270";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -358,12 +358,7 @@
       headingUpEntryAnim: null,
       tiltBetaTarget: 0,
       tiltBetaSmoothed: 0,
-      tiltBetaPhysicalSmoothed: 0,
       tiltWasActive: false,
-      // One-shot override: true while goToInitialView() is forcing the perspective flat
-      // before it re-fits the camera to the nearby overview (see flattenTiltForTransition
-      // in nav.js). Read by tiltAllowedForCurrentScreen().
-      tiltFlattenTransition: false,
       selectionViewportTransitionPending: false,
       viewportAnimationFrame: null,
       viewportAnimationFrom: null,
@@ -2568,24 +2563,8 @@
         // collapse (tiltInfluence) as well as the rotateX camera tilt, and a phone lifts
         // through the whole 0-12deg dead zone quickly, so a fast filter here reads as the
         // collapsing map pins snapping to size rather than easing in.
-        // The target is forced to 0 on screens where tilt isn't allowed (see
-        // tiltAllowedForCurrentScreen), so switching to/from the filter/settings/feedback
-        // screens eases the perspective in and out through this same filter rather than
-        // snapping — no separate transition code needed downstream.
-        const gatedBetaTarget = tiltAllowedForCurrentScreen() ? state.tiltBetaTarget : 0;
-        const betaDiff = gatedBetaTarget - state.tiltBetaSmoothed;
+        const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
         state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
-
-        // Tracks the same real device beta through the same filter, but never screen-gated.
-        // The tilt-overscan hysteresis below reads this rather than the gated value above:
-        // it must only react to the phone's actual physical tilt, not to which screen is
-        // open, or leaving/entering the filter/settings/feedback screens while the phone is
-        // physically tilted would force a canvas resize (a bitmap reallocation, not just a
-        // CSS change) it doesn't need — a visible stutter, and (because the resize briefly
-        // desyncs the CSS rotation transform's origin from the canvas box) the cause of the
-        // radar cone visibly lagging the compass heading right after such a screen switch.
-        const physicalBetaDiff = state.tiltBetaTarget - state.tiltBetaPhysicalSmoothed;
-        state.tiltBetaPhysicalSmoothed += physicalBetaDiff * (1 - Math.exp(-4 * dt));
 
         updateOverviewDirectionArrows();
         updateCompassOverlay();
@@ -2601,8 +2580,7 @@
         const remaining = Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget));
         const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
         const sensorIsActive = lastEventAge < HEADING_UP_SENSOR_ACTIVE_MS;
-        const betaSettled = Math.abs(gatedBetaTarget - state.tiltBetaSmoothed) < 0.1
-          && Math.abs(state.tiltBetaTarget - state.tiltBetaPhysicalSmoothed) < 0.1;
+        const betaSettled = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) < 0.1;
         if (remaining < 0.05 && !sensorIsActive && betaSettled) {
           state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
           updateOverviewDirectionArrows();
@@ -2736,12 +2714,10 @@
     }
 
     // 3D perspective (tiltActive()) is available on every screen — nearby overview,
-    // selected navigation, and the filter/settings/feedback screens all allow full tilt.
-    // The only time it's forced flat is a `flattenTiltForTransition()` transition (see
-    // startCompassSmoothing), so leaving/entering the app's screens never causes tilt to
-    // snap — it only ever eases via the beta smoothing filter, same as a physical tilt.
+    // selected navigation, and the filter/settings/feedback screens all allow full tilt,
+    // with no exceptions, including when returning to the nearby overview.
     function tiltAllowedForCurrentScreen() {
-      return !state.tiltFlattenTransition;
+      return true;
     }
 
     function tiltActive() {
@@ -2992,15 +2968,6 @@
       if (!headingUpActive()) return false;
       if (selectionCameraTransitionActive()) return false;
       if (state.clusterZoomed) return false;
-      // While a flattenTiltForTransition() flatten is in progress, state.selected has
-      // already been cleared (see goToInitialView) but the deliberate animated re-fit is
-      // still waiting on waitForTiltFlatten. Without this guard, the per-tick unanimated
-      // call from startCompassSmoothing below would immediately hard-snap scale/tx/ty from
-      // the selected-target fit to the nearby fit the instant selection clears — well before
-      // the perspective has actually leveled out — which is exactly the jump this transition
-      // is meant to avoid. Freeze the viewport here so the only camera move is the single
-      // animated call ensureOverviewTargetsVisible fires once flat.
-      if (options.animate !== true && state.tiltFlattenTransition) return false;
       clearHeadingUpCanvasTransform();
       const previousScale = state.viewport.scale;
       const previousTx = state.viewport.tx;
@@ -3087,17 +3054,11 @@
       // overscan ratio changes — using hysteresis (see TILT_OVERSCAN_GROW_BETA /
       // TILT_OVERSCAN_SHRINK_BETA) rather than tiltActive() so the resize always lands while
       // the view is still flat, never mid-transform where it would read as a snap/pop.
-      // Reads tiltBetaPhysicalSmoothed (the real, un-gated device tilt) rather than
-      // tiltBetaSmoothed: the latter is forced toward 0 on screens that don't allow 3D (see
-      // tiltAllowedForCurrentScreen), and reacting to that here would resize the canvas
-      // bitmap — a real reallocation, not just a CSS change — every time the user leaves a
-      // 3D-allowed screen while still physically holding the phone tilted, for no visual
-      // benefit (3D isn't rendering there either way).
       const needsOverscan = headingUpActive();
       const hasOverscan = state.canvasVisibleWidth > 0 && els.canvas.width > state.canvasVisibleWidth;
       const wantsTiltOverscan = state.tiltWasActive
-        ? state.tiltBetaPhysicalSmoothed > TILT_OVERSCAN_SHRINK_BETA
-        : state.tiltBetaPhysicalSmoothed > TILT_OVERSCAN_GROW_BETA;
+        ? state.tiltBetaSmoothed > TILT_OVERSCAN_SHRINK_BETA
+        : state.tiltBetaSmoothed > TILT_OVERSCAN_GROW_BETA;
       const tiltRatioChanged = needsOverscan && wantsTiltOverscan !== state.tiltWasActive;
       if (needsOverscan !== hasOverscan || tiltRatioChanged) {
         state.tiltWasActive = wantsTiltOverscan;
