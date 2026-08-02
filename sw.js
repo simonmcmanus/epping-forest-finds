@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "forest-finds-v248";
+const CACHE_NAME = "forest-finds-copilot-promote-tag-number-to-top-level-v253";
 
 // Critical assets — install blocks until all succeed
 const APP_SHELL = [

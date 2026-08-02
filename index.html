@@ -230,7 +230,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v248";
+    const APP_VERSION = "v253";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -2277,6 +2277,7 @@
         const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
         const walkChip = walkInfoHtml(entry.metres);
         const typeLabel = filterMeta(entry.kind)?.label || (entry.type === "tree" ? "Tree" : entry.type === "cow" ? "Cow" : entry.type === "path" ? "Trail" : entry.type === "water" ? "Water" : "Place");
+        const treeTagChip = entry.type === "tree" && entry.item.tagNumber ? ` · #${escapeHtml(String(entry.item.tagNumber))}` : "";
         const outOfRadiusClass = entry.outOfRadius ? " out-of-radius" : "";
         return `<li><button class="nearest-item${outOfRadiusClass}" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}">
           <div class="nearest-header">
@@ -2284,7 +2285,7 @@
             <span class="nearest-name">${escapeHtml(name)}</span>
           </div>
           <div class="nearest-footer">
-            <span class="nearest-meta">${escapeHtml(typeLabel)}${walkChip ? ` · ${walkChip}` : ""}</span>
+            <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
             <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true">↑</span>
           </div>
         </button></li>`;
@@ -2298,7 +2299,7 @@
         ? `Showing within ${state.walkingDistanceMinutes} min walk — tap to show all`
         : `Showing all distances — tap to filter to ${state.walkingDistanceMinutes} min walk`;
       const chipLabel = radiusActive ? `${state.walkingDistanceMinutes} min` : "All";
-      const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}">${appIconHtml("walking", "app-icon walk-icon")} <span class="walk-time">${chipLabel}</span></button>`;
+      const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
       return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong>${walkChip}</div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
 
