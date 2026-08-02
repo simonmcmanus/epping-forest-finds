@@ -258,10 +258,8 @@ function resetData(app) {
   app.state.renderedNavigationHeading = null;
   app.state.compassHeading = null;
   app.state.tiltBetaSmoothed = 0;
-  app.state.tiltBetaPhysicalSmoothed = 0;
   app.state.tiltBetaTarget = 0;
   app.state.tiltWasActive = false;
-  app.state.tiltFlattenTransition = false;
   app.state.canvasInsetX = 0;
   app.state.canvasInsetY = 0;
   app.state.canvasVisibleWidth = 1000;
@@ -442,7 +440,7 @@ test("tiltActive returns true when heading-up is active and phone is tilted past
   assert.equal(app.tiltActive(), true, "tilt mode should activate above threshold");
 });
 
-test("tiltAllowedForCurrentScreen allows 3D on every screen, except during a one-shot flatten transition", () => {
+test("tiltAllowedForCurrentScreen allows 3D on every screen, with no exceptions", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 90;
@@ -463,34 +461,6 @@ test("tiltAllowedForCurrentScreen allows 3D on every screen, except during a one
 
   app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
   assert.equal(app.tiltAllowedForCurrentScreen(), true, "selected-item navigation should allow 3D");
-
-  app.state.tiltFlattenTransition = true;
-  assert.equal(app.tiltAllowedForCurrentScreen(), false, "a pending flatten transition overrides every screen");
-});
-
-test("beta smoothing eases tilt back to flat through the same exponential filter as a physical phone tilt during a flatten transition, and the loop doesn't stop before it converges", async () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  app.state.compassHeading = 90;
-  app.state.compassHeadingTarget = 90;
-  app.state.compassAnimationTime = null;
-  app.state.selected = null;
-  app.state.filterScreenOpen = false;
-  app.state.tiltBetaTarget = 60;
-  app.state.tiltBetaSmoothed = 60;
-  assert.equal(app.tiltActive(), true, "tilt should start active on the nearby overview screen");
-
-  app.state.tiltFlattenTransition = true; // one-shot override used by the return-to-overview flatten
-  // tiltBetaTarget (the raw device beta) is untouched — only the gated target the smoothing
-  // loop eases toward drops to 0, exactly like a physical un-tilt would, so this exercises
-  // the same "ease down over ~1/4s tau, don't snap" filter rather than a special code path.
-  assert.equal(app.state.tiltBetaTarget, 60, "raw device beta is unaffected by the flatten override");
-  app.startCompassSmoothing();
-
-  await new Promise((resolve) => setTimeout(resolve, 1800));
-  assert.ok(app.state.tiltBetaSmoothed < 1.5, `tilt should settle back to flat once fully eased (got ${app.state.tiltBetaSmoothed})`);
-  assert.equal(app.tiltActive(), false, "tilt should be inactive once eased down during a flatten transition");
-  assert.equal(app.state.compassAnimationFrame, null, "smoothing loop should stop cleanly once beta has actually converged");
 });
 
 test("tiltRotateXDeg returns 0 when tilt is not active", () => {
@@ -1261,17 +1231,14 @@ test("canvas overscan switches to the tilt ratio before rotateX starts, so the r
   app.state.compassHeading = 90;
 
   app.state.tiltBetaSmoothed = 0;
-  app.state.tiltBetaPhysicalSmoothed = 0;
   app.prepareCanvasForDraw();
   assert.equal(app.state.tiltWasActive, false);
   const flatWidth = app.els.canvas.width;
 
   // Grows at TILT_OVERSCAN_GROW_BETA (8), well below TILT_BETA_THRESHOLD (12) where
   // rotateX actually starts ramping — so the canvas is already correctly sized
-  // before any visible tilt transform appears. Driven by tiltBetaPhysicalSmoothed (the
-  // real device tilt, un-gated by which screen is open) rather than tiltBetaSmoothed.
+  // before any visible tilt transform appears.
   app.state.tiltBetaSmoothed = 9;
-  app.state.tiltBetaPhysicalSmoothed = 9;
   app.prepareCanvasForDraw();
   assert.equal(app.tiltActive(), false, "tilt should not be visually active yet at beta 9");
   assert.equal(app.state.tiltWasActive, true, "overscan should already be switched to the tilt ratio");
@@ -1280,45 +1247,19 @@ test("canvas overscan switches to the tilt ratio before rotateX starts, so the r
 
   // Crossing the real activation threshold should not trigger a second resize.
   app.state.tiltBetaSmoothed = 30;
-  app.state.tiltBetaPhysicalSmoothed = 30;
   app.prepareCanvasForDraw();
   assert.equal(app.els.canvas.width, grownWidth, "no resize should coincide with tiltActive() switching on");
 
   // Coming back down, the canvas stays oversized through the flat dead zone below
   // TILT_BETA_THRESHOLD, only shrinking once well clear of it (TILT_OVERSCAN_SHRINK_BETA).
   app.state.tiltBetaSmoothed = 6;
-  app.state.tiltBetaPhysicalSmoothed = 6;
   app.prepareCanvasForDraw();
   assert.equal(app.els.canvas.width, grownWidth, "canvas should not shrink immediately when tiltActive() switches off");
 
   app.state.tiltBetaSmoothed = 2;
-  app.state.tiltBetaPhysicalSmoothed = 2;
   app.prepareCanvasForDraw();
   assert.equal(app.state.tiltWasActive, false);
   assert.equal(app.els.canvas.width, flatWidth, "canvas should shrink back only once tilt is well past flat again");
-});
-
-test("tilt-overscan resize reacts to the real physical device tilt even when the gated value has been forced flat, so a flatten transition while tilted doesn't reallocate the canvas", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  app.state.selected = null;
-  app.state.compassHeading = 90;
-
-  // Phone is genuinely tilted (physical beta above TILT_OVERSCAN_GROW_BETA), but the
-  // gated tiltBetaSmoothed has already eased down to flat because a one-shot flatten
-  // transition is in progress (tiltAllowedForCurrentScreen() is false during it).
-  app.state.tiltFlattenTransition = true;
-  app.state.tiltBetaSmoothed = 0;
-  app.state.tiltBetaPhysicalSmoothed = 30;
-  app.prepareCanvasForDraw();
-  assert.equal(app.state.tiltWasActive, true, "overscan should track the real device tilt, not the gated value");
-  const grownWidth = app.els.canvas.width;
-
-  // Once the flatten transition ends with the phone still at the same physical tilt,
-  // that alone must not trigger another resize — the overscan decision never changed.
-  app.state.tiltFlattenTransition = false;
-  app.prepareCanvasForDraw();
-  assert.equal(app.els.canvas.width, grownWidth, "no resize should occur purely from the flatten transition ending at a constant physical tilt");
 });
 
 test("heading-up mode applies CSS delta rotation between redraws", () => {
@@ -1356,7 +1297,7 @@ test("returning to nearby waits for inspector expansion before starting the near
   assert.ok(app.state.viewportAnimationDuration > 0, "nearby refit should animate once the inspector settles");
 });
 
-test("returning to nearby from a tilted selected-item navigation flattens 3D before re-fitting the camera, without snapping the viewport mid-flatten", async () => {
+test("returning to nearby from a tilted selected-item navigation re-fits the camera immediately without flattening tilt first", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
@@ -1370,40 +1311,14 @@ test("returning to nearby from a tilted selected-item navigation flattens 3D bef
   app.state.viewport = { scale: 1000, tx: 123, ty: 456 };
   assert.equal(app.tiltActive(), true, "should start in full 3D while navigating to a selected item");
 
-  const frozenViewport = { ...app.state.viewport };
   app.goToInitialView();
 
   assert.equal(app.state.selected, null);
-  // Both the selected-navigation screen and the nearby overview allow 3D, so nothing about
-  // the screen change alone drops tilt — the camera must stay frozen at the pre-transition
-  // viewport rather than immediately hard-snapping to the (very different) nearby-fit target
-  // the instant selection clears.
-  assert.deepEqual(app.state.viewport, frozenViewport, "viewport should stay frozen the instant selection clears");
-  assert.equal(app.state.tiltFlattenTransition, true, "flatten override should be active immediately");
-
-  await new Promise((resolve) => setTimeout(resolve, 1800));
-  assert.equal(app.tiltActive(), false, "tilt should have eased down to flat");
-  assert.equal(app.state.tiltFlattenTransition, false, "flatten override should clear once flat");
-  assert.notDeepEqual(app.state.viewport, frozenViewport, "camera should have moved to the nearby fit only after flattening");
-});
-
-test("alignHeadingUpNavigationViewport's per-tick unanimated call does not move the camera while a tilt-flatten transition is in progress", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
-  app.state.selected = null;
-  app.state.compassHeading = 90;
-  app.state.viewport = { scale: 1000, tx: 123, ty: 456 };
-  const frozenViewport = { ...app.state.viewport };
-
-  app.state.tiltFlattenTransition = true;
-  const changedWhileFlattening = app.alignHeadingUpNavigationViewport();
-  assert.equal(changedWhileFlattening, false, "unanimated per-tick align should no-op during a flatten transition");
-  assert.deepEqual(app.state.viewport, frozenViewport, "viewport must not move during a flatten transition");
-
-  app.state.tiltFlattenTransition = false;
-  app.alignHeadingUpNavigationViewport();
-  assert.notDeepEqual(app.state.viewport, frozenViewport, "once the flatten transition clears, the align call should move the camera again");
+  // No flatten-before-refit: the camera re-fit is kicked off in the same call, and the tilt
+  // beta target/smoothed values are untouched, so 3D stays active throughout the re-fit.
+  assert.ok(app.state.viewportAnimationTo, "nearby refit should start immediately");
+  assert.equal(app.state.tiltBetaTarget, 60, "tilt target should be untouched by returning to nearby");
+  assert.equal(app.tiltActive(), true, "tilt should remain active through the re-fit rather than flattening first");
 });
 
 test("nearby HTML does not contain the walking distance selector", () => {
