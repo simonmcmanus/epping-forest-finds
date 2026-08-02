@@ -203,6 +203,7 @@
     const COW_SOURCE_URL_BASE = "https://account.nofence.no/api/open/data/?center=";
     const COW_DATA_CACHE_KEY = "forest-finds-cow-data-v1";
     const REPORT_DRAFT_KEY = "forest-finds-report-draft-v1";
+    const REPORT_REQUEST_ID_KEY = "forest-finds-report-request-id-v1";
     const FILTER_STATE_KEY = "forest-finds-filter-state-v1";
     const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
     const DEFAULT_FILTERS = ["trees", "pubs", "bus", "underground", "national_rail"];
@@ -230,7 +231,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v247";
+    const APP_VERSION = "v248";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -374,6 +375,7 @@
       inspectorDragStart: null,
       inspectorHeightPercent: null,
       reportDraftLocation: null,
+      reportSubmitting: false,
       buildingFeatures: [],
       buildingsLoaded: false,
       buildingsLoading: false,
@@ -1668,7 +1670,23 @@
       });
     }
 
+    function getOrCreateReportRequestId() {
+      try {
+        const existing = localStorage.getItem(REPORT_REQUEST_ID_KEY);
+        if (existing) return existing;
+      } catch {}
+      const id = (window.crypto && window.crypto.randomUUID)
+        ? window.crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      try { localStorage.setItem(REPORT_REQUEST_ID_KEY, id); } catch {}
+      return id;
+    }
+
     async function submitReportForm() {
+      // Guard against duplicate GitHub issues from double-taps or a submit
+      // firing again while the previous request is still in flight.
+      if (state.reportSubmitting) return;
+
       const reportDetailsInput = document.getElementById("reportDetails");
       if (!reportDetailsInput) return;
 
@@ -1690,8 +1708,14 @@
         appVersion: state.swVersion || APP_VERSION,
         userAgent: navigator.userAgent,
         pageUrl: window.location.href,
+        // Stable per-report ID: stays the same across retries of this same
+        // report so the server can recognise and skip a resubmission.
+        requestId: getOrCreateReportRequestId(),
       };
 
+      state.reportSubmitting = true;
+      const submitButton = document.getElementById("reportSubmit");
+      if (submitButton) submitButton.disabled = true;
       setReportStatus("Submitting report…");
 
       try {
@@ -1713,9 +1737,15 @@
         const issueText = data && data.issueUrl ? ` Issue: ${data.issueUrl}` : "";
         setReportStatus(`Report submitted successfully.${issueText}`, "success");
         reportDetailsInput.value = "";
-        try { localStorage.removeItem(REPORT_DRAFT_KEY); } catch {}
+        try {
+          localStorage.removeItem(REPORT_DRAFT_KEY);
+          localStorage.removeItem(REPORT_REQUEST_ID_KEY);
+        } catch {}
       } catch (error) {
         setReportStatus("Could not submit report. Please try again.", "error");
+      } finally {
+        state.reportSubmitting = false;
+        if (submitButton) submitButton.disabled = !navigator.onLine;
       }
     }
 

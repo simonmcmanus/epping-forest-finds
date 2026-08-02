@@ -49,4 +49,50 @@ test.describe("Feedback / Report screen", () => {
       { timeout: 5_000 }
     );
   });
+
+  test("a double-tap on submit only sends one report", async ({ page }) => {
+    let requestCount = 0;
+    await page.route("**/.netlify/functions/report-missing-data", async (route) => {
+      requestCount += 1;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, issueNumber: 1, issueUrl: "https://github.com/simonmcmanus/epping-forest-finds/issues/1" }),
+      });
+    });
+
+    await page.fill("#reportDetails", "Double-tap duplicate test");
+    // Two submit events dispatched back-to-back, simulating a double-tap:
+    // the second must be ignored while the first is still in flight.
+    await page.evaluate(() => {
+      const form = document.getElementById("reportForm");
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    await expect(page.locator("#reportStatus")).toContainText("submitted successfully", { timeout: 5_000 });
+    expect(requestCount).toBe(1);
+  });
+
+  test("a failed submission keeps the same request id for a safe retry", async ({ page }) => {
+    await page.route("**/.netlify/functions/report-missing-data", (route) =>
+      route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Failed to reach GitHub API" }),
+      })
+    );
+
+    await page.fill("#reportDetails", "Retry keeps request id test");
+    await page.click("#reportSubmit");
+    await expect(page.locator("#reportStatus")).toContainText("Failed to reach GitHub API", { timeout: 5_000 });
+    const firstId = await page.evaluate(() => localStorage.getItem("forest-finds-report-request-id-v1"));
+    expect(firstId).toBeTruthy();
+
+    await page.click("#reportSubmit");
+    await expect(page.locator("#reportStatus")).toContainText("Failed to reach GitHub API", { timeout: 5_000 });
+    const secondId = await page.evaluate(() => localStorage.getItem("forest-finds-report-request-id-v1"));
+    expect(secondId).toBe(firstId);
+  });
 });

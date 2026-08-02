@@ -50,6 +50,8 @@ exports.handler = async (event) => {
   const appVersion = String(payload.appVersion || "unknown").trim();
   const pageUrl = String(payload.pageUrl || "").trim();
   const userAgent = String(payload.userAgent || "").trim();
+  const rawRequestId = String(payload.requestId || "").trim().slice(0, 100);
+  const requestId = /^[a-zA-Z0-9-]+$/.test(rawRequestId) ? rawRequestId : "";
 
   if (!details) {
     return response(400, { error: "Details are required" });
@@ -89,21 +91,49 @@ exports.handler = async (event) => {
     issueBodyLines.push(`- Google Maps: https://maps.google.com/?q=${Number(location.latitude)},${Number(location.longitude)}`);
   }
 
+  if (requestId) {
+    issueBodyLines.push(`- Request ID: request-id:${requestId}`);
+  }
+
   const issuePayload = {
     title,
     body: issueBodyLines.join("\n"),
     labels: [isFeature ? "feature-request" : "missing-data", "user-report"],
   };
 
+  const apiHeaders = {
+    Authorization: `Bearer ${githubToken}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+
   try {
+    // Same report retried (e.g. after a dropped response, or a double-tap
+    // that slipped past the client-side guard) carries the same requestId.
+    // Look for an issue we already filed for it before creating another.
+    if (requestId) {
+      const searchQuery = `repo:${githubRepo} in:body "request-id:${requestId}"`;
+      const searchResponse = await fetch(
+        `https://api.github.com/search/issues?q=${encodeURIComponent(searchQuery)}`,
+        { headers: apiHeaders }
+      );
+      if (searchResponse.ok) {
+        const searchData = await searchResponse.json().catch(() => ({}));
+        const existingIssue = Array.isArray(searchData.items) ? searchData.items[0] : null;
+        if (existingIssue) {
+          return response(200, {
+            ok: true,
+            duplicate: true,
+            issueNumber: existingIssue.number,
+            issueUrl: existingIssue.html_url,
+          });
+        }
+      }
+    }
+
     const issueResponse = await fetch(`https://api.github.com/repos/${githubRepo}/issues`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${githubToken}`,
-        Accept: "application/vnd.github+json",
-        "Content-Type": "application/json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
+      headers: { ...apiHeaders, "Content-Type": "application/json" },
       body: JSON.stringify(issuePayload),
     });
 
