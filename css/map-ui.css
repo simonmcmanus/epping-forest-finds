@@ -277,3 +277,14 @@
     gap: 3px;
   }
 }
+
+/* Report screen keyboard avoidance (js/nav.js: handleReportViewportChange). Shifts the bottom
+   sheet up and shrinks it to stay above the on-screen keyboard using the live VisualViewport
+   inset, on both the portrait and landscape bottom-sheet layouts. */
+@media (max-width: 760px),
+(orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
+  .inspector.keyboard-avoiding {
+    bottom: calc(10px + var(--keyboard-inset, 0px));
+    max-height: calc(100% - 20px - var(--keyboard-inset, 0px));
+  }
+}

@@ -271,6 +271,7 @@ Marker rules:
 - The current app version is displayed in the form so the user can see which version will be reported.
 - The app version, user agent, page URL, and optional geolocation are included in every submission payload.
 - **Duplicate-submission prevention:** the Submit button is disabled and re-entrant submits are ignored for the duration of a request, so a double-tap cannot fire two GitHub issue creations. Each report also carries a `requestId` generated once and persisted (`localStorage`) until the report succeeds, so a retry after a dropped/failed response (e.g. flaky connection) reuses the same ID instead of minting a new one. The `report-missing-data` Netlify function searches existing GitHub issues for that ID before creating a new one and returns the existing issue if found, rather than filing a duplicate.
+- On iOS Safari, the on-screen keyboard opening over the report textarea does not obscure it — the inspector sheet repositions using the `VisualViewport` API to keep the focused field visible above the keyboard, in both portrait and landscape (see "Keyboard avoidance" under Inspector Panel in `spec-data-rendering.md`).
 - Opening Feedback shows the same map view as the Filter and Settings screens (see below).
 
 ## Secondary Screen Map Consistency

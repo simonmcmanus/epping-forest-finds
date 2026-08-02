@@ -137,11 +137,52 @@ function setupInteractions() {
   setupCompassListeners();
   setupVisibilityRecovery();
   setupResizeHandler();
+  setupReportKeyboardAvoidance();
   setupInspectorHandlers();
   setupInspectorDragResize();
   setupFilterPanelHandlers();
   setupSearchAndNavHandlers();
   setupMapCanvasHandlers();
+}
+
+// iOS Safari doesn't shrink the layout viewport when the on-screen keyboard opens, so the
+// `position: absolute; bottom: 10px` mobile inspector sheet (see css/map-ui.css) stays pinned
+// behind the keyboard instead of moving with it. VisualViewport reports the actually-visible
+// area, so we use it to shift/shrink the sheet above the keyboard. Scoped to the Report screen —
+// the only screen with a text input that can summon a keyboard (Settings uses a <select>, Filter
+// has no text input).
+const REPORT_KEYBOARD_INSET_MIN_PX = 40; // ignore sub-keyboard-sized viewport jitter (e.g. browser chrome show/hide)
+
+function setupReportKeyboardAvoidance() {
+  if (!window.visualViewport) return;
+  window.visualViewport.addEventListener("resize", handleReportViewportChange);
+  window.visualViewport.addEventListener("scroll", handleReportViewportChange);
+}
+
+function handleReportViewportChange() {
+  if (!els.inspector) return;
+  if (state.selected?.type !== "report") {
+    clearReportKeyboardInset();
+    return;
+  }
+  const viewport = window.visualViewport;
+  const inset = Math.max(0, window.innerHeight - (viewport.height + viewport.offsetTop));
+  if (inset < REPORT_KEYBOARD_INSET_MIN_PX) {
+    clearReportKeyboardInset();
+    return;
+  }
+  els.inspector.style.setProperty("--keyboard-inset", `${inset}px`);
+  els.inspector.classList.add("keyboard-avoiding");
+  const detailsInput = document.getElementById("reportDetails");
+  if (detailsInput && document.activeElement === detailsInput) {
+    detailsInput.scrollIntoView({ block: "nearest" });
+  }
+}
+
+function clearReportKeyboardInset() {
+  if (!els.inspector || !els.inspector.classList.contains("keyboard-avoiding")) return;
+  els.inspector.classList.remove("keyboard-avoiding");
+  els.inspector.style.removeProperty("--keyboard-inset");
 }
 
 function setupResizeHandler() {
