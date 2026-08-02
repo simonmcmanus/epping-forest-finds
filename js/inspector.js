@@ -151,6 +151,7 @@ function showClusterDetail(cluster) {
 
     const metres = distanceFromUser(item);
     const walkHtml = walkInfoHtml(metres);
+    const treeTagChip = itemType === "tree" && item.tagNumber ? ` · #${escapeHtml(String(item.tagNumber))}` : "";
 
     return `<li><button class="nearest-item" type="button" data-overview-type="${escapeHtml(itemType)}" data-overview-key="${escapeHtml(key)}">
       <div class="nearest-header">
@@ -158,7 +159,7 @@ function showClusterDetail(cluster) {
         <span class="nearest-name">${escapeHtml(name)}</span>
       </div>
       <div class="nearest-footer">
-        <span class="nearest-meta">${walkHtml}</span>
+        <span class="nearest-meta">${walkHtml}${treeTagChip}</span>
         <span class="nearest-arrow" data-item-lat="${lat}" data-item-lon="${lon}" aria-hidden="true">↑</span>
       </div>
     </button></li>`;
@@ -342,6 +343,7 @@ function showTreeDetails(tree, distance, label) {
   els.inspectorType.textContent = "Veteran tree";
   const estimatedAge = estimateTreeAgeFromGirth(tree);
   const primaryRows = [
+    ["Tag number", tree.tagNumber],
     ["Estimated age", estimatedAge],
     ["Common name", tree.commonName],
     ["Latin name", tree.latinName],
@@ -351,7 +353,6 @@ function showTreeDetails(tree, distance, label) {
     ["Comments", tree.comments],
   ];
   const technicalRows = [
-    ["Tag number", tree.tagNumber],
     ["National tag", tree.nationalDatabaseTagNumber],
     ["GPS date", tree.dateGpsd],
     ["Compartment", tree.compartmentNumber],

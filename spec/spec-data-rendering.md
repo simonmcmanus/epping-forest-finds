@@ -299,7 +299,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 ### Modes
 
 1. **Overview mode** — nearest list + filter controls
-2. **Cluster detail mode** — list of items in a tapped cluster (`state.clusterExpanded` set, `state.selected` null); shows back button, item count title, and nearest-item rows for each cluster member. Each row includes an always-visible combined distance + walk-time chip (`{distance} · {walk time}` with the walking icon). Back button or empty-space map tap returns to overview.
+2. **Cluster detail mode** — list of items in a tapped cluster (`state.clusterExpanded` set, `state.selected` null); shows back button, item count title, and nearest-item rows for each cluster member. Each row includes an always-visible combined distance + walk-time chip (`{distance} · {walk time}` with the walking icon) and, for trees, the tag number (`#<tagNumber>`). Back button or empty-space map tap returns to overview.
 3. **Selected-detail mode** — details for selected tree/landmark/cow/path/road
 4. **Minimized mode** — collapsed header only, click to expand
 
@@ -310,6 +310,7 @@ When an item is selected, it gets a pulsing highlight overlay:
 - The walking-time chip in the overview heading doubles as a **radius filter toggle** (`data-action="toggle-radius"`). When active (green, `aria-pressed="true"`), only items within the walking radius are shown (`state.showAllOutsideRadius = false`). When inactive (grey, `aria-pressed="false"`), items across all distances are shown (up to 10 nearest per type) with no fallback notice. Clicking toggles `state.showAllOutsideRadius` and triggers a full `selectOverview()` re-render.
 - Each entry shows: emoji icon, name, type label, and directional arrow.
 - Each entry includes an always-visible combined distance + walk-time chip (`{distance} · {walk time}`) using the existing walking icon (`appIconHtml("walking", ...)`).
+- Tree entries additionally show the physical **tag number** (`#<tagNumber>`) in the footer meta line (e.g. "Tree · #15961 · 5 min"), so the forest tag reference is visible without opening the detail view. The tag chip is omitted when the tree has no `tagNumber`.
 - `{distance}` is formatted by `formatDistance()`: whole metres below 1km (`850 m`); above 1km, kilometres to 1 decimal place below 10km and to a whole number at 10km+, with a trailing `.0` trimmed (`1.5 km`, `5 km`, `12 km`) — this keeps the unit and precision human-readable at both close and far range.
 - Nearby bus-stop entries progressively append live stop-direction context to the stop name when available, so opposite-direction stops can be distinguished from the overview list before opening the detail view.
 - The directional arrow element stores the item's fixed coordinates (`data-item-lat`, `data-item-lon`); bearing is computed live in `updateOverviewDirectionArrows()` from `state.userLocation` — never baked into the HTML template. This keeps the `listKey` stable across GPS updates, preventing unnecessary full re-renders and icon flash.
@@ -325,10 +326,12 @@ All selected detail screens with a distance pill (trees, places, cows, and paths
 
 #### Tree Details
 
+- **Tag number** (physical forest tag) is shown as the **first** always-visible field, before Estimated age and Common name. This is the number printed on the physical tag nailed to the tree, making it easy to confirm you're looking at the right record without extra taps.
 - Register fields: IDs, taxonomy, status, girth, metadata, comments, grid refs
 - Enriched named-tree data: match metadata, folklore/historical notes, source links
 - Inspector title icon: `tree.png`
 - Live distance + walking time
+- The **National tag** field stays inside the collapsed "Technical data" accordion (it is often blank or `0` and is distinct from the physical tag number).
 
 #### Place Details
 

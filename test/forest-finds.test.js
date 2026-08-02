@@ -1408,6 +1408,39 @@ test("cluster detail rows show always-visible combined distance and walk time ch
   assert.match(html, /\d+\s*m\s*·\s*(?:<\s*1|\d+)\s*min/);
 });
 
+test("cluster detail rows show tag number for trees", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  const tree = { id: "cluster-tree", commonName: "Cluster tree", tagNumber: "15961", ...makePoint(app, 0.001, 0) };
+
+  app.showClusterDetail({ itemType: "tree", items: [tree] });
+
+  const html = app.els.inspectorBody.innerHTML;
+  assert.match(html, /#15961/, "cluster detail must show the tree tag number");
+});
+
+test("nearby list shows tag number for trees", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push({ id: "near-tree", commonName: "Near Oak", tagNumber: "15961", ...makePoint(app, 0.001, 0) });
+
+  const html = app.overviewNearestHtml();
+
+  assert.match(html, /#15961/, "nearby list must show the tree tag number");
+});
+
+test("nearby list omits tag chip when tree has no tag number", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push({ id: "near-tree", commonName: "Near Oak", ...makePoint(app, 0.001, 0) });
+
+  const html = app.overviewNearestHtml();
+
+  assert.ok(!html.includes(" · #"), "tag chip must not appear when tagNumber is absent");
+});
+
 test("nearby transport entries use the generated bus icon asset", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

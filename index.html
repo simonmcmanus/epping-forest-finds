@@ -2277,6 +2277,7 @@
         const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
         const walkChip = walkInfoHtml(entry.metres);
         const typeLabel = filterMeta(entry.kind)?.label || (entry.type === "tree" ? "Tree" : entry.type === "cow" ? "Cow" : entry.type === "path" ? "Trail" : entry.type === "water" ? "Water" : "Place");
+        const treeTagChip = entry.type === "tree" && entry.item.tagNumber ? ` · #${escapeHtml(String(entry.item.tagNumber))}` : "";
         const outOfRadiusClass = entry.outOfRadius ? " out-of-radius" : "";
         return `<li><button class="nearest-item${outOfRadiusClass}" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}">
           <div class="nearest-header">
@@ -2284,7 +2285,7 @@
             <span class="nearest-name">${escapeHtml(name)}</span>
           </div>
           <div class="nearest-footer">
-            <span class="nearest-meta">${escapeHtml(typeLabel)}${walkChip ? ` · ${walkChip}` : ""}</span>
+            <span class="nearest-meta">${escapeHtml(typeLabel)}${treeTagChip}${walkChip ? ` · ${walkChip}` : ""}</span>
             <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true">↑</span>
           </div>
         </button></li>`;
