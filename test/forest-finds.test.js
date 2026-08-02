@@ -689,6 +689,22 @@ test("nearby heading-up viewport keeps the user low when all highlighted locatio
   assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.50, "user should sit below the midpoint when nothing is behind them");
 });
 
+test("heading-up viewport alignment does nothing before map data has loaded, so it can't compute the scale cap against the placeholder fitScale", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.selected = null;
+  app.state.dataLoaded = false;
+  app.state.fitScale = 1; // placeholder default from boot, before fitToBounds() runs
+  app.state.viewport = { scale: 1000, tx: 999, ty: 888 };
+
+  const changed = app.alignHeadingUpNavigationViewport();
+
+  assert.equal(changed, false, "should bail out before data has loaded");
+  assert.deepEqual(app.state.viewport, { scale: 1000, tx: 999, ty: 888 }, "viewport should be untouched");
+});
+
 test("nearby heading-up viewport ignores a highlighted location behind the user so zoom is not pulled out to fit it", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

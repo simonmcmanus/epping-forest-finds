@@ -231,7 +231,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v255";
+    const APP_VERSION = "v257";
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -2981,6 +2981,13 @@
     }
 
     function alignHeadingUpNavigationViewport(options = {}) {
+      // Before real map data loads, state.fitScale still holds its placeholder default
+      // rather than the actual full-forest-fit scale, so the HEADING_UP_MAX_SCALE_RATIO
+      // cap in maxHeadingUpNavigationScale/maxNearbyHeadingUpScale would be computed
+      // against the wrong value. On iOS the compass can fire (driving this via
+      // startCompassSmoothing) before mapPromise resolves, so this must wait for real
+      // data or the initial heading-up fit zooms in far tighter than intended.
+      if (!state.dataLoaded) return false;
       if (!headingUpActive()) return false;
       if (selectionCameraTransitionActive()) return false;
       if (state.clusterZoomed) return false;
