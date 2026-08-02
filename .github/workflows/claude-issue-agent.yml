@@ -39,7 +39,9 @@ jobs:
           TITLE: ${{ github.event.issue.title }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          if [ -n "$(gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open --json number -q '.[0].number')" ]; then
+          EXISTING_PR_URL=$(gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open --json url -q '.[0].url')
+          if [ -n "$EXISTING_PR_URL" ]; then
+            gh issue comment "$ISSUE_NUMBER" --repo "${{ github.repository }}" --body "Pull request: $EXISTING_PR_URL"
             exit 0
           fi
 
@@ -68,8 +70,10 @@ jobs:
             BODY="$(printf '%s\n\nCloses #%s' "$BODY" "$ISSUE_NUMBER")"
           fi
 
-          gh pr create \
+          PR_URL=$(gh pr create \
             --repo "${{ github.repository }}" \
             --head "$BRANCH" \
             --title "$TITLE" \
-            --body "$BODY"
+            --body "$BODY")
+
+          gh issue comment "$ISSUE_NUMBER" --repo "${{ github.repository }}" --body "Pull request: $PR_URL"
