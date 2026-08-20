@@ -1156,6 +1156,36 @@ test("heading-up nearby zoom updates immediately when force flag is set (returni
   assert.ok(app.state.viewport.scale > 10, "scale should update immediately when force=true even with active compass");
 });
 
+test("returning from filter screen in heading-up mode cancels the survey zoom and starts the foraging zoom even while survey animation is in progress", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.001, 0) });
+  app.state.compassHeading = 0;
+  app.state.compassLastEventAt = Date.now(); // active compass
+  app.state.filterScreenOpen = true;
+
+  // Simulate the survey animation that openFiltersScreen starts: wide viewport
+  // animation (filtering items, zoomed out) is currently in progress.
+  const wideScale = 10;
+  app.state.viewport = { scale: wideScale, tx: 500, ty: 440 };
+  // Start a fake viewport animation targeting the survey wide scale (as openFiltersScreen would)
+  app.state.viewportAnimationFrom = { scale: wideScale, tx: 500, ty: 440 };
+  app.state.viewportAnimationTo = { scale: wideScale * 0.5, tx: 500, ty: 440 };
+  app.state.viewportAnimationStartTime = null;
+  app.state.viewportAnimationDuration = 420;
+
+  // User taps Nearby while the survey animation is still running.
+  app.goToInitialView();
+
+  // The survey animation must be cancelled and a new tight-zoom animation started.
+  assert.equal(app.state.filterScreenOpen, false, "filter screen should be closed");
+  assert.ok(app.state.viewportAnimationTo, "a new viewport animation should be running after goToInitialView");
+  assert.ok(
+    app.state.viewportAnimationTo.scale > wideScale,
+    "the new animation should target a tighter (larger) scale than the filter-screen wide zoom"
+  );
+});
+
 test("heading-up selected zoom changes wait for compass settle before applying", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

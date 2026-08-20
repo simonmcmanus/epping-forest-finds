@@ -2966,7 +2966,15 @@
       // data or the initial heading-up fit zooms in far tighter than intended.
       if (!state.dataLoaded) return false;
       if (!headingUpActive()) return false;
-      if (selectionCameraTransitionActive()) return false;
+      if (selectionCameraTransitionActive()) {
+        // A forced navigation (e.g. returning from the filter screen via goToInitialView)
+        // must not be blocked by an in-progress survey-zoom animation. Cancel the
+        // existing animation so the forced refit can start immediately; without this,
+        // the survey animation completes at the wide filter-screen scale and the compass
+        // deferral then permanently prevents the zoom-in back to foraging mode.
+        if (!options.force) return false;
+        stopViewportAnimation();
+      }
       if (state.clusterZoomed) return false;
       clearHeadingUpCanvasTransform();
       const previousScale = state.viewport.scale;
