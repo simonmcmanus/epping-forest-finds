@@ -1464,7 +1464,7 @@
       syncHashFromSelection();
       requestDraw();
       if (state.userLocation) {
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+        ensureOverviewTargetsVisible({ animate: true, durationMs: 420, force: true });
       }
     }
 
@@ -1482,7 +1482,7 @@
       updateCompassOverlay();
       requestDraw();
       if (state.userLocation) {
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+        ensureOverviewTargetsVisible({ animate: true, durationMs: 420, force: true });
       }
     }
 
@@ -1554,7 +1554,7 @@
       updateCompassOverlay();
       requestDraw();
       if (state.userLocation) {
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+        ensureOverviewTargetsVisible({ animate: true, durationMs: 420, force: true });
       }
     }
 
