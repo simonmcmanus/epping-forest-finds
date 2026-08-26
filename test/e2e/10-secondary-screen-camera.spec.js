@@ -53,6 +53,28 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
     }
   });
 
+  test("tapping Nearby right after Filters re-fits the tight heading-up zoom even mid-animation", async ({ page }) => {
+    // Simulate an active compass so the map is in heading-up "nearby" mode, matching
+    // the bug report (only reproduced with phone compass/location active).
+    await page.evaluate(() => {
+      state.compassHeading = 45;
+      state.compassLastEventAt = performance.now();
+    });
+    const nearbyViewport = await readViewport(page);
+
+    // Open Filters, then tap Nearby again immediately — well inside the 420ms survey-mode
+    // zoom-out animation Filters starts — to reproduce the race that used to leave the
+    // camera stuck at the Filters-screen zoom indefinitely.
+    await page.click("#filterToggle");
+    await page.click("#nearbyToggle");
+
+    const settledViewport = await readViewport(page);
+    const tolerance = 0.5;
+    expect(Math.abs(settledViewport.scale - nearbyViewport.scale)).toBeLessThan(tolerance);
+    expect(Math.abs(settledViewport.tx - nearbyViewport.tx)).toBeLessThan(tolerance);
+    expect(Math.abs(settledViewport.ty - nearbyViewport.ty)).toBeLessThan(tolerance);
+  });
+
   test("walking radius circle is drawn on all three secondary screens", async ({ page }) => {
     for (const toggleId of ["#filterToggle", "#settingsToggle", "#reportToggle"]) {
       await page.click(toggleId);

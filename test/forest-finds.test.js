@@ -1156,6 +1156,26 @@ test("heading-up nearby zoom updates immediately when force flag is set (returni
   assert.ok(app.state.viewport.scale > 10, "scale should update immediately when force=true even with active compass");
 });
 
+test("heading-up nearby zoom force flag also bypasses an in-flight viewport animation (quick Filters -> Nearby)", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) });
+  app.state.compassHeading = 0;
+  app.state.viewport = { scale: 10, tx: 500, ty: 440 };
+
+  // Simulate the filter screen's own survey-mode zoom-out animation still running
+  // (e.g. the user tapped Nearby again before it finished).
+  app.state.viewportAnimationTo = { scale: 5, tx: 480, ty: 420 };
+
+  const changedWhileAnimating = app.alignHeadingUpNavigationViewport();
+  assert.equal(changedWhileAnimating, false, "unforced calls should still defer to the in-flight animation");
+  assert.equal(app.state.viewport.scale, 10);
+
+  const changedWithForce = app.alignHeadingUpNavigationViewport({ force: true });
+  assert.equal(changedWithForce, true, "force flag should override an in-flight viewport animation, not just the compass deferral");
+  assert.ok(app.state.viewport.scale > 10, "returning to nearby should zoom in immediately instead of settling on the interrupted animation's target");
+});
+
 test("heading-up selected zoom changes wait for compass settle before applying", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

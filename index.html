@@ -2966,7 +2966,14 @@
       // data or the initial heading-up fit zooms in far tighter than intended.
       if (!state.dataLoaded) return false;
       if (!headingUpActive()) return false;
-      if (selectionCameraTransitionActive()) return false;
+      // A forced call (explicit navigation, e.g. goToInitialView() returning from the
+      // filter screen) must win even while a prior programmatic viewport animation —
+      // such as the filter screen's own survey-mode zoom-out — is still in flight.
+      // Otherwise a quick Filters -> Nearby round trip lands here while that animation's
+      // `state.viewportAnimationTo` is still set, this bails out silently, and the camera
+      // is left stuck at the filter screen's zoom with no later corrective refit (compass
+      // ticks defer zoom-in while previousScale already fits within maxScale).
+      if (!options.force && selectionCameraTransitionActive()) return false;
       if (state.clusterZoomed) return false;
       clearHeadingUpCanvasTransform();
       const previousScale = state.viewport.scale;
