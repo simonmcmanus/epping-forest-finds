@@ -168,6 +168,7 @@ globalThis.__forestFindsTest = {
   bestVisibleCanvasRect,
   walkingRadiusCirclePoints,
   drawWalkingRadius,
+  drawOverviewRoutes,
   selectOverview,
   ensureOverviewTargetsVisible,
   alignHeadingUpNavigationViewport,
@@ -1251,6 +1252,75 @@ test("walking radius marker draws on the report (feedback) screen", () => {
   });
 
   assert.equal(arcCount, 1);
+});
+
+test("dashed route lines to nearby matches draw on the report (feedback) screen, same as filters", () => {
+  // Regression test: drawOverviewRoutes() used to bail out on any truthy state.selected,
+  // which incorrectly included the Settings/Report pseudo-selections (type "settings"/
+  // "report") -- so these dashed connector lines only ever showed on the Filters screen, even
+  // though Filters/Settings/Report are meant to render the exact same map background (see
+  // secondaryScreenActive() in js/nav.js). Fixed via hasRealSelection(), shared with
+  // drawWalkingRadius just above, which already excluded the pseudo-selections correctly.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "report", item: null };
+  app.state.overviewFilters = ["pubs"];
+  app.state.landmarks.push({ id: "near-pub", name: "Near pub", category: "pub", ...makePoint(app, 0.001, 0) });
+
+  let lineToCount = 0;
+  app.drawOverviewRoutes({
+    save() {},
+    restore() {},
+    beginPath() {},
+    moveTo() {},
+    lineTo() { lineToCount += 1; },
+    stroke() {},
+    setLineDash() {},
+  }, []);
+
+  assert.ok(lineToCount > 0, "should draw at least one route line on the report screen");
+});
+
+test("dashed route lines to nearby matches draw on the settings screen, same as filters", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "settings", item: null };
+  app.state.overviewFilters = ["pubs"];
+  app.state.landmarks.push({ id: "near-pub", name: "Near pub", category: "pub", ...makePoint(app, 0.001, 0) });
+
+  let lineToCount = 0;
+  app.drawOverviewRoutes({
+    save() {},
+    restore() {},
+    beginPath() {},
+    moveTo() {},
+    lineTo() { lineToCount += 1; },
+    stroke() {},
+    setLineDash() {},
+  }, []);
+
+  assert.ok(lineToCount > 0, "should draw at least one route line on the settings screen");
+});
+
+test("dashed route lines hide when a real selection is active, same as the walking radius ring", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { ...makePoint(app, 0.001, 0) } };
+  app.state.overviewFilters = ["pubs"];
+  app.state.landmarks.push({ id: "near-pub", name: "Near pub", category: "pub", ...makePoint(app, 0.001, 0) });
+
+  let lineToCount = 0;
+  app.drawOverviewRoutes({
+    save() {},
+    restore() {},
+    beginPath() {},
+    moveTo() {},
+    lineTo() { lineToCount += 1; },
+    stroke() {},
+    setLineDash() {},
+  }, []);
+
+  assert.equal(lineToCount, 0, "a real selection should suppress the overview route lines");
 });
 
 test("minimized inspector preserves user-controlled map position on GPS updates", () => {

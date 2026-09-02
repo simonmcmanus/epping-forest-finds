@@ -10,6 +10,17 @@ function secondaryScreenActive() {
   );
 }
 
+// state.selected is truthy for the Settings/Report pseudo-selections (type "settings"/
+// "report") as well as for a real tree/landmark/etc selection, but overview-only rendering
+// (the walking-radius ring, the dashed routes to nearby matches) should stay visible for the
+// pseudo-selections exactly as it does for plain overview/Filters -- only a real selection
+// should hide it. Shared by drawWalkingRadius and drawOverviewRoutes in renderer.js so the
+// two can't drift out of sync with each other again (they did: drawOverviewRoutes used to
+// check `state.selected` directly and hid its route lines on Settings/Report).
+function hasRealSelection() {
+  return Boolean(state.selected && !["settings", "report"].includes(state.selected.type));
+}
+
 function refreshSettingsVersionDisplay() {
   const el = document.getElementById("appVersionDisplay");
   if (!el) return;

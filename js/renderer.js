@@ -549,7 +549,12 @@ function drawRailwayLines(ctx, geometry, properties, style) {
 }
 
 function drawOverviewRoutes(ctx, treeClusters) {
-  if (!state.userLocation || state.selected) return;
+  // Was `if (!state.userLocation || state.selected) return;` -- state.selected is also
+  // truthy for the Settings/Report pseudo-selections, which wrongly hid these route lines on
+  // those two screens while Filters (which leaves state.selected null) kept showing them.
+  // hasRealSelection() (js/nav.js) excludes those pseudo-selections, matching drawWalkingRadius
+  // just below, which already got this right.
+  if (!state.userLocation || hasRealSelection()) return;
 
   const targets = overviewRouteTargets(treeClusters);
   if (!targets.length) return;
@@ -582,8 +587,7 @@ function drawOverviewRoutes(ctx, treeClusters) {
 
 function drawWalkingRadius(ctx) {
   if (!state.userLocation) return;
-  const isRealSelection = state.selected && !["settings", "report"].includes(state.selected.type);
-  if (isRealSelection) return;
+  if (hasRealSelection()) return;
 
   const dpr = pixelRatio();
   const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
