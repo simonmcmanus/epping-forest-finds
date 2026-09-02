@@ -110,6 +110,15 @@
         </div>
       </div>
 
+
+      <div id="compassCalibrationBanner" class="compass-calibration-banner" role="status" aria-live="polite" hidden>
+        <div class="compass-calibration-banner-card">
+          <span class="compass-calibration-banner-icon" aria-hidden="true">🧭</span>
+          <p class="compass-calibration-banner-text">Move your phone in a figure-8 to help it find your direction</p>
+          <button id="compassCalibrationBannerDismiss" class="compass-calibration-banner-dismiss" type="button" aria-label="Dismiss">✕</button>
+        </div>
+      </div>
+
       <div class="legend" aria-label="Map legend">
         <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
         <span style="color: #2f72b2;">💧 Hydrology</span>
@@ -352,6 +361,11 @@
       compassHeading: null,
       compassHeadingTarget: null,
       compassPermission: STORED_COMPASS_PERMISSION,
+      compassCalibrationSamples: [],
+      compassCalibrationStartedAt: null,
+      compassCalibrationPromptVisible: false,
+      compassCalibrationPromptDismissed: false,
+      calibrationViewportSyncFrame: null,
       locationWatchId: null,
       dragging: false,
       moved: false,
@@ -411,6 +425,8 @@
       overlayCanvas: document.getElementById("overlayCanvas"),
       mapStage: document.querySelector(".map-stage"),
       compassArrow: document.getElementById("compassArrow"),
+      compassCalibrationBanner: document.getElementById("compassCalibrationBanner"),
+      compassCalibrationBannerDismiss: document.getElementById("compassCalibrationBannerDismiss"),
       filterToggle: document.getElementById("filterToggle"),
       filterCount: document.getElementById("filterCount"),
       nearbyToggle: document.getElementById("nearbyToggle"),
@@ -2504,6 +2520,7 @@
             state.compassHeadingTarget = null;
             state.renderedNavigationHeading = null;
             state.headingUpEntryAnim = null;
+            resetCompassCalibration();
             if (typeof updateCompassOverlay === "function") updateCompassOverlay();
             requestDraw();
           }
@@ -2548,6 +2565,13 @@
       }
     }
 
+    // Constants controlling the "settle before trusting" compass calibration gate below.
+    const COMPASS_CALIBRATION_WINDOW_MS = 900; // trailing window of raw readings used to judge stability
+    const COMPASS_CALIBRATION_STABLE_SPREAD_DEG = 6; // max spread within the window before we trust it
+    const COMPASS_CALIBRATION_MIN_SAMPLES = 4; // minimum readings required within the window
+    const COMPASS_CALIBRATION_PROMPT_DELAY_MS = 1500; // how long to stay unstable before nudging the user
+    const COMPASS_CALIBRATION_MAX_WAIT_MS = 6000; // safety valve -- never block heading-up forever
+
     function onDeviceOrientation(event) {
       const rawBeta = event.beta;
       if (Number.isFinite(rawBeta)) {
@@ -2555,10 +2579,183 @@
       }
       const heading = extractCompassHeading(event);
       if (!Number.isFinite(heading)) return;
-      if (!Number.isFinite(state.compassHeading)) state.compassHeading = heading;
-      state.compassHeadingTarget = heading;
       state.compassLastEventAt = performance.now();
+
+      if (Number.isFinite(state.compassHeading)) {
+        // Already trust a heading -- keep tracking the live target as before.
+        state.compassHeadingTarget = heading;
+        startCompassSmoothing();
+        return;
+      }
+
+      // No trusted heading yet. The very first orientation readings after load (or after
+      // the compass goes stale and re-acquires) are frequently wrong on phones whose
+      // magnetometer needs a moment of physical movement to settle -- snapping the map to
+      // rotate on that first raw reading is the "dodgy state" on initial load. Instead,
+      // buffer raw readings and only start trusting/rotating once they agree with each
+      // other, nudging the user to help it along if that's taking a while.
+      registerCompassCalibrationSample(heading, state.compassLastEventAt);
+    }
+
+    // Buffers a raw (not-yet-trusted) heading reading and decides whether the compass has
+    // settled enough to trust, is still unstable long enough to warrant the "move your
+    // phone" prompt, or has been unstable so long we should just give up waiting (rather
+    // than block heading-up navigation indefinitely on a device that never settles).
+    function registerCompassCalibrationSample(heading, now) {
+      if (state.compassCalibrationStartedAt == null) state.compassCalibrationStartedAt = now;
+      state.compassCalibrationSamples.push({ heading, time: now });
+      const cutoff = now - COMPASS_CALIBRATION_WINDOW_MS;
+      while (state.compassCalibrationSamples.length && state.compassCalibrationSamples[0].time < cutoff) {
+        state.compassCalibrationSamples.shift();
+      }
+
+      const elapsed = now - state.compassCalibrationStartedAt;
+      if (isCompassCalibrationStable() || elapsed >= COMPASS_CALIBRATION_MAX_WAIT_MS) {
+        completeCompassCalibration(heading);
+        return;
+      }
+
+      if (elapsed >= COMPASS_CALIBRATION_PROMPT_DELAY_MS) {
+        showCompassCalibrationPrompt();
+      }
+
+      // Rotation waits for a trusted heading, but the zoom/anchor fit does not need one --
+      // nearbyNavigationAnchorActive() only needs state.userLocation. Without this, the
+      // very first GPS fix can race state.dataLoaded (alignHeadingUpNavigationViewport
+      // bails until data is ready) and, previously, only got a second chance to correct
+      // itself because compassHeading was trusted immediately and startCompassSmoothing's
+      // per-frame tick kept re-running alignHeadingUpNavigationViewport regardless. Now that
+      // rotation is deliberately held back during calibration, this keeps that same
+      // "self-heal on the next frame" zoom correction going during the calibration window,
+      // so the initial zoom is never stuck wrong until the user happens to move.
+      startCalibrationViewportSync();
+    }
+
+    // Runs alongside calibration (see registerCompassCalibrationSample above): keeps
+    // re-fitting the north-up anchored zoom every frame while a heading is not yet trusted,
+    // exactly like startCompassSmoothing's tick does once one is -- just without the
+    // rotation. Stops itself once a heading is trusted (startCompassSmoothing's own tick
+    // takes over alignHeadingUpNavigationViewport from there) or once calibration is reset.
+    function startCalibrationViewportSync() {
+      if (state.calibrationViewportSyncFrame != null) return;
+
+      const tick = () => {
+        if (Number.isFinite(state.compassHeading)) {
+          state.calibrationViewportSyncFrame = null;
+          return;
+        }
+
+        // Safety valve mirrors registerCompassCalibrationSample's MAX_WAIT check, in case
+        // no further orientation events arrive to deliver it (sensor pause, permission
+        // change mid-calibration) -- without this, a stalled sensor would leave this loop
+        // running forever instead of the calibration ever completing.
+        if (
+          state.compassCalibrationStartedAt != null
+          && performance.now() - state.compassCalibrationStartedAt >= COMPASS_CALIBRATION_MAX_WAIT_MS
+        ) {
+          const samples = state.compassCalibrationSamples;
+          const fallbackHeading = samples.length ? samples[samples.length - 1].heading : null;
+          state.calibrationViewportSyncFrame = null;
+          if (Number.isFinite(fallbackHeading)) completeCompassCalibration(fallbackHeading);
+          return;
+        }
+
+        if (navigationAnchorActive()) {
+          // force: true bypasses resolveHeadingUpTargetScale's "compass sensor is actively
+          // firing, defer non-urgent zoom changes" deferral. That deferral exists to stop
+          // zoom fighting an in-progress rotation -- but calibration holds rotation at 0
+          // the entire time (headingUpActive() is false until a heading is trusted), so
+          // there's no rotation for the zoom to fight, and no reason to wait. Without force
+          // here, calibration's continuous stream of raw orientation events keeps
+          // headingUpCompassSensorActive() true throughout, and the deferred zoom fit only
+          // ever got applied once the sensor briefly went quiet -- in practice, once
+          // rotation itself kicked in and settled -- which is exactly the "zoom only
+          // corrects after it rotates" symptom this fixes.
+          const viewportChanged = alignHeadingUpNavigationViewport({ force: true });
+          if (viewportChanged) requestDraw();
+        }
+
+        state.calibrationViewportSyncFrame = requestAnimationFrame(tick);
+      };
+
+      state.calibrationViewportSyncFrame = requestAnimationFrame(tick);
+    }
+
+    function stopCalibrationViewportSync() {
+      if (state.calibrationViewportSyncFrame == null) return;
+      cancelAnimationFrame(state.calibrationViewportSyncFrame);
+      state.calibrationViewportSyncFrame = null;
+    }
+
+    // Circular spread (max - min, degrees) of the buffered calibration samples relative to
+    // the oldest sample still in the trailing window.
+    function compassCalibrationSpreadDegrees() {
+      const samples = state.compassCalibrationSamples;
+      if (!samples.length) return Infinity;
+      const anchor = samples[0].heading;
+      let min = 0;
+      let max = 0;
+      for (let i = 1; i < samples.length; i++) {
+        const delta = shortestCompassDelta(anchor, samples[i].heading);
+        if (delta < min) min = delta;
+        if (delta > max) max = delta;
+      }
+      return max - min;
+    }
+
+    function isCompassCalibrationStable() {
+      return state.compassCalibrationSamples.length >= COMPASS_CALIBRATION_MIN_SAMPLES
+        && compassCalibrationSpreadDegrees() <= COMPASS_CALIBRATION_STABLE_SPREAD_DEG;
+    }
+
+    // Readings have settled (or we've waited as long as we're going to) -- start trusting
+    // and rotating to the compass heading. headingUpActive() picks this up on the next
+    // frame and the existing renderedNavigationHeading entry animation eases the map into
+    // its new rotation, so this doesn't itself need to animate anything.
+    function completeCompassCalibration(heading) {
+      state.compassHeading = heading;
+      state.compassHeadingTarget = heading;
+      state.compassCalibrationSamples = [];
+      state.compassCalibrationStartedAt = null;
+      stopCalibrationViewportSync();
+      hideCompassCalibrationPrompt();
       startCompassSmoothing();
+    }
+
+    // Called whenever a stale compass heading is cleared elsewhere (backgrounding,
+    // returning to the overview after the sensor's gone quiet) so the next readings go
+    // through the calibration gate again instead of being trusted immediately, and the
+    // "move your phone" prompt is free to reappear if the new fix takes a while too.
+    function resetCompassCalibration() {
+      state.compassCalibrationSamples = [];
+      state.compassCalibrationStartedAt = null;
+      state.compassCalibrationPromptDismissed = false;
+      stopCalibrationViewportSync();
+      hideCompassCalibrationPrompt();
+    }
+
+    function showCompassCalibrationPrompt() {
+      if (state.compassCalibrationPromptDismissed) return;
+      if (state.compassCalibrationPromptVisible) return;
+      if (!els.compassCalibrationBanner) return;
+      state.compassCalibrationPromptVisible = true;
+      els.compassCalibrationBanner.classList.remove("fading-out");
+      els.compassCalibrationBanner.hidden = false;
+    }
+
+    function hideCompassCalibrationPrompt() {
+      state.compassCalibrationPromptVisible = false;
+      if (!els.compassCalibrationBanner) return;
+      hideWithFade(els.compassCalibrationBanner);
+    }
+
+    // Bound to the banner's dismiss button -- lets the user hide the "move your phone"
+    // nudge without waiting for calibration to actually finish. Suppressed only for the
+    // current calibration cycle: resetCompassCalibration() (staleness recovery) clears
+    // the flag again so a later re-acquisition can still prompt.
+    function dismissCompassCalibrationPrompt() {
+      state.compassCalibrationPromptDismissed = true;
+      hideCompassCalibrationPrompt();
     }
 
     function startCompassSmoothing() {
@@ -2707,13 +2904,6 @@
     const HEADING_UP_SCALE_SETTLE_RATIO = 0.02; // absorb tiny settled scale corrections as visual noise
     const HEADING_UP_SCALE_SETTLE_MIN = 1; // absolute settle tolerance for low zoom values
     const HEADING_UP_SENSOR_ACTIVE_MS = 350;
-    // Sane ceiling on how tight a heading-up auto-fit can zoom. Without this, a single very
-    // close nearby point (a tree a few metres away, common in a dense forest) can force the
-    // fit-to-top-edge or fit-to-side-edge constraint to a huge scale, since fitting a point
-    // that's almost at the user's feet into the same rect as points metres away requires
-    // very little zoom change per pixel — most visible right after load, when the first
-    // heading-up fit runs with no previous scale to reconcile against.
-    const HEADING_UP_MAX_SCALE_RATIO = 180; // × state.fitScale (the full-forest-fit scale)
 
     function selectedNavigationHeadingUpActive() {
       return Boolean(
@@ -2918,10 +3108,13 @@
 
     // Shared bounding-box scale-fit math for both heading-up modes (selected navigation
     // and nearby survey): the maximum scale at which every point in `points` stays inside
-    // the rotated focus rect, honouring the tilt behind-heading exclusion and the
-    // HEADING_UP_MAX_SCALE_RATIO ceiling. Returns null when no point constrains the fit
-    // (empty input, or every point sits exactly at the focus) so callers can fall back to
-    // the current viewport scale exactly as each did before this was factored out.
+    // the rotated focus rect, honouring the tilt behind-heading exclusion. Returns null when
+    // no point constrains the fit (empty input, or every point sits exactly at the focus) so
+    // callers can fall back to the current viewport scale exactly as each did before this was
+    // factored out. This is pure fit-to-points geometry with no ceiling of its own -- callers
+    // that need one (maxNearbyHeadingUpScale's walking-radius floor) apply it themselves; see
+    // [[nearby-view-zoom]] project memory for why a ceiling baked in here (an arbitrary ratio
+    // against an unrelated reference scale) caused more bugs than it fixed.
     function maxScaleForHeadingUpPoints(points, focus, focusRect) {
       const dpr = pixelRatio();
       const margin = Math.min(focusRect.width, focusRect.height) * 0.1 + 12 * dpr;
@@ -2961,7 +3154,6 @@
       }
 
       if (!Number.isFinite(maxScale) || maxScale <= 0) return null;
-      if (state.fitScale > 0) maxScale = Math.min(maxScale, state.fitScale * HEADING_UP_MAX_SCALE_RATIO);
       return maxScale;
     }
 
@@ -2973,9 +3165,38 @@
       return maxScale == null ? state.viewport.scale : maxScale;
     }
 
+    // Pushes any point closer to `origin` than `minDistance` straight out to exactly
+    // `minDistance`, preserving its bearing; points already at or beyond `minDistance` (and
+    // points exactly at `origin`, which have no defined bearing) are left untouched. Used by
+    // maxNearbyHeadingUpScale to give every real match at least a walking-radius-sized
+    // footprint in the fit -- without this, a point a few metres away demands an enormous
+    // scale to fill the focus rect (a tiny world-distance needs very little zoom change per
+    // pixel to reach the rect edge), which was the original "zoomed in too tight" bug. See
+    // [[nearby-view-zoom]] project memory for the full history.
+    function pointsExtendedToMinDistance(points, origin, minDistance) {
+      if (!(minDistance > 0)) return points;
+      const extended = [];
+      for (const point of points) {
+        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+        const dx = point.x - origin.x;
+        const dy = point.y - origin.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance <= 0 || distance >= minDistance) {
+          extended.push(point);
+          continue;
+        }
+        const scale = minDistance / distance;
+        extended.push({ x: origin.x + dx * scale, y: origin.y + dy * scale });
+      }
+      return extended;
+    }
+
     function maxNearbyHeadingUpScale(focus, focusRect) {
       if (!state.userLocation) return state.viewport.scale;
       const points = nearbyHeadingUpTargetPoints();
+      const radiusPoints = walkingRadiusCirclePoints();
+      const radiusScale = radiusPoints.length ? maxScaleForHeadingUpPoints(radiusPoints, focus, focusRect) : null;
+
       if (points.length < 2) {
         // Nothing highlighted within the walking radius to fit -- zoom to fit the radius
         // itself instead of leaving the previous scale untouched. Previously this returned
@@ -2983,22 +3204,33 @@
         // (possibly far more zoomed out) scale was active before -- e.g. left over from
         // Filters previewing an out-of-radius result -- even though there was nothing left
         // that needed that wider view.
-        const radiusPoints = walkingRadiusCirclePoints();
-        if (!radiusPoints.length) return state.viewport.scale;
-        const maxScale = maxScaleForHeadingUpPoints(radiusPoints, focus, focusRect);
-        return maxScale == null ? state.viewport.scale : maxScale;
+        return radiusScale == null ? state.viewport.scale : radiusScale;
       }
-      const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect);
-      return maxScale == null ? state.viewport.scale : maxScale;
+
+      // Give each real match at least a walking-radius-sized footprint (see
+      // pointsExtendedToMinDistance) instead of fitting the full 360-degree radius circle:
+      // real matches are almost always clustered in one direction, and forcing every other
+      // direction to also show a full radius's worth of empty space zoomed the nearby view
+      // out much further than the matches actually needed -- confirmed against real device
+      // telemetry where directional matches ~380m out needed roughly half the zoomed-out
+      // scale the full circle demanded. See [[nearby-view-zoom]] project memory.
+      const clampedPoints = pointsExtendedToMinDistance(points, state.userLocation.point, walkingRadiusWorldUnits());
+      const rawScale = maxScaleForHeadingUpPoints(clampedPoints, focus, focusRect);
+      if (rawScale != null) return rawScale;
+      // Every clamped point was excluded from the fit (e.g. all currently behind the user
+      // while tilted) -- fall back to the radius-ring fit rather than the stale/possibly
+      // pathological current scale, which is what a plain `return state.viewport.scale` did
+      // here before and could freeze the view at an enormous leftover scale until a matching
+      // point rotated back into view.
+      return radiusScale == null ? state.viewport.scale : radiusScale;
     }
 
     function alignHeadingUpNavigationViewport(options = {}) {
-      // Before real map data loads, state.fitScale still holds its placeholder default
-      // rather than the actual full-forest-fit scale, so the HEADING_UP_MAX_SCALE_RATIO
-      // cap in maxHeadingUpNavigationScale/maxNearbyHeadingUpScale would be computed
-      // against the wrong value. On iOS the compass can fire (driving this via
-      // startCompassSmoothing) before mapPromise resolves, so this must wait for real
-      // data or the initial heading-up fit zooms in far tighter than intended.
+      // Before real map data loads, state.trees/state.landmarks/etc are still empty, so the
+      // points fed into maxHeadingUpNavigationScale/maxNearbyHeadingUpScale don't yet reflect
+      // real nearby items -- fitting against that would either fit nothing meaningful or, for
+      // a selected target, fail outright. On iOS the compass can fire (driving this via
+      // startCompassSmoothing) before mapPromise resolves, so this must wait for real data.
       if (!state.dataLoaded) return false;
       if (!navigationAnchorActive()) return false;
       if (selectionCameraTransitionActive()) return false;

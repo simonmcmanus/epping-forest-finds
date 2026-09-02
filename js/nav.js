@@ -310,6 +310,12 @@ function setupInspectorHandlers() {
       hideWithFade(els.distanceWarning);
     });
   }
+
+  if (els.compassCalibrationBannerDismiss) {
+    els.compassCalibrationBannerDismiss.addEventListener("click", () => {
+      if (typeof dismissCompassCalibrationPrompt === "function") dismissCompassCalibrationPrompt();
+    });
+  }
 }
 
 function pulseNavButton(el) {
@@ -631,6 +637,7 @@ function goToInitialView(updateHash = true) {
       state.compassHeadingTarget = null;
       state.renderedNavigationHeading = null;
       state.headingUpEntryAnim = null;
+      if (typeof resetCompassCalibration === "function") resetCompassCalibration();
     }
   }
 

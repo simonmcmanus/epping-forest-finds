@@ -174,6 +174,8 @@ globalThis.__forestFindsTest = {
   maxScaleForHeadingUpPoints,
   maxHeadingUpNavigationScale,
   maxNearbyHeadingUpScale,
+  pointsExtendedToMinDistance,
+  walkingRadiusWorldUnits,
   selectedNavigationTargetPoints,
   nearbyHeadingUpTargetPoints,
   animateToHeadingUpNavigationViewport,
@@ -213,6 +215,18 @@ globalThis.__forestFindsTest = {
   ONBOARDING_STEPS,
   compassStepMarkup,
   compassPermissionRequiresRequest,
+  onDeviceOrientation,
+  extractCompassHeading,
+  registerCompassCalibrationSample,
+  isCompassCalibrationStable,
+  compassCalibrationSpreadDegrees,
+  completeCompassCalibration,
+  resetCompassCalibration,
+  showCompassCalibrationPrompt,
+  hideCompassCalibrationPrompt,
+  dismissCompassCalibrationPrompt,
+  startCalibrationViewportSync,
+  stopCalibrationViewportSync,
   location: window.location,
   windowStub: window,
 };
@@ -255,9 +269,12 @@ function resetData(app) {
   app.state.transportLookupRequests = new Map();
   app.state.filterScreenOpen = false;
   app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
-  // Realistic "whole forest fit" scale, so HEADING_UP_MAX_SCALE_RATIO doesn't clip
-  // legitimate close-range heading-up fits in tests (see maxNearbyHeadingUpScale).
+  // Realistic "whole forest fit" scale -- not read by the heading-up zoom ceiling itself
+  // any more (that's the walking radius now, see maxNearbyHeadingUpScale), but still used
+  // elsewhere (fitToPoints' minScale floor, renderer.js zoom-level calculations). Both fields
+  // start out equal, matching real boot (fitToBounds() sets them together).
   app.state.fitScale = 10000;
+  app.state.baseFitScale = 10000;
   app.state.viewportAnimationFrame = null;
   app.state.viewportAnimationFrom = null;
   app.state.viewportAnimationTo = null;
@@ -268,6 +285,17 @@ function resetData(app) {
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
   app.state.compassHeading = null;
+  app.state.compassHeadingTarget = null;
+  app.state.compassCalibrationSamples = [];
+  app.state.compassCalibrationStartedAt = null;
+  app.state.compassCalibrationPromptVisible = false;
+  app.state.compassCalibrationPromptDismissed = false;
+  if (app.els.compassCalibrationBanner) app.els.compassCalibrationBanner.hidden = true;
+  // Cancel any real-timer-backed calibration sync loop a previous test left running --
+  // otherwise it keeps firing (and, worse, keeps rescheduling itself) against this test's
+  // freshly-reset state instead of stopping, since resetData nulls compassCalibrationStartedAt
+  // (defusing its own safety-valve check) without this.
+  app.stopCalibrationViewportSync();
   app.state.tiltBetaSmoothed = 0;
   app.state.tiltBetaTarget = 0;
   app.state.tiltWasActive = false;
@@ -817,6 +845,15 @@ test("nearby heading-up viewport ignores a highlighted location behind the user 
 });
 
 test("nearby heading-up zoom is capped rather than zooming in absurdly for a location right next to the user", () => {
+  // Fourth attempt at this specific bug -- see [[nearby-view-zoom]] project memory for the
+  // full history. Points closer than the walking radius are now extended straight out to the
+  // radius distance (preserving bearing) before the fit runs, instead of capping the whole
+  // result against a full 360-degree radius circle -- fitting against the full circle
+  // over-widened the view whenever real matches were directional, which was round 2's own
+  // regression (confirmed against real device telemetry). This test proves the near-feet
+  // point can no longer demand a near-infinite scale: the corrected zoom is bounded by the
+  // clamped-point fit, which is orders of magnitude tighter than fitting the real ~1m
+  // distance would otherwise require.
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
@@ -827,13 +864,29 @@ test("nearby heading-up zoom is capped rather than zooming in absurdly for a loc
   // scale to fit that tiny distance against the focus-rect margin — this is the "loads
   // zoomed in so far you can't see any locations" bug: without a ceiling, the fit chases
   // whichever nearby point happens to be closest rather than settling on a usable zoom.
-  app.state.trees.push({ id: "at-feet-tree", commonName: "At-feet tree", ...makePoint(app, 0.00001, 0) });
+  app.state.trees.push({ id: "at-feet-tree", commonName: "At-feet tree", ...makePoint(app, 0.00001, 0.00001) });
+
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.nearbyNavigationFocusPoint();
+  const points = app.nearbyHeadingUpTargetPoints();
+  const unclampedScale = app.maxScaleForHeadingUpPoints(points, focus, focusRect);
+  const clampedPoints = app.pointsExtendedToMinDistance(points, app.state.userLocation.point, app.walkingRadiusWorldUnits());
+  const expectedCeiling = app.maxScaleForHeadingUpPoints(clampedPoints, focus, focusRect);
 
   app.alignHeadingUpNavigationViewport();
 
+  // The applied scale is expectedCeiling with the standard zoom-buffer ratio applied (see
+  // HEADING_UP_SCALE_BUFFER_RATIO / resolveHeadingUpTargetScale) -- an exact match here (not
+  // just an upper bound) proves the fit actually followed the walking-radius-clamped points
+  // rather than merely staying under some looser ceiling by coincidence.
+  const bufferedExpected = expectedCeiling * 0.96;
   assert.ok(
-    app.state.viewport.scale <= app.state.fitScale * 180 + 1,
-    "zoom should be capped at HEADING_UP_MAX_SCALE_RATIO x the full-forest fit scale, not chase the closest point unbounded",
+    Math.abs(app.state.viewport.scale - bufferedExpected) < bufferedExpected * 0.001,
+    `expected buffered scale ~${bufferedExpected}, got ${app.state.viewport.scale}`,
+  );
+  assert.ok(
+    expectedCeiling < unclampedScale / 100,
+    "clamping the near-feet point out to the walking radius should avoid the near-infinite unclamped scale",
   );
 });
 
@@ -1325,10 +1378,44 @@ test("heading-up selected zoom changes wait for compass settle before applying",
 // Regression coverage for the maxHeadingUpNavigationScale / maxNearbyHeadingUpScale
 // consolidation: both used to independently duplicate the same ~45 lines of bounding-box
 // scale-fit math (margin calc, rotation, per-point min-scale accumulation, tilt behind-heading
-// handling, HEADING_UP_MAX_SCALE_RATIO cap). They now both delegate to the shared
-// maxScaleForHeadingUpPoints() helper, differing only in their point source and emptiness
-// guard. These tests pin down the shared math directly, then prove each wrapper is a pure
-// pass-through to it for its own point source.
+// handling). They now both delegate to the shared maxScaleForHeadingUpPoints() helper,
+// differing only in their point source and emptiness guard. (That helper used to also apply a
+// HEADING_UP_MAX_SCALE_RATIO ceiling internally; it was removed and replaced with a
+// walking-radius ceiling that maxNearbyHeadingUpScale applies itself by extending individual
+// points closer than the radius out to it before fitting -- see [[nearby-view-zoom]] project
+// memory for the full history.) These tests pin down the shared math directly, then prove
+// each wrapper is a pure pass-through to it for its own point source.
+// Regression coverage for pointsExtendedToMinDistance, the helper maxNearbyHeadingUpScale
+// uses to give every real match at least a walking-radius-sized footprint in the fit -- see
+// [[nearby-view-zoom]] project memory for why this replaced capping against a full 360-degree
+// radius circle (round 2's "zooms out too far" regression for directional matches).
+test("pointsExtendedToMinDistance pushes closer points out to minDistance, preserving bearing, and leaves farther points untouched", () => {
+  const origin = { x: 0, y: 0 };
+  const points = [
+    { x: 1, y: 0 },      // 1 unit east, well inside 10 -> pushed out to (10, 0)
+    { x: 0, y: -3 },     // 3 units "north" (negative y), inside 10 -> pushed out to (0, -10)
+    { x: 20, y: 0 },     // already past minDistance -> left untouched
+    { x: 6, y: 8 },       // distance exactly 10 -> left untouched (>= minDistance)
+    { x: 0, y: 0 },       // exactly at origin, no defined bearing -> left untouched
+  ];
+
+  const extended = app.pointsExtendedToMinDistance(points, origin, 10);
+
+  assert.ok(Math.abs(extended[0].x - 10) < 1e-9 && Math.abs(extended[0].y - 0) < 1e-9, `expected (10, 0), got (${extended[0].x}, ${extended[0].y})`);
+  assert.ok(Math.abs(extended[1].x - 0) < 1e-9 && Math.abs(extended[1].y - -10) < 1e-9, `expected (0, -10), got (${extended[1].x}, ${extended[1].y})`);
+  assert.deepEqual(extended[2], { x: 20, y: 0 }, "a point already past minDistance should be untouched");
+  assert.deepEqual(extended[3], { x: 6, y: 8 }, "a point exactly at minDistance should be untouched");
+  assert.deepEqual(extended[4], { x: 0, y: 0 }, "a point exactly at the origin has no bearing to extend along, so it is left as-is");
+});
+
+test("pointsExtendedToMinDistance returns the points unchanged when minDistance is not positive", () => {
+  const origin = { x: 0, y: 0 };
+  const points = [{ x: 1, y: 0 }, { x: 0.001, y: 0.001 }];
+
+  assert.deepEqual(app.pointsExtendedToMinDistance(points, origin, 0), points);
+  assert.deepEqual(app.pointsExtendedToMinDistance(points, origin, -5), points);
+});
+
 test("maxScaleForHeadingUpPoints returns the tightest scale that keeps every point inside the focus rect", () => {
   resetData(app);
   app.state.userLocation = { latitude: 0, longitude: 0, point: { x: 0, y: 0 } };
@@ -1404,12 +1491,164 @@ test("maxHeadingUpNavigationScale delegates to the shared heading-up scale helpe
   assert.equal(actual, expected);
 });
 
-test("maxNearbyHeadingUpScale delegates to the shared heading-up scale helper", () => {
+test("maxNearbyHeadingUpScale falls back to the walking-radius ring fit, not the stale viewport scale, when every clamped point is excluded by tilt", () => {
+  // Regression test for a real bug found via device video on 2026-09-02 (round 3 of the
+  // zoom-cap saga -- see [[nearby-view-zoom]] project memory): when every point is currently
+  // behind the user's heading during active tilt, maxScaleForHeadingUpPoints(clampedPoints,
+  // ...) returns null, and the fallback used to be `state.viewport.scale` -- whatever scale
+  // was already on screen, including a stale or pathological leftover value. The video showed
+  // viewport.scale frozen at 1,346,948 for ~0.6s during exactly this window. The fallback
+  // should instead be the walking-radius ring fit, which is always available and meaningful,
+  // never the stale current scale.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.overviewFilters = ["trees"];
+  app.state.tiltBetaSmoothed = 20; // > TILT_BETA_THRESHOLD (12) -> tiltActive() true
+  // Negative latitude offsets sit behind the user at heading 0 (same convention as the
+  // "behind-pub" fixture elsewhere in this file), so every clamped point is excluded from
+  // the raw fit while tilt is active.
+  app.state.trees.push(
+    { id: "behind-1", commonName: "Behind tree 1", ...makePoint(app, -0.0005, 0) },
+    { id: "behind-2", commonName: "Behind tree 2", ...makePoint(app, -0.0004, 0.0001) },
+  );
+  // A distinctly wrong "stale" scale that must NOT be what's returned.
+  app.state.viewport = { scale: 987654321, tx: 500, ty: 440 };
+
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.nearbyNavigationFocusPoint();
+  const radiusScale = app.maxScaleForHeadingUpPoints(app.walkingRadiusCirclePoints(), focus, focusRect);
+  const points = app.nearbyHeadingUpTargetPoints();
+  const clampedPoints = app.pointsExtendedToMinDistance(points, app.state.userLocation.point, app.walkingRadiusWorldUnits());
+  assert.equal(
+    app.maxScaleForHeadingUpPoints(clampedPoints, focus, focusRect),
+    null,
+    "fixture should actually exercise the null-fit path -- both points must be excluded by tilt",
+  );
+
+  const actual = app.maxNearbyHeadingUpScale(focus, focusRect);
+
+  assert.equal(actual, radiusScale, "should fall back to the walking-radius ring fit");
+  assert.notEqual(actual, 987654321, "must not fall back to the stale current viewport scale");
+});
+
+test("a real match beyond the walking radius is not pulled inward -- only points closer than the radius get clamped", () => {
+  // Locks in the other half of pointsExtendedToMinDistance's contract at the app level (the
+  // pure-function unit test covers it in isolation): a genuinely distant match should still
+  // widen the zoom to include it, not be yanked in to the radius distance alongside anything
+  // closer. See [[nearby-view-zoom]] project memory.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.overviewFilters = ["trees"];
+  app.state.walkingDistanceMinutes = 5; // ~417m radius
+  // ~900m away, diagonal bearing, well beyond the ~417m radius.
+  app.state.trees.push(
+    { id: "far-tree", commonName: "Far tree", ...makePoint(app, 0.006, 0.006) },
+    { id: "far-tree-2", commonName: "Far tree 2", ...makePoint(app, 0.0058, 0.0055) },
+  );
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.nearbyNavigationFocusPoint();
+  const points = app.nearbyHeadingUpTargetPoints();
+
+  const clampedPoints = app.pointsExtendedToMinDistance(points, app.state.userLocation.point, app.walkingRadiusWorldUnits());
+  for (let i = 0; i < points.length; i++) {
+    assert.deepEqual(clampedPoints[i], points[i], "a point already beyond the walking radius should be left exactly as-is");
+  }
+
+  const expected = app.maxScaleForHeadingUpPoints(points, focus, focusRect);
+  const actual = app.maxNearbyHeadingUpScale(focus, focusRect);
+  assert.equal(actual, expected, "the fit should use the real (unclamped) far points directly");
+
+  const radiusScale = app.maxScaleForHeadingUpPoints(app.walkingRadiusCirclePoints(), focus, focusRect);
+  assert.ok(actual < radiusScale, "fitting genuinely distant matches should zoom out further than the walking-radius ring itself");
+});
+
+test("a close match and a far match together: only the close one is clamped, and the far one still constrains the fit", () => {
+  // Mixed-distance regression: one match well inside the walking radius (would otherwise force
+  // an absurd zoom-in on its own) alongside one match well beyond it. The close match should be
+  // pulled out to the radius distance; the far match should be left untouched and dominate the
+  // resulting fit, since it needs a wider view than the radius alone would. See
+  // [[nearby-view-zoom]] project memory.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.overviewFilters = ["trees"];
+  app.state.walkingDistanceMinutes = 5; // ~417m radius
+  app.state.trees.push(
+    { id: "close-tree", commonName: "Close tree", ...makePoint(app, 0.00001, 0.00001) }, // ~1.5m away
+    { id: "far-tree", commonName: "Far tree", ...makePoint(app, 0.006, -0.006) }, // ~940m away
+  );
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.nearbyNavigationFocusPoint();
+  const points = app.nearbyHeadingUpTargetPoints();
+  const worldRadius = app.walkingRadiusWorldUnits();
+  const clampedPoints = app.pointsExtendedToMinDistance(points, app.state.userLocation.point, worldRadius);
+
+  const closeClamped = clampedPoints.find((p) => Math.abs(Math.hypot(p.x - app.state.userLocation.point.x, p.y - app.state.userLocation.point.y) - worldRadius) < worldRadius * 1e-6);
+  assert.ok(closeClamped, "the close point should have been extended out to exactly the walking-radius distance");
+
+  const farRaw = points.find((p) => Math.hypot(p.x - app.state.userLocation.point.x, p.y - app.state.userLocation.point.y) > worldRadius);
+  const farClamped = clampedPoints.find((p) => p.x === farRaw.x && p.y === farRaw.y);
+  assert.ok(farClamped, "the far point should be present in the clamped set completely unchanged");
+
+  const expected = app.maxScaleForHeadingUpPoints(clampedPoints, focus, focusRect);
+  const actual = app.maxNearbyHeadingUpScale(focus, focusRect);
+  assert.equal(actual, expected);
+
+  const radiusScale = app.maxScaleForHeadingUpPoints(app.walkingRadiusCirclePoints(), focus, focusRect);
+  assert.ok(actual < radiusScale, "the far, unclamped match needs a wider view than the walking radius alone");
+});
+
+test("nearby heading-up zoom for several directional matches near the walking radius is tighter than the full-circle fit (real device scenario, 2026-09-02)", () => {
+  // Reproduces the shape of a real device recording's telemetry: five real matches clustered
+  // within a ~40-degree arc, each ~380m from the user, against the default 417m (5-minute)
+  // walking radius. Capping against the full 360-degree radius circle (round 2's design)
+  // forced the view roughly 1.8x wider than these directional matches actually needed, which
+  // is what produced the "zooms out too far" report this replaces. See [[nearby-view-zoom]]
+  // project memory for the full history.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.overviewFilters = ["trees"];
+  const bearingsDeg = [0, 10, 20, 30, 40];
+  bearingsDeg.forEach((bearing, i) => {
+    const rad = (bearing * Math.PI) / 180;
+    const distance = 380; // metres, within the 373-394m range seen on-device
+    const dLat = (distance * Math.cos(rad)) / 111320;
+    const dLon = (distance * Math.sin(rad)) / 111320;
+    app.state.trees.push({ id: `arc-tree-${i}`, commonName: `Arc tree ${i}`, ...makePoint(app, dLat, dLon) });
+  });
+
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.nearbyNavigationFocusPoint();
+  const points = app.nearbyHeadingUpTargetPoints();
+  const clampedPoints = app.pointsExtendedToMinDistance(points, app.state.userLocation.point, app.walkingRadiusWorldUnits());
+  const directionalScale = app.maxScaleForHeadingUpPoints(clampedPoints, focus, focusRect);
+  const fullCircleScale = app.maxScaleForHeadingUpPoints(app.walkingRadiusCirclePoints(), focus, focusRect);
+  const actual = app.maxNearbyHeadingUpScale(focus, focusRect);
+
+  assert.equal(actual, directionalScale, "maxNearbyHeadingUpScale should use the directional clamped fit, not the full-circle fit");
+  assert.ok(
+    directionalScale > fullCircleScale * 1.2,
+    `directional matches clustered in one arc should zoom in meaningfully tighter than the full-circle fit (directional=${directionalScale}, fullCircle=${fullCircleScale})`
+  );
+});
+
+test("maxNearbyHeadingUpScale delegates to the shared heading-up scale helper, using walking-radius-clamped points", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.overviewFilters = ["trees"];
+  // Diagonal offsets (both lat and lon) rather than a pure north/south or east/west offset --
+  // an axis-aligned point can coincidentally land on the same bearing that constrains the old
+  // full-circle radius fit, masking a regression back to that design. See
+  // pointsExtendedToMinDistance's bearing-preserving contract.
   app.state.trees.push(
-    { id: "t1", commonName: "Tree 1", ...makePoint(app, 0.001, 0) },
+    { id: "t1", commonName: "Tree 1", ...makePoint(app, 0.001, 0.001) },
     { id: "t2", commonName: "Tree 2", ...makePoint(app, -0.0008, 0.0004) }
   );
   const focus = { x: 500, y: 400 };
@@ -1417,7 +1656,8 @@ test("maxNearbyHeadingUpScale delegates to the shared heading-up scale helper", 
 
   const points = app.nearbyHeadingUpTargetPoints();
   assert.ok(points.length >= 2, "fixture trees should produce at least two nearby target points");
-  const expected = app.maxScaleForHeadingUpPoints(points, focus, focusRect);
+  const clampedPoints = app.pointsExtendedToMinDistance(points, app.state.userLocation.point, app.walkingRadiusWorldUnits());
+  const expected = app.maxScaleForHeadingUpPoints(clampedPoints, focus, focusRect);
   const actual = app.maxNearbyHeadingUpScale(focus, focusRect);
 
   assert.equal(actual, expected);
@@ -2045,4 +2285,274 @@ test("nav.js locationGateButton handler disables button immediately on click for
     /locationGateButton\.addEventListener[\s\S]{0,100}locationGateButton\.disabled\s*=\s*true/,
     "locationGateButton click handler must disable the button immediately to give visual feedback"
   );
+});
+
+test("compass calibration trusts a heading once several readings agree within tolerance", () => {
+  resetData(app);
+  const base = Date.now();
+
+  app.registerCompassCalibrationSample(90, base);
+  assert.equal(app.state.compassHeading, null, "must not trust a single raw reading");
+
+  app.registerCompassCalibrationSample(91, base + 100);
+  app.registerCompassCalibrationSample(89, base + 200);
+  assert.equal(app.state.compassHeading, null, "must wait for enough samples before trusting");
+
+  app.registerCompassCalibrationSample(90, base + 300);
+
+  assert.equal(app.state.compassHeading, 90, "agreeing readings should be trusted as the heading");
+  assert.equal(app.state.compassHeadingTarget, 90);
+  assert.equal(app.state.compassCalibrationSamples.length, 0, "sample buffer should be cleared once trusted");
+  assert.equal(app.state.compassCalibrationPromptVisible, false);
+});
+
+test("compassCalibrationSpreadDegrees measures circular spread correctly across the 0/360 wraparound", () => {
+  resetData(app);
+  const base = Date.now();
+  app.registerCompassCalibrationSample(350, base);
+  app.registerCompassCalibrationSample(10, base + 50);
+  // 350 -> 10 is a 20 degree turn through north, not a 340 degree spread.
+  assert.ok(
+    app.compassCalibrationSpreadDegrees() <= 20 + 1e-6,
+    `wraparound spread should read as ~20 degrees, got ${app.compassCalibrationSpreadDegrees()}`
+  );
+});
+
+test("compass calibration keeps heading unset and shows the move-your-phone prompt when readings disagree past the grace delay", () => {
+  resetData(app);
+  const base = Date.now();
+  const headings = [10, 170, 340, 60, 200, 20, 150, 300, 40, 190, 30, 160, 320, 70, 210, 10, 180];
+
+  headings.forEach((heading, i) => {
+    app.registerCompassCalibrationSample(heading, base + i * 100);
+  });
+
+  assert.equal(app.state.compassHeading, null, "wildly disagreeing readings must never be trusted as the heading");
+  assert.equal(app.state.compassCalibrationPromptVisible, true, "prompt should appear once unstable past the grace delay");
+  assert.equal(app.els.compassCalibrationBanner.hidden, false, "banner element should be shown");
+});
+
+test("compass calibration force-completes after the safety-valve wait so heading-up is never blocked indefinitely", () => {
+  resetData(app);
+  const base = Date.now();
+  const headings = [10, 170, 340, 60, 200, 20, 150, 300, 40, 190, 30, 160, 320, 70, 210, 10, 180, 5, 355];
+
+  headings.forEach((heading, i) => {
+    // Spread events 350ms apart so the last one lands well past the 6000ms safety valve.
+    app.registerCompassCalibrationSample(heading, base + i * 350);
+  });
+
+  assert.ok(Number.isFinite(app.state.compassHeading), "calibration should force-complete rather than block forever");
+  assert.equal(app.state.compassHeading, headings[headings.length - 1]);
+  assert.equal(app.state.compassCalibrationPromptVisible, false, "prompt should be hidden once calibration completes");
+});
+
+test("dismissing the calibration prompt hides it and suppresses it for the rest of the current cycle", () => {
+  resetData(app);
+  const base = Date.now();
+  const headings = [10, 170, 340, 60, 200, 20, 150, 300, 40, 190, 30, 160, 320, 70, 210, 10];
+
+  headings.forEach((heading, i) => {
+    app.registerCompassCalibrationSample(heading, base + i * 100);
+  });
+  assert.equal(app.state.compassCalibrationPromptVisible, true, "precondition: prompt should be showing");
+
+  app.dismissCompassCalibrationPrompt();
+
+  assert.equal(app.state.compassCalibrationPromptVisible, false);
+  assert.equal(app.state.compassCalibrationPromptDismissed, true);
+  // hideCompassCalibrationPrompt uses the shared hideWithFade helper, which fades out
+  // over a real transition/timeout rather than hiding synchronously (see nav.js) -- the
+  // banner enters "fading-out" immediately, state.compassCalibrationPromptVisible is the
+  // synchronous signal that it's dismissed.
+  assert.equal(app.els.compassCalibrationBanner.classList.contains("fading-out"), true);
+
+  // Further disagreeing samples in the same cycle must not re-show a dismissed prompt.
+  app.registerCompassCalibrationSample(45, base + 1400);
+  assert.equal(app.state.compassCalibrationPromptVisible, false, "dismissed prompt must not reappear in the same cycle");
+});
+
+test("resetCompassCalibration clears a dismissed prompt so a new calibration cycle can show it again", () => {
+  resetData(app);
+  app.state.compassCalibrationPromptDismissed = true;
+  app.state.compassCalibrationSamples = [{ heading: 10, time: 0 }];
+  app.state.compassCalibrationStartedAt = 0;
+
+  app.resetCompassCalibration();
+
+  assert.equal(app.state.compassCalibrationPromptDismissed, false);
+  assert.equal(app.state.compassCalibrationSamples.length, 0);
+  assert.equal(app.state.compassCalibrationStartedAt, null);
+
+  const base = Date.now();
+  const headings = [10, 170, 340, 60, 200, 20, 150, 300, 40, 190, 30, 160, 320, 70, 210, 10];
+  headings.forEach((heading, i) => {
+    app.registerCompassCalibrationSample(heading, base + i * 100);
+  });
+  assert.equal(app.state.compassCalibrationPromptVisible, true, "prompt should be able to show again after a reset");
+});
+
+test("onDeviceOrientation routes through the calibration gate until a heading is trusted, then tracks live readings directly", () => {
+  resetData(app);
+  const now = Date.now();
+
+  app.onDeviceOrientation({ alpha: 270, beta: 30 }); // extractCompassHeading: 360 - 270 = 90
+  assert.equal(app.state.compassHeading, null, "a single raw reading must go through calibration, not straight to compassHeading");
+  assert.equal(app.state.compassCalibrationSamples.length, 1);
+
+  app.onDeviceOrientation({ alpha: 269, beta: 30 });
+  app.onDeviceOrientation({ alpha: 271, beta: 30 });
+  app.onDeviceOrientation({ alpha: 270, beta: 30 });
+
+  assert.ok(Number.isFinite(app.state.compassHeading), "agreeing readings should establish a trusted heading");
+
+  // Once trusted, further readings should update the live target directly (no more buffering).
+  app.onDeviceOrientation({ alpha: 260, beta: 30 }); // heading 100
+  assert.equal(app.state.compassHeadingTarget, 100);
+  assert.equal(app.state.compassCalibrationSamples.length, 0, "calibration buffer should stay empty once a heading is trusted");
+});
+
+test("alignHeadingUpNavigationViewport defers a zoom-in fit while the compass sensor is actively firing, unless forced", () => {
+  // Direct, synchronous test of the exact mechanism behind the "zoom only corrects after
+  // it rotates" bug: resolveHeadingUpTargetScale defers non-urgent zoom changes whenever
+  // state.compassLastEventAt is recent (headingUpCompassSensorActive()), which is meant to
+  // stop zoom fighting an in-progress rotation -- but during compass calibration, rotation
+  // never runs (headingUpActive() stays false), so there is nothing for it to fight, and
+  // the deferral just leaves the zoom stuck at whatever it was on load until either the
+  // sensor goes quiet for 350ms or the caller passes force:true.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) });
+  app.state.viewport = { scale: 10, tx: 500, ty: 440 };
+  app.state.compassLastEventAt = Date.now(); // sensor "actively firing", as it is throughout calibration
+
+  const deferredChanged = app.alignHeadingUpNavigationViewport();
+  assert.equal(deferredChanged, false, "without force, an actively-firing sensor should defer the zoom-in fit");
+  assert.equal(app.state.viewport.scale, 10, "zoom should stay at its pre-load scale while deferred");
+
+  const forcedChanged = app.alignHeadingUpNavigationViewport({ force: true });
+  assert.equal(forcedChanged, true, "force:true should bypass the deferral");
+  assert.ok(app.state.viewport.scale > 10, "forced fit should zoom in to the nearby target immediately");
+});
+
+test("maxNearbyHeadingUpScale's zoom-in ceiling is the walking radius, not a ratio against a driftable reference scale", () => {
+  // Fourth attempt at the cold-start "zoom level just doesn't seem right" bug -- see
+  // [[nearby-view-zoom]] project memory for the full history, including earlier attempts (a
+  // ratio against state.fitScale, then against state.baseFitScale, then a full walking-radius
+  // circle) that each turned out wrong in a new way -- the first two had no real relationship
+  // to a sensible zoom, and the full-circle version over-widened the view for directional
+  // matches. The ceiling is now derived by extending each real point closer than the walking
+  // radius straight out to that radius distance (preserving bearing) and fitting the result --
+  // still the user's own configured walking radius, still computed fresh each time, but no
+  // longer forcing every direction to show a full radius's worth of empty space.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "very-close-tree", commonName: "Very close tree", ...makePoint(app, 0.00001, 0.00001) });
+  app.state.viewport = { scale: 50000000, tx: 500, ty: 440 }; // frozen at an absurd scale, as seen in the real bug report
+  app.state.compassLastEventAt = null; // sensor quiet -- isolates this from the defer/force path tested elsewhere
+
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.nearbyNavigationFocusPoint();
+  const points = app.nearbyHeadingUpTargetPoints();
+  const clampedPoints = app.pointsExtendedToMinDistance(points, app.state.userLocation.point, app.walkingRadiusWorldUnits());
+  const ceiling = app.maxScaleForHeadingUpPoints(clampedPoints, focus, focusRect);
+
+  const changed = app.alignHeadingUpNavigationViewport();
+  assert.equal(changed, true, "a viewport frozen at an absurd scale must still self-correct");
+  // Exact match (with the standard zoom-buffer ratio applied), not just an upper bound --
+  // proves the fit tracked the walking-radius-clamped points rather than merely landing
+  // under some looser ceiling (e.g. the old full-circle radius fit, which this diagonal
+  // fixture deliberately sits above -- see the pointsExtendedToMinDistance bearing note).
+  const bufferedCeiling = ceiling * 0.96;
+  assert.ok(
+    Math.abs(app.state.viewport.scale - bufferedCeiling) < bufferedCeiling * 0.001,
+    `expected buffered scale ~${bufferedCeiling}, got ${app.state.viewport.scale}`
+  );
+});
+
+test("maxNearbyHeadingUpScale's walking-radius ceiling tracks the user's walking distance setting", () => {
+  // A larger configured walking radius should loosen the ceiling (allow tighter zoom on a
+  // close point before the radius itself becomes the binding constraint), and a smaller one
+  // should tighten it -- proving the ceiling is actually derived from state.walkingDistanceMinutes
+  // each time rather than some other fixed/cached value.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "very-close-tree", commonName: "Very close tree", ...makePoint(app, 0.00001, 0.00001) });
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.nearbyNavigationFocusPoint();
+
+  function clampedCeilingFor(minutes) {
+    app.state.walkingDistanceMinutes = minutes;
+    const points = app.nearbyHeadingUpTargetPoints();
+    const clampedPoints = app.pointsExtendedToMinDistance(points, app.state.userLocation.point, app.walkingRadiusWorldUnits());
+    return app.maxScaleForHeadingUpPoints(clampedPoints, focus, focusRect);
+  }
+
+  const shortRadiusCeiling = clampedCeilingFor(5);
+  const longRadiusCeiling = clampedCeilingFor(30);
+
+  assert.ok(
+    longRadiusCeiling < shortRadiusCeiling,
+    "a longer walking radius covers more ground, so its clamped-point fit scale should be smaller (more zoomed out) than a shorter radius's"
+  );
+
+  app.state.viewport = { scale: 50000000, tx: 500, ty: 440 };
+  app.state.compassLastEventAt = null;
+  app.alignHeadingUpNavigationViewport();
+  const bufferedLongCeiling = longRadiusCeiling * 0.96;
+  assert.ok(
+    Math.abs(app.state.viewport.scale - bufferedLongCeiling) < bufferedLongCeiling * 0.001,
+    `with the 30-minute radius active, expected buffered scale ~${bufferedLongCeiling}, got ${app.state.viewport.scale}`
+  );
+});
+
+test("startCalibrationViewportSync forces its zoom fit, so calibration's view is never deferred by the actively-firing-sensor check", () => {
+  // Source-level regression guard for the specific call site: registerCompassCalibrationSample
+  // sets state.compassLastEventAt via onDeviceOrientation on every raw reading, which means
+  // headingUpCompassSensorActive() reads true throughout the whole calibration window --
+  // if startCalibrationViewportSync's call to alignHeadingUpNavigationViewport ever loses
+  // its force:true, the zoom-fit-deferred-until-quiet bug covered by the test above comes
+  // straight back for calibration specifically, even though that direct test still passes.
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(
+    html,
+    // Generous window: this function carries a lot of explanatory comment (matching this
+    // file's style), so the force:true call sits ~2000 chars past the function's own start.
+    /function startCalibrationViewportSync[\s\S]{0,3000}alignHeadingUpNavigationViewport\(\{\s*force:\s*true\s*\}\)/,
+    "startCalibrationViewportSync must call alignHeadingUpNavigationViewport with force: true"
+  );
+});
+
+test("startCalibrationViewportSync/stopCalibrationViewportSync manage a single scheduled frame", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+
+  assert.equal(app.state.calibrationViewportSyncFrame, null, "precondition: no frame scheduled yet");
+
+  app.startCalibrationViewportSync();
+  assert.ok(app.state.calibrationViewportSyncFrame != null, "starting should schedule a frame");
+
+  const scheduledFrame = app.state.calibrationViewportSyncFrame;
+  app.startCalibrationViewportSync();
+  assert.equal(app.state.calibrationViewportSyncFrame, scheduledFrame, "calling start again while already scheduled must not schedule a second frame");
+
+  app.stopCalibrationViewportSync();
+  assert.equal(app.state.calibrationViewportSyncFrame, null, "stopping should clear the scheduled frame");
+
+  app.stopCalibrationViewportSync(); // must not throw when nothing is scheduled
+});
+
+test("registering a calibration sample starts the viewport sync loop", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  assert.equal(app.state.calibrationViewportSyncFrame, null, "precondition: no frame scheduled yet");
+
+  app.registerCompassCalibrationSample(90, Date.now());
+
+  assert.ok(
+    app.state.calibrationViewportSyncFrame != null,
+    "a single raw sample (heading not yet trusted) should already have started the zoom-sync loop"
+  );
+
+  app.stopCalibrationViewportSync();
 });
