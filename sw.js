@@ -1,5 +1,14 @@
 
-const CACHE_NAME = "forest-finds-v273";
+const CACHE_NAME = "forest-finds-v276";
+
+// self.__DEV__ is injected into the response by the local dev server (see
+// injectDevFlag() in server.js) — the file on disk here never sets it, so a
+// production/Netlify deploy (which serves this file untouched) always gets
+// IS_DEV === false. This lets local testing bypass the cache-first strategy
+// below without needing a CACHE_NAME bump, which only ever happens in CI
+// (.github/workflows/sw-bump.yml and sw-release.yml) and so never fires
+// while iterating locally before a commit/push.
+const IS_DEV = self.__DEV__ === true;
 
 // Critical assets — install blocks until all succeed
 const APP_SHELL = [
@@ -224,6 +233,22 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() => caches.match("./index.html"))
+    );
+    return;
+  }
+
+  if (IS_DEV) {
+    // Always prefer the network locally so edits to cached files (JS, CSS, data) show up
+    // on the next refresh instead of the stale cached copy. Cache is kept as an offline
+    // fallback only; it is not consulted before the network the way it is in production.
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }

@@ -328,6 +328,34 @@ button.settings-toggle.active {
   font-weight: 700;
 }
 
+.settings-force-refresh {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.settings-force-refresh-btn {
+  justify-self: start;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(47, 111, 78, 0.25);
+  background: #fff;
+  color: #2f6f4e;
+  font-size: 0.88rem;
+  font-weight: 750;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.settings-force-refresh-btn:active {
+  transform: scale(0.97);
+}
+
+.settings-force-refresh-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .report-form {
   display: grid;
   gap: 10px;

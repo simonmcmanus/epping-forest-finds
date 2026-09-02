@@ -40,6 +40,57 @@ function applySwUpdate() {
   }
 }
 
+// Keeps the Settings "Force refresh" button (and its offline note) in sync with
+// connectivity, both on first render and whenever the browser's online/offline
+// events fire while Settings happens to be open.
+function updateForceRefreshOnlineState() {
+  const btn = document.getElementById("forceRefreshButton");
+  if (!btn) return; // Settings screen isn't currently open
+  const note = document.getElementById("forceRefreshOfflineNote");
+  const online = navigator.onLine;
+  btn.disabled = !online;
+  if (note) note.hidden = online;
+}
+
+// Manual escape hatch for stale PWA state: the normal update flow (setupPwa below)
+// relies on the browser noticing sw.js changed and silently activating a new worker
+// in the background, which the open tab's own "App version" display only reflects
+// after a full reload — sometimes two, since the reload that triggers the update
+// check can itself still be served by the outgoing worker. Unregistering every
+// registration and clearing every forest-finds-* cache before reloading sidesteps
+// that timing entirely and guarantees the reload after this shows the true latest
+// version. Requires connectivity, since it briefly leaves the app with no offline
+// fallback until the new install completes.
+async function forceRefreshServiceWorker() {
+  if (!navigator.onLine) {
+    updateForceRefreshOnlineState();
+    return;
+  }
+
+  const btn = document.getElementById("forceRefreshButton");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Refreshing…";
+  }
+
+  try {
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    }
+    if ("caches" in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(
+        cacheNames.filter((name) => name.startsWith("forest-finds-")).map((name) => caches.delete(name))
+      );
+    }
+  } catch (error) {
+    console.error(error);
+  } finally {
+    location.reload();
+  }
+}
+
 function setupPwa() {
   if ("serviceWorker" in navigator) {
     let _firstChange = !navigator.serviceWorker.controller;
@@ -186,10 +237,8 @@ function clearReportKeyboardInset() {
 }
 
 function setupResizeHandler() {
-  updateMapControlVisibility();
   updateFilterUi();
   window.addEventListener("resize", () => {
-    updateMapControlVisibility();
     updateSubfilterScrollHints();
     resizeCanvas();
     if (state.bounds) {
@@ -322,7 +371,7 @@ function setupFilterPanelHandlers() {
         const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
         const nearestTrees = nearbyTreesWithinDistance(latitude, longitude, maxMetres);
         state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+        ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
         requestDraw();
       }
     }
@@ -393,7 +442,7 @@ function setupSearchAndNavHandlers() {
     if (radiusToggle) {
       state.showAllOutsideRadius = !state.showAllOutsideRadius;
       selectOverview();
-      ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+      ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
       requestDraw();
       return;
     }
@@ -420,6 +469,20 @@ function setupMapCanvasHandlers() {
 
   els.canvas.addEventListener("pointermove", (event) => {
     if (!state.dragging) return;
+    // Compute the drag distance up front so state.moved (which pointerup uses to tell a
+    // drag from a tap) and the cluster-detail-clearing rule ("drags the map" per spec)
+    // apply the same way regardless of which branch below handles the actual viewport
+    // change. Previously these two early-return branches skipped both, so a drag gesture
+    // performed while heading-up or auto-repositioning was active still looked like a
+    // stationary tap on pointerup and fired handleMapClick -- selecting whatever was under
+    // the release point (or resetting to Nearby) instead of just panning/re-fitting.
+    const dx = event.clientX - state.dragStart.x;
+    const dy = event.clientY - state.dragStart.y;
+    if (Math.abs(dx) + Math.abs(dy) > 4) {
+      state.moved = true;
+      state.clusterZoomed = false;
+      state.clusterExpanded = null;
+    }
     if (typeof headingUpActive === "function" && headingUpActive()) {
       alignHeadingUpNavigationViewport();
       requestDraw();
@@ -429,9 +492,6 @@ function setupMapCanvasHandlers() {
       ensureUserAndSelectionVisible({ animate: true, durationMs: 300 });
       return;
     }
-    const dx = event.clientX - state.dragStart.x;
-    const dy = event.clientY - state.dragStart.y;
-    if (Math.abs(dx) + Math.abs(dy) > 4) { state.moved = true; state.clusterZoomed = false; state.clusterExpanded = null; }
     state.viewport.tx = state.dragStart.tx + dx;
     state.viewport.ty = state.dragStart.ty + dy;
     requestDraw();
@@ -465,7 +525,7 @@ function setInspectorMinimized(minimized) {
   if (wasMinimized && !minimized && state.userLocation && selectedCompassTarget()) {
     centerViewportOnPointsKeepScale(
       [state.userLocation.point, selectedCompassTarget().point],
-      { animate: true, durationMs: 480, focusVisibleArea: true, assumeInspectorOpen: true }
+      { animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, focusVisibleArea: true, assumeInspectorOpen: true }
     );
   } else if (!wasMinimized && minimized) {
     requestDraw();
@@ -583,9 +643,9 @@ function goToInitialView(updateHash = true) {
   setInspectorMinimized(false);
   const refitOverview = () => {
     if (state.userLocation) {
-      ensureOverviewTargetsVisible({ animate: true, durationMs: 500, force: true });
+      ensureOverviewTargetsVisible({ animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, force: true });
     } else {
-      fitToBounds(false, { animate: true, durationMs: 500 });
+      fitToBounds(false, { animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
     }
   };
   if (wasMinimized) {
@@ -603,15 +663,6 @@ function goToInitialView(updateHash = true) {
   updateCompassOverlay();
   if (updateHash) setHashFromSelection();
   requestDraw();
-}
-
-function pinchZoomLikelyAvailable() {
-  return (navigator.maxTouchPoints || 0) >= 2 || window.matchMedia("(pointer: coarse)").matches;
-}
-
-function updateMapControlVisibility() {
-  if (!els.toolbar) return;
-  els.toolbar.style.display = pinchZoomLikelyAvailable() ? "none" : "flex";
 }
 
 function updateLocateButtonVisibility() {

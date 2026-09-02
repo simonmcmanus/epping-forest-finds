@@ -394,7 +394,6 @@ Behavior:
 ### Fit to Bounds
 
 - On load: fit all data in view
-- Home button: restore full data framing
 
 ### Selection Camera
 
@@ -434,7 +433,7 @@ Behavior:
 
 - Browser/page pinch zoom disabled
 - Ctrl+wheel zoom disabled at document level
-- Map zoom via: map interactions + zoom buttons only
+- Map zoom via: map interactions only (wheel/drag) — there is no on-screen zoom control in the main map UI
 - Touch double-tap zoom prevented
 
 ---

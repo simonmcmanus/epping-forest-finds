@@ -99,6 +99,23 @@ async function handleCowProxy(req, res, url) {
   }
 }
 
+// Flags the service worker as running under this local dev server, so sw.js can switch
+// to a network-first fetch strategy instead of its production cache-first one. Local edits
+// to cached files (JS, CSS, data) then show up on refresh without needing a CACHE_NAME
+// bump — that bump only ever happens in CI (see .github/workflows/sw-bump.yml and
+// sw-release.yml), so it never fires while iterating locally before a commit/push. A
+// production deploy (Netlify) serves sw.js as a static file, untouched by this function.
+//
+// Also prefixes CACHE_NAME with "dev-" (mirroring the branch prefix sw-bump.yml already
+// applies for preview builds) so the About screen's app-version display — and any bug
+// report submitted while testing locally, see appVersion in index.html — reads e.g.
+// "dev-v274" instead of a bare version number that never changes between local edits.
+function injectDevFlag(source) {
+  return source
+    .replace(/^const CACHE_NAME/m, "self.__DEV__ = true;\nconst CACHE_NAME")
+    .replace(/"forest-finds-/, '"forest-finds-dev-');
+}
+
 function handleStatic(req, res, url) {
   let requested = decodeURIComponent(url.pathname);
   if (requested === "/") requested = "/index.html";
@@ -106,6 +123,17 @@ function handleStatic(req, res, url) {
   const resolved = safeResolve(path.join(ROOT, requested));
   if (!resolved) {
     send(res, 403, "Forbidden");
+    return;
+  }
+
+  if (requested === "/sw.js") {
+    fs.readFile(resolved, "utf8", (err, source) => {
+      if (err) {
+        send(res, 404, "Not found");
+        return;
+      }
+      send(res, 200, injectDevFlag(source), MIME[".js"]);
+    });
     return;
   }
 
@@ -220,11 +248,15 @@ const server = http.createServer((req, res) => {
   handleStatic(req, res, url);
 });
 
-server.listen(PORT, () => {
-  console.log(`Forest Finds server running at http://localhost:${PORT}`);
-  if (ADMIN_PASSWORD) {
-    console.log(`Admin dashboard: http://localhost:${PORT}/admin  (password set ✓)`);
-  } else {
-    console.log(`Admin dashboard: disabled — set ADMIN_PASSWORD in .env to enable`);
-  }
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`Forest Finds server running at http://localhost:${PORT}`);
+    if (ADMIN_PASSWORD) {
+      console.log(`Admin dashboard: http://localhost:${PORT}/admin  (password set ✓)`);
+    } else {
+      console.log(`Admin dashboard: disabled — set ADMIN_PASSWORD in .env to enable`);
+    }
+  });
+}
+
+module.exports = { _private: { injectDevFlag } };

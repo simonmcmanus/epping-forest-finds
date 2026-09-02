@@ -179,7 +179,6 @@ canvas.dragging {
   cursor: grabbing;
 }
 
-.toolbar,
 .legend,
 .inspector {
   position: absolute;
@@ -188,13 +187,4 @@ canvas.dragging {
   border: 1px solid rgba(36, 56, 47, 0.15);
   box-shadow: var(--shadow);
   backdrop-filter: blur(12px);
-}
-
-.toolbar {
-  left: 14px;
-  top: 14px;
-  display: flex;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 8px;
 }

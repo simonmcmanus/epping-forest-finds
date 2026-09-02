@@ -206,7 +206,9 @@
     const REPORT_REQUEST_ID_KEY = "forest-finds-report-request-id-v1";
     const FILTER_STATE_KEY = "forest-finds-filter-state-v1";
     const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
-    const DEFAULT_FILTERS = ["trees", "pubs", "bus", "underground", "national_rail"];
+    // Matches onboarding.js's own default selection and spec.md's "Default filters" section:
+    // only Trees and Cows are pre-selected before onboarding ever runs.
+    const DEFAULT_FILTERS = ["trees", "cows"];
     const COW_REFRESH_MS = 5 * 60 * 1000;
     const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
     const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -215,6 +217,20 @@
       { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
     ];
     const EARTH_RADIUS_METRES = 6371008.8;
+
+    // Named camera-animation durations. Each replaces an exact pre-existing literal that
+    // was independently repeated across multiple call sites for the same transition, so
+    // this changes nothing about how any of them feel -- it just gives the recurring
+    // values one name instead of several copies. One-off durations tuned for a single
+    // specific transition are left as plain literals rather than forced into single-use
+    // names.
+    const OVERVIEW_REFIT_ANIMATION_MS = 420; // recompute the overview/secondary-screen camera fit after a UI state change (filter change, opening Filter/Settings/Report, radius toggle, a late location fix)
+    const OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS = 520; // ensureOverviewTargetsVisible's (and centerOverviewOnUserLocation's) own default when a caller doesn't specify one
+    const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up alignment and selection-commit transitions (goToInitialView, zoomToSelection)
+    const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigationViewport's duration
+    const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
+    const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for animateViewportTo's duration
+    const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user, or the no-location zoom pulse)
     const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
     const TILT_BETA_THRESHOLD = 12;    // deg above flat before perspective kicks in
     const TILT_BETA_MAX = 85;          // deg where max perspective angle is reached
@@ -231,7 +247,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v273";
+    const APP_VERSION = "v274"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -329,7 +345,6 @@
         return [];
       })(),
       filterScreenOpen: false,
-      initialUserRevealDone: false,
       distanceWarningShown: false,
       nearestItemsCount: 10,
       walkingDistanceMinutes: 5,
@@ -395,7 +410,6 @@
       canvas: document.getElementById("mapCanvas"),
       overlayCanvas: document.getElementById("overlayCanvas"),
       mapStage: document.querySelector(".map-stage"),
-      toolbar: document.querySelector(".toolbar"),
       compassArrow: document.getElementById("compassArrow"),
       filterToggle: document.getElementById("filterToggle"),
       filterCount: document.getElementById("filterCount"),
@@ -553,13 +567,13 @@
             // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
             // to a wider viewport if a GPS update arrived during the 320 ms wait.
             if (state.selected) {
-              ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: 700 });
+              ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
             } else if (hasNearbyItems) {
-              ensureOverviewTargetsVisible({ animate: true, durationMs: 700 });
+              ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
             } else {
               const focusRect2 = bestVisibleCanvasRect({ assumeInspectorOpen: true });
               const targetScale2 = maxScaleForRadiusVisible(focusRect2);
-              centerOverviewOnUserLocation({ animate: true, durationMs: 700, scale: targetScale2, focusVisibleArea: true });
+              centerOverviewOnUserLocation({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS, scale: targetScale2, focusVisibleArea: true });
             }
             triggerInspectorEntry();
             hideWithFade(els.loadingOverlay);
@@ -639,7 +653,7 @@
       el.addEventListener("animationend", () => el.classList.remove("entering"), { once: true });
     }
 
-    function triggerMapRevealZoom(durationMs = 700) {
+    function triggerMapRevealZoom(durationMs = FIRST_LOAD_REVEAL_ANIMATION_MS) {
       const target = { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
       const f = 0.85;
       state.viewport.scale = target.scale * f;
@@ -682,7 +696,7 @@
             setInspectorMinimized(false);
             ensureOverviewTargetsVisible({ animate: true, durationMs: 1000 });
           } else {
-            ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+            ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
             keepOverviewCenteredOnUser(previousPoint);
           }
           if (!initial) {
@@ -896,15 +910,6 @@
       requestDraw();
     }
 
-    function fitToBoundsIncluding(extraPoints, announce = true, options = {}) {
-      if (!state.bounds) return;
-      const included = extraPoints.filter((point) => pointInsideBounds(point, state.bounds));
-      const bounds = included.reduce((next, point) => expandBounds(next, point), { ...state.bounds });
-      applyBoundsToViewport(bounds, options);
-      if (announce) setStatus("Showing your location and all registered trees.");
-      requestDraw();
-    }
-
     function fitToPoints(points, announce = true, options = {}) {
       if (!points.length) return fitToBounds(announce);
       const bounds = points.reduce((next, point) => expandBounds(next, point), {
@@ -939,7 +944,7 @@
       const targetTy = focusRect.y + (viewportHeight - rangeY * targetScale) / 2 - bounds.minY * targetScale;
 
       if (options.animate) {
-        animateViewportTo({ scale: targetScale, tx: targetTx, ty: targetTy }, options.durationMs || 480);
+        animateViewportTo({ scale: targetScale, tx: targetTx, ty: targetTy }, options.durationMs || DEFAULT_VIEWPORT_ANIMATION_MS);
         return;
       }
 
@@ -961,7 +966,7 @@
     }
 
     function animateViewportTo(targetViewport, durationMs) {
-      const safeDuration = Math.max(180, Number(durationMs) || 480);
+      const safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
       stopViewportAnimation();
 
       const from = {
@@ -1097,18 +1102,22 @@
       return result;
     }
 
-    function centerOn(worldPoint, targetScale) {
-      stopViewportAnimation();
-      const maxScale = state.fitScale * 180;
-      const scale = clamp(targetScale, state.fitScale * 0.7, maxScale);
-      state.viewport.scale = scale;
-      state.viewport.tx = els.canvas.width / 2 - worldPoint.x * scale;
-      state.viewport.ty = els.canvas.height / 2 - worldPoint.y * scale;
-    }
-
     function zoomAt(factor, screenPoint) {
       if (!state.bounds) return;
       stopViewportAnimation();
+      // Heading-up mode (nearby or selected-navigation) locks pan/zoom to the fitted
+      // target -- see alignHeadingUpNavigationViewport() and the pointermove handler in
+      // js/nav.js, which treats drag the same way. Applying the raw pointer-anchored
+      // zoom below first (as this used to) fought that fit on every wheel tick: pan
+      // always snapped back to the user anchor while the scale was only sometimes
+      // overridden, so scrolling didn't reliably zoom toward the cursor or settle
+      // anywhere predictable. Route wheel input through the same re-fit as everything
+      // else instead, with force:true since this is an explicit user gesture.
+      if (navigationAnchorActive()) {
+        alignHeadingUpNavigationViewport({ force: true });
+        requestDraw();
+        return;
+      }
       if (shouldAutoRepositionSelection()) {
         ensureUserAndSelectionVisible({ animate: true, durationMs: 320 });
         return;
@@ -1117,7 +1126,6 @@
       state.viewport.scale = clamp(state.viewport.scale * factor, state.fitScale * 0.65, state.fitScale * 220);
       state.viewport.tx = screenPoint.x - before.x * state.viewport.scale;
       state.viewport.ty = screenPoint.y - before.y * state.viewport.scale;
-      if (headingUpActive()) alignHeadingUpNavigationViewport();
       requestDraw();
     }
 
@@ -1334,9 +1342,9 @@
       updateFilterUi();
       if (isOverviewScreenActive() && !state.filterScreenOpen) {
         selectOverview();
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+        ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
       } else if (state.filterScreenOpen) {
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 420, force: true });
+        ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
       }
       requestDraw();
     }
@@ -1436,8 +1444,6 @@
       }
     }
 
-    function updateInspectorToolsLayout() {}
-
     function filterMeta(filterKey) {
       return FILTER_SUBFILTERS_BY_KEY.get(filterKey) || null;
     }
@@ -1464,7 +1470,7 @@
       syncHashFromSelection();
       requestDraw();
       if (state.userLocation) {
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+        ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
       }
     }
 
@@ -1482,12 +1488,13 @@
       updateCompassOverlay();
       requestDraw();
       if (state.userLocation) {
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+        ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
       }
     }
 
     function settingsFormHtml() {
       const minutes = state.walkingDistanceMinutes;
+      const online = navigator.onLine;
       const options = [1, 2, 5, 10, 15, 20, 30]
         .map((m) => `<option value="${m}"${m === minutes ? " selected" : ""}>${m} min</option>`)
         .join("");
@@ -1503,6 +1510,11 @@
           <h3 class="settings-section-title">About</h3>
           <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
           <p class="settings-description">Built by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
+          <div class="settings-force-refresh">
+            <button id="forceRefreshButton" class="settings-force-refresh-btn" type="button"${online ? "" : " disabled"}>Force refresh</button>
+            <p class="settings-description">Not seeing the latest version? This clears the cached app and reloads.</p>
+            <p id="forceRefreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Force refresh needs an internet connection — you\'re offline right now.</p>
+          </div>
         </section>
       </div>`;
     }
@@ -1530,6 +1542,16 @@
           requestDraw();
         });
       }
+
+      const forceRefreshButton = document.getElementById("forceRefreshButton");
+      if (forceRefreshButton) forceRefreshButton.addEventListener("click", forceRefreshServiceWorker);
+      // Settings HTML is rebuilt fresh every time the screen opens (see openSettings above),
+      // so remove before re-adding — otherwise every open leaks another window-level listener.
+      window.removeEventListener("online", updateForceRefreshOnlineState);
+      window.removeEventListener("offline", updateForceRefreshOnlineState);
+      window.addEventListener("online", updateForceRefreshOnlineState);
+      window.addEventListener("offline", updateForceRefreshOnlineState);
+      updateForceRefreshOnlineState();
     }
 
     function openReportModal() {
@@ -1554,7 +1576,7 @@
       updateCompassOverlay();
       requestDraw();
       if (state.userLocation) {
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 420 });
+        ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
       }
     }
 
@@ -2642,7 +2664,7 @@
           }
           updateOverviewDirectionArrows();
           updateSelectedDetailFields();
-          if (headingUpActive()) {
+          if (navigationAnchorActive()) {
             const vpChanged = alignHeadingUpNavigationViewport();
             keepOverviewCenteredOnUser(previousPoint);
             updateCompassOverlay();
@@ -2711,6 +2733,32 @@
 
     function headingUpActive() {
       return selectedNavigationHeadingUpActive() || nearbyHeadingUpActive();
+    }
+
+    // Heading-agnostic counterpart to nearbyHeadingUpActive above: true as soon as we have a
+    // GPS fix and nothing is selected, even before any compass heading has arrived. Used to
+    // decide whether the map should be *anchored/fitted* on the user (scale + pan) in the
+    // nearby-overview case -- rotation to heading is a separate concern, still gated on an
+    // actual compass reading via headingUpActive() itself, and eases in on its own once one
+    // arrives (see the renderedNavigationHeading entry animation in prepareCanvasForDraw()).
+    // Letting the anchored fit establish its final scale/position as soon as location is
+    // known -- north-up, since currentNavigationMapRotationDegrees() stays 0 without a
+    // heading -- means there is nothing left to snap when the compass heading shows up
+    // moments (or, on a stationary phone that never gets a heading, indefinitely) later.
+    //
+    // Deliberately scoped to the nearby case only: the selected-navigation case keeps
+    // requiring selectedNavigationHeadingUpActive() (a real heading), because it already has
+    // its own consistent heading-gated fit used both at boot (ensureUserAndSelectionVisible)
+    // and on later GPS updates -- unlike nearby overview, which used to switch fit algorithms
+    // between the two. Widening this to the selected case would introduce that same
+    // inconsistency in reverse: boot would use one fit and a later GPS update would use
+    // another, before a heading ever arrived.
+    function nearbyNavigationAnchorActive() {
+      return Boolean(state.userLocation && !selectedCompassTarget());
+    }
+
+    function navigationAnchorActive() {
+      return selectedNavigationHeadingUpActive() || nearbyNavigationAnchorActive();
     }
 
     // 3D perspective (tiltActive()) is available on every screen — nearby overview,
@@ -2868,11 +2916,13 @@
       return nextScale;
     }
 
-    function maxHeadingUpNavigationScale(focus, focusRect) {
-      if (!state.userLocation) return state.viewport.scale;
-      const points = selectedNavigationTargetPoints();
-      if (!points.length) return state.viewport.scale;
-
+    // Shared bounding-box scale-fit math for both heading-up modes (selected navigation
+    // and nearby survey): the maximum scale at which every point in `points` stays inside
+    // the rotated focus rect, honouring the tilt behind-heading exclusion and the
+    // HEADING_UP_MAX_SCALE_RATIO ceiling. Returns null when no point constrains the fit
+    // (empty input, or every point sits exactly at the focus) so callers can fall back to
+    // the current viewport scale exactly as each did before this was factored out.
+    function maxScaleForHeadingUpPoints(points, focus, focusRect) {
       const dpr = pixelRatio();
       const margin = Math.min(focusRect.width, focusRect.height) * 0.1 + 12 * dpr;
       const left = focusRect.x + margin;
@@ -2886,6 +2936,7 @@
       let maxScale = Number.POSITIVE_INFINITY;
 
       for (const point of points) {
+        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
         const dx = point.x - state.userLocation.point.x;
         const dy = point.y - state.userLocation.point.y;
         const rotatedX = dx * cos - dy * sin;
@@ -2909,52 +2960,36 @@
         if (rotatedY < 0) maxScale = Math.min(maxScale, (top - focus.y) / rotatedY);
       }
 
-      if (!Number.isFinite(maxScale) || maxScale <= 0) return state.viewport.scale;
+      if (!Number.isFinite(maxScale) || maxScale <= 0) return null;
       if (state.fitScale > 0) maxScale = Math.min(maxScale, state.fitScale * HEADING_UP_MAX_SCALE_RATIO);
       return maxScale;
+    }
+
+    function maxHeadingUpNavigationScale(focus, focusRect) {
+      if (!state.userLocation) return state.viewport.scale;
+      const points = selectedNavigationTargetPoints();
+      if (!points.length) return state.viewport.scale;
+      const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect);
+      return maxScale == null ? state.viewport.scale : maxScale;
     }
 
     function maxNearbyHeadingUpScale(focus, focusRect) {
       if (!state.userLocation) return state.viewport.scale;
       const points = nearbyHeadingUpTargetPoints();
-      if (points.length < 2) return state.viewport.scale;
-
-      const dpr = pixelRatio();
-      const margin = Math.min(focusRect.width, focusRect.height) * 0.1 + 12 * dpr;
-      const left = focusRect.x + margin;
-      const right = focusRect.x + focusRect.width - margin;
-      const top = focusRect.y + margin;
-      const bottom = focusRect.y + focusRect.height - margin;
-      const rotation = currentNavigationMapRotationDegrees();
-      const radians = toRadians(rotation);
-      const cos = Math.cos(radians);
-      const sin = Math.sin(radians);
-      let maxScale = Number.POSITIVE_INFINITY;
-
-      for (const point of points) {
-        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
-        const dx = point.x - state.userLocation.point.x;
-        const dy = point.y - state.userLocation.point.y;
-        const rotatedX = dx * cos - dy * sin;
-        const rotatedY = dx * sin + dy * cos;
-
-        // See maxHeadingUpNavigationScale: behind-the-user points only skip the fit while
-        // tilt is active (the only time they're actually hidden from the canvas); otherwise
-        // they still constrain the bottom edge so they don't end up off-screen.
-        if (rotatedY > 0) {
-          if (tiltActive()) continue;
-          maxScale = Math.min(maxScale, (bottom - focus.y) / rotatedY);
-          continue;
-        }
-
-        if (rotatedX > 0) maxScale = Math.min(maxScale, (right - focus.x) / rotatedX);
-        if (rotatedX < 0) maxScale = Math.min(maxScale, (left - focus.x) / rotatedX);
-        if (rotatedY < 0) maxScale = Math.min(maxScale, (top - focus.y) / rotatedY);
+      if (points.length < 2) {
+        // Nothing highlighted within the walking radius to fit -- zoom to fit the radius
+        // itself instead of leaving the previous scale untouched. Previously this returned
+        // state.viewport.scale unchanged, so the nearby view could get stuck at whatever
+        // (possibly far more zoomed out) scale was active before -- e.g. left over from
+        // Filters previewing an out-of-radius result -- even though there was nothing left
+        // that needed that wider view.
+        const radiusPoints = walkingRadiusCirclePoints();
+        if (!radiusPoints.length) return state.viewport.scale;
+        const maxScale = maxScaleForHeadingUpPoints(radiusPoints, focus, focusRect);
+        return maxScale == null ? state.viewport.scale : maxScale;
       }
-
-      if (!Number.isFinite(maxScale) || maxScale <= 0) return state.viewport.scale;
-      if (state.fitScale > 0) maxScale = Math.min(maxScale, state.fitScale * HEADING_UP_MAX_SCALE_RATIO);
-      return maxScale;
+      const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect);
+      return maxScale == null ? state.viewport.scale : maxScale;
     }
 
     function alignHeadingUpNavigationViewport(options = {}) {
@@ -2965,7 +3000,7 @@
       // startCompassSmoothing) before mapPromise resolves, so this must wait for real
       // data or the initial heading-up fit zooms in far tighter than intended.
       if (!state.dataLoaded) return false;
-      if (!headingUpActive()) return false;
+      if (!navigationAnchorActive()) return false;
       if (selectionCameraTransitionActive()) return false;
       if (state.clusterZoomed) return false;
       clearHeadingUpCanvasTransform();
@@ -2991,7 +3026,7 @@
       };
 
       if (options.animate) {
-        animateViewportTo(targetViewport, options.durationMs || 500);
+        animateViewportTo(targetViewport, options.durationMs || HEADING_UP_NAV_ANIMATION_MS);
       } else {
         state.viewport.scale = targetScale;
         state.viewport.tx = targetViewport.tx;
@@ -3012,11 +3047,11 @@
       }
     }
 
-    function animateToHeadingUpNavigationViewport(durationMs = 500) {
+    function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMATION_MS) {
       if (!selectedNavigationHeadingUpActive()) return;
       clearHeadingUpCanvasTransform();
       state.selectionViewportTransitionPending = false;
-      const safeDuration = Math.max(200, Number(durationMs) || 500);
+      const safeDuration = Math.max(MIN_HEADING_UP_ANIMATION_MS, Number(durationMs) || HEADING_UP_NAV_ANIMATION_MS);
       if (state.renderedNavigationHeading == null) {
         // Entering heading-up for the first time: animate renderedNavigationHeading
         // from north-up (0) toward the current compass heading, baked into each
@@ -3180,46 +3215,49 @@
       });
     }
 
-    function revealUserLocationSmooth() {
-      if (!state.userLocation || !isOverviewScreenActive()) return;
-      if (state.initialUserRevealDone) return;
-
-      const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-      const focusCenter = {
-        x: focusRect.x + focusRect.width / 2,
-        y: focusRect.y + focusRect.height / 2,
-      };
-
-      const subtleScale = state.viewport.scale * 1.08;
-      const minimumScale = Math.max(0.000001, state.fitScale * 0.9);
-      const maximumScale = Math.max(minimumScale, state.fitScale * 2.2);
-      const targetScale = clamp(subtleScale, minimumScale, maximumScale);
-
-      animateViewportTo(
-        {
-          scale: targetScale,
-          tx: focusCenter.x - state.userLocation.point.x * targetScale,
-          ty: focusCenter.y - state.userLocation.point.y * targetScale,
-        },
-        560
-      );
-
-      state.initialUserRevealDone = true;
-    }
-
-    function maxScaleForRadiusVisible(focusRect) {
-      if (!state.userLocation) return Number.POSITIVE_INFINITY;
+    // The walking radius in world/projected units (same units as state.viewport.scale
+    // multiplies against). Shared by maxScaleForRadiusVisible (the centred, non-heading-up
+    // fit) and walkingRadiusCirclePoints (the heading-up fit) so both agree on how big the
+    // radius actually is.
+    function walkingRadiusWorldUnits() {
+      if (!state.userLocation) return 0;
       const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
       const edgeWorld = projectLonLat(
         state.userLocation.longitude + (radiusMetres / (111320 * Math.cos(state.userLocation.latitude * Math.PI / 180))),
         state.userLocation.latitude
       );
-      const worldRadius = Math.abs(edgeWorld.x - state.userLocation.point.x);
+      return Math.abs(edgeWorld.x - state.userLocation.point.x);
+    }
+
+    function maxScaleForRadiusVisible(focusRect) {
+      if (!state.userLocation) return Number.POSITIVE_INFINITY;
+      const worldRadius = walkingRadiusWorldUnits();
       if (worldRadius <= 0) return Number.POSITIVE_INFINITY;
       const padding = 24 * pixelRatio();
       const availableHalf = Math.min(focusRect.width / 2, focusRect.height / 2) - padding;
       if (availableHalf <= 0) return Number.POSITIVE_INFINITY;
       return availableHalf / worldRadius;
+    }
+
+    // A ring of points approximating the walking-radius circle around the user, in world
+    // coordinates. Feeding these through the same maxScaleForHeadingUpPoints() bounding-box
+    // math used for real nearby targets (see maxNearbyHeadingUpScale) keeps the radius fit
+    // consistent with map rotation, the off-centre heading-up anchor, and the tilt
+    // behind-heading exclusion, instead of duplicating that geometry with a separate formula.
+    function walkingRadiusCirclePoints(count = 16) {
+      if (!state.userLocation) return [];
+      const worldRadius = walkingRadiusWorldUnits();
+      if (worldRadius <= 0) return [];
+      const { point } = state.userLocation;
+      const points = [];
+      for (let i = 0; i < count; i++) {
+        const theta = (i / count) * Math.PI * 2;
+        points.push({
+          x: point.x + worldRadius * Math.cos(theta),
+          y: point.y + worldRadius * Math.sin(theta),
+        });
+      }
+      return points;
     }
 
     function centerOverviewOnUserLocation(options = {}) {
@@ -3242,7 +3280,7 @@
       };
 
       if (options.animate) {
-        animateViewportTo(targetViewport, options.durationMs || 520);
+        animateViewportTo(targetViewport, options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS);
         return;
       }
 
@@ -3259,7 +3297,7 @@
       if (state.selected && !secondaryScreenActive()) return;
       if (state.clusterZoomed) return;
       if (els.inspector.classList.contains("minimized")) return;
-      if (nearbyHeadingUpActive()) return;
+      if (nearbyNavigationAnchorActive()) return;
 
       const previousScreen = previousPoint ? worldToScreen(previousPoint) : null;
       const nextScreen = worldToScreen(state.userLocation.point);
@@ -3332,10 +3370,10 @@
       if (state.clusterZoomed) return;
       setInspectorMinimized(false);
 
-      if (nearbyHeadingUpActive()) {
+      if (nearbyNavigationAnchorActive()) {
         alignHeadingUpNavigationViewport({
           animate: Boolean(options.animate),
-          durationMs: options.durationMs || 520,
+          durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
           force: Boolean(options.force),
         });
         return;
@@ -3348,16 +3386,21 @@
           focusVisibleArea: true,
           assumeInspectorOpen: true,
           animate: Boolean(options.animate),
-          durationMs: options.durationMs || 520,
+          durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
           minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
           padding: 28,
         });
       } else if (points.length === 1) {
-        // Only user location, no nearby items — center on user without zooming out past current level
+        // Only user location — nothing matches within the walking radius. Zoom to fit
+        // the radius itself rather than keeping whatever scale happens to be active
+        // (e.g. left over from Filters previewing far-away results outside the radius);
+        // the nearby view should never sit more zoomed out than the walking radius.
+        const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+        const radiusScale = maxScaleForRadiusVisible(focusRect);
         centerOverviewOnUserLocation({
           animate: Boolean(options.animate),
-          durationMs: options.durationMs || 520,
-          scale: state.viewport.scale,
+          durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
+          scale: Number.isFinite(radiusScale) ? radiusScale : state.viewport.scale,
           focusVisibleArea: true,
         });
       }
@@ -3396,30 +3439,6 @@
         .map(e => e.item.point);
       if (points.length < 2) points.unshift(state.userLocation.point);
       return points;
-    }
-
-    function capScaleForUserCenteredOverview(targetScale, options = {}) {
-      if (!state.userLocation || !Number.isFinite(targetScale)) return targetScale;
-      const points = overviewTargetPoints();
-      if (points.length < 2) return targetScale;
-
-      const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) });
-      const padding = 72 * pixelRatio();
-      const availableHalfWidth = Math.max(1, focusRect.width / 2 - padding);
-      const availableHalfHeight = Math.max(1, focusRect.height / 2 - padding);
-      let maxDx = 0;
-      let maxDy = 0;
-
-      for (const point of points) {
-        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
-        maxDx = Math.max(maxDx, Math.abs(point.x - state.userLocation.point.x));
-        maxDy = Math.max(maxDy, Math.abs(point.y - state.userLocation.point.y));
-      }
-
-      const scaleX = maxDx > 0 ? availableHalfWidth / maxDx : Number.POSITIVE_INFINITY;
-      const scaleY = maxDy > 0 ? availableHalfHeight / maxDy : Number.POSITIVE_INFINITY;
-      const cappedScale = Math.min(targetScale, scaleX, scaleY);
-      return Number.isFinite(cappedScale) && cappedScale > 0 ? cappedScale : targetScale;
     }
 
     function syncHashFromSelection() {

@@ -186,7 +186,7 @@ Marker rules:
 - Filter screen mode: `state.filterScreenOpen = true`; stays open until the user explicitly navigates away. GPS updates, cow refreshes, locate-button taps, and empty canvas taps must not close it.
 - Selected-detail mode: filter button hidden, filter panel closed (not relevant when viewing specific location).
 - Minimized mode: collapsed header only.
-- On desktop (>760px) selecting a location keeps the inspector expanded. On mobile (≤760px) selecting a location collapses the inspector so the map is visible.
+- The inspector is always expanded after a map-tap selection, on both desktop and mobile, so the detail panel opens immediately. It is only auto-minimized when selecting from the overview/nearby list (`focusOverviewItem`).
 - Tapping the Nearby button always calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone.
 - Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) plays a spring bounce animation (`.nav-reselect`) on the button instead of re-entering the screen. This gives tactile confirmation that the user is already on that screen.
 
@@ -200,7 +200,7 @@ Marker rules:
 - With selected target + expanded inspector: camera fits user + target in the visible area above the inspector (not behind the modal). Zoom adjusts so both fill the available viewport.
 - Navigation mode GPS follow: smooth 800 ms animation that only triggers when the user or destination drifts near the edge of the visible area (14% margin). Sub-threshold GPS noise is ignored so the camera glides rather than jumps.
 - In overview mode, GPS updates keep the user location and nearest items within the visible map area.
-  - the first successful location fix triggers a 1200ms cinematic zoom to the user's 5-minute walking radius
+  - the first successful location fix triggers a 700ms cinematic zoom to the user's 5-minute walking radius
   - if location is obtained before map data finishes loading (user clicks the gate early), the zoom is re-triggered once data and `fitToBounds()` are ready — ensuring the animation is never permanently cancelled by the data-load sequence
   - the zoom level adjusts as the user moves so nearest items always fill the available viewport; items that drift off-screen trigger an immediate refit regardless of movement distance
   - fast movement (walking, train) never causes the user or their nearest items to disappear from the map
@@ -215,8 +215,7 @@ Marker rules:
 ## Zoom and Input Constraints
 
 - Disable browser/page pinch zoom and ctrl+wheel zoom.
-- Map zoom is controlled only by map interactions and map controls.
-- Home/fit button restores full data framing.
+- Map zoom is controlled only by map interactions (wheel/drag) — there is no on-screen zoom or "home/fit" button in the main map UI.
 
 ## Nearest and Filter Behavior
 
@@ -260,7 +259,8 @@ Marker rules:
 
 - Accessible via the generated settings icon button in the inspector header.
 - Contains a **Walking radius** control: a dropdown to choose how far to walk when listing nearby places (1, 2, 5, 10, 15, 20, 30 min options).
-- Contains an **About** section displaying the current app version (e.g. `v80`).
+- Contains an **About** section displaying the current app version (e.g. `v80`; `dev-v80` when served by the local dev server — see "Local dev flag" in `spec/glossary.md`) and a **Force refresh** button.
+- **Force refresh**: unregisters every service worker registration and deletes every `forest-finds-*` cache before reloading, so a stuck/stale cached version is guaranteed to clear on the next load — sidesteps the normal update flow, where the open tab's version display can otherwise lag a reload or two behind a service worker that already updated silently in the background. Disabled (with an inline note) while offline, since it briefly leaves the app with no offline fallback until the fresh install completes.
 - Changing the walking radius stays on the settings screen, immediately animates the map to fit the new radius, updates the nearby list and nearest tree selection, and keeps the walking radius ring visible.
 - Opening Settings shows the same map view as the Filter and Feedback screens (see below).
 

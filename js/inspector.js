@@ -928,7 +928,7 @@ function zoomToSelection() {
     if (typeof animateToHeadingUpNavigationViewport === "function" && selectedNavigationHeadingUpActive()) {
       animateToHeadingUpNavigationViewport(500);
     } else {
-      ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: 500 });
+      ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
     }
   };
 

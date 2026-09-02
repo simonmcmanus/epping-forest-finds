@@ -99,7 +99,10 @@ The small count label (e.g. "4" or "9+") drawn in the top-right of a cluster pin
 The data interface produced by the fetching layer and consumed by the renderer. Contains trees, landmarks, paths, roads, environment features, forest boundaries, cows, and pastures.
 
 **Service worker**
-The background script (`sw.js`) that pre-caches the app shell and offline datasets so the app works without a network connection. Cache version (`CACHE_NAME`) must be bumped with every client-side change.
+The background script (`sw.js`) that pre-caches the app shell and offline datasets so the app works without a network connection. Cache version (`CACHE_NAME`) must be bumped with every client-side change; CI does this automatically (`.github/workflows/sw-bump.yml`, `sw-release.yml`), so it never happens on an uncommitted local change. `self.__DEV__`, injected into the served `sw.js` response only by the local dev server (`node server.js` / `npm run dev`), switches the fetch handler to network-first so local edits show up without needing a version bump — see the **Local dev flag** entry below.
+
+**Local dev flag** (`self.__DEV__`)
+A flag `server.js` inserts into the `sw.js` response it serves (via `injectDevFlag()`), never present in the file on disk or in the production build Netlify serves untouched. `sw.js` reads it into `IS_DEV` and, when true, fetches everything from the network first (cache as an offline-only fallback) instead of the production cache-first strategy — this is what makes local testing reflect the latest files on every refresh. `injectDevFlag()` also prefixes `CACHE_NAME` with `dev-` (e.g. `forest-finds-dev-v274`), mirroring the branch prefix `sw-bump.yml` applies for preview builds, so the About screen's app-version display and any bug report's `appVersion` read as local rather than a stuck release number.
 
 **Hash / deep link**
 The URL fragment (`#...`) that encodes the current selection. Uses `history.replaceState` so no in-app history entries are created.

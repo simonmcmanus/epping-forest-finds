@@ -165,10 +165,17 @@ globalThis.__forestFindsTest = {
   keepOverviewCenteredOnUser,
   centerOverviewOnUserLocation,
   maxScaleForRadiusVisible,
+  bestVisibleCanvasRect,
+  walkingRadiusCirclePoints,
   drawWalkingRadius,
   selectOverview,
   ensureOverviewTargetsVisible,
   alignHeadingUpNavigationViewport,
+  maxScaleForHeadingUpPoints,
+  maxHeadingUpNavigationScale,
+  maxNearbyHeadingUpScale,
+  selectedNavigationTargetPoints,
+  nearbyHeadingUpTargetPoints,
   animateToHeadingUpNavigationViewport,
   resizeCanvas,
   prepareCanvasForDraw,
@@ -176,6 +183,10 @@ globalThis.__forestFindsTest = {
   startCompassSmoothing,
   nearbyHeadingUpActive,
   headingUpActive,
+  selectedNavigationHeadingUpActive,
+  nearbyNavigationAnchorActive,
+  navigationAnchorActive,
+  nearbyNavigationFocusPoint,
   tiltActive,
   tiltAllowedForCurrentScreen,
   isOverviewScreenActive,
@@ -413,6 +424,72 @@ test("headingUpActive returns true for selected navigation heading-up", () => {
   app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
   app.state.compassHeading = 45;
   assert.equal(app.headingUpActive(), true);
+});
+
+test("nearbyNavigationAnchorActive returns false without user location", () => {
+  resetData(app);
+  app.state.compassHeading = 45;
+  app.state.userLocation = null;
+  app.state.selected = null;
+  assert.equal(app.nearbyNavigationAnchorActive(), false);
+  assert.equal(app.navigationAnchorActive(), false);
+});
+
+test("nearbyNavigationAnchorActive returns true from a location fix alone, before any compass heading", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = null;
+  app.state.compassHeading = null;
+  assert.equal(app.nearbyHeadingUpActive(), false, "sanity: heading-up itself is correctly still inactive");
+  assert.equal(app.nearbyNavigationAnchorActive(), true, "the anchored fit should not wait on a compass heading");
+  assert.equal(app.navigationAnchorActive(), true);
+});
+
+test("nearbyNavigationAnchorActive returns false when a location is selected", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = null;
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  assert.equal(app.nearbyNavigationAnchorActive(), false);
+});
+
+test("navigationAnchorActive still requires a real heading for a selected navigation target", () => {
+  // Deliberately narrower than the nearby case above: a selected target already has one
+  // consistent heading-gated fit shared by boot (ensureUserAndSelectionVisible) and later
+  // GPS updates, so making it heading-agnostic too would introduce the same "boot uses one
+  // fit, a later update uses another" inconsistency this fix removes for nearby overview.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = null;
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  assert.equal(app.selectedNavigationHeadingUpActive(), false, "sanity: heading-up itself is correctly still inactive");
+  assert.equal(app.navigationAnchorActive(), false, "a selected target without a heading should not engage the anchored fit");
+});
+
+test("nearby heading-up fit is established from GPS alone, so acquiring a compass heading afterwards does not re-zoom", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "t1", commonName: "Tree 1", ...makePoint(app, 0.001, 0) });
+  app.state.trees.push({ id: "t2", commonName: "Tree 2", ...makePoint(app, 0, 0.0012) });
+  app.state.viewport = { scale: 8, tx: 120, ty: 120 }; // simulate the wide full-forest fit shown at boot
+  app.state.compassHeading = null; // GPS has resolved, compass has not -- the common case right after load
+
+  assert.equal(app.nearbyHeadingUpActive(), false, "sanity: heading-up itself is correctly still inactive");
+
+  const changed = app.alignHeadingUpNavigationViewport();
+  assert.equal(changed, true, "should zoom in from the wide full-forest fit as soon as location is known");
+  const beforeHeading = { ...app.state.viewport };
+  assert.ok(beforeHeading.scale > 8, "should be zoomed in past the full-map scale, not stuck on it");
+
+  // The compass heading now arrives -- in production this is onDeviceOrientation() /
+  // startCompassSmoothing() calling this same function. Facing north (0) keeps the
+  // rotation itself a no-op, isolating whether scale/pan alone snap to something new.
+  app.state.compassHeading = 0;
+  app.alignHeadingUpNavigationViewport();
+
+  assert.equal(app.state.viewport.scale, beforeHeading.scale, "scale must not jump once a heading arrives");
+  assert.ok(Math.abs(app.state.viewport.tx - beforeHeading.tx) < 0.001, "pan must not jump once a heading arrives");
+  assert.ok(Math.abs(app.state.viewport.ty - beforeHeading.ty) < 0.001, "pan must not jump once a heading arrives");
 });
 
 test("tiltActive returns false when heading-up is not active", () => {
@@ -933,18 +1010,27 @@ test("landmark emoji falls back to useful type icons before location pointer", (
   assert.equal(app.landmarkEmoji({ category: "something_unclear", categoryTags: ["something_unclear"] }), "📍");
 });
 
-test("overview GPS updates keep the user centered and animate large movements", () => {
+test("overview GPS updates keep the user centered even before a compass heading arrives", () => {
   resetData(app);
   const previous = makePoint(app, 0, 0).point;
   app.state.userLocation = makePoint(app, 0.2, 0.2);
   app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
+  app.state.compassHeading = null; // no compass fix yet -- must not block re-centering
 
+  // Mirrors ensureLocationWatch()'s watchPosition callback: the anchored fit runs first,
+  // and keepOverviewCenteredOnUser is a no-op companion call once it has -- it now defers
+  // to alignHeadingUpNavigationViewport (via nearbyNavigationAnchorActive) as soon as a
+  // location fix exists, not only once a compass heading is also known.
+  const changed = app.alignHeadingUpNavigationViewport();
+  const afterAlign = { ...app.state.viewport };
   app.keepOverviewCenteredOnUser(previous);
 
-  assert.ok(app.state.viewportAnimationTo, "large movement should create a viewport animation");
-  assert.equal(app.state.viewportAnimationTo.scale, 1000);
-  assert.equal(Math.round(app.state.viewportAnimationTo.tx), Math.round(500 - app.state.userLocation.point.x * 1000));
-  assert.equal(Math.round(app.state.viewportAnimationTo.ty), Math.round(400 - app.state.userLocation.point.y * 1000));
+  assert.equal(changed, true, "moving 0.2 degrees should update the viewport");
+  assert.deepEqual(app.state.viewport, afterAlign, "keepOverviewCenteredOnUser should not fight the anchored fit");
+  const userScreen = app.worldToScreen(app.state.userLocation.point);
+  const focus = app.nearbyNavigationFocusPoint();
+  assert.equal(Math.round(userScreen.x), Math.round(focus.x), "user should land on the nearby anchor point");
+  assert.equal(Math.round(userScreen.y), Math.round(focus.y), "user should land on the nearby anchor point");
 });
 
 test("first location fix immediately scales and centers nearby map icons", () => {
@@ -1004,6 +1090,50 @@ test("filter screen with no active filters falls through to foraging zoom (neare
   assert.equal(app.isNearCanvas(treePoint, 10), true, JSON.stringify({ treePoint, viewport: app.state.viewport }));
 });
 
+test("returning to nearby view with nothing inside the walking radius zooms in to fit the radius, not a stale zoomed-out scale", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  app.state.walkingDistanceMinutes = 5;
+  app.els.canvas.width = 1000;
+  app.els.canvas.height = 800;
+  // Only a landmark far outside the walking radius matches the active filter, so nothing
+  // is highlighted within the radius to fit.
+  app.state.landmarks.push({ id: "far-pub", name: "Far pub", category: "pub", ...makePoint(app, 55, 5) });
+  app.state.overviewFilters = ["pubs"];
+  // filterScreenOpen is false and selected is null (both set by resetData) — this is the
+  // plain Nearby view with the filter still applied, i.e. what's active right after tapping
+  // "Nearby" from the Filters screen (goToInitialView does not clear overviewFilters).
+  // The viewport starts far zoomed out, as it would be left after Filters previewed the
+  // far-away pub via its "show all matches regardless of radius" preview.
+  app.state.viewport = { scale: 0.001, tx: 0, ty: 0 };
+
+  app.ensureOverviewTargetsVisible({ animate: false });
+
+  const radiusMetres = app.walkingDistanceToMetres(app.state.walkingDistanceMinutes);
+  const edgeWorld = app.projectLonLat(
+    app.state.userLocation.longitude + (radiusMetres / (111320 * Math.cos(app.state.userLocation.latitude * Math.PI / 180))),
+    app.state.userLocation.latitude
+  );
+  const center = app.worldToScreen(app.state.userLocation.point);
+  const edge = app.worldToScreen(edgeWorld);
+  const radiusPx = Math.hypot(edge.x - center.x, edge.y - center.y);
+  const canvasWidth = app.els.canvas.width;
+  const canvasHeight = app.els.canvas.height;
+
+  assert.ok(app.state.viewport.scale > 1, "should zoom in from the stale, far-zoomed-out scale");
+  // The radius should now fill a meaningful portion of the screen instead of staying a
+  // speck at the old scale, and (mirroring the existing "radius always fully visible"
+  // tests) stay within the canvas rather than spilling off the edges.
+  assert.ok(
+    radiusPx > Math.min(canvasWidth, canvasHeight) * 0.25,
+    `radius circle should fill a good portion of the screen, got ${radiusPx}px`
+  );
+  assert.ok(center.x - radiusPx >= -1, `left edge of radius circle off screen: ${center.x - radiusPx}`);
+  assert.ok(center.x + radiusPx <= canvasWidth + 1, `right edge of radius circle off screen: ${center.x + radiusPx} > ${canvasWidth}`);
+  assert.ok(center.y - radiusPx >= -1, `top edge of radius circle off screen: ${center.y - radiusPx}`);
+  assert.ok(center.y + radiusPx <= canvasHeight + 1, `bottom edge of radius circle off screen: ${center.y + radiusPx} > ${canvasHeight}`);
+});
+
 test("settings screen zooms to fit only filtered items, same as filter screen", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -1043,9 +1173,12 @@ test("GPS updates keep re-centering the map on settings and report screens, not 
   app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
   app.state.selected = { type: "settings", item: null };
 
+  // Same call pattern as ensureLocationWatch()'s watchPosition callback (see the overview
+  // version of this test above for why keepOverviewCenteredOnUser alone no longer re-fits).
+  const changed = app.alignHeadingUpNavigationViewport();
   app.keepOverviewCenteredOnUser(previous);
 
-  assert.ok(app.state.viewportAnimationTo, "large movement should re-fit the settings screen too");
+  assert.equal(changed, true, "large movement should re-fit the settings screen too");
 });
 
 test("walking radius marker draws on the report (feedback) screen", () => {
@@ -1187,6 +1320,107 @@ test("heading-up selected zoom changes wait for compass settle before applying",
 
   assert.equal(changedAfterCompassSettles, true, "selected-view zoom correction should apply once compass updates settle");
   assert.ok(app.state.viewport.scale < activeScale, "settled compass should apply the delayed selected-view fit");
+});
+
+// Regression coverage for the maxHeadingUpNavigationScale / maxNearbyHeadingUpScale
+// consolidation: both used to independently duplicate the same ~45 lines of bounding-box
+// scale-fit math (margin calc, rotation, per-point min-scale accumulation, tilt behind-heading
+// handling, HEADING_UP_MAX_SCALE_RATIO cap). They now both delegate to the shared
+// maxScaleForHeadingUpPoints() helper, differing only in their point source and emptiness
+// guard. These tests pin down the shared math directly, then prove each wrapper is a pure
+// pass-through to it for its own point source.
+test("maxScaleForHeadingUpPoints returns the tightest scale that keeps every point inside the focus rect", () => {
+  resetData(app);
+  app.state.userLocation = { latitude: 0, longitude: 0, point: { x: 0, y: 0 } };
+  // compassHeading stays null (headingUpActive() false), so rotation is 0 and
+  // rotatedX/rotatedY equal the raw dx/dy -- keeps the geometry easy to hand-verify.
+  const focus = { x: 500, y: 400 };
+  const focusRect = { x: 0, y: 0, width: 1000, height: 800 };
+  // margin = min(1000, 800) * 0.1 + 12 * dpr(1) = 92; left=92 right=908 top=92 bottom=708
+  const points = [
+    { x: 400, y: 0 },    // rotatedX>0: (908-500)/400 = 1.02   <- tightest
+    { x: -300, y: 0 },   // rotatedX<0: (92-500)/-300 = 1.36
+    { x: 0, y: -200 },   // rotatedY<0: (92-400)/-200 = 1.54
+    { x: 0, y: 250 },    // rotatedY>0, tilt inactive: (708-400)/250 = 1.232
+  ];
+
+  const maxScale = app.maxScaleForHeadingUpPoints(points, focus, focusRect);
+
+  assert.ok(Math.abs(maxScale - 1.02) < 1e-9, `expected 1.02, got ${maxScale}`);
+});
+
+test("maxScaleForHeadingUpPoints excludes behind-the-user points only while tilt is active", () => {
+  resetData(app);
+  app.state.userLocation = { latitude: 0, longitude: 0, point: { x: 0, y: 0 } };
+  app.state.compassHeading = 0; // finite + no selected target -> nearbyHeadingUpActive()
+  const focus = { x: 500, y: 400 };
+  const focusRect = { x: 0, y: 0, width: 1000, height: 800 };
+  // A single close "behind" point (rotatedY>0): if excluded, nothing constrains the fit.
+  const behindPoint = [{ x: 0, y: 10 }];
+
+  app.state.tiltBetaSmoothed = 20; // > TILT_BETA_THRESHOLD (12) -> tiltActive() true
+  const withTiltActive = app.maxScaleForHeadingUpPoints(behindPoint, focus, focusRect);
+  assert.equal(withTiltActive, null, "behind point should be fully excluded while tilt is active");
+
+  app.state.tiltBetaSmoothed = 0; // tiltActive() false
+  const withTiltInactive = app.maxScaleForHeadingUpPoints(behindPoint, focus, focusRect);
+  // (bottom - focus.y) / rotatedY = (708 - 400) / 10 = 30.8, well under the fitScale*180 cap
+  assert.ok(Math.abs(withTiltInactive - 30.8) < 1e-9, `expected 30.8, got ${withTiltInactive}`);
+});
+
+test("maxHeadingUpNavigationScale falls back to the current viewport scale with no selected target", () => {
+  resetData(app);
+  app.state.userLocation = { latitude: 0, longitude: 0, point: { x: 0, y: 0 } };
+  app.state.selected = null;
+  app.state.viewport.scale = 12345;
+
+  const result = app.maxHeadingUpNavigationScale({ x: 500, y: 400 }, { x: 0, y: 0, width: 1000, height: 800 });
+
+  assert.equal(result, 12345);
+});
+
+test("maxNearbyHeadingUpScale falls back to the current viewport scale with fewer than two points", () => {
+  resetData(app);
+  app.state.userLocation = null; // overviewTargetPoints() returns [] with no user location
+  app.state.viewport.scale = 54321;
+
+  const result = app.maxNearbyHeadingUpScale({ x: 500, y: 400 }, { x: 0, y: 0, width: 1000, height: 800 });
+
+  assert.equal(result, 54321);
+});
+
+test("maxHeadingUpNavigationScale delegates to the shared heading-up scale helper", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "target-tree", ...makePoint(app, 0.001, 0.0005) } };
+  const focus = { x: 500, y: 400 };
+  const focusRect = { x: 0, y: 0, width: 1000, height: 800 };
+
+  const points = app.selectedNavigationTargetPoints();
+  assert.equal(points.length, 1, "fixture selection should produce exactly one target point");
+  const expected = app.maxScaleForHeadingUpPoints(points, focus, focusRect);
+  const actual = app.maxHeadingUpNavigationScale(focus, focusRect);
+
+  assert.equal(actual, expected);
+});
+
+test("maxNearbyHeadingUpScale delegates to the shared heading-up scale helper", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push(
+    { id: "t1", commonName: "Tree 1", ...makePoint(app, 0.001, 0) },
+    { id: "t2", commonName: "Tree 2", ...makePoint(app, -0.0008, 0.0004) }
+  );
+  const focus = { x: 500, y: 400 };
+  const focusRect = { x: 0, y: 0, width: 1000, height: 800 };
+
+  const points = app.nearbyHeadingUpTargetPoints();
+  assert.ok(points.length >= 2, "fixture trees should produce at least two nearby target points");
+  const expected = app.maxScaleForHeadingUpPoints(points, focus, focusRect);
+  const actual = app.maxNearbyHeadingUpScale(focus, focusRect);
+
+  assert.equal(actual, expected);
 });
 
 test("heading-up resize uses oversized canvas draw area so rotation does not expose viewport edges", () => {
@@ -1467,6 +1701,46 @@ test("settings form shows the app version", () => {
   assert.match(html, /appVersionDisplay/, "settings form should include the version span for dynamic updates");
 });
 
+test("settings form includes a force-refresh button for clearing a stuck service worker version", () => {
+  const html = app.settingsFormHtml();
+  assert.match(html, /id="forceRefreshButton"/, "settings form should include the force-refresh button");
+  assert.match(html, /Force refresh/, "force-refresh button should be labelled");
+  assert.match(html, /id="forceRefreshOfflineNote"/, "settings form should include an offline note for the force-refresh button");
+});
+
+test("force refresh unregisters service workers and clears forest-finds caches before reloading, but only when online", () => {
+  // The Node VM test harness doesn't stub navigator.serviceWorker/caches/location.reload,
+  // so this is a source-level check (matching the other service-worker tests above) rather
+  // than an executed one — it pins the contract forceRefreshServiceWorker must uphold.
+  const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
+  const fnMatch = navSource.match(/async function forceRefreshServiceWorker\(\) \{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "forceRefreshServiceWorker must be defined in nav.js");
+  const fn = fnMatch[0];
+
+  assert.match(fn, /if \(!navigator\.onLine\)/, "must bail out while offline instead of leaving the app with no cache fallback");
+  assert.match(fn, /navigator\.serviceWorker\.getRegistrations\(\)/, "must look up every registration");
+  assert.match(fn, /registration\.unregister\(\)/, "must unregister every registration, not just the active one");
+  assert.match(fn, /caches\.keys\(\)/, "must enumerate caches rather than assuming a single name");
+  assert.match(fn, /name\.startsWith\(["']forest-finds-["']\)/, "must scope cache deletion to this app's own caches");
+  assert.match(fn, /caches\.delete\(name\)/, "must delete the matched caches");
+  assert.match(fn, /location\.reload\(\)/, "must reload after clearing state so the fresh install takes effect immediately");
+});
+
+test("settings force-refresh listener is removed before being re-added, so reopening Settings does not leak window listeners", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const bindMatch = source.match(/function bindSettingsHandlers\(\) \{[\s\S]*?\n    \}/);
+  assert.ok(bindMatch, "bindSettingsHandlers must be defined");
+  const fn = bindMatch[0];
+
+  for (const evt of ["online", "offline"]) {
+    const removeIdx = fn.indexOf(`removeEventListener("${evt}", updateForceRefreshOnlineState)`);
+    const addIdx = fn.indexOf(`addEventListener("${evt}", updateForceRefreshOnlineState)`);
+    assert.ok(removeIdx !== -1, `must remove any prior "${evt}" listener`);
+    assert.ok(addIdx !== -1, `must add a new "${evt}" listener`);
+    assert.ok(removeIdx < addIdx, `must remove the "${evt}" listener before adding a new one`);
+  }
+});
+
 test("filter groups include all six labelled categories", () => {
   const { FILTER_GROUPS: groups } = app;
   assert.equal(groups.length, 6, "should have exactly six filter groups");
@@ -1660,6 +1934,67 @@ test("service worker falls back to cached index.html when navigating offline", (
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   assert.match(sw, /request\.mode === ["']navigate["']/, "navigate mode must be handled separately");
   assert.match(sw, /caches\.match\(["']\.\/index\.html["']\)/, "navigate fallback should serve cached index.html");
+});
+
+test("service worker uses a network-first strategy in local dev so edits show up without a CACHE_NAME bump", () => {
+  // CACHE_NAME is only ever bumped by CI (.github/workflows/sw-bump.yml and sw-release.yml),
+  // never locally, so the production cache-first strategy below would otherwise keep serving
+  // stale JS/CSS/data while testing locally. self.__DEV__ (injected by server.js — see the
+  // "local dev server flags sw.js" tests) must gate the cache-first branch and go to the
+  // network first instead.
+  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
+  assert.match(sw, /const IS_DEV = self\.__DEV__ === true/, "sw.js must derive a dev flag from self.__DEV__");
+
+  const fetchHandlerMatch = sw.match(/self\.addEventListener\("fetch",[\s\S]*/);
+  assert.ok(fetchHandlerMatch, "fetch handler exists");
+  const fetchHandler = fetchHandlerMatch[0];
+
+  const devBranchMatch = fetchHandler.match(/if \(IS_DEV\) \{([\s\S]*?)\n  \}\n\n  event\.respondWith\(\s*\n\s*caches\.match\(event\.request\)/);
+  assert.ok(devBranchMatch, "an IS_DEV branch must sit before the production cache-first handler");
+  const devBranch = devBranchMatch[1];
+  assert.match(devBranch, /fetch\(event\.request\)/, "dev branch must hit the network");
+  assert.match(devBranch, /\.catch\(\(\) => caches\.match\(event\.request\)\)/, "dev branch must still fall back to cache when offline");
+
+  // The dev branch must come before (and therefore short-circuit) the cache-first
+  // production strategy, not replace it — production behaviour must be untouched.
+  assert.ok(fetchHandler.indexOf("if (IS_DEV)") < fetchHandler.indexOf("caches.match(event.request).then((cached)"), "dev branch must run before the production cache-first branch");
+});
+
+test("local dev server flags sw.js with self.__DEV__ without touching the production file on disk", () => {
+  const { _private } = require("../server.js");
+  const original = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
+
+  const served = _private.injectDevFlag(original);
+  assert.match(served, /self\.__DEV__ = true;\s*\nconst CACHE_NAME/, "served sw.js must set self.__DEV__ before CACHE_NAME is declared");
+
+  // The file on disk (what Netlify serves in production, untouched) must never itself
+  // set the flag — only the local dev server's response does.
+  assert.doesNotMatch(original, /self\.__DEV__\s*=\s*true/, "sw.js on disk must not hardcode the dev flag");
+});
+
+test("local dev server prefixes CACHE_NAME with dev- so the About screen and bug reports read as local, not a stuck release version", () => {
+  // Without this, the About screen's app-version display (index.html) and any bug report's
+  // appVersion (both read the live CACHE_NAME via caches.keys() in setupPwa, js/nav.js) would
+  // show whatever version number happened to be in sw.js on disk, unchanged across every local
+  // edit — since CACHE_NAME bumps are CI-only (see the network-first dev test above). Mirrors
+  // the branch-prefix convention .github/workflows/sw-bump.yml already uses for preview builds.
+  const { _private } = require("../server.js");
+  const original = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
+  const originalNameMatch = original.match(/const CACHE_NAME = "forest-finds-([^"]+)"/);
+  assert.ok(originalNameMatch, "sw.js must declare CACHE_NAME as \"forest-finds-<version>\"");
+
+  const served = _private.injectDevFlag(original);
+  assert.match(
+    served,
+    new RegExp(`const CACHE_NAME = "forest-finds-dev-${originalNameMatch[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`),
+    "served sw.js must prefix the on-disk version with dev-, keeping the rest unchanged"
+  );
+});
+
+test("local dev server serves sw.js with its own dev-flagging route, not the generic static handler", () => {
+  const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
+  assert.match(serverSource, /requested === ["']\/sw\.js["']/, "server.js must special-case /sw.js");
+  assert.match(serverSource, /injectDevFlag\(/, "server.js must run sw.js through injectDevFlag before responding");
 });
 
 test("location gate button is re-enabled when the gate is made visible", () => {
