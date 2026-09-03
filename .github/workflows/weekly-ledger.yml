@@ -174,13 +174,34 @@ jobs:
                   weekly-data-report/<date>-${{ github.run_number }}.
                e. Open a PR: gh pr create --title "..." --body "..." listing
                   exactly what was added/removed and why.
-               f. Do NOT merge the PR. Auto-merge is temporarily
+               f. Add a report preview link to the PR body (see REPORT
+                  PREVIEW LINK below) -- do this for every PR this workflow
+                  opens, this one included.
+               g. Do NOT merge the PR. Auto-merge is temporarily
                   disabled while this workflow is being tested -- leave
                   it open for Simon to review and merge by hand,
                   however clean the tests were. Say so plainly in the
                   PR body and in your final summary.
-            5. If the changeset is empty, skip branch/PR/merge entirely and
-               say so in the report.
+            5. If the changeset is empty, skip the data branch/PR/merge
+               entirely and say so in the report -- but still open the
+               small standalone report-only PR described in step 6, and it
+               still needs the REPORT PREVIEW LINK below.
+
+            REPORT PREVIEW LINK: this site's Netlify Deploy Previews are
+            always reachable at a fixed, predictable address --
+            `https://deploy-preview-<PR_NUMBER>--epping-forest.netlify.app/<path>`
+            -- no API lookup needed, just the PR number `gh pr create` (or
+            `gh pr view --json number -q .number`) gives you. Once the PR
+            exists, build the report's URL from that pattern, e.g.
+            `https://deploy-preview-42--epping-forest.netlify.app/reports/epping-forest-ledger-<date>.html`,
+            and put it near the top of the PR body with
+            `gh pr edit <number> --body "..."` (rewrite the full body: keep
+            everything the initial `gh pr create` body had, just add this
+            near the top), roughly:
+              **Report preview:** <url>
+              (Netlify usually finishes building the preview within a
+              minute or two of the PR opening -- if the link 404s right
+              away, give it a moment and reload.)
 
             6. Write the report to reports/epping-forest-ledger-<date>.html,
                committed as part of the same branch/PR as the data change
@@ -203,4 +224,4 @@ jobs:
           # below -- auto-merge is disabled while Simon tests this workflow.
           # Add it back (and flip the prompt language above) once he is happy.
           claude_args: |
-            --allowedTools "WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(node --test:*),Bash(npx playwright:*),Bash(npm ci:*),Bash(npm test:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*)"
+            --allowedTools "WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(node --test:*),Bash(npx playwright:*),Bash(npm ci:*),Bash(npm test:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*)"
