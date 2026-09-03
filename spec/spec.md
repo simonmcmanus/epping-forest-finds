@@ -186,7 +186,7 @@ Marker rules:
 - Filter screen mode: `state.filterScreenOpen = true`; stays open until the user explicitly navigates away. GPS updates, cow refreshes, locate-button taps, and empty canvas taps must not close it.
 - Selected-detail mode: filter button hidden, filter panel closed (not relevant when viewing specific location).
 - Minimized mode: collapsed header only.
-- The inspector is always expanded after a map-tap selection, on both desktop and mobile, so the detail panel opens immediately. It is only auto-minimized when selecting from the overview/nearby list (`focusOverviewItem`).
+- The inspector is always expanded after a map-tap selection, on both desktop and mobile, so the detail panel opens immediately. This also applies to a selection made via a hash/deep link (`applySelectionFromHash`) — including a `hashchange` to a new linked location while the inspector was already minimized, which forces it back open. It is only auto-minimized when selecting from the overview/nearby list (`focusOverviewItem`).
 - Tapping the Nearby button always calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone.
 - Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) plays a spring bounce animation (`.nav-reselect`) on the button instead of re-entering the screen. This gives tactile confirmation that the user is already on that screen.
 

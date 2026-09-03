@@ -25,6 +25,17 @@ test.describe("Selection and Inspector", () => {
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
     });
 
+    // Regression: loading a tree/place link used to leave the inspector minimized on
+    // narrow (mobile) viewports -- a hidden `if (window.innerWidth <= 760)` branch in
+    // applySelectionFromHash() that contradicted the spec's "always expanded after a
+    // selection" rule and wasn't exercised by this describe block before. This spec file
+    // runs on both the "desktop" and "mobile" (Pixel 5, 393px) Playwright projects, so this
+    // one assertion covers both widths.
+    test("inspector opens expanded, not minimized, when a location is loaded via a link", async ({ page }) => {
+      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+      await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
+    });
+
     test("snapshot: tree detail view", async ({ page }, testInfo) => {
       test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
       await page.waitForTimeout(600);

@@ -263,7 +263,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v311"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with CACHE_NAME in sw.js.
+    const APP_VERSION = "v312"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -3897,7 +3897,11 @@
         if (tree) {
           state.selected = { type: "tree", item: tree };
           showTreeDetails(tree, distanceFromUser(tree), "Tree link");
-          if (window.innerWidth <= 760) setInspectorMinimized(true);
+          // Deep-linked selections behave like a map-tap selection: the inspector opens
+          // expanded immediately on both mobile and desktop (spec.md "Inspector modes").
+          // Force it open (not just skip minimizing) so a hashchange to a new linked
+          // location while the inspector was already minimized doesn't stay collapsed.
+          setInspectorMinimized(false);
           startCompassNavigation();
           if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true });
           else fitToPoints([tree.point], false, { animate: true });
@@ -3911,7 +3915,8 @@
         if (place) {
           state.selected = { type: "landmark", item: place };
           showLandmarkDetails(place, distanceFromUser(place));
-          if (window.innerWidth <= 760) setInspectorMinimized(true);
+          // See the matching comment in the treeKey branch above.
+          setInspectorMinimized(false);
           startCompassNavigation();
           if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true });
           else fitToPoints([place.point], false, { animate: true });

@@ -2415,6 +2415,58 @@ test("hash with tree parameter loads that tree", () => {
   assert.equal(app.state.selected?.item?.id, "99999", "correct tree is selected");
 });
 
+test("hash with tree parameter opens the inspector expanded on a mobile viewport (regression: previously minimized)", () => {
+  resetData(app);
+  app.windowStub.innerWidth = 390; // narrow/mobile width
+  app.els.inspector.classList.remove("minimized");
+  const tree = {
+    id: "88888",
+    latitude: 51.65,
+    longitude: 0.05,
+    point: app.projectLonLat(0.05, 51.65),
+    tagNumber: "88888",
+    commonName: "Test Beech",
+    location: {
+      britishNationalGrid: { easting: 540000, northing: 195000, gridReference: "TL 400 950" }
+    }
+  };
+  app.state.trees = [tree];
+  app.location.hash = "#tree=88888";
+  const opened = app.applySelectionFromHash(false);
+  assert.ok(opened, "applySelectionFromHash returns true for tree hash");
+  assert.equal(
+    app.els.inspector.classList.contains("minimized"),
+    false,
+    "inspector must open expanded when a location is loaded via a link, even on mobile widths"
+  );
+});
+
+test("hash-selecting a new tree re-expands the inspector even if it was left minimized (e.g. re-navigating via hashchange)", () => {
+  resetData(app);
+  app.windowStub.innerWidth = 390; // narrow/mobile width
+  const tree = {
+    id: "77777",
+    latitude: 51.65,
+    longitude: 0.05,
+    point: app.projectLonLat(0.05, 51.65),
+    tagNumber: "77777",
+    commonName: "Test Ash",
+    location: {
+      britishNationalGrid: { easting: 540000, northing: 195000, gridReference: "TL 400 950" }
+    }
+  };
+  app.state.trees = [tree];
+  app.els.inspector.classList.add("minimized"); // simulate the inspector already being collapsed
+  app.location.hash = "#tree=77777";
+  const opened = app.applySelectionFromHash(false);
+  assert.ok(opened, "applySelectionFromHash returns true for tree hash");
+  assert.equal(
+    app.els.inspector.classList.contains("minimized"),
+    false,
+    "inspector must be forced back open, not left minimized from before the new link was loaded"
+  );
+});
+
 // --- Offline support ---
 
 test("service worker APP_SHELL includes css/tracking.css so consent modal works offline", () => {
