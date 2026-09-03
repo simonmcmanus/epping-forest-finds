@@ -236,8 +236,7 @@ globalThis.__forestFindsTest = {
   BUILDING_HEIGHT_MIN_METRES,
   BUILDING_HEIGHT_MAX_METRES,
   BUILDING_EXTRUSION_MAX_METRES,
-  BUILDING_EXTRUSION_FADE_METRES,
-  BUILDING_BEHIND_FADE_METRES,
+  BUILDING_BEHIND_MAX_METRES,
   BUILDING_MAX_SAFE_SCALE,
   buildNearbyIconLookup,
   isNearCanvas,
@@ -3882,7 +3881,7 @@ test("drawBuildingExtrusions skips buildings without a usable height", () => {
   assert.equal(ctx.calls.fill, 0, "a building with no height estimate should be skipped regardless of position");
 });
 
-test("drawBuildingExtrusions fades a building behind the user's heading rather than hard-excluding it, but still excludes one well beyond BUILDING_BEHIND_FADE_METRES", () => {
+test("drawBuildingExtrusions keeps nearby behind-heading buildings fully opaque, but still excludes ones well beyond BUILDING_BEHIND_MAX_METRES", () => {
   resetData(app);
   app.state.compassHeading = 0; // facing north
   app.state.renderedNavigationHeading = 0;
@@ -3890,29 +3889,26 @@ test("drawBuildingExtrusions fades a building behind the user's heading rather t
   app.els.inspector.hidden = true;
   app.state.tiltBetaSmoothed = 60;
 
-  // ~55m south (behind) -- inside BUILDING_BEHIND_FADE_METRES (200m), so it should now
-  // draw at a reduced (not full, not zero) alpha instead of being skipped outright.
+  // ~55m south (behind) -- inside BUILDING_BEHIND_MAX_METRES (200m), so it should still
+  // draw as a fully opaque block.
   const nearBehind = makeSquareBuildingFeature(app, -0.0005, 0, 0.0001, { heightMetres: 10 });
   const nearBehindCtx = makeCtxStub();
   app.state.buildingFeatures = [nearBehind];
   app.drawBuildingExtrusions(nearBehindCtx);
   assert.equal(nearBehindCtx.calls.fill, 5, "a building only ~55m behind the heading should still be drawn (walls + roof)");
   assert.ok(nearBehindCtx.globalAlphas.length > 0, "should have drawn the nearby-behind building");
-  assert.ok(
-    nearBehindCtx.globalAlphas.every((a) => a > 0 && a < 1),
-    `a building within BUILDING_BEHIND_FADE_METRES behind the heading should fade rather than draw at full opacity, got ${nearBehindCtx.globalAlphas}`
-  );
+  assert.ok(nearBehindCtx.globalAlphas.every((a) => a === 1), `a nearby behind building should render fully opaque, got ${nearBehindCtx.globalAlphas}`);
 
-  // ~300m south -- well beyond BUILDING_BEHIND_FADE_METRES (200m), so it should still be
+  // ~300m south -- well beyond BUILDING_BEHIND_MAX_METRES (200m), so it should still be
   // excluded entirely, same as the old hard cutoff was for every behind building.
   const farBehind = makeSquareBuildingFeature(app, -300 / 111320, 0, 0.0001, { heightMetres: 10 });
   const farBehindCtx = makeCtxStub();
   app.state.buildingFeatures = [farBehind];
   app.drawBuildingExtrusions(farBehindCtx);
-  assert.equal(farBehindCtx.calls.fill, 0, "a building well beyond BUILDING_BEHIND_FADE_METRES behind the heading should still be excluded");
+  assert.equal(farBehindCtx.calls.fill, 0, "a building well beyond BUILDING_BEHIND_MAX_METRES behind the heading should still be excluded");
 });
 
-test("drawBuildingExtrusions's behind-heading fade dims further-behind buildings more than nearer-behind ones", () => {
+test("drawBuildingExtrusions keeps all behind-heading buildings within BUILDING_BEHIND_MAX_METRES fully opaque", () => {
   resetData(app);
   app.state.compassHeading = 0;
   app.state.renderedNavigationHeading = 0;
@@ -3920,8 +3916,8 @@ test("drawBuildingExtrusions's behind-heading fade dims further-behind buildings
   app.els.inspector.hidden = true;
   app.state.tiltBetaSmoothed = 60;
 
-  // Two behind buildings, both well inside BUILDING_BEHIND_FADE_METRES but at different
-  // depths -- the further one (100m) should be dimmer than the closer one (30m).
+  // Two behind buildings, both well inside BUILDING_BEHIND_MAX_METRES but at different
+  // depths -- both should still render fully opaque.
   const closerBehind = makeSquareBuildingFeature(app, -30 / 111320, 0, 0.00001, { heightMetres: 10 });
   const furtherBehind = makeSquareBuildingFeature(app, -100 / 111320, 0, 0.00001, { heightMetres: 10 });
 
@@ -3934,13 +3930,8 @@ test("drawBuildingExtrusions's behind-heading fade dims further-behind buildings
   app.drawBuildingExtrusions(furtherCtx);
 
   assert.ok(closerCtx.globalAlphas.length > 0 && furtherCtx.globalAlphas.length > 0, "both behind buildings should draw");
-  const closerAlpha = closerCtx.globalAlphas[0];
-  const furtherAlpha = furtherCtx.globalAlphas[0];
-  assert.ok(furtherAlpha < closerAlpha, `a building further behind the heading should be dimmer, got closer=${closerAlpha} further=${furtherAlpha}`);
-
-  // Expected alpha is linear in heading-offset distance: 1 - offset/BUILDING_BEHIND_FADE_METRES.
-  assert.ok(Math.abs(closerAlpha - (1 - 30 / 200)) < 0.02, `expected closer alpha near ${1 - 30 / 200}, got ${closerAlpha}`);
-  assert.ok(Math.abs(furtherAlpha - (1 - 100 / 200)) < 0.02, `expected further alpha near ${1 - 100 / 200}, got ${furtherAlpha}`);
+  assert.ok(closerCtx.globalAlphas.every((a) => a === 1), `closer behind building should render fully opaque, got ${closerCtx.globalAlphas}`);
+  assert.ok(furtherCtx.globalAlphas.every((a) => a === 1), `further behind building should render fully opaque, got ${furtherCtx.globalAlphas}`);
 });
 
 test("drawBuildingExtrusions culls buildings beyond BUILDING_EXTRUSION_MAX_METRES", () => {
@@ -3968,7 +3959,7 @@ test("BUILDING_MAX_SAFE_SCALE's perspective-divide backstop is real (not dead co
   app.state.tiltBetaSmoothed = 85; // max tilt -- worst case for the perspective singularity
 
   // 150km directly behind the user (nowhere near a real building -- BUILDING_EXTRUSION_MAX_METRES
-  // is 700m and BUILDING_BEHIND_FADE_METRES is 200m) is deliberately far enough behind the tilt
+  // is 700m and BUILDING_BEHIND_MAX_METRES is 200m) is deliberately far enough behind the tilt
   // camera's pivot to approach/cross the perspective-divide singularity documented on
   // BUILDING_MAX_SAFE_SCALE and worldToScreenForOverlayTilted -- this pins that the guard's
   // condition actually fires for a genuinely unsafe scale, so it isn't silently inert.
@@ -3980,7 +3971,7 @@ test("BUILDING_MAX_SAFE_SCALE's perspective-divide backstop is real (not dead co
   );
 
   // And confirm the backstop is genuinely inert for every real behind-heading distance the
-  // fade band actually allows (0..BUILDING_BEHIND_FADE_METRES) -- it should never reject a
+  // behind-distance cap actually allows (0..BUILDING_BEHIND_MAX_METRES) -- it should never reject a
   // legitimate nearby-behind building in ordinary operation.
   for (const metres of [1, 50, 100, 150, 199]) {
     const worldPoint = app.projectLonLat(0, -metres / 111320);
@@ -3992,7 +3983,7 @@ test("BUILDING_MAX_SAFE_SCALE's perspective-divide backstop is real (not dead co
   }
 });
 
-test("drawBuildingExtrusions uses the exact same fill colour/transparency as flat-mode footprints (so easing out of tilt doesn't shift colour) and draws a solid box with no stroke at all", () => {
+test("drawBuildingExtrusions keeps the roof on the flat-mode fill colour and applies subtle opaque side shading on walls, with no stroke", () => {
   resetData(app);
   app.state.compassHeading = 0;
   app.state.renderedNavigationHeading = 0;
@@ -4006,14 +3997,17 @@ test("drawBuildingExtrusions uses the exact same fill colour/transparency as fla
 
   // Matches the flat-mode building footprint fill used in the "building" branch of the
   // environment-feature loop and the flat state.buildingFeatures loop in js/renderer.js
-  // (drawEnvironmentPolygon calls with fill: "rgba(241, 239, 239, 0.95)") -- not a shared
+  // (drawEnvironmentPolygon calls with fill: "rgb(152, 152, 152)") -- not a shared
   // constant with that call site, so this pins the value deliberately; if it drifts, this
   // test (or a similar one added for the flat path) should be updated in lockstep as a
   // conscious choice, not silently.
-  const FLAT_BUILDING_FILL = "rgba(241, 239, 239, 0.95)";
+  const FLAT_BUILDING_FILL = "rgb(152, 152, 152)";
 
   assert.ok(ctx.fillStyles.length > 0, "should have drawn something");
-  assert.ok(ctx.fillStyles.every((style) => style === FLAT_BUILDING_FILL), `every fill (walls and roof alike) should use the flat footprint colour, got: ${[...new Set(ctx.fillStyles)]}`);
+  assert.equal(ctx.fillStyles[ctx.fillStyles.length - 1], FLAT_BUILDING_FILL, "roof fill should match the flat footprint colour");
+  const uniqueFillStyles = [...new Set(ctx.fillStyles)];
+  assert.ok(uniqueFillStyles.length > 1, `walls should use subtle side shading instead of one flat colour, got: ${uniqueFillStyles}`);
+  assert.ok(ctx.globalAlphas.every((a) => a === 1), `all shaded walls/roof should stay opaque, got ${ctx.globalAlphas}`);
 
   // Buildings should render as solid filled boxes with no outline at all (no per-wall
   // stroke, however thin/faint) -- ctx.stroke() should never be called.
@@ -4023,7 +4017,7 @@ test("drawBuildingExtrusions uses the exact same fill colour/transparency as fla
   assert.equal(app.BUILDING_EXTRUSION_MAX_METRES > 0, true);
 });
 
-test("drawBuildingExtrusions fades buildings out smoothly near the distance cutoff instead of popping them off abruptly", () => {
+test("drawBuildingExtrusions keeps buildings opaque right up to BUILDING_EXTRUSION_MAX_METRES, then culls beyond it", () => {
   resetData(app);
   app.state.compassHeading = 0;
   app.state.renderedNavigationHeading = 0;
@@ -4032,34 +4026,33 @@ test("drawBuildingExtrusions fades buildings out smoothly near the distance cuto
   app.state.tiltBetaSmoothed = 60;
 
   const nearMetres = 100;
-  const midFadeMetres = 650; // within the fade band (maxMetres - fadeMetres = 550 .. maxMetres = 700)
+  const nearLimitMetres = 690; // just inside the 700m cap
   const nearLat = nearMetres / 111320;
-  const midFadeLat = midFadeMetres / 111320;
+  const nearLimitLat = nearLimitMetres / 111320;
 
   // A tiny footprint (halfSizeDegrees ~1m) so the cull's first-vertex distance
   // (deliberately not the centroid -- see drawBuildingExtrusions' own comment) stays
-  // negligibly close to nearLat/midFadeLat themselves, keeping the expected-alpha maths
-  // below simple without fighting that approximation.
+  // negligibly close to nearLat/nearLimitLat themselves, keeping the distance checks simple
+  // without fighting that approximation.
   const near = makeSquareBuildingFeature(app, nearLat, 0, 0.00001, { heightMetres: 10 });
-  const fading = makeSquareBuildingFeature(app, midFadeLat, 0, 0.00001, { heightMetres: 10 }); // due north, same as `near`, so distance is purely midFadeMetres
+  const nearLimit = makeSquareBuildingFeature(app, nearLimitLat, 0, 0.00001, { heightMetres: 10 }); // due north, same as `near`, so distance is purely nearLimitMetres
 
   const nearCtx = makeCtxStub();
   app.state.buildingFeatures = [near];
   app.drawBuildingExtrusions(nearCtx);
   assert.ok(nearCtx.globalAlphas.length > 0, "should have drawn the nearby building");
-  assert.ok(nearCtx.globalAlphas.every((a) => a === 1), `a building well inside the fade band should draw at full opacity, got ${nearCtx.globalAlphas}`);
+  assert.ok(nearCtx.globalAlphas.every((a) => a === 1), `a building well inside the max distance should draw at full opacity, got ${nearCtx.globalAlphas}`);
 
-  const fadingCtx = makeCtxStub();
-  app.state.buildingFeatures = [fading];
-  app.drawBuildingExtrusions(fadingCtx);
-  assert.ok(fadingCtx.globalAlphas.length > 0, "should still draw a building inside the fade band, just at reduced opacity");
-  assert.ok(fadingCtx.globalAlphas.every((a) => a > 0 && a < 1), `a building within BUILDING_EXTRUSION_FADE_METRES of the cutoff should fade rather than pop, got ${fadingCtx.globalAlphas}`);
+  const nearLimitCtx = makeCtxStub();
+  app.state.buildingFeatures = [nearLimit];
+  app.drawBuildingExtrusions(nearLimitCtx);
+  assert.ok(nearLimitCtx.globalAlphas.length > 0, "should still draw a building just inside the distance cap");
+  assert.ok(nearLimitCtx.globalAlphas.every((a) => a === 1), `a building just inside BUILDING_EXTRUSION_MAX_METRES should stay fully opaque, got ${nearLimitCtx.globalAlphas}`);
 
-  // Expected alpha at 650m out of a 700m cap with a 150m fade band: (700-650)/150 = 1/3.
-  const expectedAlpha = (app.BUILDING_EXTRUSION_MAX_METRES - midFadeMetres) / app.BUILDING_EXTRUSION_FADE_METRES;
-  for (const a of fadingCtx.globalAlphas) {
-    assert.ok(Math.abs(a - expectedAlpha) < 0.02, `expected alpha near ${expectedAlpha}, got ${a}`);
-  }
+  const beyondLimitCtx = makeCtxStub();
+  app.state.buildingFeatures = [makeSquareBuildingFeature(app, 710 / 111320, 0, 0.00001, { heightMetres: 10 })];
+  app.drawBuildingExtrusions(beyondLimitCtx);
+  assert.equal(beyondLimitCtx.calls.fill, 0, "a building beyond BUILDING_EXTRUSION_MAX_METRES should be culled");
 });
 
 runRegisteredTests().catch((error) => {
