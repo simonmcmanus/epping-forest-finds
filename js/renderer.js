@@ -149,6 +149,12 @@ function drawOverlay() {
   drawSelectedOverlay(ctx, toScreen);
 }
 
+// Flat-mode footprint/roof colour. 3D building extrusion (walls in tilt mode) was
+// removed entirely for performance (see project notes) -- this constant remains
+// because the always-on flat 2D footprint layer below still uses it.
+const BUILDING_FILL_RGB = [152, 152, 152];
+const BUILDING_FILL = `rgb(${BUILDING_FILL_RGB[0]}, ${BUILDING_FILL_RGB[1]}, ${BUILDING_FILL_RGB[2]})`;
+
 function drawCowPastures(ctx) {
   if (!state.cowPastures.length) return;
   const dpr = pixelRatio();
@@ -416,9 +422,7 @@ function drawEnvironment(ctx) {
 
     if (type === "building") {
       drawEnvironmentPolygon(ctx, geometry, {
-        fill: "rgba(241, 239, 239, 0.95)",
-        stroke: "rgba(80, 80, 80, 0.35)",
-        width: 0.8 * dpr,
+        fill: BUILDING_FILL,
       });
     }
 
@@ -463,9 +467,7 @@ function drawEnvironment(ctx) {
         }
       }
       drawEnvironmentPolygon(ctx, geom, {
-        fill: "rgba(241, 239, 239, 0.95)",
-        stroke: "rgba(80, 80, 80, 0.35)",
-        width: 0.8 * dpr,
+        fill: BUILDING_FILL,
       });
     }
     ctx.restore();
@@ -486,9 +488,11 @@ function drawEnvironmentLines(ctx, geometry, style) {
       if (i === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
     }
-    ctx.strokeStyle = style.stroke;
-    ctx.lineWidth = style.width;
-    ctx.stroke();
+    if (style.stroke && style.width > 0) {
+      ctx.strokeStyle = style.stroke;
+      ctx.lineWidth = style.width;
+      ctx.stroke();
+    }
   }
 }
 
@@ -1737,4 +1741,3 @@ function radarRadiusForMetres(point, metres) {
   const destinationScreen = worldToScreen(projectLonLat(destination.longitude, destination.latitude));
   return Math.hypot(destinationScreen.x - point.x, destinationScreen.y - point.y);
 }
-
