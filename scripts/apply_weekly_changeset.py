@@ -33,6 +33,16 @@ Changeset schema:
 Prints a JSON log of what was added / removed / skipped. Anything skipped
 (duplicate name, no match to remove, implausible distance from the forest
 boundary) needs a human look -- this script deliberately refuses to guess.
+
+Target file: data/local-landmarks.geojson (the master) is gitignored --
+it only exists on a machine that has run the regenerate/split scripts
+locally. When it's present (the normal local/laptop path, via
+prepare_weekly_branch.sh), this script edits it and split_landmarks.py
+re-derives the category files from it. When it's absent (a fresh CI
+checkout, e.g. the weekly-ledger GitHub Actions workflow -- this repo's
+weekly automation only ever touches the food category), this script
+edits data/local-landmarks-food.geojson directly instead and skips the
+split step, since there's no master to re-split from.
 """
 import json
 import math
@@ -213,22 +223,38 @@ def apply_changeset(master, changeset, segments, ref_lat_rad):
     return log
 
 
+def resolve_target_file():
+    """Master file if we have one (local/laptop path); otherwise fall back
+    to editing the food split file directly (CI path -- see module docstring)."""
+    if MASTER_FILE.exists():
+        return MASTER_FILE, True
+    return DATA / "local-landmarks-food.geojson", False
+
+
 def main():
     if len(sys.argv) != 2:
         print("Usage: apply_weekly_changeset.py <changeset.json>", file=sys.stderr)
         sys.exit(1)
 
     changeset = json.loads(Path(sys.argv[1]).read_text())
-    master = json.loads(MASTER_FILE.read_text())
+    target_file, has_master = resolve_target_file()
+    target = json.loads(target_file.read_text())
     forest_geojson = json.loads(FOREST_BOUNDARY_FILE.read_text())
     segments, ref_lat_rad = load_boundary_segments(forest_geojson)
 
-    log = apply_changeset(master, changeset, segments, ref_lat_rad)
+    log = apply_changeset(target, changeset, segments, ref_lat_rad)
 
-    master["generatedAt"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    MASTER_FILE.write_text(json.dumps(master, indent=2) + "\n")
+    target["generatedAt"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    target_file.write_text(json.dumps(target, indent=2) + "\n")
 
     print(json.dumps(log, indent=2))
+    if not has_master:
+        print(
+            f"\nNo {MASTER_FILE.name} found (it's gitignored, local-only) -- applied directly "
+            f"to {target_file.name} instead. This is the expected path in CI: split_landmarks.py "
+            f"was NOT run, since there's no master to re-derive the other category files from.",
+            file=sys.stderr,
+        )
     if log["skipped"]:
         print(f"\n{len(log['skipped'])} entr(y/ies) skipped - review before treating this changeset as fully applied.", file=sys.stderr)
 
