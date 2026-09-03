@@ -153,31 +153,25 @@ function drawOverlay() {
 // Building extrusion is still distance-limited (not "every building, always") -- with
 // 20,000+ footprints in the full dataset, projecting and filling all of them every
 // animation frame regardless of whether any are actually near the user would burn CPU
-// (and phone battery) for buildings rendering as sub-pixel specks near the horizon. A hard
-// cutoff made buildings visibly pop in/out as the user walked or GPS drifted, so this
-// fades buildings out over the last BUILDING_EXTRUSION_FADE_METRES before the cutoff
-// instead of cutting them off outright -- smooth from the user's perspective even though a
-// boundary still exists underneath. Real Apple/Google-style 3D buildings use the same kind
-// of near-field limit + fade for the same reason. 700m covers several hundred buildings
-// even in this dataset's densest area (~1144 within 700m of the busiest sampled point) --
-// comfortably more than a phone screen shows at once in tilt mode, without unconditionally
-// walking all 20k+ features every frame.
+// (and phone battery) for buildings rendering as sub-pixel specks near the horizon.
+// 700m covers several hundred buildings even in this dataset's densest area
+// (~1144 within 700m of the busiest sampled point) -- comfortably more than a phone
+// screen shows at once in tilt mode, without unconditionally walking all 20k+ features
+// every frame.
 const BUILDING_EXTRUSION_MAX_METRES = 700;
-const BUILDING_EXTRUSION_FADE_METRES = 150;
 // Buildings behind the user's heading used to be hard-excluded (isBehindTiltHeading, same
 // as roads/paths) -- correct for polygons far behind (see BUILDING_MAX_SAFE_SCALE below),
 // but it hid *every* behind building outright, including ones right next to the user. This
-// fades them out over a heading-offset distance instead (mirrors how tiltPinScale already
-// treats behind-heading pins -- a shrink, not a snap), so nearby behind buildings still
-// show, just dimming the further behind they are.
-const BUILDING_BEHIND_FADE_METRES = 200;
+// now keeps nearby behind buildings visible as fully opaque blocks too, while still
+// excluding geometry too far behind the user where perspective can become unstable.
+const BUILDING_BEHIND_MAX_METRES = 200;
 // Hard safety backstop, independent of the metres-based fade above: never draw a building
 // whose ground point's perspective-divide scale (worldToScreenForOverlayTilted's return)
 // has blown up towards/through the singularity that "behind the pivot" geometry approaches
 // as it gets further behind (scale = P/(P-dz), see tiltPerspectivePx()) -- the tilt system's
 // own historical bug class (see the tilt-perspective-scaling project notes: pins/radar
 // briefly disappearing or flying to nonsense coordinates near this exact singularity).
-// BUILDING_BEHIND_FADE_METRES keeps ordinary behind buildings well clear of this in
+// BUILDING_BEHIND_MAX_METRES keeps ordinary behind buildings well clear of this in
 // practice; this is the belt-and-suspenders check for whatever combination of zoom/tilt
 // might not be. Loosely matches the "0 < scale < 5" sanity bound used in this app's own
 // past singularity-margin tests.
@@ -189,7 +183,7 @@ const BUILDING_MAX_SAFE_SCALE = 4;
 // no stroke -- outlining every wall of every building (4-5 strokes each, sharing edges
 // with neighbours) stacked into a much heavier line weight than a single flat footprint
 // outline ever has, which read as too thick/dominant; a plain fill avoids that entirely.
-const BUILDING_FILL = "rgba(120, 120, 120, 0.15)";
+const BUILDING_FILL = "rgb(120, 120, 120)";
 
 // Draws extruded (walls + roof) buildings on the overlay canvas -- only meaningful once
 // the tilt perspective camera is active (drawOverlay's caller already gates on that); in
@@ -204,9 +198,7 @@ function drawBuildingExtrusions(ctx) {
   const userPoint = state.userLocation.point;
   const maxWorldDistance = metresToWorldUnits(BUILDING_EXTRUSION_MAX_METRES, state.userLocation.latitude);
   const maxWorldDistanceSq = maxWorldDistance * maxWorldDistance;
-  const fadeWorldDistance = metresToWorldUnits(BUILDING_EXTRUSION_FADE_METRES, state.userLocation.latitude);
-  const fadeStartWorldDistance = Math.max(0, maxWorldDistance - fadeWorldDistance);
-  const behindFadeWorldDistance = metresToWorldUnits(BUILDING_BEHIND_FADE_METRES, state.userLocation.latitude);
+  const behindMaxWorldDistance = metresToWorldUnits(BUILDING_BEHIND_MAX_METRES, state.userLocation.latitude);
 
   const candidates = [];
   for (const feature of state.buildingFeatures) {
@@ -235,31 +227,23 @@ function drawBuildingExtrusions(ctx) {
     // and tiltPinScale), positive = behind, magnitude is world-unit distance from the
     // ahead/behind boundary line.
     const headingOffset = tiltRotatedHeadingOffset(firstWorld);
-    let behindAlpha = 1;
     if (headingOffset > 0) {
-      if (headingOffset > behindFadeWorldDistance) continue;
-      behindAlpha = clamp(1 - headingOffset / behindFadeWorldDistance, 0, 1);
-      if (behindAlpha <= 0) continue;
+      if (headingOffset > behindMaxWorldDistance) continue;
 
       // Safety backstop -- see BUILDING_MAX_SAFE_SCALE.
       const projectedFirst = worldToScreenForOverlayTilted(firstWorld);
       if (!Number.isFinite(projectedFirst.scale) || projectedFirst.scale <= 0 || projectedFirst.scale > BUILDING_MAX_SAFE_SCALE) continue;
     }
 
-    candidates.push({ outerRing, heightMetres, distSq, behindAlpha });
+    candidates.push({ outerRing, heightMetres, distSq });
   }
 
   if (!candidates.length) return;
 
   candidates.sort((a, b) => b.distSq - a.distSq);
 
-  for (const { outerRing, heightMetres, distSq, behindAlpha } of candidates) {
-    const distanceAlpha = distSq <= fadeStartWorldDistance * fadeStartWorldDistance
-      ? 1
-      : clamp((maxWorldDistance - Math.sqrt(distSq)) / fadeWorldDistance, 0, 1);
-    const alpha = distanceAlpha * behindAlpha;
-    if (alpha <= 0) continue;
-    drawSingleBuildingExtrusion(ctx, outerRing, heightMetres, alpha);
+  for (const { outerRing, heightMetres } of candidates) {
+    drawSingleBuildingExtrusion(ctx, outerRing, heightMetres, 1);
   }
 }
 
@@ -572,9 +556,7 @@ function drawEnvironment(ctx) {
 
     if (type === "building") {
       drawEnvironmentPolygon(ctx, geometry, {
-        fill: "rgba(120, 120, 120, 0.15)",
-        stroke: "rgba(80, 80, 80, 0.35)",
-        width: 0.8 * dpr,
+        fill: BUILDING_FILL,
       });
     }
 
@@ -619,9 +601,7 @@ function drawEnvironment(ctx) {
         }
       }
       drawEnvironmentPolygon(ctx, geom, {
-        fill: "rgba(120, 120, 120, 0.15)",
-        stroke: "rgba(80, 80, 80, 0.35)",
-        width: 0.8 * dpr,
+        fill: BUILDING_FILL,
       });
     }
     ctx.restore();
@@ -642,9 +622,11 @@ function drawEnvironmentLines(ctx, geometry, style) {
       if (i === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
     }
-    ctx.strokeStyle = style.stroke;
-    ctx.lineWidth = style.width;
-    ctx.stroke();
+    if (style.stroke && style.width > 0) {
+      ctx.strokeStyle = style.stroke;
+      ctx.lineWidth = style.width;
+      ctx.stroke();
+    }
   }
 }
 
@@ -1893,4 +1875,3 @@ function radarRadiusForMetres(point, metres) {
   const destinationScreen = worldToScreen(projectLonLat(destination.longitude, destination.latitude));
   return Math.hypot(destinationScreen.x - point.x, destinationScreen.y - point.y);
 }
-
