@@ -22,7 +22,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
       - run: npm ci
+      # Runs both the JS suites and the scripts/test_*.py suite (report
+      # rendering, the OSM/cow-boundary diff logic, etc.) -- see
+      # package.json's "test" script.
       - run: npm test
 
   e2e:

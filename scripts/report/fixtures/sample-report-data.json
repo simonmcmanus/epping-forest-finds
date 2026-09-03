@@ -1,0 +1,88 @@
+{
+  "date": "2026-09-03",
+  "date_display": "Wednesday, 3 September 2026",
+  "intro": "A sample of this week's ledger, showing the new format: plain-English write-ups, a map with the search area marked, and an update on where the forest's grazing cattle are.",
+  "findings": [
+    {
+      "category": "opening",
+      "title": "The Hair of the Dog",
+      "place": "Loughton",
+      "status_label": "New, not yet on the map",
+      "body": "A new pub-restaurant has opened on York Hill in Loughton. It's not yet shown on the map — worth a quick look before it's added, since a couple of directories describe it slightly differently (Italian restaurant vs. pub).",
+      "lon": 0.0573766,
+      "lat": 51.6521913,
+      "sources": [
+        {"label": "Tripadvisor", "url": "https://www.tripadvisor.com/Restaurant_Review-g1809078-d34225012-Reviews-The_Hair_of_The_Dog-Loughton_Essex_England.html"},
+        {"label": "Facebook", "url": "https://www.facebook.com/Thehairofthedogessex/"}
+      ]
+    },
+    {
+      "category": "opening",
+      "title": "La Sala",
+      "place": "Woodford Green",
+      "status_label": "New, not yet on the map",
+      "body": "Trade press reports a new restaurant, La Sala, has opened in Woodford Green. It's not yet shown on the map.",
+      "lon": 0.0209,
+      "lat": 51.6099,
+      "sources": [
+        {"label": "The Caterer", "url": "https://www.thecaterer.com/news/la-sala-woodford-green-opens-its-doors"}
+      ]
+    },
+    {
+      "category": "closing",
+      "title": "Zizzi",
+      "place": "Church Hill, Loughton",
+      "status_label": "Closed — removed from the map",
+      "body": "This branch has closed and has been taken off the map. A separate Zizzi in South Woodford is still open and hasn't been touched.",
+      "lon": 0.0537,
+      "lat": 51.6421,
+      "sources": [
+        {"label": "HappyCow", "url": "https://www.happycow.net/reviews/zizzi-loughton-77509"}
+      ]
+    },
+    {
+      "category": "closing",
+      "title": "Morrisons Café",
+      "place": "Loughton",
+      "status_label": "Possibly closed",
+      "body": "The in-store café at the Loughton Morrisons looks to have closed, though the supermarket itself is still trading. Worth a phone check before the map is updated.",
+      "lon": 0.0530,
+      "lat": 51.6415,
+      "sources": [
+        {"label": "Yelp", "url": "https://www.yelp.com/biz/morrisons-loughton-cafe-loughton-4"}
+      ]
+    },
+    {
+      "category": "road",
+      "title": "Bakers Lane, Epping",
+      "place": "Epping",
+      "status_label": "Closing 8 September",
+      "body": "Closing for around 16 weeks for resurfacing ahead of the new Epping Leisure Centre. Diversions are signed, and pavements and nearby car parks stay open throughout.",
+      "lon": 0.1135,
+      "lat": 51.6949,
+      "sources": [
+        {"label": "Epping Forest District Council", "url": "https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures"}
+      ]
+    },
+    {
+      "category": "event",
+      "title": "Skylark Conservation Event",
+      "place": "Wanstead Flats",
+      "status_label": "Sat 6 Sept, 2–4pm",
+      "body": "A free conservation event at the Harrow Road Pavilion — no booking required.",
+      "lon": 0.0175,
+      "lat": 51.5624,
+      "sources": [
+        {"label": "City of London Corporation", "url": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest"}
+      ]
+    }
+  ],
+  "grazing": {
+    "moved": true,
+    "place": "High Beach",
+    "body": "The forest's grazing cattle have moved to a new paddock near High Beach, on the eastern side of the forest.",
+    "lon": 0.0247,
+    "lat": 51.6580,
+    "sources": []
+  }
+}

@@ -106,12 +106,28 @@ jobs:
               so this script automatically edits
               data/local-landmarks-food.geojson directly instead. That is
               expected; do not try to reconstruct or fetch the master file.
-            - Past reports live at reports/epping-forest-ledger-YYYY-MM-DD.html.
-              Read the most recent one and reuse its exact visual template
-              (palette, fonts, layout, SVG map) -- only replace date,
-              stats, pins and findings content. It was written assuming a
-              human would review and push a branch; today's report should
-              instead describe what actually happened this run (see step 6).
+            - scripts/osm_business_diff.py -- queries OpenStreetMap directly
+              and diffs it against data/local-landmarks-food.geojson, so you
+              don't have to guess which of 680+ points might have changed.
+              Run it plain (python3 scripts/osm_business_diff.py) and read
+              its JSON output.
+            - scripts/cow_boundary_tracker.py -- checks whether the forest's
+              grazing cattle have moved to a different paddock since last
+              run, and if so, builds a plain-English description of roughly
+              where. Run it plain (python3 scripts/cow_boundary_tracker.py)
+              and use its JSON output directly as your report-data.json's
+              "grazing" field.
+            - scripts/report/render_report.py -- turns a small JSON file
+              into the finished report page (design, map, point-count stats
+              -- all of it). You do NOT hand-write the report's HTML or SVG
+              map. Read scripts/report/report-data.schema.md for the exact
+              JSON shape, then run:
+                python3 scripts/report/render_report.py <report-data.json>
+              It writes reports/epping-forest-ledger-<date>.html itself and
+              refuses to write anything containing technical jargon (file
+              names, OSM ids, branch/PR/git talk) -- if it errors for that
+              reason, rewrite the offending sentence in report-data.json in
+              plain English and run it again. See step 6.
 
             What to do, in order:
 
@@ -162,21 +178,42 @@ jobs:
                d. Forest events:
                   https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest
                   and https://www.eppingforestdc.gov.uk/whats-on-in-epping-forest/.
-               e. For map pins, look up real coordinates in
+               e. For each finding, look up its real coordinates in
                   data/local-roads.geojson or data/local-landmarks-food.geojson
-                  rather than guessing. Project into the SVG using the same
-                  formula as the template you copied.
+                  rather than guessing -- put them in report-data.json's
+                  "lon"/"lat" fields and the render script places the pin for
+                  you; there's no map formula to copy by hand any more.
                f. Follow up on anything the previous report flagged as
                   "possible" instead of re-flagging it fresh.
+               g. Small independent business turnover (the gap general news
+                  search misses): run python3 scripts/osm_business_diff.py.
+                  Its "new_candidates" are OSM points not on the map yet
+                  (possible openings/gaps worth a look); its
+                  "missing_candidates" are map points OSM no longer lists
+                  (possibly closed -- OSM can simply be out of date, so treat
+                  this as "worth checking", never as confirmed on its own).
+                  Cross-check anything promising the same way you would a
+                  news search result before treating it as confident.
+               h. The forest's grazing cattle: run
+                  python3 scripts/cow_boundary_tracker.py. It compares this
+                  run's Nofence grazing boundary against last run's and
+                  prints ready-to-use JSON -- if "moved" is true, the cattle
+                  have moved paddocks since last run and it names roughly
+                  where; use its output directly as report-data.json's
+                  "grazing" field either way (moved or not).
 
             3. Build a changeset for every business finding you're
-               reasonably confident about (name, category, coordinates):
+               reasonably confident about (name, category, coordinates) --
+               from your own research or from scripts/osm_business_diff.py's
+               candidates:
                {"add": [{"name":..., "category":..., "lon":..., "lat":...,
                "address":..., "website":...}], "remove": [{"name":...,
                "reason":...}]}. Valid categories are in
-               apply_weekly_changeset.py's VALID_FOOD_CATEGORIES. Skip
-               anything you're not confident about and note it in the
-               report as needing a human look, rather than guessing.
+               apply_weekly_changeset.py's VALID_FOOD_CATEGORIES. Anything
+               you're not confident about still belongs in report-data.json
+               as a finding -- just say plainly in its "body" text that it
+               needs checking (e.g. "not confirmed yet, worth a look"),
+               rather than leaving it out or guessing.
 
             4. If the changeset is non-empty:
                a. Create a branch:
@@ -196,8 +233,9 @@ jobs:
                   test suites run as normal CI checks on the PR instead
                   (step e below) -- that's Simon's and CI's job to wait on,
                   not yours.
-               c. git add the changed data file(s) and the new report (see
-                  step 6), commit
+               c. git add the changed data file(s), the new report, and
+                  data/cow-grazing-history.json if cow_boundary_tracker.py
+                  updated it (see step 6), commit
                   (git config user.name "Epping Forest Ledger (weekly report)",
                   user.email "weekly-report@local", scoped to this checkout
                   only), and git push -u origin
@@ -243,19 +281,32 @@ jobs:
               minute or two of the PR opening -- if the link 404s right
               away, give it a moment and reload.)
 
-            6. Write the report to reports/epping-forest-ledger-<date>.html,
-               committed as part of the same branch/PR as the data change
-               (or, if the changeset was empty, commit it directly to a
-               small standalone branch/PR of its own, same merge rule).
-               Auto-merge is temporarily disabled while this workflow is
-               being tested, so write it as "proposed, pending your review"
-               for anything sitting on the open PR -- not as already applied.
-               Once Simon re-enables auto-merge, go back to describing merged
-               changes in the present/past tense. Keep a section for anything
-               you found but weren't confident enough to apply, clearly
-               marked as needing a human look. Keep an honest
-               methodology/limitations section (including whether the FSA
-               check worked this run).
+            6. Build reports/epping-forest-ledger-<date>.html by writing a
+               report-data.json (see scripts/report/report-data.schema.md)
+               to /tmp/report-data.json -- outside the repo, so there's
+               nothing to clean up or risk committing by mistake -- and
+               running:
+                 python3 scripts/report/render_report.py /tmp/report-data.json
+               Only the rendered HTML this produces gets committed, as part
+               of the same branch/PR as the data change (or, if the
+               changeset was empty, on a small standalone branch/PR of its
+               own, same merge rule).
+
+               Write every finding for a general reader who has never seen
+               this project -- no file names, OSM ids, branch names, or
+               git/PR/CI talk (the render script itself will refuse to write
+               the report if any of that shows up in the visible text, so
+               treat an error from it as "rewrite this sentence in plain
+               English" and try again). Auto-merge is temporarily disabled
+               while this workflow is being tested, so phrase anything
+               sitting on the open PR as proposed and pending a quick
+               review -- e.g. "we'd like to remove this" rather than "this
+               has been removed" -- never as already live on the map. Once
+               Simon re-enables auto-merge, switch to describing changes as
+               already made. report-data.json's "about_note" field can
+               mention the FSA check status or any other honest caveat in
+               plain language if it's worth flagging that week -- keep it
+               short and reader-facing, not a developer changelog.
 
             7. End with a short plain-text summary in the workflow log:
                what changed, whether it merged, and anything that needs a
