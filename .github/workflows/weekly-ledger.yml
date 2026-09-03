@@ -1,0 +1,185 @@
+name: Weekly Epping Forest Ledger
+
+# Runs entirely on GitHub's servers -- no laptop or local device needed.
+#
+# NOTE on the cron time: GitHub Actions cron is UTC only, no DST awareness.
+# 01:00 UTC is 2am in the UK during BST (roughly late Mar-late Oct) and 1am
+# during GMT (winter) -- an hour early for part of the year. Adjust if that
+# matters to you.
+#
+# NOTE on github_token: passed explicitly below to work around a currently
+# open bug in anthropics/claude-code-action where its default GitHub App
+# authentication fails specifically on schedule-triggered runs (works fine
+# on workflow_dispatch) -- see https://github.com/anthropics/claude-code-action/issues/814.
+# Side effect: a push/PR made with this job's own GITHUB_TOKEN does not
+# retrigger this repo's separate ci.yml workflow (GitHub's anti-recursion
+# rule for the default token), so this job runs the full test suite itself
+# as its own merge gate rather than depending on ci.yml to do it.
+on:
+  schedule:
+    - cron: "0 1 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  weekly-ledger:
+    name: Research, propose, test and merge this week's changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            You are producing the weekly "Epping Forest Ledger" report for
+            this repository (simonmcmanus/epping-forest-finds) -- a PWA
+            showing an offline map of Epping Forest (shops, cafes,
+            restaurants, pubs, roads, paths, landmarks). This run is fully
+            unattended: no laptop, no human watching. You have a normal
+            checkout of `main` on this runner and a real shell (Bash) --
+            work directly in it, there is no dirty working tree to protect
+            here (unlike a local run).
+
+            SCOPE: research this week's changes, apply them to the food
+            dataset, test, commit, push, and open a PR for Simon to review.
+            AUTO-MERGE IS TEMPORARILY DISABLED while Simon tests this
+            workflow -- do NOT run `gh pr merge` under any circumstances,
+            even if every test passes. Open the PR and stop. Never
+            fabricate findings; if you can't verify something, say so and
+            leave it for a human instead of guessing.
+
+            Coverage settlements: Loughton, Chingford, Buckhurst Hill,
+            Chigwell, Theydon Bois, Epping, Woodford Green, Waltham Abbey.
+
+            Tooling already in this repo:
+            - scripts/apply_weekly_changeset.py -- applies a changeset JSON
+              ({"add":[...], "remove":[...]}) to the food dataset. Read its
+              docstring: on this runner data/local-landmarks.geojson (the
+              master file) does not exist -- it's gitignored, local-only --
+              so this script automatically edits
+              data/local-landmarks-food.geojson directly instead. That is
+              expected; do not try to reconstruct or fetch the master file.
+            - Past reports live at reports/epping-forest-ledger-YYYY-MM-DD.html.
+              Read the most recent one and reuse its exact visual template
+              (palette, fonts, layout, SVG map) -- only replace date,
+              stats, pins and findings content. It was written assuming a
+              human would review and push a branch; today's report should
+              instead describe what actually happened this run (see step 6).
+
+            What to do, in order:
+
+            1. Get today's date. Read data/local-landmarks-food.geojson to
+               get the current point count / category breakdown.
+
+            2. Research this week's changes:
+               a. Business closures/openings: web-search news for each
+                  settlement. Check each candidate against
+                  data/local-landmarks-food.geojson by name before treating
+                  it as a real gap.
+               b. FSA cross-check (food category only, best-effort): the UK
+                  Food Standards Agency Food Hygiene Rating Scheme API at
+                  https://api.ratings.food.gov.uk needs no API key but
+                  requires the header `x-api-version: 2`. Use curl (you have
+                  network access on this runner). Check
+                  https://api.ratings.food.gov.uk/Help yourself for the
+                  current Establishments search parameters -- these were
+                  not reliably confirmed as of when this workflow was
+                  written. If it doesn't work, say so in the report rather
+                  than fabricating results; don't let it block anything else.
+               c. Road closures & roadworks:
+                  https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures
+                  and Essex Highways.
+               d. Forest events:
+                  https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest
+                  and https://www.eppingforestdc.gov.uk/whats-on-in-epping-forest/.
+               e. For map pins, look up real coordinates in
+                  data/local-roads.geojson or data/local-landmarks-food.geojson
+                  rather than guessing. Project into the SVG using the same
+                  formula as the template you copied.
+               f. Follow up on anything the previous report flagged as
+                  "possible" instead of re-flagging it fresh.
+
+            3. Build a changeset for every business finding you're
+               reasonably confident about (name, category, coordinates):
+               {"add": [{"name":..., "category":..., "lon":..., "lat":...,
+               "address":..., "website":...}], "remove": [{"name":...,
+               "reason":...}]}. Valid categories are in
+               apply_weekly_changeset.py's VALID_FOOD_CATEGORIES. Skip
+               anything you're not confident about and note it in the
+               report as needing a human look, rather than guessing.
+
+            4. If the changeset is non-empty:
+               a. Create a branch: git checkout -b weekly-data-report/<date>
+               b. Run: python3 scripts/apply_weekly_changeset.py <changeset.json>
+               c. Run the FULL test suite yourself -- both:
+                    node --test test/forest-finds.test.js
+                    npx playwright test --update-snapshots=missing
+                  This job's own push does not retrigger this repo's
+                  separate ci.yml workflow (GITHUB_TOKEN pushes don't
+                  retrigger Actions), so there is no second automated check
+                  coming later -- this test run IS the safety gate. If
+                  either suite fails, do NOT commit or push anything;
+                  write the report explaining the failure honestly and stop
+                  -- leave the dataset unchanged.
+               d. If tests pass: git add the changed data file(s) and the
+                  new report (see step 6), commit
+                  (git config user.name "Epping Forest Ledger (weekly report)",
+                  user.email "weekly-report@local", scoped to this checkout
+                  only), and git push -u origin weekly-data-report/<date>.
+               e. Open a PR: gh pr create --title "..." --body "..." listing
+                  exactly what was added/removed and why.
+               f. Do NOT merge the PR. Auto-merge is temporarily
+                  disabled while this workflow is being tested -- leave
+                  it open for Simon to review and merge by hand,
+                  however clean the tests were. Say so plainly in the
+                  PR body and in your final summary.
+            5. If the changeset is empty, skip branch/PR/merge entirely and
+               say so in the report.
+
+            6. Write the report to reports/epping-forest-ledger-<date>.html,
+               committed as part of the same branch/PR as the data change
+               (or, if the changeset was empty, commit it directly to a
+               small standalone branch/PR of its own, same merge rule).
+               Auto-merge is temporarily disabled while this workflow is
+               being tested, so write it as "proposed, pending your review"
+               for anything sitting on the open PR -- not as already applied.
+               Once Simon re-enables auto-merge, go back to describing merged
+               changes in the present/past tense. Keep a section for anything
+               you found but weren't confident enough to apply, clearly
+               marked as needing a human look. Keep an honest
+               methodology/limitations section (including whether the FSA
+               check worked this run).
+
+            7. End with a short plain-text summary in the workflow log:
+               what changed, whether it merged, and anything that needs a
+               human's attention.
+          # NOTE: Bash(gh pr merge:*) is deliberately left out of claude_args
+          # below -- auto-merge is disabled while Simon tests this workflow.
+          # Add it back (and flip the prompt language above) once he is happy.
+          claude_args: |
+            --allowedTools "WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(node --test:*),Bash(npx playwright:*),Bash(npm ci:*),Bash(npm test:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*)"
