@@ -73,6 +73,22 @@ jobs:
             fabricate findings; if you can't verify something, say so and
             leave it for a human instead of guessing.
 
+            HOUSEKEEPING (do this first, before any research): this workflow
+            can be re-run manually the same day (workflow_dispatch), e.g.
+            because an earlier run today was blocked by something unrelated
+            to the actual data (a flaky test, an API outage). Run
+            `gh pr list --state open --json number,headRefName,title` and
+            check any PR whose head branch matches
+            `weekly-data-report/<today's date>*`. If you find one AND its
+            branch's diff against main touches no file under `data/`
+            (i.e. it only carries a report, or nothing at all -- a prior
+            attempt that didn't get as far as a real data change), close it
+            with `gh pr close <number> --comment "Superseded by a re-run of
+            this workflow later the same day."` before continuing. Leave
+            alone any same-day PR that DID change a `data/` file -- that is
+            a real, reviewable proposal and must never be closed
+            automatically just because a newer run exists.
+
             Coverage settlements: Loughton, Chingford, Buckhurst Hill,
             Chigwell, Theydon Bois, Epping, Woodford Green, Waltham Abbey.
 
@@ -134,7 +150,11 @@ jobs:
                report as needing a human look, rather than guessing.
 
             4. If the changeset is non-empty:
-               a. Create a branch: git checkout -b weekly-data-report/<date>
+               a. Create a branch:
+                  git checkout -b weekly-data-report/<date>-${{ github.run_number }}
+                  (the run-number suffix keeps this collision-free from any
+                  branch a same-day re-run of this workflow already pushed --
+                  see HOUSEKEEPING above)
                b. Run: python3 scripts/apply_weekly_changeset.py <changeset.json>
                c. Run the FULL test suite yourself -- both:
                     node --test test/forest-finds.test.js
@@ -150,7 +170,8 @@ jobs:
                   new report (see step 6), commit
                   (git config user.name "Epping Forest Ledger (weekly report)",
                   user.email "weekly-report@local", scoped to this checkout
-                  only), and git push -u origin weekly-data-report/<date>.
+                  only), and git push -u origin
+                  weekly-data-report/<date>-${{ github.run_number }}.
                e. Open a PR: gh pr create --title "..." --body "..." listing
                   exactly what was added/removed and why.
                f. Do NOT merge the PR. Auto-merge is temporarily
@@ -182,4 +203,4 @@ jobs:
           # below -- auto-merge is disabled while Simon tests this workflow.
           # Add it back (and flip the prompt language above) once he is happy.
           claude_args: |
-            --allowedTools "WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(node --test:*),Bash(npx playwright:*),Bash(npm ci:*),Bash(npm test:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*)"
+            --allowedTools "WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(node --test:*),Bash(npx playwright:*),Bash(npm ci:*),Bash(npm test:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*)"
