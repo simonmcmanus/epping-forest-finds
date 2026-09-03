@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-06-08T20:43:14.148004Z",
+  "generatedAt": "2026-09-03T18:55:48.227479Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -22558,6 +22558,72 @@
         "phone": null,
         "address": "89 Aldersbrook Road, London E12 5DG",
         "distanceToForestBoundaryMetres": 464.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/fishfellas",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.055379,
+          51.60667
+        ]
+      },
+      "properties": {
+        "id": "manual/fishfellas",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Fishfellas",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://fishfellaschigwell.co.uk",
+        "phone": "020 8504 0888",
+        "address": "714 Chigwell Road, Woodford Green, IG8 8AL",
+        "distanceToForestBoundaryMetres": 407.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/chingford-halal-meat-grocery",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0172606,
+          51.6094845
+        ]
+      },
+      "properties": {
+        "id": "manual/chingford-halal-meat-grocery",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Chingford Halal Meat & Grocery",
+        "category": "butcher",
+        "categoryLabel": "Butcher",
+        "amenity": null,
+        "shop": "butcher",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": "020 3538 4948",
+        "address": "36 Chingford Mount Road, Chingford, London E4 9AB",
+        "distanceToForestBoundaryMetres": 513.7,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
