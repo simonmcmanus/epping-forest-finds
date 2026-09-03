@@ -66,11 +66,12 @@ jobs:
             here (unlike a local run).
 
             SCOPE: research this week's changes, apply them to the food
-            dataset, test, commit, push, open a PR, and merge it yourself
-            if -- and only if -- your own full test run is clean. Never
-            merge past a test failure your change caused. Never fabricate
-            findings; if you can't verify something, say so and leave it
-            for a human instead of guessing.
+            dataset, test, commit, push, and open a PR for Simon to review.
+            AUTO-MERGE IS TEMPORARILY DISABLED while Simon tests this
+            workflow -- do NOT run `gh pr merge` under any circumstances,
+            even if every test passes. Open the PR and stop. Never
+            fabricate findings; if you can't verify something, say so and
+            leave it for a human instead of guessing.
 
             Coverage settlements: Loughton, Chingford, Buckhurst Hill,
             Chigwell, Theydon Bois, Epping, Woodford Green, Waltham Abbey.
@@ -152,11 +153,11 @@ jobs:
                   only), and git push -u origin weekly-data-report/<date>.
                e. Open a PR: gh pr create --title "..." --body "..." listing
                   exactly what was added/removed and why.
-               f. Merge it yourself: gh pr merge --squash --delete-branch
-                  (only reachable if step c's tests passed). If the merge
-                  is rejected for any reason (conflict, branch protection,
-                  etc.), leave the PR open, do not force anything, and
-                  say so plainly in your final summary.
+               f. Do NOT merge the PR. Auto-merge is temporarily
+                  disabled while this workflow is being tested -- leave
+                  it open for Simon to review and merge by hand,
+                  however clean the tests were. Say so plainly in the
+                  PR body and in your final summary.
             5. If the changeset is empty, skip branch/PR/merge entirely and
                say so in the report.
 
@@ -164,16 +165,21 @@ jobs:
                committed as part of the same branch/PR as the data change
                (or, if the changeset was empty, commit it directly to a
                small standalone branch/PR of its own, same merge rule).
-               Since this now runs and merges automatically, write it in
-               the present/past tense as "what's been updated this week" --
-               not "proposed, pending review" -- for anything that actually
-               merged. Keep a section for anything you found but weren't
-               confident enough to apply, clearly marked as needing a human
-               look. Keep an honest methodology/limitations section
-               (including whether the FSA check worked this run).
+               Auto-merge is temporarily disabled while this workflow is
+               being tested, so write it as "proposed, pending your review"
+               for anything sitting on the open PR -- not as already applied.
+               Once Simon re-enables auto-merge, go back to describing merged
+               changes in the present/past tense. Keep a section for anything
+               you found but weren't confident enough to apply, clearly
+               marked as needing a human look. Keep an honest
+               methodology/limitations section (including whether the FSA
+               check worked this run).
 
             7. End with a short plain-text summary in the workflow log:
                what changed, whether it merged, and anything that needs a
                human's attention.
+          # NOTE: Bash(gh pr merge:*) is deliberately left out of claude_args
+          # below -- auto-merge is disabled while Simon tests this workflow.
+          # Add it back (and flip the prompt language above) once he is happy.
           claude_args: |
-            --allowedTools "WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(node --test:*),Bash(npx playwright:*),Bash(npm ci:*),Bash(npm test:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr merge:*),Bash(gh pr list:*)"
+            --allowedTools "WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(node --test:*),Bash(npx playwright:*),Bash(npm ci:*),Bash(npm test:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*)"
