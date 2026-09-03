@@ -353,10 +353,9 @@
     <div class="meta-row">
       <span>3 September 2026</span>
       <span class="coverage">Loughton · Chingford · Buckhurst Hill · Chigwell · Theydon Bois · Epping · Woodford Green · Waltham Abbey</span>
-      <span class="tag sample">Sample run</span>
     </div>
     <div class="banner">
-      <strong>This is a demonstration run, updated same-day.</strong> It shows the format the weekly check will produce. One item — the Zizzi closure in Loughton — has been confirmed and applied to a proposed branch (not yet merged); everything else below is still reporting-only. See <em>Methodology &amp; limitations</em> and <em>Proposed dataset changes</em> below.
+      <strong>Report-only this run — nothing was pushed to the dataset.</strong> Three openings and one closure below were researched, verified and successfully test-applied on a branch, but the repo's unit test suite is currently failing on <span class="mono">main</span> for an unrelated, pre-existing reason (see <em>Methodology &amp; limitations</em>). Per this workflow's safety-gate rule, any test failure blocks a data commit — no exceptions for "unrelated" failures — so the changeset was reverted rather than committed. Auto-merge is also temporarily disabled while this workflow is being tested, so even a clean run would stop at an open PR for Simon to merge by hand. This PR carries only this report.
     </div>
   </div>
 </header>
@@ -364,9 +363,9 @@
 <div class="wrap">
 
   <div class="stat-strip">
-    <div class="stat"><div class="n mono">682</div><div class="lbl">Points tracked</div></div>
-    <div class="stat"><div class="n mono good">2</div><div class="lbl">Openings flagged</div></div>
-    <div class="stat"><div class="n mono critical">2</div><div class="lbl">Closures flagged (1 confirmed)</div></div>
+    <div class="stat"><div class="n mono">683</div><div class="lbl">Points tracked (unchanged)</div></div>
+    <div class="stat"><div class="n mono good">3</div><div class="lbl">Openings verified, blocked</div></div>
+    <div class="stat"><div class="n mono critical">1</div><div class="lbl">Closure verified, blocked</div></div>
     <div class="stat"><div class="n mono warning">2</div><div class="lbl">Road &amp; access changes</div></div>
     <div class="stat"><div class="n mono event">1</div><div class="lbl">Forest event this week</div></div>
   </div>
@@ -406,34 +405,34 @@
 
           <!-- pins -->
           <g>
-            <title>1 — The Hair of the Dog, Loughton (possible new opening)</title>
-            <circle class="pin-ring" cx="245.7" cy="359.2" r="9" style="fill:var(--status-good)"/>
-            <text class="pin-num" x="245.7" y="359.6">1</text>
+            <title>1 — Forest Kitchen, Epping (new opening, blocked)</title>
+            <circle class="pin-ring" cx="384.0" cy="201.3" r="9" style="fill:var(--status-good)"/>
+            <text class="pin-num" x="384.0" y="201.7">1</text>
           </g>
           <g>
-            <title>2 — La Sala, Woodford Green (possible new opening)</title>
-            <circle class="pin-ring" cx="229.8" cy="540.0" r="9" style="fill:var(--status-good)"/>
-            <text class="pin-num" x="229.8" y="540.4">2</text>
+            <title>2 — Hair Of The Dog, Loughton (new opening, blocked)</title>
+            <circle class="pin-ring" cx="261.5" cy="376.6" r="9" style="fill:var(--status-good)"/>
+            <text class="pin-num" x="261.5" y="377.0">2</text>
           </g>
           <g>
-            <title>3 — Morrisons Café, Loughton (possible closure)</title>
-            <circle class="pin-ring" cx="242.1" cy="371.2" r="9" style="fill:var(--status-critical)"/>
-            <text class="pin-num" x="242.1" y="371.6">3</text>
+            <title>3 — Casa, Chingford (dataset gap, blocked)</title>
+            <circle class="pin-ring" cx="147.9" cy="443.0" r="9" style="fill:var(--status-good)"/>
+            <text class="pin-num" x="147.9" y="443.4">3</text>
           </g>
           <g>
-            <title>4 — Bakers Lane, Epping (road closure from 8 Sept)</title>
-            <circle class="pin-ring" cx="372.8" cy="169.6" r="9" style="fill:var(--status-warning)"/>
-            <text class="pin-num" x="372.8" y="170.0" style="fill:var(--status-warning-ink)">4</text>
+            <title>4 — Zizzi, 2 Church Hill, Loughton (confirmed closed, blocked)</title>
+            <circle class="pin-ring" cx="262.5" cy="378.2" r="9" style="fill:var(--status-critical)"/>
+            <text class="pin-num" x="262.5" y="378.6">4</text>
           </g>
           <g>
-            <title>5 — Skylark Conservation Event, Wanstead Flats (6 Sept)</title>
-            <circle class="pin-ring" cx="127.3" cy="723.1" r="9" style="fill:var(--status-event)"/>
-            <text class="pin-num" x="127.3" y="723.5">5</text>
+            <title>5 — Bakers Lane, Epping (road closure from 8 Sept)</title>
+            <circle class="pin-ring" cx="382.6" cy="196.5" r="9" style="fill:var(--status-warning)"/>
+            <text class="pin-num" x="382.6" y="196.9" style="fill:var(--status-warning-ink)">5</text>
           </g>
           <g>
-            <title>6 — Zizzi, 2 Church Hill, Loughton (confirmed closed)</title>
-            <circle class="pin-ring" cx="248.6" cy="364.9" r="9" style="fill:var(--status-critical)"/>
-            <text class="pin-num" x="248.6" y="365.3">6</text>
+            <title>6 — Skylark Conservation Event, Wanstead Flats (6 Sept)</title>
+            <circle class="pin-ring" cx="193.6" cy="686.2" r="9" style="fill:var(--status-event)"/>
+            <text class="pin-num" x="193.6" y="686.6">6</text>
           </g>
         </svg>
 
@@ -446,70 +445,90 @@
       </div>
 
       <div class="map-side">
-        <p>Six items are flagged this run. Full detail for each is below the map.</p>
-        <div class="find-mini"><span class="badge" style="background:var(--status-good)">1</span><div class="txt"><strong>The Hair of the Dog</strong><span>Loughton — new, not yet in the dataset</span></div></div>
-        <div class="find-mini"><span class="badge" style="background:var(--status-good)">2</span><div class="txt"><strong>La Sala</strong><span>Woodford Green — new, not yet in the dataset</span></div></div>
-        <div class="find-mini"><span class="badge" style="background:var(--status-critical)">3</span><div class="txt"><strong>Morrisons Café</strong><span>Loughton — reported closed</span></div></div>
-        <div class="find-mini"><span class="badge" style="background:var(--status-warning); color:var(--status-warning-ink)">4</span><div class="txt"><strong>Bakers Lane</strong><span>Epping — closes 8 Sept, ~16 weeks</span></div></div>
-        <div class="find-mini"><span class="badge" style="background:var(--status-event)">5</span><div class="txt"><strong>Skylark Conservation Event</strong><span>Wanstead Flats — Sat 6 Sept, 2–4pm</span></div></div>
-        <div class="find-mini"><span class="badge" style="background:var(--status-critical)">6</span><div class="txt"><strong>Zizzi</strong><span>Loughton — confirmed closed, removed from dataset</span></div></div>
+        <p>Six items are flagged this run — the first four are a fully-researched, test-applied changeset that couldn't be committed this run (see banner above). Full detail for each is below the map.</p>
+        <div class="find-mini"><span class="badge" style="background:var(--status-good)">1</span><div class="txt"><strong>Forest Kitchen</strong><span>Epping — new, not yet in the dataset</span></div></div>
+        <div class="find-mini"><span class="badge" style="background:var(--status-good)">2</span><div class="txt"><strong>Hair Of The Dog</strong><span>Loughton — new, not yet in the dataset</span></div></div>
+        <div class="find-mini"><span class="badge" style="background:var(--status-good)">3</span><div class="txt"><strong>Casa</strong><span>Chingford — gap next to an existing pin, not yet in the dataset</span></div></div>
+        <div class="find-mini"><span class="badge" style="background:var(--status-critical)">4</span><div class="txt"><strong>Zizzi</strong><span>Loughton — confirmed closed, still in the dataset</span></div></div>
+        <div class="find-mini"><span class="badge" style="background:var(--status-warning); color:var(--status-warning-ink)">5</span><div class="txt"><strong>Bakers Lane</strong><span>Epping — closes 8 Sept, ~16 weeks</span></div></div>
+        <div class="find-mini"><span class="badge" style="background:var(--status-event)">6</span><div class="txt"><strong>Skylark Conservation Event</strong><span>Wanstead Flats — Sat 6 Sept, 2–4pm</span></div></div>
       </div>
     </div>
   </section>
 
   <section id="businesses">
     <h2 class="section-title">Shops, cafés, restaurants &amp; pubs</h2>
-    <p class="section-sub">682 food &amp; retail points currently in <span class="mono">data/local-landmarks-food.geojson</span> (683 at the start of this run, minus the confirmed Zizzi closure below). Two likely gaps, one possible closure, one confirmed closure found this run.</p>
+    <p class="section-sub">683 food &amp; retail points currently in <span class="mono">data/local-landmarks-food.geojson</span> — unchanged this run. Three openings and one closure below are verified and ready, but blocked from applying (see banner). Two further leads were checked and ruled out or left for a human — see below.</p>
 
     <div class="cards">
-      <div class="card critical">
-        <div class="card-head">
-          <span class="pin-chip critical">6</span>
-          <h3>Zizzi</h3>
-          <span class="status-label critical">Confirmed closed — removed</span>
-        </div>
-        <p class="addr">2 Church Hill, Loughton, IG10 1LA</p>
-        <p>Flagged by Simon and confirmed: HappyCow now lists this listing as <em>"CLOSED: Zizzi – Loughton,"</em> and a local Facebook thread asks what happened to it. The dataset had two Zizzi entries — this one in Loughton and a separate, still-open branch in South Woodford (<span class="mono">node/1964565140</span>) — so only the Loughton point (<span class="mono">way/450058980</span>) was removed, matched by its OSM id to avoid touching the other branch.</p>
-        <p>This one has already gone further than a flag: it's applied on branch <span class="mono">data-update/zizzi-loughton-closed</span>, tested, and committed — see <em>Proposed dataset changes</em> below for exactly what to run to review and merge it.</p>
-        <p class="src">Sources: <a href="https://www.happycow.net/reviews/zizzi-loughton-77509">HappyCow</a> · <a href="https://www.facebook.com/groups/542803182420186/posts/24337134132560424/">Facebook community post</a></p>
-      </div>
-
       <div class="card good">
         <div class="card-head">
           <span class="pin-chip good">1</span>
-          <h3>The Hair of the Dog</h3>
-          <span class="status-label good">New — not in dataset</span>
+          <h3>Forest Kitchen</h3>
+          <span class="status-label good">New — verified, blocked</span>
         </div>
-        <p class="addr">15 York Hill, Loughton, IG10 1RL</p>
-        <p>Doesn't appear anywhere in <span class="mono">local-landmarks.geojson</span> or <span class="mono">local-landmarks-food.geojson</span> — a genuine gap, not just a missed category match. Listed on Tripadvisor as an Italian restaurant, but the name and its Facebook/Instagram presence (<span class="mono">@thehairofthedog_loughton</span>) read as a pub. Worth a quick look before it's added, so it lands in the right category.</p>
-        <p class="src">Sources: <a href="https://www.tripadvisor.com/Restaurant_Review-g1809078-d34225012-Reviews-The_Hair_of_The_Dog-Loughton_Essex_England.html">Tripadvisor</a> · <a href="https://www.facebook.com/Thehairofthedogessex/">Facebook</a></p>
+        <p class="addr">180 High Street, Epping, CM16 4AQ</p>
+        <p>Confirmed via the Food Standards Agency's Food Hygiene Rating Scheme register (FHRSID 1924869, Epping Forest District Council, rated 5 on 3 March 2026) — exact coordinates came from the FSA's own geocode, not an estimate. Doesn't appear anywhere in <span class="mono">local-landmarks-food.geojson</span> under this or a similar name. Its own site also brands it "Forest Bar &amp; Kitchen"; FSA lists it as a Restaurant/Cafe/Canteen, so <span class="mono">restaurant</span> was used as the category.</p>
+        <p class="flag">Applied cleanly to a branch and passed the changeset script's checks, but reverted — see the banner above.</p>
+        <p class="src">Sources: <a href="https://www.forest-kitchen.co.uk/">Forest Kitchen — official site</a> · <a href="https://api.ratings.food.gov.uk/Establishments?name=Forest%20Kitchen">FSA Food Hygiene Rating Scheme</a></p>
       </div>
 
       <div class="card good">
         <div class="card-head">
           <span class="pin-chip good">2</span>
-          <h3>La Sala</h3>
-          <span class="status-label good">New — not in dataset</span>
+          <h3>Hair Of The Dog</h3>
+          <span class="status-label good">New — verified, blocked</span>
         </div>
-        <p class="addr">692–694 Chigwell Road, Woodford Green, IG8 8AL</p>
-        <p>Trade press reported this opening in Woodford Bridge/Woodford Green. CAMRA lists it alongside pubs, other directories call it a Mediterranean/international restaurant — likely a bar-restaurant hybrid, so flag for a category check when adding.</p>
-        <p class="src">Sources: <a href="https://www.thecaterer.com/news/la-sala-woodford-green-opens-its-doors">The Caterer</a> · <a href="https://camra.org.uk/pubs/la-sala-woodford-bridge-163816">CAMRA</a></p>
+        <p class="addr">15 York Hill, Loughton, IG10 1RL</p>
+        <p>Confirmed via the FSA register (FHRSID 1894077, Epping Forest District Council, rated 3 on 30 January 2026, BusinessType "Pub/bar/nightclub") — the FSA record settles the category as <span class="mono">pub</span> rather than restaurant, which general web listings had been ambiguous about. Not present anywhere in the food dataset.</p>
+        <p class="flag">Applied cleanly to a branch and passed the changeset script's checks, but reverted — see the banner above.</p>
+        <p class="src">Sources: <a href="https://api.ratings.food.gov.uk/Establishments?name=Hair%20of%20the%20Dog&address=Loughton">FSA Food Hygiene Rating Scheme</a> · <a href="https://www.facebook.com/Thehairofthedogessex/">Facebook</a></p>
+      </div>
+
+      <div class="card good">
+        <div class="card-head">
+          <span class="pin-chip good">3</span>
+          <h3>Casa</h3>
+          <span class="status-label good">Dataset gap — verified, blocked</span>
+        </div>
+        <p class="addr">94 Station Road, Chingford, London E4 7BA</p>
+        <p>Confirmed via the FSA register (FHRSID 1621046, Waltham Forest, rated 5 on 13 August 2025, BusinessType "Restaurant/Cafe/Canteen"). This one isn't a brand-new opening — the FSA rating is over a year old — but it's a genuine coverage gap: the dataset already has points either side of it on the same block (<span class="mono">Gina</span> at 92 Station Road, <span class="mono">La Baita Da Piero</span> at 98) with nothing at 94. Categorised as <span class="mono">cafe</span> — its own description is café/brunch-led rather than a full restaurant.</p>
+        <p class="flag">Applied cleanly to a branch and passed the changeset script's checks, but reverted — see the banner above.</p>
+        <p class="src">Source: <a href="https://api.ratings.food.gov.uk/Establishments?name=Casa&address=Chingford">FSA Food Hygiene Rating Scheme</a></p>
       </div>
 
       <div class="card critical">
         <div class="card-head">
-          <span class="pin-chip critical">3</span>
-          <h3>Morrisons Café</h3>
-          <span class="status-label critical">Possible closure</span>
+          <span class="pin-chip critical">4</span>
+          <h3>Zizzi</h3>
+          <span class="status-label critical">Confirmed closed — verified, blocked</span>
         </div>
-        <p class="addr">246–250 High Road, Loughton, IG10 1HW</p>
-        <p>The in-store café at Loughton Morrisons is marked closed on Yelp (updated August 2026). The supermarket itself (<span class="mono">way/172447802</span>) still appears to be trading, and the dataset has no separate café point here to remove — so no edit needed yet, but worth a phone check before the next run.</p>
+        <p class="addr">2 Church Hill, Loughton, IG10 1LA</p>
+        <p>Permanently closed — confirmed independently across three separate sources (not taken on trust from any prior report). The dataset has two Zizzi entries: this one in Loughton (<span class="mono">way/450058980</span>) and a separate, still-open branch in South Woodford (<span class="mono">node/1964565140</span>); the changeset removed only the Loughton point, matched by its OSM id specifically so the South Woodford branch couldn't be caught by a name-only match.</p>
+        <p class="flag">Removal applied cleanly to a branch and passed the changeset script's checks, but reverted — see the banner above.</p>
+        <p class="src">Sources: <a href="https://www.designmynight.com/essex/restaurants/zizzi-loughton">DesignMyNight</a> · <a href="https://restaurantguru.com/Zizzi-London-6">Restaurant Guru</a> · <a href="https://www.happycow.net/reviews/zizzi-loughton-77509">HappyCow</a></p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3 style="color:var(--ink-soft); font-size:1rem;">Morrisons in-store café, Loughton — no action needed</h3></div>
+        <p>Yelp lists the café inside the Loughton Morrisons (246–250 High Road) as closed (updated August 2026). The supermarket itself (<span class="mono">way/172447802</span>) is still trading and is a separate dataset point; there was never a separate café point here to remove, so nothing to change. Worth a phone check before the next run in case that changes.</p>
         <p class="src">Source: <a href="https://www.yelp.com/biz/morrisons-loughton-cafe-loughton-4">Yelp</a></p>
       </div>
 
       <div class="card">
+        <div class="card-head"><h3 style="color:var(--ink-soft); font-size:1rem;">"La Sala, Woodford Green" — corrected, not added</h3></div>
+        <p>A prior version of this report flagged La Sala as a possible new opening at 692–694 Chigwell Road. Following up on that instead of re-flagging it fresh: it's the opposite of a new opening. La Sala was repossessed by bailiffs in October 2018 and permanently closed as a restaurant by 2021; local press since reports new owners taking on the former premises. Not added — the original lead was stale.</p>
+        <p class="src">Sources: <a href="https://www.ilfordrecorder.co.uk/news/21190425.confusion-bailiffs-repossess-woodford-green-restaurant/">Ilford Recorder — bailiffs repossess</a> · <a href="https://www.ilfordrecorder.co.uk/news/21187186.new-owners-take-former-la-sala-restaurant-woodford-bridge/">Ilford Recorder — new owners</a></p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3 style="color:var(--ink-soft); font-size:1rem;">Needs a human look: Chingford café, name unclear</h3></div>
+        <p>General search surfaced a "Bazlama Café" concept in Chingford, but the only matching FSA record found is "Cesme Bazlama Chingford" at 1A The Green, E4 7ES — different naming, and not confirmed as the same business. Not present in the dataset either way. Left for a human to confirm the correct trading name and address before adding.</p>
+      </div>
+
+      <div class="card">
         <div class="card-head"><h3 style="color:var(--ink-soft); font-size:1rem;">Nothing else surfaced</h3></div>
-        <p>General sweeps for Chingford, Buckhurst Hill, Chigwell and Theydon Bois turned up only directory listings and older stories this week. Expected — see <em>Methodology</em> below on why broad news search misses most small independent turnover.</p>
+        <p>Targeted sweeps for Buckhurst Hill, Chigwell and Theydon Bois turned up only established, already-listed venues this week — no genuine new leads. Expected — see <em>Methodology</em> below on why general news search misses most small independent turnover.</p>
       </div>
     </div>
   </section>
@@ -519,12 +538,12 @@
     <div class="cards">
       <div class="card warning">
         <div class="card-head">
-          <span class="pin-chip warning">4</span>
+          <span class="pin-chip warning">5</span>
           <h3>Bakers Lane, Epping</h3>
           <span class="status-label warning">Closing 8 Sept</span>
         </div>
-        <p>Essential highway improvements and resurfacing ahead of the new Epping Leisure Centre, roughly 16 weeks across three phases: St John's Road to the Cottis Lane roundabout, then Cottis Lane to Albany Court, then an overnight resurfacing closure on Albany Court. Daytime works, resident access maintained, pavements stay open, Cottis Yard and M&amp;S car parks stay accessible. Diversions via St John's Road, Coronation Hill and Lincolns Field.</p>
-        <p class="src">Source: <a href="https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures">Epping Forest District Council</a></p>
+        <p>Essential highway improvements and resurfacing, roughly 16 weeks across three phases: drainage works from the Cottis Lane roundabout to Albany Court (1 week), then St John's Road to the Cottis Lane roundabout, then Cottis Lane to Albany Court, then an overnight resurfacing closure on Albany Court. Daytime works, resident access maintained, pavements stay open, Cottis Yard and M&amp;S car parks stay accessible. Diversions via St John's Road, Coronation Hill and Lincolns Field.</p>
+        <p class="src">Sources: Epping Forest District Council and Essex Highways, via search (direct fetch of both sites returned HTTP 403 this run — see <em>Methodology</em>).</p>
       </div>
 
       <div class="card warning">
@@ -532,8 +551,8 @@
           <h3>Forest car park hours</h3>
           <span class="status-label warning">Change from 15 Sept</span>
         </div>
-        <p>City of London Corporation is cutting car park opening hours forest-wide from 7am–8pm to 7am–6:30pm from 15 September. Not a closure, but worth reflecting anywhere the map shows car park hours. No single pin — this applies across the forest's car parks.</p>
-        <p class="src">Source: <a href="https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest">City of London Corporation</a></p>
+        <p>City of London Corporation is cutting car park opening hours forest-wide from 7am–8pm to 7am–6:30pm from Monday 15 September. Not a closure, but worth reflecting anywhere the map shows car park hours. No single pin — this applies across the forest's car parks.</p>
+        <p class="src">Source: City of London Corporation, via search (direct fetch returned HTTP 403 this run).</p>
       </div>
     </div>
   </section>
@@ -543,42 +562,13 @@
     <div class="cards">
       <div class="card event">
         <div class="card-head">
-          <span class="pin-chip event">5</span>
+          <span class="pin-chip event">6</span>
           <h3>Skylark Conservation Event</h3>
           <span class="status-label event">Sat 6 Sept, 2–4pm</span>
         </div>
         <p>Harrow Road Pavilion, Wanstead Flats. Free, no booking required.</p>
-        <p class="src">Source: <a href="https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest">City of London Corporation</a></p>
+        <p class="src">Source: City of London Corporation, via search (direct fetch returned HTTP 403 this run).</p>
       </div>
-      <div class="card">
-        <div class="card-head"><h3>"What's On in Epping Forest" — May to October 2026</h3></div>
-        <p>Epping Forest District Council's season brochure lists forest-adjacent activities (Treasure Trails, Youth Express, walking football and more) without dates/locations on the web page itself — only in the PDF brochure or via their booking site. No pin: the automated version should fetch and parse the PDF directly for a full calendar.</p>
-        <p class="src">Source: <a href="https://www.eppingforestdc.gov.uk/whats-on-in-epping-forest/">Epping Forest District Council</a></p>
-      </div>
-      <div class="card">
-        <div class="card-head"><h3 style="font-size:1rem;">Already in force, for context</h3></div>
-        <p>Fishing closed season (15 Mar–15 Jun 2026, already over) · Railway Field closed to public access · horse riding season opened 17 April 2026.</p>
-        <p class="src">Source: <a href="https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest">City of London Corporation</a></p>
-      </div>
-    </div>
-  </section>
-
-  <section id="dataset-changes">
-    <h2 class="section-title">Proposed dataset changes</h2>
-    <p class="section-sub">What's ready to merge, and how to review it.</p>
-    <div class="methodology">
-      <p><strong>Branch <span class="mono">data-update/zizzi-loughton-closed</span></strong> — prepared, tested and committed in an isolated git worktree; your working tree and any uncommitted edits were never touched.</p>
-      <ol>
-        <li><strong>Removed:</strong> Zizzi, <span class="mono">way/450058980</span>, 2 Church Hill, Loughton — reason logged in the commit as "reported closed in Loughton, HappyCow + local community reports, Sept 2026."</li>
-        <li><strong>Diff:</strong> exactly one file changed, <span class="mono">data/local-landmarks-food.geojson</span> — one feature removed, nothing else. The South Woodford Zizzi is untouched.</li>
-        <li><strong>Tests:</strong> the unit suite was run before and after the change. It passed before and after except for one already-failing test (<span class="mono">test/forest-finds.test.js</span>) that was failing on <span class="mono">main</span> before this change too — unrelated to this data edit, noted in the commit, and did not block the branch.</li>
-      </ol>
-      <p>To review and publish it yourself:</p>
-      <pre class="mono" style="background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:12px 14px; overflow-x:auto; font-size:0.82rem; margin:10px 0 0;">cd "trees/.worktrees/data-update/zizzi-loughton-closed"
-git diff main..HEAD -- data/
-git push -u origin data-update/zizzi-loughton-closed
-gh pr create</pre>
-      <p style="margin-top:12px;">Nothing here was pushed or opened as a PR automatically — the automation has no GitHub credentials by design, so this step is always yours.</p>
     </div>
   </section>
 
@@ -586,30 +576,32 @@ gh pr create</pre>
     <h2 class="section-title">Methodology &amp; limitations</h2>
     <p class="section-sub">Read this before acting on anything above.</p>
     <div class="methodology">
-      <p>This sample run used general web search plus a handful of council and City of London pages — a demonstration of the report format, not a systematic audit of all 682 business points. The Zizzi closure below is the exception: it was flagged directly by Simon, not found by this run's own search.</p>
       <ol>
-        <li><strong>Coverage gap on businesses.</strong> General news search only surfaces closures/openings that got press coverage — mostly chains, or independents with trade-press pickup like La Sala. The Hair of the Dog turned up only because it happened to have Tripadvisor and social pages; the Zizzi closure only came to light because it was reported directly — a search-only pass missed it entirely, which is exactly the coverage gap this note keeps flagging. A systematic version should spot-check a rotating sample of the dataset's points each week (e.g. against a places API's business-status field, Companies House dissolutions, or OSM's own recent-edit history for these node IDs) rather than relying on open-ended search.</li>
-        <li><strong>Roadworks source.</strong> Essex Highways' roadworks/traffic maps are interactive and weren't machine-readable this run. Worth checking whether Essex CC publishes an open data feed for roadworks — that would be far more reliable than search.</li>
-        <li><strong>Events brochure.</strong> The District Council's brochure is a PDF; this run only saw the web page's summary. Fetching the PDF directly would give exact dates and locations for the automated version.</li>
+        <li><strong>Nothing was committed or pushed this run.</strong> A full changeset (3 additions, 1 removal, all above) was researched, cross-checked against the FSA register, applied to <span class="mono">data/local-landmarks-food.geojson</span> on a scratch branch, and passed the changeset script's own checks with nothing skipped. Then <span class="mono">node --test test/forest-finds.test.js</span> was run as the safety gate and failed — on the exact same assertion, same line (<span class="mono">test/forest-finds.test.js:3870</span>, a colour/transparency check on 3D building-extrusion rendering), whether run on a clean checkout of <span class="mono">main</span> before touching anything or on the branch with the changeset applied. That confirms the failure is pre-existing and unrelated to this data change — but the workflow's rule for this run is that <em>any</em> test failure blocks a commit, with no carve-out for "unrelated," so the changeset was reverted and only this report was committed. The e2e suite was not run, since the unit suite had already failed the gate. This test needs a human fix before a future run can land a data PR.</li>
+        <li><strong>Housekeeping.</strong> One open PR existed at the start of this run (#65, an unrelated 3D-building-rendering PR — left alone). A same-day weekly-ledger PR (#63, report-only, no dataset touched) was already closed before this run started, so no housekeeping action was needed there.</li>
+        <li><strong>Anomaly worth a look: direct commits to <span class="mono">main</span> earlier today.</strong> Several commits from earlier on 3 September, authored as <span class="mono">Epping Forest Ledger (weekly report) &lt;weekly-report@local&gt;</span> — this workflow's own git identity — landed directly on <span class="mono">main</span> rather than going through a branch and PR (e.g. commits <span class="mono">751e32e</span>, <span class="mono">f61b2bc</span>, <span class="mono">8f5cb9e</span>, <span class="mono">a5383e7</span>). One of them (<span class="mono">f61b2bc</span>, "update data set for 3dx") touched 3D-building-rendering code with no connection to the weekly food data task, which suggests the runner's checkout may have carried over that git identity into an unrelated automation run rather than this workflow itself pushing to <span class="mono">main</span>. This run's own checkout used a distinct identity (<span class="mono">claude[bot]</span>) throughout, and <span class="mono">data/local-landmarks-food.geojson</span> was checked and confirmed unaffected (the previously-flagged Zizzi entry was still present, untouched, before this run applied anything). Flagging this for Simon rather than guessing further — worth checking why that identity ended up on commits unrelated to this workflow, and separately, whether an earlier weekly-ledger run pushed directly to <span class="mono">main</span> instead of opening a PR.</li>
+        <li><strong>FSA cross-check worked this run.</strong> <span class="mono">https://api.ratings.food.gov.uk/Establishments</span> with the <span class="mono">x-api-version: 2</span> header returned real, current data for every query — it's what confirmed and geocoded three of the four changeset items above (Forest Kitchen, Hair Of The Dog, Casa). One caveat: its <span class="mono">address</span> parameter is a loose substring match, not geography-scoped — a search for "Loughton" also returned a same-named suburb of Milton Keynes, so results need a local-authority or postcode sanity check before trusting them.</li>
+        <li><strong>Council and City of London pages blocked direct fetches.</strong> Both <span class="mono">eppingforestdc.gov.uk</span> and <span class="mono">cityoflondon.gov.uk</span> returned HTTP 403 to this run's fetch tool. The road closure, car park hours and event items above were confirmed via search-engine snippets that cite those same pages (and, for the roadworks, <span class="mono">essexhighways.org</span>) rather than a direct read of the page — solid corroborating detail, but lower confidence than fetching the primary source directly would give.</li>
+        <li><strong>Coverage gap on businesses, as always.</strong> General search mostly surfaces chains or independents with press/FSA visibility. Buckhurst Hill, Chigwell and Theydon Bois turned up nothing new this week — plausibly true, or plausibly just under the coverage this method can see. A systematic version would spot-check a rotating sample of the dataset's existing points each week rather than relying on open-ended search.</li>
       </ol>
-      <p>Everything above is report-only except the confirmed Zizzi closure, which is already applied on a proposed branch (see above) — nothing has been pushed or merged automatically. When it's time to act on the rest, the two openings and the Morrisons Café closure candidate would be the next edits, with the caveats noted.</p>
     </div>
   </section>
 
   <footer class="sources">
     <h4>All sources this run</h4>
     <ul>
-      <li><a href="https://www.tripadvisor.com/Restaurant_Review-g1809078-d34225012-Reviews-The_Hair_of_The_Dog-Loughton_Essex_England.html">The Hair of The Dog — Tripadvisor</a></li>
-      <li><a href="https://www.facebook.com/Thehairofthedogessex/">The Hair of The Dog — Facebook</a></li>
-      <li><a href="https://www.thecaterer.com/news/la-sala-woodford-green-opens-its-doors">La Sala Woodford Green opens its doors — The Caterer</a></li>
-      <li><a href="https://camra.org.uk/pubs/la-sala-woodford-bridge-163816">La Sala, Woodford Bridge — CAMRA</a></li>
-      <li><a href="https://www.yelp.com/biz/morrisons-loughton-cafe-loughton-4">Morrisons Loughton Cafe — Yelp</a></li>
+      <li><a href="https://www.forest-kitchen.co.uk/">Forest Kitchen — official site</a></li>
+      <li><a href="https://api.ratings.food.gov.uk/Help">FSA Food Hygiene Rating Scheme API</a></li>
+      <li><a href="https://www.facebook.com/Thehairofthedogessex/">Hair Of The Dog — Facebook</a></li>
+      <li><a href="https://www.designmynight.com/essex/restaurants/zizzi-loughton">Zizzi Loughton — DesignMyNight</a></li>
+      <li><a href="https://restaurantguru.com/Zizzi-London-6">Zizzi Loughton — Restaurant Guru</a></li>
       <li><a href="https://www.happycow.net/reviews/zizzi-loughton-77509">CLOSED: Zizzi – Loughton — HappyCow</a></li>
-      <li><a href="https://www.facebook.com/groups/542803182420186/posts/24337134132560424/">What happened to Zizzi in Loughton? — Facebook</a></li>
+      <li><a href="https://www.yelp.com/biz/morrisons-loughton-cafe-loughton-4">Morrisons Loughton Cafe — Yelp</a></li>
+      <li><a href="https://www.ilfordrecorder.co.uk/news/21190425.confusion-bailiffs-repossess-woodford-green-restaurant/">La Sala repossession — Ilford Recorder</a></li>
+      <li><a href="https://www.ilfordrecorder.co.uk/news/21187186.new-owners-take-former-la-sala-restaurant-woodford-bridge/">New owners at former La Sala site — Ilford Recorder</a></li>
       <li><a href="https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures">Advance notice of Epping road closures — EFDC</a></li>
+      <li><a href="https://www.essexhighways.org/bakers-lane-epping">Bakers Lane, Epping — Essex Highways</a></li>
       <li><a href="https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest">What's new in Epping Forest — City of London Corporation</a></li>
-      <li><a href="https://www.eppingforestdc.gov.uk/whats-on-in-epping-forest/">What's On in Epping Forest — EFDC</a></li>
-      <li><a href="https://www.essexhighways.org/interactive-maps-and-live-travel-information/future-roadworks-map">Future Roadworks Map — Essex Highways</a></li>
     </ul>
   </footer>
 
