@@ -369,13 +369,38 @@ function addFixtureData(app) {
   );
 }
 
+// Tests are registered here in file order and actually run by
+// runRegisteredTests() at the bottom of this file, one at a time, each
+// fully awaited before the next starts -- see that function for why.
+const registeredTests = [];
+
 function test(name, fn) {
-  try {
-    fn();
-    console.log(`ok - ${name}`);
-  } catch (error) {
-    console.error(`not ok - ${name}`);
-    throw error;
+  registeredTests.push({ name, fn });
+}
+
+async function runRegisteredTests() {
+  for (const { name, fn } of registeredTests) {
+    try {
+      // Always await, even for a synchronous fn() (awaiting a non-promise
+      // is a harmless no-op). Previously test() called fn() without
+      // awaiting it: a synchronous test's assertions still ran to
+      // completion immediately since JS executes them inline, but an
+      // async test's code after its first `await` did NOT -- it kept
+      // running in the background while every later test() call in this
+      // file executed synchronously in the meantime. Since this file runs
+      // every test against one shared `app` instance with no per-test
+      // isolation, that let a later test's state changes land in the
+      // middle of an earlier async test's still-pending assertions,
+      // occasionally failing them (e.g. the routing-graph test below,
+      // whose real 50ms setTimeout gave dozens of later synchronous tests
+      // a chance to overwrite app.state.roads/paths/selected/userLocation
+      // before its post-await assertions ran).
+      await fn();
+      console.log(`ok - ${name}`);
+    } catch (error) {
+      console.error(`not ok - ${name}`);
+      throw error;
+    }
   }
 }
 
@@ -3891,3 +3916,7 @@ test("drawBuildingExtrusions fades buildings out smoothly near the distance cuto
   }
 });
 
+runRegisteredTests().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
