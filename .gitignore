@@ -28,3 +28,6 @@ Veteran_Tree_Register.json
 # Isolated worktrees used by scripts/prepare_weekly_branch.sh
 .worktrees/
 __pycache__/
+
+# Generated at build time by scripts/generate-reports-index.js -- never hand-edit
+reports/index.html

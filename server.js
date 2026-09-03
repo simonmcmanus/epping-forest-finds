@@ -72,6 +72,15 @@ function send(res, status, body, type = "text/plain; charset=utf-8") {
   res.end(body);
 }
 
+function streamFile(res, filePath, type) {
+  const stream = fs.createReadStream(filePath);
+  res.writeHead(200, {
+    "Content-Type": type,
+    "Cache-Control": "no-store",
+  });
+  stream.pipe(res);
+}
+
 function safeResolve(filePath) {
   const resolved = path.resolve(ROOT, filePath);
   if (!resolved.startsWith(ROOT)) return null;
@@ -138,19 +147,34 @@ function handleStatic(req, res, url) {
   }
 
   fs.stat(resolved, (err, stats) => {
-    if (err || !stats.isFile()) {
+    if (err) {
+      send(res, 404, "Not found");
+      return;
+    }
+
+    if (stats.isDirectory()) {
+      // Mirror Netlify's static-hosting behaviour in production: a directory request
+      // (e.g. /reports or /reports/) serves that directory's index.html if present, so
+      // local dev matches what's actually deployed instead of 404ing.
+      const indexPath = path.join(resolved, "index.html");
+      fs.stat(indexPath, (indexErr, indexStats) => {
+        if (indexErr || !indexStats.isFile()) {
+          send(res, 404, "Not found");
+          return;
+        }
+        streamFile(res, indexPath, MIME[".html"]);
+      });
+      return;
+    }
+
+    if (!stats.isFile()) {
       send(res, 404, "Not found");
       return;
     }
 
     const ext = path.extname(resolved).toLowerCase();
     const type = MIME[ext] || "application/octet-stream";
-    const stream = fs.createReadStream(resolved);
-    res.writeHead(200, {
-      "Content-Type": type,
-      "Cache-Control": "no-store",
-    });
-    stream.pipe(res);
+    streamFile(res, resolved, type);
   });
 }
 
@@ -259,4 +283,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { _private: { injectDevFlag } };
+module.exports = { _private: { injectDevFlag }, server };

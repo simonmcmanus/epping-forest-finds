@@ -13,8 +13,8 @@
     "regen:environment": "python3 scripts/regenerate_local_environment.py",
     "split:trees": "node scripts/split-veteran-trees.js",
     "netlify:dev": "npx netlify dev",
-    "build": "echo \"Static site: no build step required\"",
-    "test": "node test/forest-finds.test.js",
+    "build": "node scripts/generate-reports-index.js",
+    "test": "node test/forest-finds.test.js && node --test test/reports-index.test.js",
     "test:e2e": "npx playwright test",
     "test:e2e:update": "npx playwright test --update-snapshots",
     "test:e2e:ui": "npx playwright test --ui"
