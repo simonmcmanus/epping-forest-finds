@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-09-03T18:55:48.227479Z",
+  "generatedAt": "2026-09-03T19:38:46.791008Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -22624,6 +22624,336 @@
         "phone": "020 3538 4948",
         "address": "36 Chingford Mount Road, Chingford, London E4 9AB",
         "distanceToForestBoundaryMetres": 513.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/honey-i-m-home",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.02190288,
+          51.6100849
+        ]
+      },
+      "properties": {
+        "id": "manual/honey-i-m-home",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Honey I'm Home",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.honeyimhomecoffee.com/",
+        "phone": null,
+        "address": "451 High Road, Woodford Green, IG8 0XE",
+        "distanceToForestBoundaryMetres": 10.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/delicious-grill",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0127264,
+          51.6349283
+        ]
+      },
+      "properties": {
+        "id": "manual/delicious-grill",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Delicious Grill",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://deliciousgrill.co.uk/",
+        "phone": null,
+        "address": "50 Sewardstone Road, Chingford, E4 7PR",
+        "distanceToForestBoundaryMetres": 33.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/cookies-and-cream",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.024567,
+          51.593842
+        ]
+      },
+      "properties": {
+        "id": "manual/cookies-and-cream",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Cookies and Cream",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "156 George Lane, South Woodford, E18 1AY",
+        "distanceToForestBoundaryMetres": 270.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/forest-kitchen",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.111898,
+          51.699172
+        ]
+      },
+      "properties": {
+        "id": "manual/forest-kitchen",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Forest Kitchen",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.forest-kitchen.co.uk/",
+        "phone": null,
+        "address": "180 High Street, Epping, CM16 4AQ",
+        "distanceToForestBoundaryMetres": 274.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/the-cart-shed-restaurant",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1336767,
+          51.7216955
+        ]
+      },
+      "properties": {
+        "id": "manual/the-cart-shed-restaurant",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "The Cart Shed Restaurant",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://thecartshedrestaurant.co.uk/",
+        "phone": null,
+        "address": "Duck Lane, Thornwood, Epping, CM16 6NE",
+        "distanceToForestBoundaryMetres": 327.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/bread-and-marmalade-cafe",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.03248,
+          51.607122
+        ]
+      },
+      "properties": {
+        "id": "manual/bread-and-marmalade-cafe",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Bread and Marmalade Cafe",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "117 Snakes Lane West, Woodford Green, IG8 0DY",
+        "distanceToForestBoundaryMetres": 664.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/brown-eagle",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0167891,
+          51.6203035
+        ]
+      },
+      "properties": {
+        "id": "manual/brown-eagle",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Brown Eagle",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://browneagle.uk/",
+        "phone": null,
+        "address": "107 Old Church Road, Chingford, E4 6ST",
+        "distanceToForestBoundaryMetres": 638.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/aga-meat",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0167286,
+          51.6203655
+        ]
+      },
+      "properties": {
+        "id": "manual/aga-meat",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Aga Meat",
+        "category": "butcher",
+        "categoryLabel": "Butcher",
+        "amenity": null,
+        "shop": "butcher",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "109 Old Church Road, Chingford, E4 6ST",
+        "distanceToForestBoundaryMetres": 630.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/perfect-choice",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.071202,
+          51.64809
+        ]
+      },
+      "properties": {
+        "id": "manual/perfect-choice",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Perfect Choice",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://perfectchoiceloughton.co.uk/",
+        "phone": null,
+        "address": "60 Borders Lane, Loughton, IG10 3QX",
+        "distanceToForestBoundaryMetres": 640.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/la-sala",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.055379,
+          51.60667
+        ]
+      },
+      "properties": {
+        "id": "manual/la-sala",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "La Sala",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "692-694 Chigwell Road, Woodford Green, IG8 8AL",
+        "distanceToForestBoundaryMetres": 407.0,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
