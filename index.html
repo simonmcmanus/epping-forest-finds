@@ -186,6 +186,7 @@
   <script src="js/normalize.js"></script>
   <script src="js/tracker.js"></script>
   <script src="js/nav.js"></script>
+  <script src="js/routing.js"></script>
   <script src="js/loader.js"></script>
   <script src="js/renderer.js"></script>
   <script src="js/inspector.js"></script>
@@ -404,6 +405,10 @@
       buildingsLoaded: false,
       buildingsLoading: false,
       buildingsRevealStartTime: null,
+      routingGraph: null,
+      routingGraphReady: false,
+      routingGraphBuilding: false,
+      selectedRouteCache: null,
       overviewOutsideRadiusFallback: false,
       clusterZoomed: false,
       clusterExpanded: null,
@@ -4662,7 +4667,12 @@
       if (!state.selected || !state.userLocation) return;
       const item = selectedCompassTarget();
       if (!item) return;
-      const metres = distanceFromUser(item);
+      // Prefer the real road/path route length (matches the drawn route line) once it's
+      // available; fall back to the plain straight-line distance otherwise (routing graph
+      // still building, item has no routable point e.g. a path/water feature, or no route
+      // could be found) so the figure is never blank.
+      const routedMetres = selectedRouteMetres(item);
+      const metres = routedMetres != null ? routedMetres : distanceFromUser(item);
       const distancePill = els.inspectorBody && els.inspectorBody.querySelector('[data-live-field="distance"]');
       if (distancePill) distancePill.innerHTML = walkInfoExpandableHtml(metres);
       updateCowTimeAgoField();

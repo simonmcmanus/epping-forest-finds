@@ -23,6 +23,7 @@ Before finishing any implementation task:
 ## Project Structure
 - `index.html` — boot and wiring only; no logic beyond this
 - `js/loader.js` — data fetching, parallel fetch, normalisation triggers
+- `js/routing.js` — walkable road/path graph builder and pathfinding for the selected-route line (pure, no state/DOM access)
 - `js/normalize.js` — data normalisation utilities
 - `js/categories.js` — filter groups, tag builders, emoji/color maps (no DOM dependency)
 - `js/renderer.js` — canvas draw loop

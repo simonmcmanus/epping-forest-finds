@@ -273,12 +273,12 @@ When an item is selected, it gets a pulsing highlight overlay:
 
 ### Route Lines
 
-- **Selected mode:** Dashed line from user → selected target
+- **Selected mode:** Dashed line from user → selected target, following the walkable road/path network when possible rather than cutting straight through whatever lies between them (buildings, fences, the lakes and fenced grazing areas inside the forest). `selectedRoutePoints(target)` (js/renderer.js) asks `findRoutePoints` (js/routing.js) for a route across the lazily-built routing graph (see "Routing Graph (Lazy, Derived)" in spec-data-fetching.md) and draws the returned point sequence as a single multi-segment dashed line; it falls straight back to the previous plain 2-point line -- unchanged -- whenever the graph isn't built yet, either endpoint is too far from any mapped road/path (`maxSnapMetres`, 250m default), the two points aren't on the same connected part of the network, or the only route found is a pathological detour (`maxDetourRatio`, 4x the straight-line distance by default) -- so the line is never left broken or absent, only ever straighter than ideal. The route is memoized per selected target and only recomputed after ~20m of user movement (`SELECTED_ROUTE_RECOMPUTE_MIN_METRES`), not on every GPS fix or animation frame.
   - Color: `rgba(179, 79, 49, 0.9)` with white halo
   - Line width: 3px + 3px halo
   - Dash: 10px on, 8px off
 
-- **Overview mode:** Dashed lines from user → each nearest overview target
+- **Overview mode:** Dashed lines from user → each nearest overview target. Deliberately still a plain straight line, not routed -- these ambient lines exist to show rough direction/distance to everything nearby at a glance, and routing every visible pin would multiply pathfinding cost by however many items are on screen for little benefit; only the single selected/highlighted target (above) is worth a real route to.
   - Color: per-category color with white halo
   - Line width: 2.2px + 2.6px halo
   - Dash: 8px on, 7px off
@@ -323,6 +323,8 @@ When an item is selected, it gets a pulsing highlight overlay:
 ### Selected Detail Content
 
 All selected detail screens with a distance pill (trees, places, cows, and paths) show an always-visible combined distance + walk-time chip (`{distance} · {walk time}`) using the walking icon. This chip is not expandable/tap-to-reveal and follows the same readable unit formatting (`formatDistance()`: metres below 1km, kilometres above 1km with trimmed precision).
+
+The figure itself is the real road/path-following distance (and the walk time derived from it), matching the routed line described under "Route Lines" above, whenever that route is available -- not the straight-line/crow-flies distance. `selectedRouteMetres(target)` (js/renderer.js) sums the segment lengths of whatever `selectedRoutePoints(target)` currently returns, so it shares that function's memoization and its same fallback conditions; `updateSelectedDetailFields()` (index.html) uses this routed figure when it's available and falls back to the plain straight-line distance otherwise (graph still building, no route found, etc.), so the chip is never blank and never regresses below the previous behaviour. The chip is refreshed both on every GPS fix and the moment the routing graph finishes its lazy background build, so a selection made before the graph is ready still self-corrects from the straight-line figure to the routed one shortly after, without waiting for the next GPS fix.
 
 #### Tree Details
 

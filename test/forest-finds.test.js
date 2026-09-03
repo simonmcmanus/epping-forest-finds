@@ -159,6 +159,23 @@ globalThis.__forestFindsTest = {
   els,
   formatDistance,
   projectLonLat,
+  unprojectPoint,
+  distanceMetres,
+  buildRoutingGraph,
+  buildRoutingGraphAsync,
+  createRoutingGraphBuilder,
+  findRoutePoints,
+  nearestRoutingNode,
+  dijkstraPath,
+  ensureRoutingGraph,
+  selectedRoutePoints,
+  selectedRouteMetres,
+  drawSelectedRoute,
+  updateSelectedDetailFields,
+  selectedCompassTarget,
+  distanceFromUser,
+  walkInfoExpandableHtml,
+  formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
   walkingDistanceToMetres,
@@ -236,7 +253,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/categories.js", "js/normalize.js", "js/onboarding.js", "js/nav.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/categories.js", "js/normalize.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -2625,4 +2642,376 @@ test("registering a calibration sample starts the viewport sync loop", () => {
   );
 
   app.stopCalibrationViewportSync();
+});
+
+// --- js/routing.js: routing graph + pathfinding for the selected route line ---
+
+function routingWorldPoint(latitude, longitude) {
+  return app.projectLonLat(longitude, latitude);
+}
+
+function routingFeature(highway, latLonPoints) {
+  return { highway, segments: [latLonPoints.map(([lat, lon]) => routingWorldPoint(lat, lon))] };
+}
+
+function routingOptions() {
+  return { toLatLon: app.unprojectPoint, distanceMetresFn: app.distanceMetres };
+}
+
+test("buildRoutingGraph merges shared way endpoints into one connected graph", () => {
+  // Two residential-road ways sharing an endpoint at (51.650, 0.001) -- OSM ways that meet at a
+  // junction repeat that node's exact coordinate, which is how the graph reconstructs topology
+  // without real OSM node IDs (see js/routing.js's header comment).
+  const roadA = routingFeature("residential", [[51.650, 0.000], [51.650, 0.001]]);
+  const roadB = routingFeature("residential", [[51.650, 0.001], [51.651, 0.001]]);
+  const graph = app.buildRoutingGraph([roadA, roadB], [], app.unprojectPoint, app.distanceMetres);
+
+  assert.equal(graph.nodes.length, 3, "3 distinct points across both ways, the shared junction counted once");
+  const from = routingWorldPoint(51.650, 0.000);
+  const to = routingWorldPoint(51.651, 0.001);
+  const route = app.findRoutePoints(graph, from, to, routingOptions());
+  assert.ok(route, "the two ways should be connected via their shared endpoint");
+});
+
+test("buildRoutingGraph excludes non-walkable highway types entirely", () => {
+  const motorway = routingFeature("motorway", [[51.650, 0.000], [51.650, 0.005]]);
+  const graph = app.buildRoutingGraph([motorway], [], app.unprojectPoint, app.distanceMetres);
+  assert.equal(graph.nodes.length, 0, "a motorway-only feature set must not add any routing nodes");
+});
+
+test("findRoutePoints returns null for two points on disconnected features", () => {
+  const roadA = routingFeature("residential", [[51.650, 0.000], [51.650, 0.001]]);
+  const roadB = routingFeature("residential", [[51.660, 0.010], [51.660, 0.011]]); // far away, no shared node
+  const graph = app.buildRoutingGraph([roadA, roadB], [], app.unprojectPoint, app.distanceMetres);
+  const route = app.findRoutePoints(
+    graph,
+    routingWorldPoint(51.650, 0.000),
+    routingWorldPoint(51.660, 0.011),
+    routingOptions()
+  );
+  assert.equal(route, null, "two points nowhere near the same connected component must not produce a route");
+});
+
+test("findRoutePoints falls back to null when a point is too far from the network", () => {
+  const road = routingFeature("residential", [[51.650, 0.000], [51.650, 0.001]]);
+  const graph = app.buildRoutingGraph([road], [], app.unprojectPoint, app.distanceMetres);
+  // ~1.1km north of the road -- well past a sensible snap radius for "walk to the path first".
+  const farPoint = routingWorldPoint(51.660, 0.0005);
+  const route = app.findRoutePoints(
+    graph, routingWorldPoint(51.650, 0.0005), farPoint,
+    { ...routingOptions(), maxSnapMetres: 250 }
+  );
+  assert.equal(route, null, "a point ~1.1km from the nearest road must not snap onto it");
+});
+
+test("findRoutePoints starts and ends at the exact requested points, not the snapped network nodes", () => {
+  const road = routingFeature("residential", [[51.650, 0.0000], [51.650, 0.0010], [51.650, 0.0020]]);
+  const graph = app.buildRoutingGraph([road], [], app.unprojectPoint, app.distanceMetres);
+  // Slightly off the road line, so snapping actually moves the point.
+  const from = routingWorldPoint(51.6501, 0.00005);
+  const to = routingWorldPoint(51.6501, 0.00195);
+  const route = app.findRoutePoints(graph, from, to, routingOptions());
+  assert.ok(route && route.length >= 2);
+  assert.equal(route[0].x, from.x);
+  assert.equal(route[0].y, from.y);
+  assert.equal(route[route.length - 1].x, to.x);
+  assert.equal(route[route.length - 1].y, to.y);
+});
+
+test("findRoutePoints prefers a longer dedicated path over a shorter primary road", () => {
+  // A direct primary road from A to B, and a slightly longer footpath from A to B via C.
+  // The footpath's real distance is greater, but ROUTING_TYPE_WEIGHTS penalises "primary"
+  // enough (2x) that the footpath's weighted cost should still win.
+  const a = [51.6500, 0.0000];
+  const b = [51.6500, 0.0020]; // ~138m east of a
+  const c = [51.6503, 0.0010]; // a gentle detour north of the midpoint
+
+  const road = routingFeature("primary", [a, b]);
+  const path = routingFeature("footway", [a, c]);
+  const path2 = routingFeature("footway", [c, b]);
+  const graph = app.buildRoutingGraph([road], [path, path2], app.unprojectPoint, app.distanceMetres);
+
+  const from = routingWorldPoint(a[0], a[1]);
+  const to = routingWorldPoint(b[0], b[1]);
+  const route = app.findRoutePoints(graph, from, to, routingOptions());
+  assert.ok(route, "a route should be found");
+
+  const viaC = routingWorldPoint(c[0], c[1]);
+  const passesThroughC = route.some((p) => Math.abs(p.x - viaC.x) < 1e-9 && Math.abs(p.y - viaC.y) < 1e-9);
+  assert.ok(passesThroughC, "the footpath detour via C should be preferred over the direct primary road");
+});
+
+test("findRoutePoints rejects a route that is a pathological detour relative to the straight line", () => {
+  // A single long, winding path connects A and B, but only via a route many times longer than
+  // the straight-line distance between them (as if the only link were far out of the way).
+  const a = [51.6500, 0.0000];
+  const detour = [51.6800, 0.0000]; // ~3.3km north
+  const b = [51.6500, 0.0002]; // ~14m east of a -- straight-line distance is tiny
+  const leg1 = routingFeature("footway", [a, detour]);
+  const leg2 = routingFeature("footway", [detour, b]);
+  const graph = app.buildRoutingGraph([], [leg1, leg2], app.unprojectPoint, app.distanceMetres);
+
+  const route = app.findRoutePoints(
+    graph, routingWorldPoint(a[0], a[1]), routingWorldPoint(b[0], b[1]),
+    { ...routingOptions(), maxDetourRatio: 4 }
+  );
+  assert.equal(route, null, "a route hundreds of times longer than the straight line must be rejected, not drawn");
+});
+
+test("findRoutePoints treats a highway=service+service=alley way like a footpath, not a generic service road", () => {
+  // Same shape as the primary-vs-footway test above, but with a much smaller weight gap: a
+  // direct residential road (weight 1.15) from A to B, versus an alley cut-through via C that's
+  // only ~11% longer in real distance. That 11% comfortably clears the gap between "alley
+  // routed like a footpath" (weight 1, this test's expectation) and "alley routed like a plain
+  // service road" (weight 1.15, same as the residential -- which would make the router just
+  // take the shorter direct road instead). See js/normalize.js's toRoadFeature (roadType:
+  // "alley" vs "service") and js/renderer.js's dedicated thin/faint alley styling -- the router
+  // should recognise the same distinction.
+  const a = [51.6500, 0.0000];
+  const b = [51.6500, 0.0020]; // ~138m east of a
+  const c = [51.6503, 0.0010]; // a gentle detour north of the midpoint, ~11% longer via C
+
+  const road = routingFeature("residential", [a, b]);
+  const alleyLeg1 = { highway: "service", service: "alley", segments: [[routingWorldPoint(a[0], a[1]), routingWorldPoint(c[0], c[1])]] };
+  const alleyLeg2 = { highway: "service", service: "alley", segments: [[routingWorldPoint(c[0], c[1]), routingWorldPoint(b[0], b[1])]] };
+  const graph = app.buildRoutingGraph([road, alleyLeg1, alleyLeg2], [], app.unprojectPoint, app.distanceMetres);
+
+  const from = routingWorldPoint(a[0], a[1]);
+  const to = routingWorldPoint(b[0], b[1]);
+  const route = app.findRoutePoints(graph, from, to, routingOptions());
+  assert.ok(route, "a route should be found");
+
+  const viaC = routingWorldPoint(c[0], c[1]);
+  const passesThroughC = route.some((p) => Math.abs(p.x - viaC.x) < 1e-9 && Math.abs(p.y - viaC.y) < 1e-9);
+  assert.ok(passesThroughC, "the alley cut-through should be preferred over the slightly shorter direct residential road");
+});
+
+test("findRoutePoints still penalises a plain highway=service way (no alley tag) at the generic service rate", () => {
+  // Identical geometry to the alley test above, but the cut-through is a plain service road
+  // (e.g. a car park aisle or loading bay) rather than one tagged service=alley. It should get
+  // no special discount, so with an ~11% longer detour it loses to the direct residential road
+  // -- guarding against a fix that accidentally discounts every highway=service way, not just
+  // alleys.
+  const a = [51.6500, 0.0000];
+  const b = [51.6500, 0.0020];
+  const c = [51.6503, 0.0010];
+
+  const road = routingFeature("residential", [a, b]);
+  const serviceLeg1 = { highway: "service", segments: [[routingWorldPoint(a[0], a[1]), routingWorldPoint(c[0], c[1])]] };
+  const serviceLeg2 = { highway: "service", segments: [[routingWorldPoint(c[0], c[1]), routingWorldPoint(b[0], b[1])]] };
+  const graph = app.buildRoutingGraph([road, serviceLeg1, serviceLeg2], [], app.unprojectPoint, app.distanceMetres);
+
+  const from = routingWorldPoint(a[0], a[1]);
+  const to = routingWorldPoint(b[0], b[1]);
+  const route = app.findRoutePoints(graph, from, to, routingOptions());
+  assert.ok(route, "a route should be found");
+
+  const viaC = routingWorldPoint(c[0], c[1]);
+  const passesThroughC = route.some((p) => Math.abs(p.x - viaC.x) < 1e-9 && Math.abs(p.y - viaC.y) < 1e-9);
+  assert.ok(!passesThroughC, "a plain service road detour must not beat the shorter direct residential road");
+});
+
+test("data/local-paths.geojson keeps unnamed footpaths, not just named ones", () => {
+  // Regression coverage for a real incident: a one-off cleanup script (scripts/
+  // remove_unnamed_trails.py, since disabled) deleted every path feature without a `name` tag
+  // from this exact file on 2026-05-20. That silently gutted js/routing.js's walking-route graph,
+  // because most genuine footpaths -- especially official Public Rights of Way, which OSM tags
+  // with designation=public_footpath + prow_ref rather than a name -- have no name at all. The
+  // router was left sending walkers the long way round via roads instead of through real,
+  // mapped alleys/footpaths. See /routing-pedestrian-bias.md in project memory for the full story.
+  const geojson = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "local-paths.geojson"), "utf8"));
+  const total = geojson.features.length;
+  const unnamed = geojson.features.filter((f) => !f.properties || !f.properties.name).length;
+
+  assert.ok(total > 1000, `expected well over 1000 path features, found ${total} -- did a filter get reapplied?`);
+  // Real-world footpath data is overwhelmingly unnamed; require a healthy majority so a
+  // name-only filter (or anything similarly destructive) trips this test immediately.
+  assert.ok(unnamed / total > 0.5, `expected most path features to be unnamed (OSM's normal PROW footpaths have no name), found only ${unnamed}/${total}`);
+});
+
+test("the local-paths Overpass query covers the same core bounding box as local-roads/local-landmarks/local-environment", () => {
+  // Regression coverage for a real bug: local-paths.overpassql once queried a bounding box
+  // whose southern edge (51.595) was ~5.5km north of every other layer's (51.545), so the
+  // southern strip of the map had roads but no footpaths/bridleways/tracks at all -- forcing
+  // the router in js/routing.js to route through that area via roads exclusively, however
+  // strongly ROUTING_TYPE_WEIGHTS favours footpaths once they actually exist in the graph.
+  // Every clause in each file should use this shared bbox -- local-environment.overpassql's
+  // one exception (a deliberately tighter box just for its high-volume "building" clause) is
+  // named explicitly below rather than silently ignored, so a *new* stray bbox still fails
+  // this test.
+  const dataDir = path.join(__dirname, "..", "data");
+  const canonicalBbox = "(51.545,-0.035,51.745,0.145)";
+  const bboxPattern = /\(-?\d+\.\d+,-?\d+\.\d+,-?\d+\.\d+,-?\d+\.\d+\)/g;
+  const knownExceptions = new Set(["(51.610,0.000,51.710,0.090)"]); // local-environment's building-only box
+
+  const files = ["local-roads.overpassql", "local-paths.overpassql", "local-landmarks.overpassql", "local-environment.overpassql"];
+  for (const filename of files) {
+    const text = fs.readFileSync(path.join(dataDir, filename), "utf8");
+    const bboxes = Array.from(new Set(text.match(bboxPattern) || []));
+    assert.ok(bboxes.includes(canonicalBbox), `${filename} must include the shared bbox ${canonicalBbox}, found ${bboxes.join(", ")}`);
+    for (const bbox of bboxes) {
+      if (bbox === canonicalBbox) continue;
+      assert.ok(knownExceptions.has(bbox), `${filename} has an unexpected bbox ${bbox} -- if this is intentional, add it to knownExceptions with a comment explaining why`);
+    }
+  }
+});
+
+test("nearestRoutingNode finds the closest graph node to a query point", () => {
+  const road = routingFeature("residential", [[51.6500, 0.0000], [51.6510, 0.0000], [51.6520, 0.0000]]);
+  const graph = app.buildRoutingGraph([road], [], app.unprojectPoint, app.distanceMetres);
+  const near = app.nearestRoutingNode(graph, routingWorldPoint(51.6511, 0.0000));
+  const expected = routingWorldPoint(51.6510, 0.0000);
+  assert.ok(Math.abs(near.point.x - expected.x) < 1e-9 && Math.abs(near.point.y - expected.y) < 1e-9);
+});
+
+test("createRoutingGraphBuilder produces an identical graph whether fed all features at once or in batches", () => {
+  const features = [
+    routingFeature("residential", [[51.650, 0.000], [51.650, 0.001]]),
+    routingFeature("residential", [[51.650, 0.001], [51.651, 0.001]]),
+    routingFeature("footway", [[51.651, 0.001], [51.652, 0.002]]),
+  ];
+
+  const wholeBuilder = app.createRoutingGraphBuilder(app.unprojectPoint, app.distanceMetres);
+  wholeBuilder.addFeatures(features);
+  const wholeGraph = wholeBuilder.build();
+
+  const batchedBuilder = app.createRoutingGraphBuilder(app.unprojectPoint, app.distanceMetres);
+  batchedBuilder.addFeatures(features.slice(0, 1));
+  batchedBuilder.addFeatures(features.slice(1));
+  const batchedGraph = batchedBuilder.build();
+
+  assert.equal(batchedGraph.nodes.length, wholeGraph.nodes.length);
+  const wholeEdgeCount = wholeGraph.adjacency.reduce((sum, edges) => sum + edges.length, 0);
+  const batchedEdgeCount = batchedGraph.adjacency.reduce((sum, edges) => sum + edges.length, 0);
+  assert.equal(batchedEdgeCount, wholeEdgeCount);
+});
+
+test("buildRoutingGraphAsync returns a promise (chunked-build correctness is covered synchronously above via createRoutingGraphBuilder, since this file's test() runner does not await async tests)", () => {
+  const roads = [routingFeature("residential", [[51.650, 0.000], [51.650, 0.001], [51.651, 0.001]])];
+  const paths = [routingFeature("footway", [[51.651, 0.001], [51.652, 0.002]])];
+  const asyncResult = app.buildRoutingGraphAsync(roads, paths, app.unprojectPoint, app.distanceMetres, 1);
+  assert.equal(typeof asyncResult.then, "function", "buildRoutingGraphAsync must return a promise");
+  // Prevent an unhandled-rejection warning if it ever throws; correctness is asserted elsewhere.
+  asyncResult.catch(() => {});
+});
+
+test("ensureRoutingGraph lazily builds a routing graph from state.roads/state.paths, drawSelectedRoute switches from the straight-line fallback to the routed polyline once it's ready, and the result is memoized until the user moves meaningfully", async () => {
+  // Both checks share a single real-timer wait (rather than being two separate async tests)
+  // deliberately: this file runs every test against one shared `app` instance with no per-test
+  // isolation, and state.userLocation/trees/selected/routingGraph* are never reset by resetData().
+  // Two independent async tests here would leave both of their real setTimeout-based windows open
+  // at once, racing each other's cleanup against each other's still-in-flight assertions -- and,
+  // separately, would leave enough of a real-timer window open to race against unrelated earlier
+  // async tests too (e.g. "returning to nearby waits for inspector expansion..." schedules its own
+  // fallback setTimeout in goToInitialView/js/nav.js, which reads whatever state.userLocation is
+  // when it fires and broke if this test's synthetic location was still in place). One test, one
+  // short wait, cleaned up immediately after -- keeps this test's real-timer footprint minimal.
+  resetData(app);
+  app.state.routingGraphReady = false;
+  app.state.routingGraphBuilding = false;
+  app.state.routingGraph = null;
+  app.state.selectedRouteCache = null;
+  // Restored at the end -- state.userLocation is never touched by resetData() (unlike the fields
+  // above), so it's the one thing this test must put back exactly as found, not just to a neutral
+  // default, for the reason explained above.
+  const previousUserLocation = app.state.userLocation;
+
+  // A short footpath that bends through a middle vertex, so a routed line is visibly different
+  // (more than 2 points) from the straight 2-point fallback.
+  app.state.roads = [];
+  app.state.paths = [{
+    highway: "footway",
+    segments: [[
+      app.projectLonLat(0.0000, 51.6500),
+      app.projectLonLat(0.0005, 51.6503),
+      app.projectLonLat(0.0010, 51.6500),
+    ]],
+  }];
+
+  app.state.userLocation = makePoint(app, 51.6500, 0.0000);
+  const target = { commonName: "Test tree", ...makePoint(app, 51.6500, 0.0010) };
+  app.state.trees.push(target);
+  app.state.selected = { type: "tree", item: target };
+
+  // Before the graph is ready, drawSelectedRoute's straight-line fallback (unchanged from before
+  // this feature existed) must still be what's used -- never a broken/absent line.
+  const straightLine = app.selectedRoutePoints(target);
+  assert.equal(straightLine.length, 2, "falls back to the plain straight line while the graph is still building");
+  assert.ok(app.state.routingGraphBuilding, "calling selectedRoutePoints must have kicked off the lazy background build");
+  assert.doesNotThrow(() => app.drawSelectedRoute(app.els.canvas.getContext("2d")), "drawing must not throw while the graph is still building");
+
+  // The displayed distance/walk-time chip must match the straight-line fallback while routing
+  // isn't ready yet -- it must never show a broken/blank figure, and must never race ahead of
+  // what selectedRoutePoints itself is currently drawing.
+  const straightLineMetres = app.distanceFromUser(target);
+  assert.ok(Number.isFinite(straightLineMetres));
+  const preGraphRouteMetres = app.selectedRouteMetres(target);
+  assert.ok(
+    Math.abs(preGraphRouteMetres - straightLineMetres) < 0.01,
+    "selectedRouteMetres must match the plain straight-line distance while the graph is still building"
+  );
+  assert.doesNotThrow(() => app.updateSelectedDetailFields(), "updateSelectedDetailFields must not throw while the graph is still building");
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  assert.equal(app.state.routingGraphReady, true, "this tiny synthetic graph should finish building almost immediately");
+  const routed = app.selectedRoutePoints(target);
+  assert.ok(routed.length > 2, "once the graph is ready, the route should follow the path via its middle vertex instead of going straight");
+  assert.doesNotThrow(() => app.drawSelectedRoute(app.els.canvas.getContext("2d")), "drawing the routed polyline must not throw");
+
+  // The chip must now correct itself to the real (longer) routed distance/time, not stay stuck
+  // showing the straight-line crow-flies figure -- this is the behaviour the user asked to fix.
+  const routedMetres = app.selectedRouteMetres(target);
+  assert.ok(
+    routedMetres > straightLineMetres,
+    "the routed distance along the bending footpath must be longer than the straight-line distance"
+  );
+  assert.doesNotThrow(() => app.updateSelectedDetailFields(), "updateSelectedDetailFields must not throw once a routed path is available");
+
+  // Memoization: everything from here on is synchronous (the graph is already built), so it
+  // can't race any other test's pending timer.
+  const first = app.selectedRoutePoints(target);
+  assert.equal(first, routed, "an unmoved user must keep reusing the same cached route object");
+
+  app.state.userLocation = makePoint(app, 51.65001, 0.0000); // ~1m north -- under the 20m threshold
+  const second = app.selectedRoutePoints(target);
+  assert.equal(second, first, "a couple of metres of GPS movement must reuse the cached route, not recompute it");
+
+  app.state.userLocation = makePoint(app, 51.6503, 0.0000); // ~33m north -- past the threshold
+  const third = app.selectedRoutePoints(target);
+  assert.notEqual(third, first, "moving past the recompute threshold must produce a freshly computed route");
+
+  resetData(app);
+  app.state.userLocation = previousUserLocation;
+});
+
+test("selectedRouteMetres returns null without a user location or a targetless point, rather than throwing", () => {
+  resetData(app);
+  const previousUserLocation = app.state.userLocation;
+
+  app.state.userLocation = null;
+  const target = { commonName: "Test tree", ...makePoint(app, 51.65, 0.001) };
+  assert.equal(app.selectedRouteMetres(target), null, "no user location yet -- nothing to route from");
+
+  app.state.userLocation = makePoint(app, 51.65, 0.0);
+  assert.equal(app.selectedRouteMetres(null), null, "no target -- nothing to route to");
+  assert.equal(app.selectedRouteMetres({ commonName: "No point" }), null, "target without a projected point can't be routed to");
+
+  app.state.userLocation = previousUserLocation;
+});
+
+test("updateSelectedDetailFields is a no-op without a selection or a user location, and doesn't throw", () => {
+  resetData(app);
+  const previousUserLocation = app.state.userLocation;
+
+  app.state.userLocation = null;
+  app.state.selected = null;
+  assert.doesNotThrow(() => app.updateSelectedDetailFields());
+
+  app.state.userLocation = makePoint(app, 51.65, 0.0);
+  app.state.selected = null;
+  assert.doesNotThrow(() => app.updateSelectedDetailFields());
+
+  app.state.userLocation = previousUserLocation;
+  resetData(app);
 });

@@ -118,11 +118,16 @@ function toFeature(element) {
   };
 }
 
-async function main() {
-  const queryText = fs.readFileSync(QUERY_PATH, "utf8");
-  const raw = await postOverpass(queryText);
-  fs.writeFileSync(OVERPASS_JSON_PATH, raw);
-
+// Converts one raw Overpass response into this app's paths GeoJSON. Deliberately keeps every
+// walkable way regardless of whether it has a `name` tag -- most real footpaths (especially
+// official Public Rights of Way, tagged designation=public_footpath + prow_ref rather than name)
+// have no name at all, and js/routing.js routes across this same file, so dropping unnamed ways
+// doesn't just declutter the map, it deletes real shortcuts from the walking router. (A one-off
+// script, scripts/remove_unnamed_trails.py, did exactly that to data/local-paths.geojson on
+// 2026-05-20 -- see git history and /routing-pedestrian-bias.md in project memory. That script
+// is gone; don't recreate it. If unnamed trails ever need hiding for visual clarity, do it at
+// render time in js/renderer.js, keyed on `pathType`/`name`, not by deleting them here.)
+function buildGeoJson(raw) {
   const parsed = JSON.parse(raw);
   const deduped = new Map();
   for (const element of parsed.elements || []) {
@@ -131,9 +136,7 @@ async function main() {
     deduped.set(feature.properties.id, feature);
   }
 
-  const features = Array.from(deduped.values());
-
-  const geojson = {
+  return {
     type: "FeatureCollection",
     name: "Epping Forest paths and bridleways",
     generatedAt: new Date().toISOString(),
@@ -141,20 +144,38 @@ async function main() {
       name: "OpenStreetMap via Overpass API",
       license: "Open Data Commons Open Database License (ODbL)",
       queryFile: "data/local-paths.overpassql",
-      bbox: [-0.035, 51.595, 0.145, 51.745],
+      bbox: [-0.035, 51.545, 0.145, 51.745],
     },
-    features,
+    features: Array.from(deduped.values()),
   };
+}
 
+async function main() {
+  const fromCache = process.argv.includes("--from-cache");
+
+  let raw;
+  if (fromCache) {
+    if (!fs.existsSync(OVERPASS_JSON_PATH)) {
+      throw new Error(`${OVERPASS_JSON_PATH} does not exist -- run without --from-cache first.`);
+    }
+    raw = fs.readFileSync(OVERPASS_JSON_PATH, "utf8");
+  } else {
+    const queryText = fs.readFileSync(QUERY_PATH, "utf8");
+    raw = await postOverpass(queryText);
+    fs.writeFileSync(OVERPASS_JSON_PATH, raw);
+  }
+
+  const geojson = buildGeoJson(raw);
   fs.writeFileSync(GEOJSON_PATH, JSON.stringify(geojson, null, 2) + "\n");
 
   const counts = {};
-  for (const feature of features) {
+  for (const feature of geojson.features) {
     const key = feature.properties.pathType || "trail";
     counts[key] = (counts[key] || 0) + 1;
   }
+  const unnamed = geojson.features.filter((f) => !f.properties.name).length;
 
-  console.log(`Wrote ${features.length} path features to ${path.relative(ROOT, GEOJSON_PATH)}`);
+  console.log(`Wrote ${geojson.features.length} path features (${unnamed} unnamed) to ${path.relative(ROOT, GEOJSON_PATH)}`);
   console.log("Path type counts:");
   Object.keys(counts)
     .sort((a, b) => counts[b] - counts[a])

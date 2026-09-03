@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "forest-finds-v284";
+const CACHE_NAME = "forest-finds-v286";
 
 // self.__DEV__ is injected into the response by the local dev server (see
 // injectDevFlag() in server.js) — the file on disk here never sets it, so a
@@ -26,6 +26,7 @@ const APP_SHELL = [
   "./js/categories.js",
   "./js/normalize.js",
   "./js/loader.js",
+  "./js/routing.js",
   "./js/renderer.js",
   "./js/inspector.js",
   "./js/nav.js",

@@ -255,6 +255,10 @@ Source: `data/local-environment-buildings.geojson`
 
 Loaded on first demand (not at boot). Stored as raw GeoJSON features.
 
+### Routing Graph (Lazy, Derived)
+
+Not fetched -- built in-memory from `state.roads`/`state.paths` (already loaded and normalized) by `ensureRoutingGraph()`, the same lazy-guarded shape as the buildings loader above (`state.routingGraphReady`/`state.routingGraphBuilding` mirror `buildingsLoaded`/`buildingsLoading`). Triggered from the rendering layer (`drawSelectedRoute` in `js/renderer.js`) the first time a real selection needs it, so a session that never selects a specific tree/landmark never builds it. Built via `buildRoutingGraphAsync` (`js/routing.js`), which processes roads+paths in 500-feature batches yielding to the main thread between them (matching `loadMapData`'s own road-processing batch size), so the ~120k-node regional graph never blocks a frame. Used only for the selected/highlighted target's route line, and the routed distance/walk-time figure derived from it -- see "Route Lines" and "Selected Detail Content" in spec-data-rendering.md. Once the graph finishes building, `ensureRoutingGraph()` also calls `updateSelectedDetailFields()` directly (not just `requestDraw()`), so a distance/walk-time chip already on screen corrects itself immediately rather than waiting for the next GPS fix.
+
 ---
 
 ## Loading Progress Callback

@@ -275,3 +275,33 @@ function loadBuildingsIfNeeded() {
       state.buildingsLoaded = true; // don't retry on error
     });
 }
+
+// Lazily builds the road/path routing graph used by the selected-route line (js/routing.js,
+// selectedRoutePoints in js/renderer.js). Not a network fetch like loadBuildingsIfNeeded above --
+// state.roads/state.paths are already in memory from loadMapData -- but kept here for the same
+// reason: a derived piece of state that most sessions never need (a user who never selects a
+// specific tree/landmark never pays for it) and that must never block the caller, so building it
+// is handed off to buildRoutingGraphAsync (js/routing.js), which yields to the main thread
+// between batches rather than doing the ~120k-node build in one blocking call. Guarded by
+// state.routingGraphBuilding/state.routingGraphReady exactly like state.buildingsLoading/
+// state.buildingsLoaded, so repeated calls (it's called on every drawSelectedRoute) are free
+// once building has started.
+function ensureRoutingGraph() {
+  if (state.routingGraphReady || state.routingGraphBuilding) return;
+  state.routingGraphBuilding = true;
+  buildRoutingGraphAsync(state.roads, state.paths, unprojectPoint, distanceMetres)
+    .then((graph) => {
+      state.routingGraph = graph;
+      state.routingGraphReady = true;
+      state.routingGraphBuilding = false;
+      // Correct the selected-target distance/walk-time chip the instant the graph becomes
+      // ready, rather than waiting for the next GPS fix to happen to call updateSelectedDetailFields.
+      updateSelectedDetailFields();
+      requestDraw();
+    })
+    .catch(() => {
+      state.routingGraph = null;
+      state.routingGraphReady = true; // don't retry on error -- fall back to the straight line for the rest of the session
+      state.routingGraphBuilding = false;
+    });
+}

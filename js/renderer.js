@@ -611,13 +611,80 @@ function drawWalkingRadius(ctx) {
   ctx.restore();
 }
 
+// Minimum ground movement (in real metres) before the selected route line is recomputed. GPS
+// watchPosition fires roughly once a second and jitters by a few metres even standing still --
+// re-running Dijkstra on every fix would be wasted work and would make the line visibly twitch.
+// 20m is small enough that the drawn line still tracks a walking user reasonably promptly.
+const SELECTED_ROUTE_RECOMPUTE_MIN_METRES = 20;
+
+// Returns the world-space points to draw for the "walk to the selected target" line: the actual
+// road/path route when the routing graph is ready and a route can be found, or a plain 2-point
+// straight line otherwise (graph still building, or findRoutePoints couldn't find a sensible
+// route -- see js/routing.js). Result is memoized on state.selectedRouteCache, keyed by the
+// target's own object identity (stable across frames -- see the `state.selected = {..., item}`
+// assignments in js/inspector.js) and invalidated after SELECTED_ROUTE_RECOMPUTE_MIN_METRES of
+// user movement, so Dijkstra runs only when the destination or the user's position actually
+// changes meaningfully, never once per animation frame.
+//
+// Deliberately only used for the single selected/highlighted target (this function), not for
+// the ambient drawOverviewRoutes lines to every nearby item -- routing every visible pin would
+// multiply the cost of this by however many items are on screen for comparatively little value,
+// since those lines exist to show rough direction/distance at a glance, not to be walked.
+function selectedRoutePoints(target) {
+  const from = state.userLocation.point;
+  const to = target.point;
+  const straightLine = [from, to];
+
+  ensureRoutingGraph();
+  if (!state.routingGraphReady || !state.routingGraph) return straightLine;
+
+  const cache = state.selectedRouteCache;
+  const isSameTarget = cache && cache.target === target;
+  const movedMetres = isSameTarget
+    ? distanceMetres(cache.fromLatitude, cache.fromLongitude, state.userLocation.latitude, state.userLocation.longitude)
+    : Infinity;
+  if (isSameTarget && movedMetres < SELECTED_ROUTE_RECOMPUTE_MIN_METRES) return cache.points;
+
+  const routed = findRoutePoints(state.routingGraph, from, to, {
+    toLatLon: unprojectPoint,
+    distanceMetresFn: distanceMetres,
+  });
+  const points = routed || straightLine;
+  state.selectedRouteCache = {
+    target,
+    fromLatitude: state.userLocation.latitude,
+    fromLongitude: state.userLocation.longitude,
+    points,
+  };
+  return points;
+}
+
+// Returns the real path-following distance (metres) for the "walk to the selected target"
+// line, matching whatever selectedRoutePoints would draw: the routed road/path length once the
+// routing graph is ready and a route was found, or the plain straight-line distance otherwise
+// (graph still building, or no route could be found -- see selectedRoutePoints' own fallback).
+// Reuses selectedRoutePoints itself (not a separately-read cache) so the displayed distance/walk
+// time chip can never disagree with the drawn line, and so it benefits from the same movement-
+// threshold memoization -- calling this is not itself a source of extra Dijkstra runs.
+function selectedRouteMetres(target) {
+  if (!state.userLocation || !target || !target.point) return null;
+  const points = selectedRoutePoints(target);
+  if (!points || points.length < 2) return null;
+  let metres = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const a = unprojectPoint(points[i - 1]);
+    const b = unprojectPoint(points[i]);
+    metres += distanceMetres(a.latitude, a.longitude, b.latitude, b.longitude);
+  }
+  return metres;
+}
+
 function drawSelectedRoute(ctx) {
   const target = selectedCompassTarget();
   if (!state.userLocation || !target) return;
 
   const dpr = pixelRatio();
-  const from = worldToScreen(state.userLocation.point);
-  const to = worldToScreen(target.point);
+  const points = selectedRoutePoints(target).map(worldToScreen);
   const routeLineWidth = 3 * dpr;
   const haloLineWidth = routeLineWidth + 3 * dpr;
 
@@ -625,8 +692,8 @@ function drawSelectedRoute(ctx) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.beginPath();
-  ctx.moveTo(from.x, from.y);
-  ctx.lineTo(to.x, to.y);
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i += 1) ctx.lineTo(points[i].x, points[i].y);
   ctx.setLineDash([10 * dpr, 8 * dpr]);
   ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
   ctx.lineWidth = haloLineWidth;
