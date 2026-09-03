@@ -244,7 +244,9 @@
     const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
     const TILT_BETA_THRESHOLD = 12;    // deg above flat before perspective kicks in
     const TILT_BETA_MAX = 85;          // deg where max perspective angle is reached
-    const TILT_PERSPECTIVE_PX = 900;   // CSS perspective distance
+    const TILT_HORIZON_GROUND_RATIO = 0.62; // fraction of the space above the pivot that shows ground (vs. sky) at any tilt angle -- see tiltPerspectivePx()
+    const TILT_PERSPECTIVE_MIN_PX = 260;    // floor so very short/cramped viewports don't collapse the camera distance towards an unstable near-0 value
+    const TILT_PERSPECTIVE_MAX_PX = 2600;   // ceiling so very tall viewports (tablets) don't stretch the camera distance into an implausibly flat, barely-tilted look
     const TILT_ROTATEX_MAX = 75;       // max rotateX deg — 2× overscan hides the canvas edge even at this angle
     const HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT = 2.0; // extra canvas needed so perspective doesn't expose the top edge
     // The canvas resize needed to switch overscan ratios is a discrete, unavoidably instant
@@ -2979,6 +2981,50 @@
       return Math.min(1, (state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD));
     }
 
+    // The vertical anchor fraction the heading-up pivot sits at within the visible map
+    // rect, ramping from the flat anchor to the max-tilt anchor as tiltAnchorFraction()
+    // goes 0 -> 1. Shared by navigationFocusPoint/nearbyHeadingUpFocusY (where the pivot
+    // is actually placed on screen) and tiltAvailableAheadCssPx (which needs the same
+    // value to size the tilt perspective distance -- see tiltPerspectivePx()).
+    function headingUpAnchorFraction(isSelected) {
+      const t = tiltAnchorFraction();
+      const base = isSelected ? HEADING_UP_ANCHOR_SELECTED : HEADING_UP_ANCHOR_NEARBY;
+      const far  = isSelected ? HEADING_UP_ANCHOR_SELECTED_TILT : HEADING_UP_ANCHOR_NEARBY_TILT;
+      return base + (far - base) * t;
+    }
+
+    // Space (CSS px) available above the tilt pivot within the currently visible map
+    // area -- the "ahead" band the tilted ground plane has to fill before its horizon.
+    // Feeds tiltPerspectivePx() so the perspective camera distance scales with the
+    // actual screen instead of leaving a fixed-size "sky" gap that grows on taller
+    // viewports (see tiltPerspectivePx() for why that matters).
+    function tiltAvailableAheadCssPx() {
+      const focusRect = bestVisibleCanvasRect();
+      const anchor = headingUpAnchorFraction(selectedNavigationHeadingUpActive());
+      return Math.max(1, (focusRect.height * anchor) / pixelRatio());
+    }
+
+    // TILT_PERSPECTIVE_PX used to be a fixed CSS-px camera distance. A rotateX-tilted
+    // ground plane's horizon sits at (perspective / tan(rotateX)) CSS px above the
+    // pivot -- a fixed distance, independent of screen size -- so a flat constant left
+    // the "sky" gap above the horizon covering a bigger or smaller fraction of the
+    // screen depending on device height, rather than a consistent fraction of it (a
+    // taller visible map area got proportionally *more* empty sky, not less). This
+    // derives the camera distance from the space actually available above the pivot
+    // instead, so the horizon lands at roughly the same fraction of the visible map
+    // (TILT_HORIZON_GROUND_RATIO) on any device. Used identically by the CSS canvas
+    // transform (updateHeadingUpCanvasRotationTransform) and by the overlay's manual
+    // perspective projection (worldToScreenForOverlayTilted, projectCanvasPoint) --
+    // all three must agree or pins drift away from the tilted terrain beneath them.
+    function tiltPerspectivePx() {
+      const tiltDeg = tiltRotateXDeg();
+      if (tiltDeg <= 0) return TILT_PERSPECTIVE_MIN_PX;
+      const tanT = Math.tan(tiltDeg * Math.PI / 180);
+      if (!(tanT > 0)) return TILT_PERSPECTIVE_MIN_PX;
+      const desired = tiltAvailableAheadCssPx() * TILT_HORIZON_GROUND_RATIO * tanT;
+      return clamp(desired, TILT_PERSPECTIVE_MIN_PX, TILT_PERSPECTIVE_MAX_PX);
+    }
+
     // In full 3D (tilt active), map/landmark/cow/path pins and road/path lines behind the
     // user's heading are not drawn at all — full 3D is a "look ahead" view, and anything
     // behind is meant to be revealed by physically turning around rather than staying
@@ -3046,11 +3092,7 @@
 
     function navigationFocusPoint() {
       const focusRect = bestVisibleCanvasRect();
-      const t = tiltAnchorFraction();
-      const isSelected = selectedNavigationHeadingUpActive();
-      const base = isSelected ? HEADING_UP_ANCHOR_SELECTED : HEADING_UP_ANCHOR_NEARBY;
-      const far  = isSelected ? HEADING_UP_ANCHOR_SELECTED_TILT : HEADING_UP_ANCHOR_NEARBY_TILT;
-      const anchor = base + (far - base) * t;
+      const anchor = headingUpAnchorFraction(selectedNavigationHeadingUpActive());
       return {
         x: focusRect.x + focusRect.width / 2,
         y: focusRect.y + focusRect.height * anchor,
@@ -3058,8 +3100,7 @@
     }
 
     function nearbyHeadingUpFocusY() {
-      const t = tiltAnchorFraction();
-      return HEADING_UP_ANCHOR_NEARBY + (HEADING_UP_ANCHOR_NEARBY_TILT - HEADING_UP_ANCHOR_NEARBY) * t;
+      return headingUpAnchorFraction(false);
     }
 
     function nearbyNavigationFocusPoint() {
@@ -3394,7 +3435,7 @@
       if (hasTilt) {
         // rotateX(+T) tilts the top AWAY from the viewer, which is the correct
         // direction for ground-ahead perspective (distant trees recede, not loom).
-        els.canvas.style.transform = `perspective(${TILT_PERSPECTIVE_PX}px) rotateX(${tiltDeg.toFixed(2)}deg) rotate(${delta.toFixed(4)}deg)`;
+        els.canvas.style.transform = `perspective(${tiltPerspectivePx().toFixed(1)}px) rotateX(${tiltDeg.toFixed(2)}deg) rotate(${delta.toFixed(4)}deg)`;
         // Overlay stays flat — pin positions are projected via worldToScreenForOverlayTilted
         // so they appear upright (billboard) rather than lying flat on the tilted surface.
         if (els.overlayCanvas) {
@@ -4544,7 +4585,7 @@
       if (tiltDeg <= 0) return flat;
       const origin = rawWorldToScreen(state.userLocation.point);
       const dpr = pixelRatio();
-      // Work in CSS pixels so perspective distance (TILT_PERSPECTIVE_PX) is consistent.
+      // Work in CSS pixels so the perspective distance (tiltPerspectivePx()) is consistent.
       const dxCss = (flat.x - origin.x) / dpr;
       const dyCss = (flat.y - origin.y) / dpr;
       const T = tiltDeg * Math.PI / 180;
@@ -4552,7 +4593,10 @@
       // Points above origin (dy<0, ahead) get z'<0 (behind viewer) → scale<1 → appear smaller.
       const dyNew = dyCss * Math.cos(T);
       const dz = dyCss * Math.sin(T);
-      const scale = TILT_PERSPECTIVE_PX / (TILT_PERSPECTIVE_PX - dz);
+      // Must match the CSS transform's perspective distance exactly (see
+      // updateHeadingUpCanvasRotationTransform) or pins drift away from the terrain.
+      const perspectivePx = tiltPerspectivePx();
+      const scale = perspectivePx / (perspectivePx - dz);
       return {
         x: origin.x + dxCss * scale * dpr,
         y: origin.y + dyNew * scale * dpr,
@@ -4572,7 +4616,10 @@
       const T = tiltDeg * Math.PI / 180;
       const dyNew = dyCss * Math.cos(T);
       const dz = dyCss * Math.sin(T);
-      const scale = TILT_PERSPECTIVE_PX / (TILT_PERSPECTIVE_PX - dz);
+      // Must match worldToScreenForOverlayTilted's perspective distance exactly, or
+      // pins drift away from the terrain.
+      const perspectivePx = tiltPerspectivePx();
+      const scale = perspectivePx / (perspectivePx - dz);
       return {
         x: origin.x + dxCss * scale * dpr,
         y: origin.y + dyNew * scale * dpr,

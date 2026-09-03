@@ -207,13 +207,20 @@ globalThis.__forestFindsTest = {
   nearbyNavigationAnchorActive,
   navigationAnchorActive,
   nearbyNavigationFocusPoint,
+  navigationFocusPoint,
+  nearbyHeadingUpFocusY,
   tiltActive,
   tiltAllowedForCurrentScreen,
   isOverviewScreenActive,
   tiltRotateXDeg,
   tiltAnchorFraction,
+  headingUpAnchorFraction,
+  tiltAvailableAheadCssPx,
+  tiltPerspectivePx,
   isBehindTiltHeading,
   tiltPinScale,
+  worldToScreenForOverlayTilted,
+  projectCanvasPoint,
   buildNearbyIconLookup,
   isNearCanvas,
   showClusterDetail,
@@ -3014,4 +3021,160 @@ test("updateSelectedDetailFields is a no-op without a selection or a user locati
 
   app.state.userLocation = previousUserLocation;
   resetData(app);
+});
+
+test("headingUpAnchorFraction ramps from the flat anchor to the max-tilt anchor, separately for nearby vs. selected navigation", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0); // headingUpActive() requires a user location...
+  app.state.compassHeading = 0;                  // ...and a finite compass heading, or tiltActive() (and thus the ramp) never engages
+
+  app.state.tiltBetaSmoothed = 0; // tilt inactive -> tiltAnchorFraction() ramp t = 0
+  assert.equal(app.headingUpAnchorFraction(false), 0.55, "flat nearby anchor (HEADING_UP_ANCHOR_NEARBY)");
+  assert.equal(app.headingUpAnchorFraction(true), 0.62, "flat selected anchor (HEADING_UP_ANCHOR_SELECTED)");
+
+  app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> ramp t = 1
+  assert.ok(Math.abs(app.headingUpAnchorFraction(false) - 0.90) < 1e-9, "max-tilt nearby anchor (HEADING_UP_ANCHOR_NEARBY_TILT)");
+  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - 0.88) < 1e-9, "max-tilt selected anchor (HEADING_UP_ANCHOR_SELECTED_TILT)");
+
+  app.state.tiltBetaSmoothed = 48.5; // midpoint of 12-85 -> ramp t = 0.5, same fixture beta other tilt tests use
+  assert.ok(Math.abs(app.headingUpAnchorFraction(false) - 0.725) < 1e-9, "midway nearby anchor: 0.55 + (0.90-0.55)*0.5");
+  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - 0.75) < 1e-9, "midway selected anchor: 0.62 + (0.88-0.62)*0.5");
+});
+
+test("navigationFocusPoint and nearbyHeadingUpFocusY still place the pivot via headingUpAnchorFraction after the shared-helper refactor", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // finite heading, no selection -> nearbyHeadingUpActive()
+  app.state.tiltBetaSmoothed = 48.5;
+  app.els.inspector.hidden = true; // avoid unrelated inspector-overlap geometry in this check
+
+  const anchor = app.headingUpAnchorFraction(false);
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.navigationFocusPoint();
+  assert.equal(focus.x, focusRect.x + focusRect.width / 2);
+  assert.ok(Math.abs(focus.y - (focusRect.y + focusRect.height * anchor)) < 1e-9);
+  assert.ok(Math.abs(app.nearbyHeadingUpFocusY() - anchor) < 1e-9);
+
+  // Selected-navigation uses the "selected" anchor instead.
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  const selectedAnchor = app.headingUpAnchorFraction(true);
+  const selectedFocus = app.navigationFocusPoint();
+  assert.ok(Math.abs(selectedFocus.y - (focusRect.y + focusRect.height * selectedAnchor)) < 1e-9);
+  assert.notEqual(selectedAnchor, anchor, "selected and nearby anchors should differ at this tilt level");
+});
+
+test("tiltAvailableAheadCssPx is the visible map height above the pivot, converted to CSS px via the device pixel ratio", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 85; // max tilt -> nearby anchor is exactly 0.90
+
+  app.state.canvasVisibleHeight = 800;
+  assert.ok(Math.abs(app.tiltAvailableAheadCssPx() - 720) < 1e-9, "800 * 0.90 / dpr(1) = 720");
+
+  // pixelRatio() prefers els.canvas.dataset.dpr (set by resizeCanvas in real use) over
+  // window.devicePixelRatio, so set that directly for a deterministic check here.
+  const originalDatasetDpr = app.els.canvas.dataset.dpr;
+  try {
+    app.els.canvas.dataset.dpr = "2";
+    assert.ok(Math.abs(app.tiltAvailableAheadCssPx() - 360) < 1e-9, "800 * 0.90 / dpr(2) = 360 -- bitmap px converted down to CSS px");
+  } finally {
+    app.els.canvas.dataset.dpr = originalDatasetDpr;
+  }
+});
+
+test("tiltPerspectivePx keeps the ground/sky split at a constant fraction of the visible map regardless of screen height", () => {
+  // Regression test for the fixed-900px camera distance bug: perspective's ground-plane
+  // horizon sits at (perspective / tan(rotateX)) CSS px above the pivot -- a fixed distance
+  // when the camera distance is a flat constant, so a taller screen left proportionally
+  // *more* empty "sky" above the horizon than a shorter one, instead of a device-independent
+  // split. tiltPerspectivePx() must instead keep (perspective * cot(rotateX)) / availableAhead
+  // -- the fraction of the visible map that shows ground -- equal to TILT_HORIZON_GROUND_RATIO
+  // on any screen height.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 60; // an ordinary mid-range tilt, not max
+
+  function groundFraction() {
+    const tiltRad = app.tiltRotateXDeg() * Math.PI / 180;
+    const horizonOffsetCssPx = app.tiltPerspectivePx() / Math.tan(tiltRad);
+    return horizonOffsetCssPx / app.tiltAvailableAheadCssPx();
+  }
+
+  app.state.canvasVisibleHeight = 800;
+  const shortScreenFraction = groundFraction();
+  const shortScreenPerspective = app.tiltPerspectivePx();
+
+  app.state.canvasVisibleHeight = 1600;
+  const tallScreenFraction = groundFraction();
+  const tallScreenPerspective = app.tiltPerspectivePx();
+
+  assert.ok(Math.abs(shortScreenFraction - tallScreenFraction) < 1e-9,
+    `ground fraction should be device-height independent, got ${shortScreenFraction} vs ${tallScreenFraction}`);
+  assert.ok(Math.abs(shortScreenFraction - 0.62) < 1e-9, "fraction should match TILT_HORIZON_GROUND_RATIO (0.62)");
+  assert.ok(Math.abs(tallScreenPerspective - shortScreenPerspective * 2) < 1e-6,
+    "doubling the available screen height should double the camera distance, not leave it fixed");
+});
+
+test("tiltPerspectivePx clamps to a sane range for extreme viewport heights, and falls back to the floor when tilt is inactive", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.els.inspector.hidden = true;
+
+  app.state.tiltBetaSmoothed = 60;
+  app.state.canvasVisibleHeight = 4; // absurdly short viewport
+  assert.equal(app.tiltPerspectivePx(), 260, "should clamp to TILT_PERSPECTIVE_MIN_PX rather than an unstable near-0 camera distance");
+
+  app.state.canvasVisibleHeight = 400000; // absurdly tall viewport
+  assert.equal(app.tiltPerspectivePx(), 2600, "should clamp to TILT_PERSPECTIVE_MAX_PX rather than an implausibly flat camera distance");
+
+  app.state.canvasVisibleHeight = 800;
+  app.state.tiltBetaSmoothed = 0; // tilt inactive -> tiltRotateXDeg() is 0
+  assert.equal(app.tiltPerspectivePx(), 260, "returns the floor rather than dividing by a zero tilt angle when tilt is inactive");
+});
+
+test("projectCanvasPoint and worldToScreenForOverlayTilted use the same dynamic perspective distance as the CSS canvas transform, so pins never drift off the terrain", () => {
+  resetData(app);
+  app.state.compassHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0); // world (0,0) -> rawWorldToScreen -> screen (500, 400) given the default viewport
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 60;
+
+  const origin = { x: 500, y: 400 };
+  const px = 550, py = 300; // 50px right, 100px "ahead" (above) of the user on screen
+  const dpr = 1;
+  const tiltDeg = app.tiltRotateXDeg();
+  const T = tiltDeg * Math.PI / 180;
+  const dyCss = (py - origin.y) / dpr;
+  const dz = dyCss * Math.sin(T);
+  const perspectivePx = app.tiltPerspectivePx();
+  const expectedScale = perspectivePx / (perspectivePx - dz);
+  const expected = {
+    x: origin.x + ((px - origin.x) / dpr) * expectedScale * dpr,
+    y: origin.y + (dyCss * Math.cos(T)) * expectedScale * dpr,
+  };
+
+  const viaCanvasPoint = app.projectCanvasPoint(px, py);
+  assert.ok(Math.abs(viaCanvasPoint.x - expected.x) < 1e-6, `x mismatch: ${viaCanvasPoint.x} vs ${expected.x}`);
+  assert.ok(Math.abs(viaCanvasPoint.y - expected.y) < 1e-6, `y mismatch: ${viaCanvasPoint.y} vs ${expected.y}`);
+  assert.ok(Math.abs(viaCanvasPoint.scale - expectedScale) < 1e-9);
+
+  // world (0.05, -0.1) -> rawWorldToScreen -> screen (550, 300), the same on-screen point as
+  // above -- worldToScreenForOverlayTilted should therefore land on the same projected pixel.
+  const viaWorldPoint = app.worldToScreenForOverlayTilted({ x: 0.05, y: -0.1 });
+  assert.ok(Math.abs(viaWorldPoint.x - expected.x) < 1e-6, `x mismatch: ${viaWorldPoint.x} vs ${expected.x}`);
+  assert.ok(Math.abs(viaWorldPoint.y - expected.y) < 1e-6, `y mismatch: ${viaWorldPoint.y} vs ${expected.y}`);
+
+  // The CSS canvas transform must embed this exact same perspective distance -- a stale or
+  // differently-derived value here would visibly drift pins away from the tilted terrain.
+  app.state.renderedNavigationHeading = 0;
+  app.els.canvas.style.transform = "";
+  app.updateHeadingUpCanvasRotationTransform();
+  const match = app.els.canvas.style.transform.match(/perspective\(([\d.]+)px\)/);
+  assert.ok(match, "canvas transform should include a CSS perspective distance");
+  assert.ok(Math.abs(Number(match[1]) - perspectivePx) < 0.05, "CSS transform perspective should match tiltPerspectivePx()");
 });
