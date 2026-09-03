@@ -125,6 +125,12 @@ for element in parsed.get("elements", []):
             "leisure": tags.get("leisure"),
             "boundary": tags.get("boundary"),
             "railway": tags.get("railway"),
+            # Retained for building features so the 3D-buildings extrusion view (see
+            # js/normalize.js: estimateBuildingHeightMetres) can use a real OSM height over
+            # its footprint-area fallback whenever it's tagged. Harmless no-ops for every
+            # other feature type, which just carry these through as null.
+            "height": tags.get("height"),
+            "building:levels": tags.get("building:levels"),
             "operator": tags.get("operator"),
             "service": tags.get("service"),
             "usage": tags.get("usage"),

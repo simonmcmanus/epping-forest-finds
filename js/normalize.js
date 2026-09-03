@@ -212,6 +212,107 @@ function toRoadFeature(feature) {
   return { name, ref, roadType, highway, service, segments, bbox };
 }
 
+// --- Building height estimation ---
+// Real height/building:levels OSM tags are rare in this area's extract (most buildings
+// carry neither), so ensureBuildingHeight always needs a usable fallback -- see
+// estimateBuildingHeightMetres below. projectLonLat and metresPerWorldUnit are defined in
+// the main script and available at call time (same pattern as the rest of this file).
+
+const BUILDING_HEIGHT_MIN_METRES = 4.5;
+const BUILDING_HEIGHT_MAX_METRES = 24;
+
+function clampBuildingHeight(metres) {
+  return Math.min(BUILDING_HEIGHT_MAX_METRES, Math.max(BUILDING_HEIGHT_MIN_METRES, metres));
+}
+
+// Pulls a leading number out of an OSM-style height value ("12", "12.5", "12.5 m" all
+// parse to 12.5). Returns null for anything that isn't a usable positive number.
+function parseHeightMetres(value) {
+  if (value == null) return null;
+  const match = String(value).match(/-?\d+(\.\d+)?/);
+  if (!match) return null;
+  const metres = Number(match[0]);
+  return Number.isFinite(metres) && metres > 0 ? metres : null;
+}
+
+function buildingFootprintCentroidLatLon(geometry) {
+  const polygons = polygonRingsFromGeometry(geometry);
+  const ring = polygons[0] && polygons[0][0];
+  if (!ring || !ring.length) return null;
+  let sumLon = 0;
+  let sumLat = 0;
+  for (const coordinate of ring) {
+    sumLon += Number(coordinate[0]);
+    sumLat += Number(coordinate[1]);
+  }
+  return { longitude: sumLon / ring.length, latitude: sumLat / ring.length };
+}
+
+// Shoelace area of the outer ring only (courtyard holes and any additional polygons of a
+// MultiPolygon are ignored -- both are rare here and this is a townscape-plausible height
+// guess, not a survey). Converted from world-projection units to real square metres via
+// metresPerWorldUnit, valid locally since the projection is conformal.
+function footprintAreaSquareMetres(geometry, centroidLatitude) {
+  const polygons = polygonRingsFromGeometry(geometry);
+  const ring = polygons[0] && polygons[0][0];
+  if (!ring || ring.length < 3) return 0;
+  let shoelace = 0;
+  for (let i = 0; i < ring.length; i += 1) {
+    const a = projectLonLat(Number(ring[i][0]), Number(ring[i][1]));
+    const next = ring[(i + 1) % ring.length];
+    const b = projectLonLat(Number(next[0]), Number(next[1]));
+    shoelace += a.x * b.y - b.x * a.y;
+  }
+  const areaWorldUnits = Math.abs(shoelace) / 2;
+  const metresPerUnit = metresPerWorldUnit(centroidLatitude);
+  return areaWorldUnits * metresPerUnit * metresPerUnit;
+}
+
+// Deterministic 0..1 value derived from a footprint's own centroid, standing in for
+// Math.random() so a building's estimated height stays fixed across draws, frames, and
+// app reloads instead of flickering or drifting.
+function seededUnitInterval(longitude, latitude) {
+  const seed = Math.sin(longitude * 12.9898 + latitude * 78.233) * 43758.5453;
+  return seed - Math.floor(seed);
+}
+
+// Real height/building:levels tags win when present (forward-compatible with a future
+// data pipeline that retains them -- see scripts/regenerate_local_environment.py). Most
+// buildings in the current extract have neither, so the common path is the footprint-area
+// heuristic: small structures (garages, sheds) stay low, typical two-storey houses land
+// around 7-8m, larger footprints (halls, schools, retail units) scale up but are capped --
+// plus a small deterministic jitter so a run of similar-sized neighbouring buildings
+// doesn't look like uniform toy blocks.
+function estimateBuildingHeightMetres(feature) {
+  const props = (feature && feature.properties) || {};
+
+  const explicit = parseHeightMetres(props.heightMetres) || parseHeightMetres(props.height);
+  if (explicit != null) return clampBuildingHeight(explicit);
+
+  const levels = parseFloat(props["building:levels"]);
+  if (Number.isFinite(levels) && levels > 0) return clampBuildingHeight(levels * 3 + 1.5);
+
+  const centroid = buildingFootprintCentroidLatLon(feature && feature.geometry);
+  if (!centroid) return BUILDING_HEIGHT_MIN_METRES;
+
+  const areaSquareMetres = footprintAreaSquareMetres(feature.geometry, centroid.latitude);
+  const base = 4.5 + Math.sqrt(Math.max(areaSquareMetres, 0)) * 0.55;
+  const jitter = 0.85 + seededUnitInterval(centroid.longitude, centroid.latitude) * 0.3;
+  return clampBuildingHeight(base * jitter);
+}
+
+// Computes (once) and caches a building's extrusion height directly on the feature so
+// repeated frames/draws don't redo the footprint-area work every time -- called once per
+// feature when buildings are loaded (js/loader.js's loadBuildingsIfNeeded).
+function ensureBuildingHeight(feature) {
+  if (!feature) return feature;
+  if (!feature.properties) feature.properties = {};
+  if (!Number.isFinite(feature.properties.heightMetres)) {
+    feature.properties.heightMetres = estimateBuildingHeightMetres(feature);
+  }
+  return feature;
+}
+
 // --- Water feature extraction ---
 
 function extractWaterFeatures(features) {

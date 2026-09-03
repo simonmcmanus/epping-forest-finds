@@ -264,7 +264,9 @@ function loadBuildingsIfNeeded() {
   fetch(BUILDINGS_URL)
     .then((r) => r.json())
     .then((data) => {
-      state.buildingFeatures = (data.features || []).filter((f) => f && f.geometry && f.properties);
+      state.buildingFeatures = (data.features || [])
+        .filter((f) => f && f.geometry && f.properties)
+        .map(ensureBuildingHeight);
       state.buildingsLoaded = true;
       state.buildingsLoading = false;
       state.buildingsRevealStartTime = performance.now();

@@ -263,7 +263,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v289"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with CACHE_NAME in sw.js.
+    const APP_VERSION = "v292"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -3618,6 +3618,20 @@
       return Math.abs(edgeWorld.x - state.userLocation.point.x);
     }
 
+    // Metres represented by one world-projection unit (projectLonLat's x/y) at a given
+    // latitude. The projection is locally conformal (see projectLonLat), so this single
+    // figure applies equally to both axes -- same 111320*cos(lat) constant
+    // walkingRadiusWorldUnits() above already uses for the reverse conversion, kept as a
+    // named helper so building-height projection (worldToScreenForOverlayTiltedAtHeight)
+    // doesn't duplicate/drift from it.
+    function metresPerWorldUnit(latitudeDegrees) {
+      return 111320 * Math.cos(latitudeDegrees * Math.PI / 180);
+    }
+
+    function metresToWorldUnits(metres, latitudeDegrees) {
+      return metres / metresPerWorldUnit(latitudeDegrees);
+    }
+
     function maxScaleForRadiusVisible(focusRect) {
       if (!state.userLocation) return Number.POSITIVE_INFINITY;
       const worldRadius = walkingRadiusWorldUnits();
@@ -4689,6 +4703,13 @@
 
     // Projects an overlay canvas position through the active tilt perspective so pins
     // appear at the correct depth but remain upright (billboard) on the flat overlay canvas.
+    // Also returns the perspective-divide `scale` it computed (matching
+    // worldToScreenForOverlayTiltedAtHeight/projectCanvasPoint) so callers -- currently
+    // drawBuildingExtrusions' BUILDING_MAX_SAFE_SCALE backstop -- can detect points whose
+    // scale has blown up toward the camera's behind-pivot singularity without recomputing
+    // the projection a second time. The early "flat" fallback below (tilt inactive / no
+    // user location) has no scale property; callers that need one in every case should
+    // treat a missing scale as "not tilted" rather than assuming it's always present.
     function worldToScreenForOverlayTilted(point) {
       const flat = worldToScreenForOverlay(point);
       if (!tiltActive() || !state.userLocation) return flat;
@@ -4711,6 +4732,48 @@
       return {
         x: origin.x + dxCss * scale * dpr,
         y: origin.y + dyNew * scale * dpr,
+        scale,
+      };
+    }
+
+
+    // Like worldToScreenForOverlayTilted, but lifts the point by a real-world height
+    // (metres) along the ground plane's true "up" axis before applying the same
+    // rotateX(+T) + perspective-divide camera -- used for building roof/wall vertices in
+    // the tilt view (drawBuildingExtrusions in js/renderer.js). heightMetres of 0 (or a
+    // falsy value) makes heightCss 0, which collapses dyNew/dz back to exactly
+    // worldToScreenForOverlayTilted's own formula -- a roof at height 0 IS the ground
+    // point, and the two must never disagree there or extruded buildings would visibly
+    // detach from their own footprints. Uses state.userLocation.latitude for the
+    // metres->world-units conversion rather than each building's own latitude -- same
+    // simplification walkingRadiusWorldUnits() makes, and fine given how small this app's
+    // whole coverage area is (Epping Forest).
+    function worldToScreenForOverlayTiltedAtHeight(point, heightMetres) {
+      const flat = worldToScreenForOverlay(point);
+      if (!tiltActive() || !state.userLocation) return flat;
+      const tiltDeg = tiltRotateXDeg();
+      if (tiltDeg <= 0) return flat;
+      const origin = rawWorldToScreen(state.userLocation.point);
+      const dpr = pixelRatio();
+      const dxCss = (flat.x - origin.x) / dpr;
+      const dyCss = (flat.y - origin.y) / dpr;
+      const heightCss = heightMetres
+        ? (metresToWorldUnits(heightMetres, state.userLocation.latitude) * state.viewport.scale) / dpr
+        : 0;
+      const T = tiltDeg * Math.PI / 180;
+      // Same rotateX(+T) as worldToScreenForOverlayTilted, extended with the elevated
+      // point's "up" (z) component: y' = dy*cos(T) - h*sin(T), z' = dy*sin(T) + h*cos(T).
+      const dyNew = dyCss * Math.cos(T) - heightCss * Math.sin(T);
+      const dz = dyCss * Math.sin(T) + heightCss * Math.cos(T);
+      // Must match worldToScreenForOverlayTilted's/projectCanvasPoint's perspective
+      // distance exactly, or extruded roofs drift out of the same 3D space as everything
+      // else drawn on the overlay canvas.
+      const perspectivePx = tiltPerspectivePx();
+      const scale = perspectivePx / (perspectivePx - dz);
+      return {
+        x: origin.x + dxCss * scale * dpr,
+        y: origin.y + dyNew * scale * dpr,
+        scale,
       };
     }
 

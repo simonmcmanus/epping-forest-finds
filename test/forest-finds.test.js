@@ -223,7 +223,22 @@ globalThis.__forestFindsTest = {
   isBehindTiltHeading,
   tiltPinScale,
   worldToScreenForOverlayTilted,
+  worldToScreenForOverlayTiltedAtHeight,
+  metresPerWorldUnit,
+  metresToWorldUnits,
   projectCanvasPoint,
+  estimateBuildingHeightMetres,
+  ensureBuildingHeight,
+  parseHeightMetres,
+  footprintAreaSquareMetres,
+  buildingFootprintCentroidLatLon,
+  drawBuildingExtrusions,
+  BUILDING_HEIGHT_MIN_METRES,
+  BUILDING_HEIGHT_MAX_METRES,
+  BUILDING_EXTRUSION_MAX_METRES,
+  BUILDING_EXTRUSION_FADE_METRES,
+  BUILDING_BEHIND_FADE_METRES,
+  BUILDING_MAX_SAFE_SCALE,
   buildNearbyIconLookup,
   isNearCanvas,
   showClusterDetail,
@@ -3491,5 +3506,388 @@ test("projectCanvasPoint and worldToScreenForOverlayTilted use the same dynamic 
   const match = app.els.canvas.style.transform.match(/perspective\(([\d.]+)px\)/);
   assert.ok(match, "canvas transform should include a CSS perspective distance");
   assert.ok(Math.abs(Number(match[1]) - perspectivePx) < 0.05, "CSS transform perspective should match tiltPerspectivePx()");
+});
+
+// --- 3D building extrusion (worldToScreenForOverlayTiltedAtHeight, height estimation,
+// drawBuildingExtrusions) ---
+
+function makeSquareBuildingFeature(app, centerLatitude, centerLongitude, halfSizeDegrees, properties = {}) {
+  const ring = [
+    [centerLongitude - halfSizeDegrees, centerLatitude - halfSizeDegrees],
+    [centerLongitude + halfSizeDegrees, centerLatitude - halfSizeDegrees],
+    [centerLongitude + halfSizeDegrees, centerLatitude + halfSizeDegrees],
+    [centerLongitude - halfSizeDegrees, centerLatitude + halfSizeDegrees],
+    [centerLongitude - halfSizeDegrees, centerLatitude - halfSizeDegrees],
+  ];
+  return {
+    type: "Feature",
+    geometry: { type: "Polygon", coordinates: [ring] },
+    properties: { ...properties },
+  };
+}
+
+function makeCtxStub() {
+  const calls = { beginPath: 0, moveTo: 0, lineTo: 0, closePath: 0, fill: 0, stroke: 0, save: 0, restore: 0 };
+  const fillStyles = [];
+  const strokeStyles = [];
+  const globalAlphas = [];
+  return {
+    calls,
+    fillStyles,
+    strokeStyles,
+    globalAlphas,
+    save() { calls.save += 1; },
+    restore() { calls.restore += 1; },
+    beginPath() { calls.beginPath += 1; },
+    moveTo() { calls.moveTo += 1; },
+    lineTo() { calls.lineTo += 1; },
+    closePath() { calls.closePath += 1; },
+    fill() { calls.fill += 1; fillStyles.push(this.fillStyle); },
+    stroke() { calls.stroke += 1; strokeStyles.push(this.strokeStyle); },
+    set fillStyle(v) { this._fillStyle = v; },
+    get fillStyle() { return this._fillStyle; },
+    set strokeStyle(v) { this._strokeStyle = v; },
+    get strokeStyle() { return this._strokeStyle; },
+    set lineWidth(v) {},
+    set globalAlpha(v) { this._globalAlpha = v; globalAlphas.push(v); },
+    get globalAlpha() { return this._globalAlpha; },
+  };
+}
+
+test("metresPerWorldUnit/metresToWorldUnits round-trip and shrink with latitude, matching walkingRadiusWorldUnits' own 111320*cos(lat) convention", () => {
+  resetData(app);
+  assert.ok(Math.abs(app.metresPerWorldUnit(0) - 111320) < 1e-6, "1 world unit at the equator should be ~111320m, matching the existing 111320 constant used elsewhere");
+  assert.ok(app.metresPerWorldUnit(60) < app.metresPerWorldUnit(0), "a world unit should cover fewer metres at higher latitude (longitude lines converge)");
+
+  const metres = 200;
+  const worldUnits = app.metresToWorldUnits(metres, 51.65);
+  const roundTripped = worldUnits * app.metresPerWorldUnit(51.65);
+  assert.ok(Math.abs(roundTripped - metres) < 1e-6, "metresToWorldUnits should invert metresPerWorldUnit exactly");
+});
+
+test("worldToScreenForOverlayTiltedAtHeight with height 0 matches worldToScreenForOverlayTilted exactly -- a roof at height 0 IS the ground point, they must never disagree", () => {
+  resetData(app);
+  app.state.compassHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 60;
+
+  const worldPoint = { x: 0.05, y: -0.1 };
+  const flat = app.worldToScreenForOverlayTilted(worldPoint);
+  const atZeroHeight = app.worldToScreenForOverlayTiltedAtHeight(worldPoint, 0);
+  assert.ok(Math.abs(flat.x - atZeroHeight.x) < 1e-9, "x should match exactly at height 0");
+  assert.ok(Math.abs(flat.y - atZeroHeight.y) < 1e-9, "y should match exactly at height 0");
+
+  // Same equivalence must hold when tilt is inactive (both fall back to the flat overlay
+  // projection) and when there's no user location at all (both return the flat point).
+  app.state.tiltBetaSmoothed = 0;
+  const flatInactive = app.worldToScreenForOverlayTilted(worldPoint);
+  const heightInactive = app.worldToScreenForOverlayTiltedAtHeight(worldPoint, 12);
+  assert.deepEqual(heightInactive, flatInactive, "with tilt inactive, height should be ignored entirely");
+});
+
+test("worldToScreenForOverlayTiltedAtHeight lifts a taller building's roof higher on screen (smaller y) than a shorter one at the same footprint position", () => {
+  resetData(app);
+  app.state.compassHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 70;
+
+  // A point "ahead" of the user (north, given compassHeading 0) so it's on the visible
+  // (non-collapsed-toward-singularity) side of the pivot.
+  const worldPoint = makePoint(app, 0.002, 0).point;
+
+  const ground = app.worldToScreenForOverlayTiltedAtHeight(worldPoint, 0);
+  const shortRoof = app.worldToScreenForOverlayTiltedAtHeight(worldPoint, 6);
+  const tallRoof = app.worldToScreenForOverlayTiltedAtHeight(worldPoint, 18);
+
+  assert.ok(shortRoof.y < ground.y, "a roof point should render above (smaller screen y than) its own ground point once tilted");
+  assert.ok(tallRoof.y < shortRoof.y, "a taller building's roof should render higher on screen than a shorter building's roof at the same footprint position");
+  assert.ok(Math.abs(shortRoof.x - ground.x) < 1e-6 && Math.abs(tallRoof.x - ground.x) < 1e-6, "lifting a point straight up in world space shouldn't shift its screen x");
+});
+
+test("parseHeightMetres reads OSM-style height tags and rejects junk", () => {
+  resetData(app);
+  assert.equal(app.parseHeightMetres("12"), 12);
+  assert.equal(app.parseHeightMetres("12.5"), 12.5);
+  assert.equal(app.parseHeightMetres("12.5 m"), 12.5);
+  assert.equal(app.parseHeightMetres(""), null);
+  assert.equal(app.parseHeightMetres(null), null);
+  assert.equal(app.parseHeightMetres(undefined), null);
+  assert.equal(app.parseHeightMetres("0"), null, "a non-positive height isn't usable");
+  assert.equal(app.parseHeightMetres("not a number"), null);
+});
+
+test("estimateBuildingHeightMetres prefers an explicit height tag, then building:levels, over the footprint heuristic", () => {
+  resetData(app);
+  const withHeight = makeSquareBuildingFeature(app, 0, 0, 0.0001, { height: "15.5" });
+  assert.equal(app.estimateBuildingHeightMetres(withHeight), 15.5);
+
+  const withLevels = makeSquareBuildingFeature(app, 0, 0, 0.0001, { "building:levels": "4" });
+  assert.equal(app.estimateBuildingHeightMetres(withLevels), 4 * 3 + 1.5);
+
+  const withPreBakedHeightMetres = makeSquareBuildingFeature(app, 0, 0, 0.0001, { heightMetres: 9 });
+  assert.equal(app.estimateBuildingHeightMetres(withPreBakedHeightMetres), 9, "a pre-baked heightMetres property (future data pipeline) should also win over the heuristic");
+});
+
+test("estimateBuildingHeightMetres falls back to a deterministic, bounded footprint-area heuristic when no tags are present", () => {
+  resetData(app);
+  const small = makeSquareBuildingFeature(app, 51.65, 0.01, 0.00005); // small footprint
+  const large = makeSquareBuildingFeature(app, 51.65, 0.02, 0.0006); // much larger footprint
+
+  const smallHeight = app.estimateBuildingHeightMetres(small);
+  const largeHeight = app.estimateBuildingHeightMetres(large);
+
+  assert.ok(smallHeight >= app.BUILDING_HEIGHT_MIN_METRES && smallHeight <= app.BUILDING_HEIGHT_MAX_METRES, `small building height ${smallHeight} should be within the clamped range`);
+  assert.ok(largeHeight >= app.BUILDING_HEIGHT_MIN_METRES && largeHeight <= app.BUILDING_HEIGHT_MAX_METRES, `large building height ${largeHeight} should be within the clamped range`);
+  assert.ok(largeHeight > smallHeight, "a bigger footprint should generally estimate taller than a much smaller one");
+
+  // Determinism: same geometry -> same estimate, every time (no Math.random()).
+  const repeat = makeSquareBuildingFeature(app, 51.65, 0.01, 0.00005);
+  assert.equal(app.estimateBuildingHeightMetres(repeat), smallHeight, "the heuristic must be deterministic so a building's height doesn't flicker between draws");
+});
+
+test("ensureBuildingHeight computes once and caches heightMetres on the feature", () => {
+  resetData(app);
+  const feature = makeSquareBuildingFeature(app, 51.65, 0.01, 0.0003);
+  assert.equal(feature.properties.heightMetres, undefined);
+
+  app.ensureBuildingHeight(feature);
+  const firstComputed = feature.properties.heightMetres;
+  assert.ok(Number.isFinite(firstComputed) && firstComputed > 0);
+
+  // Mutate the underlying geometry after caching -- if ensureBuildingHeight recomputed
+  // instead of trusting the cached value, this would change the result.
+  feature.geometry.coordinates[0][0][0] += 5;
+  app.ensureBuildingHeight(feature);
+  assert.equal(feature.properties.heightMetres, firstComputed, "a second call should reuse the cached height rather than recomputing it");
+});
+
+test("drawBuildingExtrusions does nothing when tilt is not active, even with buildings loaded", () => {
+  resetData(app);
+  app.state.compassHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 0; // tilt inactive
+  app.state.buildingFeatures = [makeSquareBuildingFeature(app, 0.0002, 0.0002, 0.0001, { heightMetres: 10 })];
+
+  const ctx = makeCtxStub();
+  app.drawBuildingExtrusions(ctx);
+  assert.equal(ctx.calls.fill, 0, "nothing should be drawn while tilt is inactive");
+});
+
+test("drawBuildingExtrusions draws a nearby ahead-of-heading building (walls + roof) once tilted", () => {
+  resetData(app);
+  app.state.compassHeading = 0; // facing north
+  app.state.renderedNavigationHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 60;
+  // ~55m north (ahead) of the user -- well within BUILDING_EXTRUSION_MAX_METRES.
+  app.state.buildingFeatures = [makeSquareBuildingFeature(app, 0.0005, 0, 0.0001, { heightMetres: 10 })];
+
+  const ctx = makeCtxStub();
+  app.drawBuildingExtrusions(ctx);
+
+  // 4 walls + 1 roof = 5 fills for a 4-edge square footprint.
+  assert.equal(ctx.calls.fill, 5, "should fill 4 wall quads plus the roof for a single square building");
+  assert.equal(ctx.calls.save, 1);
+  assert.equal(ctx.calls.restore, 1);
+});
+
+test("drawBuildingExtrusions skips buildings without a usable height", () => {
+  resetData(app);
+  app.state.compassHeading = 0; // facing north
+  app.state.renderedNavigationHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 60;
+
+  const noHeight = makeSquareBuildingFeature(app, 0.0005, 0, 0.0001, {}); // heightMetres never set
+  app.state.buildingFeatures = [noHeight];
+
+  const ctx = makeCtxStub();
+  app.drawBuildingExtrusions(ctx);
+  assert.equal(ctx.calls.fill, 0, "a building with no height estimate should be skipped regardless of position");
+});
+
+test("drawBuildingExtrusions fades a building behind the user's heading rather than hard-excluding it, but still excludes one well beyond BUILDING_BEHIND_FADE_METRES", () => {
+  resetData(app);
+  app.state.compassHeading = 0; // facing north
+  app.state.renderedNavigationHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 60;
+
+  // ~55m south (behind) -- inside BUILDING_BEHIND_FADE_METRES (200m), so it should now
+  // draw at a reduced (not full, not zero) alpha instead of being skipped outright.
+  const nearBehind = makeSquareBuildingFeature(app, -0.0005, 0, 0.0001, { heightMetres: 10 });
+  const nearBehindCtx = makeCtxStub();
+  app.state.buildingFeatures = [nearBehind];
+  app.drawBuildingExtrusions(nearBehindCtx);
+  assert.equal(nearBehindCtx.calls.fill, 5, "a building only ~55m behind the heading should still be drawn (walls + roof)");
+  assert.ok(nearBehindCtx.globalAlphas.length > 0, "should have drawn the nearby-behind building");
+  assert.ok(
+    nearBehindCtx.globalAlphas.every((a) => a > 0 && a < 1),
+    `a building within BUILDING_BEHIND_FADE_METRES behind the heading should fade rather than draw at full opacity, got ${nearBehindCtx.globalAlphas}`
+  );
+
+  // ~300m south -- well beyond BUILDING_BEHIND_FADE_METRES (200m), so it should still be
+  // excluded entirely, same as the old hard cutoff was for every behind building.
+  const farBehind = makeSquareBuildingFeature(app, -300 / 111320, 0, 0.0001, { heightMetres: 10 });
+  const farBehindCtx = makeCtxStub();
+  app.state.buildingFeatures = [farBehind];
+  app.drawBuildingExtrusions(farBehindCtx);
+  assert.equal(farBehindCtx.calls.fill, 0, "a building well beyond BUILDING_BEHIND_FADE_METRES behind the heading should still be excluded");
+});
+
+test("drawBuildingExtrusions's behind-heading fade dims further-behind buildings more than nearer-behind ones", () => {
+  resetData(app);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 60;
+
+  // Two behind buildings, both well inside BUILDING_BEHIND_FADE_METRES but at different
+  // depths -- the further one (100m) should be dimmer than the closer one (30m).
+  const closerBehind = makeSquareBuildingFeature(app, -30 / 111320, 0, 0.00001, { heightMetres: 10 });
+  const furtherBehind = makeSquareBuildingFeature(app, -100 / 111320, 0, 0.00001, { heightMetres: 10 });
+
+  const closerCtx = makeCtxStub();
+  app.state.buildingFeatures = [closerBehind];
+  app.drawBuildingExtrusions(closerCtx);
+
+  const furtherCtx = makeCtxStub();
+  app.state.buildingFeatures = [furtherBehind];
+  app.drawBuildingExtrusions(furtherCtx);
+
+  assert.ok(closerCtx.globalAlphas.length > 0 && furtherCtx.globalAlphas.length > 0, "both behind buildings should draw");
+  const closerAlpha = closerCtx.globalAlphas[0];
+  const furtherAlpha = furtherCtx.globalAlphas[0];
+  assert.ok(furtherAlpha < closerAlpha, `a building further behind the heading should be dimmer, got closer=${closerAlpha} further=${furtherAlpha}`);
+
+  // Expected alpha is linear in heading-offset distance: 1 - offset/BUILDING_BEHIND_FADE_METRES.
+  assert.ok(Math.abs(closerAlpha - (1 - 30 / 200)) < 0.02, `expected closer alpha near ${1 - 30 / 200}, got ${closerAlpha}`);
+  assert.ok(Math.abs(furtherAlpha - (1 - 100 / 200)) < 0.02, `expected further alpha near ${1 - 100 / 200}, got ${furtherAlpha}`);
+});
+
+test("drawBuildingExtrusions culls buildings beyond BUILDING_EXTRUSION_MAX_METRES", () => {
+  resetData(app);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 60;
+
+  // ~1.1km north -- far beyond the extrusion cull radius.
+  app.state.buildingFeatures = [makeSquareBuildingFeature(app, 0.01, 0, 0.0001, { heightMetres: 10 })];
+
+  const ctx = makeCtxStub();
+  app.drawBuildingExtrusions(ctx);
+  assert.equal(ctx.calls.fill, 0, "a building well beyond the extrusion distance cap should not be drawn");
+});
+
+test("BUILDING_MAX_SAFE_SCALE's perspective-divide backstop is real (not dead code) but sits far outside any distance a real building ever reaches", () => {
+  resetData(app);
+  app.state.compassHeading = 0; // facing north
+  app.state.renderedNavigationHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 85; // max tilt -- worst case for the perspective singularity
+
+  // 150km directly behind the user (nowhere near a real building -- BUILDING_EXTRUSION_MAX_METRES
+  // is 700m and BUILDING_BEHIND_FADE_METRES is 200m) is deliberately far enough behind the tilt
+  // camera's pivot to approach/cross the perspective-divide singularity documented on
+  // BUILDING_MAX_SAFE_SCALE and worldToScreenForOverlayTilted -- this pins that the guard's
+  // condition actually fires for a genuinely unsafe scale, so it isn't silently inert.
+  const farBehindWorld = app.projectLonLat(0, -150000 / 111320);
+  const farBehindScale = app.worldToScreenForOverlayTilted(farBehindWorld).scale;
+  assert.ok(
+    !Number.isFinite(farBehindScale) || farBehindScale <= 0 || farBehindScale > app.BUILDING_MAX_SAFE_SCALE,
+    `expected a point this far behind the tilt camera to trip the BUILDING_MAX_SAFE_SCALE backstop, got scale=${farBehindScale}`
+  );
+
+  // And confirm the backstop is genuinely inert for every real behind-heading distance the
+  // fade band actually allows (0..BUILDING_BEHIND_FADE_METRES) -- it should never reject a
+  // legitimate nearby-behind building in ordinary operation.
+  for (const metres of [1, 50, 100, 150, 199]) {
+    const worldPoint = app.projectLonLat(0, -metres / 111320);
+    const scale = app.worldToScreenForOverlayTilted(worldPoint).scale;
+    assert.ok(
+      Number.isFinite(scale) && scale > 0 && scale <= app.BUILDING_MAX_SAFE_SCALE,
+      `a building only ${metres}m behind the heading should sail well under BUILDING_MAX_SAFE_SCALE, got scale=${scale}`
+    );
+  }
+});
+
+test("drawBuildingExtrusions uses the exact same fill colour/transparency as flat-mode footprints (so easing out of tilt doesn't shift colour) and draws a solid box with no stroke at all", () => {
+  resetData(app);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 60;
+  app.state.buildingFeatures = [makeSquareBuildingFeature(app, 0.0005, 0, 0.0001, { heightMetres: 10 })];
+
+  const ctx = makeCtxStub();
+  app.drawBuildingExtrusions(ctx);
+
+  // Matches the flat-mode building footprint fill used in the "building" branch of the
+  // environment-feature loop and the flat state.buildingFeatures loop in js/renderer.js
+  // (drawEnvironmentPolygon calls with fill: "rgba(120, 120, 120, 0.15)") -- not a shared
+  // constant with that call site, so this pins the value deliberately; if it drifts, this
+  // test (or a similar one added for the flat path) should be updated in lockstep as a
+  // conscious choice, not silently.
+  const FLAT_BUILDING_FILL = "rgba(120, 120, 120, 0.15)";
+
+  assert.ok(ctx.fillStyles.length > 0, "should have drawn something");
+  assert.ok(ctx.fillStyles.every((style) => style === FLAT_BUILDING_FILL), `every fill (walls and roof alike) should use the flat footprint colour, got: ${[...new Set(ctx.fillStyles)]}`);
+
+  // Buildings should render as solid filled boxes with no outline at all (no per-wall
+  // stroke, however thin/faint) -- ctx.stroke() should never be called.
+  assert.equal(ctx.calls.stroke, 0, "drawBuildingExtrusions should never call ctx.stroke() -- solid box, no outline");
+  assert.equal(ctx.strokeStyles.length, 0, "no strokeStyle should ever be set for building extrusions");
+
+  assert.equal(app.BUILDING_EXTRUSION_MAX_METRES > 0, true);
+});
+
+test("drawBuildingExtrusions fades buildings out smoothly near the distance cutoff instead of popping them off abruptly", () => {
+  resetData(app);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 60;
+
+  const nearMetres = 100;
+  const midFadeMetres = 650; // within the fade band (maxMetres - fadeMetres = 550 .. maxMetres = 700)
+  const nearLat = nearMetres / 111320;
+  const midFadeLat = midFadeMetres / 111320;
+
+  // A tiny footprint (halfSizeDegrees ~1m) so the cull's first-vertex distance
+  // (deliberately not the centroid -- see drawBuildingExtrusions' own comment) stays
+  // negligibly close to nearLat/midFadeLat themselves, keeping the expected-alpha maths
+  // below simple without fighting that approximation.
+  const near = makeSquareBuildingFeature(app, nearLat, 0, 0.00001, { heightMetres: 10 });
+  const fading = makeSquareBuildingFeature(app, midFadeLat, 0, 0.00001, { heightMetres: 10 }); // due north, same as `near`, so distance is purely midFadeMetres
+
+  const nearCtx = makeCtxStub();
+  app.state.buildingFeatures = [near];
+  app.drawBuildingExtrusions(nearCtx);
+  assert.ok(nearCtx.globalAlphas.length > 0, "should have drawn the nearby building");
+  assert.ok(nearCtx.globalAlphas.every((a) => a === 1), `a building well inside the fade band should draw at full opacity, got ${nearCtx.globalAlphas}`);
+
+  const fadingCtx = makeCtxStub();
+  app.state.buildingFeatures = [fading];
+  app.drawBuildingExtrusions(fadingCtx);
+  assert.ok(fadingCtx.globalAlphas.length > 0, "should still draw a building inside the fade band, just at reduced opacity");
+  assert.ok(fadingCtx.globalAlphas.every((a) => a > 0 && a < 1), `a building within BUILDING_EXTRUSION_FADE_METRES of the cutoff should fade rather than pop, got ${fadingCtx.globalAlphas}`);
+
+  // Expected alpha at 650m out of a 700m cap with a 150m fade band: (700-650)/150 = 1/3.
+  const expectedAlpha = (app.BUILDING_EXTRUSION_MAX_METRES - midFadeMetres) / app.BUILDING_EXTRUSION_FADE_METRES;
+  for (const a of fadingCtx.globalAlphas) {
+    assert.ok(Math.abs(a - expectedAlpha) < 0.02, `expected alpha near ${expectedAlpha}, got ${a}`);
+  }
 });
 
