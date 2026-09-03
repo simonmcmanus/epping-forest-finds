@@ -56,6 +56,44 @@ function routingNodeKey(point) {
   return point.x.toFixed(ROUTING_NODE_PRECISION) + "," + point.y.toFixed(ROUTING_NODE_PRECISION);
 }
 
+// Flood-fills `adjacency` to find every node's connected component, via a plain iterative
+// stack (not recursion -- the biggest component here is 160k+ nodes deep) since OSM road/path
+// data is never one single connected graph: small fenced-off fragments, mapped-but-unlinked
+// station forecourts, and similar data gaps are common and expected (see findRoutePoints below
+// for why the *size* of each node's component matters, not just its existence). Returns a
+// `componentId` array parallel to `nodes`/`adjacency`, plus `largestComponentId` -- across this
+// app's own regional data the largest component holds ~98.5% of all nodes, with every other
+// component two orders of magnitude smaller, so "largest" reliably means "the real, walkable
+// network" rather than a coin flip between comparably-sized regions.
+function computeRoutingComponents(adjacency) {
+  const n = adjacency.length;
+  const componentId = new Int32Array(n).fill(-1);
+  const componentSizes = [];
+  for (let start = 0; start < n; start += 1) {
+    if (componentId[start] !== -1) continue;
+    const id = componentSizes.length;
+    let size = 0;
+    const stack = [start];
+    componentId[start] = id;
+    while (stack.length) {
+      const u = stack.pop();
+      size += 1;
+      for (const edge of adjacency[u]) {
+        if (componentId[edge.to] === -1) {
+          componentId[edge.to] = id;
+          stack.push(edge.to);
+        }
+      }
+    }
+    componentSizes.push(size);
+  }
+  let largestComponentId = 0;
+  for (let i = 1; i < componentSizes.length; i += 1) {
+    if (componentSizes[i] > componentSizes[largestComponentId]) largestComponentId = i;
+  }
+  return { componentId, componentSizes, largestComponentId };
+}
+
 // Shared graph-accumulation state used by both buildRoutingGraph (synchronous, for tests and
 // small inputs) and buildRoutingGraphAsync (chunked/yielding, used by the app itself so a
 // ~120k-node build never blocks a frame -- see ensureRoutingGraph in js/loader.js). Keeping one
@@ -111,7 +149,8 @@ function createRoutingGraphBuilder(toLatLon, distanceMetresFn) {
       }
     },
     build() {
-      return { nodes, adjacency };
+      const { componentId, componentSizes, largestComponentId } = computeRoutingComponents(adjacency);
+      return { nodes, adjacency, componentId, componentSizes, largestComponentId };
     },
   };
 }
@@ -155,13 +194,20 @@ function buildRoutingGraphAsync(roadFeatures, pathFeatures, toLatLon, distanceMe
 // Finds the graph node nearest to `point` (plain nearest-vertex search, not nearest-point-on-
 // edge -- OSM way vertices sit ~20m apart on average across this dataset, so the extra accuracy
 // of projecting onto edges isn't worth the added complexity for a walking-directions line).
-// Returns null only if the graph has no nodes at all.
-function nearestRoutingNode(graph, point) {
+// Returns null only if the graph has no nodes at all (or, with `componentId` given, no nodes in
+// that component). Pass `componentId` to restrict the search to one connected component -- see
+// findRoutePoints below, which snaps to the graph's largest component specifically, so a target
+// sitting a few metres from a small disconnected stub (a mapped-but-unlinked station forecourt
+// footway is a real, recurring example) doesn't strand the search there instead of on the real,
+// reachable network just slightly further away.
+function nearestRoutingNode(graph, point, componentId) {
   const nodes = graph && graph.nodes;
   if (!nodes || !nodes.length) return null;
+  const componentIds = componentId != null ? graph.componentId : null;
   let bestId = -1;
   let bestDistSq = Infinity;
   for (let i = 0; i < nodes.length; i += 1) {
+    if (componentIds && componentIds[i] !== componentId) continue;
     const dx = nodes[i].x - point.x;
     const dy = nodes[i].y - point.y;
     const distSq = dx * dx + dy * dy;
@@ -170,6 +216,7 @@ function nearestRoutingNode(graph, point) {
       bestId = i;
     }
   }
+  if (bestId === -1) return null;
   return { nodeId: bestId, point: nodes[bestId] };
 }
 
@@ -213,13 +260,18 @@ function createRoutingHeap() {
   };
 }
 
-// Dijkstra's algorithm from startNode to endNode over `graph`, weighted by each edge's `.cost`
-// (real metres * the type preference multiplier -- see ROUTING_TYPE_WEIGHTS) but reporting the
-// path's actual `.metres` (unweighted real distance) alongside it, so callers can sanity-check
-// the result against the straight-line distance without re-walking the path. Returns null when
-// the two nodes aren't connected (the road/path network isn't one single connected component --
-// small fenced-off fragments exist, see spec-data-rendering.md).
-function dijkstraPath(graph, startNode, endNode) {
+// Dijkstra's algorithm from startNode to endNode over `graph`, prioritising each edge by
+// `edge[priorityKey]` -- by default `.cost` (real metres * the type preference multiplier, see
+// ROUTING_TYPE_WEIGHTS), which is what produces the footpath/quiet-street-preferring route
+// findRoutePoints normally draws. Pass priorityKey "metres" to instead find the plain shortest
+// real-world walk, ignoring the type preference entirely -- findRoutePoints below falls back to
+// this when the preferred route is a pathological detour (see its own comment). Either way the
+// path's actual `.metres` (real, unweighted distance) is reported alongside it, so callers can
+// sanity-check the result against the straight-line distance without re-walking the path.
+// Returns null when the two nodes aren't connected (the road/path network isn't one single
+// connected component -- small fenced-off fragments exist, see spec-data-rendering.md).
+function dijkstraPath(graph, startNode, endNode, priorityKey) {
+  const key = priorityKey || "cost";
   const n = graph.adjacency.length;
   if (startNode < 0 || endNode < 0 || startNode >= n || endNode >= n) return null;
   const cost = new Float64Array(n).fill(Infinity);
@@ -239,7 +291,7 @@ function dijkstraPath(graph, startNode, endNode) {
     if (u === endNode) break; // shortest path to the target is finalised
     for (const edge of graph.adjacency[u]) {
       if (visited[edge.to]) continue;
-      const nextCost = d + edge.cost;
+      const nextCost = d + edge[key];
       if (nextCost < cost[edge.to]) {
         cost[edge.to] = nextCost;
         metres[edge.to] = metres[u] + edge.metres;
@@ -261,12 +313,36 @@ function dijkstraPath(graph, startNode, endNode) {
 // across `graph`, and returns it as an array of world points ready to draw -- the real start and
 // end points followed by the graph's node path in between -- or null when a sensible route
 // can't be found, in which case the caller should fall back to a plain straight line:
-//   - either point is further than options.maxSnapMetres from the nearest graph node (there's
-//     no path/road anywhere near it, e.g. deep off-trail), or
-//   - the two points aren't in the same connected part of the network, or
-//   - the found route is more than options.maxDetourRatio times the straight-line distance,
-//     which in practice means the snap landed in one of the network's small disconnected
-//     fragments rather than a route that's genuinely just indirect.
+//   - either point is further than options.maxSnapMetres from the nearest node in the graph's
+//     largest connected component (there's no real, reachable path/road near it -- see below for
+//     why "largest component" specifically, rather than just "nearest node anywhere"), or
+//   - neither the type-weighted route nor the plain-shortest one (see below) comes in under
+//     options.maxDetourRatio times the straight-line distance -- both points are on the real
+//     network, but only reachable from each other via a pathologically long walk.
+//
+// Both points snap only onto the graph's largest component (computeRoutingComponents, computed
+// once at build time), never onto whichever node happens to be geometrically nearest. Real OSM
+// road/path data is never one single connected graph -- small fenced-off fragments, and mapped-
+// but-unlinked station forecourt/platform footways, are common -- and since those fragments are
+// two-plus orders of magnitude smaller than the real network here (confirmed against this app's
+// own regional data: ~98.5% of all graph nodes sit in one component), a target a few metres from
+// one of them is far better served by walking the extra distance onto the real network than by
+// being snapped onto a two- or three-node dead end that goes nowhere. Snapping both ends to the
+// same component also means they can never be "disconnected from each other" -- any two nodes in
+// one connected component are reachable from each other by definition -- so that failure mode,
+// which used to require a maxDetourRatio rejection to catch after the fact, is avoided upfront.
+//
+// The search itself runs twice at most. The first pass prioritises ROUTING_TYPE_WEIGHTS-weighted
+// cost, same as ever, so a quiet footpath is still preferred over a busier road when the two are
+// real-world comparable. But on a longer, multi-junction walk, a chain of individually-reasonable
+// preferences for the quieter option at each junction can compound into a route that is, in
+// aggregate, many times longer than a plain direct one would be -- reproduced against this app's
+// own regional data (see test/forest-finds.test.js's "falls back to the plain-shortest route"
+// test for a worked example and the exact numbers). Rejecting that outright and falling back to
+// an as-the-crow-flies line is a worse experience than a real (if slightly less scenic) walking
+// route, so when the weighted route fails the detour check, a second pass re-runs Dijkstra
+// prioritising real distance (`priorityKey: "metres"`, ignoring the type preference entirely)
+// and uses that route instead if it, in turn, passes the same check.
 function findRoutePoints(graph, fromPoint, toPoint, options) {
   if (!graph || !graph.nodes || !graph.nodes.length) return null;
   const toLatLon = options.toLatLon;
@@ -282,8 +358,9 @@ function findRoutePoints(graph, fromPoint, toPoint, options) {
   );
   if (!(straightLineMetres > 0)) return null;
 
-  const fromSnap = nearestRoutingNode(graph, fromPoint);
-  const toSnap = nearestRoutingNode(graph, toPoint);
+  const mainComponent = graph.largestComponentId;
+  const fromSnap = nearestRoutingNode(graph, fromPoint, mainComponent);
+  const toSnap = nearestRoutingNode(graph, toPoint, mainComponent);
   if (!fromSnap || !toSnap || fromSnap.nodeId === toSnap.nodeId) return null;
 
   const fromSnapLatLon = toLatLon(fromSnap.point);
@@ -298,11 +375,20 @@ function findRoutePoints(graph, fromPoint, toPoint, options) {
   );
   if (fromSnapMetres > maxSnapMetres || toSnapMetres > maxSnapMetres) return null;
 
-  const path = dijkstraPath(graph, fromSnap.nodeId, toSnap.nodeId);
+  let path = dijkstraPath(graph, fromSnap.nodeId, toSnap.nodeId);
   if (!path) return null;
 
-  const routeMetres = path.metres + fromSnapMetres + toSnapMetres;
-  if (routeMetres > straightLineMetres * maxDetourRatio) return null;
+  let routeMetres = path.metres + fromSnapMetres + toSnapMetres;
+  if (routeMetres > straightLineMetres * maxDetourRatio) {
+    const shortestPath = dijkstraPath(graph, fromSnap.nodeId, toSnap.nodeId, "metres");
+    const shortestRouteMetres = shortestPath ? shortestPath.metres + fromSnapMetres + toSnapMetres : Infinity;
+    if (shortestPath && shortestRouteMetres <= straightLineMetres * maxDetourRatio) {
+      path = shortestPath;
+      routeMetres = shortestRouteMetres;
+    } else {
+      return null;
+    }
+  }
 
   const points = path.nodeIds.map((id) => graph.nodes[id]);
   return [fromPoint, ...points, toPoint];

@@ -13,8 +13,12 @@ name: Weekly Epping Forest Ledger
 # on workflow_dispatch) -- see https://github.com/anthropics/claude-code-action/issues/814.
 # Side effect: a push/PR made with this job's own GITHUB_TOKEN does not
 # retrigger this repo's separate ci.yml workflow (GitHub's anti-recursion
-# rule for the default token), so this job runs the full test suite itself
-# as its own merge gate rather than depending on ci.yml to do it.
+# rule for the default token). Rather than have Claude run the test suites
+# itself as a safety gate (a past run backgrounded the slow e2e suite,
+# said it would "resume once notified", and the job just ended there with
+# nothing committed -- there is no "later" in a single Actions run), this
+# job now explicitly dispatches ci.yml on the branch it pushes (step 4e)
+# so the normal unit/e2e checks show up on the PR for Simon to review.
 on:
   schedule:
     - cron: "0 1 * * 1"
@@ -24,6 +28,7 @@ permissions:
   contents: write
   pull-requests: write
   id-token: write
+  actions: write
 
 jobs:
   weekly-ledger:
@@ -55,6 +60,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
+          show_full_output: true
           prompt: |
             You are producing the weekly "Epping Forest Ledger" report for
             this repository (simonmcmanus/epping-forest-finds) -- a PWA
@@ -127,9 +133,32 @@ jobs:
                   not reliably confirmed as of when this workflow was
                   written. If it doesn't work, say so in the report rather
                   than fabricating results; don't let it block anything else.
-               c. Road closures & roadworks:
+               c. Road closures & roadworks -- highways AND utilities, not
+                  highways alone (a past run missed real, ongoing utility
+                  diversions entirely, see below):
                   https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures
-                  and Essex Highways.
+                  and Essex Highways for highway schemes; separately,
+                  https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/london
+                  for Thames Water mains/repair projects (check it every
+                  run -- it's a static project list, not paginated news, so
+                  re-fetching it fresh each week is cheap and reliable) --
+                  scan every project listed for a location matching any
+                  coverage settlement, not just ones with "Loughton" etc.
+                  literally in the project name. Known standing item: the
+                  High Beech, Loughton water mains replacement (started
+                  March 2026, ~3-year multi-phase project across Spareleaze
+                  Hill, Queens Road, Debden Lane, Newmans Lane, Rectory Lane
+                  and ~15 other streets) is long-running and easy for a
+                  fresh news search to miss entirely since it isn't "new" --
+                  re-check its project page each run for the current
+                  phase/street/dates rather than assuming last week's is
+                  still accurate, the same way you'd track any other
+                  multi-week roadworks scheme. Also run a per-settlement
+                  search along the lines of "Thames Water roadworks OR
+                  diversion <settlement>" the same way you do for business
+                  openings/closures in step 2a, since Thames Water's own
+                  project list can lag behind what's actually dug up on the
+                  ground.
                d. Forest events:
                   https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest
                   and https://www.eppingforestdc.gov.uk/whats-on-in-epping-forest/.
@@ -156,36 +185,47 @@ jobs:
                   branch a same-day re-run of this workflow already pushed --
                   see HOUSEKEEPING above)
                b. Run: python3 scripts/apply_weekly_changeset.py <changeset.json>
-               c. Run the FULL test suite yourself -- both:
-                    node --test test/forest-finds.test.js
-                    npx playwright test --update-snapshots=missing
-                  This job's own push does not retrigger this repo's
-                  separate ci.yml workflow (GITHUB_TOKEN pushes don't
-                  retrigger Actions), so there is no second automated check
-                  coming later -- this test run IS the safety gate. If
-                  either suite fails, do NOT commit or push anything;
-                  write the report explaining the failure honestly and stop
-                  -- leave the dataset unchanged.
-               d. If tests pass: git add the changed data file(s) and the
-                  new report (see step 6), commit
+                  and confirm it reports success. This is the script's own
+                  lightweight self-check, not a substitute for the real test
+                  suites -- do NOT run node --test or npx playwright
+                  yourself, and do NOT background either of them "to check
+                  back later": there is no later in a single unattended
+                  Actions run, and a past run did exactly this (backgrounded
+                  the slow e2e suite, said it would resume once notified),
+                  which just ended the job with nothing committed. The real
+                  test suites run as normal CI checks on the PR instead
+                  (step e below) -- that's Simon's and CI's job to wait on,
+                  not yours.
+               c. git add the changed data file(s) and the new report (see
+                  step 6), commit
                   (git config user.name "Epping Forest Ledger (weekly report)",
                   user.email "weekly-report@local", scoped to this checkout
                   only), and git push -u origin
                   weekly-data-report/<date>-${{ github.run_number }}.
-               e. Open a PR: gh pr create --title "..." --body "..." listing
+               d. Open a PR: gh pr create --title "..." --body "..." listing
                   exactly what was added/removed and why.
+               e. Explicitly start CI on this PR:
+                  gh workflow run ci.yml --ref weekly-data-report/<date>-${{ github.run_number }}
+                  This step is required, not optional -- a PR opened with
+                  this job's own GITHUB_TOKEN does NOT trigger ci.yml's
+                  normal pull_request event (GitHub's anti-recursion rule
+                  for the default token), so without this explicit dispatch
+                  the PR would show no checks at all for Simon to review.
                f. Add a report preview link to the PR body (see REPORT
                   PREVIEW LINK below) -- do this for every PR this workflow
-                  opens, this one included.
+                  opens, this one included. Also mention in the PR body
+                  that CI was triggered explicitly (step e) and that Simon
+                  should wait for those checks to go green before merging.
                g. Do NOT merge the PR. Auto-merge is temporarily
-                  disabled while this workflow is being tested -- leave
-                  it open for Simon to review and merge by hand,
-                  however clean the tests were. Say so plainly in the
-                  PR body and in your final summary.
+                  disabled while this workflow is being tested -- leave it
+                  open for Simon to review and merge by hand once CI passes.
+                  Say so plainly in the PR body and in your final summary.
             5. If the changeset is empty, skip the data branch/PR/merge
                entirely and say so in the report -- but still open the
-               small standalone report-only PR described in step 6, and it
-               still needs the REPORT PREVIEW LINK below.
+               small standalone report-only PR described in step 6 (and
+               still run step 4e's gh workflow run against its branch, so
+               the report-only change gets checked too), and it still
+               needs the REPORT PREVIEW LINK below.
 
             REPORT PREVIEW LINK: this site's Netlify Deploy Previews are
             always reachable at a fixed, predictable address --
@@ -224,4 +264,4 @@ jobs:
           # below -- auto-merge is disabled while Simon tests this workflow.
           # Add it back (and flip the prompt language above) once he is happy.
           claude_args: |
-            --allowedTools "WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(node --test:*),Bash(npx playwright:*),Bash(npm ci:*),Bash(npm test:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*)"
+            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*),Bash(gh workflow run:*)"
