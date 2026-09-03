@@ -3837,7 +3837,7 @@ test("BUILDING_MAX_SAFE_SCALE's perspective-divide backstop is real (not dead co
   }
 });
 
-test("drawBuildingExtrusions uses the exact same opaque fill colour as flat-mode footprints (so easing out of tilt doesn't shift colour) and draws a solid box with no stroke at all", () => {
+test("drawBuildingExtrusions keeps the roof on the flat-mode fill colour and applies subtle opaque side shading on walls, with no stroke", () => {
   resetData(app);
   app.state.compassHeading = 0;
   app.state.renderedNavigationHeading = 0;
@@ -3851,14 +3851,17 @@ test("drawBuildingExtrusions uses the exact same opaque fill colour as flat-mode
 
   // Matches the flat-mode building footprint fill used in the "building" branch of the
   // environment-feature loop and the flat state.buildingFeatures loop in js/renderer.js
-  // (drawEnvironmentPolygon calls with fill: "rgb(120, 120, 120)") -- not a shared
+  // (drawEnvironmentPolygon calls with fill: "rgb(152, 152, 152)") -- not a shared
   // constant with that call site, so this pins the value deliberately; if it drifts, this
   // test (or a similar one added for the flat path) should be updated in lockstep as a
   // conscious choice, not silently.
-  const FLAT_BUILDING_FILL = "rgb(120, 120, 120)";
+  const FLAT_BUILDING_FILL = "rgb(152, 152, 152)";
 
   assert.ok(ctx.fillStyles.length > 0, "should have drawn something");
-  assert.ok(ctx.fillStyles.every((style) => style === FLAT_BUILDING_FILL), `every fill (walls and roof alike) should use the flat footprint colour, got: ${[...new Set(ctx.fillStyles)]}`);
+  assert.equal(ctx.fillStyles[ctx.fillStyles.length - 1], FLAT_BUILDING_FILL, "roof fill should match the flat footprint colour");
+  const uniqueFillStyles = [...new Set(ctx.fillStyles)];
+  assert.ok(uniqueFillStyles.length > 1, `walls should use subtle side shading instead of one flat colour, got: ${uniqueFillStyles}`);
+  assert.ok(ctx.globalAlphas.every((a) => a === 1), `all shaded walls/roof should stay opaque, got ${ctx.globalAlphas}`);
 
   // Buildings should render as solid filled boxes with no outline at all (no per-wall
   // stroke, however thin/faint) -- ctx.stroke() should never be called.

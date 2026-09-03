@@ -176,14 +176,15 @@ const BUILDING_BEHIND_MAX_METRES = 200;
 // might not be. Loosely matches the "0 < scale < 5" sanity bound used in this app's own
 // past singularity-margin tests.
 const BUILDING_MAX_SAFE_SCALE = 4;
-// Matches the flat/top-down footprint fill exactly (see the "building" branch above and
-// drawEnvironmentPolygon's building styling) so easing in/out of tilt doesn't shift a
-// building's colour -- the roof is what a footprint literally becomes once flattened back
-// out, so keeping them identical is what makes that transition read as smooth. Solid fill,
-// no stroke -- outlining every wall of every building (4-5 strokes each, sharing edges
-// with neighbours) stacked into a much heavier line weight than a single flat footprint
-// outline ever has, which read as too thick/dominant; a plain fill avoids that entirely.
-const BUILDING_FILL = "rgb(120, 120, 120)";
+// Flat-mode footprint/roof colour. Kept as the roof fill too, so flattening from tilt back
+// to 2D keeps the building top colour stable while walls pick up subtle side lighting.
+const BUILDING_FILL_RGB = [152, 152, 152];
+const BUILDING_FILL = `rgb(${BUILDING_FILL_RGB[0]}, ${BUILDING_FILL_RGB[1]}, ${BUILDING_FILL_RGB[2]})`;
+const BUILDING_LIGHT_DIRECTION = { x: -0.55, y: -0.83 }; // from upper-left
+const BUILDING_WALL_SHADE_BASE = 0.92;
+const BUILDING_WALL_SHADE_RANGE = 0.1;
+const BUILDING_WALL_SHADE_MIN = 0.8;
+const BUILDING_WALL_SHADE_MAX = 1.05;
 
 // Draws extruded (walls + roof) buildings on the overlay canvas -- only meaningful once
 // the tilt perspective camera is active (drawOverlay's caller already gates on that); in
@@ -258,17 +259,17 @@ function drawSingleBuildingExtrusion(ctx, ring, heightMetres, alpha) {
 
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = BUILDING_FILL;
-
   // Walls: one quad per footprint edge (ring is closed -- first point === last -- so
-  // ring.length - 1 covers every real edge exactly once). Same fill as the roof, no
-  // per-wall shading (see BUILDING_FILL), no stroke (solid box, not an outlined one).
+  // ring.length - 1 covers every real edge exactly once). Each wall gets a subtle shade
+  // variation based on edge orientation against a fixed light direction. Still no stroke
+  // (solid box, not an outlined one).
   for (let i = 0; i < ring.length - 1; i += 1) {
     const g1 = groundPoints[i];
     const g2 = groundPoints[i + 1];
     const r1 = roofPoints[i];
     const r2 = roofPoints[i + 1];
     if (!g1 || !g2 || !r1 || !r2) continue;
+    ctx.fillStyle = shadedBuildingWallFill(g1, g2);
     ctx.beginPath();
     ctx.moveTo(g1.x, g1.y);
     ctx.lineTo(g2.x, g2.y);
@@ -279,6 +280,7 @@ function drawSingleBuildingExtrusion(ctx, ring, heightMetres, alpha) {
   }
 
   // Roof, drawn last so it sits on top of its own walls.
+  ctx.fillStyle = BUILDING_FILL;
   ctx.beginPath();
   roofPoints.forEach((point, i) => {
     if (i === 0) ctx.moveTo(point.x, point.y);
@@ -287,6 +289,34 @@ function drawSingleBuildingExtrusion(ctx, ring, heightMetres, alpha) {
   ctx.closePath();
   ctx.fill();
   ctx.restore();
+}
+
+function shadedBuildingWallFill(g1, g2) {
+  const edgeX = g2.x - g1.x;
+  const edgeY = g2.y - g1.y;
+  const normalX = -edgeY;
+  const normalY = edgeX;
+  const normalLength = Math.hypot(normalX, normalY) || 1;
+  const nx = normalX / normalLength;
+  const ny = normalY / normalLength;
+  const lightDot = clamp(
+    nx * BUILDING_LIGHT_DIRECTION.x + ny * BUILDING_LIGHT_DIRECTION.y,
+    -1,
+    1
+  );
+  const shade = clamp(
+    BUILDING_WALL_SHADE_BASE + lightDot * BUILDING_WALL_SHADE_RANGE,
+    BUILDING_WALL_SHADE_MIN,
+    BUILDING_WALL_SHADE_MAX
+  );
+  return scaleRgbColor(BUILDING_FILL_RGB, shade);
+}
+
+function scaleRgbColor(rgb, factor) {
+  const r = clamp(Math.round(rgb[0] * factor), 0, 255);
+  const g = clamp(Math.round(rgb[1] * factor), 0, 255);
+  const b = clamp(Math.round(rgb[2] * factor), 0, 255);
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 function drawCowPastures(ctx) {

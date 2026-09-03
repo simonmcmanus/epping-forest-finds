@@ -136,7 +136,7 @@ Rendered from `environmentFeatures`:
 - **Water/wetland polygons** — blue-tinted fills
 - **Nature designation polygons** — green-tinted fills
 - **Railway lines** — dashed dark strokes with specific styling
-- **Buildings** (lazy-loaded) — opaque gray fills in 2D footprints; in full 3D tilt, extruded walls/roofs use the same opaque fill (no transparency), so switching between 3D and 2D keeps building colour consistent.
+- **Buildings** (lazy-loaded) — opaque light-gray fills in 2D footprints; in full 3D tilt, roofs keep that same opaque fill while walls use subtle opaque side shading (fixed light-from-upper-left look) so buildings read as solid blocks without transparency and still transition cleanly when flattening to 2D.
 
 ### Paths
 
