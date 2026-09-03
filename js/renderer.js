@@ -189,7 +189,7 @@ const BUILDING_MAX_SAFE_SCALE = 4;
 // no stroke -- outlining every wall of every building (4-5 strokes each, sharing edges
 // with neighbours) stacked into a much heavier line weight than a single flat footprint
 // outline ever has, which read as too thick/dominant; a plain fill avoids that entirely.
-const BUILDING_FILL = "rgba(120, 120, 120, 0.15)";
+const BUILDING_FILL =  "rgba(241, 239, 239, 0.95)";
 
 // Draws extruded (walls + roof) buildings on the overlay canvas -- only meaningful once
 // the tilt perspective camera is active (drawOverlay's caller already gates on that); in
