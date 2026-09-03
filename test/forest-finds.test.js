@@ -3860,11 +3860,11 @@ test("drawBuildingExtrusions uses the exact same fill colour/transparency as fla
 
   // Matches the flat-mode building footprint fill used in the "building" branch of the
   // environment-feature loop and the flat state.buildingFeatures loop in js/renderer.js
-  // (drawEnvironmentPolygon calls with fill: "rgba(120, 120, 120, 0.15)") -- not a shared
+  // (drawEnvironmentPolygon calls with fill: "rgba(241, 239, 239, 0.95)") -- not a shared
   // constant with that call site, so this pins the value deliberately; if it drifts, this
   // test (or a similar one added for the flat path) should be updated in lockstep as a
   // conscious choice, not silently.
-  const FLAT_BUILDING_FILL = "rgba(120, 120, 120, 0.15)";
+  const FLAT_BUILDING_FILL = "rgba(241, 239, 239, 0.95)";
 
   assert.ok(ctx.fillStyles.length > 0, "should have drawn something");
   assert.ok(ctx.fillStyles.every((style) => style === FLAT_BUILDING_FILL), `every fill (walls and roof alike) should use the flat footprint colour, got: ${[...new Set(ctx.fillStyles)]}`);

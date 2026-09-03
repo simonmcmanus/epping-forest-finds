@@ -572,7 +572,7 @@ function drawEnvironment(ctx) {
 
     if (type === "building") {
       drawEnvironmentPolygon(ctx, geometry, {
-        fill: "rgba(120, 120, 120, 0.15)",
+        fill: "rgba(241, 239, 239, 0.95)",
         stroke: "rgba(80, 80, 80, 0.35)",
         width: 0.8 * dpr,
       });
@@ -619,7 +619,7 @@ function drawEnvironment(ctx) {
         }
       }
       drawEnvironmentPolygon(ctx, geom, {
-        fill: "rgba(120, 120, 120, 0.15)",
+        fill: "rgba(241, 239, 239, 0.95)",
         stroke: "rgba(80, 80, 80, 0.35)",
         width: 0.8 * dpr,
       });
