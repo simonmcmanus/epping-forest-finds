@@ -244,10 +244,14 @@
     const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
     const TILT_BETA_THRESHOLD = 12;    // deg above flat before perspective kicks in
     const TILT_BETA_MAX = 85;          // deg where max perspective angle is reached
-    const TILT_HORIZON_GROUND_RATIO = 0.62; // fraction of the space above the pivot that shows ground (vs. sky) at any tilt angle -- see tiltPerspectivePx()
+    const TILT_HORIZON_GROUND_RATIO = 0.62; // fraction of the space above the pivot that shows ground (vs. sky) at TILT_ROTATEX_MAX -- see tiltPerspectivePx()
     const TILT_PERSPECTIVE_MIN_PX = 260;    // floor so very short/cramped viewports don't collapse the camera distance towards an unstable near-0 value
     const TILT_PERSPECTIVE_MAX_PX = 2600;   // ceiling so very tall viewports (tablets) don't stretch the camera distance into an implausibly flat, barely-tilted look
     const TILT_ROTATEX_MAX = 75;       // max rotateX deg — 2× overscan hides the canvas edge even at this angle
+    // Precomputed once: calibrating tiltPerspectivePx() against this fixed reference
+    // angle (rather than the live, ever-changing tiltRotateXDeg()) keeps the camera
+    // distance from collapsing at low/mid tilt angles -- see tiltPerspectivePx().
+    const TILT_HORIZON_REFERENCE_TAN = Math.tan(TILT_ROTATEX_MAX * Math.PI / 180);
     const HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT = 2.0; // extra canvas needed so perspective doesn't expose the top edge
     // The canvas resize needed to switch overscan ratios is a discrete, unavoidably instant
     // change — so it must never land while the tilt transform is visibly animating. Both
@@ -259,7 +263,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v285"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with CACHE_NAME in sw.js.
+    const APP_VERSION = "v289"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -2986,22 +2990,106 @@
     // goes 0 -> 1. Shared by navigationFocusPoint/nearbyHeadingUpFocusY (where the pivot
     // is actually placed on screen) and tiltAvailableAheadCssPx (which needs the same
     // value to size the tilt perspective distance -- see tiltPerspectivePx()).
-    function headingUpAnchorFraction(isSelected) {
+    //
+    // For selected navigation only, this fixed ahead-favouring anchor is then mirrored
+    // around the screen's vertical centre (0.5) based on where the destination actually
+    // is (selectedNavigationTargetBearingOffsetRadians()) -- dead ahead leaves it
+    // untouched (matching the previous fixed-anchor behaviour exactly), dead behind
+    // flips it to `1 - anchor` (as much room below the user as the old anchor gave
+    // above), and a target to the side lands near the centre. Without this, a
+    // destination behind the user got squeezed into the small margin below a pivot
+    // fixed near the bottom of the screen, forcing a needlessly wide zoom-out instead of
+    // making use of the screen space that's actually available in the destination's own
+    // direction. Nearby mode has no single destination to adapt toward (items are
+    // scattered in every direction by design), so its anchor stays exactly as before.
+    // Pre-mirror ramped anchor: the plain ahead-favouring anchor before any bearing-based
+    // mirroring is applied (see headingUpAnchorFraction below). Always >= 0.5 by
+    // construction (HEADING_UP_ANCHOR_* constants). Factored out so tiltAvailableAheadCssPx
+    // can use it as a safety floor -- see that function's comment for why.
+    function tiltRampedAnchor(isSelected) {
       const t = tiltAnchorFraction();
       const base = isSelected ? HEADING_UP_ANCHOR_SELECTED : HEADING_UP_ANCHOR_NEARBY;
       const far  = isSelected ? HEADING_UP_ANCHOR_SELECTED_TILT : HEADING_UP_ANCHOR_NEARBY_TILT;
       return base + (far - base) * t;
     }
 
-    // Space (CSS px) available above the tilt pivot within the currently visible map
-    // area -- the "ahead" band the tilted ground plane has to fill before its horizon.
-    // Feeds tiltPerspectivePx() so the perspective camera distance scales with the
-    // actual screen instead of leaving a fixed-size "sky" gap that grows on taller
+    function headingUpAnchorFraction(isSelected) {
+      const aheadAnchor = tiltRampedAnchor(isSelected);
+      if (!isSelected) return aheadAnchor;
+      const offset = selectedNavigationTargetBearingOffsetRadians();
+      if (offset == null) return aheadAnchor;
+      return 0.5 + (aheadAnchor - 0.5) * Math.cos(offset);
+    }
+
+    // Signed-magnitude offset (radians) of the selected navigation target's bearing from
+    // "straight ahead" in the current heading-up rotated frame: 0 = dead ahead, ±π/2 =
+    // directly to a side, π = dead behind. Reuses the exact rotation
+    // (currentNavigationMapRotationDegrees()) and rotated-axis convention already used by
+    // maxScaleForHeadingUpPoints/tiltRotatedHeadingOffset, just resolved to a full angle
+    // instead of a single signed ahead/behind axis distance, since headingUpAnchorFraction
+    // needs the whole ahead/behind/side picture. Averages every target point (so a route
+    // with points on both sides of "ahead" still resolves to one sensible bearing) and
+    // returns null when there's nothing to adapt toward, so callers fall back cleanly to
+    // the fixed ahead-favouring anchor.
+    function selectedNavigationTargetBearingOffsetRadians() {
+      if (!state.userLocation) return null;
+      const points = selectedNavigationTargetPoints();
+      if (!points.length) return null;
+      let sumX = 0;
+      let sumY = 0;
+      for (const point of points) {
+        sumX += point.x;
+        sumY += point.y;
+      }
+      const dx = sumX / points.length - state.userLocation.point.x;
+      const dy = sumY / points.length - state.userLocation.point.y;
+      if (dx === 0 && dy === 0) return null;
+      const radians = toRadians(currentNavigationMapRotationDegrees());
+      const rotatedX = dx * Math.cos(radians) - dy * Math.sin(radians);
+      const rotatedY = dx * Math.sin(radians) + dy * Math.cos(radians); // same sign convention as tiltRotatedHeadingOffset
+      return Math.atan2(rotatedX, -rotatedY);
+    }
+
+    // Space (CSS px) available on the *larger* side of the tilt pivot within the
+    // currently visible map area -- normally the "ahead" band the tilted ground plane
+    // has to fill before its horizon, but see the note on the mirrored-anchor case
+    // below. Feeds tiltPerspectivePx() so the perspective camera distance scales with
+    // the actual screen instead of leaving a fixed-size "sky" gap that grows on taller
     // viewports (see tiltPerspectivePx() for why that matters).
+    //
+    // Deliberately uses max(anchor, 1 - anchor), not the raw anchor: for selected
+    // navigation, headingUpAnchorFraction() mirrors the anchor toward the top of the
+    // screen when the destination is behind the user, so most of the *reach* that needs
+    // covering is now on the far side of the pivot from where this "ahead" name
+    // originally meant. Feeding the raw (now small) mirrored anchor in here would shrink
+    // tiltPerspectivePx() right along with it -- reintroducing, via bearing this time
+    // instead of tilt angle, the exact singularity-margin regression documented above
+    // (P collapses, so a destination/pins now rendered on the far, larger side of the
+    // pivot blow up or disappear near the perspective-divide singularity). Using
+    // whichever side is actually larger keeps the camera distance sized for the bigger
+    // reach regardless of which side of the pivot that is, so mirroring the on-screen
+    // anchor position never on its own shrinks the safety margin. In the normal
+    // (dead-ahead or nearby) case the anchor is already >= 0.5, so this is a no-op.
     function tiltAvailableAheadCssPx() {
       const focusRect = bestVisibleCanvasRect();
-      const anchor = headingUpAnchorFraction(selectedNavigationHeadingUpActive());
-      return Math.max(1, (focusRect.height * anchor) / pixelRatio());
+      const isSelected = selectedNavigationHeadingUpActive();
+      const anchor = headingUpAnchorFraction(isSelected);
+      // max(anchor, 1 - anchor) alone still dips as low as 0.5 for a destination
+      // directly to a side (offset ~= +-pi/2, where headingUpAnchorFraction's
+      // cos(offset) mirroring passes through the screen's exact 50% centre) -- lower
+      // than the historically-safe floor (tiltRampedAnchor(), always >= 0.5 by
+      // construction, e.g. 0.62-0.88 for selected navigation) that this calculation
+      // always used before bearing-based mirroring existed. That dip shrank the camera
+      // distance (and so the singularity-margin safety net) for any destination whose
+      // bearing passes near perpendicular to the current heading -- an ordinary,
+      // frequent case during real walking navigation, not just the dead-behind extreme
+      // already covered by max(anchor, 1 - anchor). Including tiltRampedAnchor() as a
+      // third floor restores that pre-mirroring safety margin across the whole bearing
+      // range: at the dead-ahead/dead-behind extremes max(anchor, 1-anchor) already
+      // equals tiltRampedAnchor() exactly (so this is a no-op there), and it now also
+      // holds at every bearing in between.
+      const reach = Math.max(anchor, 1 - anchor, tiltRampedAnchor(isSelected));
+      return Math.max(1, (focusRect.height * reach) / pixelRatio());
     }
 
     // TILT_PERSPECTIVE_PX used to be a fixed CSS-px camera distance. A rotateX-tilted
@@ -3012,16 +3100,26 @@
     // taller visible map area got proportionally *more* empty sky, not less). This
     // derives the camera distance from the space actually available above the pivot
     // instead, so the horizon lands at roughly the same fraction of the visible map
-    // (TILT_HORIZON_GROUND_RATIO) on any device. Used identically by the CSS canvas
-    // transform (updateHeadingUpCanvasRotationTransform) and by the overlay's manual
-    // perspective projection (worldToScreenForOverlayTilted, projectCanvasPoint) --
-    // all three must agree or pins drift away from the tilted terrain beneath them.
+    // (TILT_HORIZON_GROUND_RATIO) on any device -- calibrated at TILT_ROTATEX_MAX, not
+    // at whatever the *current* tilt angle happens to be. That distinction matters: an
+    // earlier version scaled the camera distance by tan(the live tiltRotateXDeg()), which
+    // shrinks sharply at low/mid tilt angles -- collapsing the safe "behind the user"
+    // distance before the perspective-divide singularity (scale = P/(P-dz), where dz
+    // grows with distance behind the pivot) from ~900-1500 CSS px down to as little as
+    // ~450 CSS px at an ordinary mid-range tilt. That regression made pins, the radar,
+    // and road/path lines behind the user intermittently disappear or fly off to wild
+    // coordinates during everyday (non-max) tilt -- see [[nearby-view-zoom]] project
+    // memory / the 2026-09-03 tilt-perspective incident. Using the fixed reference angle
+    // instead keeps that safety margin roughly constant (and no smaller than before)
+    // across the whole active-tilt range, while still fixing the original device-height
+    // bug at max tilt, where the ground-fraction target actually applies exactly.
+    // Used identically by the CSS canvas transform
+    // (updateHeadingUpCanvasRotationTransform) and by the overlay's manual perspective
+    // projection (worldToScreenForOverlayTilted, projectCanvasPoint) -- all three must
+    // agree or pins drift away from the tilted terrain beneath them.
     function tiltPerspectivePx() {
-      const tiltDeg = tiltRotateXDeg();
-      if (tiltDeg <= 0) return TILT_PERSPECTIVE_MIN_PX;
-      const tanT = Math.tan(tiltDeg * Math.PI / 180);
-      if (!(tanT > 0)) return TILT_PERSPECTIVE_MIN_PX;
-      const desired = tiltAvailableAheadCssPx() * TILT_HORIZON_GROUND_RATIO * tanT;
+      if (tiltRotateXDeg() <= 0) return TILT_PERSPECTIVE_MIN_PX;
+      const desired = tiltAvailableAheadCssPx() * TILT_HORIZON_GROUND_RATIO * TILT_HORIZON_REFERENCE_TAN;
       return clamp(desired, TILT_PERSPECTIVE_MIN_PX, TILT_PERSPECTIVE_MAX_PX);
     }
 
@@ -3161,7 +3259,15 @@
     // that need one (maxNearbyHeadingUpScale's walking-radius floor) apply it themselves; see
     // [[nearby-view-zoom]] project memory for why a ceiling baked in here (an arbitrary ratio
     // against an unrelated reference scale) caused more bugs than it fixed.
-    function maxScaleForHeadingUpPoints(points, focus, focusRect) {
+    function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
+      // Nearby mode's item cluster is genuinely hidden behind the user during full tilt
+      // (isBehindTiltHeading), so excluding those points from the fit is correct there --
+      // fitting a hidden point would force a needless zoom-out. The selected navigation
+      // target (and its route) are the one exception to that hiding rule (see
+      // isBehindTiltHeading's spec note), so maxHeadingUpNavigationScale passes
+      // excludeBehindDuringTilt: false to keep the fit actually framing them even when
+      // they're behind the user's current heading.
+      const excludeBehindDuringTilt = options.excludeBehindDuringTilt !== false;
       const dpr = pixelRatio();
       const margin = Math.min(focusRect.width, focusRect.height) * 0.1 + 12 * dpr;
       const left = focusRect.x + margin;
@@ -3186,10 +3292,12 @@
         // from the canvas (see that function) — fitting a hidden point there would force an
         // unnecessarily wide zoom-out, and under the tilt perspective transform a point that
         // close behind the camera balloons in size and looms over the view instead of
-        // receding like points ahead do. When tilt is inactive, behind points are still
-        // drawn, so they must still constrain the bottom edge or they end up off-screen.
+        // receding like points ahead do. When tilt is inactive, or when the caller says
+        // these points are exempt from tilt culling (excludeBehindDuringTilt: false),
+        // behind points are still drawn, so they must still constrain the bottom edge or
+        // they end up off-screen.
         if (rotatedY > 0) {
-          if (tiltActive()) continue;
+          if (tiltActive() && excludeBehindDuringTilt) continue;
           maxScale = Math.min(maxScale, (bottom - focus.y) / rotatedY);
           continue;
         }
@@ -3207,7 +3315,10 @@
       if (!state.userLocation) return state.viewport.scale;
       const points = selectedNavigationTargetPoints();
       if (!points.length) return state.viewport.scale;
-      const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect);
+      // See maxScaleForHeadingUpPoints's comment: the selected destination/route stay
+      // visible even when behind the user during full tilt, so the fit must keep framing
+      // them there too, unlike nearby mode's item cluster.
+      const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect, { excludeBehindDuringTilt: false });
       return maxScale == null ? state.viewport.scale : maxScale;
     }
 

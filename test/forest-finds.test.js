@@ -181,6 +181,7 @@ globalThis.__forestFindsTest = {
   walkingDistanceToMetres,
   keepOverviewCenteredOnUser,
   centerOverviewOnUserLocation,
+  setInspectorMinimized,
   maxScaleForRadiusVisible,
   bestVisibleCanvasRect,
   walkingRadiusCirclePoints,
@@ -195,6 +196,7 @@ globalThis.__forestFindsTest = {
   pointsExtendedToMinDistance,
   walkingRadiusWorldUnits,
   selectedNavigationTargetPoints,
+  selectedNavigationTargetBearingOffsetRadians,
   nearbyHeadingUpTargetPoints,
   animateToHeadingUpNavigationViewport,
   resizeCanvas,
@@ -215,6 +217,7 @@ globalThis.__forestFindsTest = {
   tiltRotateXDeg,
   tiltAnchorFraction,
   headingUpAnchorFraction,
+  tiltRampedAnchor,
   tiltAvailableAheadCssPx,
   tiltPerspectivePx,
   isBehindTiltHeading,
@@ -766,7 +769,11 @@ test("full 3D (max tilt) pushes the nearby user anchor to near the bottom edge w
 test("full 3D (max tilt) pushes the selected-navigation user anchor to near the bottom edge with a small gap", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
-  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  // Target due east (increasing longitude), matching compassHeading 90 (facing east) --
+  // i.e. genuinely dead ahead, so the bearing-based anchor mirroring (see
+  // headingUpAnchorFraction/selectedNavigationTargetBearingOffsetRadians) leaves the
+  // anchor untouched and this test isolates the tilt-ramp behaviour it's named for.
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0, 0.001) } };
   app.state.compassHeading = 90;
   app.state.renderedNavigationHeading = 90;
   app.state.tiltBetaSmoothed = 85; // max tilt — full 3D
@@ -1549,6 +1556,111 @@ test("maxScaleForHeadingUpPoints excludes behind-the-user points only while tilt
   assert.ok(Math.abs(withTiltInactive - 30.8) < 1e-9, `expected 30.8, got ${withTiltInactive}`);
 });
 
+test("maxScaleForHeadingUpPoints({ excludeBehindDuringTilt: false }) keeps constraining the fit against behind-the-user points even while tilt is active", () => {
+  // The selected navigation destination (and its route) stay visible even when behind the
+  // user's heading during full tilt -- see isBehindTiltHeading's spec exemption -- so the fit
+  // must keep framing them there too, unlike the nearby-mode item cluster tested above (which
+  // genuinely is hidden, and must keep being excluded -- the test above is untouched by this
+  // option and still passes with its default/omitted excludeBehindDuringTilt).
+  resetData(app);
+  app.state.userLocation = { latitude: 0, longitude: 0, point: { x: 0, y: 0 } };
+  app.state.compassHeading = 0;
+  const focus = { x: 500, y: 400 };
+  const focusRect = { x: 0, y: 0, width: 1000, height: 800 };
+  const behindPoint = [{ x: 0, y: 10 }];
+
+  app.state.tiltBetaSmoothed = 20; // tiltActive() true
+  const result = app.maxScaleForHeadingUpPoints(behindPoint, focus, focusRect, { excludeBehindDuringTilt: false });
+  // Same (bottom - focus.y) / rotatedY = (708 - 400) / 10 = 30.8 as the tilt-inactive case
+  // above -- excludeBehindDuringTilt: false means tiltActive() no longer matters for this point.
+  assert.ok(Math.abs(result - 30.8) < 1e-9, `expected 30.8, got ${result}`);
+});
+
+test("selectedNavigationTargetBearingOffsetRadians resolves the destination's bearing relative to straight ahead", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east -> "ahead" is east
+
+  // Dead ahead: target due east of the user.
+  app.state.selected = { type: "tree", item: { id: "ahead", ...makePoint(app, 0, 0.001) } };
+  assert.ok(Math.abs(app.selectedNavigationTargetBearingOffsetRadians() - 0) < 1e-9, "target due east while facing east should be dead ahead (0)");
+
+  // Dead behind: target due west of the user.
+  app.state.selected = { type: "tree", item: { id: "behind", ...makePoint(app, 0, -0.001) } };
+  assert.ok(Math.abs(Math.abs(app.selectedNavigationTargetBearingOffsetRadians()) - Math.PI) < 1e-9, "target due west while facing east should be dead behind (±π)");
+
+  // Directly to a side: target due north of the user (a left turn while facing east).
+  app.state.selected = { type: "tree", item: { id: "side", ...makePoint(app, 0.001, 0) } };
+  assert.ok(Math.abs(Math.abs(app.selectedNavigationTargetBearingOffsetRadians()) - Math.PI / 2) < 1e-9, "target due north while facing east should be directly to a side (±π/2)");
+
+  // No user location, no selection, or the target sitting exactly on the user's own
+  // position all have no meaningful bearing to report.
+  app.state.userLocation = null;
+  assert.equal(app.selectedNavigationTargetBearingOffsetRadians(), null, "no user location -> null");
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = null;
+  assert.equal(app.selectedNavigationTargetBearingOffsetRadians(), null, "no selection -> null");
+  app.state.selected = { type: "tree", item: { id: "same-spot", ...makePoint(app, 0, 0) } };
+  assert.equal(app.selectedNavigationTargetBearingOffsetRadians(), null, "target exactly at the user's own position -> null");
+});
+
+test("headingUpAnchorFraction mirrors the selected-navigation anchor around the screen centre based on the destination's bearing, but leaves nearby's anchor untouched", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east
+  app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> the full max-tilt anchor (0.90/0.88) applies
+
+  const aheadAnchor = 0.90; // HEADING_UP_ANCHOR_NEARBY_TILT, reused here as the "ahead" selected anchor's sibling value would differ (0.88) -- computed below instead of hardcoded twice
+
+  // Dead ahead (target due east): matches the plain tilt-ramped anchor exactly, same as
+  // before this feature existed.
+  app.state.selected = { type: "tree", item: { id: "ahead", ...makePoint(app, 0, 0.001) } };
+  const plainSelectedAnchor = 0.88; // HEADING_UP_ANCHOR_SELECTED_TILT, at t=1 (beta=85)
+  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - plainSelectedAnchor) < 1e-9,
+    `dead-ahead anchor should equal the plain tilt-ramped anchor (${plainSelectedAnchor}), got ${app.headingUpAnchorFraction(true)}`);
+
+  // Dead behind (target due west): mirrors to 1 - anchor, i.e. most of the room now sits
+  // below the user instead of above.
+  app.state.selected = { type: "tree", item: { id: "behind", ...makePoint(app, 0, -0.001) } };
+  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - (1 - plainSelectedAnchor)) < 1e-9,
+    `dead-behind anchor should mirror to 1 - ${plainSelectedAnchor}, got ${app.headingUpAnchorFraction(true)}`);
+
+  // Directly to a side (target due north): lands at the screen's vertical centre.
+  app.state.selected = { type: "tree", item: { id: "side", ...makePoint(app, 0.001, 0) } };
+  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - 0.5) < 1e-9,
+    `side anchor should land at the centre (0.5), got ${app.headingUpAnchorFraction(true)}`);
+
+  // Nearby mode has no single destination to adapt toward -- its anchor must stay exactly
+  // the plain tilt-ramped value regardless of whatever "selected" happens to be sitting in
+  // state (defensive: confirms the bearing adaptation is scoped to isSelected only).
+  assert.ok(Math.abs(app.headingUpAnchorFraction(false) - aheadAnchor) < 1e-9,
+    `nearby anchor should be unaffected by any selected-target bearing, got ${app.headingUpAnchorFraction(false)}`);
+});
+
+test("maxHeadingUpNavigationScale actually fits a destination that is behind the user during full 3D tilt, instead of leaving the stale current scale in place", () => {
+  // Regression test for the "not much screen space available" complaint: previously,
+  // maxScaleForHeadingUpPoints excluded behind-the-user points from the fit whenever tilt
+  // was active -- including the selected destination itself, which (unlike nearby's item
+  // cluster) stays visible when behind. That left the zoom entirely unconstrained by the
+  // destination in exactly the case that needed it most. maxHeadingUpNavigationScale must
+  // now pass excludeBehindDuringTilt: false so a behind destination still drives the fit.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east
+  app.state.tiltBetaSmoothed = 60; // tiltActive() true, not max
+  // Destination due west (behind, given heading 90/east) and close enough that fitting it
+  // demands a real scale change from the arbitrary "stale" scale set below.
+  app.state.selected = { type: "tree", item: { id: "behind", ...makePoint(app, 0, -0.0005) } };
+  app.state.viewport = { scale: 123456, tx: 0, ty: 0 }; // a deliberately wrong "stale" scale
+
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.navigationFocusPoint();
+  const result = app.maxHeadingUpNavigationScale(focus, focusRect);
+
+  assert.notEqual(result, 123456, "should compute a real fit from the behind destination, not fall back to the stale current scale");
+  assert.ok(Number.isFinite(result) && result > 0, "should be a sane, finite, positive scale");
+});
+
 test("maxHeadingUpNavigationScale falls back to the current viewport scale with no selected target", () => {
   resetData(app);
   app.state.userLocation = { latitude: 0, longitude: 0, point: { x: 0, y: 0 } };
@@ -1887,6 +1999,59 @@ test("returning to nearby from a tilted selected-item navigation re-fits the cam
   assert.ok(app.state.viewportAnimationTo, "nearby refit should start immediately");
   assert.equal(app.state.tiltBetaTarget, 60, "tilt target should be untouched by returning to nearby");
   assert.equal(app.tiltActive(), true, "tilt should remain active through the re-fit rather than flattening first");
+});
+
+test("setInspectorMinimized triggers a real heading-up rescale (not just a recenter) when expanding the inspector during selected navigation", () => {
+  // Regression test for a real bug reported 2026-09-03 (round 4): a destination behind the
+  // user during heading-up navigation can now occupy most of the screen below the anchor
+  // (see headingUpAnchorFraction's bearing mirroring), which makes it much more likely to
+  // land where the inspector panel will cover it once expanded. Un-minimizing the inspector
+  // used to always call centerViewportOnPointsKeepScale -- which, true to its name, keeps
+  // whatever scale was already in effect and only recentres -- so a fit computed while the
+  // inspector was minimized (a bigger available area) was never corrected once the inspector
+  // grew back to its full size. For heading-up navigation this must instead re-run the real
+  // scale fit (alignHeadingUpNavigationViewport) against the now-current (expanded) inspector
+  // footprint, so the destination cannot end up stuck at a stale, too-tight scale under it.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east -- selectedNavigationHeadingUpActive() true
+  app.state.selected = { type: "tree", item: { id: "ahead", ...makePoint(app, 0, 0.001) } };
+  app.els.inspector.hidden = false;
+  app.els.inspector.classList.add("minimized"); // starts minimized
+  app.state.viewport = { scale: 999999, tx: 0, ty: 0 }; // deliberately stale/wrong scale
+
+  app.setInspectorMinimized(false);
+
+  assert.equal(app.els.inspector.classList.contains("minimized"), false, "inspector should now be expanded");
+  assert.ok(app.state.viewportAnimationTo, "expanding the inspector should start a camera animation");
+  assert.notEqual(app.state.viewportAnimationTo.scale, 999999,
+    "the stale scale must be replaced by a real fit, not just carried into a recentre");
+
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.navigationFocusPoint();
+  const expectedBuffered = app.maxHeadingUpNavigationScale(focus, focusRect) * 0.96; // HEADING_UP_SCALE_BUFFER_RATIO
+  assert.ok(
+    Math.abs(app.state.viewportAnimationTo.scale - expectedBuffered) < expectedBuffered * 0.001,
+    `expected the buffered heading-up fit scale ~${expectedBuffered}, got ${app.state.viewportAnimationTo.scale}`
+  );
+});
+
+test("setInspectorMinimized keeps the plain recentre-at-current-scale behaviour when there is no heading-up navigation active", () => {
+  // Selected but north-up (no compass heading yet): selectedNavigationHeadingUpActive() is
+  // false, so this must still follow the original centerViewportOnPointsKeepScale path
+  // rather than heading-up's alignHeadingUpNavigationViewport (which requires a heading).
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = null; // no heading -> not heading-up
+  app.state.selected = { type: "tree", item: { id: "flat-target", ...makePoint(app, 0, 0.001) } };
+  app.els.inspector.hidden = false;
+  app.els.inspector.classList.add("minimized");
+  app.state.viewport = { scale: 4242, tx: 0, ty: 0 };
+
+  app.setInspectorMinimized(false);
+
+  assert.ok(app.state.viewportAnimationTo, "expanding the inspector should still animate a recentre");
+  assert.equal(app.state.viewportAnimationTo.scale, 4242, "north-up recentre must keep the current scale unchanged");
 });
 
 test("nearby HTML does not contain the walking distance selector", () => {
@@ -3084,14 +3249,15 @@ test("tiltAvailableAheadCssPx is the visible map height above the pivot, convert
   }
 });
 
-test("tiltPerspectivePx keeps the ground/sky split at a constant fraction of the visible map regardless of screen height", () => {
+test("tiltPerspectivePx keeps the ground/sky split at a constant fraction of the visible map regardless of screen height, at any given tilt angle", () => {
   // Regression test for the fixed-900px camera distance bug: perspective's ground-plane
   // horizon sits at (perspective / tan(rotateX)) CSS px above the pivot -- a fixed distance
   // when the camera distance is a flat constant, so a taller screen left proportionally
   // *more* empty "sky" above the horizon than a shorter one, instead of a device-independent
-  // split. tiltPerspectivePx() must instead keep (perspective * cot(rotateX)) / availableAhead
-  // -- the fraction of the visible map that shows ground -- equal to TILT_HORIZON_GROUND_RATIO
-  // on any screen height.
+  // split. tiltPerspectivePx() must instead keep the ground fraction -- (perspective *
+  // cot(rotateX)) / availableAhead -- the same on any screen height, for a fixed tilt angle.
+  // (The fraction still varies *across* tilt angles by design -- more tilt = more sky, same
+  // as before this fix -- it must just no longer vary by device height at a given angle.)
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
@@ -3108,15 +3274,163 @@ test("tiltPerspectivePx keeps the ground/sky split at a constant fraction of the
   const shortScreenFraction = groundFraction();
   const shortScreenPerspective = app.tiltPerspectivePx();
 
-  app.state.canvasVisibleHeight = 1600;
+  // 1200, not 800*2 -- doubling to 1600 at this tilt angle/anchor pushes the *ideal*
+  // (unclamped) camera distance for the 1600 case past TILT_PERSPECTIVE_MAX_PX (2600),
+  // which would legitimately break the proportionality this test checks (that's the
+  // clamp doing its job for pathologically tall viewports, not a bug -- see the
+  // MIN/MAX clamp test below). 1200 stays comfortably under the ceiling here.
+  app.state.canvasVisibleHeight = 1200;
   const tallScreenFraction = groundFraction();
   const tallScreenPerspective = app.tiltPerspectivePx();
 
   assert.ok(Math.abs(shortScreenFraction - tallScreenFraction) < 1e-9,
     `ground fraction should be device-height independent, got ${shortScreenFraction} vs ${tallScreenFraction}`);
-  assert.ok(Math.abs(shortScreenFraction - 0.62) < 1e-9, "fraction should match TILT_HORIZON_GROUND_RATIO (0.62)");
-  assert.ok(Math.abs(tallScreenPerspective - shortScreenPerspective * 2) < 1e-6,
-    "doubling the available screen height should double the camera distance, not leave it fixed");
+  assert.ok(Math.abs(tallScreenPerspective - shortScreenPerspective * 1.5) < 1e-6,
+    "camera distance should scale linearly with the available screen height, not leave it fixed");
+});
+
+test("tiltPerspectivePx reaches exactly TILT_HORIZON_GROUND_RATIO ground/sky split at max tilt (TILT_ROTATEX_MAX)", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.els.inspector.hidden = true;
+  app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> tiltRotateXDeg() === TILT_ROTATEX_MAX exactly
+  app.state.canvasVisibleHeight = 800;
+
+  const tiltRad = app.tiltRotateXDeg() * Math.PI / 180;
+  const horizonOffsetCssPx = app.tiltPerspectivePx() / Math.tan(tiltRad);
+  const groundFraction = horizonOffsetCssPx / app.tiltAvailableAheadCssPx();
+  assert.ok(Math.abs(groundFraction - 0.62) < 1e-9, `expected TILT_HORIZON_GROUND_RATIO (0.62) at max tilt, got ${groundFraction}`);
+});
+
+test("tiltPerspectivePx does not collapse the safe distance-behind-the-user margin at ordinary (non-max) tilt angles", () => {
+  // Regression test for a real bug shipped in the first version of this dynamic-perspective
+  // fix (2026-09-03): calibrating the camera distance against tan(the *live* tiltRotateXDeg())
+  // meant tan() shrinks sharply at low/mid tilt angles, collapsing the camera distance right
+  // along with it -- at an ordinary mid-range tilt this pulled the perspective-divide
+  // singularity (scale = P/(P-dz), where dz grows with on-screen distance behind the pivot)
+  // in to as little as ~450 CSS px behind the user, versus ~900-1500px under the old fixed
+  // 900px constant. Pins, the radar, and road/path lines that far behind the user (an easily
+  // reached distance on a moderately zoomed map) got a blown-up or negative `scale`, which
+  // read as them intermittently vanishing or flying off to nonsense coordinates. Calibrating
+  // against the fixed TILT_ROTATEX_MAX reference angle instead must keep this margin at least
+  // as generous as the old fixed-900px system had, at every active tilt angle -- not just at
+  // max tilt where the ground-fraction target is actually calibrated.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.els.inspector.hidden = true;
+  app.state.canvasVisibleHeight = 800;
+
+  for (const beta of [13, 20, 30, 48.5, 60, 75, 85]) {
+    app.state.tiltBetaSmoothed = beta;
+    const tiltDeg = app.tiltRotateXDeg();
+    const tiltRad = tiltDeg * Math.PI / 180;
+    const P = app.tiltPerspectivePx();
+    const oldFixedSingularityDyCss = 900 / Math.sin(tiltRad); // the pre-existing, always-safe baseline
+    const newSingularityDyCss = P / Math.sin(tiltRad);
+    assert.ok(
+      newSingularityDyCss >= oldFixedSingularityDyCss - 1e-6,
+      `beta=${beta} (tiltDeg=${tiltDeg.toFixed(1)}): safe margin regressed to ${newSingularityDyCss.toFixed(1)}px, below the old fixed-900px baseline of ${oldFixedSingularityDyCss.toFixed(1)}px`
+    );
+    // And concretely: a pin 600 CSS px behind the user (an ordinary, easily reached distance
+    // on a moderately zoomed map) must always project with a small positive scale, never a
+    // blown-up or negative one.
+    if (tiltDeg > 0) {
+      const dz = 600 * Math.sin(tiltRad);
+      const scale = P / (P - dz);
+      assert.ok(scale > 0 && scale < 5, `beta=${beta}: a pin 600px behind should project with a sane positive scale, got ${scale}`);
+    }
+  }
+});
+
+test("tiltAvailableAheadCssPx / tiltPerspectivePx do not collapse when the destination is behind the user and the anchor mirrors toward the top of the screen", () => {
+  // Regression test for a real bug reported 2026-09-03 (round 4): headingUpAnchorFraction
+  // now mirrors the selected-navigation anchor toward the top of the screen when the
+  // destination is behind the user (see the "mirrors the selected-navigation anchor" test),
+  // but tiltAvailableAheadCssPx() fed that same (now small) mirrored anchor straight into
+  // tiltPerspectivePx() -- reintroducing, via bearing this time rather than tilt angle, the
+  // exact P-collapse regression documented in "does not collapse the safe distance-behind-
+  // the-user margin" above: the camera distance shrank right along with the mirrored anchor,
+  // pulling the perspective-divide singularity in close enough that the destination, other
+  // pins, and the radar cone -- all now rendered on the far (larger) side of the mirrored
+  // pivot -- intermittently disappeared or blew up. tiltAvailableAheadCssPx() must use
+  // whichever side of the pivot is actually larger, so the camera distance stays sized for
+  // the bigger reach regardless of which side that is.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east
+  app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -- mirrored anchor reaches its full 0.12
+  app.els.inspector.hidden = true;
+  app.state.canvasVisibleHeight = 800;
+
+  app.state.selected = { type: "tree", item: { id: "ahead", ...makePoint(app, 0, 0.001) } }; // dead ahead
+  const aheadAnchor = app.headingUpAnchorFraction(true);
+  const aheadAvailable = app.tiltAvailableAheadCssPx();
+  const aheadP = app.tiltPerspectivePx();
+  assert.ok(Math.abs(aheadAnchor - 0.88) < 1e-9, `dead-ahead anchor should be the plain 0.88, got ${aheadAnchor}`);
+  assert.ok(Math.abs(aheadAvailable - 800 * 0.88) < 1e-6, `expected 800*0.88=704, got ${aheadAvailable}`);
+
+  app.state.selected = { type: "tree", item: { id: "behind", ...makePoint(app, 0, -0.001) } }; // dead behind
+  const behindAnchor = app.headingUpAnchorFraction(true);
+  const behindAvailable = app.tiltAvailableAheadCssPx();
+  const behindP = app.tiltPerspectivePx();
+  assert.ok(Math.abs(behindAnchor - 0.12) < 1e-9, `dead-behind anchor should mirror to 0.12, got ${behindAnchor}`);
+
+  // The whole point of the fix: despite the mirrored anchor being small (0.12 vs 0.88),
+  // the *available reach* -- and therefore the camera distance -- must come out identical
+  // to the dead-ahead case, not shrunk to a small fraction of it.
+  assert.ok(Math.abs(behindAvailable - aheadAvailable) < 1e-6,
+    `available reach should match the ahead case regardless of anchor mirroring, got ahead=${aheadAvailable} behind=${behindAvailable}`);
+  assert.ok(Math.abs(behindP - aheadP) < 1e-6,
+    `camera distance should match the ahead case regardless of anchor mirroring, got ahead=${aheadP} behind=${behindP}`);
+
+  // And concretely, the same singularity-margin check used above must hold behind a
+  // mirrored-anchor destination too: a pin 600 CSS px behind the (now near-top) pivot must
+  // still project with a sane, small positive scale.
+  const tiltRad = app.tiltRotateXDeg() * Math.PI / 180;
+  const dz = 600 * Math.sin(tiltRad);
+  const scale = behindP / (behindP - dz);
+  assert.ok(scale > 0 && scale < 5, `a pin 600px behind the mirrored pivot should project with a sane positive scale, got ${scale}`);
+});
+
+test("tiltAvailableAheadCssPx / tiltPerspectivePx do not dip below the historical ahead-anchor floor when the destination is directly to a side", () => {
+  // Regression test for a real bug reported 2026-09-03 (round 5): max(anchor, 1 - anchor)
+  // alone (the round-4 fix above) restores the camera distance at the dead-ahead and
+  // dead-behind extremes, but still dips as low as 0.5 exactly when the destination is
+  // directly to a side (offset ~= +-pi/2), since headingUpAnchorFraction's cos(offset)
+  // mirroring passes through the screen's exact 50% centre there -- lower than the
+  // historically-safe tiltRampedAnchor() floor (always >= 0.5 by construction, e.g.
+  // 0.62-0.88 for selected navigation) this calculation always used before bearing-based
+  // mirroring existed. An ordinary, frequent case during real walking navigation (you are
+  // very often not pointed exactly at or away from your destination), so this dip is a
+  // plausible source of the "still disappears for a second sometimes" follow-up report.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east
+  app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> tiltRampedAnchor(true) === 0.88 exactly
+  app.els.inspector.hidden = true;
+  app.state.canvasVisibleHeight = 800;
+
+  // Due north while facing east: directly to a side (offset exactly +-pi/2).
+  app.state.selected = { type: "tree", item: { id: "side", ...makePoint(app, 0.001, 0) } };
+  const sideAnchor = app.headingUpAnchorFraction(true);
+  assert.ok(Math.abs(sideAnchor - 0.5) < 1e-9, `side anchor should be exactly 0.5, got ${sideAnchor}`);
+
+  const rampedAnchor = app.tiltRampedAnchor(true);
+  assert.ok(Math.abs(rampedAnchor - 0.88) < 1e-9, `ramped (pre-mirror) anchor should be 0.88 at max tilt, got ${rampedAnchor}`);
+
+  const sideAvailable = app.tiltAvailableAheadCssPx();
+  assert.ok(Math.abs(sideAvailable - 800 * 0.88) < 1e-6,
+    `available reach for a side-bearing destination must not dip below the ramped-anchor floor (800*0.88=704), got ${sideAvailable}`);
+
+  // And the same singularity-margin check used in the round-2/round-4 tests must still
+  // hold for a side-bearing destination at this camera distance.
+  const sideP = app.tiltPerspectivePx();
+  const tiltRad = app.tiltRotateXDeg() * Math.PI / 180;
+  const dz = 600 * Math.sin(tiltRad);
+  const scale = sideP / (sideP - dz);
+  assert.ok(scale > 0 && scale < 5, `a pin 600px behind a side-mirrored pivot should project with a sane positive scale, got ${scale}`);
 });
 
 test("tiltPerspectivePx clamps to a sane range for extreme viewport heights, and falls back to the floor when tilt is inactive", () => {
@@ -3178,3 +3492,4 @@ test("projectCanvasPoint and worldToScreenForOverlayTilted use the same dynamic 
   assert.ok(match, "canvas transform should include a CSS perspective distance");
   assert.ok(Math.abs(Number(match[1]) - perspectivePx) < 0.05, "CSS transform perspective should match tiltPerspectivePx()");
 });
+

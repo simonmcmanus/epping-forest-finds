@@ -540,10 +540,26 @@ function setInspectorMinimized(minimized) {
   const wasMinimized = els.inspector.classList.contains("minimized");
   els.inspector.classList.toggle("minimized", minimized);
   if (wasMinimized && !minimized && state.userLocation && selectedCompassTarget()) {
-    centerViewportOnPointsKeepScale(
-      [state.userLocation.point, selectedCompassTarget().point],
-      { animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, focusVisibleArea: true, assumeInspectorOpen: true }
-    );
+    if (typeof selectedNavigationHeadingUpActive === "function" && selectedNavigationHeadingUpActive()) {
+      // Heading-up navigation has its own scale-fit machinery (alignHeadingUpNavigationViewport),
+      // which measures the *actual* current inspector footprint via bestVisibleCanvasRect() --
+      // unlike the plain centerViewportOnPointsKeepScale path below, it also honours map
+      // rotation and the tilt-aware anchor. Re-centering at the old scale, as that path does,
+      // would leave the fit computed against the smaller minimized-inspector footprint the
+      // moment the inspector expands to its full (larger) size -- especially likely now that a
+      // destination behind the user can occupy most of the screen below the anchor (see
+      // headingUpAnchorFraction) -- so the destination could end up rendered behind the
+      // newly-expanded inspector. Force a real rescale against the now-larger footprint instead
+      // of just recentering at whatever scale was already in effect.
+      if (typeof alignHeadingUpNavigationViewport === "function") {
+        alignHeadingUpNavigationViewport({ animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, force: true });
+      }
+    } else {
+      centerViewportOnPointsKeepScale(
+        [state.userLocation.point, selectedCompassTarget().point],
+        { animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, focusVisibleArea: true, assumeInspectorOpen: true }
+      );
+    }
   } else if (!wasMinimized && minimized) {
     requestDraw();
   }

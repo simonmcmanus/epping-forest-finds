@@ -24,3 +24,7 @@ data/local-paths.overpass.json
 data/local-landmarks.overpass.json
 Veteran_Tree_Register.enriched.with_named_trees.json
 Veteran_Tree_Register.json
+
+# Isolated worktrees used by scripts/prepare_weekly_branch.sh
+.worktrees/
+__pycache__/
