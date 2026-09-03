@@ -3057,6 +3057,65 @@ test("dijkstraPath's priorityKey parameter selects between weighted cost and pla
   assert.ok(shortest.metres < weighted.metres, "priorityKey \"metres\" should pick the physically shorter road route instead");
 });
 
+test("findRoutePoints snaps onto the graph's largest connected component, not a nearer but tiny disconnected stub", () => {
+  // Regression coverage for the actual cause of a "longer routes just show as the crow flies"
+  // report (2026-09-03), continued: the fallback added above didn't help Sedley Rise -> the
+  // Loughton/Debden Underground station landmarks specifically, because those points snapped
+  // onto a real graph node that turned out to be part of an isolated 2-3 node fragment -- a
+  // short, mapped-but-unlinked station-forecourt footway with no connection to the surrounding
+  // street grid (a common, ordinary OSM data gap, not a "bad route" the ratio checks were meant
+  // to catch). That fragment sat metres from the true target point while a road junction on the
+  // real network sat only slightly further away, comfortably inside maxSnapMetres -- so the fix
+  // is to snap onto the graph's largest component specifically (see findRoutePoints' own doc
+  // comment) rather than whichever node happens to be nearest overall.
+  //
+  // Shape: a 3-node road A-mid-B (the "mainland") plus a 2-node disconnected footway stub
+  // sitting a few metres from B. The target point sits essentially on top of the stub -- the
+  // geometrically nearest node in the whole graph -- but the stub is a dead end going nowhere.
+  const a = [51.6500, 0.0000];
+  const mid = [51.6500, 0.0010];
+  const b = [51.6500, 0.0020];
+  const road1 = routingFeature("residential", [a, mid]);
+  const road2 = routingFeature("residential", [mid, b]);
+
+  const stub1 = [51.65005, 0.00201]; // ~5.6m from b -- closer to the target than b is
+  const stub2 = [51.65008, 0.00202];
+  const stub = routingFeature("footway", [stub1, stub2]);
+
+  const graph = app.buildRoutingGraph([road1, road2], [stub], app.unprojectPoint, app.distanceMetres);
+  assert.deepEqual([...graph.componentSizes].sort((x, y) => y - x), [3, 2], "the road (3 nodes) and the stub (2 nodes) must be separate components");
+
+  const from = routingWorldPoint(a[0], a[1]);
+  const to = routingWorldPoint(stub1[0], stub1[1]); // sits essentially on the disconnected stub
+  const route = app.findRoutePoints(graph, from, to, routingOptions());
+  assert.ok(route, "a real route via the road network exists just a few metres further away and must be used, not discarded as disconnected");
+
+  const viaB = routingWorldPoint(b[0], b[1]);
+  const passesB = route.some((p) => Math.abs(p.x - viaB.x) < 1e-9 && Math.abs(p.y - viaB.y) < 1e-9);
+  assert.ok(passesB, "the route should reach the target by walking onto the real network via B, not by (impossibly) routing through the disconnected stub");
+});
+
+test("nearestRoutingNode's componentId parameter restricts the search to one connected component", () => {
+  const a = [51.6500, 0.0000];
+  const mid = [51.6500, 0.0010];
+  const b = [51.6500, 0.0020];
+  const road1 = routingFeature("residential", [a, mid]);
+  const road2 = routingFeature("residential", [mid, b]);
+  const stub1 = [51.65005, 0.00201];
+  const stub2 = [51.65008, 0.00202];
+  const stub = routingFeature("footway", [stub1, stub2]);
+  const graph = app.buildRoutingGraph([road1, road2], [stub], app.unprojectPoint, app.distanceMetres);
+
+  const query = routingWorldPoint(stub1[0], stub1[1]);
+  const unrestricted = app.nearestRoutingNode(graph, query);
+  const restricted = app.nearestRoutingNode(graph, query, graph.largestComponentId);
+
+  const stub1Point = routingWorldPoint(stub1[0], stub1[1]);
+  const bPoint = routingWorldPoint(b[0], b[1]);
+  assert.ok(Math.abs(unrestricted.point.x - stub1Point.x) < 1e-9 && Math.abs(unrestricted.point.y - stub1Point.y) < 1e-9, "without a component filter, the nearest node overall is on the tiny stub");
+  assert.ok(Math.abs(restricted.point.x - bPoint.x) < 1e-9 && Math.abs(restricted.point.y - bPoint.y) < 1e-9, "restricted to the largest component, the nearest node is on the real road instead");
+});
+
 test("findRoutePoints treats a highway=service+service=alley way like a footpath, not a generic service road", () => {
   // Same shape as the primary-vs-footway test above, but with a much smaller weight gap: a
   // direct residential road (weight 1.15) from A to B, versus an alley cut-through via C that's
