@@ -128,9 +128,32 @@ jobs:
                   not reliably confirmed as of when this workflow was
                   written. If it doesn't work, say so in the report rather
                   than fabricating results; don't let it block anything else.
-               c. Road closures & roadworks:
+               c. Road closures & roadworks -- highways AND utilities, not
+                  highways alone (a past run missed real, ongoing utility
+                  diversions entirely, see below):
                   https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures
-                  and Essex Highways.
+                  and Essex Highways for highway schemes; separately,
+                  https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/london
+                  for Thames Water mains/repair projects (check it every
+                  run -- it's a static project list, not paginated news, so
+                  re-fetching it fresh each week is cheap and reliable) --
+                  scan every project listed for a location matching any
+                  coverage settlement, not just ones with "Loughton" etc.
+                  literally in the project name. Known standing item: the
+                  High Beech, Loughton water mains replacement (started
+                  March 2026, ~3-year multi-phase project across Spareleaze
+                  Hill, Queens Road, Debden Lane, Newmans Lane, Rectory Lane
+                  and ~15 other streets) is long-running and easy for a
+                  fresh news search to miss entirely since it isn't "new" --
+                  re-check its project page each run for the current
+                  phase/street/dates rather than assuming last week's is
+                  still accurate, the same way you'd track any other
+                  multi-week roadworks scheme. Also run a per-settlement
+                  search along the lines of "Thames Water roadworks OR
+                  diversion <settlement>" the same way you do for business
+                  openings/closures in step 2a, since Thames Water's own
+                  project list can lag behind what's actually dug up on the
+                  ground.
                d. Forest events:
                   https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest
                   and https://www.eppingforestdc.gov.uk/whats-on-in-epping-forest/.

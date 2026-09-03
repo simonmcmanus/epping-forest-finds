@@ -213,13 +213,18 @@ function createRoutingHeap() {
   };
 }
 
-// Dijkstra's algorithm from startNode to endNode over `graph`, weighted by each edge's `.cost`
-// (real metres * the type preference multiplier -- see ROUTING_TYPE_WEIGHTS) but reporting the
-// path's actual `.metres` (unweighted real distance) alongside it, so callers can sanity-check
-// the result against the straight-line distance without re-walking the path. Returns null when
-// the two nodes aren't connected (the road/path network isn't one single connected component --
-// small fenced-off fragments exist, see spec-data-rendering.md).
-function dijkstraPath(graph, startNode, endNode) {
+// Dijkstra's algorithm from startNode to endNode over `graph`, prioritising each edge by
+// `edge[priorityKey]` -- by default `.cost` (real metres * the type preference multiplier, see
+// ROUTING_TYPE_WEIGHTS), which is what produces the footpath/quiet-street-preferring route
+// findRoutePoints normally draws. Pass priorityKey "metres" to instead find the plain shortest
+// real-world walk, ignoring the type preference entirely -- findRoutePoints below falls back to
+// this when the preferred route is a pathological detour (see its own comment). Either way the
+// path's actual `.metres` (real, unweighted distance) is reported alongside it, so callers can
+// sanity-check the result against the straight-line distance without re-walking the path.
+// Returns null when the two nodes aren't connected (the road/path network isn't one single
+// connected component -- small fenced-off fragments exist, see spec-data-rendering.md).
+function dijkstraPath(graph, startNode, endNode, priorityKey) {
+  const key = priorityKey || "cost";
   const n = graph.adjacency.length;
   if (startNode < 0 || endNode < 0 || startNode >= n || endNode >= n) return null;
   const cost = new Float64Array(n).fill(Infinity);
@@ -239,7 +244,7 @@ function dijkstraPath(graph, startNode, endNode) {
     if (u === endNode) break; // shortest path to the target is finalised
     for (const edge of graph.adjacency[u]) {
       if (visited[edge.to]) continue;
-      const nextCost = d + edge.cost;
+      const nextCost = d + edge[key];
       if (nextCost < cost[edge.to]) {
         cost[edge.to] = nextCost;
         metres[edge.to] = metres[u] + edge.metres;
@@ -264,9 +269,22 @@ function dijkstraPath(graph, startNode, endNode) {
 //   - either point is further than options.maxSnapMetres from the nearest graph node (there's
 //     no path/road anywhere near it, e.g. deep off-trail), or
 //   - the two points aren't in the same connected part of the network, or
-//   - the found route is more than options.maxDetourRatio times the straight-line distance,
-//     which in practice means the snap landed in one of the network's small disconnected
-//     fragments rather than a route that's genuinely just indirect.
+//   - neither the type-weighted route nor the plain-shortest one (see below) comes in under
+//     options.maxDetourRatio times the straight-line distance, which in practice means the snap
+//     landed in one of the network's small disconnected fragments rather than a route that's
+//     genuinely just indirect.
+//
+// The search itself runs twice at most. The first pass prioritises ROUTING_TYPE_WEIGHTS-weighted
+// cost, same as ever, so a quiet footpath is still preferred over a busier road when the two are
+// real-world comparable. But on a longer, multi-junction walk, a chain of individually-reasonable
+// preferences for the quieter option at each junction can compound into a route that is, in
+// aggregate, many times longer than a plain direct one would be -- reproduced against this app's
+// own regional data (see test/forest-finds.test.js's "falls back to the plain-shortest route"
+// test for a worked example and the exact numbers). Rejecting that outright and falling back to
+// an as-the-crow-flies line is a worse experience than a real (if slightly less scenic) walking
+// route, so when the weighted route fails the detour check, a second pass re-runs Dijkstra
+// prioritising real distance (`priorityKey: "metres"`, ignoring the type preference entirely)
+// and uses that route instead if it, in turn, passes the same check.
 function findRoutePoints(graph, fromPoint, toPoint, options) {
   if (!graph || !graph.nodes || !graph.nodes.length) return null;
   const toLatLon = options.toLatLon;
@@ -298,11 +316,20 @@ function findRoutePoints(graph, fromPoint, toPoint, options) {
   );
   if (fromSnapMetres > maxSnapMetres || toSnapMetres > maxSnapMetres) return null;
 
-  const path = dijkstraPath(graph, fromSnap.nodeId, toSnap.nodeId);
+  let path = dijkstraPath(graph, fromSnap.nodeId, toSnap.nodeId);
   if (!path) return null;
 
-  const routeMetres = path.metres + fromSnapMetres + toSnapMetres;
-  if (routeMetres > straightLineMetres * maxDetourRatio) return null;
+  let routeMetres = path.metres + fromSnapMetres + toSnapMetres;
+  if (routeMetres > straightLineMetres * maxDetourRatio) {
+    const shortestPath = dijkstraPath(graph, fromSnap.nodeId, toSnap.nodeId, "metres");
+    const shortestRouteMetres = shortestPath ? shortestPath.metres + fromSnapMetres + toSnapMetres : Infinity;
+    if (shortestPath && shortestRouteMetres <= straightLineMetres * maxDetourRatio) {
+      path = shortestPath;
+      routeMetres = shortestRouteMetres;
+    } else {
+      return null;
+    }
+  }
 
   const points = path.nodeIds.map((id) => graph.nodes[id]);
   return [fromPoint, ...points, toPoint];

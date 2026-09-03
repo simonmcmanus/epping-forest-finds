@@ -2970,6 +2970,93 @@ test("findRoutePoints rejects a route that is a pathological detour relative to 
   assert.equal(route, null, "a route hundreds of times longer than the straight line must be rejected, not drawn");
 });
 
+test("findRoutePoints falls back to the plain-shortest route when the type-weighted preferred route is a pathological detour but a direct route exists", () => {
+  // Regression coverage for a real-world failure mode found while investigating a "longer
+  // routes just show as the crow flies" report (2026-09-03): ROUTING_TYPE_WEIGHTS' footpath
+  // preference is a *soft* nudge (as little as 1x vs a primary road's 2x), but across a long,
+  // multi-junction walk a chain of individually-reasonable preferences for the quieter option
+  // can compound into a route that is, in aggregate, many times longer than a plain direct one
+  // -- confirmed against this app's own regional data (Wanstead Lane -> South Woodford Station,
+  // a ~2.8km walk, came right up against the pathological-detour threshold). Previously,
+  // findRoutePoints rejected the weighted route outright and the caller fell back to a straight
+  // line -- a worse result than just taking the slightly-less-scenic-but-real route. See
+  // js/routing.js's findRoutePoints doc comment for how the fallback works.
+  //
+  // Shape: a short primary road A->C->B (weight 2, real distance ~2.7x the straight line -- a
+  // reasonable, walkable route on its own) runs alongside a footway A->D->B (weight 1, real
+  // distance ~4.9x the straight line -- a pathological detour on its own). The footway's lower
+  // weight multiplier makes it *cheaper* overall (204 vs 221) even though it is the worse real
+  // route, so the weighted search picks it first and fails the detour-ratio check; the
+  // plain-shortest fallback must recognise the road is the better real route and use it instead
+  // of giving up.
+  const a = [51.6500, 0.00000];
+  const b = [51.6500, 0.00060];
+  const c = [51.65046, 0.00030]; // primary road detour point
+  const d = [51.65090, 0.00030]; // footway detour point, further out
+
+  const road1 = routingFeature("primary", [a, c]);
+  const road2 = routingFeature("primary", [c, b]);
+  const path1 = routingFeature("footway", [a, d]);
+  const path2 = routingFeature("footway", [d, b]);
+  const graph = app.buildRoutingGraph([road1, road2], [path1, path2], app.unprojectPoint, app.distanceMetres);
+
+  const from = routingWorldPoint(a[0], a[1]);
+  const to = routingWorldPoint(b[0], b[1]);
+  const route = app.findRoutePoints(graph, from, to, routingOptions());
+  assert.ok(route, "a real, walkable route exists and must be returned rather than falling back to a straight line");
+
+  const viaC = routingWorldPoint(c[0], c[1]);
+  const viaD = routingWorldPoint(d[0], d[1]);
+  const passesC = route.some((p) => Math.abs(p.x - viaC.x) < 1e-9 && Math.abs(p.y - viaC.y) < 1e-9);
+  const passesD = route.some((p) => Math.abs(p.x - viaD.x) < 1e-9 && Math.abs(p.y - viaD.y) < 1e-9);
+  assert.ok(passesC, "the plain-shortest fallback should take the direct road via C");
+  assert.ok(!passesD, "the pathologically-indirect footway via D must not be used once it fails the detour check");
+});
+
+test("findRoutePoints still returns null when neither the weighted nor the plain-shortest route is reasonable", () => {
+  // The fallback in the test above must not paper over a genuinely bad pair of points -- when
+  // the only link between A and B is a pathological detour (as in the "rejects a pathological
+  // detour" test above), retrying with priorityKey "metres" walks that exact same single path
+  // and must fail the same check, not conjure up a better route that doesn't exist.
+  const a = [51.6500, 0.0000];
+  const detour = [51.6800, 0.0000];
+  const b = [51.6500, 0.0002];
+  const leg1 = routingFeature("footway", [a, detour]);
+  const leg2 = routingFeature("footway", [detour, b]);
+  const graph = app.buildRoutingGraph([], [leg1, leg2], app.unprojectPoint, app.distanceMetres);
+
+  const route = app.findRoutePoints(
+    graph, routingWorldPoint(a[0], a[1]), routingWorldPoint(b[0], b[1]),
+    { ...routingOptions(), maxDetourRatio: 4 }
+  );
+  assert.equal(route, null, "with no better alternative available, the fallback must not manufacture a route");
+});
+
+test("dijkstraPath's priorityKey parameter selects between weighted cost and plain real distance", () => {
+  // Direct unit coverage for the parameter findRoutePoints' fallback relies on: the default
+  // ("cost") reproduces the existing type-weighted search; "metres" ignores ROUTING_TYPE_WEIGHTS
+  // entirely and finds the physically shortest route instead, even when that's the *more*
+  // expensive (weighted-cost) option.
+  const a = [51.6500, 0.00000];
+  const b = [51.6500, 0.00060];
+  const c = [51.65046, 0.00030];
+  const d = [51.65090, 0.00030];
+  const road1 = routingFeature("primary", [a, c]);
+  const road2 = routingFeature("primary", [c, b]);
+  const path1 = routingFeature("footway", [a, d]);
+  const path2 = routingFeature("footway", [d, b]);
+  const graph = app.buildRoutingGraph([road1, road2], [path1, path2], app.unprojectPoint, app.distanceMetres);
+
+  const fromNode = app.nearestRoutingNode(graph, routingWorldPoint(a[0], a[1]));
+  const toNode = app.nearestRoutingNode(graph, routingWorldPoint(b[0], b[1]));
+
+  const weighted = app.dijkstraPath(graph, fromNode.nodeId, toNode.nodeId);
+  const shortest = app.dijkstraPath(graph, fromNode.nodeId, toNode.nodeId, "metres");
+
+  assert.ok(weighted.metres > shortest.metres, "the default cost-weighted search should pick the physically longer (but preference-cheaper) footway route");
+  assert.ok(shortest.metres < weighted.metres, "priorityKey \"metres\" should pick the physically shorter road route instead");
+});
+
 test("findRoutePoints treats a highway=service+service=alley way like a footpath, not a generic service road", () => {
   // Same shape as the primary-vs-footway test above, but with a much smaller weight gap: a
   // direct residential road (weight 1.15) from A to B, versus an alley cut-through via C that's

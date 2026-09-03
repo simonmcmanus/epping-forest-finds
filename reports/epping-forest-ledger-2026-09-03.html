@@ -367,7 +367,7 @@
     <div class="stat"><div class="n mono">682</div><div class="lbl">Points tracked</div></div>
     <div class="stat"><div class="n mono good">2</div><div class="lbl">Openings flagged</div></div>
     <div class="stat"><div class="n mono critical">2</div><div class="lbl">Closures flagged (1 confirmed)</div></div>
-    <div class="stat"><div class="n mono warning">2</div><div class="lbl">Road &amp; access changes</div></div>
+    <div class="stat"><div class="n mono warning">3</div><div class="lbl">Road &amp; access changes</div></div>
     <div class="stat"><div class="n mono event">1</div><div class="lbl">Forest event this week</div></div>
   </div>
 
@@ -435,6 +435,11 @@
             <circle class="pin-ring" cx="248.6" cy="364.9" r="9" style="fill:var(--status-critical)"/>
             <text class="pin-num" x="248.6" y="365.3">6</text>
           </g>
+          <g>
+            <title>7 — Thames Water mains replacement, Loughton (ongoing, 3-year programme)</title>
+            <circle class="pin-ring" cx="244.7" cy="402.1" r="9" style="fill:var(--status-warning)"/>
+            <text class="pin-num" x="244.7" y="402.5" style="fill:var(--status-warning-ink)">7</text>
+          </g>
         </svg>
 
         <div class="legend">
@@ -446,13 +451,14 @@
       </div>
 
       <div class="map-side">
-        <p>Six items are flagged this run. Full detail for each is below the map.</p>
+        <p>Seven items are flagged this run. Full detail for each is below the map.</p>
         <div class="find-mini"><span class="badge" style="background:var(--status-good)">1</span><div class="txt"><strong>The Hair of the Dog</strong><span>Loughton — new, not yet in the dataset</span></div></div>
         <div class="find-mini"><span class="badge" style="background:var(--status-good)">2</span><div class="txt"><strong>La Sala</strong><span>Woodford Green — new, not yet in the dataset</span></div></div>
         <div class="find-mini"><span class="badge" style="background:var(--status-critical)">3</span><div class="txt"><strong>Morrisons Café</strong><span>Loughton — reported closed</span></div></div>
         <div class="find-mini"><span class="badge" style="background:var(--status-warning); color:var(--status-warning-ink)">4</span><div class="txt"><strong>Bakers Lane</strong><span>Epping — closes 8 Sept, ~16 weeks</span></div></div>
         <div class="find-mini"><span class="badge" style="background:var(--status-event)">5</span><div class="txt"><strong>Skylark Conservation Event</strong><span>Wanstead Flats — Sat 6 Sept, 2–4pm</span></div></div>
         <div class="find-mini"><span class="badge" style="background:var(--status-critical)">6</span><div class="txt"><strong>Zizzi</strong><span>Loughton — confirmed closed, removed from dataset</span></div></div>
+        <div class="find-mini"><span class="badge" style="background:var(--status-warning); color:var(--status-warning-ink)">7</span><div class="txt"><strong>Thames Water mains replacement</strong><span>Loughton — ongoing, rolling closures for ~3 years</span></div></div>
       </div>
     </div>
   </section>
@@ -529,6 +535,16 @@
 
       <div class="card warning">
         <div class="card-head">
+          <span class="pin-chip warning">7</span>
+          <h3>Thames Water mains replacement, Loughton</h3>
+          <span class="status-label warning">Ongoing — 3-year programme</span>
+        </div>
+        <p>Thames Water is replacing ageing water mains across Loughton in a rolling programme that started March 2026 and is expected to run for roughly three years — a real, ongoing source of road closures and diversions that this report's usual sources (Epping Forest DC, Essex Highways) don't cover at all, since they only track highway-authority works, not utility companies'. Streets confirmed affected so far: Queens Road, Spareleaze Hill, Hillyfields and part of The Croft, with further streets added in phases from April 2026 onwards. Because the closure moves street-by-street as the work progresses, check Thames Water's own project page for exactly which road is closed this week rather than treating the list above as current. Resident, business and emergency access is maintained throughout; local MP Neil Hudson has pressed Thames Water to minimise disruption to residents.</p>
+        <p class="src">Sources: <a href="https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/high-beech-loughton-mains-replacement">Thames Water — High Beech, Loughton mains replacement</a> · <a href="https://www.loughtonresidents.co.uk/featured-news/thames-water-roadworks.html">Loughton Residents Association</a> · <a href="https://www.neilhudson.org.uk/news/epping-forest-mp-presses-thames-water-minimise-disruption-loughton-residents">Neil Hudson MP</a></p>
+      </div>
+
+      <div class="card warning">
+        <div class="card-head">
           <h3>Forest car park hours</h3>
           <span class="status-label warning">Change from 15 Sept</span>
         </div>
@@ -590,6 +606,7 @@ gh pr create</pre>
       <ol>
         <li><strong>Coverage gap on businesses.</strong> General news search only surfaces closures/openings that got press coverage — mostly chains, or independents with trade-press pickup like La Sala. The Hair of the Dog turned up only because it happened to have Tripadvisor and social pages; the Zizzi closure only came to light because it was reported directly — a search-only pass missed it entirely, which is exactly the coverage gap this note keeps flagging. A systematic version should spot-check a rotating sample of the dataset's points each week (e.g. against a places API's business-status field, Companies House dissolutions, or OSM's own recent-edit history for these node IDs) rather than relying on open-ended search.</li>
         <li><strong>Roadworks source.</strong> Essex Highways' roadworks/traffic maps are interactive and weren't machine-readable this run. Worth checking whether Essex CC publishes an open data feed for roadworks — that would be far more reliable than search.</li>
+        <li><strong>Utility works were missing entirely until flagged.</strong> Every roadworks source this report checked (Epping Forest DC, Essex Highways) covers highway-authority schemes only — none of them list utility companies' own works, so Thames Water's ongoing Loughton mains-replacement programme (real, current, and disruptive enough that the local MP has raised it) was invisible to this run's research until a resident pointed it out directly, the same coverage gap already noted above for small independent businesses. Fixed going forward: the automated workflow's roadworks step now also checks Thames Water's "Work in your area" project pages every run.</li>
         <li><strong>Events brochure.</strong> The District Council's brochure is a PDF; this run only saw the web page's summary. Fetching the PDF directly would give exact dates and locations for the automated version.</li>
       </ol>
       <p>Everything above is report-only except the confirmed Zizzi closure, which is already applied on a proposed branch (see above) — nothing has been pushed or merged automatically. When it's time to act on the rest, the two openings and the Morrisons Café closure candidate would be the next edits, with the caveats noted.</p>
@@ -610,6 +627,9 @@ gh pr create</pre>
       <li><a href="https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest">What's new in Epping Forest — City of London Corporation</a></li>
       <li><a href="https://www.eppingforestdc.gov.uk/whats-on-in-epping-forest/">What's On in Epping Forest — EFDC</a></li>
       <li><a href="https://www.essexhighways.org/interactive-maps-and-live-travel-information/future-roadworks-map">Future Roadworks Map — Essex Highways</a></li>
+      <li><a href="https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/high-beech-loughton-mains-replacement">High Beech, Loughton mains replacement — Thames Water</a></li>
+      <li><a href="https://www.loughtonresidents.co.uk/featured-news/thames-water-roadworks.html">Extensive Thames Water roadworks over the next three years — Loughton Residents Association</a></li>
+      <li><a href="https://www.neilhudson.org.uk/news/epping-forest-mp-presses-thames-water-minimise-disruption-loughton-residents">Epping Forest MP presses Thames Water to minimise disruption — Neil Hudson MP</a></li>
     </ul>
   </footer>
 
