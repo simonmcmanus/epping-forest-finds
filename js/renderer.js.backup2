@@ -202,22 +202,6 @@ function traceAheadOnlyPath(ctx, worldPoints) {
   return any;
 }
 
-// Traces a polyline into the current path without tilt-based heading filtering.
-// Used for roads and paths which should remain visible even when behind the user's
-// heading direction in tilt mode (unlike terrain/sky which is culled). Returns false
-// when no points were drawn (nothing to stroke).
-function traceAllPath(ctx, worldPoints) {
-  let any = false;
-  for (let i = 0; i < worldPoints.length; i += 1) {
-    const worldPoint = worldPoints[i];
-    const screenPoint = worldToScreen(worldPoint);
-    if (i === 0) ctx.moveTo(screenPoint.x, screenPoint.y);
-    else ctx.lineTo(screenPoint.x, screenPoint.y);
-    any = true;
-  }
-  return any;
-}
-
 function drawPaths(ctx) {
   if (!state.paths.length) return;
 
@@ -266,7 +250,7 @@ function drawPaths(ctx) {
     for (const segment of path.segments) {
       if (!segment || segment.length < 2) continue;
       ctx.beginPath();
-      if (!traceAllPath(ctx, segment)) continue;
+      if (!traceAheadOnlyPath(ctx, segment)) continue;
 
       ctx.setLineDash(dash);
       ctx.lineWidth = baseWidth + 1.9 * dpr;
@@ -374,7 +358,7 @@ function drawRoads(ctx) {
       if (segment.length < 2) continue;
 
       ctx.beginPath();
-      if (!traceAllPath(ctx, segment)) continue;
+      if (!traceAheadOnlyPath(ctx, segment)) continue;
 
       ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
       ctx.lineWidth = roadWidth + (1.5 * dpr);
