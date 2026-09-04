@@ -145,7 +145,7 @@ function drawOverlay() {
   if (useOverlayForPins) {
     drawAllPinsSorted(ctx, buildNearbyIconLookup(), toScreen);
   }
-  drawUser(ctx, toScreen, isTilted);
+  drawUser(ctx);
   drawSelectedOverlay(ctx, toScreen);
 }
 
@@ -1323,9 +1323,6 @@ function drawUserRadarOverlayTilted(ctx) {
 
   const apex = proj(U.x, U.y); // user is the transform origin, so apex === U
 
-  // Validate projection produced valid coordinates
-  if (!Number.isFinite(apex.x) || !Number.isFinite(apex.y)) return;
-
   ctx.save();
 
   const fill = ctx.createRadialGradient(apex.x, apex.y, innerRadius * 0.2, apex.x, apex.y, outerRadius);
@@ -1503,35 +1500,14 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
   ctx.restore();
 }
 
-function drawUser(ctx, toScreen, isTilted) {
+function drawUser(ctx) {
   if (!state.userLocation || !state.userInMapArea) return;
   const dpr = pixelRatio();
-  // Use provided toScreen function (handles tilt projection), fallback to worldToScreen
-  if (!toScreen) toScreen = worldToScreen;
-  
-  const point = toScreen(state.userLocation.point);
-  
-  // Validate projection produced valid coordinates
-  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
-  
-  // In tilt mode, apply tiltPinScale if available.
-  // Note: unlike landmarks/pins, the user location marker should always be visible
-  // (no isNearCanvas culling) since it's critical UI that must show the user's position.
-  let pinScale = 1;
-  if (isTilted) {
-    // Apply tilt-based scale if available, but ensure it's positive and finite
-    if (typeof tiltPinScale === "function") {
-      const scale = tiltPinScale(state.userLocation.point);
-      // Clamp scale to valid range; avoid zero, negative, or NaN scales
-      pinScale = Math.max(0.01, Math.min(scale || 1, 5));
-    }
-  }
-  
   // Scale proportionally with actual zoom (not mapEmojiScale which has a high floor).
   const baseScale = state.baseFitScale > 0 ? state.baseFitScale : Math.max(state.fitScale, 1);
-  const dotScale = clamp(state.viewport.scale / baseScale, 0.1, 1.5) * pinScale;
+  const dotScale = clamp(state.viewport.scale / baseScale, 0.1, 1.5);
   const radius = 4 * dpr * dotScale;
-  
+  const point = worldToScreen(state.userLocation.point);
   ctx.save();
   ctx.beginPath();
   ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
