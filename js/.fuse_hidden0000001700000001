@@ -132,16 +132,11 @@ function setupPwa() {
     navigator.serviceWorker.ready
       .then(() => caches.keys())
       .then(keys => {
-        const appName = keys.find(k => k.startsWith("forest-finds-app-"));
-        const dataName = keys.find(k => k.startsWith("forest-finds-data-"));
-        const appVer = appName ? appName.replace("forest-finds-app-", "") : "";
-        const dataVer = dataName ? dataName.replace("forest-finds-data-", "") : "";
-        const versionString = appVer && dataVer ? `app: ${appVer}, data: ${dataVer}` : appVer || dataVer || "";
+        const name = keys.find(k => k.startsWith("forest-finds-"));
+        const ver = name ? name.replace("forest-finds-", "") : "";
         const swVerEl = document.getElementById("sw-version");
-        if (swVerEl) swVerEl.textContent = versionString;
-        state.swVersion = versionString;
-        state.appCacheVersion = appVer;
-        state.dataCacheVersion = dataVer;
+        if (swVerEl) swVerEl.textContent = ver;
+        state.swVersion = ver;
         refreshSettingsVersionDisplay();
       })
       .catch(() => {});

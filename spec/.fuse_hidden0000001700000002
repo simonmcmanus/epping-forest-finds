@@ -260,7 +260,7 @@ Marker rules:
 - Accessible via the generated settings icon button in the inspector header.
 - Contains a **Walking radius** control: a dropdown to choose how far to walk when listing nearby places (1, 2, 5, 10, 15, 20, 30 min options).
 - Contains an **About** section displaying the current app version (e.g. `v80`; `dev-v80` when served by the local dev server — see "Local dev flag" in `spec/glossary.md`) and a **Force refresh** button.
-- **Force refresh**: unregisters every service worker registration and deletes every `forest-finds-*` cache (both app and data caches) before reloading, so a stuck/stale cached version is guaranteed to clear on the next load — sidesteps the normal update flow, where the open tab's version display can otherwise lag a reload or two behind a service worker that already updated silently in the background. Disabled (with an inline note) while offline, since it briefly leaves the app with no offline fallback until the fresh install completes.
+- **Force refresh**: unregisters every service worker registration and deletes every `forest-finds-*` cache before reloading, so a stuck/stale cached version is guaranteed to clear on the next load — sidesteps the normal update flow, where the open tab's version display can otherwise lag a reload or two behind a service worker that already updated silently in the background. Disabled (with an inline note) while offline, since it briefly leaves the app with no offline fallback until the fresh install completes.
 - Changing the walking radius stays on the settings screen, immediately animates the map to fit the new radius, updates the nearby list and nearest tree selection, and keeps the walking radius ring visible.
 - Opening Settings shows the same map view as the Filter and Feedback screens (see below).
 
@@ -347,8 +347,8 @@ Legend reflects active marker semantics:
 
 ## Offline, Caching, and Refresh
 
-- Service worker caches app shell and offline datasets in two separate caches as of 2026-09-04: `forest-finds-app-vN` (app code) and `forest-finds-data-vN` (data). This allows weekly data updates without re-downloading app code.
-- App cache is bumped on code changes via `.github/workflows/sw-bump.yml` and `sw-release.yml`; data cache is bumped on data changes via `.github/workflows/data-bump.yml` (path-triggered on `data/**`).
+- Service worker caches app shell + offline datasets.
+- Cache name is versioned and bumped with behavior/data wiring changes.
 - Cow proxy endpoint bypasses service-worker caching.
 - Cow data is cached in browser storage and refreshed on interval (every 5 minutes).
 
