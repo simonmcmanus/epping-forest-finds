@@ -2,7 +2,7 @@ name: Normalise SW app cache version on main
 
 on:
   push:
-    branches: [main]
+    branches: [__disabled__]
 
 jobs:
   normalise:

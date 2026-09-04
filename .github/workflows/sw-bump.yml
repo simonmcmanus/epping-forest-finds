@@ -2,7 +2,7 @@ name: Bump SW app cache version
 
 on:
   push:
-    branches-ignore: [main]
+    branches: [__disabled__]
 
 jobs:
   bump:
