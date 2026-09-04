@@ -1,5 +1,5 @@
-const APP_CACHE_NAME = "forest-finds-app-v2";
-const DATA_CACHE_NAME = "forest-finds-data-v2";
+const APP_CACHE_NAME = "forest-finds-app-v3";
+const DATA_CACHE_NAME = "forest-finds-data-v3";
 
 // self.__DEV__ is injected into the response by the local dev server (see
 // injectDevFlag() in server.js) — the file on disk here never sets it, so a

@@ -9,7 +9,6 @@ const FILTER_GROUPS = [
     subfilters: [
       { key: "trees", label: "Trees", icon: "tree", title: "trees" },
       { key: "cows", label: "Cows", icon: "cow", title: "cows" },
-      { key: "waymarked_trails", label: "Waymarked trails", icon: "waymarked", title: "waymarked trails" },
       { key: "ponds_streams", label: "Ponds & streams", icon: "ponds", title: "ponds and streams" },
     ],
   },
@@ -35,44 +34,6 @@ const FILTER_GROUPS = [
       { key: "parking", label: "Car parks", icon: "landmark-parking", title: "car parks" },
     ],
   },
-  {
-    key: "history",
-    label: "History",
-    icon: "history",
-    subfilters: [
-      { key: "history_general", label: "Historic places", icon: "historic", title: "historic places" },
-      { key: "royal", label: "Royal", icon: "crown", title: "royal-history places" },
-      { key: "ww2", label: "WWII", icon: "wwII", title: "WWII places" },
-      { key: "social_history", label: "Social history", icon: "social-history", title: "social history places" },
-      { key: "plaques", label: "Plaques", icon: "plaques", title: "plaques" },
-      { key: "blue_plaques", label: "Blue plaques", icon: "blue-plaques", title: "blue plaques" },
-    ],
-  },
-  {
-    key: "locations",
-    label: "Locations",
-    icon: "pin",
-    subfilters: [
-      { key: "celebrity_association", label: "Celebrity", icon: "celebrities", title: "celebrity links" },
-      { key: "science", label: "Science", icon: "science", title: "science places" },
-      { key: "education", label: "Education", icon: "education", title: "education places" },
-      { key: "medicine", label: "Medicine", icon: "medicine", title: "medicine places" },
-      { key: "literature", label: "Literature", icon: "literature", title: "literary places" },
-      { key: "theatre", label: "Theatre", icon: "theatre", title: "theatre places" },
-      { key: "politics", label: "Politics", icon: "politics", title: "politics places" },
-      { key: "art", label: "Art", icon: "art", title: "art places" },
-      { key: "church", label: "Church", icon: "church", title: "churches" },
-    ],
-  },
-  {
-    key: "stories",
-    label: "Stories",
-    icon: "stories",
-    subfilters: [
-      { key: "legends", label: "Legends", icon: "legends", title: "legends" },
-      { key: "film_tv", label: "Film/TV", icon: "film", title: "film and TV locations" },
-    ],
-  },
 ];
 
 const FILTER_GROUPS_BY_KEY = new Map(FILTER_GROUPS.map((group) => [group.key, group]));
@@ -85,7 +46,7 @@ const ALL_OVERVIEW_FILTER_KEYS = new Set(FILTER_SUBFILTERS.map((subfilter) => su
 const LAYER_FILTER_KEYS = new Set([]);
 const TREE_FILTER_KEYS = new Set(["trees"]);
 const COW_FILTER_KEYS = new Set(["cows"]);
-const PATH_FILTER_KEYS = new Set(["waymarked_trails"]);
+const PATH_FILTER_KEYS = new Set([]);
 const WATER_FILTER_KEYS = new Set(["ponds_streams"]);
 const PLACE_FILTER_KEYS = new Set(
   FILTER_SUBFILTERS.map((subfilter) => subfilter.key).filter(
@@ -97,9 +58,6 @@ const PLACE_FILTER_KEYS = new Set(
 const PLACE_FILTER_PRIORITY = [
   "pubs", "restaurants", "cafes", "shops",
   "bus", "underground", "national_rail", "parking",
-  "blue_plaques", "plaques", "film_tv", "royal", "ww2", "social_history", "history_general",
-  "celebrity_association", "science", "education", "medicine", "literature",
-  "theatre", "politics", "art", "church", "legends",
 ];
 
 // Single source of truth for all icon paths. To add an icon: drop the file
