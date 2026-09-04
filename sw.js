@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "forest-finds-v314";
+const CACHE_NAME = "forest-finds-v315";
 // self.__DEV__ is injected into the response by the local dev server (see
 // injectDevFlag() in server.js) — the file on disk here never sets it, so a
 // production/Netlify deploy (which serves this file untouched) always gets
