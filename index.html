@@ -2332,7 +2332,7 @@
       const heading = activePointFilters.length === 1
         ? `Nearest ${filterMeta(activePointFilters[0])?.title || "items"} around you`
         : state.overviewFilters.length > 0
-          ? "Nearest selected filters around you"
+          ? `Nearest selected filters within ${state.walkingDistanceMinutes} min walk`
           : "Nearest around you";
 
       const itemsHtml = entries.map((entry) => {
@@ -2374,7 +2374,7 @@
         : `Showing all distances — tap to filter to ${state.walkingDistanceMinutes} min walk`;
       const chipLabel = radiusActive ? `${state.walkingDistanceMinutes} min` : "All";
       const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
-      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong>${walkChip}</div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
 
     function landmarkEmoji(place) {

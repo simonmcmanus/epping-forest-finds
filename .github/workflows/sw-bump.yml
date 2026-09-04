@@ -1,4 +1,4 @@
-name: Bump SW cache version
+name: Bump SW app cache version
 
 on:
   push:
@@ -14,17 +14,17 @@ jobs:
         with:
           ref: ${{ github.head_ref || github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Increment CACHE_NAME version with branch prefix
+      - name: Increment APP_CACHE_NAME version with branch prefix
         env:
           BRANCH: ${{ github.ref_name }}
         run: |
           SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr -s '-' | sed 's/^-//;s/-$//')
           SLUG="$SLUG" perl -i -pe \
-            'BEGIN{$s=$ENV{SLUG}} s/"forest-finds.*?-v(\d+)"/"\"forest-finds-$s-v".($1+1)."\""/e' \
+            'BEGIN{$s=$ENV{SLUG}} s/"forest-finds-app-.*?-v(\d+)"/"\"forest-finds-app-$s-v".($1+1)."\""/e' \
             sw.js
       - name: Sync APP_VERSION in index.html
         run: |
-          VERSION=$(perl -ne 'print $1 if /"forest-finds.*?-v(\d+)"/' sw.js)
+          VERSION=$(perl -ne 'print $1 if /"forest-finds-app.*?-v(\d+)"/' sw.js)
           perl -i -pe "s/const APP_VERSION = \"v\\d+\"/const APP_VERSION = \"v$VERSION\"/" index.html
       - name: Commit and push
         run: |
@@ -32,5 +32,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git diff --quiet sw.js index.html && echo "No change needed" && exit 0
           git add sw.js index.html
-          git commit -m "chore: bump SW cache version [skip ci]"
+          git commit -m "chore: bump SW app cache version [skip ci]"
           git push

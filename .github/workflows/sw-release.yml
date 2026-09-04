@@ -1,4 +1,4 @@
-name: Normalise SW cache version on main
+name: Normalise SW app cache version on main
 
 on:
   push:
@@ -13,14 +13,14 @@ jobs:
       - uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Strip branch prefix and increment version
+      - name: Strip branch prefix and increment APP_CACHE_NAME version
         run: |
           perl -i -pe \
-            's/"forest-finds.*?-v(\d+)"/"\"forest-finds-v".($1+1)."\""/e' \
+            's/"forest-finds-app.*?-v(\d+)"/"\"forest-finds-app-v".($1+1)."\""/e' \
             sw.js
       - name: Sync APP_VERSION in index.html
         run: |
-          VERSION=$(perl -ne 'print $1 if /"forest-finds.*?-v(\d+)"/' sw.js)
+          VERSION=$(perl -ne 'print $1 if /"forest-finds-app.*?-v(\d+)"/' sw.js)
           perl -i -pe "s/const APP_VERSION = \"v\\d+\"/const APP_VERSION = \"v$VERSION\"/" index.html
       - name: Commit and push
         run: |
@@ -28,5 +28,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git diff --quiet sw.js index.html && echo "Already clean" && exit 0
           git add sw.js index.html
-          git commit -m "chore: normalise SW cache version for release [skip ci]"
+          git commit -m "chore: normalise SW app cache version for release [skip ci]"
           git push

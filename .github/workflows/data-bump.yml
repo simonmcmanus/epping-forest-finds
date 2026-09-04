@@ -1,0 +1,30 @@
+name: Bump data cache version
+
+on:
+  push:
+    paths:
+      - 'data/**'
+    branches: [main]
+
+jobs:
+  bump-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Increment DATA_CACHE_NAME version only
+        run: |
+          perl -i -pe \
+            's/"forest-finds-data-v(\d+)"/"\"forest-finds-data-v".($1+1)."\""/e' \
+            sw.js
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet sw.js && echo "No change needed" && exit 0
+          git add sw.js
+          git commit -m "chore: bump data cache version [skip ci]"
+          git push

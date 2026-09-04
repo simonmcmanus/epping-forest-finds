@@ -1,5 +1,6 @@
+const APP_CACHE_NAME = "forest-finds-app-v1";
+const DATA_CACHE_NAME = "forest-finds-data-v1";
 
-const CACHE_NAME = "forest-finds-v315";
 // self.__DEV__ is injected into the response by the local dev server (see
 // injectDevFlag() in server.js) — the file on disk here never sets it, so a
 // production/Netlify deploy (which serves this file untouched) always gets
@@ -9,7 +10,7 @@ const CACHE_NAME = "forest-finds-v315";
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-// Critical assets — install blocks until all succeed
+// APP_SHELL: Critical app code only — install blocks until all succeed
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -31,6 +32,10 @@ const APP_SHELL = [
   "./js/nav.js",
   "./js/onboarding.js",
   "./js/tracker.js",
+];
+
+// DATA_SHELL: Essential data that loads with the app (install blocks until all succeed)
+const DATA_SHELL = [
   "./data/trees/index.json",
   "./data/epping-forest-land.geojson",
   "./data/epping-buffer-land.geojson",
@@ -46,8 +51,8 @@ const APP_SHELL = [
   "./data/local-environment.geojson",
 ];
 
-// Data and asset files — cached opportunistically; individual failures do not break install
-const DATA_CACHE = [
+// Additional data files — cached opportunistically; individual failures do not break install
+const DATA_CACHE_OPPORTUNISTIC = [
   // Large GeoJSON data
   "./data/local-roads.geojson",
   "./data/local-environment-buildings.geojson",
@@ -181,24 +186,54 @@ const DATA_CACHE = [
   "./data/icons/wwII.png",
 ];
 
+// Helper: determine if a path is app code vs data
+function isAppCodePath(pathname) {
+  // App code: CSS, JS, HTML, SVG, manifest
+  return (
+    pathname.endsWith(".css") ||
+    pathname.endsWith(".js") ||
+    pathname.endsWith(".html") ||
+    pathname.endsWith(".svg") ||
+    pathname.endsWith(".webmanifest") ||
+    pathname === "/" ||
+    pathname === ""
+  );
+}
+
+function isDataPath(pathname) {
+  // Data: anything under /data/ or icons
+  return pathname.startsWith("/data/");
+}
+
 self.addEventListener("install", (event) => {
-  // Block install only on the critical shell; pre-cache data files in the background
-  const shellReady = caches.open(CACHE_NAME)
+  // Block install on critical app shell
+  const appReady = caches
+    .open(APP_CACHE_NAME)
     .then((cache) => cache.addAll(APP_SHELL))
     .then(() => self.skipWaiting());
 
-  caches.open(CACHE_NAME).then((cache) => {
-    DATA_CACHE.forEach((url) => cache.add(url).catch(() => {}));
+  // Block install on critical data shell
+  const dataReady = caches
+    .open(DATA_CACHE_NAME)
+    .then((cache) => cache.addAll(DATA_SHELL));
+
+  // Pre-cache optional data in the background
+  caches.open(DATA_CACHE_NAME).then((cache) => {
+    DATA_CACHE_OPPORTUNISTIC.forEach((url) => cache.add(url).catch(() => {}));
   });
 
-  event.waitUntil(shellReady);
+  event.waitUntil(Promise.all([appReady, dataReady]));
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim())
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => key !== APP_CACHE_NAME && key !== DATA_CACHE_NAME)
+          .map((key) => caches.delete(key))
+      )
+    ).then(() => self.clients.claim())
   );
 });
 
@@ -209,6 +244,7 @@ self.addEventListener("message", (event) => {
 self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
 
+  // Always bypass cache for API and admin requests
   if (
     requestUrl.origin === self.location.origin &&
     (requestUrl.pathname.startsWith("/api/") || requestUrl.pathname.startsWith("/.netlify/functions/"))
@@ -219,17 +255,19 @@ self.addEventListener("fetch", (event) => {
 
   if (event.request.method !== "GET") return;
 
+  // Always bypass cache for admin pages
   if (requestUrl.pathname === "/admin" || requestUrl.pathname === "/admin.html") {
     event.respondWith(fetch(event.request));
     return;
   }
 
+  // Navigation requests (full page loads) — always try network first, fall back to index.html
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+          caches.open(APP_CACHE_NAME).then((cache) => cache.put("./index.html", copy));
           return response;
         })
         .catch(() => caches.match("./index.html"))
@@ -237,15 +275,23 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Route to appropriate cache based on request type
+  if (isAppCodePath(requestUrl.pathname)) {
+    handleCachedRequest(event, APP_CACHE_NAME);
+  } else if (isDataPath(requestUrl.pathname)) {
+    handleCachedRequest(event, DATA_CACHE_NAME);
+  }
+});
+
+function handleCachedRequest(event, cacheName) {
   if (IS_DEV) {
-    // Always prefer the network locally so edits to cached files (JS, CSS, data) show up
-    // on the next refresh instead of the stale cached copy. Cache is kept as an offline
-    // fallback only; it is not consulted before the network the way it is in production.
+    // Always prefer the network locally so edits show up on refresh
+    // Cache is kept as an offline fallback only
     event.respondWith(
       fetch(event.request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          caches.open(cacheName).then((cache) => cache.put(event.request, copy));
           return response;
         })
         .catch(() => caches.match(event.request))
@@ -253,14 +299,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Production: cache-first strategy
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
         const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        caches.open(cacheName).then((cache) => cache.put(event.request, copy));
         return response;
       });
     })
   );
-});
+}
