@@ -3240,7 +3240,8 @@
         // If previousScale > maxScale the target is off-screen and must be corrected now.
         // Pass force=true to bypass this deferral for explicit navigation (e.g. returning
         // from the filter screen's wide survey view back to the nearby screen).
-        if (previousScale <= nextScale || previousScale <= maxScale) {
+        if (previousScale <= maxScale) {
+          // Target still fits; defer unless scale needs to increase
           return previousScale;
         }
       }
@@ -3298,7 +3299,12 @@
         // they end up off-screen.
         if (rotatedY > 0) {
           if (tiltActive() && excludeBehindDuringTilt) continue;
-          maxScale = Math.min(maxScale, (bottom - focus.y) / rotatedY);
+          // For behind points, add extra vertical buffer (20% of focus rect height) to ensure
+          // the route from user to destination has adequate visibility. Without this, points
+          // far behind can be technically "inside" the focus rect but still visually cramped
+          // or partially obscured at extreme tilt angles.
+          const behindBuffer = focusRect.height * 0.2;
+          maxScale = Math.min(maxScale, (bottom - focus.y - behindBuffer) / rotatedY);
           continue;
         }
 
