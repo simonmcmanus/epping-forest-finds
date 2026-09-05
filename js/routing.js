@@ -220,19 +220,20 @@ function nearestRoutingNode(graph, point, componentId, preferredDirection) {
     
     let score = distSq;
     
-    // If we have a direction preference, penalize nodes that are off to the side or behind
+    // If we have a direction preference, apply a strong directional multiplier
     if (preferredDirection && toDestLen > 0) {
       // Dot product: positive means node is in roughly same direction as destination
       const dot = (nodes[i].x - preferredDirection.x) * toDestX + 
                   (nodes[i].y - preferredDirection.y) * toDestY;
       const cosAngle = dot / (Math.sqrt(distSq) * toDestLen);
       
-      // Penalize nodes that are significantly off-angle (cosAngle close to -1 is worst)
-      // Add penalty that grows as angle gets worse (cosAngle < 0 means node is behind)
-      if (cosAngle < 0.3) {
-        // Node is significantly off-angle or behind; penalize it
-        score = distSq * (1 + Math.max(0, -cosAngle) * 2);
-      }
+      // Apply directional multiplier: nodes in the right direction get a bonus,
+      // nodes behind or to the side get a large penalty. This makes direction a primary
+      // factor in snap selection, not a secondary tiebreaker.
+      // cosAngle ranges from -1 (behind) to 1 (directly ahead)
+      // Convert to a multiplier: -1 -> 3x penalty, 0 -> 1x, 1 -> 0.3x bonus
+      const directionMultiplier = Math.pow(Math.max(0.1, 1 - cosAngle), 1.5);
+      score = distSq * directionMultiplier;
     }
     
     if (score < bestScore) {
@@ -371,7 +372,7 @@ function findRoutePoints(graph, fromPoint, toPoint, options) {
   if (!graph || !graph.nodes || !graph.nodes.length) return null;
   const toLatLon = options.toLatLon;
   const distanceMetresFn = options.distanceMetresFn;
-  const maxSnapMetres = options.maxSnapMetres != null ? options.maxSnapMetres : 250;
+  const maxSnapMetres = options.maxSnapMetres != null ? options.maxSnapMetres : 100;
   const maxDetourRatio = options.maxDetourRatio != null ? options.maxDetourRatio : 4;
 
   const fromLatLon = toLatLon(fromPoint);
@@ -383,8 +384,12 @@ function findRoutePoints(graph, fromPoint, toPoint, options) {
   if (!(straightLineMetres > 0)) return null;
 
   const mainComponent = graph.largestComponentId;
-  const fromSnap = nearestRoutingNode(graph, fromPoint, mainComponent);
+  // Snap user location with preference toward the destination
+  // This prevents the user from snapping to a road node that's the wrong direction
+  // (e.g., around a building instead of toward the destination)
+  const fromSnap = nearestRoutingNode(graph, fromPoint, mainComponent, toPoint);
   const toSnap = nearestRoutingNode(graph, toPoint, mainComponent, fromSnap.point);
+
   if (!fromSnap || !toSnap || fromSnap.nodeId === toSnap.nodeId) return null;
 
   const fromSnapLatLon = toLatLon(fromSnap.point);
