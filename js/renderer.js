@@ -1354,6 +1354,8 @@ function drawUserRadarOverlayTilted(ctx) {
   for (let i = 0; i <= STEPS; i++) {
     const a = startAngle + (endAngle - startAngle) * i / STEPS;
     const p = proj(U.x + outerRadius * Math.cos(a), U.y + outerRadius * Math.sin(a));
+    // Skip invalid projections at extreme angles
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
     ctx.lineTo(p.x, p.y);
   }
   ctx.closePath();
@@ -1369,6 +1371,8 @@ function drawUserRadarOverlayTilted(ctx) {
     for (let i = 0; i <= STEPS; i++) {
       const a = startAngle + (endAngle - startAngle) * i / STEPS;
       const p = proj(U.x + outerRadius * ratio * Math.cos(a), U.y + outerRadius * ratio * Math.sin(a));
+      // Skip invalid projections at extreme angles
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
       if (first) { ctx.moveTo(p.x, p.y); first = false; }
       else ctx.lineTo(p.x, p.y);
     }
@@ -1377,12 +1381,15 @@ function drawUserRadarOverlayTilted(ctx) {
 
   // Centre direction line
   const lineEnd = proj(U.x + outerRadius * Math.cos(headingRad), U.y + outerRadius * Math.sin(headingRad));
+  // Only draw centre line if projection is valid
+  if (Number.isFinite(lineEnd.x) && Number.isFinite(lineEnd.y)) {
   ctx.beginPath();
   ctx.moveTo(apex.x, apex.y);
   ctx.lineTo(lineEnd.x, lineEnd.y);
   ctx.lineWidth = 2.6 * dpr;
   ctx.strokeStyle = "rgba(31, 94, 255, 0.82)";
   ctx.stroke();
+  }
 
   ctx.restore();
 }
