@@ -1594,6 +1594,8 @@ function drawSelectedOverlay(ctx, toScreen) {
 
   if (state.selected.type === "cow") {
     drawPngMapIcon(ctx, iconPath("cow"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+  } else if (state.selected.type === "water") {
+    drawPngMapIcon(ctx, iconPath("ponds"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
   } else if (state.selected.type === "landmark") {
     const selectedPlace = state.selected.item;
 
