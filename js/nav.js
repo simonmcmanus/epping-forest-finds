@@ -588,6 +588,9 @@ function setupInspectorDragResize() {
   }
 
   function recentMapForInspectorChange(options = {}) {
+    // Stop any existing viewport animation before starting a new one to prevent conflicts
+    stopViewportAnimation();
+
     const animate = Boolean(options.animate);
     const durationMs = options.durationMs || (animate ? 220 : 0);
     if (!state.userLocation) return;

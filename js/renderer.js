@@ -3,8 +3,13 @@ const MAP_ICON_SCALE_UNSELECTED = 2.2;
 const MAP_PNG_ICON_SIZE = 16;
 const BEER_ICON_SCALE = 1.15;
 const MAX_MAP_TREES = 60;
+const SELECTED_OVERLAY_PULSE_PERIOD_MS = 380;  // Shared pulse period for smooth animation
+const LANDMARK_CULL_MARGIN_PX = 24;  // Consistent culling margin for all landmark types
 
 const mapImageCache = new Map();
+
+// Animation state for smooth pulsing without Date.now() jitter
+let _animationStartTime = null;
 
 // Tracks the previous tilt state so drawOverlay can detect transitions and trigger
 // a full canvas redraw when tilt activates/deactivates. Without this, the compass
@@ -58,8 +63,20 @@ function drawPngMapIcon(ctx, src, x, y, size) {
   return true;
 }
 
+// Get smooth pulsing value for selected overlay animations (0-1, smooth sine wave)
+// Uses elapsed time from animation start rather than Date.now() to avoid jitter
+function getSelectedOverlayPulse() {
+  if (_animationStartTime === null) _animationStartTime = performance.now();
+  const elapsed = performance.now() - _animationStartTime;
+  const cyclePosition = (elapsed % SELECTED_OVERLAY_PULSE_PERIOD_MS) / SELECTED_OVERLAY_PULSE_PERIOD_MS;
+  return Math.sin(cyclePosition * Math.PI * 2) * 0.5 + 0.5;
+}
+
 function draw() {
   state.animationFrame = null;
+  // Initialize animation timing on first draw
+  if (_animationStartTime === null) _animationStartTime = performance.now();
+
   // A device-orientation event with a valid beta but no valid heading updates
   // state.tiltBetaTarget without calling startCompassSmoothing (see onDeviceOrientation),
   // so the beta-smoothing loop can go idle out of sync with its target. draw() already runs
@@ -1139,7 +1156,7 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
   ctx.save();
   for (const cluster of clusters) {
     const { screenPt, items } = cluster;
-    if (!isNearCanvas(screenPt, 16 * dpr * uScale)) continue;
+    if (!isNearCanvas(screenPt, LANDMARK_CULL_MARGIN_PX * dpr)) continue;
 
     const place = items[0];
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
@@ -1531,29 +1548,33 @@ function drawUser(ctx, toScreen, isTilted) {
   const dpr = pixelRatio();
   // Use provided toScreen function (handles tilt projection), fallback to worldToScreen
   if (!toScreen) toScreen = worldToScreen;
-  
+
   const point = toScreen(state.userLocation.point);
-  
+
   // Validate projection produced valid coordinates
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+
+  // Sync opacity with landmark/pin opacity when out of walking radius
+  const nearbyIconLookup = buildNearbyIconLookup();
+  const isOutOfRadius = nearbyIconLookup.outOfRadius && nearbyIconLookup.outOfRadius.has(state.userLocation);
+  ctx.globalAlpha = isOutOfRadius ? 0.4 : 1;
   
   // In tilt mode, apply tiltPinScale if available.
   // Note: unlike landmarks/pins, the user location marker should always be visible
   // (no isNearCanvas culling) since it's critical UI that must show the user's position.
   let pinScale = 1;
-  if (isTilted) {
+  if (isTilted && typeof tiltPinScale === "function") {
     // Apply tilt-based scale if available, but ensure it's positive and finite
-    if (typeof tiltPinScale === "function") {
-      const scale = tiltPinScale(state.userLocation.point);
-      // Clamp scale to valid range; avoid zero, negative, or NaN scales
-      pinScale = Math.max(0.01, Math.min(scale || 1, 5));
-    }
+    const scale = tiltPinScale(state.userLocation.point);
+    // Clamp scale to valid range; avoid zero, negative, or NaN scales
+    pinScale = Number.isFinite(scale) && scale > 0 ? Math.min(scale, 5) : 1;
   }
-  
+
   // Scale proportionally with actual zoom (not mapEmojiScale which has a high floor).
-  const baseScale = state.baseFitScale > 0 ? state.baseFitScale : Math.max(state.fitScale, 1);
+  // Use baseFitScale if set, otherwise fitScale, with a minimum of 1
+  const baseScale = state.baseFitScale > 0 ? state.baseFitScale : (state.fitScale > 0 ? state.fitScale : 1);
   const dotScale = clamp(state.viewport.scale / baseScale, 0.1, 1.5) * pinScale;
-  const radius = 4 * dpr * dotScale;
+  const radius = Math.max(2 * dpr, 4 * dpr * dotScale);
   
   ctx.save();
   ctx.beginPath();
@@ -1566,6 +1587,7 @@ function drawUser(ctx, toScreen, isTilted) {
   ctx.fillStyle = "#14211d";
   ctx.font = `800 ${11 * dpr * dotScale}px system-ui`;
   ctx.fillText("You", point.x + radius + 3 * dpr, point.y + 4 * dpr * dotScale);
+  ctx.globalAlpha = 1;  // Reset opacity for subsequent drawing
   ctx.restore();
 }
 
@@ -1688,8 +1710,7 @@ function drawSelectedRoadOverlay(ctx) {
       else ctx.lineTo(point.x, point.y);
     }
 
-    const now = Date.now();
-    const pulse = (Math.sin(now / 400) * 0.5 + 0.5);
+    const pulse = getSelectedOverlayPulse();
     const alpha = 0.5 + pulse * 0.3;
 
     ctx.strokeStyle = `rgba(31, 94, 255, ${alpha})`;
@@ -1725,8 +1746,7 @@ function drawSelectedPathOverlay(ctx) {
       else ctx.lineTo(point.x, point.y);
     }
 
-    const now = Date.now();
-    const pulse = (Math.sin(now / 350) * 0.5 + 0.5);
+    const pulse = getSelectedOverlayPulse();
     const alpha = 0.6 + pulse * 0.4;
 
     ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;

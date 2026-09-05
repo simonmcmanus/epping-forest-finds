@@ -242,6 +242,8 @@
     const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for animateViewportTo's duration
     const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user, or the no-location zoom pulse)
     const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
+    const DEFAULT_FIT_PADDING_PX = 54; // default screen-space padding for fitToPoints (around content bounds)
+    const OVERVIEW_FIT_PADDING_PX = 28; // tighter padding for overview targets fit
     const TILT_BETA_THRESHOLD = 12;    // deg above flat before perspective kicks in
     const TILT_BETA_MAX = 85;          // deg where max perspective angle is reached
     const TILT_HORIZON_GROUND_RATIO = 0.62; // fraction of the space above the pivot that shows ground (vs. sky) at TILT_ROTATEX_MAX -- see tiltPerspectivePx()
@@ -951,7 +953,7 @@
     }
 
     function applyBoundsToViewport(bounds, options = {}) {
-      const padding = (options.padding != null ? options.padding : 54) * pixelRatio();
+      const padding = (options.padding != null ? options.padding : DEFAULT_FIT_PADDING_PX) * pixelRatio();
       const defaultRect = visibleCanvasRect();
       const focusRect = options.customFocusRect
         || (options.focusVisibleArea
@@ -1068,7 +1070,7 @@
         height: clamp(overlapRaw.height, 0, full.y + full.height - clampedOverlapY),
       };
 
-      const candidates = [
+      const allRegions = [
         { x: full.x, y: full.y, width: full.width, height: overlap.y - full.y },
         { x: full.x, y: full.y, width: overlap.x - full.x, height: full.height },
         { x: overlap.x + overlap.width, y: full.y, width: (full.x + full.width) - (overlap.x + overlap.width), height: full.height },
@@ -1079,11 +1081,12 @@
           y: Math.max(full.y, rect.y),
           width: Math.max(0, rect.width),
           height: Math.max(0, rect.height),
-        }))
-        .filter((rect) => rect.width >= 80 && rect.height >= 80);
+        }));
 
-      if (!candidates.length) return full;
-      return candidates.sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+      // Prefer candidates >= 80x80; if none exist, use the largest available region
+      const candidates = allRegions.filter((rect) => rect.width >= 80 && rect.height >= 80);
+      const selected = candidates.length > 0 ? candidates : allRegions;
+      return selected.sort((a, b) => (b.width * b.height) - (a.width * a.height))[0] || full;
     }
 
     function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
@@ -3588,20 +3591,26 @@
         if (target.point) pointsToFit.push(target.point);
       }
 
-      // On GPS-triggered calls (no force flag), skip the refit when both the user
-      // and destination are comfortably inside the visible area. This prevents
-      // continuous animation restarts from GPS noise causing visible jitter.
+      // On GPS-triggered calls (no force flag), check if animation is needed.
+      // Only animate if ANY point is near the visible area edge, preventing jarring
+      // invisible viewport jumps when points are already comfortably visible.
       // Uses the ACTUAL inspector state (not assumeInspectorOpen) so mobile
       // navigation — where the inspector is collapsed — fills the larger available area.
       if (!options.force && shouldAnimate) {
         const focusRect = bestVisibleCanvasRect();
         const edgeMargin = Math.min(focusRect.width, focusRect.height) * 0.14;
-        const allVisible = pointsToFit.every((pt) => {
+
+        // Check if ANY point is near the edge (needs animation) vs ALL points are safe
+        const anyNearEdge = pointsToFit.some((pt) => {
           const s = worldToScreen(pt);
-          return s.x >= focusRect.x + edgeMargin && s.x <= focusRect.x + focusRect.width - edgeMargin
-            && s.y >= focusRect.y + edgeMargin && s.y <= focusRect.y + focusRect.height - edgeMargin;
+          const nearLeft = s.x < focusRect.x + edgeMargin;
+          const nearRight = s.x > focusRect.x + focusRect.width - edgeMargin;
+          const nearTop = s.y < focusRect.y + edgeMargin;
+          const nearBottom = s.y > focusRect.y + focusRect.height - edgeMargin;
+          return nearLeft || nearRight || nearTop || nearBottom;
         });
-        if (allVisible) return;
+
+        if (!anyNearEdge) return;  // All points safely visible, no animation needed
       }
 
       fitToPoints(pointsToFit, false, {
@@ -3798,7 +3807,7 @@
           animate: Boolean(options.animate),
           durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
           minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
-          padding: 28,
+          padding: OVERVIEW_FIT_PADDING_PX,
         });
       } else if (points.length === 1) {
         // Only user location — nothing matches within the walking radius. Zoom to fit
@@ -4773,9 +4782,41 @@
     }
 
     function screenToWorld(x, y) {
+      // Handle tilt projection first (if active), then rotation
+      let screenX = x, screenY = y;
+
+      if (tiltActive() && state.userLocation) {
+        const tiltDeg = tiltRotateXDeg();
+        if (tiltDeg > 0) {
+          const origin = rawWorldToScreen(state.userLocation.point);
+          const dpr = pixelRatio();
+          const perspective = tiltPerspectivePx();
+          const T = tiltDeg * Math.PI / 180;
+          const c = Math.cos(T);
+          const s = Math.sin(T);
+
+          // Convert screen offset to CSS pixels
+          const x_rel = (screenX - origin.x) / dpr;
+          const y_rel = (screenY - origin.y) / dpr;
+
+          // Reverse the perspective projection
+          // From forward: y' = dy * cos(T) * perspective / (perspective - dy * sin(T))
+          // Solving for dy: dy = y_rel * perspective / (c * perspective + y_rel * s)
+          const dy = y_rel * perspective / (c * perspective + y_rel * s);
+          const dz = dy * s;
+          const scale = perspective / (perspective - dz);
+          const dx = x_rel / scale;
+
+          // Convert back to screen pixels, accounting for the un-projected values
+          screenX = origin.x + dx * dpr;
+          screenY = origin.y + dy * dpr;
+        }
+      }
+
+      // Handle rotation (heading-up mode)
       const rotation = navigationMapRotationDegrees();
-      if (!rotation || !state.userLocation) return rawScreenToWorld(x, y);
-      const unrotated = rotateScreenPoint({ x, y }, rawWorldToScreen(state.userLocation.point), -rotation);
+      if (!rotation || !state.userLocation) return rawScreenToWorld(screenX, screenY);
+      const unrotated = rotateScreenPoint({ x: screenX, y: screenY }, rawWorldToScreen(state.userLocation.point), -rotation);
       return rawScreenToWorld(unrotated.x, unrotated.y);
     }
 
