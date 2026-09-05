@@ -3302,8 +3302,10 @@
           // For behind points, add extra vertical buffer (20% of focus rect height) to ensure
           // the route from user to destination has adequate visibility. Without this, points
           // far behind can be technically "inside" the focus rect but still visually cramped
-          // or partially obscured at extreme tilt angles.
-          const behindBuffer = focusRect.height * 0.2;
+          // or partially obscured at extreme tilt angles. Only apply this buffer while tilt
+          // is active AND we're using the default behind-point exclusion behavior (when
+          // excludeBehindDuringTilt is false, behind points are treated like normal points).
+          const behindBuffer = (tiltActive() && excludeBehindDuringTilt) ? focusRect.height * 0.2 : 0;
           maxScale = Math.min(maxScale, (bottom - focus.y - behindBuffer) / rotatedY);
           continue;
         }

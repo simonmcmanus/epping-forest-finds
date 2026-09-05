@@ -34,6 +34,39 @@ const FILTER_GROUPS = [
       { key: "parking", label: "Car parks", icon: "landmark-parking", title: "car parks" },
     ],
   },
+  {
+    key: "history",
+    label: "History",
+    icon: "history",
+    subfilters: [
+      { key: "historic", label: "Historic sites", icon: "historic", title: "historic sites" },
+      { key: "plaques", label: "Plaques", icon: "plaques", title: "plaques" },
+      { key: "monuments", label: "Monuments", icon: "plaques", title: "monuments and memorials" },
+      { key: "ww2", label: "WWII sites", icon: "historic", title: "WWII sites" },
+    ],
+  },
+  {
+    key: "locations",
+    label: "Locations",
+    icon: "landmark-parking",
+    subfilters: [
+      { key: "churches", label: "Churches", icon: "church", title: "churches" },
+      { key: "education", label: "Education", icon: "education", title: "educational institutions" },
+      { key: "medicine", label: "Medical sites", icon: "medicine", title: "medical sites" },
+      { key: "campsites", label: "Campsites", icon: "campsite", title: "campsites" },
+    ],
+  },
+  {
+    key: "stories",
+    label: "Stories",
+    icon: "legends",
+    subfilters: [
+      { key: "legends", label: "Legends", icon: "legends", title: "legends and folklore" },
+      { key: "literature", label: "Literature", icon: "literature", title: "literature" },
+      { key: "film_tv", label: "Film & TV", icon: "film", title: "film and TV locations" },
+      { key: "art", label: "Art", icon: "art", title: "art" },
+    ],
+  },
 ];
 
 const FILTER_GROUPS_BY_KEY = new Map(FILTER_GROUPS.map((group) => [group.key, group]));
@@ -58,6 +91,9 @@ const PLACE_FILTER_KEYS = new Set(
 const PLACE_FILTER_PRIORITY = [
   "pubs", "restaurants", "cafes", "shops",
   "bus", "underground", "national_rail", "parking",
+  "historic", "plaques", "monuments", "ww2",
+  "churches", "education", "medicine", "campsites",
+  "legends", "literature", "film_tv", "art",
 ];
 
 // Single source of truth for all icon paths. To add an icon: drop the file

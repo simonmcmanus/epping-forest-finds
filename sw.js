@@ -1,6 +1,3 @@
-const APP_CACHE_NAME = "forest-finds-app-v9";
-const DATA_CACHE_NAME = "forest-finds-data-v3";
-
 // self.__DEV__ is injected into the response by the local dev server (see
 // injectDevFlag() in server.js) — the file on disk here never sets it, so a
 // production/Netlify deploy (which serves this file untouched) always gets
@@ -9,6 +6,9 @@ const DATA_CACHE_NAME = "forest-finds-data-v3";
 // (.github/workflows/sw-bump.yml and sw-release.yml) and so never fires
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
+
+const APP_CACHE_NAME = "forest-finds-app-v9";
+const DATA_CACHE_NAME = "forest-finds-data-v3";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
 const APP_SHELL = [
@@ -275,15 +275,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Route to appropriate cache based on request type
+  // Determine which cache to use based on request type
+  let cacheName;
   if (isAppCodePath(requestUrl.pathname)) {
-    handleCachedRequest(event, APP_CACHE_NAME);
+    cacheName = APP_CACHE_NAME;
   } else if (isDataPath(requestUrl.pathname)) {
-    handleCachedRequest(event, DATA_CACHE_NAME);
+    cacheName = DATA_CACHE_NAME;
+  } else {
+    return;
   }
-});
 
-function handleCachedRequest(event, cacheName) {
   if (IS_DEV) {
     // Always prefer the network locally so edits show up on refresh
     // Cache is kept as an offline fallback only
@@ -299,7 +300,6 @@ function handleCachedRequest(event, cacheName) {
     return;
   }
 
-  // Production: cache-first strategy
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
@@ -310,4 +310,4 @@ function handleCachedRequest(event, cacheName) {
       });
     })
   );
-}
+});

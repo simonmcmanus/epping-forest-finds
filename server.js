@@ -121,7 +121,7 @@ async function handleCowProxy(req, res, url) {
 // "dev-v274" instead of a bare version number that never changes between local edits.
 function injectDevFlag(source) {
   return source
-    .replace(/^const CACHE_NAME/m, "self.__DEV__ = true;\nconst CACHE_NAME")
+    .replace(/^const APP_CACHE_NAME/m, "self.__DEV__ = true;\nconst APP_CACHE_NAME")
     .replace(/"forest-finds-/, '"forest-finds-dev-');
 }
 
