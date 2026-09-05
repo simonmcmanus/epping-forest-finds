@@ -200,43 +200,19 @@ function buildRoutingGraphAsync(roadFeatures, pathFeatures, toLatLon, distanceMe
 // sitting a few metres from a small disconnected stub (a mapped-but-unlinked station forecourt
 // footway is a real, recurring example) doesn't strand the search there instead of on the real,
 // reachable network just slightly further away.
-function nearestRoutingNode(graph, point, componentId, preferredDirection) {
+function nearestRoutingNode(graph, point, componentId) {
   const nodes = graph && graph.nodes;
   if (!nodes || !nodes.length) return null;
   const componentIds = componentId != null ? graph.componentId : null;
   let bestId = -1;
-  let bestScore = Infinity;
-  
-  // Vector from reference to destination (used for direction preference)
-  const toDestX = point.x - (preferredDirection?.x || 0);
-  const toDestY = point.y - (preferredDirection?.y || 0);
-  const toDestLen = Math.sqrt(toDestX * toDestX + toDestY * toDestY);
-  
+  let bestDistSq = Infinity;
   for (let i = 0; i < nodes.length; i += 1) {
     if (componentIds && componentIds[i] !== componentId) continue;
     const dx = nodes[i].x - point.x;
     const dy = nodes[i].y - point.y;
     const distSq = dx * dx + dy * dy;
-    
-    let score = distSq;
-    
-    // If we have a direction preference, penalize nodes that are off to the side or behind
-    if (preferredDirection && toDestLen > 0) {
-      // Dot product: positive means node is in roughly same direction as destination
-      const dot = (nodes[i].x - preferredDirection.x) * toDestX + 
-                  (nodes[i].y - preferredDirection.y) * toDestY;
-      const cosAngle = dot / (Math.sqrt(distSq) * toDestLen);
-      
-      // Penalize nodes that are significantly off-angle (cosAngle close to -1 is worst)
-      // Add penalty that grows as angle gets worse (cosAngle < 0 means node is behind)
-      if (cosAngle < 0.3) {
-        // Node is significantly off-angle or behind; penalize it
-        score = distSq * (1 + Math.max(0, -cosAngle) * 2);
-      }
-    }
-    
-    if (score < bestScore) {
-      bestScore = score;
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
       bestId = i;
     }
   }
@@ -384,7 +360,7 @@ function findRoutePoints(graph, fromPoint, toPoint, options) {
 
   const mainComponent = graph.largestComponentId;
   const fromSnap = nearestRoutingNode(graph, fromPoint, mainComponent);
-  const toSnap = nearestRoutingNode(graph, toPoint, mainComponent, fromSnap.point);
+  const toSnap = nearestRoutingNode(graph, toPoint, mainComponent);
   if (!fromSnap || !toSnap || fromSnap.nodeId === toSnap.nodeId) return null;
 
   const fromSnapLatLon = toLatLon(fromSnap.point);

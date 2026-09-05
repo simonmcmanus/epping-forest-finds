@@ -3155,6 +3155,46 @@ test("nearestRoutingNode's componentId parameter restricts the search to one con
   assert.ok(Math.abs(restricted.point.x - bPoint.x) < 1e-9 && Math.abs(restricted.point.y - bPoint.y) < 1e-9, "restricted to the largest component, the nearest node is on the real road instead");
 });
 
+test("nearestRoutingNode's preferredDirection parameter avoids snapping behind the source, fixing backtrack-on-exit-house routes", () => {
+  // Regression test for destination snap backtracking: when exiting a building near a close
+  // tree, the tree's GPS point could snap to a road node that is "ahead" relative to the
+  // direction from user to tree, forcing the router to walk past the snap and come back.
+  // Fix: prefer snapping to nodes that are roughly in the direction of the unsapped destination
+  // from the user's location.
+  //
+  // Shape: a road loop with a tree destination (slightly off the road) on one side. The tree's
+  // nearest node overall is on the far side of the loop (geometrically closest), but snapping
+  // there forces a detour around the loop. The preferredDirection should nudge the snap toward
+  // the node on the same side as the tree relative to the user.
+  const userLat = 51.6500, userLon = 0.0000;
+  const nearNodeLat = 51.6502, nearNodeLon = 0.0005;  // Same side as tree, closer in direction
+  const farNodeLat = 51.6498, farNodeLon = 0.0005;    // Far side of loop, still close geometrically
+
+  const road = routingFeature("residential", [
+    [userLat, userLon],
+    [nearNodeLat, nearNodeLon],
+    [farNodeLat, farNodeLon],
+    [userLat, userLon],
+  ]);
+  const graph = app.buildRoutingGraph([road], [], app.unprojectPoint, app.distanceMetres);
+
+  // Tree is slightly off the road on the same side as nearNode
+  const treePoint = routingWorldPoint(nearNodeLat + 0.0001, nearNodeLon);
+  const userPoint = routingWorldPoint(userLat, userLon);
+
+  // Without direction preference, snapping to treePoint could pick either node
+  const noPreference = app.nearestRoutingNode(graph, treePoint, graph.largestComponentId);
+
+  // With direction preference from user toward tree, should prefer nearNode
+  const withPreference = app.nearestRoutingNode(graph, treePoint, graph.largestComponentId, userPoint);
+
+  const nearPoint = routingWorldPoint(nearNodeLat, nearNodeLon);
+  const snappedToNear = (node) => Math.abs(node.point.x - nearPoint.x) < 1e-8 && Math.abs(node.point.y - nearPoint.y) < 1e-8;
+
+  assert.ok(snappedToNear(withPreference), "with direction preference, snap should favor the node on the user->tree direction");
+});
+
+
 test("findRoutePoints treats a highway=service+service=alley way like a footpath, not a generic service road", () => {
   // Same shape as the primary-vs-footway test above, but with a much smaller weight gap: a
   // direct residential road (weight 1.15) from A to B, versus an alley cut-through via C that's
