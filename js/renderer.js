@@ -966,6 +966,15 @@ function drawClusterBadge(ctx, x, y, count, pinSize, dpr) {
   const badgeR = Math.max(8 * dpr, R * 0.56);
   const fontSize = Math.round(Math.max(10 * dpr, badgeR * 1.3));
 
+  // Check if badge is within visible canvas bounds
+  if (typeof visibleCanvasRect === "function") {
+    const canvasRect = visibleCanvasRect();
+    if (badgeX - badgeR < canvasRect.x || badgeX + badgeR > canvasRect.x + canvasRect.width ||
+        badgeY - badgeR < canvasRect.y || badgeY + badgeR > canvasRect.y + canvasRect.height) {
+      return;  // Badge partially off-screen, skip rendering
+    }
+  }
+
   ctx.shadowColor = "transparent";
   ctx.shadowBlur = 0;
   ctx.beginPath();
@@ -1010,6 +1019,7 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
 
 function drawTreeMarker(ctx, tree, color, radius, showBorder = false) {
   const point = worldToScreen(tree.point);
+  ctx.save();
   ctx.beginPath();
   ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
   ctx.fillStyle = color;
@@ -1019,12 +1029,14 @@ function drawTreeMarker(ctx, tree, color, radius, showBorder = false) {
     ctx.lineWidth = 3 * pixelRatio();
     ctx.stroke();
   }
+  ctx.restore();
 }
 
 function getMarkerPulseOpacity(minOpacity = 0.3, maxOpacity = 0.8) {
-  const now = Date.now();
-  const cycle = (now % 2000) / 2000;
-  const pulse = Math.sin(cycle * Math.PI * 2) * 0.5 + 0.5;
+  if (_animationStartTime === null) _animationStartTime = performance.now();
+  const elapsed = performance.now() - _animationStartTime;
+  const cyclePosition = (elapsed % 2000) / 2000;
+  const pulse = Math.sin(cyclePosition * Math.PI * 2) * 0.5 + 0.5;
   return minOpacity + (maxOpacity - minOpacity) * pulse;
 }
 
@@ -1067,9 +1079,23 @@ function drawMapEmoji(ctx, emoji, x, y, sizePx, options = {}) {
     paddingPx = 0,
     yOffsetPx = 0,
   } = options;
+
+  // Clamp font size to reasonable range
+  const clampedSize = Math.max(8, Math.min(sizePx, 128));
+
+  // Check if emoji is within reasonable distance of visible canvas
+  if (typeof visibleCanvasRect === "function") {
+    const canvasRect = visibleCanvasRect();
+    const margin = clampedSize + (paddingPx || 0) + 10;
+    if (x < canvasRect.x - margin || x > canvasRect.x + canvasRect.width + margin ||
+        y < canvasRect.y - margin || y > canvasRect.y + canvasRect.height + margin) {
+      return;  // Off-screen, skip rendering
+    }
+  }
+
   ctx.save();
   if (backgroundColor || borderColor) {
-    const radius = Math.max((sizePx * 0.65) + paddingPx, sizePx * 0.65);
+    const radius = Math.max((clampedSize * 0.65) + paddingPx, clampedSize * 0.65);
     if (backgroundColor) {
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -1077,7 +1103,7 @@ function drawMapEmoji(ctx, emoji, x, y, sizePx, options = {}) {
       ctx.fill();
     }
     if (borderColor) {
-      const lineWidth = borderWidth || Math.max(2, sizePx * 0.08);
+      const lineWidth = borderWidth || Math.max(2, clampedSize * 0.08);
       const strokeRadius = radius + (lineWidth * 0.5);
       ctx.beginPath();
       ctx.arc(x, y, strokeRadius, 0, Math.PI * 2);
@@ -1086,20 +1112,29 @@ function drawMapEmoji(ctx, emoji, x, y, sizePx, options = {}) {
       ctx.stroke();
     }
   }
-  ctx.font = `${sizePx}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
+  ctx.font = `${clampedSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#111";
   ctx.shadowColor = "rgba(255, 255, 255, 0.75)";
-  ctx.shadowBlur = Math.max(1, sizePx * 0.16);
-  ctx.fillText(emoji, x, y + yOffsetPx);
+  ctx.shadowBlur = Math.max(1, clampedSize * 0.16);
+  try {
+    ctx.fillText(emoji, x, y + yOffsetPx);
+  } catch (e) {
+    // Fallback: draw a simple circle if emoji fails
+    ctx.beginPath();
+    ctx.arc(x, y, clampedSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = "#ccc";
+    ctx.fill();
+  }
   ctx.restore();
 }
 
 function selectedIconScale(minScale = 1.05, maxScale = 1.17, cycleMs = 1200) {
-  const now = Date.now();
-  const cycle = (now % cycleMs) / cycleMs;
-  const pulse = Math.sin(cycle * Math.PI * 2) * 0.5 + 0.5;
+  if (_animationStartTime === null) _animationStartTime = performance.now();
+  const elapsed = performance.now() - _animationStartTime;
+  const cyclePosition = (elapsed % cycleMs) / cycleMs;
+  const pulse = Math.sin(cyclePosition * Math.PI * 2) * 0.5 + 0.5;
   const baseScale = minScale + (maxScale - minScale) * pulse;
   const zoomScale = mapEmojiScale();
   const zoomFactor = 0.7 + (zoomScale * 0.3);
