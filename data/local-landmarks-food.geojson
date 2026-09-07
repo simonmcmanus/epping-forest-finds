@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-09-03T18:55:48.227479Z",
+  "generatedAt": "2026-09-07T05:46:34.268478Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -6718,39 +6718,6 @@
         "phone": null,
         "address": "734 Chigwell Road, Woodford Green IG8 8AL",
         "distanceToForestBoundaryMetres": 459.2,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "node/10717828392",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0545312,
-          51.6061462
-        ]
-      },
-      "properties": {
-        "id": "node/10717828392",
-        "osmType": "node",
-        "osmId": 10717828392,
-        "name": "Kyto Pan-Asian Restaurant",
-        "category": "restaurant",
-        "categoryLabel": "Restaurant",
-        "amenity": "restaurant",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": "692-294 Chigwell Road, Woodford Green IG8 8AL",
-        "distanceToForestBoundaryMetres": 425.9,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
@@ -22624,6 +22591,105 @@
         "phone": "020 3538 4948",
         "address": "36 Chingford Mount Road, Chingford, London E4 9AB",
         "distanceToForestBoundaryMetres": 513.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/taru-on-the-hill",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0421168,
+          51.6256427
+        ]
+      },
+      "properties": {
+        "id": "manual/taru-on-the-hill",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Taru on the Hill",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://taruonthehill.com/",
+        "phone": null,
+        "address": "79 Queens Road, Buckhurst Hill, IG9 5BW",
+        "distanceToForestBoundaryMetres": 176.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/la-sala",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0545312,
+          51.6061462
+        ]
+      },
+      "properties": {
+        "id": "manual/la-sala",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "La Sala",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.lasala.co.uk",
+        "phone": null,
+        "address": "692-694 Chigwell Road, Woodford Green, IG8 8AL",
+        "distanceToForestBoundaryMetres": 330.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/casa-caf\u00e9-bar",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0078698,
+          51.6330494
+        ]
+      },
+      "properties": {
+        "id": "manual/casa-caf\u00e9-bar",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Casa Caf\u00e9 & Bar",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://cafecasabar.co.uk/",
+        "phone": null,
+        "address": "94 Station Road, Chingford, London E4 7BA",
+        "distanceToForestBoundaryMetres": 266.4,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
