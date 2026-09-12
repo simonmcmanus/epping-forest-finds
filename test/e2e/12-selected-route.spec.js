@@ -113,4 +113,60 @@ test.describe("Selected route line follows the road/path network", () => {
     });
     expect(offScreenCount).toBe(0);
   });
+
+  test("the selected route is framed where the tilt camera draws it, at every tilt angle", async ({ page }) => {
+    // The scale fit was solved on flat (untilted) coordinates while worldToScreen() projects
+    // through the tilt camera, which compresses everything ahead of the pivot towards the
+    // horizon -- so the scale that flat arithmetic said filled the screen rendered the route
+    // into a fraction of it, worsening with tilt (measured 1.06x too wide at beta 20, 1.96x at
+    // 60, 5.27x at 85). Reported from the field as the selected-route view being far too
+    // zoomed out. See claude/heading-up-tilt-aware-fit.md.
+    await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+    await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
+
+    for (const beta of [20, 30, 45, 60]) {
+      const framing = await page.evaluate(async (b) => {
+        // Drive the same state the compass/orientation handlers write, and force the fit so
+        // this measures the fit itself rather than the ease that smooths it (covered by the
+        // unit tests). Then draw, so worldToScreen reads the settled viewport.
+        state.compassHeadingTarget = 0;
+        state.compassHeading = 0;
+        state.renderedNavigationHeading = 0;
+        state.compassLastEventAt = performance.now();
+        state.tiltBetaTarget = b;
+        state.tiltBetaSmoothed = b;
+        state.viewportAnimationTo = null;
+        state.viewportAnimationFrame = null;
+        alignHeadingUpNavigationViewport({ force: true });
+        draw();
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+
+        const rect = bestVisibleCanvasRect();
+        const focus = navigationFocusPoint(rect);
+        const points = selectedNavigationTargetPoints();
+        // How much of the band the fit aimed at the route's far end actually occupies once
+        // projected, and whether anything ended up outside the visible rect.
+        let deepest = focus.y;
+        let offScreen = 0;
+        for (const point of points) {
+          const screen = worldToScreen(point);
+          if (screen.y < deepest) deepest = screen.y;
+          if (screen.x < rect.x || screen.x > rect.x + rect.width
+            || screen.y < rect.y || screen.y > rect.y + rect.height) offScreen += 1;
+        }
+        return {
+          fill: (focus.y - deepest) / (focus.y - (rect.y + headingUpFitMarginPx(rect))),
+          offScreen,
+          pointCount: points.length,
+        };
+      }, beta);
+
+      expect(framing.pointCount).toBeGreaterThan(2);
+      expect(framing.offScreen, `beta=${beta}: route points outside the visible rect`).toBe(0);
+      // Pre-fix this fell from ~0.94 at beta 20 to ~0.51 at beta 60.
+      expect(framing.fill, `beta=${beta}: fraction of the fitted band the route fills`).toBeGreaterThan(0.75);
+      expect(framing.fill).toBeLessThanOrEqual(1.001);
+    }
+  });
 });

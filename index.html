@@ -268,11 +268,20 @@
     // fully-erased end of drawTiltDistanceFade's gradient — keep it small enough that the
     // clip stays hidden there, or the ground visibly stops short of the horizon again.
     const TILT_FAR_FADE_RATIO = 0.1;
+    // Ahead of the pivot the tilt projection compresses distance into the horizon
+    // asymptotically: a point deep enough ahead stays technically inside the focus rect at
+    // ANY scale while rendering as a speck in the horizon haze. So the tilt-aware fit
+    // (maxScaleForHeadingUpPoints with projectTilt) caps how deep the farthest fitted point
+    // may sit, expressed as the perspective scale it renders at -- the same language as
+    // TILT_FAR_FADE_RATIO above, and comfortably above it (0.1 is where the distance fade
+    // has erased the ground completely). Chosen by measurement: see
+    // claude/heading-up-tilt-aware-fit.md.
+    const TILT_FIT_MIN_PERSPECTIVE_SCALE = 0.45;
     const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind transition band pins shrink across
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v22"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+    const APP_VERSION = "v23"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -397,6 +406,7 @@
       compassAnimationTime: null,
       compassArrowAngle: null,
       compassLastEventAt: null,
+      headingUpScaleEaseAt: null, // timestamp the heading-up scale ease last integrated (see resolveHeadingUpTargetScale)
       lastLocationUpdateAt: null,
       navigationHeadingUp: false,
       renderedNavigationHeading: null,
@@ -2958,6 +2968,15 @@
     const HEADING_UP_SCALE_SETTLE_RATIO = 0.02; // absorb tiny settled scale corrections as visual noise
     const HEADING_UP_SCALE_SETTLE_MIN = 1; // absolute settle tolerance for low zoom values
     const HEADING_UP_SENSOR_ACTIVE_MS = 350;
+    // Rate (per second) the scale eases toward a non-urgent fit change while compass events
+    // are still arriving -- deliberately the same rate startCompassSmoothing() eases
+    // state.tiltBetaSmoothed at, so the zoom and the tilt change it is responding to arrive
+    // together instead of the zoom trailing or leading the perspective it is fitting.
+    const HEADING_UP_SCALE_EASE_RATE = 4;
+    // Cap on the frame delta the ease may integrate, matching the compass smoothing loop's
+    // own dt clamp: without it, returning to a backgrounded tab hands the ease one enormous
+    // dt and it snaps, which is the jump the ease exists to avoid.
+    const HEADING_UP_SCALE_EASE_MAX_DT = 0.05;
 
     function selectedNavigationHeadingUpActive() {
       return Boolean(
@@ -3342,28 +3361,91 @@
       return (now - state.compassLastEventAt) < HEADING_UP_SENSOR_ACTIVE_MS;
     }
 
-    function resolveHeadingUpTargetScale(maxScale, previousScale, force = false) {
+    function resolveHeadingUpTargetScale(maxScale, previousScale, force = false, now = performance.now()) {
       if (!Number.isFinite(maxScale) || maxScale <= 0) return previousScale;
       const bufferedScale = maxScale * (1 - HEADING_UP_SCALE_BUFFER_RATIO);
       const nextScale = Number.isFinite(bufferedScale) && bufferedScale > 0 ? bufferedScale : maxScale;
       if (!Number.isFinite(previousScale) || previousScale <= 0) return nextScale;
+      const settleTolerance = Math.max(HEADING_UP_SCALE_SETTLE_MIN, previousScale * HEADING_UP_SCALE_SETTLE_RATIO);
 
-      if (!force && headingUpCompassSensorActive()) {
-        // While compass events are actively arriving, defer zoom changes that don't
-        // require an immediate correction: zoom-in (target already visible at current
-        // scale) and zoom-out where the target still fits (previousScale <= maxScale).
-        // If previousScale > maxScale the target is off-screen and must be corrected now.
-        // Pass force=true to bypass this deferral for explicit navigation (e.g. returning
-        // from the filter screen's wide survey view back to the nearby screen).
-        if (previousScale <= maxScale) {
-          // Target still fits; defer unless scale needs to increase
+      // A change where the target still fits (previousScale <= maxScale -- typically a
+      // zoom-in) needs no immediate correction: nothing is off-screen, and snapping the
+      // scale frame by frame against a live compass reads as the map fighting the rotation.
+      // If previousScale > maxScale the target has left the view and is corrected below at
+      // once. force=true bypasses this entirely, for explicit navigation (e.g. returning
+      // from the filter screen's wide survey view back to the nearby screen).
+      //
+      // This used to `return previousScale` outright, which deferred such a change for as
+      // long as the sensor stayed live -- and the sensor only counts as quiet after
+      // HEADING_UP_SENSOR_ACTIVE_MS without an event, while iOS deviceorientation fires
+      // continuously the whole time the phone is held. So outdoors it was never quiet, the
+      // smoothing loop's settle branch (the only other place a deferred zoom could land)
+      // never ran either, and a deferred zoom-in simply never happened -- while zoom-*out*
+      // corrections applied immediately, so the scale could only ever ratchet wider. That
+      // is the "why is it so zoomed out" report, and the reason several callers had to grow
+      // a force:true to get a fit to stick at all. Easing toward the target instead keeps
+      // the anti-fighting intent (no snap, and frame-to-frame sensor noise averages out
+      // rather than driving the zoom) while sustained changes -- a tilt, a settled new
+      // heading -- still converge, in about a second at HEADING_UP_SCALE_EASE_RATE.
+      if (!force && headingUpCompassSensorActive(now) && previousScale <= maxScale) {
+        if (Math.abs(previousScale - nextScale) <= settleTolerance) {
+          state.headingUpScaleEaseAt = null;
           return previousScale;
         }
+        const lastEaseAt = state.headingUpScaleEaseAt;
+        state.headingUpScaleEaseAt = now;
+        const dt = Number.isFinite(lastEaseAt) ? (now - lastEaseAt) / 1000 : Infinity;
+        // The first frame of an ease only starts the clock, and so does any gap longer than
+        // one frame budget -- a stale timestamp (a backgrounded tab, a screen the ease did
+        // not run on) would otherwise be integrated as one enormous dt and snap, which is
+        // exactly the jump the ease exists to avoid. Clamping such a gap instead of
+        // discarding it still steps ~18% in a single frame, so discard it.
+        if (!(dt > 0 && dt <= HEADING_UP_SCALE_EASE_MAX_DT)) return previousScale;
+        const eased = previousScale + (nextScale - previousScale) * (1 - Math.exp(-HEADING_UP_SCALE_EASE_RATE * dt));
+        return Number.isFinite(eased) && eased > 0 ? eased : previousScale;
       }
 
-      const settleTolerance = Math.max(HEADING_UP_SCALE_SETTLE_MIN, previousScale * HEADING_UP_SCALE_SETTLE_RATIO);
+      state.headingUpScaleEaseAt = null;
       if (Math.abs(previousScale - nextScale) <= settleTolerance) return previousScale;
       return nextScale;
+    }
+
+    // The tilt camera as the viewport fit needs it. For a point `m` canvas px from the pivot
+    // along the screen's vertical axis (negative ahead, positive behind), the projected
+    // offset the renderer will actually draw it at is
+    //
+    //   projected = m * tiltCos / (1 - m * k),      k = sin(T) / (P * dpr)
+    //
+    // which is tiltProjectScreenPoint()'s arithmetic rearranged into canvas px. Deliberately
+    // reads the same tiltRotateXDeg() and tiltPerspectivePx() the renderer's tiltProjection()
+    // does (and so its own bestVisibleCanvasRect(), not the fit caller's) -- the fit has to
+    // agree with the draw, not with its caller's measurement, or the route lands somewhere
+    // other than where it was fitted. Returns null when tilt is inactive: there the
+    // relationship is the identity and the flat arithmetic is already exact.
+    //
+    // Because P depends only on the visible rect and the target's bearing -- never on
+    // viewport.scale -- everything downstream of this solves in closed form. That is what
+    // keeps worldToScreenFlat()'s no-feedback guarantee intact: the fit still never reads a
+    // tilted coordinate back off the screen, it just solves for the scale whose tilted
+    // result is right (see claude/3d-tilt-rendering.md).
+    function headingUpFitTiltCamera() {
+      const tiltDeg = tiltRotateXDeg();
+      if (!(tiltDeg > 0)) return null;
+      const radians = toRadians(tiltDeg);
+      const tiltSin = Math.sin(radians);
+      const tiltCos = Math.cos(radians);
+      if (!(tiltSin > 0)) return null;
+      const perspectivePx = tiltPerspectivePx();
+      const dpr = pixelRatio();
+      if (!(perspectivePx > 0) || !(dpr > 0)) return null;
+      return {
+        tiltCos,
+        tiltSin,
+        k: tiltSin / (perspectivePx * dpr),
+        // Canvas px above the pivot the ground converges on infinitely far ahead: the hard
+        // ceiling on how much screen an ahead point can occupy at any scale whatsoever.
+        horizonPx: perspectivePx * (tiltCos / tiltSin) * dpr,
+      };
     }
 
     // Shared bounding-box scale-fit math for both heading-up modes (selected navigation
@@ -3394,6 +3476,29 @@
       const radians = toRadians(rotation);
       const cos = Math.cos(radians);
       const sin = Math.sin(radians);
+      // Fit where the renderer will actually draw these points, not where flat arithmetic
+      // says they land. Without this the fit is solved on untilted coordinates while
+      // worldToScreen() projects through the tilt camera, which compresses everything ahead
+      // of the pivot towards the horizon -- so the scale the fit believes fills the screen
+      // renders the target into a fraction of it. Measured on a 1000x800 stage with a
+      // destination 580 m dead ahead: the framed band came out 1.17x too wide at beta 30,
+      // 1.96x at beta 60 and 5.27x at beta 85 (claude/heading-up-tilt-aware-fit.md). Every
+      // constraint below is the same inequality as before with the projection substituted
+      // in, so with tilt inactive (or projectTilt off) tiltCos is 1, k is 0, and each one
+      // collapses back to the exact flat expression it replaced.
+      const tilt = options.projectTilt ? headingUpFitTiltCamera() : null;
+      const tiltCos = tilt ? tilt.tiltCos : 1;
+      const k = tilt ? tilt.k : 0;
+      // Ahead of the pivot the projection is asymptotic, so "inside the rect" alone stops
+      // constraining the fit at all once the top margin sits above the horizon -- which it
+      // routinely does, since TILT_HORIZON_GROUND_RATIO puts the horizon at 62% of the band
+      // above the pivot. Cap the projected ahead depth at the point where the perspective
+      // divide has shrunk the ground to TILT_FIT_MIN_PERSPECTIVE_SCALE instead, so the
+      // farthest fitted point is framed as far out as it can be while still being legible
+      // rather than dissolved into the haze.
+      const maxAheadPx = tilt
+        ? Math.min(focus.y - top, tilt.horizonPx * (1 - TILT_FIT_MIN_PERSPECTIVE_SCALE))
+        : focus.y - top;
       let maxScale = Number.POSITIVE_INFINITY;
 
       for (const point of points) {
@@ -3421,13 +3526,35 @@
           // is active AND we're using the default behind-point exclusion behavior (when
           // excludeBehindDuringTilt is false, behind points are treated like normal points).
           const behindBuffer = (tiltActive() && excludeBehindDuringTilt) ? focusRect.height * 0.2 : 0;
-          maxScale = Math.min(maxScale, (bottom - focus.y - behindBuffer) / rotatedY);
+          // Behind the pivot the projection magnifies rather than compresses (the point is
+          // closer to the camera), so this is the same bottom-edge inequality with a
+          // denominator that grows with depth -- always bounded, and never anywhere near the
+          // near-plane singularity tiltProjectOffsets clips at.
+          const availableBelow = bottom - focus.y - behindBuffer;
+          maxScale = Math.min(maxScale, availableBelow / (rotatedY * (tiltCos + availableBelow * k)));
           continue;
         }
 
-        if (rotatedX > 0) maxScale = Math.min(maxScale, (right - focus.x) / rotatedX);
-        if (rotatedX < 0) maxScale = Math.min(maxScale, (left - focus.x) / rotatedX);
-        if (rotatedY < 0) maxScale = Math.min(maxScale, (top - focus.y) / rotatedY);
+        if (rotatedX !== 0) {
+          // Horizontal: |rotatedX| * scale * perspective <= availableX. The perspective
+          // factor depends on the point's own depth, which is itself proportional to scale,
+          // so the two cancel into a single linear solve. A non-positive denominator means
+          // the point's projected x converges inside the edge however far the scale goes
+          // (only possible ahead of the pivot, where perspective shrinks faster than the
+          // offset grows) -- no constraint, rather than a spurious negative one.
+          const availableX = rotatedX > 0 ? right - focus.x : focus.x - left;
+          const xDenom = Math.abs(rotatedX) + availableX * k * rotatedY;
+          if (xDenom > 0) maxScale = Math.min(maxScale, availableX / xDenom);
+        }
+        if (rotatedY < 0) {
+          const aheadDenom = -rotatedY * (tiltCos - maxAheadPx * k);
+          // tiltCos - maxAheadPx * k is tiltCos * TILT_FIT_MIN_PERSPECTIVE_SCALE whenever the
+          // horizon cap binds, so it is strictly positive there; it only reaches zero or
+          // below when maxAheadPx itself is degenerate (focus above the top margin), which
+          // the old arithmetic reported the same way -- as a non-positive maxScale, i.e. null.
+          if (aheadDenom > 0) maxScale = Math.min(maxScale, maxAheadPx / aheadDenom);
+          else maxScale = Math.min(maxScale, maxAheadPx);
+        }
       }
 
       if (!Number.isFinite(maxScale) || maxScale <= 0) return null;
@@ -3441,7 +3568,15 @@
       // See maxScaleForHeadingUpPoints's comment: the selected destination/route stay
       // visible even when behind the user during full tilt, so the fit must keep framing
       // them there too, unlike nearby mode's item cluster.
-      const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect, { excludeBehindDuringTilt: false });
+      // projectTilt: fit where the tilt camera will actually draw the route. Selected
+      // navigation only, deliberately: nearby survey mode has the identical flat-fit defect,
+      // but its fit is wrapped in a walking-radius floor and a min-distance extension that
+      // were both calibrated against flat geometry ([[nearby-view-zoom]] project memory), so
+      // that one wants measuring and testing on its own rather than riding along here.
+      const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect, {
+        excludeBehindDuringTilt: false,
+        projectTilt: true,
+      });
       return maxScale == null ? state.viewport.scale : maxScale;
     }
 

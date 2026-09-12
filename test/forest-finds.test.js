@@ -192,6 +192,14 @@ globalThis.__forestFindsTest = {
   alignHeadingUpNavigationViewport,
   maxScaleForHeadingUpPoints,
   maxHeadingUpNavigationScale,
+  headingUpFitMarginPx,
+  headingUpFitTiltCamera,
+  resolveHeadingUpTargetScale,
+  TILT_FIT_MIN_PERSPECTIVE_SCALE,
+  HEADING_UP_SCALE_BUFFER_RATIO,
+  HEADING_UP_SCALE_SETTLE_RATIO,
+  HEADING_UP_SCALE_EASE_RATE,
+  HEADING_UP_SCALE_EASE_MAX_DT,
   maxNearbyHeadingUpScale,
   pointsExtendedToMinDistance,
   walkingRadiusWorldUnits,
@@ -364,6 +372,9 @@ function resetData(app) {
   app.stopCalibrationViewportSync();
   app.state.tiltBetaSmoothed = 0;
   app.state.tiltBetaTarget = 0;
+  // The scale ease integrates against this timestamp (resolveHeadingUpTargetScale); a value
+  // left behind by an earlier test would be read as a real frame delta by the next one.
+  app.state.headingUpScaleEaseAt = null;
   app.state.tiltWasActive = false;
   app.state.canvasInsetX = 0;
   app.state.canvasInsetY = 0;
@@ -4352,6 +4363,254 @@ test("routing-graph re-fit leaves a settled viewport alone when the whole route 
 
   assert.equal(app.state.viewportAnimationTo, null, "should not start a viewport animation");
   assert.deepEqual(app.state.viewport, settled, "the settled viewport should be left untouched");
+});
+
+
+// ---------------------------------------------------------------------------------------
+// Heading-up navigation: the fit has to agree with the tilt camera that draws it.
+//
+// The scale fit was solved entirely on flat (untilted) coordinates while worldToScreen()
+// projects every point through the tilt camera, which compresses distance ahead of the
+// pivot towards the horizon. So the scale the fit believed filled the screen rendered the
+// route into a fraction of it, and the error grew with tilt: measured on a 1000x800 stage
+// with the inspector open and a destination 580 m dead ahead, the framed band came out 1.06x
+// too wide at beta 20, 1.45x at 45, 1.96x at 60 and 5.27x at 85. Reported from the field as
+// the selected-route view being "so zoomed out". See claude/heading-up-tilt-aware-fit.md.
+// ---------------------------------------------------------------------------------------
+
+// Applies the same fit alignHeadingUpNavigationViewport() would, without the ease/defer
+// layer on top, and leaves the per-frame tilt + overlap caches invalidated so a following
+// worldToScreen() reads the viewport just written rather than a stale camera.
+function fitSelectedHeadingUpViewport(app) {
+  const rect = app.bestVisibleCanvasRect();
+  const focus = app.navigationFocusPoint(rect);
+  const scale = app.maxHeadingUpNavigationScale(focus, rect);
+  const point = app.state.userLocation.point;
+  app.state.viewport = { scale, tx: focus.x - point.x * scale, ty: focus.y - point.y * scale };
+  app.resizeCanvas();
+  return { rect, focus, scale, band: focus.y - (rect.y + app.headingUpFitMarginPx(rect)) };
+}
+
+// Fraction of the band the fit set out to fill that `worldPoint` actually occupies once the
+// tilt projection has had its say. 1 means the fit filled exactly what it aimed at; the
+// pre-fix flat fit returned 0.19-0.94 depending on tilt.
+function projectedFillFraction(app, worldPoint) {
+  const fit = fitSelectedHeadingUpViewport(app);
+  return (fit.focus.y - app.worldToScreen(worldPoint).y) / fit.band;
+}
+
+function selectTreeAheadForTilt(app, degreesNorth = 0.00521) { // ~580 m, the reported case
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0; // facing north, so the destination is dead ahead
+  app.state.renderedNavigationHeading = 0;
+  const destination = makePoint(app, degreesNorth, 0);
+  app.state.trees = [{ id: "tilt-dest", commonName: "Tilt destination", ...destination }];
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  return destination;
+}
+
+test("heading-up navigation frames the route where the tilt camera draws it, not where flat geometry puts it", () => {
+  const destination = selectTreeAheadForTilt(app);
+
+  for (const beta of [20, 30, 45, 60]) {
+    app.state.tiltBetaSmoothed = beta;
+    app.state.tiltBetaTarget = beta;
+    const fill = projectedFillFraction(app, destination.point);
+    // Within a percent of the band it aimed at, at every tilt angle -- not 94% at beta 20
+    // falling away to 51% at beta 60. The upper bound matters just as much: overshooting
+    // would put the destination outside the margin the fit reserved.
+    assert.ok(
+      fill > 0.99 && fill <= 1.001,
+      `beta=${beta}: destination should occupy the band the fit aimed at, filled ${(fill * 100).toFixed(1)}%`
+    );
+  }
+});
+
+test("the tilt-aware fit stops short of the horizon haze rather than framing the destination as a speck", () => {
+  const destination = selectTreeAheadForTilt(app);
+
+  for (const beta of [70, 75, 85]) {
+    app.state.tiltBetaSmoothed = beta;
+    app.state.tiltBetaTarget = beta;
+    const fit = fitSelectedHeadingUpViewport(app);
+    const projected = app.worldToScreen(destination.point);
+
+    assert.ok(Number.isFinite(fit.scale) && fit.scale > 0, `beta=${beta}: fit should stay bounded, got ${fit.scale}`);
+    // The whole point of TILT_FIT_MIN_PERSPECTIVE_SCALE: however much screen is left, the
+    // destination is never pushed deeper than the size it can still be read at.
+    assert.ok(
+      projected.scale >= app.TILT_FIT_MIN_PERSPECTIVE_SCALE - 1e-9,
+      `beta=${beta}: destination projected at ${projected.scale.toFixed(3)} of full size, below the ${app.TILT_FIT_MIN_PERSPECTIVE_SCALE} floor`
+    );
+    // ...and it is still framed comfortably above the user, not parked on top of them.
+    assert.ok(
+      (fit.focus.y - projected.y) / fit.band > 0.3,
+      `beta=${beta}: destination should still be framed well above the user, got ${(((fit.focus.y - projected.y) / fit.band) * 100).toFixed(0)}% of the band`
+    );
+  }
+
+  // At max tilt the cap is not a nicety, it is the only thing bounding the fit at all: the
+  // horizon sits below the rect's own top margin (TILT_HORIZON_GROUND_RATIO leaves sky above
+  // it), so "keep the point inside the rect" is satisfied at *every* scale and an uncapped
+  // ahead constraint would never bind.
+  app.state.tiltBetaSmoothed = 85;
+  app.state.tiltBetaTarget = 85;
+  const fit = fitSelectedHeadingUpViewport(app);
+  const camera = app.headingUpFitTiltCamera();
+  assert.ok(camera, "tilt camera should be available at max tilt");
+  assert.ok(
+    camera.horizonPx < fit.band,
+    `the horizon (${camera.horizonPx.toFixed(0)}px above the pivot) should sit inside the fitted band (${fit.band.toFixed(0)}px) at max tilt, which is what makes the cap load-bearing`
+  );
+});
+
+test("with tilt inactive the tilt-aware fit is arithmetically identical to the flat one", () => {
+  // The tilt-aware constraints are the flat inequalities with the projection substituted in,
+  // so at tiltCos 1 / k 0 every one of them must collapse back to exactly the expression it
+  // replaced -- including for points behind and to either side, which take different
+  // branches. Guards the rewrite as much as the feature.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  const points = [
+    makePoint(app, 0.004, 0).point,      // ahead
+    makePoint(app, 0.002, 0.003).point,  // ahead and to the right
+    makePoint(app, -0.001, -0.002).point, // behind and to the left
+    makePoint(app, 0, 0.0035).point,     // exactly beside
+  ];
+  const rect = app.bestVisibleCanvasRect();
+  const focus = app.navigationFocusPoint(rect);
+
+  for (const beta of [0, 11.9]) { // 0 and just under TILT_BETA_THRESHOLD
+    app.state.tiltBetaSmoothed = beta;
+    app.state.tiltBetaTarget = beta;
+    const projected = app.maxScaleForHeadingUpPoints(points, focus, rect, { excludeBehindDuringTilt: false, projectTilt: true });
+    const flat = app.maxScaleForHeadingUpPoints(points, focus, rect, { excludeBehindDuringTilt: false });
+    assert.equal(projected, flat, `beta=${beta}: projectTilt must be a no-op while tilt is inactive`);
+    assert.equal(app.headingUpFitTiltCamera(), null, `beta=${beta}: there is no tilt camera below the threshold`);
+  }
+
+  // And the flat value itself is the closed form, not just self-consistent: a single point
+  // dead ahead is fitted at exactly (band / its distance).
+  const ahead = makePoint(app, 0.004, 0).point;
+  const band = focus.y - (rect.y + app.headingUpFitMarginPx(rect));
+  const expected = band / (app.state.userLocation.point.y - ahead.y);
+  const actual = app.maxScaleForHeadingUpPoints([ahead], focus, rect, { excludeBehindDuringTilt: false, projectTilt: true });
+  assert.ok(Math.abs(actual - expected) < 1e-9, `expected ${expected}, got ${actual}`);
+});
+
+// ---------------------------------------------------------------------------------------
+// resolveHeadingUpTargetScale: a deferred zoom-in has to actually land.
+//
+// The deferral returned previousScale unchanged for as long as headingUpCompassSensorActive()
+// held, i.e. until 350ms passed with no compass event -- which never happens on iOS, where
+// deviceorientation fires continuously while the phone is held. Zoom-*out* corrections
+// applied immediately, so the scale could only ratchet wider.
+// ---------------------------------------------------------------------------------------
+
+// Stands in for real frames: the ease integrates (now - state.headingUpScaleEaseAt), so
+// seeding that timestamp one frame back is what a 16ms rAF tick looks like to it. The
+// compass event timestamp is refreshed every frame too, which is the condition under test.
+function runHeadingUpEaseFrames(app, frames, frameMs = 16) {
+  for (let i = 0; i < frames; i++) {
+    const now = Date.now();
+    app.state.compassLastEventAt = now;
+    app.state.headingUpScaleEaseAt = now - frameMs;
+    app.alignHeadingUpNavigationViewport();
+    app.resizeCanvas();
+  }
+}
+
+test("a non-urgent heading-up zoom-in eases toward the fit while the compass keeps firing, instead of waiting for it to go quiet", () => {
+  const destination = selectTreeAheadForTilt(app);
+  app.state.tiltBetaSmoothed = 55;
+  app.state.tiltBetaTarget = 55;
+  const fit = fitSelectedHeadingUpViewport(app);
+
+  // Start from the scale a flatter phone was fitted at, as raising the phone does.
+  const startScale = fit.scale / 2.5;
+  const point = app.state.userLocation.point;
+  app.state.viewport = { scale: startScale, tx: fit.focus.x - point.x * startScale, ty: fit.focus.y - point.y * startScale };
+  app.resizeCanvas();
+
+  // With no previous frame to integrate against, the first call only starts the clock.
+  app.state.compassLastEventAt = Date.now();
+  app.state.headingUpScaleEaseAt = null;
+  app.alignHeadingUpNavigationViewport();
+  assert.equal(app.state.viewport.scale, startScale, "the first frame only starts the ease clock");
+
+  runHeadingUpEaseFrames(app, 3);
+  const afterFewFrames = app.state.viewport.scale;
+  assert.ok(afterFewFrames > startScale, "the ease should be moving while the sensor is still firing (pre-fix: frozen)");
+  assert.ok(
+    afterFewFrames < startScale + (fit.scale - startScale) * 0.5,
+    `no snap: three frames should not cover half the gap, went ${startScale.toFixed(0)} -> ${afterFewFrames.toFixed(0)} of ${fit.scale.toFixed(0)}`
+  );
+
+  runHeadingUpEaseFrames(app, 60); // ~1s
+  const settled = app.state.viewport.scale;
+  // The ease stops inside HEADING_UP_SCALE_BUFFER_RATIO + the settle tolerance of maxScale,
+  // which is where a forced fit lands too -- it is converging on the fit, not drifting past.
+  const floor = fit.scale * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO - app.HEADING_UP_SCALE_SETTLE_RATIO - 0.01);
+  assert.ok(
+    settled > floor && settled <= fit.scale + 1e-6,
+    `after ~1s the scale should have converged on the fit (${fit.scale.toFixed(0)}), got ${settled.toFixed(0)}`
+  );
+
+  // And the destination is now framed where the tilt-aware fit intended.
+  const fill = (app.navigationFocusPoint().y - app.worldToScreen(destination.point).y) / fit.band;
+  assert.ok(fill > 0.9, `destination should be framed after the ease, filled ${(fill * 100).toFixed(0)}%`);
+
+  runHeadingUpEaseFrames(app, 10);
+  assert.ok(
+    Math.abs(app.state.viewport.scale - settled) < settled * 0.01,
+    "once converged the ease should sit still rather than hunting"
+  );
+});
+
+test("an urgent heading-up correction still applies in a single frame while the compass is firing", () => {
+  selectTreeAheadForTilt(app);
+  app.state.tiltBetaSmoothed = 55;
+  app.state.tiltBetaTarget = 55;
+  const tilted = fitSelectedHeadingUpViewport(app);
+
+  // Lower the phone: the fit the tilted view was using is now far too zoomed in, so the
+  // destination has left the screen. That is the one case the ease must not soften.
+  app.state.tiltBetaSmoothed = 20;
+  app.state.tiltBetaTarget = 20;
+  app.resizeCanvas();
+  const wanted = app.maxHeadingUpNavigationScale(app.navigationFocusPoint(), app.bestVisibleCanvasRect());
+  assert.ok(wanted < tilted.scale, "lowering the phone should require a zoom-out for this fixture");
+
+  runHeadingUpEaseFrames(app, 1);
+  assert.ok(
+    Math.abs(app.state.viewport.scale - wanted * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO)) < wanted * 0.01,
+    `an off-screen target should be corrected in one frame, got ${app.state.viewport.scale.toFixed(0)} want ~${(wanted * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO)).toFixed(0)}`
+  );
+});
+
+test("a stale scale-ease timestamp is discarded rather than integrated as one huge frame delta", () => {
+  selectTreeAheadForTilt(app);
+  app.state.tiltBetaSmoothed = 55;
+  app.state.tiltBetaTarget = 55;
+  const fit = fitSelectedHeadingUpViewport(app);
+  const startScale = fit.scale / 2.5;
+  const point = app.state.userLocation.point;
+  app.state.viewport = { scale: startScale, tx: fit.focus.x - point.x * startScale, ty: fit.focus.y - point.y * startScale };
+  app.resizeCanvas();
+
+  // A backgrounded tab, or a screen the ease did not run on: the last timestamp is seconds
+  // old. Integrating that (even clamped to HEADING_UP_SCALE_EASE_MAX_DT) is a visible jump.
+  const now = Date.now();
+  app.state.compassLastEventAt = now;
+  app.state.headingUpScaleEaseAt = now - 5000;
+  app.alignHeadingUpNavigationViewport();
+  assert.equal(app.state.viewport.scale, startScale, "a stale ease timestamp should restart the clock, not move the scale");
+
+  // The restarted clock then eases normally from the next real frame on.
+  runHeadingUpEaseFrames(app, 3);
+  assert.ok(app.state.viewport.scale > startScale, "the ease should resume on the following frames");
 });
 
 runRegisteredTests().catch((error) => {
