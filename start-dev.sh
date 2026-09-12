@@ -27,6 +27,21 @@ while kill -0 "${tunnel_pid}" 2>/dev/null; do
   url=$(grep -o 'https://[^ ]*\.trycloudflare\.com' .cloudflared-tunnel.log 2>/dev/null | head -1) || true
   if [[ -n "$url" ]]; then
     echo "$url"
+    
+    # Copy URL to clipboard
+    echo -n "$url" | pbcopy
+    
+    # Show notification
+    osascript <<APPLE
+tell application "System Events"
+    display notification "Tunnel URL copied to clipboard" with title "Dev Server Ready" subtitle "$url"
+end tell
+APPLE
+
+    # Open Finder with Share menu (user can AirDrop from here)
+    # or just let them paste from clipboard
+    open -a Finder /dev/null
+    
     break
   fi
   sleep 0.3

@@ -28,7 +28,7 @@ body {
 
 body {
   margin: 0;
-  overflow: hidden; /* Allow rotated canvas to extend beyond container */
+  overflow: hidden;
   color: var(--ink);
   background: var(--paper);
 }
@@ -147,9 +147,11 @@ a:focus-visible {
 }
 
 .map-stage {
+  perspective: 1200px;
+  perspective-origin: center 30%;
   position: relative;
   height: 100%;
-  overflow: visible; /* Allow rotated canvas to extend beyond container */
+  overflow: hidden;
   background:
     linear-gradient(135deg, rgba(229, 236, 226, 0.95), rgba(205, 218, 203, 0.95)),
     #d8e1d4;

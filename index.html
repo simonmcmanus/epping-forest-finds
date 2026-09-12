@@ -254,7 +254,7 @@
     // angle (rather than the live, ever-changing tiltRotateXDeg()) keeps the camera
     // distance from collapsing at low/mid tilt angles -- see tiltPerspectivePx().
     const TILT_HORIZON_REFERENCE_TAN = Math.tan(TILT_ROTATEX_MAX * Math.PI / 180);
-    const HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT = 2.0; // extra canvas needed so perspective doesn't expose the top edge
+    const HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT = 3.5; // extra canvas needed so perspective doesn't expose the top edge
     // The canvas resize needed to switch overscan ratios is a discrete, unavoidably instant
     // change — so it must never land while the tilt transform is visibly animating. Both
     // thresholds sit well clear of TILT_BETA_THRESHOLD (12, where rotateX starts ramping),
@@ -901,6 +901,7 @@
         els.overlayCanvas.width = overscanWidth;
         els.overlayCanvas.height = overscanHeight;
         els.overlayCanvas.dataset.dpr = String(dpr);
+        els.overlayCanvas.style.position = "absolute";
         els.overlayCanvas.style.left = `${-insetX / dpr}px`;
         els.overlayCanvas.style.top = `${-insetY / dpr}px`;
         els.overlayCanvas.style.width = `${overscanWidth / dpr}px`;
@@ -3585,10 +3586,22 @@
       const shouldAnimate = options.animate !== false;
 
       let pointsToFit = [state.userLocation.point];
-      if (state.selected && state.selected.type === "path" && target.segments) {
+
+      // If a route is being displayed (navigating to a tree/place), include all route points
+      // so the viewport fits the entire path, not just the origin and destination.
+      // selectedRoutePoints returns the walking route via roads/paths, which may extend
+      // significantly beyond the straight-line destination.
+      if (target.point && typeof selectedRoutePoints === "function") {
+        const routePoints = selectedRoutePoints(target);
+        if (routePoints && routePoints.length > 0) {
+          pointsToFit.push(...routePoints);
+        }
+      } else if (state.selected && state.selected.type === "path" && target.segments) {
+        // For path selections (e.g., forest boundaries), include all segment points
         for (const segment of target.segments) pointsToFit.push(...segment);
-      } else {
-        if (target.point) pointsToFit.push(target.point);
+      } else if (target.point) {
+        // Fallback: just the destination point
+        pointsToFit.push(target.point);
       }
 
       // On GPS-triggered calls (no force flag), check if animation is needed.
