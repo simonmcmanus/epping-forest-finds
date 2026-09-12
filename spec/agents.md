@@ -7,6 +7,7 @@ Update the relevant spec file(s) with every code change that adds, removes, or a
 - `spec/spec-data-fetching.md` — loading, normalisation, AppData interface
 - `spec/spec-data-rendering.md` — drawing, interaction, inspector, UI state
 - `spec/spec-admin.md` — admin dashboard, tracking data API, Netlify routing
+- `spec/spec-native.md` — iOS/Android native wrapper (Capacitor shell, `js/native.js`, native heading/permissions, bundled data + delta updates, store requirements)
 - `spec/spec-icons.md` — icon registry, icon rendering, generated icon asset requirements
 - `spec/spec-issue-workflow.md` — GitHub issue clarification automation (`.github/workflows/issue-clarify.yml`)
 - `spec/glossary.md` — product terminology
@@ -60,6 +61,7 @@ Before finishing any implementation task:
 - If a behaviour change is implementation-only with no user-visible effect, state this explicitly.
 - Snapshots live in the flat `test/e2e/__screenshots__/` directory (per `snapshotPathTemplate` in `playwright.config.js`, keyed only on the `toHaveScreenshot()` name so a real visual diff stays a reviewable update instead of a delete+create pair). Regenerate with `npm run test:e2e:update` locally, or trigger the `Update Snapshots` GitHub Action for a Linux-matching baseline, when intentional visual changes are made.
 - `/api/cows` is always mocked via `test/e2e/fixtures/cows.json` — never hit the live Nofence API in tests.
+- `PLAYWRIGHT_CHROMIUM_EXECUTABLE` (optional, unset by default) points Playwright at an existing Chromium binary instead of the one it downloads. It exists only for sandboxes that cannot reach `cdn.playwright.dev` and so cannot run `npx playwright install`; local Macs and CI are unaffected and keep using Playwright's own pinned browser. A mismatched Chromium build renders text differently, so `toHaveScreenshot()` failures under this var are environmental and must never be used to regenerate the committed snapshots.
 - `playwright.config.js` extends the `toHaveScreenshot()` stability timeout to 15s under `process.env.CI` (default 5s elsewhere). GitHub-hosted runners only have 2 vCPUs, and running the full 4 workers there can slow a page's animation-frame loop enough that the default 5s isn't always enough to catch a stable frame before comparing pixels. Workers stay at 4 everywhere — this fixes the flakiness without giving up CI parallelism/speed.
 
 ### Completion checklist for every task

@@ -1,5 +1,29 @@
 const { defineConfig, devices } = require("@playwright/test");
 
+// Escape hatch for sandboxes that cannot reach Playwright's browser CDN
+// (cdn.playwright.dev) and so cannot run `npx playwright install`, but do have a
+// Chromium build on disk already. Unset everywhere else — local Macs and CI both
+// download and use Playwright's own pinned browser exactly as before, so this
+// changes nothing about the baseline the committed snapshots were generated
+// against. A mismatched Chromium build renders text slightly differently, so
+// treat toHaveScreenshot() failures under this var as environmental, not real.
+const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
+const launchOptions = chromiumExecutablePath
+  ? {
+      executablePath: chromiumExecutablePath,
+      // Chromium's own background traffic (component updates, autofill, safebrowsing)
+      // goes nowhere behind a sandbox egress proxy and just adds hundreds of rejected
+      // connections and retry latency to every run.
+      args: [
+        "--disable-background-networking",
+        "--disable-component-update",
+        "--disable-sync",
+        "--no-default-browser-check",
+        "--no-first-run",
+      ],
+    }
+  : {};
+
 module.exports = defineConfig({
   testDir: "./test/e2e",
   timeout: 60_000,
@@ -36,11 +60,11 @@ module.exports = defineConfig({
   projects: [
     {
       name: "desktop",
-      use: { ...devices["Desktop Chrome"] },
+      use: { ...devices["Desktop Chrome"], launchOptions },
     },
     {
       name: "mobile",
-      use: { ...devices["Pixel 5"] },
+      use: { ...devices["Pixel 5"], launchOptions },
       // Only run specs that have mobile snapshots or mobile-specific behaviour.
       // 13 (3D tilt) is included because tilt is driven by device orientation and only
       // ever happens on a phone — the desktop profile would exercise it at a viewport

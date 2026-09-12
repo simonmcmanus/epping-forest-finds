@@ -281,25 +281,8 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v24"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+    const APP_VERSION = "v23"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
-    // Declared up here with the other boot-time constants, not next to the compass
-    // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
-    // is called long before that point in the file, and a const is in its temporal dead
-    // zone until its declaration executes -- reading one from boot() throws and takes the
-    // whole app down.
-    // How long without a heading-bearing orientation event before the compass counts as
-    // stalled. iOS stops delivering deviceorientation while the screen is off or the tab is
-    // backgrounded, and does not reliably resume on its own when it comes back.
-    const COMPASS_STALE_MS = 15000;
-    // How often the foreground watchdog re-checks the sensors. Everything it calls is a
-    // no-op unless something has actually gone quiet, so this is cheap to run.
-    const SENSOR_WATCHDOG_INTERVAL_MS = 5000;
-    // Orientation events arriving with no usable heading (no alpha / webkitCompassHeading)
-    // mean the sensor is alive but the magnetometer wants re-calibrating -- common after the
-    // phone has been asleep. Re-registering listeners cannot fix that; physically moving the
-    // phone can, so past this long we surface the existing "move your phone" prompt instead.
-    const COMPASS_HEADINGLESS_PROMPT_MS = 2500;
     const STORED_COMPASS_PERMISSION = (() => {
       try {
         const stored = localStorage.getItem(COMPASS_PERMISSION_KEY) || "unknown";
@@ -423,7 +406,6 @@
       compassAnimationTime: null,
       compassArrowAngle: null,
       compassLastEventAt: null,
-      orientationLastEventAt: null,
       headingUpScaleEaseAt: null, // timestamp the heading-up scale ease last integrated (see resolveHeadingUpTargetScale)
       lastLocationUpdateAt: null,
       navigationHeadingUp: false,
@@ -2565,89 +2547,8 @@
     }
 
     function setupCompassListeners() {
-      reattachCompassListeners();
-    }
-
-    // remove-then-add is deliberate: on iOS re-registering is what nudges the orientation
-    // sensor back into firing after it has been suspended. A bare addEventListener would be
-    // a no-op for an already-registered handler and so would nudge nothing.
-    function reattachCompassListeners() {
-      window.removeEventListener("deviceorientationabsolute", onDeviceOrientation, true);
-      window.removeEventListener("deviceorientation", onDeviceOrientation, true);
       window.addEventListener("deviceorientationabsolute", onDeviceOrientation, true);
       window.addEventListener("deviceorientation", onDeviceOrientation, true);
-    }
-
-    function compassEventAgeMs(now = performance.now()) {
-      return state.compassLastEventAt == null ? Infinity : (now - state.compassLastEventAt);
-    }
-
-    function orientationEventAgeMs(now = performance.now()) {
-      return state.orientationLastEventAt == null ? Infinity : (now - state.orientationLastEventAt);
-    }
-
-    // True only once a heading HAS been delivered at some point and has since gone quiet.
-    // Without that first check this would be permanently true on a device with no compass at
-    // all (desktop, permission never granted) and the watchdog would thrash listeners forever.
-    function compassSensorStalled(now = performance.now()) {
-      if (state.compassLastEventAt == null) return false;
-      return compassEventAgeMs(now) > COMPASS_STALE_MS;
-    }
-
-    // Single recovery path, shared by the foreground-resume hooks and the watchdog below.
-    // This logic used to live inline in the visibilitychange handler, which gave it exactly
-    // one chance per return to the foreground -- so if the sensor came back later than that
-    // one check (iOS routinely takes a moment, and sometimes never resumes without a nudge)
-    // the map was left frozen on a stale heading, or stuck north-up with no tilt, until the
-    // page was reloaded. That is the "put the phone down, come back, only a refresh fixes
-    // it" report. Running it repeatedly is what lets the app heal itself instead.
-    function recoverStalledCompass(now = performance.now()) {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-      if (!compassSensorStalled(now)) return;
-
-      // Drop a heading we can no longer trust so the map falls back to north-up rather than
-      // rendering a frozen rotation as if it were live. New readings go back through the
-      // calibration gate before rotation (and with it tilt, which headingUpActive() gates)
-      // resumes.
-      if (Number.isFinite(state.compassHeading)) {
-        state.compassHeading = null;
-        state.compassHeadingTarget = null;
-        state.renderedNavigationHeading = null;
-        state.headingUpEntryAnim = null;
-        resetCompassCalibration();
-        if (typeof updateCompassOverlay === "function") updateCompassOverlay();
-        requestDraw();
-      }
-
-      // Orientation events are still arriving, just without a heading: the sensor is alive,
-      // so re-registering achieves nothing and would only thrash. Ask for the movement that
-      // actually re-calibrates the magnetometer instead.
-      if (orientationEventAgeMs(now) <= COMPASS_HEADINGLESS_PROMPT_MS) {
-        showCompassCalibrationPrompt();
-        return;
-      }
-
-      reattachCompassListeners();
-    }
-
-    // Everything that needs doing when the page returns to the foreground. Hooked to
-    // visibilitychange, pageshow (a bfcache restore never fires visibilitychange) and window
-    // focus; all of it is idempotent and cheap enough to run on each of them.
-    function handleForegroundResume() {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-
-      // Resume GPS watch + location-tracking interval paused on backgrounding.
-      ensureLocationWatch();
-
-      recoverStalledCompass();
-
-      // Nudge the orientation sensor even when it is not stale yet: it may have been
-      // suspended for less than COMPASS_STALE_MS, in which case there is no stale heading to
-      // clear but the sensor still needs waking.
-      reattachCompassListeners();
-
-      // Restart GPS watch if it has gone silent for >20 s.
-      restartStaleGpsWatch();
     }
 
     function setupVisibilityRecovery() {
@@ -2656,20 +2557,42 @@
           pauseBackgroundedTracking();
           return;
         }
-        handleForegroundResume();
+
+        // Resume GPS watch + location-tracking interval paused on backgrounding.
+        ensureLocationWatch();
+
+        // If compass heading is stale (iOS can pause orientation events when the tab
+        // is backgrounded), clear it so the map goes north-up rather than showing a
+        // frozen heading. New orientation events will re-enable heading-up.
+        if (Number.isFinite(state.compassHeading)) {
+          const compassAge = state.compassLastEventAt == null
+            ? Infinity
+            : (performance.now() - state.compassLastEventAt);
+          if (compassAge > 15000) {
+            state.compassHeading = null;
+            state.compassHeadingTarget = null;
+            state.renderedNavigationHeading = null;
+            state.headingUpEntryAnim = null;
+            resetCompassCalibration();
+            if (typeof updateCompassOverlay === "function") updateCompassOverlay();
+            requestDraw();
+          }
+        }
+
+        // Re-register orientation listeners; on iOS this nudges the sensor back into
+        // firing after the tab returns from background.
+        window.removeEventListener("deviceorientationabsolute", onDeviceOrientation, true);
+        window.removeEventListener("deviceorientation", onDeviceOrientation, true);
+        window.addEventListener("deviceorientationabsolute", onDeviceOrientation, true);
+        window.addEventListener("deviceorientation", onDeviceOrientation, true);
+
+        // Restart GPS watch if it has gone silent for >20 s.
+        restartStaleGpsWatch();
       });
 
-      window.addEventListener("pageshow", handleForegroundResume);
-      window.addEventListener("focus", handleForegroundResume);
-
-      // Foreground watchdog -- iOS can silently stall watchPosition AND deviceorientation
-      // with no error and no visibilitychange at all, and a sensor that has not come back by
-      // the first post-resume check would otherwise never get a second one.
-      window.setInterval(() => {
-        if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-        restartStaleGpsWatch();
-        recoverStalledCompass();
-      }, SENSOR_WATCHDOG_INTERVAL_MS);
+      // Also check in the foreground — iOS can silently stall watchPosition without
+      // triggering an error or a visibilitychange event.
+      window.setInterval(restartStaleGpsWatch, 10000);
     }
 
     // Stop high-accuracy GPS polling and the periodic location-tracking beacon while
@@ -2703,11 +2626,6 @@
     const COMPASS_CALIBRATION_MAX_WAIT_MS = 6000; // safety valve -- never block heading-up forever
 
     function onDeviceOrientation(event) {
-      // Tracked separately from compassLastEventAt (set below, and only for events carrying
-      // a usable heading) so recoverStalledCompass can tell a suspended sensor -- which
-      // re-registering the listeners can wake -- from a live sensor whose magnetometer has
-      // lost its heading, which it cannot.
-      state.orientationLastEventAt = performance.now();
       const rawBeta = event.beta;
       if (Number.isFinite(rawBeta)) {
         state.tiltBetaTarget = clamp(Math.abs(rawBeta), 0, 90);

@@ -6,14 +6,15 @@ The app is lightweight, dependency-free on the client, and runnable directly fro
 
 ## Detailed Specs
 
-This top-level spec provides the product overview. Implementation details are split into two focused specs with a clearly defined data interface between them:
+This top-level spec provides the product overview. Implementation details are split into focused specs with a clearly defined data interface between them:
 
 - **[spec-data-fetching.md](spec-data-fetching.md)** — Fetching, loading, normalizing, and caching all data sources. Defines the `AppData` output interface.
 - **[spec-data-rendering.md](spec-data-rendering.md)** — Drawing, interaction, and UI. Consumes the `AppData` interface from the fetching layer.
+- **[spec-native.md](spec-native.md)** — iOS/Android native wrapper: the Capacitor shell, the `js/native.js` capability layer, native heading and permissions, bundled data and delta updates, store submission requirements.
 
 All specs live in the `spec/` folder at the project root.
 
-All three specs should be kept in sync with every change.
+All specs should be kept in sync with every change.
 
 ## Product Goal
 
@@ -286,6 +287,8 @@ The Filter, Settings, and Feedback screens all display the same fixed map view i
 ## Compass and Direction Guidance
 
 - Use device orientation when available.
+- **Compass calibration gate:** The first raw headings after load (or after a heading is cleared by the staleness recovery below) are buffered rather than trusted — a magnetometer that has not settled reports headings that snap the map to a wrong rotation. Readings are trusted, and rotation begins, once at least `COMPASS_CALIBRATION_MIN_SAMPLES` (4) readings within a 900 ms trailing window agree to within `COMPASS_CALIBRATION_STABLE_SPREAD_DEG` (6°). A "move your phone" prompt appears after 1.5 s of instability, and `COMPASS_CALIBRATION_MAX_WAIT_MS` (6 s) is a safety valve so a device that never settles is not blocked from heading-up forever. While calibration runs, the zoom/anchor fit still tracks the user (`startCalibrationViewportSync`); only rotation waits.
+- **Compass staleness recovery:** iOS stops delivering `deviceorientation` while the screen is off or the tab is backgrounded and does not reliably resume when it comes back, so the app treats a compass that has gone quiet as a recoverable fault rather than a permanent state. Recovery is a single shared routine (`recoverStalledCompass`) driven from four places: `visibilitychange` → visible, `pageshow` (a bfcache restore never fires `visibilitychange`), window `focus`, and a foreground watchdog interval (`SENSOR_WATCHDOG_INTERVAL_MS`, 5 s) that also re-runs the GPS watch check. It must be repeatable, not one-shot: driving it only from `visibilitychange` gave the sensor exactly one chance to come back per return to the foreground, and a sensor that came back later (or not at all) left the map frozen on a stale heading — or stuck north-up with no tilt, since `tiltActive()` is gated on `headingUpActive()` — until the page was reloaded. When no heading-bearing event has arrived for `COMPASS_STALE_MS` (15 s), the trusted heading is dropped (so the map falls back to north-up rather than rendering a frozen rotation as if it were live), calibration is reset so new readings are re-gated, and the orientation listeners are removed and re-added — the remove-then-add is what nudges the iOS sensor back into firing; a bare `addEventListener` would be a no-op for an already-registered handler. `state.orientationLastEventAt` (set for *every* orientation event) is tracked separately from `state.compassLastEventAt` (heading-bearing events only) so the two failure modes are distinguished: if orientation events are still arriving but carry no heading, the sensor is alive and its magnetometer needs physical movement, so the calibration prompt is shown and the listeners are left alone rather than thrashed. Recovery never runs while the page is hidden, and never runs at all on a device whose compass has never fired (desktop, permission not granted), so it cannot thrash listeners in a loop.
 - Smooth heading updates for:
   - selected-location title-row compass arrow
   - nearest-list directional arrows

@@ -91,6 +91,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     },
   };
   const document = {
+    visibilityState: "visible",
     body: createElementStub("body"),
     documentElement: createElementStub("html"),
     getElementById(id) {
@@ -274,8 +275,16 @@ globalThis.__forestFindsTest = {
   dismissCompassCalibrationPrompt,
   startCalibrationViewportSync,
   stopCalibrationViewportSync,
+  reattachCompassListeners,
+  compassSensorStalled,
+  recoverStalledCompass,
+  handleForegroundResume,
+  COMPASS_STALE_MS,
+  COMPASS_HEADINGLESS_PROMPT_MS,
+  SENSOR_WATCHDOG_INTERVAL_MS,
   location: window.location,
   windowStub: window,
+  documentStub: document,
 };
 `;
 
@@ -364,6 +373,8 @@ function resetData(app) {
   app.state.compassCalibrationStartedAt = null;
   app.state.compassCalibrationPromptVisible = false;
   app.state.compassCalibrationPromptDismissed = false;
+  app.state.compassLastEventAt = null;
+  app.state.orientationLastEventAt = null;
   if (app.els.compassCalibrationBanner) app.els.compassCalibrationBanner.hidden = true;
   // Cancel any real-timer-backed calibration sync loop a previous test left running --
   // otherwise it keeps firing (and, worse, keeps rescheduling itself) against this test's
@@ -4611,6 +4622,156 @@ test("a stale scale-ease timestamp is discarded rather than integrated as one hu
   // The restarted clock then eases normally from the next real frame on.
   runHeadingUpEaseFrames(app, 3);
   assert.ok(app.state.viewport.scale > startScale, "the ease should resume on the following frames");
+});
+
+// --- Compass staleness recovery -------------------------------------------------
+// Field report: "on some occasions it's still losing the compass or z-axis updates, it seems
+// to be after I put my phone down and come back to it -- a refresh fixes it". The recovery
+// logic used to live inline in the visibilitychange handler, giving it exactly one chance per
+// return to the foreground. iOS routinely resumes deviceorientation later than that check (and
+// sometimes not at all without a nudge), so the map stayed frozen on a stale heading -- or
+// stuck north-up with no tilt, since tiltActive() is gated on headingUpActive() -- until the
+// page was reloaded. These cover the shared, repeatable recovery path that replaced it.
+
+function withListenerSpy(app, fn) {
+  const originalAdd = app.windowStub.addEventListener;
+  const originalRemove = app.windowStub.removeEventListener;
+  const added = [];
+  const removed = [];
+  app.windowStub.addEventListener = (type) => { added.push(type); };
+  app.windowStub.removeEventListener = (type) => { removed.push(type); };
+  try {
+    fn({ added, removed });
+  } finally {
+    app.windowStub.addEventListener = originalAdd;
+    app.windowStub.removeEventListener = originalRemove;
+  }
+}
+
+test("compassSensorStalled stays false on a device whose compass has never fired", () => {
+  resetData(app);
+  app.state.compassLastEventAt = null;
+  assert.equal(
+    app.compassSensorStalled(),
+    false,
+    "with no compass at all (desktop, permission never granted) the watchdog must not thrash listeners forever"
+  );
+});
+
+test("compassSensorStalled flips only once a delivered heading has gone quiet past the threshold", () => {
+  resetData(app);
+  const now = Date.now();
+
+  app.state.compassLastEventAt = now - 1000;
+  assert.equal(app.compassSensorStalled(now), false, "a recent heading is not stalled");
+
+  app.state.compassLastEventAt = now - (app.COMPASS_STALE_MS - 1);
+  assert.equal(app.compassSensorStalled(now), false, "just inside the threshold is not stalled");
+
+  app.state.compassLastEventAt = now - (app.COMPASS_STALE_MS + 1);
+  assert.equal(app.compassSensorStalled(now), true, "past the threshold is stalled");
+});
+
+test("recoverStalledCompass drops a stale heading and sends the next readings back through calibration", () => {
+  resetData(app);
+  const now = Date.now();
+  app.state.compassHeading = 90;
+  app.state.compassHeadingTarget = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.compassLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+  app.state.orientationLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+
+  withListenerSpy(app, () => app.recoverStalledCompass(now));
+
+  assert.equal(app.state.compassHeading, null, "a heading we can no longer trust must not keep rotating the map");
+  assert.equal(app.state.compassHeadingTarget, null);
+  assert.equal(app.state.renderedNavigationHeading, null);
+  assert.equal(app.state.compassCalibrationStartedAt, null, "calibration should be reset so new readings are re-gated");
+  assert.equal(app.state.compassCalibrationSamples.length, 0);
+});
+
+test("recoverStalledCompass re-registers the orientation listeners while the sensor is silent -- every time, not just once", () => {
+  resetData(app);
+  const now = Date.now();
+  app.state.compassHeading = 90;
+  app.state.compassHeadingTarget = 90;
+  app.state.compassLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+  app.state.orientationLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+
+  withListenerSpy(app, ({ added, removed }) => {
+    app.recoverStalledCompass(now);
+    assert.deepEqual(
+      added,
+      ["deviceorientationabsolute", "deviceorientation"],
+      "the sensor nudge is remove-then-add; a bare addEventListener would be a no-op for an already-registered handler"
+    );
+    assert.deepEqual(removed, ["deviceorientationabsolute", "deviceorientation"]);
+
+    // The heading is already cleared now. The regression this guards is the recovery being
+    // one-shot: a sensor that does not come back on the first attempt must keep being nudged.
+    added.length = 0;
+    app.recoverStalledCompass(now);
+    assert.deepEqual(
+      added,
+      ["deviceorientationabsolute", "deviceorientation"],
+      "a still-silent sensor must be nudged again rather than left until the user reloads"
+    );
+  });
+});
+
+test("recoverStalledCompass asks for movement instead of re-registering when orientation events still arrive without a heading", () => {
+  resetData(app);
+  const now = Date.now();
+  app.state.compassHeading = 90;
+  app.state.compassHeadingTarget = 90;
+  app.state.compassLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+  // Sensor is alive -- it is the magnetometer that has lost its heading, which re-registering
+  // listeners cannot fix.
+  app.state.orientationLastEventAt = now - 100;
+
+  withListenerSpy(app, ({ added }) => {
+    app.recoverStalledCompass(now);
+    assert.deepEqual(added, [], "a live sensor must not have its listeners thrashed");
+  });
+  assert.equal(app.state.compassHeading, null, "the untrustworthy heading is still dropped");
+  assert.equal(
+    app.state.compassCalibrationPromptVisible,
+    true,
+    "the user should be prompted to move the phone, which is what actually re-calibrates the magnetometer"
+  );
+});
+
+test("recoverStalledCompass does nothing while the page is hidden", () => {
+  resetData(app);
+  const now = Date.now();
+  app.state.compassHeading = 90;
+  app.state.compassHeadingTarget = 90;
+  app.state.compassLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+  app.documentStub.visibilityState = "hidden";
+  try {
+    withListenerSpy(app, ({ added }) => {
+      app.recoverStalledCompass(now);
+      assert.deepEqual(added, [], "no sensor nudging while backgrounded");
+    });
+    assert.equal(app.state.compassHeading, 90, "a backgrounded tab keeps its heading; recovery happens on resume");
+  } finally {
+    app.documentStub.visibilityState = "visible";
+  }
+});
+
+test("onDeviceOrientation records that the sensor fired even when the event carries no usable heading", () => {
+  resetData(app);
+  app.state.compassLastEventAt = null;
+  app.state.orientationLastEventAt = null;
+
+  app.onDeviceOrientation({ alpha: null, beta: 40 });
+
+  assert.ok(
+    Number.isFinite(app.state.orientationLastEventAt),
+    "recoverStalledCompass distinguishes a suspended sensor from a live one by this timestamp"
+  );
+  assert.equal(app.state.compassLastEventAt, null, "an event with no heading must not count as a compass reading");
+  assert.equal(app.state.tiltBetaTarget, 40, "beta is still usable on its own");
 });
 
 runRegisteredTests().catch((error) => {
