@@ -272,7 +272,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v18"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+    const APP_VERSION = "v22"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     const STORED_COMPASS_PERMISSION = (() => {
       try {
@@ -2848,6 +2848,16 @@
           state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
           updateOverviewDirectionArrows();
           updateCompassOverlay();
+          // REVERTED (was: animate this settle call to ease in the zoom that
+          // resolveHeadingUpTargetScale deferred while the sensor was live). Animating here puts
+          // a viewport animation in flight just as the smoothing loop exits, and every later
+          // alignHeadingUpNavigationViewport call early-returns while
+          // selectionCameraTransitionActive() is true -- which suppresses the map redraws that
+          // bake heading AND tilt into the canvas (see prepareCanvasForDraw). Reported in the
+          // field as the map no longer rotating and no longer entering 3D. Snapping here is the
+          // long-standing behaviour; the occasional zoom jump it causes is the lesser evil, and
+          // wants fixing inside the loop (easing state.viewport.scale per frame) rather than by
+          // handing the viewport to an animator at the moment the loop stops running.
           const finalViewportChanged = alignHeadingUpNavigationViewport();
           if (headingUpActive()) {
             updateHeadingUpCanvasRotationTransform();
@@ -3221,12 +3231,68 @@
       return state.selectionViewportTransitionPending || state.viewportAnimationTo != null;
     }
 
-    function navigationFocusPoint() {
-      const focusRect = bestVisibleCanvasRect();
+    // Takes the rect the caller already measured. Previously this measured its own, which meant
+    // the anchor position and the scale fit in alignHeadingUpNavigationViewport came from two
+    // independent bestVisibleCanvasRect() calls -- fine while they always agreed, but they stop
+    // agreeing the moment a caller measures with assumeInspectorOpen, leaving the map scaled for
+    // the open inspector but anchored for the closed one.
+    // The inset maxScaleForHeadingUpPoints fits inside. Shared with navigationFocusPoint so the
+    // anchor and the fit agree on where the usable band actually is -- an anchor placed outside
+    // it leaves one side no room at all and collapses the fit (see balancedNavigationAnchorY).
+    function headingUpFitMarginPx(focusRect) {
+      return Math.min(focusRect.width, focusRect.height) * 0.1 + 12 * pixelRatio();
+    }
+
+    // Where to put the user when the points being fitted lie on BOTH sides of "ahead".
+    //
+    // headingUpAnchorFraction picks the anchor from the target's average bearing alone, which is
+    // right when everything is on one side: a destination behind you mirrors the anchor toward
+    // the top so there is room behind. But once the fit includes the whole route
+    // (selectedNavigationTargetPoints) a walk routinely has points ahead AND behind, and an
+    // anchor mirrored hard to one edge leaves the other side less than the fit's own margin --
+    // so maxScaleForHeadingUpPoints divides by a near-zero (or negative) gap and the scale
+    // collapses. Measured at full tilt with a behind destination and a route looping ahead: the
+    // anchor landed at 0.146 while the margin alone is ~0.13 of the rect, and the fit came out
+    // ~25x more zoomed out than the destination needed.
+    //
+    // With extents on both sides, the scale-maximising anchor is the one that splits the usable
+    // band in proportion to them: room above / room below = ahead extent / behind extent. That
+    // is returned here; single-sided fits keep the bearing anchor untouched.
+    function balancedNavigationAnchorY(focusRect, anchorFraction) {
+      const anchoredY = focusRect.y + focusRect.height * anchorFraction;
+      if (!state.userLocation) return anchoredY;
+      const points = selectedNavigationTargetPoints();
+      if (points.length < 2) return anchoredY;
+
+      const radians = toRadians(currentNavigationMapRotationDegrees());
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      let ahead = 0;
+      let behind = 0;
+      for (const point of points) {
+        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+        const dx = point.x - state.userLocation.point.x;
+        const dy = point.y - state.userLocation.point.y;
+        const rotatedY = dx * sin + dy * cos;
+        if (rotatedY < 0) ahead = Math.max(ahead, -rotatedY);
+        else behind = Math.max(behind, rotatedY);
+      }
+      if (ahead <= 0 || behind <= 0) return anchoredY;
+
+      const margin = headingUpFitMarginPx(focusRect);
+      const top = focusRect.y + margin;
+      const usable = focusRect.height - margin * 2;
+      if (!(usable > 0)) return anchoredY;
+      return top + usable * (ahead / (ahead + behind));
+    }
+
+    function navigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
       const anchor = headingUpAnchorFraction(selectedNavigationHeadingUpActive());
       return {
         x: focusRect.x + focusRect.width / 2,
-        y: focusRect.y + focusRect.height * anchor,
+        y: selectedNavigationHeadingUpActive()
+          ? balancedNavigationAnchorY(focusRect, anchor)
+          : focusRect.y + focusRect.height * anchor,
       };
     }
 
@@ -3234,8 +3300,8 @@
       return headingUpAnchorFraction(false);
     }
 
-    function nearbyNavigationFocusPoint() {
-      const focusRect = bestVisibleCanvasRect();
+    // See navigationFocusPoint: the rect is the caller's, for the same reason.
+    function nearbyNavigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
       return {
         x: focusRect.x + focusRect.width / 2,
         y: focusRect.y + focusRect.height * nearbyHeadingUpFocusY(),
@@ -3248,7 +3314,23 @@
       if (state.selected && state.selected.type === "path" && target.segments) {
         return target.segments.flat();
       }
-      return target.point ? [target.point] : [];
+      if (!target.point) return [];
+      // Frame the whole walk, not just its far end. This is the fit used by
+      // maxHeadingUpNavigationScale (and the bearing behind headingUpAnchorFraction) in
+      // heading-up navigation -- the mode in use outdoors whenever the compass is live -- and
+      // returning the bare destination meant a route that loops out via real roads/paths was
+      // routinely drawn well outside the framed area. selectedRoutePoints (js/renderer.js) is
+      // the same memoized route the dashed line is drawn from and it ends at target.point, so
+      // this is a superset of the old behaviour, never a narrower fit.
+      //
+      // While the routing graph is still building it yields the straight-line fallback, and the
+      // real route arrives via ensureRoutingGraph's re-fit
+      // (refitSelectionAfterRoutingGraphReady) exactly as it does for the non-heading-up path.
+      if (state.userLocation && typeof selectedRoutePoints === "function") {
+        const routePoints = selectedRoutePoints(target);
+        if (routePoints && routePoints.length) return routePoints;
+      }
+      return [target.point];
     }
 
     function nearbyHeadingUpTargetPoints() {
@@ -3302,8 +3384,8 @@
       // excludeBehindDuringTilt: false to keep the fit actually framing them even when
       // they're behind the user's current heading.
       const excludeBehindDuringTilt = options.excludeBehindDuringTilt !== false;
+      const margin = headingUpFitMarginPx(focusRect);
       const dpr = pixelRatio();
-      const margin = Math.min(focusRect.width, focusRect.height) * 0.1 + 12 * dpr;
       const left = focusRect.x + margin;
       const right = focusRect.x + focusRect.width - margin;
       const top = focusRect.y + margin;
@@ -3437,10 +3519,19 @@
       const previousScale = state.viewport.scale;
       const previousTx = state.viewport.tx;
       const previousTy = state.viewport.ty;
-      const focusRect = bestVisibleCanvasRect();
+      // assumeInspectorOpen lets a caller that has just un-minimized the inspector fit against
+      // its full open footprint. Without it this measured the *current* rect, which during the
+      // 180ms max-height transition (css/inspector.css) is still the minimized size -- and can
+      // even be the pre-toggle size, since the plain path reads the memoized _overlapRectCache.
+      // setInspectorMinimized's whole reason for calling this is to avoid fitting against the
+      // smaller footprint, so it must opt in; its sibling centerViewportOnPointsKeepScale path
+      // already did.
+      const focusRect = bestVisibleCanvasRect({
+        assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
+      });
       const focus = selectedNavigationHeadingUpActive()
-        ? navigationFocusPoint()
-        : nearbyNavigationFocusPoint();
+        ? navigationFocusPoint(focusRect)
+        : nearbyNavigationFocusPoint(focusRect);
       const maxScale = selectedNavigationHeadingUpActive()
         ? maxHeadingUpNavigationScale(focus, focusRect)
         : maxNearbyHeadingUpScale(focus, focusRect);
@@ -3632,7 +3723,12 @@
       let routeIsFallback = false;
       if (target.point && typeof selectedRoutePoints === "function") {
         const routePoints = selectedRoutePoints(target);
-        routeIsFallback = !state.routingGraphReady || !state.routingGraph;
+        // Only while the graph is still resolving. ensureRoutingGraph's catch also sets
+        // routingGraphReady with routingGraph left null (it deliberately does not retry), and
+        // in that state the straight line IS the final route -- so testing the graph object
+        // here kept the detour slack on every selection for the rest of the session, leaving
+        // the view permanently ~25% looser than it should be.
+        routeIsFallback = !state.routingGraphReady;
         if (routePoints && routePoints.length > 0) {
           pointsToFit.push(...routePoints);
         }
@@ -3650,7 +3746,9 @@
       // Uses the ACTUAL inspector state (not assumeInspectorOpen) so mobile
       // navigation — where the inspector is collapsed — fills the larger available area.
       if (!options.force && shouldAnimate) {
-        const focusRect = bestVisibleCanvasRect();
+        const focusRect = bestVisibleCanvasRect({
+          assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
+        });
         const edgeMargin = Math.min(focusRect.width, focusRect.height) * 0.14;
 
         // Check if ANY point is near the edge (needs animation) vs ALL points are safe
@@ -3672,6 +3770,10 @@
         durationMs: options.durationMs || 800,
         minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
         boundsSlack: routeIsFallback ? ROUTE_UNKNOWN_FIT_SLACK : 1,
+        // Callers that have just expanded the inspector must opt in: its max-height transition
+        // (180ms, css/inspector.css) has not run yet, so measuring now reports the minimized
+        // footprint and the bottom of the route ends up behind the finished sheet.
+        assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
       });
     }
 
@@ -3702,6 +3804,12 @@
         if (state.viewportAnimationTo != null && framesWaited < ROUTING_REFIT_MAX_WAIT_FRAMES) {
           framesWaited += 1;
           requestAnimationFrame(run);
+          return;
+        }
+        // Heading-up navigation has its own camera (anchor + rotation aware); going through
+        // ensureUserAndSelectionVisible there would be overwritten by the next compass frame.
+        if (selectedNavigationHeadingUpActive()) {
+          alignHeadingUpNavigationViewport({ animate: true, durationMs: 520, force: true });
           return;
         }
         ensureUserAndSelectionVisible({ animate: true, durationMs: 520 });
@@ -4009,7 +4117,7 @@
           // location while the inspector was already minimized doesn't stay collapsed.
           setInspectorMinimized(false);
           startCompassNavigation();
-          if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true });
+          if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true });
           else fitToPoints([tree.point], false, { animate: true });
           requestDraw();
           return true;
@@ -4024,7 +4132,7 @@
           // See the matching comment in the treeKey branch above.
           setInspectorMinimized(false);
           startCompassNavigation();
-          if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true });
+          if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true });
           else fitToPoints([place.point], false, { animate: true });
           requestDraw();
           return true;

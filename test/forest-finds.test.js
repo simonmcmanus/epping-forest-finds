@@ -240,6 +240,8 @@ globalThis.__forestFindsTest = {
   FILTER_GROUPS,
   worldToScreen,
   cacheVersionLabel,
+  selectedNavigationTargetPoints,
+  balancedNavigationAnchorY,
   bestVisibleCanvasRect,
   ensureUserAndSelectionVisible,
   refitSelectionAfterRoutingGraphReady,
@@ -368,6 +370,10 @@ function resetData(app) {
   app.state.canvasVisibleWidth = 1000;
   app.state.canvasVisibleHeight = 800;
   app.els.inspector.classList.remove("minimized");
+  // Several tests below hide the inspector to take its geometry out of the picture and never
+  // put it back; without this that leaks into every later test, silently removing the
+  // inspector overlap from their fits.
+  app.els.inspector.hidden = false;
   app.els.canvas.width = 1000;
   app.els.canvas.height = 800;
   app.location.hash = "";
@@ -1795,7 +1801,16 @@ test("maxHeadingUpNavigationScale delegates to the shared heading-up scale helpe
   const focusRect = { x: 0, y: 0, width: 1000, height: 800 };
 
   const points = app.selectedNavigationTargetPoints();
-  assert.equal(points.length, 1, "fixture selection should produce exactly one target point");
+  // selectedNavigationTargetPoints now fits the whole routed line rather than the bare
+  // destination, so this fixture yields the straight-line fallback (user -> tree) while the
+  // routing graph is unbuilt. What matters for THIS test is only that whatever it returns is
+  // what maxHeadingUpNavigationScale fits.
+  assert.ok(points.length >= 1, "fixture selection should produce something to fit");
+  assert.deepEqual(
+    [points[points.length - 1].x, points[points.length - 1].y],
+    [app.state.selected.item.point.x, app.state.selected.item.point.y],
+    "the fitted points must end at the destination"
+  );
   const expected = app.maxScaleForHeadingUpPoints(points, focus, focusRect);
   const actual = app.maxHeadingUpNavigationScale(focus, focusRect);
 
@@ -3959,6 +3974,262 @@ test("selection viewport re-fits to the whole routed line once the routing graph
     0,
     "every point of the routed line should sit inside the fitted, inspector-free area"
   );
+});
+
+test("selection fit honours assumeInspectorOpen so a route is not framed behind the expanding inspector", () => {
+  // The deep-link branches call setInspectorMinimized(false) and fit on the very next line,
+  // while the sheet's 180ms max-height transition is still running -- so without opting in the
+  // fit frames the route into a taller area than will actually be visible, and its far end
+  // ends up behind the finished sheet.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  const tree = { id: "t1", commonName: "Tree 1", ...makePoint(app, 0.0012, 0.0009) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+  app.state.routingGraphReady = true;
+  app.state.routingGraphBuilding = false;
+  app.state.routingGraph = {};
+  app.state.selectedRouteCache = {
+    target: tree,
+    fromLatitude: app.state.userLocation.latitude,
+    fromLongitude: app.state.userLocation.longitude,
+    points: [app.state.userLocation.point, tree.point],
+  };
+  app.els.inspector.classList.add("minimized"); // mid-transition: class toggled, height not yet
+  app.resizeCanvas();
+
+  app.ensureUserAndSelectionVisible({ animate: false, force: true, assumeInspectorOpen: true });
+  const scaleForOpen = app.state.viewport.scale;
+
+  app.ensureUserAndSelectionVisible({ animate: false, force: true });
+  const scaleForMinimized = app.state.viewport.scale;
+
+  assert.ok(
+    scaleForOpen < scaleForMinimized,
+    "fitting for the open inspector should zoom out further than fitting for the minimized one"
+  );
+
+  // And the whole route must sit inside the area the inspector will actually leave.
+  app.ensureUserAndSelectionVisible({ animate: false, force: true, assumeInspectorOpen: true });
+  const openRect = app.bestVisibleCanvasRect({ assumeInspectorOpen: true });
+  for (const point of app.state.selectedRouteCache.points) {
+    const screen = app.worldToScreen(point);
+    assert.ok(
+      screen.y >= openRect.y && screen.y <= openRect.y + openRect.height,
+      `route point should be inside the open-inspector area, got y=${screen.y} for ${JSON.stringify(openRect)}`
+    );
+  }
+});
+
+test("a route with points ahead and behind stays framed at full tilt instead of collapsing the zoom", () => {
+  // headingUpAnchorFraction picks the anchor from the target's average bearing, so a
+  // destination BEHIND the user mirrors it toward the top -- at full tilt as far as 0.146,
+  // while maxScaleForHeadingUpPoints' own margin is already ~0.13 of the rect. Any route point
+  // AHEAD then had less than a margin's worth of room, the fit divided by a near-zero gap, and
+  // the map zoomed out ~25x further than the destination ever needed. Reported in the field as
+  // "when I put the phone up near vertical it zooms really far away".
+  const measure = (beta) => {
+    resetData(app);
+    app.state.userLocation = makePoint(app, 51.6500, 0.0500);
+    const tree = { id: "t1", commonName: "T1", ...makePoint(app, 51.6478, 0.0500) }; // behind
+    app.state.trees.push(tree);
+    app.state.selected = { type: "tree", item: tree };
+    app.state.compassHeading = 0; // facing north
+    app.state.renderedNavigationHeading = 0;
+    app.state.tiltBetaSmoothed = beta;
+    app.state.routingGraph = {};
+    app.state.routingGraphReady = true;
+    app.state.routingGraphBuilding = false;
+    app.state.selectedRouteCache = {
+      target: tree,
+      fromLatitude: app.state.userLocation.latitude,
+      fromLongitude: app.state.userLocation.longitude,
+      points: [
+        app.state.userLocation.point,
+        app.projectLonLat(0.0500, 51.6513), // loops AHEAD first
+        app.projectLonLat(0.0512, 51.6490),
+        tree.point,
+      ],
+    };
+    const rect = app.bestVisibleCanvasRect();
+    const focus = app.navigationFocusPoint(rect);
+    const opts = { excludeBehindDuringTilt: false };
+    return {
+      route: app.maxScaleForHeadingUpPoints(app.selectedNavigationTargetPoints(), focus, rect, opts),
+      destinationOnly: app.maxScaleForHeadingUpPoints([tree.point], focus, rect, opts),
+    };
+  };
+
+  for (const beta of [0, 40, 70, 85]) {
+    const { route, destinationOnly } = measure(beta);
+    assert.ok(route != null && route > 0, `beta ${beta}: the fit should resolve, got ${route}`);
+    assert.ok(
+      destinationOnly / route < 2,
+      `beta ${beta}: fitting the route should not zoom out far beyond the destination's own fit `
+        + `(${(destinationOnly / route).toFixed(1)}x)`
+    );
+  }
+});
+
+test("the balanced anchor only overrides the bearing anchor when points lie on both sides", () => {
+  // One-sided fits must keep the existing tilt-ramped / mirrored anchor untouched -- that is
+  // what puts the user near the bottom edge in full 3D when everything is ahead of them.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.6500, 0.0500);
+  const tree = { id: "t1", commonName: "T1", ...makePoint(app, 51.6530, 0.0500) }; // ahead
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.tiltBetaSmoothed = 85;
+  app.state.routingGraph = {};
+  app.state.routingGraphReady = true;
+  app.state.routingGraphBuilding = false;
+  app.state.selectedRouteCache = {
+    target: tree,
+    fromLatitude: app.state.userLocation.latitude,
+    fromLongitude: app.state.userLocation.longitude,
+    points: [app.state.userLocation.point, tree.point], // nothing behind
+  };
+
+  const rect = app.bestVisibleCanvasRect();
+  const anchorFraction = app.headingUpAnchorFraction(true);
+  assert.equal(
+    app.balancedNavigationAnchorY(rect, anchorFraction),
+    rect.y + rect.height * anchorFraction,
+    "a one-sided fit should keep the bearing/tilt anchor exactly"
+  );
+});
+
+test("heading-up navigation frames the whole walking route, not just the destination", () => {
+  // maxHeadingUpNavigationScale (and the bearing behind headingUpAnchorFraction) fit
+  // selectedNavigationTargetPoints. Returning only the destination meant a route that loops
+  // out via roads/paths was drawn well outside the framed area, which is what heading-up
+  // navigation shows outdoors whenever the compass is live.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const tree = { id: "t1", commonName: "T1", ...makePoint(app, 51.6520, 0.0505) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+
+  // A routed line that swings well east of the direct user->tree line before doubling back.
+  const routePoints = [
+    app.state.userLocation.point,
+    app.projectLonLat(0.0650, 51.6505),
+    app.projectLonLat(0.0650, 51.6516),
+    tree.point,
+  ];
+  app.state.routingGraph = {};
+  app.state.routingGraphReady = true;
+  app.state.routingGraphBuilding = false;
+  app.state.selectedRouteCache = {
+    target: tree,
+    fromLatitude: app.state.userLocation.latitude,
+    fromLongitude: app.state.userLocation.longitude,
+    points: routePoints,
+  };
+
+  const fitted = app.selectedNavigationTargetPoints();
+  assert.equal(fitted.length, routePoints.length, "the routed line should be what gets fitted");
+
+  // The dog-leg is the widest part of the walk, so the fit must be looser than one that only
+  // saw the destination.
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.navigationFocusPoint(focusRect);
+  const routeScale = app.maxScaleForHeadingUpPoints(fitted, focus, focusRect, { excludeBehindDuringTilt: false });
+  const destinationOnlyScale = app.maxScaleForHeadingUpPoints([tree.point], focus, focusRect, { excludeBehindDuringTilt: false });
+  assert.ok(
+    routeScale < destinationOnlyScale,
+    `fitting the route should zoom out further than fitting the destination alone (${routeScale} vs ${destinationOnlyScale})`
+  );
+
+  // Without a location or a route it must still fall back to the bare destination.
+  app.state.selectedRouteCache = null;
+  app.state.routingGraphReady = false;
+  app.state.routingGraph = null;
+  const fallback = app.selectedNavigationTargetPoints();
+  assert.ok(fallback.length >= 1, "there should still be something to fit while the graph builds");
+  assert.deepEqual(
+    [fallback[fallback.length - 1].x, fallback[fallback.length - 1].y],
+    [tree.point.x, tree.point.y],
+    "the fitted points must always end at the destination"
+  );
+});
+
+test("heading-up align honours assumeInspectorOpen so a just-expanded inspector is not measured mid-transition", () => {
+  // setInspectorMinimized toggles the class and refits immediately, but the inspector's
+  // max-height transition (180ms) has not run yet -- and the plain path also reads the
+  // memoized overlap rect. Without opting in, the fit is computed against the minimized
+  // footprint and the destination can end up behind the expanded sheet.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) });
+  // Deliberately no compassHeading: the anchored fit engages on a location fix alone
+  // (nearbyNavigationAnchorActive), and leaving heading-up off keeps resizeCanvas from
+  // applying its heading-up overscan, which would change the canvas dimensions underneath
+  // the two measurements being compared here.
+  app.els.inspector.classList.add("minimized"); // as it still measures during the transition
+  app.resizeCanvas(); // drop the memoized overlap rect so both calls measure fresh
+
+  const minimizedRect = app.bestVisibleCanvasRect();
+  const openRect = app.bestVisibleCanvasRect({ assumeInspectorOpen: true });
+  assert.ok(openRect.height < minimizedRect.height, "sanity: the open inspector must leave less room");
+
+  app.alignHeadingUpNavigationViewport({ force: true, assumeInspectorOpen: true });
+  const anchoredForOpen = app.worldToScreen(app.state.userLocation.point).y;
+
+  app.alignHeadingUpNavigationViewport({ force: true });
+  const anchoredForMinimized = app.worldToScreen(app.state.userLocation.point).y;
+
+  assert.ok(
+    anchoredForOpen < anchoredForMinimized,
+    "assumeInspectorOpen should anchor the user higher up, inside the smaller open-inspector area"
+  );
+});
+
+test("detour slack is dropped once the routing graph resolves, including when the build failed", () => {
+  // ensureRoutingGraph's catch sets routingGraphReady with routingGraph left null and never
+  // retries, so the straight line is then the final route -- keeping the slack on would leave
+  // every selection for the rest of the session framed ~25% looser than it should be.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  const tree = { id: "t1", commonName: "Tree 1", ...makePoint(app, 0.0012, 0.0009) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+
+  const fitScaleNow = () => {
+    app.ensureUserAndSelectionVisible({ animate: false, force: true });
+    return app.state.viewport.scale;
+  };
+
+  app.state.routingGraphReady = true;
+  app.state.routingGraphBuilding = false;
+  app.state.routingGraph = {};
+  app.state.selectedRouteCache = {
+    target: tree,
+    fromLatitude: app.state.userLocation.latitude,
+    fromLongitude: app.state.userLocation.longitude,
+    points: [app.state.userLocation.point, tree.point],
+  };
+  const succeededScale = fitScaleNow();
+
+  // Graph build failed: ready, but no graph. Same final route, so the same exact fit.
+  app.state.routingGraph = null;
+  app.state.selectedRouteCache = null;
+  const failedScale = fitScaleNow();
+
+  assert.ok(
+    Math.abs(failedScale / succeededScale - 1) < 0.001,
+    `a failed graph build should fit exactly like a resolved one, got ${failedScale / succeededScale}x`
+  );
+
+  // Still building, though, is genuinely unknown -- slack stays.
+  app.state.routingGraphReady = false;
+  app.state.routingGraphBuilding = true;
+  const buildingScale = fitScaleNow();
+  assert.ok(buildingScale < failedScale, "while the graph is still building the fit should keep its slack");
 });
 
 test("APP_VERSION in index.html stays in sync with APP_CACHE_NAME in sw.js", () => {

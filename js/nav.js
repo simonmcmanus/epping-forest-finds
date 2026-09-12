@@ -581,7 +581,15 @@ function setInspectorMinimized(minimized) {
       // newly-expanded inspector. Force a real rescale against the now-larger footprint instead
       // of just recentering at whatever scale was already in effect.
       if (typeof alignHeadingUpNavigationViewport === "function") {
-        alignHeadingUpNavigationViewport({ animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, force: true });
+        // assumeInspectorOpen: the class was toggled on the line above, but the inspector's
+        // max-height transition has not run yet, so measuring it now reports the minimized
+        // size -- the exact thing this branch exists to avoid.
+        alignHeadingUpNavigationViewport({
+          animate: true,
+          durationMs: DEFAULT_VIEWPORT_ANIMATION_MS,
+          force: true,
+          assumeInspectorOpen: true,
+        });
       }
     } else {
       centerViewportOnPointsKeepScale(
