@@ -1362,7 +1362,6 @@ function drawUserRadarMainCanvas(ctx) {
 // produces a visually ambiguous fin shape for simple geometric arcs.
 function drawUserRadarOverlayTilted(ctx) {
   if (!state.userLocation || !state.userInMapArea) return;
-  if (!Number.isFinite(state.compassHeading)) return;
   if (typeof tiltActive !== "function" || !tiltActive()) return;
   if (typeof projectCanvasPoint !== "function") return;
 
