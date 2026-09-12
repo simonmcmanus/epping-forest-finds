@@ -622,23 +622,49 @@ function drawOverviewRoutes(ctx, treeClusters) {
   ctx.restore();
 }
 
+// Traces a circle that lies on the ground plane, so it foreshortens with the terrain
+// instead of staying a screen-space circle. ctx.arc() takes a single scalar radius and so
+// can only ever draw a true circle; under tilt that reads as a ring standing up out of the
+// map rather than painted on it, and it looks identical at every tilt angle. Sampling the
+// circle flat and projecting each point is the same treatment the tilted radar cone gets.
+function traceGroundCirclePath(ctx, centerFlat, radiusFlatPx) {
+  // Enough segments that the polygon reads as a smooth curve at any radius, without
+  // walking hundreds of points for a small ring.
+  const steps = Math.max(48, Math.min(160, Math.round(radiusFlatPx / 4)));
+  for (let i = 0; i <= steps; i += 1) {
+    const angle = (Math.PI * 2 * i) / steps;
+    const point = tiltProjectScreenPoint({
+      x: centerFlat.x + radiusFlatPx * Math.cos(angle),
+      y: centerFlat.y + radiusFlatPx * Math.sin(angle),
+    });
+    if (i === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  }
+  ctx.closePath();
+}
+
 function drawWalkingRadius(ctx) {
   if (!state.userLocation) return;
   if (hasRealSelection()) return;
 
   const dpr = pixelRatio();
   const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
-  const center = worldToScreen(state.userLocation.point);
+  // Centre and radius are measured on the flat (untilted) map, then projected as a whole —
+  // measuring them post-projection would fold the perspective in twice.
+  const center = worldToScreenFlat(state.userLocation.point);
   const edgeWorld = projectLonLat(
     state.userLocation.longitude + (radiusMetres / (111320 * Math.cos(state.userLocation.latitude * Math.PI / 180))),
     state.userLocation.latitude
   );
-  const edge = worldToScreen(edgeWorld);
+  const edge = worldToScreenFlat(edgeWorld);
   const radiusPx = Math.max(8, Math.hypot(edge.x - center.x, edge.y - center.y));
+  const tilted = typeof tiltActive === "function" && tiltActive();
 
   ctx.save();
   ctx.beginPath();
-  ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
+  // Flat map: keep the exact arc rendering rather than a polygon approximation of it.
+  if (tilted) traceGroundCirclePath(ctx, center, radiusPx);
+  else ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(47, 114, 178, 0.07)";
   ctx.fill();
   ctx.strokeStyle = "rgba(47, 114, 178, 0.45)";

@@ -95,7 +95,14 @@ The main `draw()` function is called via `requestAnimationFrame`. Draw order (ba
 4. **Environment** — hydrology lines/areas, nature designations, buildings
 5. **Roads** — major road segments (performance-gated by zoom level)
 6. **Paths** — footpaths, bridleways, trails
-7. **Walking radius** — dashed circle around user (overview mode only)
+7. **Walking radius** — dashed circle around user (overview mode only). It lies on the
+   ground plane: while tilt is active the circle is sampled flat and each point projected
+   (`traceGroundCirclePath`), so it foreshortens into an ellipse with the terrain. A plain
+   `ctx.arc()` takes one scalar radius and can only paint a screen-space circle, which under
+   tilt reads as a ring standing up out of the map and looks identical at every angle; the
+   flat (untilted) path still uses `ctx.arc()` so 2D rendering is unchanged. Centre and
+   radius are measured with `worldToScreenFlat()` — measuring them after projection would
+   apply the perspective twice.
 8. **Overview route lines** — dashed lines from user to nearest items
 9. **Selected route line** — dashed line from user to selected target
 10. **Trees** — emoji markers

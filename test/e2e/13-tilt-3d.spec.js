@@ -131,6 +131,63 @@ test.describe("3D tilt view", () => {
     }
   });
 
+  test("the walking radius ring lies on the ground plane and foreshortens with it", async ({ page }) => {
+    // `ctx.arc()` takes one scalar radius, so it can only ever paint a true screen-space
+    // circle: the ring looked identical at every tilt angle and read as standing up out of
+    // the map rather than painted on it. Measured here from the pixels the ring actually
+    // contributes — drawn once with it suppressed and once with it, then differenced — so
+    // this tests what reaches the screen rather than re-deriving the projection.
+    const measure = async (beta) => {
+      await tiltTo(page, beta);
+      return page.evaluate(() => {
+        const canvas = els.canvas;
+        const context = canvas.getContext("2d");
+        // Let the viewport converge first: prepareCanvasForDraw can still adjust the fit on
+        // the first draw after a tilt change, which would swamp the diff.
+        for (let i = 0; i < 4; i += 1) { alignHeadingUpNavigationViewport(); draw(); }
+
+        const real = window.drawWalkingRadius;
+        window.drawWalkingRadius = () => {};
+        draw();
+        const without = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        window.drawWalkingRadius = real;
+        draw();
+        const withRing = context.getImageData(0, 0, canvas.width, canvas.height).data;
+
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, count = 0;
+        for (let y = 0; y < canvas.height; y += 2) {
+          for (let x = 0; x < canvas.width; x += 2) {
+            const i = ((y * canvas.width) + x) * 4;
+            const delta = Math.abs(withRing[i] - without[i])
+              + Math.abs(withRing[i + 1] - without[i + 1])
+              + Math.abs(withRing[i + 2] - without[i + 2]);
+            if (delta > 10) {
+              count += 1;
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        return { count, aspect: (maxY - minY) / (maxX - minX) };
+      });
+    };
+
+    const flat = await measure(0);
+    expect(flat.count, "the ring should be drawn on a flat map").toBeGreaterThan(0);
+    expect(flat.aspect, "a flat map should paint the ring as a circle").toBeCloseTo(1, 1);
+
+    let previous = flat.aspect;
+    for (const beta of [40, 60, 85]) {
+      const tilted = await measure(beta);
+      expect(tilted.count, `the ring should still be drawn at beta ${beta}`).toBeGreaterThan(0);
+      expect(tilted.aspect, `the ring should flatten further by beta ${beta}`).toBeLessThan(previous);
+      previous = tilted.aspect;
+    }
+    expect(previous, "at max tilt the ring should be strongly foreshortened").toBeLessThan(0.45);
+  });
+
   test("the canvas carries no CSS 3D transform of its own", async ({ page }) => {
     // A leftover perspective()/rotateX() would tilt the already-projected pixels twice.
     await tiltTo(page, 85);
