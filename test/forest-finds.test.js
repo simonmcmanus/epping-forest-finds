@@ -226,6 +226,9 @@ globalThis.__forestFindsTest = {
   metresPerWorldUnit,
   metresToWorldUnits,
   projectCanvasPoint,
+  rawWorldToScreen,
+  tiltHorizonCanvasY,
+  tiltFarClipCssPx,
   buildNearbyIconLookup,
   isNearCanvas,
   showClusterDetail,
@@ -1935,42 +1938,78 @@ test("heading-up resize limits effective pixel ratio so oversized canvas stays w
   }
 });
 
-test("canvas overscan switches to the tilt ratio before rotateX starts, so the resize never lands mid-transition", () => {
+test("tilt never resizes the canvas, so no resize can land mid-gesture", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.selected = null;
   app.state.compassHeading = 90;
 
+  // Tilt is projected per point (worldToScreen), not applied as a CSS transform to the
+  // finished bitmap, so the canvas needs no extra room for it at any angle. Oversizing for
+  // tilt was in fact what broke 3D: the extra canvas below the pivot swung through the
+  // camera plane, and CSS clipped the whole layer away.
   app.state.tiltBetaSmoothed = 0;
   app.prepareCanvasForDraw();
-  assert.equal(app.state.tiltWasActive, false);
   const flatWidth = app.els.canvas.width;
+  const flatHeight = app.els.canvas.height;
+  assert.ok(flatWidth > 0, "sanity: canvas is sized");
 
-  // Grows at TILT_OVERSCAN_GROW_BETA (8), well below TILT_BETA_THRESHOLD (12) where
-  // rotateX actually starts ramping — so the canvas is already correctly sized
-  // before any visible tilt transform appears.
-  app.state.tiltBetaSmoothed = 9;
-  app.prepareCanvasForDraw();
-  assert.equal(app.tiltActive(), false, "tilt should not be visually active yet at beta 9");
-  assert.equal(app.state.tiltWasActive, true, "overscan should already be switched to the tilt ratio");
-  const grownWidth = app.els.canvas.width;
-  assert.ok(grownWidth > flatWidth, "canvas should be oversized for tilt ahead of the rotateX transition");
+  for (const beta of [9, 30, 60, 85, 6, 2]) {
+    app.state.tiltBetaSmoothed = beta;
+    app.prepareCanvasForDraw();
+    assert.equal(app.els.canvas.width, flatWidth, `canvas width must not change at beta ${beta}`);
+    assert.equal(app.els.canvas.height, flatHeight, `canvas height must not change at beta ${beta}`);
+  }
+});
 
-  // Crossing the real activation threshold should not trigger a second resize.
-  app.state.tiltBetaSmoothed = 30;
-  app.prepareCanvasForDraw();
-  assert.equal(app.els.canvas.width, grownWidth, "no resize should coincide with tiltActive() switching on");
+test("the tilt projection never goes singular, at any angle or distance", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = null;
+  app.state.compassHeading = 0;
 
-  // Coming back down, the canvas stays oversized through the flat dead zone below
-  // TILT_BETA_THRESHOLD, only shrinking once well clear of it (TILT_OVERSCAN_SHRINK_BETA).
-  app.state.tiltBetaSmoothed = 6;
-  app.prepareCanvasForDraw();
-  assert.equal(app.els.canvas.width, grownWidth, "canvas should not shrink immediately when tiltActive() switches off");
+  // The old CSS-transform projection divided by (P - dz) unguarded. Behind the pivot dz
+  // reaches P, where scale flipped negative and coordinates mirrored to nonsense — which
+  // is what made the radar cone, the destination pointer and pins vanish mid-tilt.
+  for (const beta of [15, 30, 45, 60, 75, 85]) {
+    app.state.tiltBetaSmoothed = beta;
+    app.prepareCanvasForDraw();
+    const origin = app.rawWorldToScreen(app.state.userLocation.point);
+    for (let offset = -20000; offset <= 20000; offset += 250) {
+      const p = app.projectCanvasPoint(origin.x, origin.y + offset);
+      assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y),
+        `projection must stay finite at beta ${beta}, offset ${offset}`);
+      assert.ok(p.scale > 0,
+        `perspective scale must stay positive at beta ${beta}, offset ${offset} (was ${p.scale})`);
+    }
+  }
+});
 
-  app.state.tiltBetaSmoothed = 2;
+test("the ground plane reaches the horizon rather than stopping at a canvas edge", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = null;
+  app.state.compassHeading = 0;
+
+  // Ever-further points ahead must keep converging on the horizon row from below, never
+  // overshoot past it, and never run out. A finite CSS-rotated bitmap could not do this:
+  // it ran out of pixels short of the horizon, leaving the band at the top of the screen
+  // that grew with tilt angle.
+  app.state.tiltBetaSmoothed = 85;
   app.prepareCanvasForDraw();
-  assert.equal(app.state.tiltWasActive, false);
-  assert.equal(app.els.canvas.width, flatWidth, "canvas should shrink back only once tilt is well past flat again");
+  const horizon = app.tiltHorizonCanvasY();
+  assert.ok(Number.isFinite(horizon), "a tilted view has a horizon row");
+
+  const origin = app.rawWorldToScreen(app.state.userLocation.point);
+  let previousY = Infinity;
+  for (const ahead of [100, 1000, 10000, 100000, 1e7]) {
+    const y = app.projectCanvasPoint(origin.x, origin.y - ahead).y;
+    assert.ok(y > horizon, `ground ${ahead}px ahead must stay below the horizon`);
+    assert.ok(y < previousY, `ground must keep receding towards the horizon at ${ahead}px`);
+    previousY = y;
+  }
+  assert.ok(previousY - horizon < 1,
+    "far enough ahead, the ground should converge onto the horizon to within a pixel");
 });
 
 test("heading-up mode applies CSS delta rotation between redraws", () => {
@@ -3720,7 +3759,7 @@ test("tiltPerspectivePx clamps to a sane range for extreme viewport heights, and
   assert.equal(app.tiltPerspectivePx(), 260, "returns the floor rather than dividing by a zero tilt angle when tilt is inactive");
 });
 
-test("projectCanvasPoint and worldToScreenForOverlayTilted use the same dynamic perspective distance as the CSS canvas transform, so pins never drift off the terrain", () => {
+test("worldToScreen, projectCanvasPoint and worldToScreenForOverlayTilted share one projection, so pins never drift off the terrain", () => {
   resetData(app);
   app.state.compassHeading = 0;
   app.state.userLocation = makePoint(app, 0, 0); // world (0,0) -> rawWorldToScreen -> screen (500, 400) given the default viewport
@@ -3752,14 +3791,20 @@ test("projectCanvasPoint and worldToScreenForOverlayTilted use the same dynamic 
   assert.ok(Math.abs(viaWorldPoint.x - expected.x) < 1e-6, `x mismatch: ${viaWorldPoint.x} vs ${expected.x}`);
   assert.ok(Math.abs(viaWorldPoint.y - expected.y) < 1e-6, `y mismatch: ${viaWorldPoint.y} vs ${expected.y}`);
 
-  // The CSS canvas transform must embed this exact same perspective distance -- a stale or
-  // differently-derived value here would visibly drift pins away from the tilted terrain.
+  // The terrain on the main canvas must land on that same pixel too. It used to be tilted
+  // separately, by a CSS perspective()/rotateX() on the finished bitmap, which left three
+  // copies of this projection that could drift apart; now all three share one.
+  const viaMainCanvas = app.worldToScreen({ x: 0.05, y: -0.1 });
+  assert.ok(Math.abs(viaMainCanvas.x - expected.x) < 1e-6, `x mismatch: ${viaMainCanvas.x} vs ${expected.x}`);
+  assert.ok(Math.abs(viaMainCanvas.y - expected.y) < 1e-6, `y mismatch: ${viaMainCanvas.y} vs ${expected.y}`);
+
+  // And the canvas must carry no 3D transform of its own any more — a leftover rotateX
+  // would tilt the already-projected pixels a second time.
   app.state.renderedNavigationHeading = 0;
   app.els.canvas.style.transform = "";
   app.updateHeadingUpCanvasRotationTransform();
-  const match = app.els.canvas.style.transform.match(/perspective\(([\d.]+)px\)/);
-  assert.ok(match, "canvas transform should include a CSS perspective distance");
-  assert.ok(Math.abs(Number(match[1]) - perspectivePx) < 0.05, "CSS transform perspective should match tiltPerspectivePx()");
+  assert.ok(!/perspective\(|rotateX\(/.test(app.els.canvas.style.transform),
+    `canvas transform must not re-apply tilt in CSS (was "${app.els.canvas.style.transform}")`);
 });
 
 // --- Metres/world-unit geo conversion ---

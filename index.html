@@ -254,13 +254,20 @@
     // angle (rather than the live, ever-changing tiltRotateXDeg()) keeps the camera
     // distance from collapsing at low/mid tilt angles -- see tiltPerspectivePx().
     const TILT_HORIZON_REFERENCE_TAN = Math.tan(TILT_ROTATEX_MAX * Math.PI / 180);
-    const HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT = 3.5; // extra canvas needed so perspective doesn't expose the top edge
-    // The canvas resize needed to switch overscan ratios is a discrete, unavoidably instant
-    // change — so it must never land while the tilt transform is visibly animating. Both
-    // thresholds sit well clear of TILT_BETA_THRESHOLD (12, where rotateX starts ramping),
-    // so the resize always happens while the view is still flat in both directions of travel.
-    const TILT_OVERSCAN_GROW_BETA = 8;   // grow to the tilt overscan on the way up, before rotateX starts
-    const TILT_OVERSCAN_SHRINK_BETA = 4; // shrink back down only once well past flat again
+    // Tilt is projected in JS (see tiltProjectOffsets), not by CSS-rotating the finished
+    // bitmap, so the canvas never needs to be oversized for tilt — only for the heading-up
+    // rotation, which HEADING_UP_CANVAS_OVERSCAN_RATIO already covers. The former
+    // HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT (3.5) and its grow/shrink hysteresis are gone:
+    // extra canvas below the pivot actively *caused* the 3D drop-outs it was meant to fix,
+    // by pushing the rotated plane through the camera at ever lower tilt angles.
+    const TILT_NEAR_PLANE_RATIO = 0.98; // fraction of the camera distance the near clip sits at — see tiltProjectOffsets
+    // Perspective scale below which ground is deep enough into the horizon haze to be
+    // invisible, and so not worth drawing. Bounds how much world the draw loop walks in 3D
+    // ("to the horizon" must not mean "every road in the dataset"). The clip lands this
+    // fraction of the pivot-to-horizon distance below the horizon, i.e. well inside the
+    // fully-erased end of drawTiltDistanceFade's gradient — keep it small enough that the
+    // clip stays hidden there, or the ground visibly stops short of the horizon again.
+    const TILT_FAR_FADE_RATIO = 0.1;
     const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind transition band pins shrink across
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
@@ -432,6 +439,10 @@
     // Per-frame cache for the non-assume-open overlap rect. undefined = uncached;
     // null = cached "no overlap". Cleared at start of each draw() and compass tick.
     let _overlapRectCache = undefined;
+    // Per-frame snapshot of the tilt camera (see tiltProjection). Shares its invalidation
+    // points with _overlapRectCache — the camera distance is derived from the same visible
+    // rect, so anything that invalidates one invalidates the other.
+    let _tiltProjectionCache = undefined;
 
     const els = {
       canvas: document.getElementById("mapCanvas"),
@@ -852,16 +863,18 @@
 
     function resizeCanvas() {
       _overlapRectCache = undefined;
+      _tiltProjectionCache = undefined;
       const rect = (els.mapStage || els.canvas).getBoundingClientRect();
       const requestedDpr = window.devicePixelRatio || 1;
       const rawWidth = Math.max(1, rect.width);
       const rawHeight = Math.max(1, rect.height);
-      // Overscan while heading-up is active; tilt mode needs extra room so rotateX doesn't expose the canvas top edge.
-      // Uses the latched state.tiltWasActive (hysteresis, see wantsTiltOverscan) rather than
-      // tiltActive() directly, so this stays in sync with whichever ratio the canvas was last sized for.
-      const overscanRatio = headingUpActive()
-        ? (state.tiltWasActive ? HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT : HEADING_UP_CANVAS_OVERSCAN_RATIO)
-        : 1;
+      // Overscan while heading-up is active, to cover the corners the CSS heading rotation
+      // sweeps in. Tilt adds nothing here any more: it is projected per point rather than
+      // applied to the finished bitmap, so no amount of canvas has to be hidden off-screen
+      // for it — and oversizing for tilt was actively harmful, since the extra canvas below
+      // the pivot is what used to swing through the camera plane and take the whole layer
+      // with it.
+      const overscanRatio = headingUpActive() ? HEADING_UP_CANVAS_OVERSCAN_RATIO : 1;
       const requestedOverscanWidth = Math.round(rawWidth * requestedDpr * overscanRatio);
       const requestedOverscanHeight = Math.round(rawHeight * requestedDpr * overscanRatio);
       let overscanWidth = Math.max(1, Math.min(MAX_CANVAS_DIMENSION, requestedOverscanWidth));
@@ -2778,6 +2791,7 @@
 
       const tick = (timestamp) => {
         _overlapRectCache = undefined;
+        _tiltProjectionCache = undefined;
         if (!Number.isFinite(state.compassHeadingTarget) || !Number.isFinite(state.compassHeading)) {
           state.compassAnimationFrame = null;
           state.compassAnimationTime = null;
@@ -3484,22 +3498,15 @@
 
     function prepareCanvasForDraw() {
       _overlapRectCache = undefined;
+      _tiltProjectionCache = undefined;
       clearHeadingUpCanvasTransform();
-      // Resize whenever heading-up mode activates or deactivates so the canvas is
-      // only oversized while rotation is actually needed. Also resize when the desired tilt
-      // overscan ratio changes — using hysteresis (see TILT_OVERSCAN_GROW_BETA /
-      // TILT_OVERSCAN_SHRINK_BETA) rather than tiltActive() so the resize always lands while
-      // the view is still flat, never mid-transform where it would read as a snap/pop.
+      // Resize whenever heading-up mode activates or deactivates so the canvas is only
+      // oversized while the heading rotation actually needs it. Tilt no longer changes the
+      // canvas size at all, so the tilt-ratio hysteresis that used to live here — and the
+      // mid-gesture resize it existed to schedule safely — is gone with it.
       const needsOverscan = headingUpActive();
       const hasOverscan = state.canvasVisibleWidth > 0 && els.canvas.width > state.canvasVisibleWidth;
-      const wantsTiltOverscan = state.tiltWasActive
-        ? state.tiltBetaSmoothed > TILT_OVERSCAN_SHRINK_BETA
-        : state.tiltBetaSmoothed > TILT_OVERSCAN_GROW_BETA;
-      const tiltRatioChanged = needsOverscan && wantsTiltOverscan !== state.tiltWasActive;
-      if (needsOverscan !== hasOverscan || tiltRatioChanged) {
-        state.tiltWasActive = wantsTiltOverscan;
-        resizeCanvas();
-      }
+      if (needsOverscan !== hasOverscan) resizeCanvas();
       if (headingUpActive()) {
         if (state.headingUpEntryAnim != null) {
           const elapsed = performance.now() - state.headingUpEntryAnim.startTime;
@@ -3551,26 +3558,26 @@
       const origin = rawWorldToScreen(state.userLocation.point);
       const dpr = pixelRatio();
       const originCss = `${origin.x / dpr}px ${origin.y / dpr}px`;
-      const tiltDeg = tiltRotateXDeg();
-      const hasTilt = tiltDeg > 0.5;
-
       els.canvas.style.transformOrigin = originCss;
-      if (hasTilt) {
-        // rotateX(+T) tilts the top AWAY from the viewer, which is the correct
-        // direction for ground-ahead perspective (distant trees recede, not loom).
-        els.canvas.style.transform = `perspective(${tiltPerspectivePx().toFixed(1)}px) rotateX(${tiltDeg.toFixed(2)}deg) rotate(${delta.toFixed(4)}deg)`;
-        // Overlay stays flat — pin positions are projected via worldToScreenForOverlayTilted
-        // so they appear upright (billboard) rather than lying flat on the tilted surface.
-        if (els.overlayCanvas) {
-          els.overlayCanvas.style.transformOrigin = "";
-          els.overlayCanvas.style.transform = "";
-        }
+      if (tiltRotateXDeg() > 0) {
+        // No CSS perspective()/rotateX() any more — tilt is baked into the drawn pixels by
+        // worldToScreen. That also retires the inter-frame shortcut used in the flat case
+        // below (spin the finished bitmap by the heading delta instead of redrawing):
+        // rolling an already-perspective image around the pivot is not the same as
+        // re-projecting the ground at the new heading, and would visibly roll the horizon.
+        // Redraw instead. It is requestAnimationFrame-coalesced, and in 3D the main canvas
+        // carries terrain only (pins move to the overlay), so it stays one cheap draw per
+        // frame for as long as the compass is actually moving.
+        els.canvas.style.transform = "";
+        if (Math.abs(delta) > 0.01) requestDraw();
       } else {
         els.canvas.style.transform = Math.abs(delta) < 0.01 ? "" : `rotate(${delta}deg)`;
-        if (els.overlayCanvas) {
-          els.overlayCanvas.style.transformOrigin = "";
-          els.overlayCanvas.style.transform = "";
-        }
+      }
+      // Overlay stays flat — pin positions are projected via worldToScreenForOverlayTilted
+      // so they appear upright (billboard) rather than lying flat on the tilted surface.
+      if (els.overlayCanvas) {
+        els.overlayCanvas.style.transformOrigin = "";
+        els.overlayCanvas.style.transform = "";
       }
       return true;
     }
@@ -4718,11 +4725,125 @@
       };
     }
 
-    function worldToScreen(point) {
+    // ------------------------------------------------------------------------------
+    // Tilt projection
+    //
+    // The ground plane is rotated by tiltRotateXDeg() about a horizontal axis through the
+    // user's position (the pivot) and viewed from tiltPerspectivePx() away. For a point
+    // dy CSS px from the pivot down the screen's vertical axis:
+    //
+    //   z     = dy * sin(T)     (+z is towards the camera)
+    //   scale = P / (P - z)
+    //
+    // Ahead of the pivot (dy < 0) z is negative, so scale falls smoothly towards 0 and the
+    // projected y converges on a *finite* horizon at -P/tan(T). That finite limit is the
+    // whole reason this is done in JS rather than as a CSS perspective()/rotateX() on the
+    // finished bitmap: a rotated bitmap runs out of pixels somewhere short of the horizon,
+    // leaving a band at the top of the screen with no map in it that grows with tilt angle
+    // and cannot be closed by any amount of overscan. Projecting per point instead lets the
+    // ground be drawn all the way to the horizon.
+    //
+    // Behind the pivot (dy > 0) z grows towards P, where the perspective divide is singular
+    // and past which points sit behind the camera — scale flips negative and coordinates
+    // mirror to nonsense (which is what used to make the radar cone, the destination
+    // pointer and pins vanish, and what made CSS clip the rotated canvas outright).
+    // TILT_NEAR_PLANE_RATIO clips just short of that. Nothing visible is lost: a point at
+    // the near plane already projects ~50x out, far below the bottom of the viewport.
+    function tiltProjectOffsets(dxCss, dyCss, tiltDeg, perspectivePx) {
+      const rad = toRadians(tiltDeg);
+      const sin = Math.sin(rad);
+      const cos = Math.cos(rad);
+      const dyMax = sin > 0 ? (perspectivePx * TILT_NEAR_PLANE_RATIO) / sin : Infinity;
+      const clipped = dyCss > dyMax;
+      const dy = clipped ? dyMax : dyCss;
+      const scale = perspectivePx / (perspectivePx - dy * sin);
+      return { dx: dxCss * scale, dy: dy * cos * scale, scale, clipped };
+    }
+
+    // Per-frame snapshot of everything the tilt projection needs. This must be cached:
+    // tiltPerspectivePx() reaches bestVisibleCanvasRect() and the navigation target points,
+    // and pixelRatio() reads a DOM dataset attribute — all far too expensive to repeat for
+    // every one of the hundreds of thousands of points a single draw projects. Invalidated
+    // wherever _overlapRectCache is (declaration above).
+    function tiltProjection() {
+      if (_tiltProjectionCache !== undefined) return _tiltProjectionCache;
+      const tiltDeg = tiltRotateXDeg();
+      if (tiltDeg <= 0 || !state.userLocation) {
+        _tiltProjectionCache = null;
+        return _tiltProjectionCache;
+      }
+      const rad = toRadians(tiltDeg);
+      const sin = Math.sin(rad);
+      const perspectivePx = tiltPerspectivePx();
+      const origin = rawWorldToScreen(state.userLocation.point);
+      _tiltProjectionCache = {
+        sin,
+        cos: Math.cos(rad),
+        perspectivePx,
+        dyMax: sin > 0 ? (perspectivePx * TILT_NEAR_PLANE_RATIO) / sin : Infinity,
+        originX: origin.x,
+        originY: origin.y,
+        dpr: pixelRatio(),
+      };
+      return _tiltProjectionCache;
+    }
+
+    // Projects an already-flat (raw + heading-rotated) canvas-pixel position through the
+    // active tilt. Shared by the main canvas (worldToScreen), the flat overlay
+    // (worldToScreenForOverlayTilted) and raw canvas positions (projectCanvasPoint) so all
+    // three agree by construction rather than by three copies of the same arithmetic.
+    function tiltProjectScreenPoint(flat) {
+      const cam = tiltProjection();
+      if (!cam) return { x: flat.x, y: flat.y, scale: 1, clipped: false };
+      const dxCss = (flat.x - cam.originX) / cam.dpr;
+      const dyCss = (flat.y - cam.originY) / cam.dpr;
+      const clipped = dyCss > cam.dyMax;
+      const dy = clipped ? cam.dyMax : dyCss;
+      const scale = cam.perspectivePx / (cam.perspectivePx - dy * cam.sin);
+      return {
+        x: cam.originX + dxCss * scale * cam.dpr,
+        y: cam.originY + dy * cam.cos * scale * cam.dpr,
+        scale,
+        clipped,
+      };
+    }
+
+    // Canvas-pixel y of the horizon: the row the ground plane converges on infinitely far
+    // ahead. Returns null when not tilted (a flat map has no horizon on screen).
+    function tiltHorizonCanvasY() {
+      const cam = tiltProjection();
+      if (!cam) return null;
+      return cam.originY - (cam.perspectivePx * (cam.cos / cam.sin)) * cam.dpr;
+    }
+
+    // How far ahead of the pivot (CSS px, flat/untilted) is still worth drawing: past this
+    // the perspective scale has fallen below TILT_FAR_FADE_RATIO, where the distance fade
+    // has already erased the ground completely. Bounds the geometry the draw loop walks so
+    // "draw to the horizon" doesn't mean "walk every road in the dataset".
+    function tiltFarClipCssPx() {
+      const cam = tiltProjection();
+      if (!cam || cam.sin <= 0) return Infinity;
+      return (cam.perspectivePx * (1 / TILT_FAR_FADE_RATIO - 1)) / cam.sin;
+    }
+
+    // Flat (untilted) screen position: the raw viewport transform plus the heading-up
+    // rotation — the map as it would look at zero tilt. Viewport fitting and "is this point
+    // still on screen" checks must use this rather than worldToScreen: near the top of a
+    // tilted screen the projection compresses huge world distances into a few pixels, so
+    // tilted coordinates would read as "point near the edge" and retrigger a re-fit every
+    // frame.
+    function worldToScreenFlat(point) {
       const raw = rawWorldToScreen(point);
       const rotation = navigationMapRotationDegrees();
       if (!rotation || !state.userLocation) return raw;
       return rotateScreenPoint(raw, rawWorldToScreen(state.userLocation.point), rotation);
+    }
+
+    // Screen position everything on the main canvas is drawn at, tilt included.
+    function worldToScreen(point) {
+      const flat = worldToScreenFlat(point);
+      if (!tiltActive()) return flat;
+      return tiltProjectScreenPoint(flat);
     }
 
     // Overlay elements use the current heading-up rotation so they stay aligned with
@@ -4746,52 +4867,14 @@
     function worldToScreenForOverlayTilted(point) {
       const flat = worldToScreenForOverlay(point);
       if (!tiltActive() || !state.userLocation) return flat;
-      const tiltDeg = tiltRotateXDeg();
-      if (tiltDeg <= 0) return flat;
-      const origin = rawWorldToScreen(state.userLocation.point);
-      const dpr = pixelRatio();
-      // Work in CSS pixels so the perspective distance (tiltPerspectivePx()) is consistent.
-      const dxCss = (flat.x - origin.x) / dpr;
-      const dyCss = (flat.y - origin.y) / dpr;
-      const T = tiltDeg * Math.PI / 180;
-      // rotateX(+T): y' = dy*cos(T), z' = dy*sin(T).
-      // Points above origin (dy<0, ahead) get z'<0 (behind viewer) → scale<1 → appear smaller.
-      const dyNew = dyCss * Math.cos(T);
-      const dz = dyCss * Math.sin(T);
-      // Must match the CSS transform's perspective distance exactly (see
-      // updateHeadingUpCanvasRotationTransform) or pins drift away from the terrain.
-      const perspectivePx = tiltPerspectivePx();
-      const scale = perspectivePx / (perspectivePx - dz);
-      return {
-        x: origin.x + dxCss * scale * dpr,
-        y: origin.y + dyNew * scale * dpr,
-        scale,
-      };
+      return tiltProjectScreenPoint(flat);
     }
-
 
     // Projects a raw canvas-pixel point through the active tilt perspective.
     // Used to place radar/overlay elements in the same 3D space as the terrain canvas.
     function projectCanvasPoint(px, py) {
-      if (!tiltActive() || !state.userLocation) return { x: px, y: py, scale: 1 };
-      const tiltDeg = tiltRotateXDeg();
-      if (tiltDeg <= 0) return { x: px, y: py, scale: 1 };
-      const origin = rawWorldToScreen(state.userLocation.point);
-      const dpr = pixelRatio();
-      const dxCss = (px - origin.x) / dpr;
-      const dyCss = (py - origin.y) / dpr;
-      const T = tiltDeg * Math.PI / 180;
-      const dyNew = dyCss * Math.cos(T);
-      const dz = dyCss * Math.sin(T);
-      // Must match worldToScreenForOverlayTilted's perspective distance exactly, or
-      // pins drift away from the terrain.
-      const perspectivePx = tiltPerspectivePx();
-      const scale = perspectivePx / (perspectivePx - dz);
-      return {
-        x: origin.x + dxCss * scale * dpr,
-        y: origin.y + dyNew * scale * dpr,
-        scale,
-      };
+      if (!tiltActive() || !state.userLocation) return { x: px, y: py, scale: 1, clipped: false };
+      return tiltProjectScreenPoint({ x: px, y: py });
     }
 
     function screenToWorld(x, y) {
@@ -4815,7 +4898,18 @@
           // Reverse the perspective projection
           // From forward: y' = dy * cos(T) * perspective / (perspective - dy * sin(T))
           // Solving for dy: dy = y_rel * perspective / (c * perspective + y_rel * s)
-          const dy = y_rel * perspective / (c * perspective + y_rel * s);
+          //
+          // That denominator vanishes exactly at the horizon and flips sign above it, so a
+          // screen row at or above the horizon (every row above it is sky, and rows near it
+          // are unboundedly far away) would unproject to an infinite or negative-distance
+          // world point. Clamping to the row the far clip projects to keeps the inverse
+          // finite and consistent with the forward projection's own draw distance.
+          const farClip = tiltFarClipCssPx();
+          const yRelMin = Number.isFinite(farClip)
+            ? -farClip * c * (perspective / (perspective + farClip * s))
+            : -Infinity;
+          const y_clamped = Math.max(y_rel, yRelMin);
+          const dy = y_clamped * perspective / (c * perspective + y_clamped * s);
           const dz = dy * s;
           const scale = perspective / (perspective - dz);
           const dx = x_rel / scale;

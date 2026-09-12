@@ -827,19 +827,37 @@ function drawBase(ctx, width, height) {
   }
 }
 
+// Atmospheric haze over the last stretch of ground before the horizon, plus a clean sky
+// above it. This used to be a blanket erase of the top 38% of the canvas, masking the fact
+// that a CSS-rotated bitmap ran out of pixels short of the horizon — it hid real map, and
+// with an oversized canvas it erased a band that wasn't even on screen. The ground now
+// reaches the true horizon, so the fade is anchored to that horizon and only ever softens
+// genuinely distant ground.
 function drawTiltDistanceFade(ctx, width, height) {
   if (typeof tiltActive !== "function" || !tiltActive()) return;
-  // Erase canvas pixels in the far-distance zone so the .map-stage background shows
-  // through, matching whatever is visible above the canvas edge with no colour mismatch.
-  const fadeHeight = height * 0.38;
-  const gradient = ctx.createLinearGradient(0, 0, 0, fadeHeight);
-  gradient.addColorStop(0,    "rgba(0,0,0,1)");
-  gradient.addColorStop(0.55, "rgba(0,0,0,0.45)");
-  gradient.addColorStop(1,    "rgba(0,0,0,0)");
+  const horizonY = typeof tiltHorizonCanvasY === "function" ? tiltHorizonCanvasY() : null;
+  if (horizonY == null) return;
+
   ctx.save();
   ctx.globalCompositeOperation = "destination-out";
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, fadeHeight);
+
+  // Above the horizon is sky by definition — nothing belongs there.
+  if (horizonY > 0) {
+    ctx.fillStyle = "rgba(0, 0, 0, 1)";
+    ctx.fillRect(0, 0, width, Math.min(horizonY, height));
+  }
+
+  const fadeTop = Math.max(0, horizonY);
+  const fadeBottom = Math.min(height, horizonY + height * 0.28);
+  if (fadeBottom > fadeTop) {
+    const gradient = ctx.createLinearGradient(0, horizonY, 0, horizonY + height * 0.28);
+    gradient.addColorStop(0,    "rgba(0, 0, 0, 1)");
+    gradient.addColorStop(0.45, "rgba(0, 0, 0, 0.5)");
+    gradient.addColorStop(1,    "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, fadeTop, width, fadeBottom - fadeTop);
+  }
+
   ctx.restore();
 }
 

@@ -41,8 +41,11 @@ module.exports = defineConfig({
     {
       name: "mobile",
       use: { ...devices["Pixel 5"] },
-      // Only run specs that have mobile snapshots or mobile-specific behaviour
-      testMatch: ["**/0[12345]-*.spec.js", "**/09-*.spec.js"],
+      // Only run specs that have mobile snapshots or mobile-specific behaviour.
+      // 13 (3D tilt) is included because tilt is driven by device orientation and only
+      // ever happens on a phone — the desktop profile would exercise it at a viewport
+      // shape it never actually sees.
+      testMatch: ["**/0[12345]-*.spec.js", "**/09-*.spec.js", "**/13-*.spec.js"],
     },
   ],
 

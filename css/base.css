@@ -149,7 +149,10 @@ a:focus-visible {
 .map-stage {
   position: relative;
   height: 100%;
-  overflow: visible; /* Allow rotated canvas to extend beyond container */
+  /* The canvas is never transformed in 3D any more (tilt is projected in JS), so the
+     overscan only ever covers the heading-up rotation and must stay clipped to the stage —
+     otherwise the oversized bitmap spills out around the inspector panel. */
+  overflow: hidden;
   background:
     linear-gradient(135deg, rgba(229, 236, 226, 0.95), rgba(205, 218, 203, 0.95)),
     #d8e1d4;
