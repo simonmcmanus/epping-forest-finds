@@ -68,4 +68,49 @@ test.describe("Selected route line follows the road/path network", () => {
     const pillText = await page.locator('[data-live-field="distance"]').first().innerText();
     expect(pillText).toContain(await page.evaluate((metres) => formatDistance(metres), result.routeMetres));
   });
+
+  test("re-fits the viewport once the routing graph is ready so the whole routed line stays on screen", async ({ page }) => {
+    await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+
+    // The selection's own viewport fit runs immediately, while the graph is still building, so it
+    // can only fit the straight-line [user, destination] fallback. This is the regression guard
+    // for that: once the real routed line exists it is much longer than that straight line (the
+    // assertion above in the previous test), so without ensureRoutingGraph's re-fit its far end
+    // lands off-screen or behind the inspector.
+    await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
+    await page.waitForFunction(
+      () => Boolean(state.selectedRouteCache && state.selectedRouteCache.points && state.selectedRouteCache.points.length > 2),
+      { timeout: 10_000 }
+    );
+
+    // Poll rather than assert-once: the re-fit deliberately waits out any in-flight viewport
+    // animation and then animates for ~520ms, so the settled state is what matters here.
+    const allPointsVisible = () => {
+      if (state.viewportAnimationTo != null) return false;
+      const rect = bestVisibleCanvasRect();
+      return state.selectedRouteCache.points.every((point) => {
+        const screen = worldToScreen(point);
+        return screen.x >= rect.x
+          && screen.x <= rect.x + rect.width
+          && screen.y >= rect.y
+          && screen.y <= rect.y + rect.height;
+      });
+    };
+
+    await page.waitForFunction(allPointsVisible, { timeout: 15_000 });
+
+    // Re-assert on a settled viewport so a transient pass mid-animation cannot green the test.
+    const offScreenCount = await page.evaluate(() => {
+      const rect = bestVisibleCanvasRect();
+      return state.selectedRouteCache.points.filter((point) => {
+        const screen = worldToScreen(point);
+        return screen.x < rect.x
+          || screen.x > rect.x + rect.width
+          || screen.y < rect.y
+          || screen.y > rect.y + rect.height;
+      }).length;
+    });
+    expect(offScreenCount).toBe(0);
+  });
 });

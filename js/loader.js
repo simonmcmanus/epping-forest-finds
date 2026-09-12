@@ -298,6 +298,11 @@ function ensureRoutingGraph() {
       // Correct the selected-target distance/walk-time chip the instant the graph becomes
       // ready, rather than waiting for the next GPS fix to happen to call updateSelectedDetailFields.
       updateSelectedDetailFields();
+      // The same staleness applies to the viewport itself, not just the chip: the fit that ran
+      // when the selection was made could only see the straight-line fallback, because this graph
+      // was still building. Re-fit now that the real (often much longer, winding) route is known.
+      // Non-forced and animation-aware -- see refitSelectionAfterRoutingGraphReady in index.html.
+      if (typeof refitSelectionAfterRoutingGraphReady === "function") refitSelectionAfterRoutingGraphReady();
       requestDraw();
     })
     .catch(() => {

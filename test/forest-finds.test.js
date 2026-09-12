@@ -239,6 +239,10 @@ globalThis.__forestFindsTest = {
   ICON_PATHS,
   FILTER_GROUPS,
   worldToScreen,
+  cacheVersionLabel,
+  bestVisibleCanvasRect,
+  ensureUserAndSelectionVisible,
+  refitSelectionAfterRoutingGraphReady,
   settingsFormHtml,
   reportFormHtml,
   openFiltersScreen,
@@ -277,7 +281,34 @@ globalThis.__forestFindsTest = {
   }
 
   vm.runInContext(script, context, { filename: "index.html" });
-  return context.__forestFindsTest;
+  const api = context.__forestFindsTest;
+
+  // The default element stub reports the full 1000x800 stage for every element, which made
+  // els.inspector overlap the ENTIRE canvas. bestVisibleCanvasRect() then had no uncovered
+  // region to return and handed back a zero-height rect, so every viewport fit computed
+  // against a 0px-tall focus area and produced garbage (or bailed out entirely). Tests only
+  // appeared to work when an earlier test happened to leave the geometry in a usable state.
+  //
+  // Model the real bottom-sheet instead: open, it covers the lower ~48% of the stage (the
+  // figure the inspector-open test below already assumed in a comment); minimized, it is
+  // effectively off the canvas and leaves the whole stage visible.
+  const STAGE_WIDTH = 1000;
+  const STAGE_HEIGHT = 800;
+  if (api.els.inspector) {
+    api.els.inspector.getBoundingClientRect = function inspectorRect() {
+      const height = this.classList.contains("minimized") ? 0 : STAGE_HEIGHT * 0.48;
+      return {
+        left: 0,
+        top: STAGE_HEIGHT - height,
+        right: STAGE_WIDTH,
+        bottom: STAGE_HEIGHT,
+        width: STAGE_WIDTH,
+        height,
+      };
+    };
+  }
+
+  return api;
 }
 
 function makePoint(app, latitude, longitude) {
@@ -340,6 +371,42 @@ function resetData(app) {
   app.els.canvas.width = 1000;
   app.els.canvas.height = 800;
   app.location.hash = "";
+  // Restore the stage/canvas stub geometry too: a test further down deliberately resizes
+  // els.mapStage to 1800x2600, and resizeCanvas() below reads exactly that to derive
+  // state.canvasVisibleWidth/Height -- so without this, every later test inherits it.
+  app.els.canvas.clientWidth = 1000;
+  app.els.canvas.clientHeight = 800;
+  if (app.els.mapStage) {
+    app.els.mapStage.clientWidth = 1000;
+    app.els.mapStage.clientHeight = 800;
+  }
+  // resizeCanvas() is what clears the memoized inspector-overlap rect (_overlapRectCache), so
+  // call it once this test's inspector/canvas state is set. Without it, bestVisibleCanvasRect()
+  // can keep handing back geometry cached during a previous test, which is how several viewport
+  // tests ended up order-dependent.
+  app.resizeCanvas();
+}
+
+// The heading-up anchor is defined as a fraction of the INSPECTOR-FREE area
+// (navigationFocusPoint = focusRect.y + focusRect.height * headingUpAnchorFraction), not of the
+// whole canvas. With the inspector open -- which is resetData's default, matching the real
+// nearby view -- those are very different denominators, so measure against the same rect the
+// implementation fits to.
+// Seeds the viewport at `scale` but already centred on the heading-up anchor, so the only
+// thing a re-fit could still change is zoom. The anchor is a fraction of the inspector-free
+// area, so hardcoding tx/ty here would bake in one particular inspector geometry and turn a
+// zoom-deferral test into a re-centring test.
+function seedViewportAtHeadingUpAnchor(app, scale) {
+  const focus = app.nearbyNavigationFocusPoint();
+  const point = app.state.userLocation.point;
+  app.state.viewport = { scale, tx: focus.x - point.x * scale, ty: focus.y - point.y * scale };
+  return { ...app.state.viewport };
+}
+
+function userAnchorFractionOfVisibleArea(app) {
+  const rect = app.bestVisibleCanvasRect();
+  const userScreen = app.worldToScreen(app.state.userLocation.point);
+  return (userScreen.y - rect.y) / rect.height;
 }
 
 function addFixtureData(app) {
@@ -789,8 +856,7 @@ test("full 3D (max tilt) pushes the nearby user anchor to near the bottom edge w
   app.state.viewport = { scale: 1000, tx: 999, ty: 888 };
 
   app.alignHeadingUpNavigationViewport();
-  const userScreen = app.worldToScreen(app.state.userLocation.point);
-  const fraction = userScreen.y / app.els.canvas.clientHeight;
+  const fraction = userAnchorFractionOfVisibleArea(app);
 
   assert.ok(fraction > 0.85, `user dot should sit near the bottom edge at max tilt, got fraction ${fraction}`);
   assert.ok(fraction < 1, "a small gap should remain so the dot isn't flush against the edge");
@@ -810,8 +876,7 @@ test("full 3D (max tilt) pushes the selected-navigation user anchor to near the 
   app.state.viewport = { scale: 1000, tx: 999, ty: 888 };
 
   app.alignHeadingUpNavigationViewport();
-  const userScreen = app.worldToScreen(app.state.userLocation.point);
-  const fraction = userScreen.y / app.els.canvas.clientHeight;
+  const fraction = userAnchorFractionOfVisibleArea(app);
 
   assert.ok(fraction > 0.85, `user dot should sit near the bottom edge at max tilt, got fraction ${fraction}`);
   assert.ok(fraction < 1, "a small gap should remain so the dot isn't flush against the edge");
@@ -850,7 +915,7 @@ test("nearby heading-up viewport keeps the user low when all highlighted locatio
   assert.ok(changed, "viewport should have changed to keep highlighted locations in view");
   const focusCenter = app.els.canvas.clientWidth / 2;
   assert.equal(Math.round(app.state.viewport.tx), Math.round(focusCenter), "user should stay horizontally centered");
-  assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.50, "user should sit below the midpoint when nothing is behind them");
+  assert.ok(userAnchorFractionOfVisibleArea(app) > 0.50, "user should sit below the midpoint when nothing is behind them");
 });
 
 test("heading-up viewport alignment does nothing before map data has loaded, so it can't compute the scale cap against the placeholder fitScale", () => {
@@ -887,7 +952,7 @@ test("nearby heading-up viewport ignores a highlighted location behind the user 
   const pubScreen = app.worldToScreen(app.state.landmarks[0].point);
 
   assert.ok(changed, "viewport should refit when a highlighted item is behind the user");
-  assert.ok(userScreen.y > app.els.canvas.clientHeight * 0.50, "user should still sit below the midpoint");
+  assert.ok(userAnchorFractionOfVisibleArea(app) > 0.50, "user should still sit below the midpoint");
   assert.ok(treeScreen.y < userScreen.y, "the tree should remain ahead of the user");
   assert.ok(pubScreen.y > userScreen.y, "the pub should remain behind the user");
   assert.ok(
@@ -966,7 +1031,13 @@ test("nearby filter updates trigger a heading-up refit that positions the user l
   app.ensureOverviewTargetsVisible({ animate: true, durationMs: 300 });
 
   assert.ok(app.state.viewportAnimationTo, "changing filters should start a nearby refit");
-  assert.ok(app.state.viewportAnimationTo.ty > app.els.canvas.clientHeight / 2, "the user should remain low on the map");
+  // Same visible-area reasoning as userAnchorFractionOfVisibleArea: compare the pending
+  // animation's translation against the inspector-free rect the fit was computed in.
+  const refitRect = app.bestVisibleCanvasRect();
+  assert.ok(
+    app.state.viewportAnimationTo.ty > refitRect.y + refitRect.height / 2,
+    "the user should remain low on the map"
+  );
 
   app.state.viewport = { ...app.state.viewportAnimationTo };
   app.state.viewportAnimationTo = null;
@@ -1445,15 +1516,15 @@ test("heading-up nearby zoom changes wait for compass settle before applying", (
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) });
   app.state.compassHeading = 0;
-  app.state.viewport = { scale: 10, tx: 500, ty: 440 };
+  const seeded = seedViewportAtHeadingUpAnchor(app, 10);
 
   app.state.compassLastEventAt = Date.now();
   const changedDuringCompassUpdates = app.alignHeadingUpNavigationViewport();
 
   assert.equal(changedDuringCompassUpdates, false, "active compass updates should defer heading-up zoom changes");
   assert.equal(app.state.viewport.scale, 10, "scale should hold steady while the compass is still updating");
-  assert.equal(app.state.viewport.tx, 500);
-  assert.equal(app.state.viewport.ty, 440);
+  assert.equal(app.state.viewport.tx, seeded.tx);
+  assert.equal(app.state.viewport.ty, seeded.ty);
 
   app.state.compassLastEventAt = Date.now() - 1000;
   const changedAfterCompassSettles = app.alignHeadingUpNavigationViewport();
@@ -2804,7 +2875,7 @@ test("alignHeadingUpNavigationViewport defers a zoom-in fit while the compass se
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) });
-  app.state.viewport = { scale: 10, tx: 500, ty: 440 };
+  seedViewportAtHeadingUpAnchor(app, 10);
   app.state.compassLastEventAt = Date.now(); // sensor "actively firing", as it is throughout calibration
 
   const deferredChanged = app.alignHeadingUpNavigationViewport();
@@ -3818,6 +3889,198 @@ test("metresPerWorldUnit/metresToWorldUnits round-trip and shrink with latitude,
   const worldUnits = app.metresToWorldUnits(metres, 51.65);
   const roundTripped = worldUnits * app.metresPerWorldUnit(51.65);
   assert.ok(Math.abs(roundTripped - metres) < 1e-6, "metresToWorldUnits should invert metresPerWorldUnit exactly");
+});
+
+test("selection viewport re-fits to the whole routed line once the routing graph becomes ready", () => {
+  // Regression guard for selections made while the routing graph is still building. The fit that
+  // runs at selection time can only see selectedRoutePoints' straight-line fallback, so a route
+  // that actually winds via mapped roads/paths -- the reported "230m as the crow flies, 548m
+  // walked" shape -- used to end up part off-screen with nothing ever correcting it.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  const tree = { id: "t1", commonName: "Tree 1", ...makePoint(app, 0.0012, 0) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+  app.state.compassHeading = null;
+
+  // "Graph still building": ensureRoutingGraph returns early on routingGraphBuilding, so this
+  // also keeps the test from kicking off a real async build that could settle into later tests.
+  app.state.routingGraph = null;
+  app.state.routingGraphReady = false;
+  app.state.routingGraphBuilding = true;
+  app.state.selectedRouteCache = null;
+
+  app.ensureUserAndSelectionVisible({ animate: false, force: true });
+
+  // The route the finished graph actually yields: a dog-leg running well east of the direct
+  // line before doubling back to the tree.
+  const routePoints = [
+    app.state.userLocation.point,
+    app.projectLonLat(0.0035, 0.0004),
+    app.projectLonLat(0.0035, 0.0011),
+    tree.point,
+  ];
+
+  const offScreenCount = () => {
+    const rect = app.bestVisibleCanvasRect();
+    return routePoints.filter((point) => {
+      const screen = app.worldToScreen(point);
+      return screen.x < rect.x
+        || screen.x > rect.x + rect.width
+        || screen.y < rect.y
+        || screen.y > rect.y + rect.height;
+    }).length;
+  };
+
+  assert.ok(
+    offScreenCount() > 0,
+    "sanity: fitting only the straight line should leave part of the real route off-screen"
+  );
+
+  // The graph finishes -- ensureRoutingGraph (js/loader.js) flips these and calls the re-fit.
+  app.state.routingGraph = {};
+  app.state.routingGraphReady = true;
+  app.state.routingGraphBuilding = false;
+  app.state.selectedRouteCache = {
+    target: tree,
+    fromLatitude: app.state.userLocation.latitude,
+    fromLongitude: app.state.userLocation.longitude,
+    points: routePoints,
+  };
+
+  app.refitSelectionAfterRoutingGraphReady();
+
+  const animationTarget = app.state.viewportAnimationTo;
+  assert.ok(animationTarget, "the re-fit should animate the viewport towards the routed bounds");
+
+  app.state.viewport = { ...animationTarget };
+  assert.equal(
+    offScreenCount(),
+    0,
+    "every point of the routed line should sit inside the fitted, inspector-free area"
+  );
+});
+
+test("APP_VERSION in index.html stays in sync with APP_CACHE_NAME in sw.js", () => {
+  // These two are duplicated by design (index.html needs a fallback before caches.keys()
+  // resolves) and sw-bump.yml's "Sync APP_VERSION" step is supposed to keep them together --
+  // but that workflow is currently disabled (on.push.branches: [__disabled__]), which is how
+  // APP_VERSION sat at "v3" while sw.js climbed to v15. A stale fallback is user-visible: it
+  // is what the About screen and every submitted bug report show until the caches resolve.
+  const root = path.join(__dirname, "..");
+  const swSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+  const htmlSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
+
+  const cacheMatch = swSource.match(/APP_CACHE_NAME = "forest-finds-app-(v\d+)"/);
+  const fallbackMatch = htmlSource.match(/const APP_VERSION = "(v\d+)"/);
+
+  assert.ok(cacheMatch, "sw.js should declare APP_CACHE_NAME as forest-finds-app-vN");
+  assert.ok(fallbackMatch, "index.html should declare APP_VERSION as vN");
+  assert.equal(
+    fallbackMatch[1],
+    cacheMatch[1],
+    `index.html APP_VERSION (${fallbackMatch[1]}) must match sw.js APP_CACHE_NAME (${cacheMatch[1]})`
+  );
+});
+
+test("cache version label reads dev-server cache names as well as production ones", () => {
+  // The dev server rewrites only APP_CACHE_NAME to the "dev-" spelling (injectDevFlag in
+  // server.js), so a real tunnelled build has a mismatched pair -- which is exactly the case
+  // that used to drop the app version entirely and leave a bare "v3" (the data version) on
+  // screen, looking like a stale app build.
+  // Compared field by field rather than with deepEqual: the label object is created inside the
+  // vm context the app runs in, so it has that realm's Object.prototype and deepStrictEqual
+  // rejects it as not reference-equal even when the contents match.
+  const label = (keys) => {
+    const result = app.cacheVersionLabel(keys);
+    return [result.appVer, result.dataVer, result.versionString];
+  };
+
+  assert.deepEqual(
+    label(["forest-finds-app-v18", "forest-finds-data-v3"]),
+    ["v18", "v3", "app: v18, data: v3"]
+  );
+
+  // The real tunnelled case: dev server renames only the app cache.
+  assert.deepEqual(
+    label(["forest-finds-dev-app-v18", "forest-finds-data-v3"]),
+    ["dev-v18", "v3", "app: dev-v18, data: v3"]
+  );
+
+  assert.deepEqual(
+    label(["forest-finds-dev-app-v18", "forest-finds-dev-data-v3"]),
+    ["dev-v18", "dev-v3", "app: dev-v18, data: dev-v3"]
+  );
+
+  assert.equal(app.cacheVersionLabel([]).versionString, "", "no caches yet should render nothing, not a partial label");
+});
+
+test("a selection made before the routing graph is ready is fitted with room for the detour the route will take", () => {
+  // Without this, the pre-graph fit frames the straight line exactly, which is tighter than the
+  // eventual routed line needs -- so the user saw a zoom-in immediately followed by a corrective
+  // zoom-out when the graph landed. Both axes are offset here because applyBoundsToViewport
+  // clamps a zero-width/height range to a floor, which would hide the slack on that axis.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  const tree = { id: "t1", commonName: "Tree 1", ...makePoint(app, 0.0012, 0.0009) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+
+  const fitWith = (graphReady) => {
+    app.state.routingGraph = graphReady ? {} : null;
+    app.state.routingGraphReady = graphReady;
+    app.state.routingGraphBuilding = !graphReady;
+    app.state.selectedRouteCache = graphReady
+      ? {
+        target: tree,
+        fromLatitude: app.state.userLocation.latitude,
+        fromLongitude: app.state.userLocation.longitude,
+        points: [app.state.userLocation.point, tree.point],
+      }
+      : null;
+    app.ensureUserAndSelectionVisible({ animate: false, force: true });
+    return app.state.viewport.scale;
+  };
+
+  const exactScale = fitWith(true);
+  const slackScale = fitWith(false);
+
+  assert.ok(slackScale < exactScale, "the pre-graph fit should sit further out than the exact routed fit");
+  const ratio = exactScale / slackScale;
+  assert.ok(
+    Math.abs(ratio - 1.25) < 0.02,
+    `pre-graph fit should leave ~1.25x the straight-line bounds, got ${ratio}`
+  );
+});
+
+test("routing-graph re-fit leaves a settled viewport alone when the whole route is already visible", () => {
+  // The re-fit is deliberately non-forced so it is a no-op when there is nothing to correct --
+  // otherwise every selection would get a second, pointless camera move seconds after the first.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  const tree = { id: "t1", commonName: "Tree 1", ...makePoint(app, 0.0012, 0) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+  app.state.compassHeading = null;
+
+  app.state.routingGraph = {};
+  app.state.routingGraphReady = true;
+  app.state.routingGraphBuilding = false;
+  app.state.selectedRouteCache = {
+    target: tree,
+    fromLatitude: app.state.userLocation.latitude,
+    fromLongitude: app.state.userLocation.longitude,
+    points: [app.state.userLocation.point, tree.point],
+  };
+
+  // Fit to that same route first, so everything is already comfortably on screen.
+  app.ensureUserAndSelectionVisible({ animate: false, force: true });
+  const settled = { ...app.state.viewport };
+
+  app.refitSelectionAfterRoutingGraphReady();
+
+  assert.equal(app.state.viewportAnimationTo, null, "should not start a viewport animation");
+  assert.deepEqual(app.state.viewport, settled, "the settled viewport should be left untouched");
 });
 
 runRegisteredTests().catch((error) => {

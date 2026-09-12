@@ -102,6 +102,34 @@ async function forceRefreshServiceWorker() {
   }
 }
 
+// Reads the app/data cache versions out of caches.keys() for the About screen and for bug
+// reports (appVersion in index.html).
+//
+// The local dev server rewrites APP_CACHE_NAME to "forest-finds-dev-app-vN" (injectDevFlag in
+// server.js) so local/tunnelled builds are identifiable. Matching only the production spelling
+// meant appVer came back "" on every dev build, and the paired "app: X, data: Y" label then
+// collapsed to the bare data version -- which reads as a wrong, stale app version (e.g. a lone
+// "v3") rather than as a missing one. Match both spellings, and keep the "dev-" marker in the
+// label so it stays obvious which build is being looked at.
+function cacheVersionLabel(keys) {
+  const nameFor = (kind) => (keys || []).find((key) => (
+    key.startsWith(`forest-finds-${kind}-`) || key.startsWith(`forest-finds-dev-${kind}-`)
+  )) || "";
+  const versionFor = (kind) => {
+    const name = nameFor(kind);
+    return name ? name.replace("forest-finds-", "").replace(`${kind}-`, "") : "";
+  };
+  const appVer = versionFor("app");
+  const dataVer = versionFor("data");
+  return {
+    appVer,
+    dataVer,
+    versionString: appVer && dataVer
+      ? `app: ${appVer}, data: ${dataVer}`
+      : appVer || dataVer || "",
+  };
+}
+
 function setupPwa() {
   if ("serviceWorker" in navigator) {
     let _firstChange = !navigator.serviceWorker.controller;
@@ -132,11 +160,7 @@ function setupPwa() {
     navigator.serviceWorker.ready
       .then(() => caches.keys())
       .then(keys => {
-        const appName = keys.find(k => k.startsWith("forest-finds-app-"));
-        const dataName = keys.find(k => k.startsWith("forest-finds-data-"));
-        const appVer = appName ? appName.replace("forest-finds-app-", "") : "";
-        const dataVer = dataName ? dataName.replace("forest-finds-data-", "") : "";
-        const versionString = appVer && dataVer ? `app: ${appVer}, data: ${dataVer}` : appVer || dataVer || "";
+        const { appVer, dataVer, versionString } = cacheVersionLabel(keys);
         const swVerEl = document.getElementById("sw-version");
         if (swVerEl) swVerEl.textContent = versionString;
         state.swVersion = versionString;
