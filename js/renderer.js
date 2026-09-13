@@ -73,6 +73,20 @@ function getSelectedOverlayPulse() {
 }
 
 function draw() {
+  // Cancel any *other* frame already queued, rather than only clearing the flag. requestDraw's
+  // guard (index.html) assumes a queued draw stays queued until it runs, but a direct draw()
+  // call -- there are several, from boot, the location gate and the compass loop -- clears the
+  // flag while an rAF draw is still pending, so the next requestDraw() queues a second one for
+  // the same frame. Every draw ends by requesting the next (prepareCanvasForDraw does it for as
+  // long as a browse-origin slide is running), so each duplicate re-queues itself and the map is
+  // painted two, three, four times per frame from then on -- measured at four full repaints per
+  // frame, around 100ms of redundant work, which ran the slide at roughly 6fps and made the
+  // camera move in visible steps instead of gliding. Cancelling here collapses any pile-up back
+  // to one paint per frame; a draw that is already running is repainting the current state
+  // anyway, so whatever it displaces would have drawn exactly the same thing.
+  if (state.animationFrame != null && typeof cancelAnimationFrame === "function") {
+    cancelAnimationFrame(state.animationFrame);
+  }
   state.animationFrame = null;
   // Initialize animation timing on first draw
   if (_animationStartTime === null) _animationStartTime = performance.now();

@@ -3509,20 +3509,29 @@
       // centre for that case, so the ring gets equal room above and below the pivot and can be
       // framed at a useful size rather than squeezed into the sliver below a bottom anchor.
       const t = tiltAnchorFraction();
-      const base = isSelected ? HEADING_UP_ANCHOR_SELECTED : HEADING_UP_ANCHOR_NEARBY;
-      const far  = isSelected ? HEADING_UP_ANCHOR_SELECTED_TILT : HEADING_UP_ANCHOR_NEARBY_TILT;
-      const ramped = base + (far - base) * t;
-      if (isSelected) return ramped;
+      if (isSelected) {
+        return HEADING_UP_ANCHOR_SELECTED + (HEADING_UP_ANCHOR_SELECTED_TILT - HEADING_UP_ANCHOR_SELECTED) * t;
+      }
       // Crossing between the two nearby pivots -- the forward ramp above and the centred browse
       // pivot -- is eased along with the origin slide, or entering (and leaving) a browsed spot
       // in 3D would jerk the whole view up or down the screen on a single frame. Hopping between
       // two browsed spots stays put: both ends are the centred pivot.
-      const browsing = !tiltHidesWhatIsBehind();
+      const to = nearbyPivotAnchorFraction(!tiltHidesWhatIsBehind());
       const progress = nearbyOriginTransitionEasedProgress();
-      if (progress == null) return browsing ? HEADING_UP_ANCHOR_NEARBY : ramped;
-      const from = state.nearbyOriginTransition.fromBrowsing ? HEADING_UP_ANCHOR_NEARBY : ramped;
-      const to = browsing ? HEADING_UP_ANCHOR_NEARBY : ramped;
+      if (progress == null) return to;
+      const from = nearbyPivotAnchorFraction(state.nearbyOriginTransition.fromBrowsing);
       return from + (to - from) * progress;
+    }
+
+    // The nearby pivot's vertical anchor fraction for one *end* of a browse-origin slide, rather
+    // than for the blend currently on screen: the centred browse pivot when that end is browsing
+    // a spot, the tilt-ramped forward pivot when it is you. Named separately from
+    // tiltRampedAnchor because maxNearbyHeadingUpScale needs each end's own value to solve that
+    // end's fit -- see the pivot-crossing blend there.
+    function nearbyPivotAnchorFraction(browsing) {
+      if (browsing) return HEADING_UP_ANCHOR_NEARBY;
+      const t = tiltAnchorFraction();
+      return HEADING_UP_ANCHOR_NEARBY + (HEADING_UP_ANCHOR_NEARBY_TILT - HEADING_UP_ANCHOR_NEARBY) * t;
     }
 
     function headingUpAnchorFraction(isSelected) {
@@ -4166,12 +4175,45 @@
       // that half of the ring on screen collapsed the 3D zoom to about a third of what the
       // visible half needs (the "far too zoomed out in 3D" report). Browsing turns it off, so
       // the whole nearest area stays inside the available map area.
-      const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect, {
+      //
+      // Which of those two rules applies flips on the frame the browse anchor is set, a whole
+      // slide before the pivot it belongs to has finished moving there. Solved as-is, that put
+      // the behind half of the ring into the fit while the pivot was still pinned near the
+      // bottom edge for first-person -- exactly the collapse the rule exists to avoid -- so
+      // tapping a spot in 3D zoomed the map out several-fold on one frame and then crept back
+      // in over the slide, which is the "it jumps instead of sliding" report. Both ends are
+      // solved in their own consistent pivot+rule pair and the *scale* is blended between them
+      // on the slide's own easing, the same way tiltRampedAnchor blends the pivot position, so
+      // the zoom starts at exactly what was on screen and lands on the browse fit with nothing
+      // in between that neither end would have chosen.
+      const browsing = !tiltHidesWhatIsBehind();
+      const progress = nearbyOriginTransitionEasedProgress();
+      const fromBrowsing = progress == null ? browsing : state.nearbyOriginTransition.fromBrowsing;
+      if (progress != null && fromBrowsing !== browsing) {
+        const fromScale = nearbyPivotFitScale(points, fromBrowsing, focusRect);
+        const toScale = nearbyPivotFitScale(points, browsing, focusRect);
+        if (fromScale != null && toScale != null) {
+          return fromScale + (toScale - fromScale) * progress;
+        }
+      }
+      const maxScale = nearbyPivotFitScale(points, browsing, focusRect, focus);
+      return maxScale == null ? state.viewport.scale : maxScale;
+    }
+
+    // The nearby ring fit for one end of a browse-origin slide: that end's own pivot position
+    // (nearbyPivotAnchorFraction) solved under that end's own behind-the-pivot rule. `focus` is
+    // passed only by the plain, non-blended call, which must keep using the focus point its
+    // caller already computed rather than re-deriving it.
+    function nearbyPivotFitScale(points, browsing, focusRect, focus) {
+      const pivotFocus = focus || {
+        x: focusRect.x + focusRect.width / 2,
+        y: focusRect.y + focusRect.height * nearbyPivotAnchorFraction(browsing),
+      };
+      return maxScaleForHeadingUpPoints(points, pivotFocus, focusRect, {
         projectTilt: true,
         originPoint: cameraOriginPoint(),
-        excludeBehindDuringTilt: tiltHidesWhatIsBehind(),
+        excludeBehindDuringTilt: !browsing,
       });
-      return maxScale == null ? state.viewport.scale : maxScale;
     }
 
     function alignHeadingUpNavigationViewport(options = {}) {

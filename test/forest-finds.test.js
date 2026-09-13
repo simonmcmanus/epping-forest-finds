@@ -5142,6 +5142,17 @@ function enterNearby3D(app) {
   assert.equal(app.tiltActive(), true, "sanity: these settings should put the app in full 3D");
 }
 
+// Runs a browse-origin slide out to its settled end, the way prepareCanvasForDraw does frame by
+// frame in the app: the camera work stops when the slide lands, and the transition object itself
+// is cleared once the reveal fade behind it has finished too.
+function settleNearbySlide(app) {
+  const transition = app.state.nearbyOriginTransition;
+  if (!transition) return;
+  transition.startedAt -= transition.durationMs + app.NEARBY_REVEAL_MS + 1;
+  app.prepareCanvasForDraw();
+  app.stopViewportAnimation();
+}
+
 function ringPointsInsideMapArea(app) {
   app.stopViewportAnimation();
   // prepareCanvasForDraw is what clears the per-frame tilt-camera cache, so it has to run both
@@ -5170,9 +5181,83 @@ test("in 3D, browsing another spot keeps the whole walking radius inside the ava
 
   const anchor = makePoint(app, 51.66, 0.033);
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  // Once the slide has landed. Mid-slide the framing is deliberately still partway between the
+  // two pivots (see maxNearbyHeadingUpScale), so the whole-ring rule is the settled view's.
+  settleNearbySlide(app);
   const browsing = ringPointsInsideMapArea(app);
 
   assert.equal(browsing.inside, browsing.total, "every point of the ring must be in the map area while browsing");
+});
+
+// Walks a browse-origin slide frame by frame the way the app does and returns the largest
+// single-frame zoom step, as a ratio >= 1. An eased zoom moves by a few percent per frame; a
+// camera that re-solves into a different framing mid-slide shows up here as a step of several
+// times, which is what a jump looks like on screen.
+function worstSlideZoomStep(app) {
+  const transition = app.state.nearbyOriginTransition;
+  const { startedAt, durationMs } = transition;
+  const frames = Math.round(durationMs / 16.67); // one 60fps frame
+  let previous = app.state.viewport.scale;
+  let worst = 1;
+  for (let frame = 0; frame <= frames; frame++) {
+    transition.startedAt = startedAt - (durationMs * frame) / frames;
+    app.prepareCanvasForDraw();
+    app.stopViewportAnimation();
+    const scale = app.state.viewport.scale;
+    worst = Math.max(worst, scale / previous, previous / scale);
+    previous = scale;
+  }
+  return worst;
+}
+
+test("in 3D, moving the nearby point eases the zoom across the whole slide instead of jumping on the first frame", () => {
+  enterNearby3D(app);
+  app.prepareCanvasForDraw();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  app.stopViewportAnimation();
+  app.prepareCanvasForDraw();
+  const firstPersonScale = app.state.viewport.scale;
+
+  const anchor = makePoint(app, 51.6605, 0.0335);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  // The first frame of the slide still shows what was on screen when the tap landed: the pivot
+  // has not moved yet, so the framing must not have either. Setting the anchor used to switch
+  // the fit to the browse rule (the whole ring, behind half included) a whole slide before the
+  // pivot moved to the centre where that rule makes sense, zooming the map out several-fold on
+  // one frame and creeping back in afterwards.
+  app.prepareCanvasForDraw();
+  app.stopViewportAnimation();
+  assert.ok(
+    Math.abs(app.state.viewport.scale / firstPersonScale - 1) < 0.02,
+    `the first frame should still be framed as it was, got ${app.state.viewport.scale} from ${firstPersonScale}`
+  );
+
+  const worst = worstSlideZoomStep(app);
+  assert.ok(worst < 1.2, `no frame should jump the zoom, worst step was ${worst.toFixed(2)}x`);
+
+  settleNearbySlide(app);
+  const browsingScale = app.state.viewport.scale;
+  assert.ok(
+    browsingScale < firstPersonScale * 0.9,
+    "sanity: the browse view really is framed wider than the first-person one, so the slide had a zoom to ease"
+  );
+});
+
+test("in 3D, returning to your own position eases the zoom back the same way", () => {
+  enterNearby3D(app);
+  const anchor = makePoint(app, 51.6605, 0.0335);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  settleNearbySlide(app);
+  app.prepareCanvasForDraw();
+  const browsingScale = app.state.viewport.scale;
+
+  app.clearNearbyAnchor();
+  const worst = worstSlideZoomStep(app);
+  assert.ok(worst < 1.2, `no frame should jump the zoom, worst step was ${worst.toFixed(2)}x`);
+  assert.ok(
+    app.state.viewport.scale > browsingScale * 1.1,
+    "sanity: it ends back on the tighter first-person framing"
+  );
 });
 
 test("3D hides what is behind you only while you are the pivot, not while browsing a spot", () => {

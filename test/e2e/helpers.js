@@ -68,4 +68,28 @@ async function setup(page, urlPath = "/") {
   });
 }
 
-module.exports = { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE };
+/**
+ * Fire a real tap (pointerdown + pointerup with no movement between them) at a point given in
+ * canvas pixels, so the whole js/nav.js pointer pipeline -- including the wasClick test -- runs
+ * exactly as it does under a finger. setPointerCapture/releasePointerCapture throw for a
+ * synthetic (non-active) pointer id, so they're stubbed, the same way the pinch helper in
+ * 02-overview.spec.js does.
+ */
+async function tapCanvasPoint(page, canvasPoint, options = {}) {
+  await page.evaluate(({ point, alreadyClient }) => {
+    const canvas = els.canvas;
+    canvas.setPointerCapture = () => {};
+    canvas.releasePointerCapture = () => {};
+    const rect = (els.mapStage || canvas).getBoundingClientRect();
+    const dpr = pixelRatio();
+    const clientX = alreadyClient ? point.clientX : rect.left + (point.x - state.canvasInsetX) / dpr;
+    const clientY = alreadyClient ? point.clientY : rect.top + (point.y - state.canvasInsetY) / dpr;
+    const fire = (type) => canvas.dispatchEvent(new PointerEvent(type, {
+      pointerId: 2001, clientX, clientY, bubbles: true, cancelable: true, pointerType: "touch",
+    }));
+    fire("pointerdown");
+    fire("pointerup");
+  }, { point: canvasPoint, alreadyClient: Boolean(options.alreadyClient) });
+}
+
+module.exports = { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, tapCanvasPoint, FIXTURE_TREE };

@@ -89,7 +89,20 @@ interface RenderState {
 
 ## Draw Loop
 
-The main `draw()` function is called via `requestAnimationFrame`. Draw order (back to front):
+The main `draw()` function is called via `requestAnimationFrame`. `requestDraw()` coalesces
+requests through `state.animationFrame`, and `draw()` **cancels whatever frame that handle still
+holds** before clearing it. Clearing alone is not enough: `draw()` is also called directly (boot,
+the location gate, the compass loop), which drops the flag while a queued frame is still pending,
+so the next `requestDraw()` queues a second paint for the same frame. Since most draws end by
+requesting the next one — `prepareCanvasForDraw()` does exactly that for as long as a
+browse-origin slide or its reveal fade is running — each duplicate re-queues itself and the
+pile-up persists: measured at four full map paints per animation frame during a browse-origin
+slide, around 100ms of redundant work per frame, which ran that animation at a fraction of the
+frame rate and made the camera move in visible steps. Cancelling collapses any pile-up back to
+one paint per frame; a draw that is already running repaints the current state, so whatever it
+displaces would have drawn the same thing.
+
+Draw order (back to front):
 
 1. **Base** — gradient background + ornamental world-space grid
 2. **Feature layers** — Forest boundary polygons, Buffer land polygons
@@ -472,6 +485,19 @@ a different point on the map without moving the real GPS fix:
     records whether it started from a browsed spot (`fromBrowsing`), so hopping between two
     browsed spots keeps the centred pivot throughout instead of dipping toward the first-person
     anchor and back.
+  - **The 3D zoom is eased across the same crossing.** The two pivots come with two different
+    scale fits: first-person lets the behind half of the ring run off the bottom edge
+    (`excludeBehindDuringTilt`), browsing frames the whole ring. Which one applies flips the
+    frame the anchor is set, a whole slide before the pivot has moved to where the browse rule
+    makes sense — solved as-is, that put the behind half into a fit still anchored near the
+    bottom edge, which is exactly the collapse the first-person rule exists to avoid, so the map
+    zoomed out several-fold on one frame and crept back in over the slide. `maxNearbyHeadingUpScale`
+    instead solves each end in its own consistent pivot-and-rule pair (`nearbyPivotFitScale`,
+    `nearbyPivotAnchorFraction`) and blends the two scales on the slide's own easing, so the zoom
+    starts at exactly what was on screen, lands on the browse fit, and passes through nothing
+    neither end would have chosen. The same applies in reverse when the anchor is cleared.
+    Mid-slide framing is therefore deliberately between the two: the whole-ring rule below
+    describes the settled browse view.
 - **Relocating reframes; it never zooms out.** The Nearby camera anchors `nearbyOrigin().point`
   at the focus point and sizes itself to the walking-radius ring, so moving the browse anchor
   slides the same view onto the new spot: same scale, ring the same size, origin at the same

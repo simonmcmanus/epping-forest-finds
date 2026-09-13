@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { skipOnboarding, mockCowApi, gotoAndWaitForMap } = require("./helpers");
+const { skipOnboarding, mockCowApi, gotoAndWaitForMap, tapCanvasPoint } = require("./helpers");
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6538, longitude: 0.0400, accuracy: 10 };
@@ -313,6 +313,79 @@ test.describe("3D tilt view", () => {
     expect(result.userMarkerTravelPx, "sanity: the pitch sweep should move the marker at all").toBeGreaterThan(50);
     expect(result.mismatchedPaints, "no overlay frame may be painted over a map drawn at a different tilt").toBe(0);
     expect(result.worstGapDeg).toBeLessThanOrEqual(0.05);
+  });
+
+  test("tapping a spot in 3D slides the map there smoothly", async ({ page }) => {
+    // The browse-origin slide holds the walking-radius circle still and moves the map behind it.
+    // Two separate things used to break that in 3D, both reported as the move "jumping" rather
+    // than repositioning:
+    //
+    //  - the camera switched between its two framings -- the first-person one, which lets the
+    //    ground behind you run off the bottom edge, and the browse one, which frames the whole
+    //    area around the tapped spot -- the moment the tap landed, a whole slide before the pivot
+    //    had moved, throwing the map several-fold out of zoom on one frame;
+    //  - the map was repainted four times per animation frame for the whole slide, so it
+    //    actually moved at a fraction of the frame rate (see draw(), js/renderer.js).
+    await tiltTo(page, 60);
+
+    // Open ground well off to one side of the pivot, so the tap moves the browse origin (rather
+    // than selecting whatever it landed on) and there is a real move for the camera to make.
+    // Which pixels are open ground depends on the live dataset and the settled 3D camera, so the
+    // spot is found by asking the same hit test the tap itself will run.
+    const target = await page.evaluate(() => {
+      stopViewportAnimation();
+      const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+      for (const fx of [0.2, 0.25, 0.15, 0.3, 0.75, 0.8]) {
+        for (const fy of [0.35, 0.3, 0.4, 0.25, 0.45]) {
+          const point = { x: rect.x + rect.width * fx, y: rect.y + rect.height * fy };
+          if (findHit(point, screenToWorld(point.x, point.y)).type === "none") return point;
+        }
+      }
+      return null;
+    });
+    test.skip(!target, "no open ground on screen at this camera");
+
+    // Watch the zoom and the repaint count on every animation frame from the tap until the
+    // slide has landed.
+    const samplingDone = page.evaluate(() => new Promise((resolve) => {
+      const frames = [];
+      const originalDraw = window.draw;
+      let paints = 0;
+      window.draw = function patchedDraw(...args) {
+        paints += 1;
+        return originalDraw.apply(this, args);
+      };
+      const startedAt = performance.now();
+      const sample = () => {
+        frames.push({ scale: state.viewport.scale, paints });
+        paints = 0;
+        if (performance.now() - startedAt < 1200) requestAnimationFrame(sample);
+        else {
+          window.draw = originalDraw;
+          resolve(frames);
+        }
+      };
+      requestAnimationFrame(sample);
+    }));
+
+    await tapCanvasPoint(page, target);
+    const frames = await samplingDone;
+
+    const anchored = await page.evaluate(() => Boolean(state.nearbyAnchor));
+    expect(anchored, "sanity: the tap should have moved the nearby browse origin").toBe(true);
+
+    const painted = frames.filter((frame) => frame.paints > 0);
+    expect(painted.length, "sanity: the slide should have painted the map").toBeGreaterThan(2);
+    const worstPaints = Math.max(...painted.map((frame) => frame.paints));
+    expect(worstPaints, "the map must be painted once per frame, not several times over").toBe(1);
+
+    let worstStep = 1;
+    for (let i = 1; i < frames.length; i += 1) {
+      worstStep = Math.max(worstStep, frames[i].scale / frames[i - 1].scale, frames[i - 1].scale / frames[i].scale);
+    }
+    // An eased zoom moves a few percent per frame. A framing switch shows up here as a step of
+    // several times over -- which is what reads as a jump on screen.
+    expect(worstStep, `worst single-frame zoom step was ${worstStep.toFixed(2)}x`).toBeLessThan(1.35);
   });
 
   test("the canvas carries no CSS 3D transform of its own", async ({ page }) => {
