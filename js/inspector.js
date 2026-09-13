@@ -96,7 +96,10 @@ function handleMapClick(event) {
     const screenOpen = state.filterScreenOpen
       || state.selected?.type === "settings"
       || state.selected?.type === "report";
-    if (!screenOpen) goToInitialView();
+    if (!screenOpen) {
+      if (isOverviewScreenActive() && trySetNearbyAnchorFromClick(lonLat, world)) return;
+      goToInitialView();
+    }
     return;
   }
   if (hit.type && hit.item && typeof trackClick === "function") {

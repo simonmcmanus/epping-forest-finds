@@ -67,10 +67,13 @@ A point of interest from OpenStreetMap or the folklore dataset. Includes pubs, c
 A live animal position from the Nofence open data API. Refreshed every 5 minutes.
 
 **Walking radius**
-The configurable distance (in minutes of walking time) used to filter nearby items in the overview list. Shown as a dashed circle on the map. Configurable via Settings (1–30 min; default 5 min).
+The configurable distance (in minutes of walking time) used to filter nearby items in the overview list. Shown as a dashed circle on the map. Configurable via Settings (1–30 min; default 5 min). On the Nearby screen it can also be pinch-resized directly on the map, stepping through the same option list as Settings.
 
 **Out of radius / radius fallback**
 When no items of a given type exist within the walking radius, the nearest item of that type is shown in the list with an out-of-radius style. A notice explains no results were found within the selected walking time.
+
+**Browse anchor / nearby anchor**
+A map point (`state.nearbyAnchor`) the user has tapped outside the walking radius on the Nearby screen, previewing that spot's nearby items and radius without moving the real GPS "You" dot. Cleared via the "Use my location" control. Code term: `nearbyOrigin()` resolves to this when set, otherwise the real location.
 
 ---
 

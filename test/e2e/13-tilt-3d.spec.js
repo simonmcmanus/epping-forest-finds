@@ -41,6 +41,40 @@ test.describe("3D tilt view", () => {
     });
   });
 
+  test("the walking-radius circle keeps filling the map at every tilt angle", async ({ page }) => {
+    // The "still way too zoomed out in 3D" report. The Nearby camera frames the radius circle,
+    // and the circle's behind half is never drawn in 3D (isBehindTiltHeading culls it) -- but
+    // the fit used to force that hidden half into the few pixels below the deep-tilt anchor,
+    // which collapsed the scale to roughly a third of what the visible half needed and left a
+    // tiny circle adrift in the middle of the screen.
+    const measure = () => page.evaluate(() => {
+      const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+      let minX = Infinity;
+      let maxX = -Infinity;
+      for (const point of walkingRadiusCirclePoints()) {
+        const screen = worldToScreen(point);
+        minX = Math.min(minX, screen.x);
+        maxX = Math.max(maxX, screen.x);
+      }
+      return { widthFraction: (maxX - minX) / rect.width, scale: state.viewport.scale };
+    });
+
+    await tiltTo(page, 0);
+    const flat = await measure();
+
+    for (const beta of TILT_SWEEP) {
+      await tiltTo(page, beta);
+      const { widthFraction, scale } = await measure();
+
+      // Pre-fix this sat around a quarter of the map width once tilt engaged.
+      expect(widthFraction, `beta=${beta}: fraction of the map width the radius circle spans`).toBeGreaterThan(0.6);
+      expect(widthFraction).toBeLessThanOrEqual(1.001);
+      // Tilting into 3D must never zoom further out than the flat view -- it frames the same
+      // circle, minus the half it no longer draws.
+      expect(scale, `beta=${beta}: 3D must not be more zoomed out than 2D`).toBeGreaterThanOrEqual(flat.scale * 0.99);
+    }
+  });
+
   test("map items stay visible at every tilt angle, from flat to full 3D", async ({ page }) => {
     // Tilting used to progressively empty the map: the radar and destination pointer went
     // first, then buildings and streets, until at maximum tilt almost nothing was left.
@@ -131,12 +165,19 @@ test.describe("3D tilt view", () => {
     }
   });
 
-  test("the walking radius ring lies on the ground plane and foreshortens with it", async ({ page }) => {
-    // `ctx.arc()` takes one scalar radius, so it can only ever paint a true screen-space
-    // circle: the ring looked identical at every tilt angle and read as standing up out of
-    // the map rather than painted on it. Measured here from the pixels the ring actually
-    // contributes — drawn once with it suppressed and once with it, then differenced — so
-    // this tests what reaches the screen rather than re-deriving the projection.
+  test("the walking radius dimming edge lies on the ground plane and foreshortens with it", async ({ page }) => {
+    // drawWalkingRadiusDimming cuts the radius shape out of a canvas-wide dark wash and blurs
+    // the result, so the edge itself is the only soft transition (no separate boundary line).
+    // ctx.arc() takes one scalar radius, so if that cutout were drawn as a plain screen-space
+    // circle the edge would look identical at every tilt angle instead of foreshortening with
+    // the ground. Measured by walking outward from the shape's own centre along each cardinal
+    // direction to find where the before/after delta first rises above a small fixed noise
+    // floor -- i.e. the inner edge of the blurred transition band in that direction -- and
+    // comparing those four radii. This used to compare against a "fully dark, far outside"
+    // reference sampled at a canvas corner, but the corners turned out to carry their own
+    // small unrelated diffs (something else redraws slightly differently there between the
+    // two draw() calls), which threw off the up/down/left/right comparison; a fixed threshold
+    // sidesteps needing that reference at all.
     const measure = async (beta) => {
       await tiltTo(page, beta);
       return page.evaluate(() => {
@@ -146,46 +187,63 @@ test.describe("3D tilt view", () => {
         // the first draw after a tilt change, which would swamp the diff.
         for (let i = 0; i < 4; i += 1) { alignHeadingUpNavigationViewport(); draw(); }
 
-        const real = window.drawWalkingRadius;
-        window.drawWalkingRadius = () => {};
+        const real = window.drawWalkingRadiusDimming;
+        window.drawWalkingRadiusDimming = () => {};
         draw();
         const without = context.getImageData(0, 0, canvas.width, canvas.height).data;
-        window.drawWalkingRadius = real;
+        window.drawWalkingRadiusDimming = real;
         draw();
-        const withRing = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        const withDimming = context.getImageData(0, 0, canvas.width, canvas.height).data;
 
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, count = 0;
-        for (let y = 0; y < canvas.height; y += 2) {
-          for (let x = 0; x < canvas.width; x += 2) {
-            const i = ((y * canvas.width) + x) * 4;
-            const delta = Math.abs(withRing[i] - without[i])
-              + Math.abs(withRing[i + 1] - without[i + 1])
-              + Math.abs(withRing[i + 2] - without[i + 2]);
-            if (delta > 10) {
-              count += 1;
-              if (x < minX) minX = x;
-              if (x > maxX) maxX = x;
-              if (y < minY) minY = y;
-              if (y > maxY) maxY = y;
-            }
+        const deltaAt = (x, y) => {
+          x = Math.max(0, Math.min(canvas.width - 1, Math.round(x)));
+          y = Math.max(0, Math.min(canvas.height - 1, Math.round(y)));
+          const i = ((y * canvas.width) + x) * 4;
+          return Math.abs(withDimming[i] - without[i])
+            + Math.abs(withDimming[i + 1] - without[i + 1])
+            + Math.abs(withDimming[i + 2] - without[i + 2]);
+        };
+
+        // The app's own screen-space centre for the shape, so this measures what was actually
+        // rendered rather than re-deriving the projection independently.
+        const centre = worldToScreenFlat(nearbyOrigin().point);
+        const NOISE_FLOOR = 20;
+        const edgeDistance = (dx, dy) => {
+          const maxR = Math.max(canvas.width, canvas.height);
+          for (let r = 0; r < maxR; r += 1) {
+            if (deltaAt(centre.x + dx * r, centre.y + dy * r) > NOISE_FLOOR) return r;
           }
-        }
-        return { count, aspect: (maxY - minY) / (maxX - minX) };
+          return null;
+        };
+
+        return {
+          right: edgeDistance(1, 0),
+          left: edgeDistance(-1, 0),
+          down: edgeDistance(0, 1),
+          up: edgeDistance(0, -1),
+        };
       });
     };
 
-    const flat = await measure(0);
-    expect(flat.count, "the ring should be drawn on a flat map").toBeGreaterThan(0);
-    expect(flat.aspect, "a flat map should paint the ring as a circle").toBeCloseTo(1, 1);
+    const aspectOf = (edges) => {
+      for (const key of ["right", "left", "down", "up"]) {
+        expect(edges[key], `${key} edge of the walking radius must be found`).not.toBeNull();
+      }
+      return ((edges.up + edges.down) / 2) / ((edges.left + edges.right) / 2);
+    };
 
-    let previous = flat.aspect;
+    const flat = await measure(0);
+    const flatAspect = aspectOf(flat);
+    expect(flatAspect, "a flat map should paint the edge as a circle").toBeCloseTo(1, 1);
+
+    let previous = flatAspect;
     for (const beta of [40, 60, 85]) {
       const tilted = await measure(beta);
-      expect(tilted.count, `the ring should still be drawn at beta ${beta}`).toBeGreaterThan(0);
-      expect(tilted.aspect, `the ring should flatten further by beta ${beta}`).toBeLessThan(previous);
-      previous = tilted.aspect;
+      const aspect = aspectOf(tilted);
+      expect(aspect, `the edge should flatten further by beta ${beta}`).toBeLessThan(previous);
+      previous = aspect;
     }
-    expect(previous, "at max tilt the ring should be strongly foreshortened").toBeLessThan(0.45);
+    expect(previous, "at max tilt the edge should be strongly foreshortened").toBeLessThan(0.45);
   });
 
   test("the canvas carries no CSS 3D transform of its own", async ({ page }) => {

@@ -293,8 +293,11 @@
     // backgrounded, and does not reliably resume on its own when it comes back.
     const COMPASS_STALE_MS = 15000;
     // How often the foreground watchdog re-checks the sensors. Everything it calls is a
-    // no-op unless something has actually gone quiet, so this is cheap to run.
-    const SENSOR_WATCHDOG_INTERVAL_MS = 5000;
+    // no-op unless something has actually gone quiet. Deliberately the same cadence the
+    // GPS-only check used before the compass joined it: restartStaleGpsWatch() can tear down
+    // and re-create the watch, which lands a fresh fix and a repaint, and running that twice
+    // as often measurably destabilised the e2e specs that diff two consecutive canvas draws.
+    const SENSOR_WATCHDOG_INTERVAL_MS = 10000;
     // Orientation events arriving with no usable heading (no alpha / webkitCompassHeading)
     // mean the sensor is alive but the magnetometer wants re-calibrating -- common after the
     // phone has been asleep. Re-registering listeners cannot fix that; physically moving the
@@ -368,6 +371,17 @@
       viewport: { scale: 1, tx: 0, ty: 0 },
       selected: null,
       userLocation: null,
+      // Browse override for the Nearby view: set by tapping the map outside the walking
+      // radius (see trySetNearbyAnchorFromClick in js/inspector.js). Never touches the real
+      // GPS fix (userLocation) -- the "You" dot, compass bearings, and real navigation-to-a-
+      // selection all stay keyed to userLocation; only the radius circle, the nearby list,
+      // and the overview camera fit read through nearbyOrigin() (js/nav.js), which prefers
+      // this over userLocation when set.
+      nearbyAnchor: null,
+      activePointers: new Map(),
+      pinchActive: false,
+      pinchBaseDistance: null,
+      nearbyPinchOccurred: false,
       userInMapArea: false,
       nearestTree: null,
       nearestCow: null,
@@ -603,16 +617,12 @@
             selectOverview();
             draw();
 
-            // Snap camera to fit nearby items before the reveal animation.
-            const revealPoints = overviewTargetPoints();
-            const hasNearbyItems = revealPoints.length >= 2;
-            if (hasNearbyItems) {
-              fitToPoints(revealPoints, false, {
-                focusVisibleArea: true,
-                assumeInspectorOpen: true,
-                minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
-              });
-            } else {
+            // Snap the camera onto the walking-radius circle before the reveal animation --
+            // the same thing the Nearby view frames once it is live (see nearbyCameraFitPoints),
+            // so the reveal eases from a slightly wider version of the final view rather than
+            // starting on a tight fit of whichever items happened to be nearest and then pulling
+            // back out to the circle.
+            {
               const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
               const targetScale = maxScaleForRadiusVisible(focusRect);
               centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
@@ -636,12 +646,8 @@
             // to a wider viewport if a GPS update arrived during the 320 ms wait.
             if (state.selected) {
               ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
-            } else if (hasNearbyItems) {
-              ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
             } else {
-              const focusRect2 = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-              const targetScale2 = maxScaleForRadiusVisible(focusRect2);
-              centerOverviewOnUserLocation({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS, scale: targetScale2, focusVisibleArea: true });
+              ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
             }
             triggerInspectorEntry();
             hideWithFade(els.loadingOverlay);
@@ -1582,7 +1588,7 @@
     function settingsFormHtml() {
       const minutes = state.walkingDistanceMinutes;
       const online = navigator.onLine;
-      const options = [1, 2, 5, 10, 15, 20, 30]
+      const options = WALKING_RADIUS_STEPS_MINUTES
         .map((m) => `<option value="${m}"${m === minutes ? " selected" : ""}>${m} min</option>`)
         .join("");
       return `<div class="settings-form">
@@ -1610,22 +1616,13 @@
       refreshSettingsVersionDisplay();
       const select = document.getElementById("settingsWalkMins");
       if (select) {
+        // applyWalkingRadiusChange (js/nav.js) is the shared path the pinch-to-resize gesture
+        // uses: it re-derives the nearest list and re-fits the camera through
+        // ensureOverviewTargetsVisible, so the new radius is framed by whichever fit is
+        // actually active (heading-up/3D included). This used to run its own flat, centred
+        // animateViewportTo, which the next compass frame then re-fitted on top of.
         select.addEventListener("change", () => {
-          state.walkingDistanceMinutes = parseInt(select.value, 10);
-          if (state.userLocation) {
-            const { latitude, longitude } = state.userLocation;
-            const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
-            const nearestTrees = nearbyTreesWithinDistance(latitude, longitude, maxMetres);
-            state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
-            const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-            const targetScale = maxScaleForRadiusVisible(focusRect);
-            const focusCenter = { x: focusRect.x + focusRect.width / 2, y: focusRect.y + focusRect.height / 2 };
-            animateViewportTo({
-              scale: targetScale,
-              tx: focusCenter.x - state.userLocation.point.x * targetScale,
-              ty: focusCenter.y - state.userLocation.point.y * targetScale,
-            }, 520);
-          }
+          applyWalkingRadiusChange(parseInt(select.value, 10));
           requestDraw();
         });
       }
@@ -2182,7 +2179,7 @@
         return nearestCowsTo(latitude, longitude, limit).map(({ cow, metres }) => ({ kind: "cow", type: "cow", item: cow, metres }));
       }
       if (filterKey === "waymarked_trails") {
-        return nearestWaymarkedPathsToUser(limit).map(({ path, metres }) => ({ kind: "waymarked_trails", type: "path", item: path, metres }));
+        return nearestWaymarkedPathsToUser(limit, latitude, longitude).map(({ path, metres }) => ({ kind: "waymarked_trails", type: "path", item: path, metres }));
       }
       if (filterKey === "ponds_streams") {
         if (!state.userLocation) return [];
@@ -2202,12 +2199,12 @@
         return nearest ? { kind: "cow", type: "cow", item: nearest.cow, metres: nearest.metres } : null;
       }
       if (filterKey === "waymarked_trails") {
-        const nearest = nearestWaymarkedPathToUser();
+        const nearest = nearestWaymarkedPathToUser(latitude, longitude);
         return nearest ? { kind: "waymarked_trails", type: "path", item: nearest.path, metres: nearest.metres } : null;
       }
       if (filterKey === "ponds_streams") {
-        if (!state.userLocation) return null;
-        const nearest = nearestWaterFeatureTo(state.userLocation.latitude, state.userLocation.longitude);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+        const nearest = nearestWaterFeatureTo(latitude, longitude);
         return nearest ? { kind: "ponds_streams", type: "water", item: nearest.water, metres: nearest.metres } : null;
       }
       const nearest = nearestPlaceByFilter(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey));
@@ -2237,27 +2234,81 @@
       const entries = [];
       entries.push(...nearestTreesTo(latitude, longitude, limit).map(({ tree, metres }) => ({ kind: "tree", type: "tree", item: tree, metres })));
       entries.push(...nearestCowsTo(latitude, longitude, limit).map(({ cow, metres }) => ({ kind: "cow", type: "cow", item: cow, metres })));
-      entries.push(...nearestWaymarkedPathsToUser(limit).map(({ path, metres }) => ({ kind: "waymarked_trails", type: "path", item: path, metres })));
+      entries.push(...nearestWaymarkedPathsToUser(limit, latitude, longitude).map(({ path, metres }) => ({ kind: "waymarked_trails", type: "path", item: path, metres })));
       entries.push(...nearestWaterFeaturesTo(latitude, longitude, limit).map(({ water, metres }) => ({ kind: "ponds_streams", type: "water", item: water, metres })));
       entries.push(...nearestPlacesByFilter(latitude, longitude, () => true, limit).map(({ place, metres }) => ({ kind: resolvePlaceKind(place), type: "landmark", item: place, metres })));
       return entries.sort((a, b) => a.metres - b.metres);
     }
 
-    function overviewItemsForActiveFilter(limit = 3) {
-      if (!state.userLocation) return [];
-      const { latitude, longitude } = state.userLocation;
-      state.overviewOutsideRadiusFallback = false;
+    // overviewItemsForActiveFilter is the shared source of "what's within the walking radius"
+    // for the nearby list, the map pin lookup (buildNearbyIconLookup in js/renderer.js, called
+    // twice per animation frame), the overview route lines, and the camera fit -- all of which
+    // want the *complete* set of matches (so growing the radius via pinch or Settings actually
+    // reveals everything now inside it), not a truncated one. Recomputing that full distance
+    // scan from scratch on every draw() call was the actual freeze at a large radius (tens of
+    // thousands of trees within range), not the size of the result itself -- filtering the raw
+    // dataset is a few milliseconds even for the full ~25k trees (measured), it just shouldn't
+    // happen 60+ times a second when nothing that affects the result has changed. Memoize it
+    // instead, and let each *consumer* decide how much of the full list it actually needs to
+    // render (see the .slice() calls in overviewNearestHtml and overviewRouteTargets).
+    let _overviewItemsCache = null;
+
+    // The cache key above covers everything that changes the *filter* (origin, radius, active
+    // filters, cow refresh) but not the underlying datasets themselves -- those only ever
+    // change once, at load, in the real app. The unit test harness reassigns state.trees/etc.
+    // to fresh arrays between test cases while reusing the same running module (so module-level
+    // caches like this one persist across tests), which a key built only from primitives can't
+    // see; comparing array references catches that too, at effectively no cost.
+    function overviewItemsDatasetsUnchanged(cache) {
+      return cache.trees === state.trees
+        && cache.cows === state.cows
+        && cache.landmarks === state.landmarks
+        && cache.paths === state.paths
+        && cache.waterFeatures === state.waterFeatures;
+    }
+
+    function storeOverviewItemsCache(cacheKey, result) {
+      _overviewItemsCache = {
+        key: cacheKey,
+        result,
+        outsideRadiusFallback: state.overviewOutsideRadiusFallback,
+        trees: state.trees,
+        cows: state.cows,
+        landmarks: state.landmarks,
+        paths: state.paths,
+        waterFeatures: state.waterFeatures,
+      };
+      return result;
+    }
+
+    function overviewItemsForActiveFilter() {
+      // Real GPS during Filter/Settings/Report (pseudo-selections also draw these entries as
+      // overview routes -- see hasRealSelection()/drawOverviewRoutes); the browse anchor only
+      // applies to the plain Nearby overview.
+      const origin = secondaryScreenActive() ? state.userLocation : nearbyOrigin();
+      if (!origin) return [];
+      const { latitude, longitude } = origin;
 
       if (state.showAllOutsideRadius) {
+        state.overviewOutsideRadiusFallback = false;
         return overviewItemsUnlimited(latitude, longitude);
       }
 
+      const cacheKey = `${latitude}|${longitude}|${state.walkingDistanceMinutes}|${state.overviewFilters.join(",")}|${state.cowLastUpdatedAt}`;
+      if (_overviewItemsCache && _overviewItemsCache.key === cacheKey && overviewItemsDatasetsUnchanged(_overviewItemsCache)) {
+        state.overviewOutsideRadiusFallback = _overviewItemsCache.outsideRadiusFallback;
+        return _overviewItemsCache.result;
+      }
+
+      state.overviewOutsideRadiusFallback = false;
       const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
 
       const hasFilters = state.overviewFilters.length > 0;
       if (hasFilters) {
         const activePointFilters = getActivePointFilterKeys();
-        if (!activePointFilters.length) return [];
+        if (!activePointFilters.length) {
+          return storeOverviewItemsCache(cacheKey, []);
+        }
         const selectedEntries = [];
         const filterTypesWithResults = new Set();
 
@@ -2318,7 +2369,7 @@
         const hasAnyFallback = sortedEntries.some(entry => entry.outOfRadius);
         state.overviewOutsideRadiusFallback = hasAnyFallback && filterTypesWithResults.size === 0;
 
-        return sortedEntries;
+        return storeOverviewItemsCache(cacheKey, sortedEntries);
       }
 
       const entries = [];
@@ -2366,9 +2417,9 @@
       if (!sortedEntries.length) {
         const fallbackEntries = nearestFallbackEntriesForActiveFilter(latitude, longitude);
         state.overviewOutsideRadiusFallback = fallbackEntries.length > 0;
-        return fallbackEntries;
+        return storeOverviewItemsCache(cacheKey, fallbackEntries);
       }
-      return sortedEntries;
+      return storeOverviewItemsCache(cacheKey, sortedEntries);
     }
 
     function overviewNearestHtml() {
@@ -2376,17 +2427,28 @@
         return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
       }
 
-      const entries = overviewItemsForActiveFilter();
+      // Browsing another spot (see nearbyOrigin/setNearbyAnchor in js/nav.js): the real GPS
+      // dot doesn't move, so surface an explicit way back rather than leaving the user to
+      // guess why the list and radius no longer match where they're actually standing.
+      const anchorNotice = state.nearbyAnchor
+        ? `<p class="source-note">Showing places near where you tapped. <button class="walk-chip walk-chip-btn" type="button" data-action="reset-nearby-anchor">Use my location</button></p>`
+        : "";
+
+      // overviewItemsForActiveFilter() now returns every match within the radius (see its
+      // comment) so the map can show all of them -- this scrollable text list still only
+      // wants to display the nearest handful, so cap it here instead.
+      const allEntries = overviewItemsForActiveFilter();
+      const entries = allEntries.slice(0, state.nearestItemsCount);
       const activePointFilters = getActivePointFilterKeys();
-      if (!entries.length) {
+      if (!allEntries.length) {
         if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
-          return `<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
+          return `${anchorNotice}<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
         }
         if (activePointFilters.length === 1) {
           const meta = filterMeta(activePointFilters[0]);
-          return `<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
+          return `${anchorNotice}<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
         }
-        return `<p class="empty">No nearby places found.</p>`;
+        return `${anchorNotice}<p class="empty">No nearby places found.</p>`;
       }
 
       const heading = activePointFilters.length === 1
@@ -2434,7 +2496,7 @@
         : `Showing all distances — tap to filter to ${state.walkingDistanceMinutes} min walk`;
       const chipLabel = radiusActive ? `${state.walkingDistanceMinutes} min` : "All";
       const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
-      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${anchorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
 
     function landmarkEmoji(place) {
@@ -2586,11 +2648,16 @@
       return state.orientationLastEventAt == null ? Infinity : (now - state.orientationLastEventAt);
     }
 
-    // True only once a heading HAS been delivered at some point and has since gone quiet.
-    // Without that first check this would be permanently true on a device with no compass at
-    // all (desktop, permission never granted) and the watchdog would thrash listeners forever.
+    // True only once the sensor HAS delivered to this handler at some point and has since
+    // gone quiet. Both null checks matter. Without them this is permanently true on a device
+    // with no compass at all (desktop, permission never granted) and the watchdog thrashes
+    // listeners forever. orientationLastEventAt is additionally the only one of the two that
+    // no one but onDeviceOrientation ever writes, so requiring it keeps the watchdog inert
+    // for code that drives heading state directly without any event ever firing -- the e2e
+    // tilt specs do exactly that, and a watchdog waking mid-assertion to clear the heading
+    // and repaint is a state change they have no way to see coming.
     function compassSensorStalled(now = performance.now()) {
-      if (state.compassLastEventAt == null) return false;
+      if (state.compassLastEventAt == null || state.orientationLastEventAt == null) return false;
       return compassEventAgeMs(now) > COMPASS_STALE_MS;
     }
 
@@ -2631,8 +2698,8 @@
     }
 
     // Everything that needs doing when the page returns to the foreground. Hooked to
-    // visibilitychange, pageshow (a bfcache restore never fires visibilitychange) and window
-    // focus; all of it is idempotent and cheap enough to run on each of them.
+    // visibilitychange and pageshow (a bfcache restore never fires visibilitychange); both
+    // are idempotent and cheap enough to run on each.
     function handleForegroundResume() {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
 
@@ -2659,8 +2726,15 @@
         handleForegroundResume();
       });
 
-      window.addEventListener("pageshow", handleForegroundResume);
-      window.addEventListener("focus", handleForegroundResume);
+      // Two guards learned the hard way, both caught by the e2e suite. event.persisted:
+      // pageshow also fires on every ordinary page load, and running the resume work there
+      // started a GPS watch before boot's own flow had asked for one -- an extra stream of
+      // position fixes, each repainting at an arbitrary moment. And window "focus" was hooked
+      // here too and removed: it fires on every tab/window focus, so the resume work ran
+      // constantly rather than on an actual resume. The watchdog below is the real safety net.
+      window.addEventListener("pageshow", (event) => {
+        if (event && event.persisted) handleForegroundResume();
+      });
 
       // Foreground watchdog -- iOS can silently stall watchPosition AND deviceorientation
       // with no error and no visibilitychange at all, and a sensor that has not come back by
@@ -3041,7 +3115,7 @@
     }
 
     const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
-    const HEADING_UP_ANCHOR_NEARBY = 0.55; // user slightly below centre; gives balanced space for items in all compass directions
+    const HEADING_UP_ANCHOR_NEARBY = 0.5; // flat/2D nearby: dead centre, so the walking-radius circle -- the only thing this view's camera frames -- is centred in the available map space
     const HEADING_UP_ANCHOR_SELECTED_TILT = 0.88; // at max tilt (full 3D), user sits near the bottom edge with a small gap so the view isn't obscured by anything behind
     const HEADING_UP_ANCHOR_NEARBY_TILT = 0.90;   // at max tilt (full 3D), user sits near the bottom edge with a small gap so the view isn't obscured by anything behind
     const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
@@ -3055,10 +3129,27 @@
     // state.tiltBetaSmoothed at, so the zoom and the tilt change it is responding to arrive
     // together instead of the zoom trailing or leading the perspective it is fitting.
     const HEADING_UP_SCALE_EASE_RATE = 4;
-    // Cap on the frame delta the ease may integrate, matching the compass smoothing loop's
-    // own dt clamp: without it, returning to a backgrounded tab hands the ease one enormous
-    // dt and it snaps, which is the jump the ease exists to avoid.
+    // Ceiling a single ease step may integrate, matching the compass smoothing loop's own dt
+    // clamp: an ordinary frame (even a slow one -- see HEADING_UP_SCALE_EASE_STALE_MS below)
+    // still advances the ease, just by no more than this much, rather than lurching forward
+    // by however long that one frame actually took.
     const HEADING_UP_SCALE_EASE_MAX_DT = 0.05;
+    // Gap between ease frames past which the elapsed time is discarded outright (the clock
+    // restarts with no progress) instead of clamped and integrated. This has to sit well above
+    // any ordinary frame hitch -- heavy 3D redraws (a dense forest of pins/routes projected
+    // under tilt every frame) can occasionally run a few frames at well under 60fps, and
+    // clamping those to HEADING_UP_SCALE_EASE_MAX_DT is exactly the intended behaviour, not a
+    // bug. Below this threshold used to mean "reject the frame entirely", which is fine for one
+    // isolated slow frame but starves the ease completely -- permanently frozen at whatever
+    // scale the last *urgent* (off-screen) correction snapped to -- when frames stay in the
+    // 50ms-500ms range for a sustained stretch, e.g. while continuously re-tilting the phone
+    // (this file's own maxNearbyHeadingUpScale/maxScaleForHeadingUpPoints projectTilt math adds
+    // real per-frame work directly proportional to how fast tilt is changing). That read as "it
+    // dips zoomed-out mid-tilt and then just never comes back" -- correct immediate reaction to
+    // the dip, no way to recover from it. Only a gap this large -- a backgrounded tab, or a
+    // screen the ease genuinely did not run on for a while -- should be treated as stale and
+    // restart the clock instead of integrating a jump.
+    const HEADING_UP_SCALE_EASE_STALE_MS = 500;
 
     function selectedNavigationHeadingUpActive() {
       return Boolean(
@@ -3434,10 +3525,6 @@
       return [target.point];
     }
 
-    function nearbyHeadingUpTargetPoints() {
-      return overviewTargetPoints();
-    }
-
     function headingUpCompassSensorActive(now = performance.now()) {
       if (!Number.isFinite(state.compassLastEventAt)) return false;
       return (now - state.compassLastEventAt) < HEADING_UP_SENSOR_ACTIVE_MS;
@@ -3475,14 +3562,29 @@
           return previousScale;
         }
         const lastEaseAt = state.headingUpScaleEaseAt;
-        state.headingUpScaleEaseAt = now;
-        const dt = Number.isFinite(lastEaseAt) ? (now - lastEaseAt) / 1000 : Infinity;
-        // The first frame of an ease only starts the clock, and so does any gap longer than
-        // one frame budget -- a stale timestamp (a backgrounded tab, a screen the ease did
-        // not run on) would otherwise be integrated as one enormous dt and snap, which is
-        // exactly the jump the ease exists to avoid. Clamping such a gap instead of
-        // discarding it still steps ~18% in a single frame, so discard it.
-        if (!(dt > 0 && dt <= HEADING_UP_SCALE_EASE_MAX_DT)) return previousScale;
+        const gapMs = Number.isFinite(lastEaseAt) ? (now - lastEaseAt) : null;
+        // The first frame of an ease only starts the clock, and so does a gap past
+        // HEADING_UP_SCALE_EASE_STALE_MS -- a genuinely stale timestamp (a backgrounded tab, a
+        // screen the ease did not run on) would otherwise be integrated as one enormous dt and
+        // snap, which is exactly the jump the ease exists to avoid.
+        if (gapMs == null || gapMs > HEADING_UP_SCALE_EASE_STALE_MS) {
+          state.headingUpScaleEaseAt = now;
+          return previousScale;
+        }
+        if (!(gapMs > 0)) return previousScale; // clock has not advanced (duplicate call this tick)
+        // Ordinary frames (including an occasional slow one well short of the stale
+        // threshold -- see HEADING_UP_SCALE_EASE_STALE_MS) integrate a dt clamped to
+        // HEADING_UP_SCALE_EASE_MAX_DT, same as before, so a single frame still never steps
+        // more than that bounded amount. The difference is the clock now only advances by the
+        // clamped amount actually integrated (not all the way to `now`), carrying the
+        // remainder over onto the next frame instead of dropping it -- a fixed-step
+        // accumulator, so a stretch of moderately slow frames (heavy per-frame tilt-projection
+        // work while the phone is actively being re-tilted, well short of a background-tab
+        // gap) still converges, just a little slower, rather than freezing indefinitely
+        // because every individual frame's gap kept resetting the clock without ever
+        // integrating anything.
+        const dt = Math.min(gapMs, HEADING_UP_SCALE_EASE_MAX_DT * 1000) / 1000;
+        state.headingUpScaleEaseAt = lastEaseAt + dt * 1000;
         const eased = previousScale + (nextScale - previousScale) * (1 - Math.exp(-HEADING_UP_SCALE_EASE_RATE * dt));
         return Number.isFinite(eased) && eased > 0 ? eased : previousScale;
       }
@@ -3535,10 +3637,10 @@
     // the rotated focus rect, honouring the tilt behind-heading exclusion. Returns null when
     // no point constrains the fit (empty input, or every point sits exactly at the focus) so
     // callers can fall back to the current viewport scale exactly as each did before this was
-    // factored out. This is pure fit-to-points geometry with no ceiling of its own -- callers
-    // that need one (maxNearbyHeadingUpScale's walking-radius floor) apply it themselves; see
-    // [[nearby-view-zoom]] project memory for why a ceiling baked in here (an arbitrary ratio
-    // against an unrelated reference scale) caused more bugs than it fixed.
+    // factored out. This is pure fit-to-points geometry with no ceiling of its own: a ceiling
+    // baked in here (an arbitrary ratio against an unrelated reference scale) caused more bugs
+    // than it fixed, and callers now express what they want by choosing the points they pass --
+    // see nearbyCameraFitPoints.
     function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
       // Nearby mode's item cluster is genuinely hidden behind the user during full tilt
       // (isBehindTiltHeading), so excluding those points from the fit is correct there --
@@ -3614,7 +3716,15 @@
           // near-plane singularity tiltProjectOffsets clips at.
           const availableBelow = bottom - focus.y - behindBuffer;
           maxScale = Math.min(maxScale, availableBelow / (rotatedY * (tiltCos + availableBelow * k)));
-          continue;
+          // Deliberately falls through to the horizontal constraint below rather than
+          // `continue`-ing past it: a behind point still has a left/right position, and skipping
+          // it let anything behind-and-to-the-side sail off the side of the screen however far
+          // out it was, constrained only by how far below the pivot it sat. Seen on the Filter
+          // screen, whose fit reaches for the nearest match of each selected filter regardless
+          // of distance: a pub 1.4km behind-right was fitted vertically and then drawn 89px past
+          // the right edge. The x formula below already handles behind points correctly -- its
+          // `availableX * k * rotatedY` term is positive there, which is exactly the perspective
+          // magnification that applies behind the pivot.
         }
 
         if (rotatedX !== 0) {
@@ -3662,64 +3772,91 @@
       return maxScale == null ? state.viewport.scale : maxScale;
     }
 
-    // Pushes any point closer to `origin` than `minDistance` straight out to exactly
-    // `minDistance`, preserving its bearing; points already at or beyond `minDistance` (and
-    // points exactly at `origin`, which have no defined bearing) are left untouched. Used by
-    // maxNearbyHeadingUpScale to give every real match at least a walking-radius-sized
-    // footprint in the fit -- without this, a point a few metres away demands an enormous
-    // scale to fill the focus rect (a tiny world-distance needs very little zoom change per
-    // pixel to reach the rect edge), which was the original "zoomed in too tight" bug. See
-    // [[nearby-view-zoom]] project memory for the full history.
-    function pointsExtendedToMinDistance(points, origin, minDistance) {
-      if (!(minDistance > 0)) return points;
-      const extended = [];
-      for (const point of points) {
-        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
-        const dx = point.x - origin.x;
-        const dy = point.y - origin.y;
-        const distance = Math.hypot(dx, dy);
-        if (distance <= 0 || distance >= minDistance) {
-          extended.push(point);
-          continue;
+    // The nearest single match for each filter the user has currently selected, ignoring the
+    // walking radius entirely. Only the Filter/Settings/Report screens fit against these (see
+    // nearbyCameraFitPoints): those screens are where you choose what you are looking for, so
+    // the map has to show that the nearest pub/pond/veteran tree exists at all -- even when it
+    // is a long walk outside the radius ring. One point per filter, not every match: the fit
+    // only ever has to reach the closest of each kind.
+    // Where on a matched item the camera should reach to. For a pin that is simply its own
+    // point; for a path (waymarked trails) it is the closest vertex to the origin, NOT
+    // `path.point` -- that is the label anchor at the midpoint of the path's longest segment
+    // (see pathLabelAnchor in js/normalize.js), which on a long-distance trail can sit
+    // kilometres from the stretch that actually runs past you. Fitting the anchor would zoom
+    // the whole map out to reach a part of the trail nobody asked about. Closest vertex rather
+    // than the exact perpendicular foot on the segment: the two differ by at most one segment
+    // length, far below the fit's own margin, and this needs no projection maths.
+    function nearestFitPointForEntry(entry, originPoint) {
+      if (!entry || !entry.item) return null;
+      const { segments } = entry.item;
+      if (Array.isArray(segments) && segments.length) {
+        let best = null;
+        let bestDistance = Infinity;
+        for (const segment of segments) {
+          for (const vertex of segment) {
+            if (!vertex || !Number.isFinite(vertex.x) || !Number.isFinite(vertex.y)) continue;
+            const distance = Math.hypot(vertex.x - originPoint.x, vertex.y - originPoint.y);
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              best = vertex;
+            }
+          }
         }
-        const scale = minDistance / distance;
-        extended.push({ x: origin.x + dx * scale, y: origin.y + dy * scale });
+        if (best) return best;
       }
-      return extended;
+      return entry.item.point || null;
+    }
+
+    function nearestSelectedFilterPoints() {
+      if (!state.userLocation) return [];
+      if (state.overviewFilters.length === 0) return [];
+      const { latitude, longitude, point: originPoint } = state.userLocation;
+      const points = [];
+      for (const filterKey of getActivePointFilterKeys()) {
+        const entry = nearestOverviewEntryForFilter(filterKey, latitude, longitude);
+        const point = nearestFitPointForEntry(entry, originPoint);
+        if (point) points.push(point);
+      }
+      return points;
+    }
+
+    // Everything the nearby/secondary-screen camera frames.
+    //
+    // On the Nearby screen this is the walking-radius ring and nothing else. The ring is what
+    // the screen is about ("how far can I get in N minutes"), it is centred on nearbyOrigin()
+    // and it is perfectly circular -- so the fit is a fixed calculation that does not depend on
+    // the compass heading at all, and the camera stops moving as soon as the circle does.
+    // Fitting the item cluster instead (what this used to do, via a min-distance clamp) made the
+    // camera chase whichever matches happened to be nearest: zoomed in past the ring and clipped
+    // it when they were clustered close, zoomed out past it when one sat near the edge, and
+    // re-solved on every compass frame.
+    //
+    // The Filter/Settings/Report screens add the nearest match for each selected filter, so the
+    // view zooms out past the ring far enough to show that each selected kind exists and which
+    // way it lies -- see nearestSelectedFilterPoints.
+    function nearbyCameraFitPoints() {
+      const ring = walkingRadiusCirclePoints();
+      if (!secondaryScreenActive()) return ring;
+      return ring.concat(nearestSelectedFilterPoints());
     }
 
     function maxNearbyHeadingUpScale(focus, focusRect) {
       if (!state.userLocation) return state.viewport.scale;
-      const points = nearbyHeadingUpTargetPoints();
-      const radiusPoints = walkingRadiusCirclePoints();
-      const radiusScale = radiusPoints.length ? maxScaleForHeadingUpPoints(radiusPoints, focus, focusRect) : null;
-
-      if (points.length < 2) {
-        // Nothing highlighted within the walking radius to fit -- zoom to fit the radius
-        // itself instead of leaving the previous scale untouched. Previously this returned
-        // state.viewport.scale unchanged, so the nearby view could get stuck at whatever
-        // (possibly far more zoomed out) scale was active before -- e.g. left over from
-        // Filters previewing an out-of-radius result -- even though there was nothing left
-        // that needed that wider view.
-        return radiusScale == null ? state.viewport.scale : radiusScale;
-      }
-
-      // Give each real match at least a walking-radius-sized footprint (see
-      // pointsExtendedToMinDistance) instead of fitting the full 360-degree radius circle:
-      // real matches are almost always clustered in one direction, and forcing every other
-      // direction to also show a full radius's worth of empty space zoomed the nearby view
-      // out much further than the matches actually needed -- confirmed against real device
-      // telemetry where directional matches ~380m out needed roughly half the zoomed-out
-      // scale the full circle demanded. See [[nearby-view-zoom]] project memory.
-      const clampedPoints = pointsExtendedToMinDistance(points, state.userLocation.point, walkingRadiusWorldUnits());
-      const rawScale = maxScaleForHeadingUpPoints(clampedPoints, focus, focusRect);
-      if (rawScale != null) return rawScale;
-      // Every clamped point was excluded from the fit (e.g. all currently behind the user
-      // while tilted) -- fall back to the radius-ring fit rather than the stale/possibly
-      // pathological current scale, which is what a plain `return state.viewport.scale` did
-      // here before and could freeze the view at an enormous leftover scale until a matching
-      // point rotated back into view.
-      return radiusScale == null ? state.viewport.scale : radiusScale;
+      const points = nearbyCameraFitPoints();
+      if (!points.length) return state.viewport.scale;
+      // projectTilt: solve against where the tilt camera will actually draw these points rather
+      // than flat geometry -- see maxScaleForHeadingUpPoints.
+      //
+      // excludeBehindDuringTilt stays at its default (true), so in full 3D only the half of the
+      // ring ahead of the heading constrains the fit. That matches what 3D actually renders
+      // (isBehindTiltHeading culls everything behind the user) and is what fixes the "far too
+      // zoomed out in 3D" case: with the pivot anchored near the bottom of the screen at tilt,
+      // forcing the behind half of the ring into the few pixels below it collapsed the scale to
+      // roughly a third of what the visible half needs. The behind half is still drawn
+      // (drawWalkingRadius always draws the full circle) -- it simply runs off the bottom edge,
+      // the same way the ground immediately behind you does in any first-person view.
+      const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect, { projectTilt: true });
+      return maxScale == null ? state.viewport.scale : maxScale;
     }
 
     function alignHeadingUpNavigationViewport(options = {}) {
@@ -3752,7 +3889,10 @@
       const maxScale = selectedNavigationHeadingUpActive()
         ? maxHeadingUpNavigationScale(focus, focusRect)
         : maxNearbyHeadingUpScale(focus, focusRect);
-      const userPoint = state.userLocation.point;
+      // Selected-destination navigation always fits around the real GPS fix (you have to
+      // actually walk there); the plain nearby case fits around nearbyOrigin() instead, so a
+      // browse anchor moves the fit without moving the "You" dot or compass bearings.
+      const userPoint = selectedNavigationHeadingUpActive() ? state.userLocation.point : nearbyOrigin().point;
       // Use maxScale directly: heading-up mode always fits all targets in the
       // rotated focus rect. Math.min would leave scale too low when the map
       // was previously at a wider zoom (e.g. walking-radius level on first load).
@@ -4040,13 +4180,14 @@
     // fit) and walkingRadiusCirclePoints (the heading-up fit) so both agree on how big the
     // radius actually is.
     function walkingRadiusWorldUnits() {
-      if (!state.userLocation) return 0;
+      const origin = nearbyOrigin();
+      if (!origin) return 0;
       const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
       const edgeWorld = projectLonLat(
-        state.userLocation.longitude + (radiusMetres / (111320 * Math.cos(state.userLocation.latitude * Math.PI / 180))),
-        state.userLocation.latitude
+        origin.longitude + (radiusMetres / (111320 * Math.cos(origin.latitude * Math.PI / 180))),
+        origin.latitude
       );
-      return Math.abs(edgeWorld.x - state.userLocation.point.x);
+      return Math.abs(edgeWorld.x - origin.point.x);
     }
 
     // Metres represented by one world-projection unit (projectLonLat's x/y) at a given
@@ -4062,26 +4203,39 @@
       return metres / metresPerWorldUnit(latitudeDegrees);
     }
 
+    // The centred, north-up counterpart to maxNearbyHeadingUpScale: the largest scale that
+    // still leaves the whole walking-radius circle inside focusRect. Uses the same
+    // headingUpFitMarginPx() inset the heading-up fit does, so the flat fit (boot reveal,
+    // Settings walking-radius change) and the heading-up fit frame the circle at the same
+    // size -- a smaller inset here read as the map jumping a step wider the moment a compass
+    // heading arrived and the heading-up fit took over.
     function maxScaleForRadiusVisible(focusRect) {
       if (!state.userLocation) return Number.POSITIVE_INFINITY;
       const worldRadius = walkingRadiusWorldUnits();
       if (worldRadius <= 0) return Number.POSITIVE_INFINITY;
-      const padding = 24 * pixelRatio();
-      const availableHalf = Math.min(focusRect.width / 2, focusRect.height / 2) - padding;
+      const availableHalf = Math.min(focusRect.width / 2, focusRect.height / 2) - headingUpFitMarginPx(focusRect);
       if (availableHalf <= 0) return Number.POSITIVE_INFINITY;
       return availableHalf / worldRadius;
     }
 
     // A ring of points approximating the walking-radius circle around the user, in world
     // coordinates. Feeding these through the same maxScaleForHeadingUpPoints() bounding-box
-    // math used for real nearby targets (see maxNearbyHeadingUpScale) keeps the radius fit
-    // consistent with map rotation, the off-centre heading-up anchor, and the tilt
-    // behind-heading exclusion, instead of duplicating that geometry with a separate formula.
-    function walkingRadiusCirclePoints(count = 16) {
-      if (!state.userLocation) return [];
+    // math used for selected navigation keeps the radius fit consistent with map rotation, the
+    // heading-up anchor, and the tilt behind-heading exclusion, instead of duplicating that
+    // geometry with a separate formula.
+    //
+    // 64 samples, not 16: a circle's fit is heading-independent in principle, so as you turn on
+    // the spot the Nearby camera should hold perfectly still. What breaks that is polygon
+    // sampling error -- whichever sample happens to land nearest the constraining edge changes
+    // as the ring rotates, by roughly (1 - cos(pi/count)): 1.9% at 16 samples, 0.12% at 64. The
+    // extra points cost one cheap arithmetic pass each in a fit that runs once per compass
+    // frame, and buy a fit that no longer wobbles (and a circle no longer clipped by up to 2%).
+    function walkingRadiusCirclePoints(count = 64) {
+      const origin = nearbyOrigin();
+      if (!origin) return [];
       const worldRadius = walkingRadiusWorldUnits();
       if (worldRadius <= 0) return [];
-      const { point } = state.userLocation;
+      const { point } = origin;
       const points = [];
       for (let i = 0; i < count; i++) {
         const theta = (i / count) * Math.PI * 2;
@@ -4142,7 +4296,7 @@
       const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
       // Skip the off-screen check while a programmatic animation is running — mid-animation
       // the points are naturally mid-transition, and interrupting causes a visible snap.
-      const anyOffscreen = !significantMove && !state.viewportAnimationFrame && overviewTargetPoints().some((pt) => {
+      const anyOffscreen = !significantMove && !state.viewportAnimationFrame && nearbyCameraFitPoints().some((pt) => {
         const s = worldToScreen(pt);
         return s.x < focusRect.x || s.x > focusRect.x + focusRect.width
           || s.y < focusRect.y || s.y > focusRect.y + focusRect.height;
@@ -4212,9 +4366,11 @@
         return;
       }
 
-      const points = overviewTargetPoints();
+      // North-up fallback (a real selection while a secondary screen is open, so the
+      // heading-up anchor above does not apply): same points, fitted as a plain bounding box.
+      const points = nearbyCameraFitPoints();
 
-      if (points.length >= 2) {
+      if (points.length) {
         fitToPoints(points, false, {
           focusVisibleArea: true,
           assumeInspectorOpen: true,
@@ -4223,55 +4379,15 @@
           minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
           padding: OVERVIEW_FIT_PADDING_PX,
         });
-      } else if (points.length === 1) {
-        // Only user location — nothing matches within the walking radius. Zoom to fit
-        // the radius itself rather than keeping whatever scale happens to be active
-        // (e.g. left over from Filters previewing far-away results outside the radius);
-        // the nearby view should never sit more zoomed out than the walking radius.
-        const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-        const radiusScale = maxScaleForRadiusVisible(focusRect);
+      } else {
+        // No radius circle to frame (no origin, or a zero radius). Centre on the user and
+        // leave the scale alone rather than fitting nothing.
         centerOverviewOnUserLocation({
           animate: Boolean(options.animate),
           durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
-          scale: Number.isFinite(radiusScale) ? radiusScale : state.viewport.scale,
           focusVisibleArea: true,
         });
       }
-    }
-
-    function overviewTargetPoints() {
-      if (!state.userLocation) return [];
-      const { latitude, longitude } = state.userLocation;
-
-      // Secondary screens (filter, settings, report): zoom to fit only the highlighted
-      // (filtered) items, not all locations, so the map view is identical across all three.
-      if (secondaryScreenActive() && state.overviewFilters.length > 0) {
-        const entries = overviewItemsUnlimited(latitude, longitude, 5);
-        const itemPts = entries
-          .filter(e => e.item && e.item.point)
-          .map(e => e.item.point);
-        if (itemPts.length > 0) return [state.userLocation.point, ...itemPts];
-      }
-
-      // Foraging mode: anchor to nearest 5 trees for a tight in-forest view
-      const allFiltersOff = state.overviewFilters.length === 0;
-      const treesActive = allFiltersOff || getActivePointFilterKeys().includes("trees");
-      if (treesActive) {
-        const treePoints = nearestTreesTo(latitude, longitude, 5)
-          .filter(({ tree }) => tree.point)
-          .map(({ tree }) => tree.point);
-        if (treePoints.length >= 2) return treePoints;
-        if (treePoints.length === 1) return [state.userLocation.point, treePoints[0]];
-      }
-
-      // Fallback: nearest 5 items of any active type (respects radius toggle)
-      const overviewEntries = overviewItemsForActiveFilter();
-      const points = overviewEntries
-        .filter(e => e.item && e.item.point && (!e.outOfRadius || state.showAllOutsideRadius))
-        .slice(0, 5)
-        .map(e => e.item.point);
-      if (points.length < 2) points.unshift(state.userLocation.point);
-      return points;
     }
 
     function syncHashFromSelection() {
@@ -4820,11 +4936,11 @@
       return minDistance === Infinity ? null : minDistance;
     }
 
-    function distanceFromUserToPath(path) {
-      if (!state.userLocation || !path || !path.segments || path.segments.length === 0) return null;
-
-      const userLat = state.userLocation.latitude;
-      const userLon = state.userLocation.longitude;
+    // Shared geometry behind distanceFromUserToPath (always the real GPS fix, used for real
+    // selection/navigation distances) and the nearby-list helpers below (which resolve their
+    // own origin -- the browse anchor when Nearby is showing one, real GPS otherwise).
+    function distanceFromPointToPath(latitude, longitude, path) {
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !path || !path.segments || path.segments.length === 0) return null;
       let minDistance = Infinity;
 
       for (const segment of path.segments) {
@@ -4834,7 +4950,7 @@
           const lonLat1 = unprojectPoint(p1);
           const lonLat2 = unprojectPoint(p2);
           const dist = distanceToLineSegment(
-            userLat, userLon,
+            latitude, longitude,
             lonLat1.latitude, lonLat1.longitude,
             lonLat2.latitude, lonLat2.longitude
           );
@@ -4845,21 +4961,31 @@
       return minDistance === Infinity ? null : minDistance;
     }
 
+    function distanceFromUserToPath(path) {
+      if (!state.userLocation) return null;
+      return distanceFromPointToPath(state.userLocation.latitude, state.userLocation.longitude, path);
+    }
+
     function nearbyWaymarkedPathsWithinDistance(latitude, longitude, maxMetres) {
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return [];
       return state.paths
         .filter((path) => isWaymarkedTrail(path))
-        .map((path) => ({ path, metres: distanceFromUserToPath(path) }))
+        .map((path) => ({ path, metres: distanceFromPointToPath(latitude, longitude, path) }))
         .filter((entry) => Number.isFinite(entry.metres) && entry.metres <= maxMetres)
         .sort((a, b) => a.metres - b.metres);
     }
 
-    function nearestWaymarkedPathToUser() {
-      if (!state.userLocation) return null;
+    // latitude/longitude are optional -- callers that already resolved the right origin
+    // (e.g. nearestOverviewEntryForFilter, which may be listing around the real GPS fix
+    // during Filter/Settings/Report) pass them through; omitting them falls back to
+    // nearbyOrigin() for plain Nearby-overview callers.
+    function nearestWaymarkedPathToUser(latitude, longitude) {
+      const origin = (Number.isFinite(latitude) && Number.isFinite(longitude)) ? { latitude, longitude } : nearbyOrigin();
+      if (!origin) return null;
       let best = null;
       for (const path of state.paths) {
         if (!isWaymarkedTrail(path)) continue;
-        const metres = distanceFromUserToPath(path);
+        const metres = distanceFromPointToPath(origin.latitude, origin.longitude, path);
         if (!Number.isFinite(metres)) continue;
         if (!best || metres < best.metres) best = { path, metres };
       }
@@ -4904,11 +5030,13 @@
         .slice(0, limit);
     }
 
-    function nearestWaymarkedPathsToUser(limit) {
-      if (!state.userLocation) return [];
+    // latitude/longitude optional -- see nearestWaymarkedPathToUser above.
+    function nearestWaymarkedPathsToUser(limit, latitude, longitude) {
+      const origin = (Number.isFinite(latitude) && Number.isFinite(longitude)) ? { latitude, longitude } : nearbyOrigin();
+      if (!origin) return [];
       return state.paths
         .filter(isWaymarkedTrail)
-        .map((path) => ({ path, metres: distanceFromUserToPath(path) }))
+        .map((path) => ({ path, metres: distanceFromPointToPath(origin.latitude, origin.longitude, path) }))
         .filter((x) => Number.isFinite(x.metres))
         .sort((a, b) => a.metres - b.metres)
         .slice(0, limit);

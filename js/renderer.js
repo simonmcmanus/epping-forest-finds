@@ -163,7 +163,34 @@ function drawOverlay() {
     drawAllPinsSorted(ctx, buildNearbyIconLookup(), toScreen);
   }
   drawUser(ctx, toScreen, isTilted);
+  drawNearbyAnchorMarker(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
+}
+
+// Marks state.nearbyAnchor (the Nearby view's browse point, set by tapping outside the
+// walking radius -- see nearbyOrigin/trySetNearbyAnchorFromClick) distinctly from the real
+// "You" dot drawn just above, so it's clear the radius/list have pivoted away from the user's
+// actual GPS position without moving it.
+function drawNearbyAnchorMarker(ctx, toScreen) {
+  if (!state.nearbyAnchor) return;
+  if (!toScreen) toScreen = worldToScreen;
+  const point = toScreen(state.nearbyAnchor.point);
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+  const dpr = pixelRatio();
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, 6 * dpr, 0, Math.PI * 2);
+  ctx.strokeStyle = "#c9660c";
+  ctx.lineWidth = 2 * dpr;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, 3 * dpr, 0, Math.PI * 2);
+  ctx.fillStyle = "#c9660c";
+  ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.stroke();
+  ctx.restore();
 }
 
 // Flat-mode footprint/roof colour. 3D building extrusion (walls in tilt mode) was
@@ -643,35 +670,53 @@ function traceGroundCirclePath(ctx, centerFlat, radiusFlatPx) {
   ctx.closePath();
 }
 
+// Inside the radius stays completely untouched ("clear") -- everything outside gets a darker,
+// translucent wash so the walkable circle reads as the highlighted area rather than the
+// reverse (a filled-in circle used to read as *less* important than the map around it). No
+// separate boundary line is drawn any more (it read as broken against the soft flat-mode edge
+// and didn't match the hard tilted-mode edge) -- flat and tilted now share one implementation:
+// fill everywhere except the radius shape (evenodd, using the same ground-projected polygon
+// path under tilt that the rest of this file uses for the same reason -- a plain radial
+// gradient can't represent that foreshortened ellipse), then blur the whole fill so the edge
+// itself is the only soft transition, in both modes alike. featherPx is deliberately half the
+// original flat-only gradient's feather size.
+function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr) {
+  const featherPx = Math.max(7 * dpr, radiusPx * 0.06);
+  ctx.save();
+  ctx.filter = `blur(${featherPx}px)`;
+  ctx.beginPath();
+  // The outer rect extends well past the canvas edges so the blur softens only the radius
+  // cutout -- if it matched the canvas bounds exactly, the blur would also fade the wash out
+  // near the screen edges instead of staying solidly dark there.
+  const margin = featherPx * 3;
+  ctx.rect(-margin, -margin, els.canvas.width + margin * 2, els.canvas.height + margin * 2);
+  if (tilted) traceGroundCirclePath(ctx, center, radiusPx);
+  else ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(18, 28, 23, 0.4)";
+  ctx.fill("evenodd");
+  ctx.restore();
+}
+
 function drawWalkingRadius(ctx) {
-  if (!state.userLocation) return;
+  const origin = nearbyOrigin();
+  if (!origin) return;
   if (hasRealSelection()) return;
 
   const dpr = pixelRatio();
   const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
   // Centre and radius are measured on the flat (untilted) map, then projected as a whole —
   // measuring them post-projection would fold the perspective in twice.
-  const center = worldToScreenFlat(state.userLocation.point);
+  const center = worldToScreenFlat(origin.point);
   const edgeWorld = projectLonLat(
-    state.userLocation.longitude + (radiusMetres / (111320 * Math.cos(state.userLocation.latitude * Math.PI / 180))),
-    state.userLocation.latitude
+    origin.longitude + (radiusMetres / (111320 * Math.cos(origin.latitude * Math.PI / 180))),
+    origin.latitude
   );
   const edge = worldToScreenFlat(edgeWorld);
   const radiusPx = Math.max(8, Math.hypot(edge.x - center.x, edge.y - center.y));
   const tilted = typeof tiltActive === "function" && tiltActive();
 
-  ctx.save();
-  ctx.beginPath();
-  // Flat map: keep the exact arc rendering rather than a polygon approximation of it.
-  if (tilted) traceGroundCirclePath(ctx, center, radiusPx);
-  else ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(47, 114, 178, 0.07)";
-  ctx.fill();
-  ctx.strokeStyle = "rgba(47, 114, 178, 0.45)";
-  ctx.lineWidth = 1.5 * dpr;
-  ctx.setLineDash([6 * dpr, 6 * dpr]);
-  ctx.stroke();
-  ctx.restore();
+  drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr);
 }
 
 // Minimum ground movement (in real metres) before the selected route line is recomputed. GPS
@@ -768,8 +813,12 @@ function drawSelectedRoute(ctx) {
 }
 
 function overviewRouteTargets(treeClusters) {
+  // overviewItemsForActiveFilter() now returns every match within the radius (so the map can
+  // show all of them -- see its comment), but a route line per match would draw hundreds of
+  // dashed lines at a large radius; cap to the same "nearest handful" the text list shows.
   const entries = overviewItemsForActiveFilter()
-    .filter((entry) => !entry.outOfRadius && entry.item && entry.item.point);
+    .filter((entry) => !entry.outOfRadius && entry.item && entry.item.point)
+    .slice(0, state.nearestItemsCount);
 
   const nonTreeValues = entries
     .filter((entry) => entry.type !== "tree")
@@ -1185,14 +1234,63 @@ function selectedIconScale(minScale = 1.05, maxScale = 1.17, cycleMs = 1200) {
   return baseScale * zoomFactor;
 }
 
+// draw() calls buildNearbyIconLookup() twice per animation frame (once directly, once again
+// inside drawUser()). overviewItemsForActiveFilter() now returns every match within the radius
+// rather than a truncated handful (see its comment), so re-walking that full list into these
+// Sets on every single frame -- even though each pass itself is cheap -- is wasted work the
+// moment the radius/origin/filters haven't actually changed since the last frame. Memoized the
+// same way, on the same inputs.
+let _nearbyIconLookupCache = null;
+
+function nearbyIconLookupCacheKey(inFilterScreen) {
+  if (inFilterScreen) {
+    return `filter|${state.userLocation.latitude}|${state.userLocation.longitude}|${state.cowLastUpdatedAt}`;
+  }
+  const origin = typeof nearbyOrigin === "function" ? nearbyOrigin() : state.userLocation;
+  if (!origin) return "none";
+  return `overview|${origin.latitude}|${origin.longitude}|${state.walkingDistanceMinutes}|${state.overviewFilters.join(",")}|${state.showAllOutsideRadius}|${state.cowLastUpdatedAt}`;
+}
+
+// Mirrors overviewItemsDatasetsUnchanged in index.html: a key built from primitives alone
+// can't see state.trees/etc. being reassigned to fresh arrays (only ever happens once, at
+// load, in the real app -- but the unit test harness reassigns them between test cases while
+// reusing this same running module, so a module-level cache like this one needs the extra
+// check too).
+function nearbyIconLookupDatasetsUnchanged(cache) {
+  return cache.trees === state.trees
+    && cache.cows === state.cows
+    && cache.landmarks === state.landmarks
+    && cache.paths === state.paths
+    && cache.waterFeatures === state.waterFeatures;
+}
+
+// Picks up to `max` entries evenly spread across a distance-sorted list, by stride, instead
+// of just taking the first N. Tree density is high enough that "nearest N" always resolves
+// to the same tight cluster around the user regardless of how far the walking radius reaches
+// -- widening the radius grew the candidate list but never changed what got drawn. Striding
+// across the full sorted range keeps representation from near to far, so a bigger radius
+// actually surfaces farther trees instead of only ever the closest cluster.
+function sampleSpread(list, max) {
+  if (list.length <= max) return list;
+  const step = list.length / max;
+  const result = [];
+  for (let i = 0; i < max; i++) result.push(list[Math.floor(i * step)]);
+  return result;
+}
+
 function buildNearbyIconLookup() {
-  const tree = new Set();
+  const inFilterScreen = Boolean(secondaryScreenActive() && state.userLocation);
+  const cacheKey = nearbyIconLookupCacheKey(inFilterScreen);
+  if (_nearbyIconLookupCache && _nearbyIconLookupCache.key === cacheKey && nearbyIconLookupDatasetsUnchanged(_nearbyIconLookupCache)) {
+    return _nearbyIconLookupCache.result;
+  }
+
   const landmark = new Set();
   const cow = new Set();
   const path = new Set();
   const water = new Set();
   const outOfRadius = new Set();
-  const inFilterScreen = secondaryScreenActive() && state.userLocation;
+  const treeCandidates = [];
   const items = inFilterScreen
     ? overviewItemsUnlimited(state.userLocation.latitude, state.userLocation.longitude)
     : overviewItemsForActiveFilter();
@@ -1202,13 +1300,24 @@ function buildNearbyIconLookup() {
       outOfRadius.add(entry.item);
       if (!state.showAllOutsideRadius) continue;
     }
-    if (entry.type === "tree") { if (tree.size < MAX_MAP_TREES) tree.add(entry.item); }
+    if (entry.type === "tree") treeCandidates.push(entry.item);
     else if (entry.type === "landmark") landmark.add(entry.item);
     else if (entry.type === "cow") cow.add(entry.item);
     else if (entry.type === "path" && entry.item.point) path.add(entry.item);
     else if (entry.type === "water" && entry.item.point) water.add(entry.item);
   }
-  return { tree, landmark, cow, path, water, outOfRadius };
+  const tree = new Set(sampleSpread(treeCandidates, MAX_MAP_TREES));
+  const result = { tree, landmark, cow, path, water, outOfRadius };
+  _nearbyIconLookupCache = {
+    key: cacheKey,
+    result,
+    trees: state.trees,
+    cows: state.cows,
+    landmarks: state.landmarks,
+    paths: state.paths,
+    waterFeatures: state.waterFeatures,
+  };
+  return result;
 }
 
 function shouldDrawMapIcon(type, item, nearbyIconLookup) {
