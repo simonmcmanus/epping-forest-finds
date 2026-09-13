@@ -233,6 +233,8 @@ globalThis.__forestFindsTest = {
   tiltAllowedForCurrentScreen,
   isOverviewScreenActive,
   tiltRotateXDeg,
+  tiltRenderStale,
+  TILT_RENDER_STALE_DEG,
   tiltAnchorFraction,
   headingUpAnchorFraction,
   tiltRampedAnchor,
@@ -789,6 +791,67 @@ test("tiltRotateXDeg scales smoothly between threshold and max", () => {
   app.state.tiltBetaSmoothed = 48.5; // midpoint ~(12+85)/2
   const midAngle = app.tiltRotateXDeg();
   assert.ok(midAngle > 0 && midAngle < maxAngle, "mid-tilt angle should be between 0 and max");
+});
+
+test("prepareCanvasForDraw records the tilt angle the main canvas is about to be drawn at", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 40;
+
+  app.prepareCanvasForDraw();
+
+  assert.equal(app.state.renderedTiltRotateXDeg, app.tiltRotateXDeg(), "the drawn angle should be the live one");
+  assert.equal(app.tiltRenderStale(), false, "the map is not stale immediately after being drawn");
+});
+
+test("tiltRenderStale reports the map as stale once the phone has pitched away from the drawn angle", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 40;
+  app.prepareCanvasForDraw();
+
+  // Pitching the phone with no turn: the heading is untouched, so nothing else asks for a
+  // redraw -- this is the only thing that can tell the map it no longer matches the overlay.
+  app.state.tiltBetaSmoothed = 50;
+
+  assert.ok(app.tiltRotateXDeg() - app.state.renderedTiltRotateXDeg > app.TILT_RENDER_STALE_DEG,
+    "sanity: the pitch moved the camera well past the noise floor");
+  assert.equal(app.tiltRenderStale(), true, "the drawn map no longer matches the live tilt");
+});
+
+test("tiltRenderStale ignores sensor noise too small to see", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 40;
+  app.prepareCanvasForDraw();
+
+  // A phone held still still jitters a little; repainting the whole map for that is waste.
+  app.state.tiltBetaSmoothed = 40.01;
+
+  assert.equal(app.tiltRenderStale(), false, "sub-threshold jitter must not force a full redraw");
+});
+
+test("leaving 3D leaves the map stale until it is redrawn flat", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.selected = null;
+  app.state.tiltBetaSmoothed = 60;
+  app.prepareCanvasForDraw();
+
+  app.state.tiltBetaSmoothed = 0; // phone laid flat -- tiltActive() flips off
+  assert.equal(app.tiltActive(), false, "sanity: tilt is no longer active");
+  assert.equal(app.tiltRenderStale(), true, "the perspective pixels still on the canvas must be redrawn flat");
 });
 
 test("isBehindTiltHeading returns false when tilt is not active, regardless of geometry", () => {

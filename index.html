@@ -262,6 +262,11 @@
     // HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT (3.5) and its grow/shrink hysteresis are gone:
     // extra canvas below the pivot actively *caused* the 3D drop-outs it was meant to fix,
     // by pushing the rotated plane through the camera at ever lower tilt angles.
+
+    // Smallest rotateX difference between the drawn main canvas and the live camera worth a
+    // redraw for (see tiltRenderStale). Small enough that no drift is visible, large enough that
+    // sensor noise on a phone held still doesn't repaint the map every frame.
+    const TILT_RENDER_STALE_DEG = 0.05;
     const TILT_NEAR_PLANE_RATIO = 0.98; // fraction of the camera distance the near clip sits at — see tiltProjectOffsets
     // Perspective scale below which ground is deep enough into the horizon haze to be
     // invisible, and so not worth drawing. Bounds how much world the draw loop walks in 3D
@@ -451,6 +456,8 @@
       headingUpEntryAnim: null,
       tiltBetaTarget: 0,
       tiltBetaSmoothed: 0,
+      // rotateX angle baked into the main canvas by the last draw() -- see tiltRenderStale().
+      renderedTiltRotateXDeg: 0,
       tiltWasActive: false,
       selectionViewportTransitionPending: false,
       viewportAnimationFrame: null,
@@ -3064,7 +3071,7 @@
         const viewportChanged = alignHeadingUpNavigationViewport();
         if (headingUpActive()) {
           updateHeadingUpCanvasRotationTransform();
-          if (viewportChanged) requestDraw();
+          if (viewportChanged || tiltRenderStale()) requestDraw();
           else if (typeof drawOverlay === "function") drawOverlay();
         } else {
           requestDraw();
@@ -3091,7 +3098,7 @@
           const finalViewportChanged = alignHeadingUpNavigationViewport();
           if (headingUpActive()) {
             updateHeadingUpCanvasRotationTransform();
-            if (finalViewportChanged) requestDraw();
+            if (finalViewportChanged || tiltRenderStale()) requestDraw();
             else if (typeof drawOverlay === "function") drawOverlay();
           } else {
             requestDraw();
@@ -3150,7 +3157,7 @@
             keepOverviewCenteredOnUser(previousPoint);
             updateCompassOverlay();
             updateHeadingUpCanvasRotationTransform();
-            if (vpChanged) requestDraw();
+            if (vpChanged || tiltRenderStale()) requestDraw();
             else if (typeof drawOverlay === "function") drawOverlay();
           } else {
             ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
@@ -3450,6 +3457,20 @@
       if (!tiltActive()) return 0;
       const t = Math.min(1, (state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD));
       return TILT_ROTATEX_MAX * t;
+    }
+
+    // True when the tilt angle the main canvas was last drawn at no longer matches the current
+    // one. The compass smoothing loop only repaints the main canvas when the viewport or the
+    // heading moved, so pitching the phone up or down without turning it used to redraw the
+    // overlay alone: pins, the radar cone and the "You" dot were re-projected at the new tilt
+    // over terrain still drawn at the old one. Overlay items far from the pivot sit near the
+    // horizon, where a fraction of a degree of rotateX moves them tens of pixels -- so the "You"
+    // marker slid up and down the screen while the map under it stood still, reading as a
+    // marker detached from the map rather than a camera moving. Callers use this to pick a full
+    // redraw over an overlay-only one, keeping both canvases on the same camera every frame.
+    function tiltRenderStale() {
+      const rendered = Number.isFinite(state.renderedTiltRotateXDeg) ? state.renderedTiltRotateXDeg : 0;
+      return Math.abs(tiltRotateXDeg() - rendered) > TILT_RENDER_STALE_DEG;
     }
 
     // 0 when tilt is inactive, 1 at TILT_BETA_MAX — same ramp as tiltRotateXDeg.
@@ -4312,6 +4333,9 @@
         state.renderedNavigationHeading = null;
         state.headingUpEntryAnim = null;
       }
+      // The draw that follows projects every main-canvas point through this angle; record it so
+      // later overlay-only frames can tell whether the terrain still matches (tiltRenderStale).
+      state.renderedTiltRotateXDeg = tiltRotateXDeg();
     }
 
     function updateHeadingUpCanvasRotationTransform() {

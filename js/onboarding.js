@@ -5,6 +5,8 @@ const ONBOARDING_KEY = "forest-finds-onboarding-v1";
 
 const ONBOARDING_STEPS = [
   { type: "location" },
+  { type: "welcome" },
+  ...FILTER_GROUPS.map((g) => ({ type: "group", group: g })),
 ];
 
 if (typeof globalThis !== "undefined") {
@@ -103,6 +105,7 @@ function showOnboarding() {
           </button>`;
         }).join("");
         const isFirst = stepIndex === 1;
+        const isLast = stepIndex === total - 1;
         contentEl.innerHTML = `
           <img class="onboarding-step-icon" src="data/icons/${group.icon}.png" alt="">
           <h2 class="onboarding-step-title">${group.label}</h2>
@@ -112,9 +115,9 @@ function showOnboarding() {
         actionsEl.innerHTML = `
           <div class="onboarding-nav">
             ${!isFirst ? `<button class="button ob-back" type="button">← Back</button>` : ""}
-            <button class="button ob-next" type="button">Next</button>
+            <button class="button ob-next" type="button">${isLast ? "Done" : "Next"}</button>
           </div>
-          <button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>
+          ${!isLast ? `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>` : ""}
         `;
       } else if (step.type === "location") {
         const needsCompassPrompt = canRequestCompassPermission();
@@ -145,7 +148,10 @@ function showOnboarding() {
       });
 
       actionsEl.querySelector(".ob-primary")?.addEventListener("click", goNext);
-      actionsEl.querySelector(".ob-next")?.addEventListener("click", goNext);
+      actionsEl.querySelector(".ob-next")?.addEventListener("click", () => {
+        if (stepIndex >= total - 1) finish();
+        else goNext();
+      });
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
       actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish());
       actionsEl.querySelector(".ob-location")?.addEventListener("click", async () => {
@@ -176,11 +182,13 @@ function showOnboarding() {
           setImplicitCompassPermission();
         }
 
-        finish();
+        // Location is now the first step — continue to welcome + filter personalisation.
+        goNext();
       });
       actionsEl.querySelector(".ob-location-skip")?.addEventListener("click", () => {
         setImplicitCompassPermission();
-        finish();
+        // Continue to welcome + filter personalisation even when location is skipped.
+        goNext();
       });
     }
 

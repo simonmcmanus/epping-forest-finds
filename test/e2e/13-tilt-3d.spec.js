@@ -246,6 +246,75 @@ test.describe("3D tilt view", () => {
     expect(previous, "at max tilt the edge should be strongly foreshortened").toBeLessThan(0.45);
   });
 
+  test("pitching the phone up and down moves the map and the \"You\" marker together", async ({ page }) => {
+    // Reported from the field as the "You" marker feeling detached from the map: lifting and
+    // lowering the phone slid it up and down the screen while the map under it stood still.
+    // Only the heading and the viewport used to trigger a main-canvas redraw, so a pure pitch
+    // change repainted the overlay alone -- pins, radar and the "You" dot re-projected at the
+    // new tilt on top of terrain still drawn at the old one. Anything far from the pivot sits
+    // near the horizon, where a fraction of a degree moves it tens of pixels.
+    const result = await page.evaluate(async () => {
+      state.compassHeading = 0;
+      state.compassHeadingTarget = 0;
+      state.renderedNavigationHeading = 0;
+      state.compassLastEventAt = performance.now();
+      state.tiltBetaTarget = 20;
+      state.tiltBetaSmoothed = 20;
+      // Browsing a spot away from the GPS fix, as in the report: with the camera settled on a
+      // browse anchor the heading-up fit stops changing, so the viewport-changed test that used
+      // to be the only trigger for a main-canvas redraw reports nothing to do on every frame.
+      const anchorLatitude = 51.6538 + 0.0135;
+      const anchorLongitude = 0.0400;
+      focusNearbyOnMapPoint(
+        { longitude: anchorLongitude, latitude: anchorLatitude },
+        projectLonLat(anchorLongitude, anchorLatitude)
+      );
+      await new Promise((resolve) => setTimeout(resolve, 900)); // let the browse slide land
+      draw();
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+
+      // Every overlay paint is checked against the tilt the map underneath it was last drawn
+      // at: that is what "the two canvases share one camera" means in pixels.
+      let overlayPaints = 0;
+      let mismatchedPaints = 0;
+      let worstGapDeg = 0;
+      let userMarkerTravelPx = 0;
+      let lastUserMarkerY = null;
+      const originalDrawOverlay = drawOverlay;
+      drawOverlay = function instrumentedDrawOverlay(...args) {
+        overlayPaints += 1;
+        const gap = Math.abs(tiltRotateXDeg() - state.renderedTiltRotateXDeg);
+        worstGapDeg = Math.max(worstGapDeg, gap);
+        if (gap > 0.05) mismatchedPaints += 1;
+        const markerY = worldToScreenForOverlayTilted(state.userLocation.point).y;
+        if (lastUserMarkerY !== null) userMarkerTravelPx += Math.abs(markerY - lastUserMarkerY);
+        lastUserMarkerY = markerY;
+        return originalDrawOverlay.apply(this, args);
+      };
+
+      // The phone is lifted, then lowered, with no turn at all -- webkitCompassHeading is held
+      // at 0 throughout, so nothing but the pitch is moving.
+      const sweep = [25, 35, 45, 55, 65, 55, 45, 35, 25, 20];
+      for (const beta of sweep) {
+        onDeviceOrientation({ beta, gamma: 0, alpha: 0, webkitCompassHeading: 0 });
+        for (let frame = 0; frame < 4; frame += 1) {
+          await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+        }
+      }
+
+      drawOverlay = originalDrawOverlay;
+      return { overlayPaints, mismatchedPaints, worstGapDeg, userMarkerTravelPx };
+    });
+
+    expect(result.overlayPaints, "the overlay should have been repainted while the phone pitched").toBeGreaterThan(0);
+    // The marker really does travel a long way up and down the screen as the camera pitches --
+    // that is the perspective doing its job. What must never happen is it travelling while the
+    // map it sits on stays where it was.
+    expect(result.userMarkerTravelPx, "sanity: the pitch sweep should move the marker at all").toBeGreaterThan(50);
+    expect(result.mismatchedPaints, "no overlay frame may be painted over a map drawn at a different tilt").toBe(0);
+    expect(result.worstGapDeg).toBeLessThanOrEqual(0.05);
+  });
+
   test("the canvas carries no CSS 3D transform of its own", async ({ page }) => {
     // A leftover perspective()/rotateX() would tilt the already-projected pixels twice.
     await tiltTo(page, 85);
