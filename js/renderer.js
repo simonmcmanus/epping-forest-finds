@@ -164,6 +164,7 @@ function drawOverlay() {
   }
   drawUser(ctx, toScreen, isTilted);
   drawNearbyAnchorMarker(ctx, toScreen);
+  drawUserDirectionFromAnchor(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
 }
 
@@ -174,7 +175,9 @@ function drawOverlay() {
 function drawNearbyAnchorMarker(ctx, toScreen) {
   if (!state.nearbyAnchor) return;
   if (!toScreen) toScreen = worldToScreen;
-  const point = toScreen(state.nearbyAnchor.point);
+  // Rides the slide with the circle it sits at the centre of, rather than jumping to the new
+  // anchor a frame before the circle gets there.
+  const point = toScreen(nearbyRenderOriginPoint() || state.nearbyAnchor.point);
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
   const dpr = pixelRatio();
   ctx.save();
@@ -191,6 +194,123 @@ function drawNearbyAnchorMarker(ctx, toScreen) {
   ctx.lineWidth = 1.5 * dpr;
   ctx.stroke();
   ctx.restore();
+}
+
+// Matches the "You" dot and radar cone, so the off-ring pointer below reads as belonging to
+// the user rather than to the browse anchor (which is amber, see drawNearbyAnchorMarker).
+const USER_MARKER_BLUE = "#1f5eff";
+
+// Tap target for the off-ring user pointer, in canvas px, published by the draw below and read
+// by handleMapClick (js/inspector.js). Null whenever the pointer is not on screen, so a stale
+// hit area can never survive the thing that drew it.
+let _userDirectionPointerHit = null;
+
+// True when a map tap lands on the off-ring user pointer. Tapping it means "take me back to
+// where I actually am", so handleMapClick clears the browse anchor rather than treating the tap
+// as open ground (which would just move the anchor to the pointer's own position).
+function hitUserDirectionPointer(screen) {
+  if (!_userDirectionPointerHit) return false;
+  const { x, y, radius } = _userDirectionPointerHit;
+  return Math.hypot(screen.x - x, screen.y - y) <= radius;
+}
+
+// While the Nearby view is browsing a spot away from the real GPS fix, the camera frames the
+// walking-radius ring around the browse anchor -- so the "You" dot is frequently off screen
+// altogether, and nothing on the map says which way the user actually is. This marks it: an
+// arrow lying on the ground at the ring's edge along the bearing from the anchor to the user,
+// pointing outward at them, labelled with how far away they are. Tapping it returns to the real
+// location. Skipped when the user is inside the ring, where their own dot is already on screen
+// saying the same thing.
+function drawUserDirectionFromAnchor(ctx, toScreen) {
+  _userDirectionPointerHit = null;
+  if (!state.nearbyAnchor || !state.userLocation) return;
+  if (typeof hasRealSelection === "function" && hasRealSelection()) return;
+  const anchor = nearbyRenderOriginPoint() || state.nearbyAnchor.point;
+  const user = state.userLocation.point;
+  const dx = user.x - anchor.x;
+  const dy = user.y - anchor.y;
+  const worldDistance = Math.hypot(dx, dy);
+  const radius = typeof walkingRadiusWorldUnits === "function" ? walkingRadiusWorldUnits() : 0;
+  if (radius <= 0 || worldDistance <= radius) return;
+
+  const project = toScreen || worldToScreen;
+  const dpr = pixelRatio();
+  const along = { x: dx / worldDistance, y: dy / worldDistance };
+  // Perpendicular in world space, so the arrow's width foreshortens with the ground the same
+  // way its length does.
+  const across = { x: -along.y, y: along.x };
+
+  // The arrow is built from world points and projected corner by corner rather than drawn as a
+  // flat screen-space triangle at a projected position -- that is what makes it lie on the
+  // ground plane with the ring and the route lines instead of floating above the map like a
+  // sticker. Sized as a fraction of the walking radius so it scales with whatever the ring is.
+  // Generous: at the ring edge on the far side of the perspective the arrow is foreshortened to
+  // roughly half its flat size, so a subtle one reads as a speck in 3D.
+  const lengthWorld = radius * 0.24;
+  const halfWidthWorld = radius * 0.11;
+  const baseCentre = { x: anchor.x + along.x * radius, y: anchor.y + along.y * radius };
+  const tipWorld = {
+    x: baseCentre.x + along.x * lengthWorld,
+    y: baseCentre.y + along.y * lengthWorld,
+  };
+  const corners = [
+    tipWorld,
+    { x: baseCentre.x + across.x * halfWidthWorld, y: baseCentre.y + across.y * halfWidthWorld },
+    // Notched tail, so it reads as an arrow head rather than a plain triangle once foreshortened.
+    { x: baseCentre.x + along.x * lengthWorld * 0.28, y: baseCentre.y + along.y * lengthWorld * 0.28 },
+    { x: baseCentre.x - across.x * halfWidthWorld, y: baseCentre.y - across.y * halfWidthWorld },
+  ].map(project);
+  if (!corners.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) return;
+  const base = project(baseCentre);
+  const tip = corners[0];
+  if (!isNearCanvas(base, 60 * dpr)) return;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  for (let i = 1; i < corners.length; i += 1) ctx.lineTo(corners[i].x, corners[i].y);
+  ctx.closePath();
+  ctx.fillStyle = USER_MARKER_BLUE;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+  ctx.lineWidth = 2 * dpr;
+  ctx.lineJoin = "round";
+  ctx.fill();
+  ctx.stroke();
+
+  // The label stays upright rather than being projected onto the ground with the arrow: text
+  // laid flat in perspective is the one part of this that would be unreadable, and pins are
+  // already billboarded the same way.
+  const anchorLonLat = unprojectPoint(anchor);
+  const metres = distanceMetres(
+    anchorLonLat.latitude, anchorLonLat.longitude,
+    state.userLocation.latitude, state.userLocation.longitude
+  );
+  const label = `You · ${formatDistance(metres)}`;
+  const labelOffset = 13 * dpr;
+  const span = Math.hypot(tip.x - base.x, tip.y - base.y);
+  const labelX = span > 0.001 ? tip.x + ((tip.x - base.x) / span) * labelOffset : tip.x;
+  const labelY = span > 0.001 ? tip.y + ((tip.y - base.y) / span) * labelOffset : tip.y - labelOffset;
+  ctx.font = `700 ${Math.round(13 * dpr)}px system-ui`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+  ctx.lineWidth = 3.5 * dpr;
+  ctx.strokeText(label, labelX, labelY);
+  ctx.fillStyle = USER_MARKER_BLUE;
+  ctx.fillText(label, labelX, labelY);
+  ctx.restore();
+
+  // Covers the arrow and its label as one target, with a floor so it stays thumb-sized however
+  // far the perspective has shrunk the arrow itself.
+  const drawnSpan = Math.max(
+    Math.hypot(tip.x - base.x, tip.y - base.y),
+    Math.hypot(corners[1].x - corners[3].x, corners[1].y - corners[3].y)
+  );
+  _userDirectionPointerHit = {
+    x: (base.x + labelX) / 2,
+    y: (base.y + labelY) / 2,
+    radius: Math.max(26 * dpr, drawnSpan * 0.75 + labelOffset),
+  };
 }
 
 // Flat-mode footprint/roof colour. 3D building extrusion (walls in tilt mode) was
@@ -622,6 +742,10 @@ function drawOverviewRoutes(ctx, treeClusters) {
 
   const targets = overviewRouteTargets(treeClusters);
   if (!targets.length) return;
+  // These lines belong to the nearby set, so they arrive with it rather than sweeping across
+  // the map while a browse-origin slide is still moving the terrain underneath them.
+  const reveal = nearbyRevealOpacity();
+  if (reveal <= 0) return;
 
   const dpr = pixelRatio();
   const from = worldToScreen(state.userLocation.point);
@@ -629,6 +753,7 @@ function drawOverviewRoutes(ctx, treeClusters) {
   const haloLineWidth = routeLineWidth + 2.6 * dpr;
 
   ctx.save();
+  ctx.globalAlpha = reveal;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.setLineDash([8 * dpr, 7 * dpr]);
@@ -699,20 +824,17 @@ function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr) {
 }
 
 function drawWalkingRadius(ctx) {
-  const origin = nearbyOrigin();
-  if (!origin) return;
+  // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
+  // the map behind it (nearbyRenderOriginPoint, index.html).
+  const originPoint = nearbyRenderOriginPoint();
+  if (!originPoint) return;
   if (hasRealSelection()) return;
 
   const dpr = pixelRatio();
-  const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
   // Centre and radius are measured on the flat (untilted) map, then projected as a whole —
   // measuring them post-projection would fold the perspective in twice.
-  const center = worldToScreenFlat(origin.point);
-  const edgeWorld = projectLonLat(
-    origin.longitude + (radiusMetres / (111320 * Math.cos(origin.latitude * Math.PI / 180))),
-    origin.latitude
-  );
-  const edge = worldToScreenFlat(edgeWorld);
+  const center = worldToScreenFlat(originPoint);
+  const edge = worldToScreenFlat({ x: originPoint.x + walkingRadiusWorldUnits(), y: originPoint.y });
   const radiusPx = Math.max(8, Math.hypot(edge.x - center.x, edge.y - center.y));
   const tilted = typeof tiltActive === "function" && tiltActive();
 
@@ -1097,13 +1219,14 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = treeClusters || buildTypeClusters(nearbyIconLookup.tree, resolvedToScreen);
 
+  const reveal = nearbyRevealOpacity();
   ctx.save();
   for (const cluster of clusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
 
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(t => nearbyIconLookup.outOfRadius.has(t));
-    ctx.globalAlpha = isOutOfRadius ? 0.4 : 1;
+    ctx.globalAlpha = (isOutOfRadius ? 0.4 : 1) * reveal;
 
     const repr = items[0];
     const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
@@ -1373,6 +1496,7 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
   };
   const clusters = landmarkClusters || buildLandmarkClusters(nearbyIconLookup.landmark, resolvedToScreen);
 
+  const reveal = nearbyRevealOpacity();
   ctx.save();
   for (const cluster of clusters) {
     const { screenPt, items } = cluster;
@@ -1381,7 +1505,7 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
     const place = items[0];
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
     const baseOpacity = markerOpacityFor("landmark", place);
-    ctx.globalAlpha = isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity;
+    ctx.globalAlpha = (isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity) * reveal;
 
     const isPub = isPubCategory(place);
     const isCafe = isCafeCategory(place);
@@ -1436,12 +1560,13 @@ function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
   const clusters = pathClusters || buildTypeClusters(nearbyIconLookup.path, resolvedToScreen);
   if (!clusters.length) return;
 
+  const reveal = nearbyRevealOpacity();
   ctx.save();
   for (const cluster of clusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
-    ctx.globalAlpha = isOutOfRadius ? 0.4 : 1;
+    ctx.globalAlpha = (isOutOfRadius ? 0.4 : 1) * reveal;
     const drawn = drawPngMapIcon(ctx, iconPath("waymarked"), screenPt.x, screenPt.y, iconSize);
     if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
   }
@@ -1458,12 +1583,13 @@ function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
   const clusters = waterClusters || buildTypeClusters(nearbyIconLookup.water, resolvedToScreen);
   if (!clusters.length) return;
 
+  const reveal = nearbyRevealOpacity();
   ctx.save();
   for (const cluster of clusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(w => nearbyIconLookup.outOfRadius.has(w));
-    ctx.globalAlpha = isOutOfRadius ? 0.4 : 1;
+    ctx.globalAlpha = (isOutOfRadius ? 0.4 : 1) * reveal;
     const drawn = drawPngMapIcon(ctx, iconPath("ponds"), screenPt.x, screenPt.y, iconSize);
     if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
   }
@@ -1480,13 +1606,14 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = cowClusters || buildTypeClusters(nearbyIconLookup.cow, resolvedToScreen);
 
+  const reveal = nearbyRevealOpacity();
   ctx.save();
   for (const cluster of clusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(c => nearbyIconLookup.outOfRadius.has(c));
     const baseOpacity = markerOpacityFor("cow", items[0]);
-    ctx.globalAlpha = isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity;
+    ctx.globalAlpha = (isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity) * reveal;
     const drawn = drawPngMapIcon(ctx, iconPath("cow"), screenPt.x, screenPt.y, iconSize);
     if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
   }
@@ -1551,16 +1678,22 @@ function drawUserRadarOverlayTilted(ctx) {
   if (typeof projectCanvasPoint !== "function") return;
 
   const dpr = pixelRatio();
-  const U = typeof rawWorldToScreen === "function"
-    ? rawWorldToScreen(state.userLocation.point)
+  // The user's *rotated* pre-tilt position, not the raw one. Those were the same thing while
+  // the heading rotation always pivoted on the user, but it now pivots on the camera origin
+  // (cameraOriginPoint, index.html), which is the browse anchor while browsing -- so reading
+  // the raw position detached the radar cone from the "You" dot it belongs to. The cone's own
+  // direction is unaffected: a rotation is uniform, so ahead is still straight up on screen.
+  const U = typeof worldToScreenFlat === "function"
+    ? worldToScreenFlat(state.userLocation.point)
     : worldToScreen(state.userLocation.point);
 
-  const outerRadius = Math.max(0.5, radarRadiusForMetres(U, 60));
+  const outerRadius = Math.max(0.5, radarRadiusForMetres(U, 60, worldToScreenFlat));
   const innerRadius = Math.max(0.2, outerRadius * 0.28);
   const spread = toRadians(26);
 
-  // Heading direction in overlay canvas space (heading rotation centred on user, so
-  // "up" = -y = ahead, and this mode is only active while heading-up is active).
+  // Heading direction in overlay canvas space: the heading rotation puts ahead at the top of
+  // the screen everywhere (it is a rigid rotation, whatever it pivots about), and this mode is
+  // only active while heading-up is active, so "up" = -y = ahead.
   const headingRad = toRadians(-90); // up = forward in heading-up overlay
 
   const startAngle = headingRad - spread;
@@ -1573,7 +1706,7 @@ function drawUserRadarOverlayTilted(ctx) {
     return { x: r.x, y: r.y };
   }
 
-  const apex = proj(U.x, U.y); // user is the transform origin, so apex === U
+  const apex = proj(U.x, U.y);
 
   // Validate projection produced valid coordinates
   if (!Number.isFinite(apex.x) || !Number.isFinite(apex.y)) return;
@@ -1645,6 +1778,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     paddingPx: 5.6 * dpr * mapScale * uScale,
   };
 
+  const reveal = nearbyRevealOpacity();
   const calls = [];
 
   const treeClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, toScreen), toScreen);
@@ -1656,7 +1790,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const repr = items[0];
     const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = isOutOfRadius ? 0.4 : 1;
+      c.globalAlpha = reveal * (isOutOfRadius ? 0.4 : 1);
       const drawn = drawPngMapIcon(c, src, screenPt.x, screenPt.y, iconSize * pinScale);
       if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
@@ -1683,7 +1817,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
       if (!iconSlug) iconSlug = landmarkIconSlug(place);
     }
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity;
+      c.globalAlpha = reveal * (isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity);
       let drawnAsPng = false;
       const scaledIconSize = iconSize * pinScale;
       if (isPub) {
@@ -1720,7 +1854,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(c => nearbyIconLookup.outOfRadius.has(c));
     const baseOpacity = markerOpacityFor("cow", items[0]);
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity;
+      c.globalAlpha = reveal * (isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity);
       const drawn = drawPngMapIcon(c, iconPath("cow"), screenPt.x, screenPt.y, iconSize * pinScale);
       if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
@@ -1733,7 +1867,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const pinScale = tiltPinScale(worldPt);
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = isOutOfRadius ? 0.4 : 1;
+      c.globalAlpha = reveal * (isOutOfRadius ? 0.4 : 1);
       const drawn = drawPngMapIcon(c, iconPath("waymarked"), screenPt.x, screenPt.y, iconSize * pinScale);
       if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
@@ -1746,7 +1880,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const pinScale = tiltPinScale(worldPt);
     const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(w => nearbyIconLookup.outOfRadius.has(w));
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = isOutOfRadius ? 0.4 : 1;
+      c.globalAlpha = reveal * (isOutOfRadius ? 0.4 : 1);
       const drawn = drawPngMapIcon(c, iconPath("ponds"), screenPt.x, screenPt.y, iconSize * pinScale);
       if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
@@ -2018,7 +2152,12 @@ function destinationPointMetres(latitude, longitude, bearingDegrees, metres) {
   };
 }
 
-function radarRadiusForMetres(point, metres) {
+// `point` and the returned radius are both in whatever space `toScreen` maps into, and the two
+// must match: the tilted radar builds its arcs in flat (pre-perspective) space and projects each
+// point itself, so measuring its radius through the full projection mixed the two and inflated
+// the cone -- badly so once the tilt pivot moved off the user for browsing, where the user sits
+// far enough off-pivot for the perspective divide to magnify the projected distance.
+function radarRadiusForMetres(point, metres, toScreen = worldToScreen) {
   if (!state.userLocation || !Number.isFinite(state.compassHeading)) return 0;
   const destination = destinationPointMetres(
     state.userLocation.latitude,
@@ -2026,6 +2165,6 @@ function radarRadiusForMetres(point, metres) {
     normalizeDegrees(state.compassHeading),
     metres
   );
-  const destinationScreen = worldToScreen(projectLonLat(destination.longitude, destination.latitude));
+  const destinationScreen = toScreen(projectLonLat(destination.longitude, destination.latitude));
   return Math.hypot(destinationScreen.x - point.x, destinationScreen.y - point.y);
 }

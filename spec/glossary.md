@@ -100,6 +100,15 @@ The walking-radius ring on the Nearby screen, and everything inside it — the n
 **Open ground**
 Any map tap that resolves to neither a highlighted location nor a street. Background polygons (forest, nature designations, water bodies) are not hit-tested, so a tap inside the forest counts as open ground. An open-ground tap moves the browse anchor rather than selecting anything.
 
+**Off-ring user pointer**
+The blue ground-plane arrow and `You · {distance}` label drawn on the walking-radius ring's edge, on the bearing from the browse anchor to the real GPS position, while browsing has taken the "You" dot off screen (`drawUserDirectionFromAnchor`). Tapping it clears the browse anchor and returns to the real location.
+
+**Browse-origin slide**
+The animation between two Nearby origins (`state.nearbyOriginTransition`): the origin is interpolated over ~520ms while the camera keeps it pinned at the focus, so the walking-radius circle holds still on screen and the map moves behind it. Rendering follows the interpolated origin; the nearby list and hit testing use the destination immediately.
+
+**Camera origin** (`cameraOriginPoint()`)
+The single world point the camera anchors at its focus — and therefore the point the scale fit measures from, the heading-up rotation pivots about, and the 3D perspective projects around. The real GPS fix while navigating to a selected destination; `nearbyOrigin()` otherwise, so a browse anchor moves framing, fit and perspective together.
+
 **Street navigation target**
 The pseudo-item (`roadNavTarget`) a selected street navigates to: the point on that street's own geometry nearest the user when it was selected. A street has no single position of its own, so this is what the compass arrow, route line, and camera fit aim at.
 

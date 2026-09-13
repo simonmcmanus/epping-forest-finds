@@ -120,9 +120,16 @@ async function handleCowProxy(req, res, url) {
 // report submitted while testing locally, see appVersion in index.html — reads e.g.
 // "dev-v274" instead of a bare version number that never changes between local edits.
 function injectDevFlag(source) {
+  // Anchored on the IS_DEV declaration, not on APP_CACHE_NAME below it: sw.js reads
+  // `self.__DEV__` once, at the top, into `const IS_DEV`. Injecting after that line set the flag
+  // too late to be seen, so IS_DEV was false even locally and the dev server's whole
+  // network-first path never ran -- local edits were served from the production cache-first
+  // strategy until the cache happened to be cleared by hand.
   return source
-    .replace(/^const APP_CACHE_NAME/m, "self.__DEV__ = true;\nconst APP_CACHE_NAME")
-    .replace(/"forest-finds-/, '"forest-finds-dev-');
+    .replace(/^const IS_DEV/m, "self.__DEV__ = true;\nconst IS_DEV")
+    // Both caches, so neither local store can collide with a real one (the app cache alone was
+    // being prefixed, leaving the data cache sharing production's name).
+    .replace(/"forest-finds-/g, '"forest-finds-dev-');
 }
 
 function handleStatic(req, res, url) {

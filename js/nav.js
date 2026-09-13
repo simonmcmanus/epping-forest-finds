@@ -592,16 +592,21 @@ function applyWalkingRadiusChange(minutes, options = {}) {
 }
 
 // Moves the Nearby view's browse anchor to an arbitrary map point (see nearbyOrigin above),
-// leaving the real GPS fix (state.userLocation) untouched.
+// leaving the real GPS fix (state.userLocation) untouched. The move is animated by sliding the
+// *origin* rather than the camera (startNearbyOriginTransition, index.html), which keeps the
+// walking-radius circle still on screen and moves the map behind it -- so the camera itself is
+// re-derived per frame from the interpolated origin and must not also be animated here.
 function setNearbyAnchor(latitude, longitude, point) {
+  startNearbyOriginTransition(nearbyRenderOriginPoint());
   state.nearbyAnchor = { latitude, longitude, point };
-  refreshNearbyRadiusView();
+  refreshNearbyRadiusView({ animate: false });
 }
 
 function clearNearbyAnchor() {
   if (!state.nearbyAnchor) return;
+  startNearbyOriginTransition(nearbyRenderOriginPoint());
   state.nearbyAnchor = null;
-  refreshNearbyRadiusView();
+  refreshNearbyRadiusView({ animate: false });
 }
 
 // The Nearby view's "nearest area" is the walking-radius ring drawn around nearbyOrigin().

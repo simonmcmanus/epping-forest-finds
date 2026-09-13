@@ -218,6 +218,7 @@ globalThis.__forestFindsTest = {
   animateToHeadingUpNavigationViewport,
   resizeCanvas,
   prepareCanvasForDraw,
+  stopViewportAnimation,
   updateHeadingUpCanvasRotationTransform,
   startCompassSmoothing,
   nearbyHeadingUpActive,
@@ -253,6 +254,20 @@ globalThis.__forestFindsTest = {
   findHit,
   focusNearbyOnMapPoint,
   isOutsideNearestArea,
+  nearbyRenderOriginPoint,
+  nearbyOriginTransitionActive,
+  nearbyRevealOpacity,
+  nearbyRevealInProgress,
+  NEARBY_REVEAL_MS,
+  cameraOriginPoint,
+  tiltHidesWhatIsBehind,
+  tiltProjection,
+  drawUserRadarOverlayTilted,
+  drawUserDirectionFromAnchor,
+  hitUserDirectionPointer,
+  worldToScreenForOverlayTilted,
+  worldToScreenFlat,
+  projectCanvasPoint,
   handleMapClick,
   distanceFromUserToRoad,
   nearbyOrigin,
@@ -371,6 +386,7 @@ function resetData(app) {
   app.state.selected = null;
   app.state.roads = [];
   app.state.nearbyAnchor = null;
+  app.state.nearbyOriginTransition = null;
   app.state.clusterExpanded = null;
   app.state.clusterZoomed = false;
   app.state.overviewFilters = [];
@@ -2755,11 +2771,27 @@ test("local dev server flags sw.js with self.__DEV__ without touching the produc
   const original = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
 
   const served = _private.injectDevFlag(original);
-  assert.match(served, /self\.__DEV__ = true;\s*\nconst APP_CACHE_NAME/, "served sw.js must set self.__DEV__ before APP_CACHE_NAME is declared");
+
+  // Not merely "somewhere near the top": sw.js reads self.__DEV__ exactly once, into a const at
+  // the very top, so the flag has to be set before *that* line. This assertion used to check
+  // placement before APP_CACHE_NAME -- which sits below the IS_DEV declaration, so the flag was
+  // being set too late to be read. IS_DEV came out false even under the dev server, and every
+  // local edit was served from the production cache-first strategy until someone cleared the
+  // cache by hand. Evaluate it rather than pattern-match a position, so the next reshuffle of
+  // sw.js's top lines cannot quietly break it again.
+  const head = served.slice(0, served.indexOf("const APP_CACHE_NAME"));
+  const context = { self: {} };
+  vm.createContext(context);
+  assert.equal(vm.runInContext(`${head}\nIS_DEV`, context), true, "IS_DEV must evaluate true under the dev server");
 
   // The file on disk (what Netlify serves in production, untouched) must never itself
   // set the flag — only the local dev server's response does.
   assert.doesNotMatch(original, /self\.__DEV__\s*=\s*true/, "sw.js on disk must not hardcode the dev flag");
+  assert.equal(
+    vm.runInContext(original.slice(0, original.indexOf("const APP_CACHE_NAME")) + "\nIS_DEV", vm.createContext({ self: {} })),
+    false,
+    "and production must stay cache-first"
+  );
 });
 
 test("local dev server prefixes CACHE_NAME with dev- so the About screen and bug reports read as local, not a stuck release version", () => {
@@ -2779,6 +2811,8 @@ test("local dev server prefixes CACHE_NAME with dev- so the About screen and bug
     new RegExp(`const APP_CACHE_NAME = "forest-finds-dev-${originalNameMatch[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`),
     "served sw.js must prefix the on-disk version with dev-, keeping the rest unchanged"
   );
+  // The data cache too, or a local run shares production's data store name.
+  assert.match(served, /const DATA_CACHE_NAME = "forest-finds-dev-/, "the data cache is prefixed as well");
 });
 
 test("local dev server serves sw.js with its own dev-flagging route, not the generic static handler", () => {
@@ -4872,6 +4906,54 @@ test("recoverStalledCompass does nothing while the page is hidden", () => {
   }
 });
 
+test("a beta-only orientation event restarts the smoothing loop so 3D keeps responding", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.compassHeading = 20;
+  app.state.compassHeadingTarget = 20;
+  app.state.tiltBetaSmoothed = 0;
+  app.state.tiltBetaTarget = 0;
+  app.state.compassAnimationFrame = null;
+
+  // A phone whose magnetometer has lost its heading still reports beta. Before this, the target
+  // moved and nothing eased tiltBetaSmoothed toward it, so tilting the phone did nothing until
+  // some unrelated redraw happened to restart the loop.
+  app.onDeviceOrientation({ alpha: null, beta: 55 });
+
+  assert.equal(app.state.tiltBetaTarget, 55, "the tilt target follows beta");
+  assert.notEqual(app.state.compassAnimationFrame, null, "and the loop that smooths it is running");
+});
+
+test("a beta-only orientation event does not spin the loop when there is no trusted heading", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.compassHeading = null;
+  app.state.compassHeadingTarget = null;
+  app.state.compassAnimationFrame = null;
+
+  app.onDeviceOrientation({ alpha: null, beta: 55 });
+
+  assert.equal(app.state.tiltBetaTarget, 55);
+  assert.equal(app.state.compassAnimationFrame, null, "nothing to smooth without a heading");
+});
+
+test("changing the browse anchor outside setNearbyAnchor still moves the camera with it", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
+  app.selectOverview();
+  app.prepareCanvasForDraw();
+  const before = app.nearbyRenderOriginPoint();
+  assert.equal(before, app.state.userLocation.point);
+
+  // focusNearbyOnMapPoint's exit-a-selection path assigns the anchor directly and re-fits in the
+  // same tick, with no frame boundary in between -- the per-frame origin freeze has to notice.
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.state.nearbyAnchor = { latitude: anchor.latitude, longitude: anchor.longitude, point: anchor.point };
+
+  assert.equal(app.nearbyRenderOriginPoint(), anchor.point, "the frozen origin follows the new anchor");
+});
+
 test("onDeviceOrientation records that the sensor fired even when the event carries no usable heading", () => {
   resetData(app);
   app.state.compassLastEventAt = null;
@@ -4960,6 +5042,9 @@ test("moving the nearby browse anchor reframes the same view instead of zooming 
   // collapsed it again, walking the Nearby view out to whole-forest scale a tap at a time.
   const relocate = (latitude, longitude) => {
     app.state.nearbyAnchor = { latitude, longitude, point: app.projectLonLat(longitude, latitude) };
+    // Assigning the anchor directly skips setNearbyAnchor, so nothing has invalidated the
+    // per-frame render-origin freeze; prepareCanvasForDraw is the frame boundary that does.
+    app.prepareCanvasForDraw();
     app.ensureOverviewTargetsVisible({ animate: false, force: true });
     return { scale: app.state.viewport.scale, originScreen: app.worldToScreen(app.nearbyOrigin().point) };
   };
@@ -4974,6 +5059,340 @@ test("moving the nearby browse anchor reframes the same view instead of zooming 
     assert.ok(Math.abs(after.originScreen.x - baseOriginScreen.x) < 1, `${label}: origin should sit at the same screen point`);
     assert.ok(Math.abs(after.originScreen.y - baseOriginScreen.y) < 1, `${label}: origin should sit at the same screen point`);
   }
+});
+
+// Puts the app in full 3D nearby mode with a handful of trees to fit against, the way the
+// Nearby screen sits when the phone is held up.
+function enterNearby3D(app) {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.trees.push(
+    { id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) },
+    { id: "t2", commonName: "Beech", ...makePoint(app, 51.6648, 0.0455) }
+  );
+  app.state.compassHeading = 20;
+  app.state.compassHeadingTarget = 20;
+  app.state.renderedNavigationHeading = 20;
+  app.state.tiltBetaSmoothed = 60;
+  app.state.tiltBetaTarget = 60;
+  app.selectOverview();
+  assert.equal(app.tiltActive(), true, "sanity: these settings should put the app in full 3D");
+}
+
+function ringPointsInsideMapArea(app) {
+  app.stopViewportAnimation();
+  // prepareCanvasForDraw is what clears the per-frame tilt-camera cache, so it has to run both
+  // before the fit (which reads the projection) and after it (the new scale moves the pivot) --
+  // otherwise the points are measured through the previous frame's perspective.
+  app.prepareCanvasForDraw();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  app.stopViewportAnimation();
+  app.prepareCanvasForDraw();
+  const rect = app.bestVisibleCanvasRect({ assumeInspectorOpen: true });
+  const points = app.walkingRadiusCirclePoints(64).map((point) => app.worldToScreen(point));
+  const inside = points.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)
+    && p.x >= rect.x && p.x <= rect.x + rect.width
+    && p.y >= rect.y && p.y <= rect.y + rect.height);
+  return { inside: inside.length, total: points.length, scale: app.state.viewport.scale };
+}
+
+test("in 3D, browsing another spot keeps the whole walking radius inside the available map area", () => {
+  enterNearby3D(app);
+
+  // First person: the ring's behind half is deliberately allowed off the bottom edge, the way
+  // the ground behind you is in any first-person view -- forcing it on screen is what used to
+  // collapse the 3D zoom.
+  const firstPerson = ringPointsInsideMapArea(app);
+  assert.ok(firstPerson.inside < firstPerson.total, "sanity: first-person 3D does not frame the whole ring");
+
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  const browsing = ringPointsInsideMapArea(app);
+
+  assert.equal(browsing.inside, browsing.total, "every point of the ring must be in the map area while browsing");
+});
+
+test("3D hides what is behind you only while you are the pivot, not while browsing a spot", () => {
+  enterNearby3D(app);
+  const user = app.state.userLocation.point;
+  const radius = app.walkingRadiusWorldUnits();
+  // Due south of the origin: behind the heading (20 degrees, roughly north-east).
+  const behindUser = { x: user.x, y: user.y + radius * 0.8 };
+
+  assert.equal(app.tiltHidesWhatIsBehind(), true);
+  assert.equal(app.isBehindTiltHeading(behindUser), true, "content behind you is culled in first-person 3D");
+  assert.ok(app.tiltPinScale(behindUser) < 1, "and its pins are collapsed");
+
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  const behindAnchor = { x: anchor.point.x, y: anchor.point.y + radius * 0.8 };
+
+  assert.equal(app.tiltHidesWhatIsBehind(), false);
+  assert.equal(app.isBehindTiltHeading(behindAnchor), false, "a browsed spot has no behind-you half to hide");
+  assert.equal(app.tiltPinScale(behindAnchor), 1, "so its pins stay full size");
+});
+
+test("the camera origin, the scale fit and the 3D projection all pivot on the same point", () => {
+  enterNearby3D(app);
+  assert.equal(app.cameraOriginPoint(), app.state.userLocation.point, "no anchor: the camera is on the GPS fix");
+
+  const startedFrom = app.state.userLocation.point;
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+
+  // Mid-slide the camera is on the interpolated origin, not the destination -- that is what
+  // holds the circle still on screen while the map moves (see nearbyRenderOriginPoint).
+  const midSlide = app.cameraOriginPoint();
+  assert.notEqual(midSlide, anchor.point, "mid-slide the camera has not jumped to the new anchor");
+  assert.ok(
+    midSlide.x >= Math.min(startedFrom.x, anchor.point.x) && midSlide.x <= Math.max(startedFrom.x, anchor.point.x),
+    "and it is somewhere between the old origin and the new one"
+  );
+
+  app.state.nearbyOriginTransition = null;
+  app.prepareCanvasForDraw();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  app.prepareCanvasForDraw();
+
+  assert.equal(app.cameraOriginPoint(), app.state.nearbyAnchor.point, "settled: the camera is on the anchor");
+  const projection = app.tiltProjection();
+  const anchorRaw = app.rawWorldToScreen(app.state.nearbyAnchor.point);
+  assert.ok(Math.abs(projection.originX - anchorRaw.x) < 0.001, "the 3D projection pivots on the anchor too");
+  assert.ok(Math.abs(projection.originY - anchorRaw.y) < 0.001, "the 3D projection pivots on the anchor too");
+});
+
+// Records the path each draw walks, so a marker's actual drawn geometry can be asserted rather
+// than just the numbers that feed it.
+function recordingCtx() {
+  const noop = () => {};
+  const moves = [];
+  return {
+    moves,
+    save: noop, restore: noop, beginPath: noop, closePath: noop,
+    moveTo(x, y) { moves.push({ x, y }); },
+    lineTo: noop, arc: noop, fill: noop, stroke: noop, setLineDash: noop,
+    fillText: noop, strokeText: noop,
+    createRadialGradient() { return { addColorStop: noop }; },
+    measureText(text) { return { width: String(text).length * 8 }; },
+  };
+}
+
+test("moving the nearby point holds the circle still on screen and slides the map behind it", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
+  app.selectOverview();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  app.stopViewportAnimation();
+
+  const circleCentreOnScreen = () => {
+    app.prepareCanvasForDraw();
+    return app.worldToScreenFlat(app.nearbyRenderOriginPoint());
+  };
+  const before = circleCentreOnScreen();
+  const mapPointOnScreen = () => app.worldToScreenFlat(app.state.trees[0].point);
+  const mapBefore = mapPointOnScreen();
+
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+
+  // One frame in: the circle has not moved on screen, but the map underneath it has. Animating
+  // the camera instead would do the opposite -- snap the circle to the tapped point and drag it
+  // back across the screen.
+  assert.equal(app.nearbyOriginTransitionActive(), true, "the slide should be running");
+  const during = circleCentreOnScreen();
+  assert.ok(Math.abs(during.x - before.x) < 1, `circle should hold its screen x, moved ${during.x - before.x}`);
+  assert.ok(Math.abs(during.y - before.y) < 1, `circle should hold its screen y, moved ${during.y - before.y}`);
+
+  // Let the slide run out the way it does in the app -- prepareCanvasForDraw is what notices it
+  // has finished, applies the final camera and clears it -- rather than dropping the transition
+  // from under it, which would leave the camera one frame behind the origin. The transition
+  // object lives on through the reveal fade, so age it past that too.
+  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs + app.NEARBY_REVEAL_MS + 1;
+  const after = circleCentreOnScreen();
+  assert.equal(app.state.nearbyOriginTransition, null, "the slide clears itself when it lands");
+  const mapAfter = mapPointOnScreen();
+  assert.ok(Math.abs(after.x - before.x) < 1, "the circle ends where it started on screen");
+  assert.ok(Math.abs(after.y - before.y) < 1, "the circle ends where it started on screen");
+  assert.ok(
+    Math.hypot(mapAfter.x - mapBefore.x, mapAfter.y - mapBefore.y) > 10,
+    "the map behind it has moved"
+  );
+});
+
+test("the new nearby set is held back until the map has finished moving, then fades in", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
+  app.selectOverview();
+  assert.equal(app.nearbyRevealOpacity(), 1, "settled, the nearby set is fully drawn");
+
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  const transition = app.state.nearbyOriginTransition;
+
+  assert.equal(app.nearbyRevealOpacity(), 0, "nothing of the new set is drawn while the map moves");
+  transition.startedAt -= transition.durationMs / 2;
+  assert.equal(app.nearbyRevealOpacity(), 0, "still nothing mid-slide");
+
+  // Landed: the fade starts from here rather than the set snapping on.
+  transition.startedAt -= transition.durationMs / 2 + 1;
+  const justLanded = app.nearbyRevealOpacity();
+  assert.ok(justLanded >= 0 && justLanded < 0.2, `the fade starts from nothing, got ${justLanded}`);
+
+  transition.startedAt -= app.NEARBY_REVEAL_MS / 2;
+  const midFade = app.nearbyRevealOpacity();
+  assert.ok(midFade > justLanded && midFade < 1, `mid-fade should be partway, got ${midFade}`);
+
+  transition.startedAt -= app.NEARBY_REVEAL_MS;
+  assert.equal(app.nearbyRevealOpacity(), 1, "and it ends fully drawn");
+  // The transition object has to outlive the slide itself, or the fade would have no frames.
+  assert.equal(app.nearbyRevealInProgress(), false);
+});
+
+test("relocating again mid-slide continues from what is on screen", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
+  app.selectOverview();
+
+  const first = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(first.latitude, first.longitude, first.point);
+  const midSlide = app.nearbyRenderOriginPoint();
+
+  const second = makePoint(app, 51.658, 0.028);
+  app.setNearbyAnchor(second.latitude, second.longitude, second.point);
+  const restarted = app.nearbyRenderOriginPoint();
+
+  assert.ok(
+    Math.hypot(restarted.x - midSlide.x, restarted.y - midSlide.y) < 0.000001,
+    "the second slide picks up from where the first had got to, not from where it began"
+  );
+});
+
+test("in 3D the pivot eases across a slide instead of popping, and holds still browse-to-browse", () => {
+  enterNearby3D(app);
+  app.prepareCanvasForDraw();
+  const firstPerson = app.nearbyHeadingUpFocusY();
+  assert.ok(firstPerson > 0.7, `sanity: the first-person pivot sits low on screen, got ${firstPerson}`);
+
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  app.prepareCanvasForDraw();
+  // Not exact: a fraction of a millisecond of real time has already elapsed, so the ease has
+  // begun. What matters is that it starts *from* the first-person pivot rather than at the
+  // destination.
+  assert.ok(
+    Math.abs(app.nearbyHeadingUpFocusY() - firstPerson) < 0.001,
+    "the slide starts from the first-person pivot"
+  );
+
+  // Halfway through, the pivot is partway between the two rather than already at its
+  // destination -- that is the difference between easing and popping.
+  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs / 2;
+  app.prepareCanvasForDraw();
+  const midway = app.nearbyHeadingUpFocusY();
+  assert.ok(
+    midway < firstPerson && midway > 0.5,
+    `mid-slide the pivot should sit between the two, got ${midway} between ${firstPerson} and 0.5`
+  );
+
+  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs + 1;
+  app.prepareCanvasForDraw();
+  assert.equal(app.nearbyHeadingUpFocusY(), 0.5, "settled on a browsed spot the pivot is centred");
+
+  // Hopping to another browsed spot must not re-ramp: both ends of that slide are the centred
+  // pivot, so the view should not dip toward the first-person anchor and come back.
+  const next = makePoint(app, 51.658, 0.028);
+  app.setNearbyAnchor(next.latitude, next.longitude, next.point);
+  app.prepareCanvasForDraw();
+  assert.equal(app.nearbyHeadingUpFocusY(), 0.5, "browse-to-browse keeps the centred pivot throughout");
+});
+
+test("the radar cone stays on the user dot while browsing another spot in 3D", () => {
+  enterNearby3D(app);
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  // Settle the browse-origin slide: this is about where the cone is drawn once the view has
+  // arrived, not about the transition into it.
+  app.state.nearbyOriginTransition = null;
+  app.stopViewportAnimation();
+  app.prepareCanvasForDraw();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  app.stopViewportAnimation();
+  app.prepareCanvasForDraw();
+  app.state.userInMapArea = true;
+
+  const drawnDot = app.worldToScreenForOverlayTilted(app.state.userLocation.point);
+  // The heading rotation pivots on the camera origin, so the user's *raw* position is no longer
+  // where they are drawn -- reading it (as the radar used to) detached the cone from the dot.
+  const raw = app.rawWorldToScreen(app.state.userLocation.point);
+  const rawApex = app.projectCanvasPoint(raw.x, raw.y);
+  assert.ok(
+    Math.hypot(rawApex.x - drawnDot.x, rawApex.y - drawnDot.y) > 1,
+    "sanity: the raw position and the drawn position differ while browsing"
+  );
+
+  const ctx = recordingCtx();
+  app.drawUserRadarOverlayTilted(ctx);
+  const apex = ctx.moves[0];
+
+  assert.ok(apex, "the radar cone should have been drawn");
+  assert.ok(Math.abs(apex.x - drawnDot.x) < 0.001, "the cone's apex sits on the user dot");
+  assert.ok(Math.abs(apex.y - drawnDot.y) < 0.001, "the cone's apex sits on the user dot");
+});
+
+test("tapping the off-ring user pointer goes back to using the real location", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  app.state.nearbyOriginTransition = null; // settle the browse-origin slide
+  app.prepareCanvasForDraw();
+  app.stopViewportAnimation();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  app.stopViewportAnimation();
+  app.prepareCanvasForDraw();
+
+  app.drawUserDirectionFromAnchor(recordingCtx(), app.worldToScreen);
+
+  // The pointer sits outside the walking radius, where a plain tap would otherwise just move the
+  // browse anchor onto the pointer's own position -- so handleMapClick has to test it first.
+  const user = app.state.userLocation.point;
+  const dx = user.x - anchor.point.x;
+  const dy = user.y - anchor.point.y;
+  const length = Math.hypot(dx, dy);
+  const radius = app.walkingRadiusWorldUnits();
+  const onRing = app.worldToScreen({
+    x: anchor.point.x + (dx / length) * radius * 1.17,
+    y: anchor.point.y + (dy / length) * radius * 1.17,
+  });
+  assert.equal(app.hitUserDirectionPointer(onRing), true, "sanity: that point is on the pointer");
+  assert.equal(app.isOutsideNearestArea(app.unprojectPoint(app.screenToWorld(onRing.x, onRing.y))), true);
+
+  tapMap(app, onRing);
+
+  assert.equal(app.state.nearbyAnchor, null, "the browse anchor is cleared");
+  assert.equal(app.state.selected, null, "and nothing gets selected by the tap");
+});
+
+test("the off-ring user pointer is only drawn while the user is outside the ring", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
+
+  app.drawUserDirectionFromAnchor(recordingCtx(), app.worldToScreen);
+  assert.equal(app.hitUserDirectionPointer({ x: 500, y: 400 }), false, "no anchor, no pointer");
+
+  // Inside the walking radius: the user's own dot is on screen saying the same thing.
+  const near = makePoint(app, 51.6652, 0.0452);
+  app.setNearbyAnchor(near.latitude, near.longitude, near.point);
+  app.state.nearbyOriginTransition = null;
+  app.prepareCanvasForDraw();
+  app.drawUserDirectionFromAnchor(recordingCtx(), app.worldToScreen);
+  const nearHit = [0, 1, 2, 3].some((i) => app.hitUserDirectionPointer({ x: 400 + i * 60, y: 400 }));
+  assert.equal(nearHit, false, "no pointer while the user is inside the ring");
 });
 
 test("an expanded group hides every other highlighted location from the map", () => {

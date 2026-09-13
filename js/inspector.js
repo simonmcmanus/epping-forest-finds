@@ -7,6 +7,15 @@ function handleMapClick(event) {
   if (!state.trees.length) return;
   const screen = canvasPoint(event);
 
+  // The off-ring "You" pointer (drawUserDirectionFromAnchor, js/renderer.js) is a control, not
+  // scenery: tapping it means "take me back to where I actually am". Tested before anything
+  // else, since it sits outside the walking radius, where a tap would otherwise just move the
+  // browse anchor onto the pointer's own position.
+  if (typeof hitUserDirectionPointer === "function" && hitUserDirectionPointer(screen)) {
+    clearNearbyAnchor();
+    return;
+  }
+
   // In overview mode, tapping a multi-item cluster expands it: zooms to separate
   // the items and shows a cluster detail list in the inspector.
   if (!state.selected) {

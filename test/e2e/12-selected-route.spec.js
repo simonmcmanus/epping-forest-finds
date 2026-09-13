@@ -138,25 +138,48 @@ test.describe("Selected route line follows the road/path network", () => {
         state.tiltBetaSmoothed = b;
         state.viewportAnimationTo = null;
         state.viewportAnimationFrame = null;
+        // Settle before measuring. The fit anchors the user at navigationFocusPoint(), whose
+        // vertical anchor is mirrored by the destination's bearing -- which is derived from
+        // selectedNavigationTargetPoints(), i.e. the memoized route. draw() is what recomputes
+        // that route (and clears the per-frame tilt-camera cache), so a single align+draw can
+        // fit against one focus and then be measured against another: the first tilt step used
+        // to report the whole route off to one side, purely because the route the focus was
+        // derived from changed underneath it. On a device this self-corrects on the next frame,
+        // since the compass loop re-aligns continuously; here it has to be done explicitly.
+        for (let i = 0; i < 2; i += 1) {
+          alignHeadingUpNavigationViewport({ force: true });
+          draw();
+        }
         alignHeadingUpNavigationViewport({ force: true });
         draw();
         await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
 
         const rect = bestVisibleCanvasRect();
         const focus = navigationFocusPoint(rect);
+        const margin = headingUpFitMarginPx(rect);
         const points = selectedNavigationTargetPoints();
-        // How much of the band the fit aimed at the route's far end actually occupies once
-        // projected, and whether anything ended up outside the visible rect.
+        // How much of the space available to it the route actually occupies once projected, and
+        // whether anything ended up outside the visible rect. Measured on both axes: the fit is
+        // bound by whichever runs out first, and for a route that is wider than it is deep that
+        // is the width, not the depth ahead.
         let deepest = focus.y;
+        let minX = focus.x;
+        let maxX = focus.x;
         let offScreen = 0;
         for (const point of points) {
           const screen = worldToScreen(point);
           if (screen.y < deepest) deepest = screen.y;
+          if (screen.x < minX) minX = screen.x;
+          if (screen.x > maxX) maxX = screen.x;
           if (screen.x < rect.x || screen.x > rect.x + rect.width
             || screen.y < rect.y || screen.y > rect.y + rect.height) offScreen += 1;
         }
         return {
-          fill: (focus.y - deepest) / (focus.y - (rect.y + headingUpFitMarginPx(rect))),
+          verticalFill: (focus.y - deepest) / (focus.y - (rect.y + margin)),
+          horizontalFill: Math.max(
+            (focus.x - minX) / (focus.x - (rect.x + margin)),
+            (maxX - focus.x) / ((rect.x + rect.width - margin) - focus.x)
+          ),
           offScreen,
           pointCount: points.length,
         };
@@ -164,9 +187,16 @@ test.describe("Selected route line follows the road/path network", () => {
 
       expect(framing.pointCount).toBeGreaterThan(2);
       expect(framing.offScreen, `beta=${beta}: route points outside the visible rect`).toBe(0);
-      // Pre-fix this fell from ~0.94 at beta 20 to ~0.51 at beta 60.
-      expect(framing.fill, `beta=${beta}: fraction of the fitted band the route fills`).toBeGreaterThan(0.75);
-      expect(framing.fill).toBeLessThanOrEqual(1.001);
+      // The fit is only as good as the axis that binds it. This route is wider than it is deep,
+      // so past about 30 degrees of tilt it is the width that runs out first (measured: the
+      // route fills ~95% of the available width at every angle while the depth it reaches falls
+      // from 0.89 to 0.49) -- zooming in far enough to fill the vertical band too would push it
+      // off the sides. Asserting the vertical fill alone therefore failed on a correctly-framed
+      // view. The bug this guards against shrank the whole projection, both axes together
+      // (~1.96x too wide at beta 60), so it is still caught: max() would be ~0.5 there.
+      const fill = Math.max(framing.verticalFill, framing.horizontalFill);
+      expect(fill, `beta=${beta}: fraction of the binding axis the route fills`).toBeGreaterThan(0.75);
+      expect(fill).toBeLessThanOrEqual(1.001);
     }
   });
 });

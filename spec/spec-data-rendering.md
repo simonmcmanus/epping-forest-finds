@@ -308,6 +308,35 @@ When an item is selected, it gets a pulsing highlight overlay:
   - Dash: 8px on, 7px off
   - Only drawn for items with a valid `.point` (paths without a label anchor are excluded)
 
+### Off-ring user direction pointer
+
+While the Nearby view is browsing a spot away from the real GPS fix, the camera frames the ring
+around the browse anchor, so the "You" dot is frequently off screen and nothing says which way
+the user actually is. `drawUserDirectionFromAnchor` (js/renderer.js, drawn on the overlay canvas
+right after the anchor marker) marks it:
+
+- An arrow sitting on the walking-radius ring's edge, on the bearing from the anchor to the
+  user, pointing outward at them, in the same blue as the "You" dot and radar (the anchor marker
+  itself is amber, so the two never read as the same thing).
+- **It lies on the ground plane.** Its four corners are world points (sized as a fraction of the
+  walking radius — length `radius × 0.24`, half-width `radius × 0.11`) projected individually
+  through `toScreen`, not a flat screen-space triangle drawn at a projected position. That is
+  what makes it foreshorten with the ring and the route lines instead of floating over the map
+  like a sticker. It is deliberately generous: at the ring edge on the far side of the
+  perspective it is foreshortened to roughly half its flat size, so a subtle one reads as a
+  speck in 3D — but no larger than that, since it shares the map with the pins inside the ring.
+- Labelled `You · {distance}` (`formatDistance` of the anchor-to-user distance). The label alone
+  stays upright rather than being projected onto the ground with the arrow — text laid flat in
+  perspective is the one part that would be unreadable, and pins are billboarded the same way.
+- Only drawn when the user is *outside* the ring; inside it their own dot is on screen already.
+- **It is a control, not scenery.** Tapping it clears the browse anchor and returns to the real
+  location. `drawUserDirectionFromAnchor` publishes its tap target (`hitUserDirectionPointer`,
+  covering arrow plus label, with a floor of 26 CSS px so it stays thumb-sized however far the
+  perspective has shrunk the arrow), and `handleMapClick` tests it *first* — the pointer sits
+  outside the walking radius, where an untested tap would otherwise just move the browse anchor
+  onto the pointer's own position. The hit area is republished on every draw and nulled when the
+  pointer is not drawn, so a stale target can never outlive what drew it.
+
 ### Walking Radius Circle
 
 - Shown in overview mode and on all three secondary screens — filter, settings, and feedback/report (no selection, or a settings/report pseudo-selection)
@@ -409,6 +438,40 @@ a different point on the map without moving the real GPS fix:
   (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. On the
   Settings slider, the same floor is enforced natively via the `<input type="range">`'s own
   `min` attribute, and a `#settingsWalkMinsFloorNote` appears whenever the slider sits at it.
+- **Relocating slides the map, not the circle.** A browse-anchor move is animated by
+  interpolating the *origin* (`nearbyRenderOriginPoint`/`startNearbyOriginTransition`,
+  index.html) over `NEARBY_ORIGIN_TRANSITION_MS` (520ms, animateViewportTo's cubic ease-in-out)
+  while the camera keeps `cameraOriginPoint()` pinned at the focus — so the walking-radius circle
+  sits still on screen and the map slides underneath it. The camera is re-derived from the
+  interpolated origin every frame in `prepareCanvasForDraw`; `setNearbyAnchor`/`clearNearbyAnchor`
+  therefore pass `animate: false` and must not also animate the viewport.
+  - Animating the camera instead — the obvious way round — snaps the circle to the tapped point
+    on the first frame (the origin changes at once) and then drags it back to the centre as the
+    camera catches up. The circle is what the view is about; the map is what should move.
+  - Only rendering follows the interpolated origin. `nearbyOrigin()` jumps straight to the new
+    anchor, so the nearby list, the highlighted set and hit testing describe the destination
+    immediately instead of being recomputed against a moving point every frame.
+  - The interpolated value is **frozen per frame** (`_nearbyRenderOriginCache`, cleared wherever
+    `_tiltProjectionCache` is, plus on `startNearbyOriginTransition`). Without that, the camera
+    is solved from the origin as it was at the top of the frame while the circle is drawn from
+    the origin a whole map-draw later — tens of milliseconds on a dense frame — so the circle
+    lands slightly off the focus it is pinned to, which is a visible wobble on exactly the
+    motion this exists to smooth.
+  - **The new nearby set is held back until the map lands.** `nearbyRevealOpacity()` is 0 for the
+    duration of the slide and then fades the highlighted pins and the ambient route lines in over
+    `NEARBY_REVEAL_MS` (180ms). Those belong to the destination, but the map underneath them is
+    still travelling: drawing them straight away puts a fan of lines pinned to a stationary
+    circle sweeping across moving terrain, with pins sliding under a marker that is not moving —
+    it reads as jitter even though every element is where it should be. The transition object
+    deliberately outlives the slide by `NEARBY_REVEAL_MS` so the fade has frames; only the camera
+    work stops when the slide lands. The "You" dot is exempt: it is the user's real position, not
+    part of the nearby set.
+  - In 3D the pivot fraction also differs between the first-person and browsing cases (0.90 at
+    max tilt vs 0.5, see below), so `tiltRampedAnchor` eases between them across the same slide
+    rather than jerking the whole view up or down the screen on one frame. The transition
+    records whether it started from a browsed spot (`fromBrowsing`), so hopping between two
+    browsed spots keeps the centred pivot throughout instead of dipping toward the first-person
+    anchor and back.
 - **Relocating reframes; it never zooms out.** The Nearby camera anchors `nearbyOrigin().point`
   at the focus point and sizes itself to the walking-radius ring, so moving the browse anchor
   slides the same view onto the new spot: same scale, ring the same size, origin at the same
@@ -433,14 +496,54 @@ a different point on the map without moving the real GPS fix:
   a "Showing places near where you tapped" notice with a **Use my location**
   (`data-action="reset-nearby-anchor"`) button that clears `state.nearbyAnchor`
   (`clearNearbyAnchor`) and re-renders/re-fits back to the real GPS fix.
-- **Known scope limit — 3D tilt camera origin:** the tilt/3D perspective helpers
-  (`isBehindTiltHeading`, `tiltPinScale`, `tiltDistanceFadeAlpha`, `rawWorldToScreen`'s rotation
-  origin, etc.) all still pivot from the real `state.userLocation.point`, not `nearbyOrigin()`.
-  Only the flat-map fit (`alignHeadingUpNavigationViewport`'s nearby branch, the walking-radius
-  ring, and the nearby list) follow the anchor. Browsing another spot while tilted can therefore
-  look inconsistent (culling/scaling computed from where the user actually is while the on-screen
-  framing centres on the tapped spot) — left as-is deliberately rather than risk the tuned tilt
-  math (see the `[[nearby-view-zoom]]` project-memory comments throughout this file).
+- **One camera origin (`cameraOriginPoint`, index.html).** The point the camera anchors at its
+  focus, the point the scale fit measures its points from, the pivot the heading-up rotation
+  turns about, and the pivot the 3D perspective projects around are all the same point:
+  `state.userLocation.point` while navigating to a selected destination, `nearbyOrigin().point`
+  otherwise. Everything that needs "where is the camera" reads this rather than
+  `state.userLocation.point` directly — `alignHeadingUpNavigationViewport`,
+  `maxNearbyHeadingUpScale`, `tiltProjection`, `tiltRotatedHeadingOffset`, `worldToScreenFlat`,
+  `worldToScreenForOverlay`, `screenToWorld`, and `updateHeadingUpCanvasRotationTransform`.
+  They used to disagree the moment a browse anchor was set: the camera centred the anchor while
+  the fit, the rotation pivot and the tilt projection stayed on the GPS fix, so the ring was
+  fitted as if it sat far off to one side, rotation swung it across the screen as the compass
+  moved, and in 3D it was projected around a pivot that had itself gone off screen.
+- **Browsing is not a first-person view.** Three tilt behaviours exist to model standing
+  somewhere and facing forward, and all three are suspended while a browse anchor is set, via
+  the shared `tiltHidesWhatIsBehind()` (`!state.nearbyAnchor`):
+  - `maxNearbyHeadingUpScale` stops passing `excludeBehindDuringTilt`, so the *whole*
+    walking-radius ring is framed inside the available map area rather than letting its behind
+    half run off the bottom edge.
+  - `tiltRampedAnchor` stops ramping the pivot toward the bottom of the screen
+    (`HEADING_UP_ANCHOR_NEARBY_TILT`, 0.90) and pins it at the untilted centre
+    (`HEADING_UP_ANCHOR_NEARBY`, 0.5), so the ring gets equal room above and below the pivot and
+    is framed at a useful size instead of squeezed into the sliver below a bottom anchor —
+    measured on a 375×812 phone at 49° of tilt, that is the difference between the ring filling
+    the map area and it being roughly a third of the width.
+  - `isBehindTiltHeading` and `tiltPinScale` stop culling roads/paths and collapsing pins behind
+    the pivot, so the newly-framed half of the ring is not drawn as empty ground.
+
+  **`radarRadiusForMetres(point, metres, toScreen)`** takes the projection to measure through,
+  and it must be the same space the caller builds its geometry in. The tilted radar
+  (`drawUserRadarOverlayTilted`) builds its arcs in flat, pre-perspective space and projects each
+  arc point itself, so it passes `worldToScreenFlat`; measuring its radius through the full
+  projection while placing its arcs flat mixed the two and inflated the cone — 6× on a browsed
+  spot 1km from the user (114 CSS px for what should be 19), since the user sits far enough
+  off-pivot there for the perspective divide to magnify the projected distance. The flat-map
+  radar (`drawUserRadarMainCanvas`) keeps the default, which is correct because with tilt
+  inactive the two projections are the same thing.
+
+  One consequence to keep in mind when touching the overlay: because the heading rotation now
+  pivots on the camera origin, the user's *raw* screen position is no longer where the user is
+  drawn whenever a browse anchor is set. Anything positioning something at the user must use
+  `worldToScreenFlat(state.userLocation.point)` (or `worldToScreenForOverlayTilted`), never
+  `rawWorldToScreen`. `drawUserRadarOverlayTilted` did the latter — correct only while rotation
+  pivoted on the user, since rotating a point about itself leaves it fixed — which left the 3D
+  radar cone floating detached from the "You" dot it belongs to.
+
+  The first-person case is untouched: standing where the camera is, the ground behind you still
+  runs off the bottom edge and content behind you is still revealed by turning around, which is
+  what keeps 3D from zooming out to about a third of what the visible half needs.
 
 ### Selected Detail Content
 

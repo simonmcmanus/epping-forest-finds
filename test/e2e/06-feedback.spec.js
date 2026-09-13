@@ -120,6 +120,22 @@ async function installFakeVisualViewport(page) {
   });
 }
 
+// What the user can actually see of the textarea: its box clipped to the scrolling area of the
+// sheet (`.inspector-scroll` is `overflow: auto`). The raw bounding box is the *layout* box,
+// which on a short landscape screen runs on past the bottom of the sheet even though those
+// pixels are clipped and never drawn -- asserting on it fails a view that is behaving correctly.
+async function visibleTextareaBand(page) {
+  return page.evaluate(() => {
+    const textarea = document.getElementById("reportDetails");
+    const scroll = document.getElementById("inspector").querySelector(".inspector-scroll");
+    const box = textarea.getBoundingClientRect();
+    const clip = scroll ? scroll.getBoundingClientRect() : box;
+    const top = Math.max(box.top, clip.top);
+    const bottom = Math.min(box.bottom, clip.bottom);
+    return { top, bottom, height: Math.max(0, bottom - top) };
+  });
+}
+
 async function simulateKeyboardInset(page, insetPx) {
   await page.evaluate((inset) => {
     window.visualViewport.height = window.innerHeight - inset;
@@ -145,9 +161,13 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await expect(page.locator("#inspector")).toHaveClass(/keyboard-avoiding/);
     const afterBox = await page.locator("#reportDetails").boundingBox();
     // The sheet (and the textarea inside it) shifts up by the keyboard inset, so the
-    // textarea stays fully above the simulated keyboard's top edge.
+    // textarea stays above the simulated keyboard's top edge.
     expect(beforeBox.y - afterBox.y).toBeGreaterThan(insetPx - 20);
-    expect(afterBox.y + afterBox.height).toBeLessThanOrEqual(844 - insetPx + 2);
+
+    await page.locator("#reportDetails").focus();
+    const visible = await visibleTextareaBand(page);
+    expect(visible.bottom, "the visible textarea must clear the keyboard").toBeLessThanOrEqual(844 - insetPx + 2);
+    expect(visible.height, "and enough of it must be left to type into").toBeGreaterThan(60);
 
     // Closing the keyboard clears the avoidance state
     await simulateKeyboardInset(page, 0);
@@ -179,7 +199,16 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await expect(page.locator("#inspector")).toHaveClass(/keyboard-avoiding/);
     const afterBox = await page.locator("#reportDetails").boundingBox();
     expect(beforeBox.y - afterBox.y).toBeGreaterThan(insetPx - 20);
-    expect(afterBox.y + afterBox.height).toBeLessThanOrEqual(380 - insetPx + 2);
+
+    // Focus it, the way tapping it does: 380px of screen minus a 180px keyboard leaves a sheet
+    // shorter than the textarea, so the form starts scrolled above it and the browser scrolls it
+    // into view on focus. What matters is that the part on screen then clears the keyboard --
+    // measuring the unclipped layout box instead reported the textarea 100px into the keyboard
+    // while the pixels actually drawn ended a comfortable 11px above it.
+    await page.locator("#reportDetails").focus();
+    const visible = await visibleTextareaBand(page);
+    expect(visible.bottom, "the visible textarea must clear the keyboard").toBeLessThanOrEqual(380 - insetPx + 2);
+    expect(visible.height, "and enough of it must be left to type into").toBeGreaterThan(60);
 
     await context.close();
   });

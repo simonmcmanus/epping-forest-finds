@@ -159,6 +159,234 @@ test.describe("Map interaction", () => {
     });
   });
 
+  test.describe("Browsing in 3D", () => {
+    // Drives the same state the compass/orientation handlers write, matching 13-tilt-3d.spec.js,
+    // so this exercises the real projection rather than a test-only path.
+    async function tiltTo(page, beta) {
+      await page.evaluate(async (b) => {
+        state.compassHeadingTarget = 20;
+        state.compassHeading = 20;
+        state.renderedNavigationHeading = 20;
+        state.compassLastEventAt = performance.now();
+        state.tiltBetaTarget = b;
+        state.tiltBetaSmoothed = b;
+        // The fit reads the tilt camera cached for the current frame and then changes the
+        // scale, which moves the pivot the next frame's camera is built from -- so it converges
+        // over a frame or two, exactly as it does in the live compass loop (which clears both
+        // caches at the top of every tick). Settle it here rather than measuring mid-converge.
+        for (let i = 0; i < 3; i += 1) {
+          prepareCanvasForDraw();
+          stopViewportAnimation();
+          ensureOverviewTargetsVisible({ animate: false, force: true });
+          stopViewportAnimation();
+          draw();
+          await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+        }
+      }, beta);
+    }
+
+    const ringFraming = (page) => page.evaluate(() => {
+      // prepareCanvasForDraw clears the per-frame tilt-camera cache; the fit just moved the
+      // scale, so the pivot has to be re-read before the ring is measured through it.
+      prepareCanvasForDraw();
+      const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+      const points = walkingRadiusCirclePoints(64).map((p) => worldToScreen(p));
+      const inside = points.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)
+        && p.x >= rect.x && p.x <= rect.x + rect.width
+        && p.y >= rect.y && p.y <= rect.y + rect.height);
+      const xs = points.map((p) => p.x);
+      const ys = points.map((p) => p.y);
+      return {
+        inside: inside.length,
+        total: points.length,
+        widthFraction: (Math.max(...xs) - Math.min(...xs)) / rect.width,
+        heightFraction: (Math.max(...ys) - Math.min(...ys)) / rect.height,
+      };
+    });
+
+    test("the whole walking radius stays in the map area at every tilt angle", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+
+      await page.evaluate(() => {
+        const origin = state.userLocation;
+        // ~1km away: far enough that the ring sits nowhere near the real GPS fix, which is what
+        // used to leave the 3D framing solved around a pivot that had gone off screen.
+        const latitude = origin.latitude - 0.005;
+        const longitude = origin.longitude - 0.012;
+        focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
+      });
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+
+      for (const beta of [20, 40, 60, 85]) {
+        await tiltTo(page, beta);
+        const framing = await ringFraming(page);
+        expect(framing.inside, `beta=${beta}: ring points inside the map area`).toBe(framing.total);
+        // Framed, not merely on screen: a ring shrunk into a corner would also pass the check
+        // above. Before the pivot was centred for browsing it came out around a third of this.
+        expect(framing.widthFraction, `beta=${beta}: fraction of the map width the ring fills`).toBeGreaterThan(0.4);
+      }
+    });
+
+    test("the content inside the browsed radius is not hidden as 'behind you'", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await tiltTo(page, 60);
+
+      const firstPerson = await page.evaluate(() => {
+        const origin = state.userLocation.point;
+        const radius = walkingRadiusWorldUnits();
+        const behind = { x: origin.x, y: origin.y + radius * 0.8 };
+        return { tilted: tiltActive(), culled: isBehindTiltHeading(behind), pinScale: tiltPinScale(behind) };
+      });
+      expect(firstPerson.tilted, "sanity: the app should be in full 3D").toBe(true);
+      expect(firstPerson.culled, "standing somewhere, what is behind you is still hidden").toBe(true);
+      expect(firstPerson.pinScale).toBeLessThan(1);
+
+      await page.evaluate(() => {
+        const latitude = state.userLocation.latitude - 0.005;
+        const longitude = state.userLocation.longitude - 0.012;
+        focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
+      });
+      await tiltTo(page, 60);
+
+      const browsing = await page.evaluate(() => {
+        const origin = state.nearbyAnchor.point;
+        const radius = walkingRadiusWorldUnits();
+        const behind = { x: origin.x, y: origin.y + radius * 0.8 };
+        return { culled: isBehindTiltHeading(behind), pinScale: tiltPinScale(behind) };
+      });
+      expect(browsing.culled, "a browsed spot has no behind-you half to hide").toBe(false);
+      expect(browsing.pinScale, "so its pins stay full size").toBe(1);
+    });
+  });
+
+  test.describe("Moving the nearby point", () => {
+    test("the radius circle holds still on screen while the map slides behind it", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await page.waitForTimeout(1000);
+
+      const sample = () => page.evaluate(() => {
+        // prepareCanvasForDraw is the frame boundary: it advances the slide, re-derives the
+        // camera from the interpolated origin, and unfreezes the per-frame origin.
+        prepareCanvasForDraw();
+        const circle = worldToScreenFlat(nearbyRenderOriginPoint());
+        const mapPoint = worldToScreenFlat(state.trees[0].point);
+        return {
+          circle: [Math.round(circle.x), Math.round(circle.y)],
+          mapX: Math.round(mapPoint.x),
+          sliding: nearbyOriginTransitionActive(),
+        };
+      });
+
+      await page.evaluate(() => { stopViewportAnimation(); });
+      const before = await sample();
+
+      await page.evaluate(() => {
+        const latitude = state.userLocation.latitude - 0.005;
+        const longitude = state.userLocation.longitude - 0.012;
+        focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
+      });
+
+      const frames = [];
+      for (let i = 0; i < 10; i += 1) {
+        await page.waitForTimeout(60);
+        frames.push(await sample());
+      }
+      await page.waitForFunction(() => !nearbyOriginTransitionActive(), { timeout: 5_000 });
+      const settled = await sample();
+
+      expect(frames.some((f) => f.sliding), "the slide should have been observed running").toBe(true);
+      for (const [i, f] of frames.entries()) {
+        expect(Math.abs(f.circle[0] - before.circle[0]), `frame ${i}: circle x`).toBeLessThanOrEqual(1);
+        expect(Math.abs(f.circle[1] - before.circle[1]), `frame ${i}: circle y`).toBeLessThanOrEqual(1);
+      }
+      expect(settled.circle, "and it ends where it started").toEqual(before.circle);
+      expect(Math.abs(settled.mapX - before.mapX), "while the map behind it moved").toBeGreaterThan(10);
+    });
+
+    test("the new nearby set is held back until the map lands, then fades in", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await page.waitForTimeout(1000);
+
+      // Both read in one round trip: sampled separately, the slide can finish between them and
+      // the pair no longer describes the same instant.
+      const sample = () => page.evaluate(() => {
+        prepareCanvasForDraw();
+        return { sliding: nearbyOriginTransitionActive(), reveal: nearbyRevealOpacity() };
+      });
+      expect((await sample()).reveal, "settled, the nearby set is fully drawn").toBe(1);
+
+      await page.evaluate(() => {
+        const latitude = state.userLocation.latitude - 0.005;
+        const longitude = state.userLocation.longitude - 0.012;
+        focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
+      });
+
+      const during = [];
+      for (let i = 0; i < 5; i += 1) {
+        await page.waitForTimeout(60);
+        during.push(await sample());
+      }
+      for (const [i, sample] of during.entries()) {
+        if (sample.sliding) expect(sample.reveal, `frame ${i}: nothing drawn while the map moves`).toBe(0);
+      }
+      expect(during.some((sample) => sample.sliding), "the slide should have been observed running").toBe(true);
+
+      await page.waitForFunction(() => nearbyRevealOpacity() === 1, { timeout: 5_000 });
+    });
+  });
+
+  test.describe("The off-ring user pointer", () => {
+    test("tapping it goes back to using the real location", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+
+      await page.evaluate(() => {
+        const latitude = state.userLocation.latitude - 0.005;
+        const longitude = state.userLocation.longitude - 0.012;
+        focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
+      });
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+
+      // Find where the pointer was actually drawn by asking its own hit test, rather than
+      // recomputing its geometry here and risking the test agreeing with itself.
+      // The browse-origin slide leaves the rendered origin on the old spot for its first frames,
+      // where the user is still inside the ring and the pointer is deliberately not drawn.
+      await page.waitForFunction(() => !nearbyOriginTransitionActive(), { timeout: 5_000 });
+
+      const target = await page.evaluate(() => {
+        stopViewportAnimation();
+        draw();
+        drawOverlay();
+        const rect = (els.mapStage || els.canvas).getBoundingClientRect();
+        const dpr = pixelRatio();
+        // The centre of the hit area, not the first pixel of it: the first hit is on the rim,
+        // where a pixel of drift between probing and tapping is enough to miss.
+        const hits = [];
+        for (let cx = 0; cx < rect.width; cx += 4) {
+          for (let cy = 0; cy < rect.height; cy += 4) {
+            const screen = { x: state.canvasInsetX + cx * dpr, y: state.canvasInsetY + cy * dpr };
+            if (hitUserDirectionPointer(screen)) hits.push({ cx, cy });
+          }
+        }
+        if (!hits.length) return null;
+        const mean = hits.reduce((acc, h) => ({ cx: acc.cx + h.cx / hits.length, cy: acc.cy + h.cy / hits.length }), { cx: 0, cy: 0 });
+        return { clientX: rect.left + mean.cx, clientY: rect.top + mean.cy };
+      });
+      expect(target, "the pointer should be on screen while browsing 1km away").not.toBeNull();
+
+      await tapCanvasPoint(page, target, { alreadyClient: true });
+
+      const after = await page.evaluate(() => ({ anchor: state.nearbyAnchor, selected: state.selected }));
+      expect(after.anchor, "tapping the pointer returns to the real location").toBeNull();
+      expect(after.selected, "and selects nothing on the way").toBeNull();
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toHaveCount(0);
+    });
+  });
+
   test.describe("Selecting a street", () => {
     test("a selected street becomes a navigation target with a route and distance", async ({ page }) => {
       await setup(page);

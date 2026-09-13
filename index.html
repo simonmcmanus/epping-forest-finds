@@ -234,6 +234,8 @@
     // values one name instead of several copies. One-off durations tuned for a single
     // specific transition are left as plain literals rather than forced into single-use
     // names.
+    const NEARBY_ORIGIN_TRANSITION_MS = 520; // slide between two browse origins -- see nearbyRenderOriginPoint()
+    const NEARBY_REVEAL_MS = 180; // how quickly the new nearby set fades in once a slide lands -- see nearbyRevealOpacity()
     const OVERVIEW_REFIT_ANIMATION_MS = 420; // recompute the overview/secondary-screen camera fit after a UI state change (filter change, opening Filter/Settings/Report, radius toggle, a late location fix)
     const OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS = 520; // ensureOverviewTargetsVisible's (and centerOverviewOnUserLocation's) own default when a caller doesn't specify one
     const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up alignment and selection-commit transitions (goToInitialView, zoomToSelection)
@@ -378,6 +380,8 @@
       // and the overview camera fit read through nearbyOrigin() (js/nav.js), which prefers
       // this over userLocation when set.
       nearbyAnchor: null,
+      // In-flight slide between two browse origins -- see nearbyRenderOriginPoint().
+      nearbyOriginTransition: null,
       activePointers: new Map(),
       pinchActive: false,
       pinchBaseDistance: null,
@@ -487,6 +491,13 @@
     // points with _overlapRectCache — the camera distance is derived from the same visible
     // rect, so anything that invalidates one invalidates the other.
     let _tiltProjectionCache = undefined;
+    // Per-frame freeze of the interpolated browse origin -- see computeNearbyRenderOriginPoint().
+    // Keyed on the anchor object it was computed for, so any reassignment of state.nearbyAnchor
+    // invalidates it without the assigning code having to remember to (focusNearbyOnMapPoint's
+    // exit-a-selection path sets the anchor directly, and a frame-old cached origin there framed
+    // the camera on the spot the user had just left).
+    let _nearbyRenderOriginCache = undefined;
+    let _nearbyRenderOriginCacheAnchor = null;
 
     const els = {
       canvas: document.getElementById("mapCanvas"),
@@ -900,6 +911,7 @@
     function resizeCanvas() {
       _overlapRectCache = undefined;
       _tiltProjectionCache = undefined;
+      _nearbyRenderOriginCache = undefined;
       const rect = (els.mapStage || els.canvas).getBoundingClientRect();
       const requestedDpr = window.devicePixelRatio || 1;
       const rawWidth = Math.max(1, rect.width);
@@ -2827,6 +2839,15 @@
       const rawBeta = event.beta;
       if (Number.isFinite(rawBeta)) {
         state.tiltBetaTarget = clamp(Math.abs(rawBeta), 0, 90);
+        // Beta drives the 3D tilt by itself, but only startCompassSmoothing's loop eases
+        // tiltBetaSmoothed toward it. The heading branch below returns early on any event whose
+        // alpha/webkitCompassHeading is missing -- common indoors and on phones with a flaky
+        // magnetometer -- so on a device delivering beta without a heading the target moved and
+        // nothing advanced it: tilting the phone did nothing until some unrelated redraw
+        // happened to restart the loop (the nudge in draw(), js/renderer.js). Restart it here on
+        // the beta alone. The loop's own first guard exits immediately without a trusted
+        // heading, so this cannot spin when there is nothing to smooth.
+        if (Number.isFinite(state.compassHeading)) startCompassSmoothing();
       }
       const heading = extractCompassHeading(event);
       if (!Number.isFinite(heading)) return;
@@ -3015,6 +3036,7 @@
       const tick = (timestamp) => {
         _overlapRectCache = undefined;
         _tiltProjectionCache = undefined;
+        _nearbyRenderOriginCache = undefined;
         if (!Number.isFinite(state.compassHeadingTarget) || !Number.isFinite(state.compassHeading)) {
           state.compassAnimationFrame = null;
           state.compassAnimationTime = null;
@@ -3281,6 +3303,138 @@
       return selectedNavigationHeadingUpActive() || nearbyNavigationAnchorActive();
     }
 
+    // The world point the camera anchors at its focus point -- and therefore the point the
+    // scale fit measures from and the 3D tilt projection pivots on. Selected-destination
+    // navigation always anchors the real GPS fix (you have to walk there from where you
+    // actually are); the plain Nearby view anchors nearbyOrigin(), so a browse anchor moves the
+    // whole camera at once: framing, fit and perspective together.
+    //
+    // These three used to disagree the moment an anchor was set. The camera centred the anchor
+    // while the fit and the tilt pivot stayed on the GPS fix, so the walking-radius ring was
+    // measured as if it sat far off to one side (collapsing the zoom another step with every
+    // relocation) and, in 3D, was projected around a pivot that had itself moved off screen --
+    // the ring ended up drawn through a perspective solved for somewhere the camera was not
+    // looking. Any new consumer of "where is the camera" belongs here too rather than reaching
+    // for state.userLocation.point directly.
+    function cameraOriginPoint() {
+      if (selectedNavigationHeadingUpActive()) return state.userLocation.point;
+      const rendered = nearbyRenderOriginPoint();
+      if (rendered) return rendered;
+      return state.userLocation ? state.userLocation.point : null;
+    }
+
+    // Where the Nearby view's origin is *drawn* this frame, which is not always where it
+    // logically is. Moving the browse anchor slides this from the old origin to the new one over
+    // NEARBY_ORIGIN_TRANSITION_MS while the camera keeps it pinned at the focus point, so the
+    // walking-radius circle sits still on screen and the map slides underneath it.
+    //
+    // Animating the camera instead -- the obvious way round -- looks wrong: the origin changes
+    // on the first frame, so the circle snaps to wherever the user tapped and is then dragged
+    // back to the centre as the camera catches up. The circle is the thing the view is about; it
+    // is the map that should move.
+    //
+    // Only rendering follows this. nearbyOrigin() itself jumps straight to the new anchor, so
+    // the nearby list, the highlighted set and hit testing all describe the destination
+    // immediately rather than being recomputed against an interpolated point every frame.
+    function nearbyRenderOriginPoint() {
+      if (_nearbyRenderOriginCache !== undefined && _nearbyRenderOriginCacheAnchor === state.nearbyAnchor) {
+        return _nearbyRenderOriginCache;
+      }
+      _nearbyRenderOriginCacheAnchor = state.nearbyAnchor;
+      _nearbyRenderOriginCache = computeNearbyRenderOriginPoint();
+      return _nearbyRenderOriginCache;
+    }
+
+    // Frozen for the duration of a frame (cleared wherever _tiltProjectionCache is). Without
+    // that, everything reading it during one draw reads a *different* interpolated point: the
+    // camera is solved from the origin as it was at the top of the frame, and by the time the
+    // circle itself is drawn -- a whole map draw later, which on a dense frame is tens of
+    // milliseconds -- the origin has moved on, so the circle lands slightly off the focus it was
+    // supposed to be pinned to. That is a visible wobble on exactly the motion this exists to
+    // make smooth.
+    function computeNearbyRenderOriginPoint() {
+      const origin = typeof nearbyOrigin === "function" ? nearbyOrigin() : null;
+      if (!origin || !origin.point) return null;
+      const transition = state.nearbyOriginTransition;
+      if (!transition) return origin.point;
+      const progress = clamp((performance.now() - transition.startedAt) / transition.durationMs, 0, 1);
+      if (progress >= 1) return origin.point;
+      // Same cubic ease-in-out animateViewportTo uses, so a slide feels like every other camera
+      // move in the app rather than like a second, differently-tuned animation system.
+      const eased = progress < 0.5
+        ? 4 * progress * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+      return {
+        x: transition.fromX + (origin.point.x - transition.fromX) * eased,
+        y: transition.fromY + (origin.point.y - transition.fromY) * eased,
+      };
+    }
+
+    // Starts the slide from wherever the origin is currently *drawn* -- not from the old logical
+    // origin -- so relocating again mid-slide continues from what is on screen instead of
+    // jumping back to where the last slide began.
+    function startNearbyOriginTransition(fromPoint) {
+      // The frame freeze above would otherwise hand the camera the pre-move origin for the rest
+      // of this frame -- including the align refreshNearbyRadiusView runs immediately after.
+      _nearbyRenderOriginCache = undefined;
+      if (!fromPoint) return;
+      state.nearbyOriginTransition = {
+        fromX: fromPoint.x,
+        fromY: fromPoint.y,
+        // Whether the view was *already* browsing when this slide started, so tiltRampedAnchor
+        // can tell entering/leaving a browsed spot (where the 3D pivot moves) from hopping
+        // between two browsed spots (where it does not).
+        fromBrowsing: Boolean(state.nearbyAnchor),
+        startedAt: performance.now(),
+        durationMs: NEARBY_ORIGIN_TRANSITION_MS,
+      };
+    }
+
+    // Eased 0-1 progress of the in-flight browse-origin slide, or null when none is running.
+    // Shares animateViewportTo's cubic ease-in-out, so anything blended across a slide moves in
+    // step with the slide itself.
+    function nearbyOriginTransitionEasedProgress() {
+      const transition = state.nearbyOriginTransition;
+      if (!transition) return null;
+      const progress = clamp((performance.now() - transition.startedAt) / transition.durationMs, 0, 1);
+      if (progress >= 1) return null;
+      return progress < 0.5
+        ? 4 * progress * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+    }
+
+    // Opacity for everything that describes the *nearby set* -- the highlighted pins and the
+    // ambient route lines to them. Zero while a browse-origin slide is running, then a quick fade
+    // in once it lands.
+    //
+    // Those pins and lines belong to the destination, but the map underneath them is still
+    // travelling: drawing them straight away means a fan of lines pinned to a stationary circle
+    // sweeping across moving terrain, and pins sliding under a marker that is not moving. It
+    // reads as jitter even though every individual element is where it should be. Holding them
+    // back until the map settles turns a busy half-second into one clean movement followed by the
+    // new surroundings arriving.
+    function nearbyRevealOpacity() {
+      const transition = state.nearbyOriginTransition;
+      if (!transition) return 1;
+      const sinceStart = performance.now() - transition.startedAt;
+      if (sinceStart < transition.durationMs) return 0;
+      return clamp((sinceStart - transition.durationMs) / NEARBY_REVEAL_MS, 0, 1);
+    }
+
+    // True while the reveal fade still has frames left to draw, so prepareCanvasForDraw keeps
+    // asking for them after the slide itself has finished.
+    function nearbyRevealInProgress() {
+      const transition = state.nearbyOriginTransition;
+      if (!transition) return false;
+      return performance.now() - transition.startedAt < transition.durationMs + NEARBY_REVEAL_MS;
+    }
+
+    function nearbyOriginTransitionActive() {
+      const transition = state.nearbyOriginTransition;
+      if (!transition) return false;
+      return performance.now() - transition.startedAt < transition.durationMs;
+    }
+
     // 3D perspective (tiltActive()) is available on every screen — nearby overview,
     // selected navigation, and the filter/settings/feedback screens all allow full tilt,
     // with no exceptions, including when returning to the nearby overview.
@@ -3326,10 +3480,28 @@
     // construction (HEADING_UP_ANCHOR_* constants). Factored out so tiltAvailableAheadCssPx
     // can use it as a safety floor -- see that function's comment for why.
     function tiltRampedAnchor(isSelected) {
+      // The forward ramp exists to give the screen to what is ahead of *you* as the phone
+      // tilts up: it pushes the pivot toward the bottom edge so the ground you are walking
+      // into fills the view. Browsing a spot away from yourself has no "ahead" -- the pivot is
+      // a place on the map being looked at, and its whole nearest area has to fit on screen
+      // (see tiltHidesWhatIsBehind). Pinned at the untilted
+      // centre for that case, so the ring gets equal room above and below the pivot and can be
+      // framed at a useful size rather than squeezed into the sliver below a bottom anchor.
       const t = tiltAnchorFraction();
       const base = isSelected ? HEADING_UP_ANCHOR_SELECTED : HEADING_UP_ANCHOR_NEARBY;
       const far  = isSelected ? HEADING_UP_ANCHOR_SELECTED_TILT : HEADING_UP_ANCHOR_NEARBY_TILT;
-      return base + (far - base) * t;
+      const ramped = base + (far - base) * t;
+      if (isSelected) return ramped;
+      // Crossing between the two nearby pivots -- the forward ramp above and the centred browse
+      // pivot -- is eased along with the origin slide, or entering (and leaving) a browsed spot
+      // in 3D would jerk the whole view up or down the screen on a single frame. Hopping between
+      // two browsed spots stays put: both ends are the centred pivot.
+      const browsing = !tiltHidesWhatIsBehind();
+      const progress = nearbyOriginTransitionEasedProgress();
+      if (progress == null) return browsing ? HEADING_UP_ANCHOR_NEARBY : ramped;
+      const from = state.nearbyOriginTransition.fromBrowsing ? HEADING_UP_ANCHOR_NEARBY : ramped;
+      const to = browsing ? HEADING_UP_ANCHOR_NEARBY : ramped;
+      return from + (to - from) * progress;
     }
 
     function headingUpAnchorFraction(isSelected) {
@@ -3447,8 +3619,21 @@
     // behind is meant to be revealed by physically turning around rather than staying
     // visible in a squashed/ballooned state at the bottom of the tilted view. Returns false
     // (nothing hidden) whenever tilt is not active, so this only changes rendering in 3D mode.
+    // Whether 3D should hide what is behind the camera at all. The cull models a first-person
+    // view: you are standing at the pivot facing forward, and content behind you is revealed by
+    // physically turning around rather than by keeping a squashed copy of it on screen. Browsing
+    // a spot away from yourself is not first-person -- the pivot is a place on the map being
+    // looked at, and its whole nearest area is deliberately framed on screen (see
+    // maxNearbyHeadingUpScale) -- so culling half of it would leave the framed circle empty of
+    // roads, paths and full-size pins. Shared by the cull, the pin collapse and the camera fit
+    // so the three cannot disagree about which half of the view exists.
+    function tiltHidesWhatIsBehind() {
+      return !state.nearbyAnchor;
+    }
+
     function isBehindTiltHeading(worldPoint) {
       if (!tiltActive() || !state.userLocation || !worldPoint) return false;
+      if (!tiltHidesWhatIsBehind()) return false;
       return tiltRotatedHeadingOffset(worldPoint) > 0;
     }
 
@@ -3457,8 +3642,12 @@
     function tiltRotatedHeadingOffset(worldPoint) {
       const rotation = currentNavigationMapRotationDegrees();
       const radians = toRadians(rotation);
-      const dx = worldPoint.x - state.userLocation.point.x;
-      const dy = worldPoint.y - state.userLocation.point.y;
+      // Measured from the camera pivot, not the GPS fix: "behind" here means behind the point
+      // the perspective divide is solved around (cameraOriginPoint), which is what actually
+      // determines whether the projection compresses a point toward the horizon or blows it up.
+      const origin = cameraOriginPoint() || state.userLocation.point;
+      const dx = worldPoint.x - origin.x;
+      const dy = worldPoint.y - origin.y;
       return dx * Math.sin(radians) + dy * Math.cos(radians);
     }
 
@@ -3484,6 +3673,7 @@
     function tiltPinScale(worldPoint) {
       const influence = tiltInfluence();
       if (influence <= 0 || !state.userLocation || !worldPoint) return 1;
+      if (!tiltHidesWhatIsBehind()) return 1;
       const bandWorld = TILT_PIN_COLLAPSE_BAND_PX / state.viewport.scale;
       const raw = clamp(0.5 - tiltRotatedHeadingOffset(worldPoint) / bandWorld, 0, 1);
       const eased = raw * raw * (3 - 2 * raw);
@@ -3950,9 +4140,15 @@
       // the same way the ground immediately behind you does in any first-person view.
       // Same origin alignHeadingUpNavigationViewport anchors the nearby camera on, so a browse
       // anchor moves the framing without changing how tightly the ring is framed.
+      // excludeBehindDuringTilt is the first-person rule (see tiltHidesWhatIsBehind): when the
+      // pivot is you, the ground behind you legitimately runs off the bottom edge, and forcing
+      // that half of the ring on screen collapsed the 3D zoom to about a third of what the
+      // visible half needs (the "far too zoomed out in 3D" report). Browsing turns it off, so
+      // the whole nearest area stays inside the available map area.
       const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect, {
         projectTilt: true,
-        originPoint: nearbyOrigin().point,
+        originPoint: cameraOriginPoint(),
+        excludeBehindDuringTilt: tiltHidesWhatIsBehind(),
       });
       return maxScale == null ? state.viewport.scale : maxScale;
     }
@@ -3987,10 +4183,8 @@
       const maxScale = selectedNavigationHeadingUpActive()
         ? maxHeadingUpNavigationScale(focus, focusRect)
         : maxNearbyHeadingUpScale(focus, focusRect);
-      // Selected-destination navigation always fits around the real GPS fix (you have to
-      // actually walk there); the plain nearby case fits around nearbyOrigin() instead, so a
-      // browse anchor moves the fit without moving the "You" dot or compass bearings.
-      const userPoint = selectedNavigationHeadingUpActive() ? state.userLocation.point : nearbyOrigin().point;
+      // The one shared definition of where the camera is looking -- see cameraOriginPoint().
+      const userPoint = cameraOriginPoint();
       // Use maxScale directly: heading-up mode always fits all targets in the
       // rotated focus rect. Math.min would leave scale too low when the map
       // was previously at a wider zoom (e.g. walking-radius level on first load).
@@ -4060,7 +4254,20 @@
     function prepareCanvasForDraw() {
       _overlapRectCache = undefined;
       _tiltProjectionCache = undefined;
+      _nearbyRenderOriginCache = undefined;
       clearHeadingUpCanvasTransform();
+      // A browse-origin slide is driven from here rather than by animateViewportTo: the camera
+      // is re-derived from the interpolated origin every frame (see nearbyRenderOriginPoint),
+      // which is what holds the walking-radius circle still while the map moves behind it.
+      if (state.nearbyOriginTransition) {
+        // The transition object outlives the slide itself by NEARBY_REVEAL_MS so the fade-in has
+        // frames to run; only the camera work stops when the slide lands.
+        const sliding = nearbyOriginTransitionActive();
+        const fading = nearbyRevealInProgress();
+        if (!fading) state.nearbyOriginTransition = null;
+        if (sliding || !fading) alignHeadingUpNavigationViewport({ animate: false, force: true });
+        if (fading) requestDraw();
+      }
       // Resize whenever heading-up mode activates or deactivates so the canvas is only
       // oversized while the heading rotation actually needs it. Tilt no longer changes the
       // canvas size at all, so the tilt-ratio hysteresis that used to live here — and the
@@ -4116,7 +4323,15 @@
       const renderedRotation = -normalizeDegrees(state.renderedNavigationHeading);
       const currentRotation = currentNavigationMapRotationDegrees();
       const delta = shortestCompassDelta(renderedRotation, currentRotation);
-      const origin = rawWorldToScreen(state.userLocation.point);
+      // Pivots on the camera origin, not the GPS fix: the CSS delta rotation has to spin the
+      // canvas around whatever point the viewport transform anchored at the focus, or a browse
+      // anchor's ring would swing across the screen as the compass turns.
+      const originWorld = cameraOriginPoint();
+      if (!originWorld) {
+        clearHeadingUpCanvasTransform();
+        return false;
+      }
+      const origin = rawWorldToScreen(originWorld);
       const dpr = pixelRatio();
       const originCss = `${origin.x / dpr}px ${origin.y / dpr}px`;
       els.canvas.style.transformOrigin = originCss;
@@ -4329,11 +4544,10 @@
     // extra points cost one cheap arithmetic pass each in a fit that runs once per compass
     // frame, and buy a fit that no longer wobbles (and a circle no longer clipped by up to 2%).
     function walkingRadiusCirclePoints(count = 64) {
-      const origin = nearbyOrigin();
-      if (!origin) return [];
+      const point = nearbyRenderOriginPoint();
+      if (!point) return [];
       const worldRadius = walkingRadiusWorldUnits();
       if (worldRadius <= 0) return [];
-      const { point } = origin;
       const points = [];
       for (let i = 0; i < count; i++) {
         const theta = (i / count) * Math.PI * 2;
@@ -5363,7 +5577,12 @@
       const rad = toRadians(tiltDeg);
       const sin = Math.sin(rad);
       const perspectivePx = tiltPerspectivePx();
-      const origin = rawWorldToScreen(state.userLocation.point);
+      const originWorld = cameraOriginPoint();
+      if (!originWorld) {
+        _tiltProjectionCache = null;
+        return _tiltProjectionCache;
+      }
+      const origin = rawWorldToScreen(originWorld);
       _tiltProjectionCache = {
         sin,
         cos: Math.cos(rad),
@@ -5424,7 +5643,10 @@
       const raw = rawWorldToScreen(point);
       const rotation = navigationMapRotationDegrees();
       if (!rotation || !state.userLocation) return raw;
-      return rotateScreenPoint(raw, rawWorldToScreen(state.userLocation.point), rotation);
+      // Rotates about the camera origin (cameraOriginPoint), the same point the viewport
+      // transform anchors at the focus -- pivoting on the GPS fix instead would swing a browse
+      // anchor's framing around the screen every time the compass moved.
+      return rotateScreenPoint(raw, rawWorldToScreen(cameraOriginPoint()), rotation);
     }
 
     // Screen position everything on the main canvas is drawn at, tilt included.
@@ -5441,7 +5663,7 @@
       const raw = rawWorldToScreen(point);
       const rotation = currentNavigationMapRotationDegrees();
       if (!rotation || !state.userLocation) return raw;
-      return rotateScreenPoint(raw, rawWorldToScreen(state.userLocation.point), rotation);
+      return rotateScreenPoint(raw, rawWorldToScreen(cameraOriginPoint()), rotation);
     }
 
     // Projects an overlay canvas position through the active tilt perspective so pins
@@ -5472,7 +5694,7 @@
       if (tiltActive() && state.userLocation) {
         const tiltDeg = tiltRotateXDeg();
         if (tiltDeg > 0) {
-          const origin = rawWorldToScreen(state.userLocation.point);
+          const origin = rawWorldToScreen(cameraOriginPoint());
           const dpr = pixelRatio();
           const perspective = tiltPerspectivePx();
           const T = tiltDeg * Math.PI / 180;
@@ -5511,7 +5733,7 @@
       // Handle rotation (heading-up mode)
       const rotation = navigationMapRotationDegrees();
       if (!rotation || !state.userLocation) return rawScreenToWorld(screenX, screenY);
-      const unrotated = rotateScreenPoint({ x: screenX, y: screenY }, rawWorldToScreen(state.userLocation.point), -rotation);
+      const unrotated = rotateScreenPoint({ x: screenX, y: screenY }, rawWorldToScreen(cameraOriginPoint()), -rotation);
       return rawScreenToWorld(unrotated.x, unrotated.y);
     }
 
