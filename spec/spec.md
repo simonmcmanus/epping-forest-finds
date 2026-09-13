@@ -217,7 +217,7 @@ Marker rules:
 
 - Disable browser/page pinch zoom and ctrl+wheel zoom.
 - Map zoom is controlled only by map interactions (wheel/drag) — there is no on-screen zoom or "home/fit" button in the main map UI.
-- On the plain Nearby screen, a two-finger pinch instead resizes the walking radius (spread to shrink it, pinch together to grow it), stepping through the same options as the Settings walking-time dropdown; the map then re-fits to show the radius/nearby items. See "Browsing another spot" below.
+- On the plain Nearby screen, a two-finger pinch instead resizes the walking radius continuously (spread to shrink it, pinch together to grow it, no fixed stops); the map then re-fits to show the radius/nearby items. The radius cannot be pinched smaller than the distance to the nearest real item (plus a buffer) — pinning there shows a transient "nothing closer to show" notice instead of shrinking to an empty view. See "Browsing another spot" below and "Pinch-to-resize the radius" in `spec-data-rendering.md`.
 
 ## Nearest and Filter Behavior
 
@@ -261,7 +261,7 @@ Marker rules:
 ## Settings Screen
 
 - Accessible via the generated settings icon button in the inspector header.
-- Contains a **Walking radius** control: a dropdown to choose how far to walk when listing nearby places (1, 2, 5, 10, 15, 20, 30 min options).
+- Contains a **Walking radius** control: a slider (1–30 min, half-minute steps, with tick marks at the old preset stops) choosing how far to walk when listing nearby places. Its lower bound tracks the distance to the nearest real item so it can't be dragged down to a radius with nothing in it; sitting at that floor shows a "nothing closer to show nearby" note.
 - Contains an **About** section displaying the current app version (e.g. `v80`; `dev-v80` when served by the local dev server — see "Local dev flag" in `spec/glossary.md`) and a **Force refresh** button.
 - **Force refresh**: unregisters every service worker registration and deletes every `forest-finds-*` cache (both app and data caches) before reloading, so a stuck/stale cached version is guaranteed to clear on the next load — sidesteps the normal update flow, where the open tab's version display can otherwise lag a reload or two behind a service worker that already updated silently in the background. Disabled (with an inline note) while offline, since it briefly leaves the app with no offline fallback until the fresh install completes.
 - Changing the walking radius stays on the settings screen, immediately animates the map to fit the new radius, updates the nearby list and nearest tree selection, and keeps the walking radius ring visible.

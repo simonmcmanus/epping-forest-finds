@@ -181,6 +181,13 @@ globalThis.__forestFindsTest = {
   overviewItemsForActiveFilter,
   overviewNearestHtml,
   walkingDistanceToMetres,
+  walkingRadiusFloorMinutes,
+  metresToWalkingMinutes,
+  roundWalkingMinutes,
+  formatWalkingMinutes,
+  WALKING_RADIUS_PRESET_MINUTES,
+  WALKING_RADIUS_MIN_MINUTES,
+  WALKING_RADIUS_MAX_MINUTES,
   keepOverviewCenteredOnUser,
   centerOverviewOnUserLocation,
   setInspectorMinimized,
@@ -2417,11 +2424,54 @@ test("filter groups include all six labelled categories", () => {
   }
 });
 
-test("settings form includes all walking radius options", () => {
+test("settings form is a continuous slider spanning every preset tick when there's no floor constraint", () => {
+  app.state.userLocation = null;
   const html = app.settingsFormHtml();
+  assert.match(html, /<input type="range" id="settingsWalkMins"/, "walking time control should be a range slider, not a dropdown");
+  assert.match(html, /min="1" max="30" step="0.5"/, "slider should span the full 1-30 min range with no floor constraint");
   for (const mins of [1, 2, 5, 10, 15, 20, 30]) {
-    assert.match(html, new RegExp(`value="${mins}"`), `missing walk option: ${mins} min`);
+    assert.match(html, new RegExp(`<option value="${mins}">`), `missing tick mark: ${mins} min`);
   }
+});
+
+test("walkingRadiusFloorMinutes falls back to the minimum with no origin or no nearby item", () => {
+  assert.equal(app.walkingRadiusFloorMinutes(null), app.WALKING_RADIUS_MIN_MINUTES);
+  resetData(app);
+  assert.equal(app.walkingRadiusFloorMinutes(makePoint(app, 0, 0)), app.WALKING_RADIUS_MIN_MINUTES, "empty dataset should not raise the floor");
+});
+
+test("walkingRadiusFloorMinutes rises to keep the nearest real item inside the ring, and caps at the maximum", () => {
+  resetData(app);
+  app.state.trees.push({ id: "close-tree", commonName: "Close tree", ...makePoint(app, 0.0009, 0) }); // ~100m away
+  const closeFloor = app.walkingRadiusFloorMinutes(makePoint(app, 0, 0));
+  assert.ok(closeFloor > app.WALKING_RADIUS_MIN_MINUTES, "an item beyond the absolute-minimum radius should nudge the floor above it");
+  assert.ok(closeFloor < 3, "a nearby item should keep the floor small relative to the 30 min maximum");
+
+  resetData(app);
+  addFixtureData(app); // every fixture item sits >10km from (0,0), far past the 30 min ceiling
+  const farFloor = app.walkingRadiusFloorMinutes(makePoint(app, 0, 0));
+  assert.equal(farFloor, app.WALKING_RADIUS_MAX_MINUTES, "the floor should never exceed the slider's own maximum");
+});
+
+test("settings form's slider floor hides tick marks the user can no longer reach", () => {
+  resetData(app);
+  addFixtureData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+
+  const html = app.settingsFormHtml();
+  assert.match(html, /min="30" max="30" step="0.5"/, "slider should collapse to the maximum when nothing closer exists");
+  assert.doesNotMatch(html, /<option value="1">/, "unreachable presets below the floor should not appear as tick marks");
+  assert.match(html, /<option value="30">/, "the reachable preset at the floor should still appear as a tick mark");
+});
+
+test("formatWalkingMinutes prints whole minutes plainly and halves with one decimal", () => {
+  assert.equal(app.formatWalkingMinutes(5), "5");
+  assert.equal(app.formatWalkingMinutes(5.5), "5.5");
+});
+
+test("roundWalkingMinutes snaps a continuous pinch value to the nearest half-minute", () => {
+  assert.equal(app.roundWalkingMinutes(5.2), 5);
+  assert.equal(app.roundWalkingMinutes(5.3), 5.5);
 });
 
 test("loading overlay markup includes all eight step labels", () => {

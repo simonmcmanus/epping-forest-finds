@@ -14,8 +14,36 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#settingsToggle")).toHaveClass(/screen-active/);
   });
 
-  test("settings screen shows a walking radius dropdown", async ({ page }) => {
-    await expect(page.locator("#settingsWalkMins")).toBeVisible();
+  test("settings screen shows a walking radius slider", async ({ page }) => {
+    await expect(page.locator("#settingsWalkMins")).toHaveAttribute("type", "range");
+  });
+
+  // Sets the slider's value directly and fires "input" the way a real drag would, rather than
+  // relying on Playwright's fill() (built for text-like inputs, not always reliable on range).
+  async function setWalkSlider(page, value) {
+    await page.locator("#settingsWalkMins").evaluate((el, v) => {
+      el.value = String(v);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }, value);
+  }
+
+  test("dragging the walking radius slider updates the live minute label", async ({ page }) => {
+    const max = await page.locator("#settingsWalkMins").getAttribute("max");
+    await setWalkSlider(page, max);
+    await expect(page.locator("#settingsWalkMinsValue")).toHaveText(`${max} min`);
+    expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(Number(max));
+  });
+
+  test("dragging the walking radius slider down to its floor reveals the limit note", async ({ page }) => {
+    const slider = page.locator("#settingsWalkMins");
+    const min = await slider.getAttribute("min");
+    const max = await slider.getAttribute("max");
+
+    await setWalkSlider(page, min);
+    await expect(page.locator("#settingsWalkMinsFloorNote")).toBeVisible();
+
+    await setWalkSlider(page, max);
+    await expect(page.locator("#settingsWalkMinsFloorNote")).toBeHidden();
   });
 
   test("settings screen shows the app version in the About section", async ({ page }) => {

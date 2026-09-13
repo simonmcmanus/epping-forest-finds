@@ -261,6 +261,53 @@ test.describe("Overview / Nearby screen", () => {
       expect(grown).toBeGreaterThan(shrunk);
     });
 
+    test("pinching well past the floor pins the radius there and shows a visual limit", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+
+      // Inspects state mid-gesture (before the fingers lift) by dispatching the pointer
+      // sequence inline rather than through firePinch, which only returns once the gesture --
+      // and its "settle" reset of state.walkingRadiusAtFloor -- has already finished.
+      const result = await page.evaluate(() => {
+        const canvas = els.canvas;
+        canvas.setPointerCapture = () => {};
+        canvas.releasePointerCapture = () => {};
+        const rect = canvas.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const fire = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
+          pointerId: id, clientX: x, clientY: y, bubbles: true, cancelable: true, pointerType: "touch",
+        }));
+        fire("pointerdown", 1001, cx - 20, cy);
+        fire("pointerdown", 1002, cx + 20, cy);
+        // 20 -> 600 is a 30x spread, driving the requested radius far below any real item's
+        // distance regardless of the live dataset, so this reliably overshoots the floor.
+        for (let gap = 30; gap <= 600; gap += 10) {
+          fire("pointermove", 1001, cx - gap, cy);
+          fire("pointermove", 1002, cx + gap, cy);
+        }
+        const mid = {
+          minutes: state.walkingDistanceMinutes,
+          floor: walkingRadiusFloorMinutes(nearbyOrigin()),
+          atFloor: state.walkingRadiusAtFloor,
+          noticeVisible: Boolean(document.querySelector(".walk-radius-floor-notice")),
+        };
+        fire("pointerup", 1001, cx - 600, cy);
+        fire("pointerup", 1002, cx + 600, cy);
+        return { mid, afterAtFloor: state.walkingRadiusAtFloor };
+      });
+
+      expect(result.mid.atFloor).toBe(true);
+      expect(result.mid.noticeVisible).toBe(true);
+      expect(result.mid.minutes).toBeGreaterThanOrEqual(result.mid.floor);
+      // Pinned at the floor, not merely clamped somewhere above it.
+      expect(result.mid.minutes).toBeLessThan(result.mid.floor + 1);
+
+      // The notice is transient -- releasing the gesture clears it again.
+      expect(result.afterAtFloor).toBe(false);
+      await expect(page.locator(".walk-radius-floor-notice")).toHaveCount(0);
+    });
+
     test("pinching is ignored while a real selection is open", async ({ page }) => {
       await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
       await page.waitForFunction(

@@ -1,12 +1,45 @@
-// Walking-radius options shared by the Settings dropdown (index.html settingsFormHtml) and
-// the Nearby view's pinch-to-resize gesture (setupMapCanvasHandlers below) -- both must agree
-// on the same step values so a pinch-set radius always matches a real Settings option.
-const WALKING_RADIUS_STEPS_MINUTES = [1, 2, 5, 10, 15, 20, 30];
+// Walking-radius is a continuous minutes value (both the Settings slider and the Nearby
+// view's pinch gesture set it directly -- neither snaps to a fixed stop anymore). These
+// remaining "steps" are only tick-mark/label suggestions shown on the Settings slider.
+const WALKING_RADIUS_PRESET_MINUTES = [1, 2, 5, 10, 15, 20, 30];
 
-// Fraction the pinch distance must grow/shrink by (relative to the gesture's last step) before
-// the walking radius steps to the next/previous entry in WALKING_RADIUS_STEPS_MINUTES. Keeps
-// the radius change feeling like a stepped dial rather than jittering on tiny finger movements.
-const PINCH_RADIUS_STEP_RATIO = 1.15;
+const WALKING_RADIUS_MIN_MINUTES = 1;
+const WALKING_RADIUS_MAX_MINUTES = 30;
+
+// How far past the single nearest real item (see walkingRadiusFloorMinutes) the floor sits,
+// so that item settles clearly inside the drawn ring instead of sitting right on its edge.
+const WALKING_RADIUS_FLOOR_BUFFER = 1.15;
+
+// The walking-radius floor, in minutes, below which the Nearby view would show nothing --
+// derived from whichever real item (tree/cow/path/landmark, respecting active filters; same
+// priority nearestFallbackEntriesForActiveFilter (index.html) uses for the "nothing in radius"
+// list fallback) sits closest to origin. Falls back to WALKING_RADIUS_MIN_MINUTES when there's
+// no origin yet, or nothing to measure against (e.g. an empty dataset).
+function walkingRadiusFloorMinutes(origin) {
+  if (!origin) return WALKING_RADIUS_MIN_MINUTES;
+  const nearest = nearestFallbackEntriesForActiveFilter(origin.latitude, origin.longitude)[0];
+  if (!nearest) return WALKING_RADIUS_MIN_MINUTES;
+  const floorMinutes = metresToWalkingMinutes(nearest.metres * WALKING_RADIUS_FLOOR_BUFFER);
+  return clamp(floorMinutes, WALKING_RADIUS_MIN_MINUTES, WALKING_RADIUS_MAX_MINUTES);
+}
+
+// Inverse of walkingDistanceToMetres (index.html) -- kept in sync with its 5 km/h assumption.
+function metresToWalkingMinutes(metres) {
+  return metres * 60 / 5000;
+}
+
+// Rounds a continuous walking-radius value to the nearest half-minute: fine enough to feel
+// stepless while dragging, coarse enough to avoid floating-point noise in the displayed
+// "X min" label and in the overview cache key (see overviewItemsForActiveFilter, index.html).
+function roundWalkingMinutes(minutes) {
+  return Math.round(minutes * 2) / 2;
+}
+
+// Formats a (possibly fractional) walking-time value for display: whole minutes as "5",
+// half-minutes as "5.5".
+function formatWalkingMinutes(minutes) {
+  return Number.isInteger(minutes) ? String(minutes) : minutes.toFixed(1);
+}
 
 // The effective centre for everything the Nearby view shows (walking-radius circle, nearest-
 // item list, overview camera fit): state.nearbyAnchor when the user has tapped outside the
@@ -522,23 +555,33 @@ function setupSearchAndNavHandlers() {
 // Re-derives the Nearby list/radius/camera fit after state.walkingDistanceMinutes or
 // state.nearbyAnchor changes. Mirrors the settings-screen walking-radius change handler
 // (bindSettingsHandlers in index.html) so pinch-resize and tap-to-relocate stay consistent
-// with the existing Settings flow.
-function refreshNearbyRadiusView() {
+// with the existing Settings flow. options.animate (default true) is set to false while a
+// gesture is still live (mid-pinch, mid-slider-drag) so every intermediate value jumps the
+// camera straight to its fit instead of queuing an animation per tick; the gesture's own end
+// handler calls this again with the default animate:true for one smooth settling motion.
+function refreshNearbyRadiusView(options = {}) {
+  const animate = options.animate !== false;
   const origin = nearbyOrigin();
   if (origin) {
     const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
     const nearestTrees = nearbyTreesWithinDistance(origin.latitude, origin.longitude, maxMetres);
     state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
   }
-  selectOverview();
-  ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
+  // selectOverview() replaces the inspector body with the Nearby list and forces its title/nav
+  // state regardless of what's currently shown -- correct while the pinch gesture is live (it's
+  // gated on isOverviewScreenActive() before it can even start), but calling it while the
+  // Settings/Filter/Report screen is open would blow that screen's own content away every time
+  // its walking-radius slider fires "input". ensureOverviewTargetsVisible below already knows
+  // how to frame the ring correctly for those screens (see secondaryScreenActive()) without it.
+  if (!secondaryScreenActive()) selectOverview();
+  ensureOverviewTargetsVisible({ animate, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
   requestDraw();
 }
 
-function applyWalkingRadiusChange(minutes) {
+function applyWalkingRadiusChange(minutes, options = {}) {
   if (state.walkingDistanceMinutes === minutes) return;
   state.walkingDistanceMinutes = minutes;
-  refreshNearbyRadiusView();
+  refreshNearbyRadiusView(options);
 }
 
 // Moves the Nearby view's browse anchor to an arbitrary map point (see nearbyOrigin above),
@@ -582,29 +625,56 @@ function startNearbyRadiusPinch() {
   if (distance == null) return;
   state.pinchActive = true;
   state.pinchBaseDistance = distance;
+  state.pinchBaseMinutes = state.walkingDistanceMinutes;
   state.nearbyPinchOccurred = true;
 }
 
-// Steps state.walkingDistanceMinutes through WALKING_RADIUS_STEPS_MINUTES as the pinch distance
-// grows/shrinks past PINCH_RADIUS_STEP_RATIO -- spreading fingers apart zooms in (shrinks the
-// radius), pinching together zooms out (grows it), matching ordinary map pinch-zoom direction.
+// Scales state.walkingDistanceMinutes continuously with the pinch gesture -- spreading fingers
+// apart shrinks the radius, pinching together grows it, matching ordinary map pinch-zoom
+// direction. Clamped to walkingRadiusFloorMinutes()..WALKING_RADIUS_MAX_MINUTES so the user
+// feels the limit (state.walkingRadiusAtFloor drives the "nothing closer to show" notice in
+// overviewNearestHtml, index.html) rather than the radius silently refusing to shrink further.
+// pointermove can fire far faster than applyWalkingRadiusChange's real work (a nearest-item
+// rescan plus a list re-render) can usefully keep up with on a phone, so values are rounded to
+// the nearest half-minute (roundWalkingMinutes) before being applied -- applyWalkingRadiusChange
+// already no-ops when that rounded value hasn't moved, so a run of pointermove events landing in
+// the same half-minute bucket costs only this arithmetic, same as the old stepped version's
+// between-step moves did.
 function updateNearbyRadiusPinch() {
   const distance = currentPinchDistance();
   if (distance == null || !state.pinchBaseDistance) return;
   const ratio = distance / state.pinchBaseDistance;
-  const currentIndex = WALKING_RADIUS_STEPS_MINUTES.indexOf(state.walkingDistanceMinutes);
-  if (currentIndex === -1) return;
-  let nextIndex = currentIndex;
-  if (ratio >= PINCH_RADIUS_STEP_RATIO && currentIndex > 0) nextIndex = currentIndex - 1;
-  else if (ratio <= 1 / PINCH_RADIUS_STEP_RATIO && currentIndex < WALKING_RADIUS_STEPS_MINUTES.length - 1) nextIndex = currentIndex + 1;
-  else return;
-  state.pinchBaseDistance = distance;
-  applyWalkingRadiusChange(WALKING_RADIUS_STEPS_MINUTES[nextIndex]);
+  const rawMinutes = state.pinchBaseMinutes / ratio;
+  const floor = walkingRadiusFloorMinutes(nearbyOrigin());
+  const clamped = clamp(rawMinutes, floor, WALKING_RADIUS_MAX_MINUTES);
+  const atFloor = rawMinutes < floor;
+  const flagChanged = atFloor !== state.walkingRadiusAtFloor;
+  state.walkingRadiusAtFloor = atFloor;
+  const minutes = roundWalkingMinutes(clamped);
+  if (minutes === state.walkingDistanceMinutes) {
+    // Rounding can pin the applied value at the floor while rawMinutes keeps drifting below (or
+    // recovers back above) it -- applyWalkingRadiusChange would no-op here since the minutes
+    // value itself hasn't moved, so the floor notice needs its own lightweight refresh to stay
+    // in sync with the flag instead of going stale.
+    if (flagChanged) { selectOverview(); requestDraw(); }
+    return;
+  }
+  applyWalkingRadiusChange(minutes, { animate: false });
 }
 
 function endNearbyRadiusPinch() {
+  // Called on every pointerup with fewer than two fingers down (see setupMapCanvasHandlers
+  // below), which includes plain single-finger taps/drags that never started a radius pinch --
+  // bail out immediately for those instead of forcing selectOverview() over whatever screen
+  // is actually active (e.g. a just-tapped selection).
+  if (!state.pinchActive) return;
   state.pinchActive = false;
   state.pinchBaseDistance = null;
+  state.pinchBaseMinutes = null;
+  state.walkingRadiusAtFloor = false;
+  // One smooth settling animation now that the gesture has ended, mirroring the single
+  // animated re-fit a Settings-slider release triggers (bindSettingsHandlers, index.html).
+  refreshNearbyRadiusView();
 }
 
 function setupMapCanvasHandlers() {

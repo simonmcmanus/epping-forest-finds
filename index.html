@@ -381,6 +381,7 @@
       activePointers: new Map(),
       pinchActive: false,
       pinchBaseDistance: null,
+      pinchBaseMinutes: null,
       nearbyPinchOccurred: false,
       userInMapArea: false,
       nearestTree: null,
@@ -413,6 +414,7 @@
       distanceWarningShown: false,
       nearestItemsCount: 10,
       walkingDistanceMinutes: 5,
+      walkingRadiusAtFloor: false,
       showAllOutsideRadius: false,
       compassHeading: null,
       compassHeadingTarget: null,
@@ -1588,16 +1590,29 @@
     function settingsFormHtml() {
       const minutes = state.walkingDistanceMinutes;
       const online = navigator.onLine;
-      const options = WALKING_RADIUS_STEPS_MINUTES
-        .map((m) => `<option value="${m}"${m === minutes ? " selected" : ""}>${m} min</option>`)
+      // The floor keeps the slider from being dragged down to a radius with nothing in it (see
+      // walkingRadiusFloorMinutes, js/nav.js); a native <input type="range"> min attribute
+      // enforces it directly, so there's no separate clamp to keep in sync here.
+      const floorMinutes = walkingRadiusFloorMinutes(state.userLocation);
+      const sliderValue = clamp(minutes, floorMinutes, WALKING_RADIUS_MAX_MINUTES);
+      const ticks = WALKING_RADIUS_PRESET_MINUTES
+        .filter((m) => m >= floorMinutes && m <= WALKING_RADIUS_MAX_MINUTES)
+        .map((m) => `<option value="${m}"></option>`)
         .join("");
       return `<div class="settings-form">
         <section class="settings-section">
           <h3 class="settings-section-title">Walking radius</h3>
           <p class="settings-description">How far to walk when listing nearby places. A circle is drawn on the map at this distance.</p>
           <label for="settingsWalkMins" class="settings-label">Walking time
-            <select id="settingsWalkMins" class="report-input">${options}</select>
+            <span class="walk-radius-row">
+              <input type="range" id="settingsWalkMins" class="walk-radius-range"
+                min="${floorMinutes}" max="${WALKING_RADIUS_MAX_MINUTES}" step="0.5"
+                value="${sliderValue}" list="walkRadiusTicks">
+              <span class="walk-radius-value" id="settingsWalkMinsValue">${formatWalkingMinutes(sliderValue)} min</span>
+            </span>
+            <datalist id="walkRadiusTicks">${ticks}</datalist>
           </label>
+          <p class="source-note walk-radius-floor-note" id="settingsWalkMinsFloorNote"${sliderValue > floorMinutes ? " hidden" : ""}>This is as close as it gets — nothing closer to show nearby.</p>
         </section>
         <section class="settings-section">
           <h3 class="settings-section-title">About</h3>
@@ -1614,16 +1629,36 @@
 
     function bindSettingsHandlers() {
       refreshSettingsVersionDisplay();
-      const select = document.getElementById("settingsWalkMins");
-      if (select) {
+      const range = document.getElementById("settingsWalkMins");
+      if (range) {
+        // If the floor has grown since this radius was last set (e.g. the user has moved
+        // somewhere sparser), the browser silently clamps the slider's own displayed value to
+        // its new min -- reconcile state.walkingDistanceMinutes to match so the ring, list, and
+        // camera fit all agree with what's actually shown.
+        const floorMinutes = Number(range.min);
+        if (state.walkingDistanceMinutes < floorMinutes) {
+          applyWalkingRadiusChange(floorMinutes, { animate: false });
+        }
+
+        const valueLabel = document.getElementById("settingsWalkMinsValue");
+        const floorNote = document.getElementById("settingsWalkMinsFloorNote");
+
         // applyWalkingRadiusChange (js/nav.js) is the shared path the pinch-to-resize gesture
         // uses: it re-derives the nearest list and re-fits the camera through
         // ensureOverviewTargetsVisible, so the new radius is framed by whichever fit is
         // actually active (heading-up/3D included). This used to run its own flat, centred
         // animateViewportTo, which the next compass frame then re-fitted on top of.
-        select.addEventListener("change", () => {
-          applyWalkingRadiusChange(parseInt(select.value, 10));
-          requestDraw();
+        // "input" fires continuously while dragging -- animate:false snaps the camera straight
+        // to each intermediate fit rather than queuing an animation per tick; "change" fires
+        // once on release for the smooth settling motion (default animate:true).
+        range.addEventListener("input", () => {
+          const value = Number(range.value);
+          if (valueLabel) valueLabel.textContent = `${formatWalkingMinutes(value)} min`;
+          if (floorNote) floorNote.hidden = value > floorMinutes;
+          applyWalkingRadiusChange(value, { animate: false });
+        });
+        range.addEventListener("change", () => {
+          refreshNearbyRadiusView();
         });
       }
 
@@ -2434,6 +2469,13 @@
         ? `<p class="source-note">Showing places near where you tapped. <button class="walk-chip walk-chip-btn" type="button" data-action="reset-nearby-anchor">Use my location</button></p>`
         : "";
 
+      // Set by the pinch-to-resize gesture (updateNearbyRadiusPinch, js/nav.js) while the user
+      // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
+      // that has no slider to show it on. Transient: cleared as soon as the pinch ends.
+      const floorNotice = state.walkingRadiusAtFloor
+        ? `<p class="source-note walk-radius-floor-notice">This is as close as it gets — nothing closer to show.</p>`
+        : "";
+
       // overviewItemsForActiveFilter() now returns every match within the radius (see its
       // comment) so the map can show all of them -- this scrollable text list still only
       // wants to display the nearest handful, so cap it here instead.
@@ -2454,7 +2496,7 @@
       const heading = activePointFilters.length === 1
         ? `Nearest ${filterMeta(activePointFilters[0])?.title || "items"} around you`
         : state.overviewFilters.length > 0
-          ? `Nearest selected filters within ${state.walkingDistanceMinutes} min walk`
+          ? `Nearest selected filters within ${formatWalkingMinutes(state.walkingDistanceMinutes)} min walk`
           : "Nearest around you";
 
       const itemsHtml = entries.map((entry) => {
@@ -2488,15 +2530,15 @@
       }).join("");
 
       const fallbackNotice = state.overviewOutsideRadiusFallback
-        ? `<p class="source-note"><strong>Nothing found within ${state.walkingDistanceMinutes} mins walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
+        ? `<p class="source-note"><strong>Nothing found within ${formatWalkingMinutes(state.walkingDistanceMinutes)} mins walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
         : "";
       const radiusActive = !state.showAllOutsideRadius;
       const chipTitle = radiusActive
-        ? `Showing within ${state.walkingDistanceMinutes} min walk — tap to show all`
-        : `Showing all distances — tap to filter to ${state.walkingDistanceMinutes} min walk`;
-      const chipLabel = radiusActive ? `${state.walkingDistanceMinutes} min` : "All";
+        ? `Showing within ${formatWalkingMinutes(state.walkingDistanceMinutes)} min walk — tap to show all`
+        : `Showing all distances — tap to filter to ${formatWalkingMinutes(state.walkingDistanceMinutes)} min walk`;
+      const chipLabel = radiusActive ? `${formatWalkingMinutes(state.walkingDistanceMinutes)} min` : "All";
       const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
-      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${anchorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${anchorNotice}${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
 
     function landmarkEmoji(place) {

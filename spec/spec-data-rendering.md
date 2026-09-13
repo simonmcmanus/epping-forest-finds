@@ -68,7 +68,8 @@ interface RenderState {
   overviewExpandedGroups: string[];
   filterPanelCollapsed: boolean;
   nearestItemsCount: number;       // 3|5|10|15|20|25, default 10
-  walkingDistanceMinutes: number;   // default 5
+  walkingDistanceMinutes: number;   // continuous, half-minute steps; default 5; see walkingRadiusFloorMinutes
+  walkingRadiusAtFloor: boolean;    // true only while the pinch gesture is actively pinned at the floor
   compassHeading: number | null;
   compassPermission: string;
   dragging: boolean;
@@ -352,14 +353,30 @@ a different point on the map without moving the real GPS fix:
   `js/nav.js`). A tap on empty space *inside* the radius keeps the existing reset-to-overview
   behaviour instead of relocating. `state.userLocation` (the real GPS fix) is never modified.
 - **Pinch-to-resize the radius:** a two-finger pinch on the map canvas while the Nearby screen
-  is active steps `state.walkingDistanceMinutes` through the same option list as the Settings
-  "Walking time" dropdown (`WALKING_RADIUS_STEPS_MINUTES` = `[1, 2, 5, 10, 15, 20, 30]`,
-  `js/nav.js`) — spreading fingers apart shrinks the radius (zoom in), pinching together grows
-  it (zoom out), one step per ~15% change in pinch distance. Each step re-renders the nearest
-  list and re-fits the camera to the new radius/items via the same path a Settings radius
-  change uses (`refreshNearbyRadiusView`). Pinch is ignored outside the plain Nearby screen (a
-  real selection, or Filter/Settings/Report open) and cancels/ignores any in-progress
-  single-finger drag; releasing either finger of a pinch never registers as a map tap.
+  is active scales `state.walkingDistanceMinutes` continuously (no fixed stops) — spreading
+  fingers apart shrinks the radius (zoom in), pinching together grows it (zoom out), tracking
+  the pinch distance ratio from where the gesture started. Values are rounded to the nearest
+  half-minute (`roundWalkingMinutes`) before being applied, so pointermove ticks landing in the
+  same half-minute bucket cost nothing beyond that arithmetic (`applyWalkingRadiusChange`
+  no-ops when the rounded value hasn't moved) — this bounds how often the real per-tick work (a
+  nearest-item rescan and list re-render) actually runs. Each real change re-renders the
+  nearest list and re-fits the camera via the same path a Settings radius change uses
+  (`refreshNearbyRadiusView`, `animate:false` mid-gesture so intermediate fits don't queue an
+  animation each tick; the gesture's end re-runs it once more with the default `animate:true`
+  for a smooth settle). Pinch is ignored outside the plain Nearby screen (a real selection, or
+  Filter/Settings/Report open) and cancels/ignores any in-progress single-finger drag;
+  releasing either finger of a pinch never registers as a map tap.
+- **Walking-radius floor:** the radius cannot be pinched (or, on the Settings slider below,
+  dragged) below `walkingRadiusFloorMinutes(origin)` (`js/nav.js`) — the distance to the
+  nearest real item respecting active filters (`nearestFallbackEntriesForActiveFilter`, same
+  priority the "nothing in radius" list fallback uses), plus a 15% buffer
+  (`WALKING_RADIUS_FLOOR_BUFFER`) so that item settles clearly inside the ring rather than on
+  its edge. Falls back to `WALKING_RADIUS_MIN_MINUTES` (1) with no origin or nothing to measure
+  against. While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
+  and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
+  (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. On the
+  Settings slider, the same floor is enforced natively via the `<input type="range">`'s own
+  `min` attribute, and a `#settingsWalkMinsFloorNote` appears whenever the slider sits at it.
 - **`nearbyOrigin()`** (`js/nav.js`) is the single seam this feature relies on: it returns
   `state.nearbyAnchor` if set, else `state.userLocation`, and is read by the walking-radius
   circle, the nearby list/camera-fit pipeline (`overviewItemsForActiveFilter`,
