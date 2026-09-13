@@ -552,6 +552,18 @@ function setupSearchAndNavHandlers() {
   });
 }
 
+// Re-reads state.nearestTree (the loading/status "nearest tree" readout) from whatever the
+// Nearby view's current origin is -- the browse anchor when one is set, otherwise the GPS fix.
+// Shared by refreshNearbyRadiusView and focusNearbyOnMapPoint's exit-a-selection path, which
+// re-frames via goToInitialView rather than through refreshNearbyRadiusView.
+function refreshNearestTreeForNearbyOrigin() {
+  const origin = nearbyOrigin();
+  if (!origin) return;
+  const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+  const nearestTrees = nearbyTreesWithinDistance(origin.latitude, origin.longitude, maxMetres);
+  state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
+}
+
 // Re-derives the Nearby list/radius/camera fit after state.walkingDistanceMinutes or
 // state.nearbyAnchor changes. Mirrors the settings-screen walking-radius change handler
 // (bindSettingsHandlers in index.html) so pinch-resize and tap-to-relocate stay consistent
@@ -561,12 +573,7 @@ function setupSearchAndNavHandlers() {
 // handler calls this again with the default animate:true for one smooth settling motion.
 function refreshNearbyRadiusView(options = {}) {
   const animate = options.animate !== false;
-  const origin = nearbyOrigin();
-  if (origin) {
-    const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
-    const nearestTrees = nearbyTreesWithinDistance(origin.latitude, origin.longitude, maxMetres);
-    state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
-  }
+  refreshNearestTreeForNearbyOrigin();
   // selectOverview() replaces the inspector body with the Nearby list and forces its title/nav
   // state regardless of what's currently shown -- correct while the pinch gesture is live (it's
   // gated on isOverviewScreenActive() before it can even start), but calling it while the
@@ -597,17 +604,43 @@ function clearNearbyAnchor() {
   refreshNearbyRadiusView();
 }
 
-// Called from handleMapClick (js/inspector.js) when a tap on the Nearby view lands on empty
-// map space. A tap inside the current walking radius is left to the caller's existing
-// goToInitialView() reset; only a tap clearly outside it relocates the browse anchor -- so a
-// stray tap near the user doesn't unexpectedly start "browsing" a few metres away.
-function trySetNearbyAnchorFromClick(lonLat, worldPoint) {
+// The Nearby view's "nearest area" is the walking-radius ring drawn around nearbyOrigin().
+// Everything the view is about -- the list, the highlighted locations, the route lines -- lives
+// inside it, so a tap beyond it reads as "show me what's over there", never as "navigate to
+// this". handleMapClick (js/inspector.js) uses this to relocate on such a tap whatever it
+// landed on: streets and waymarked trails are drawn right across the map and would otherwise
+// keep opening a navigation view from the far corners of the Nearby screen.
+function isOutsideNearestArea(lonLat) {
   const origin = nearbyOrigin();
   if (!origin) return false;
   const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
-  const clickMetres = distanceMetres(origin.latitude, origin.longitude, lonLat.latitude, lonLat.longitude);
-  if (clickMetres <= radiusMetres) return false;
-  setNearbyAnchor(lonLat.latitude, lonLat.longitude, worldPoint);
+  return distanceMetres(origin.latitude, origin.longitude, lonLat.latitude, lonLat.longitude) > radiusMetres;
+}
+
+// Called from handleMapClick (js/inspector.js) whenever a map tap should move the Nearby view
+// rather than select something: a tap on open ground anywhere, or any tap at all outside the
+// nearest area (above). The tapped spot becomes the Nearby view's browse origin -- the walking
+// radius is redrawn around it and the nearby list re-reads from it, without touching the real
+// GPS fix. An open-ground tap relocates at any distance, including inside the current radius.
+//
+// A tap made while a selection or an expanded group is open also leaves that view: the anchor
+// is set *before* goToInitialView() so its single re-fit already frames the tapped spot,
+// rather than fitting the old origin and then animating a second time.
+function focusNearbyOnMapPoint(lonLat, worldPoint) {
+  if (!state.userLocation) {
+    // No GPS fix yet, so there is no Nearby view to move -- keep the long-standing
+    // reset-to-the-whole-forest behaviour rather than anchoring a radius nothing can populate.
+    goToInitialView();
+    return false;
+  }
+  if (state.selected || state.clusterExpanded) {
+    state.nearbyAnchor = { latitude: lonLat.latitude, longitude: lonLat.longitude, point: worldPoint };
+    refreshNearestTreeForNearbyOrigin();
+    goToInitialView();
+  } else {
+    setInspectorMinimized(false);
+    setNearbyAnchor(lonLat.latitude, lonLat.longitude, worldPoint);
+  }
   return true;
 }
 
@@ -626,7 +659,6 @@ function startNearbyRadiusPinch() {
   state.pinchActive = true;
   state.pinchBaseDistance = distance;
   state.pinchBaseMinutes = state.walkingDistanceMinutes;
-  state.nearbyPinchOccurred = true;
 }
 
 // Scales state.walkingDistanceMinutes continuously with the pinch gesture -- spreading fingers
@@ -686,6 +718,11 @@ function setupMapCanvasHandlers() {
     if (state.activePointers.size >= 2) {
       // A second (or third+) touch point arrived -- stop any single-finger drag in progress
       // and, if the Nearby overview is active, start treating the gesture as a radius pinch.
+      // Either way the gesture is now multi-touch and must never end up firing handleMapClick
+      // (see the pointerup handler): that holds even where the radius pinch itself is ignored
+      // -- a two-finger gesture over a selected location used to release as a tap on the map
+      // and drop the selection.
+      state.multiTouchOccurred = true;
       state.dragging = false;
       els.canvas.classList.remove("dragging");
       if (state.activePointers.size === 2 && isOverviewScreenActive() && state.userLocation) {
@@ -748,14 +785,14 @@ function setupMapCanvasHandlers() {
     els.canvas.releasePointerCapture(event.pointerId);
     els.canvas.classList.remove("dragging");
     if (state.activePointers.size < 2) endNearbyRadiusPinch();
-    // A pinch gesture ending (either finger lifting first, one at a time) must never register
-    // as a tap -- state.moved only tracks single-finger drag distance, so it stays false
-    // throughout a pinch and would otherwise fire handleMapClick once the last finger lifts.
-    // nearbyPinchOccurred stays true across both pointerup events for the gesture, clearing
+    // A multi-touch gesture ending (either finger lifting first, one at a time) must never
+    // register as a tap -- state.moved only tracks single-finger drag distance, so it stays
+    // false throughout one and would otherwise fire handleMapClick once the last finger lifts.
+    // multiTouchOccurred stays true across both pointerup events for the gesture, clearing
     // only once every finger is off the glass.
-    const wasClick = !state.moved && !state.nearbyPinchOccurred && state.activePointers.size === 0;
+    const wasClick = !state.moved && !state.multiTouchOccurred && state.activePointers.size === 0;
     state.dragging = false;
-    if (state.activePointers.size === 0) state.nearbyPinchOccurred = false;
+    if (state.activePointers.size === 0) state.multiTouchOccurred = false;
     if (wasClick) handleMapClick(event);
   });
 
@@ -764,7 +801,7 @@ function setupMapCanvasHandlers() {
     state.dragging = false;
     els.canvas.classList.remove("dragging");
     if (state.activePointers.size < 2) endNearbyRadiusPinch();
-    if (state.activePointers.size === 0) state.nearbyPinchOccurred = false;
+    if (state.activePointers.size === 0) state.multiTouchOccurred = false;
   });
 
   els.canvas.addEventListener("wheel", (event) => {

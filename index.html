@@ -371,8 +371,8 @@
       viewport: { scale: 1, tx: 0, ty: 0 },
       selected: null,
       userLocation: null,
-      // Browse override for the Nearby view: set by tapping the map outside the walking
-      // radius (see trySetNearbyAnchorFromClick in js/inspector.js). Never touches the real
+      // Browse override for the Nearby view: set by tapping open map ground -- anywhere, at
+      // any distance (see focusNearbyOnMapPoint in js/nav.js). Never touches the real
       // GPS fix (userLocation) -- the "You" dot, compass bearings, and real navigation-to-a-
       // selection all stay keyed to userLocation; only the radius circle, the nearby list,
       // and the overview camera fit read through nearbyOrigin() (js/nav.js), which prefers
@@ -382,7 +382,7 @@
       pinchActive: false,
       pinchBaseDistance: null,
       pinchBaseMinutes: null,
-      nearbyPinchOccurred: false,
+      multiTouchOccurred: false,
       userInMapArea: false,
       nearestTree: null,
       nearestCow: null,
@@ -1617,7 +1617,7 @@
         <section class="settings-section">
           <h3 class="settings-section-title">About</h3>
           <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
-          <p class="settings-description">Built by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
+          <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
           <div class="settings-force-refresh">
             <button id="forceRefreshButton" class="settings-force-refresh-btn" type="button"${online ? "" : " disabled"}>Force refresh</button>
             <p class="settings-description">Not seeing the latest version? This clears the cached app and reloads.</p>
@@ -3153,7 +3153,49 @@
     function selectedCompassTarget() {
       if (!state.selected) return null;
       if (state.selected.type === "tree" || state.selected.type === "landmark" || state.selected.type === "cow" || state.selected.type === "path" || state.selected.type === "water") return state.selected.item;
+      if (state.selected.type === "road") {
+        // Resolved lazily and then cached on the selection itself: the route-line memoization
+        // (selectedRoutePoints, js/renderer.js) keys on target object identity, so this must
+        // return the same object every frame -- and a street selected before the first GPS fix
+        // has nothing to measure from yet, so the attempt has to be repeatable.
+        if (!state.selected.navTarget) state.selected.navTarget = roadNavTarget(state.selected.item);
+        return state.selected.navTarget;
+      }
       return null;
+    }
+
+    // A street has no single position of its own, so navigating to one aims at the point on its
+    // geometry nearest the user at the moment it was selected -- a fixed destination like any
+    // other, exposed as a pseudo-item the compass arrow, route line, and camera fit can all read
+    // (point/latitude/longitude/name). Projection is done in world (Mercator) space, which is
+    // flat enough over forest distances for "nearest point on this street".
+    function roadNavTarget(road) {
+      if (!state.userLocation || !road || !Array.isArray(road.segments)) return null;
+      const from = state.userLocation.point;
+      let best = null;
+      for (const segment of road.segments) {
+        for (let i = 1; i < segment.length; i += 1) {
+          const a = segment[i - 1];
+          const b = segment[i];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const lengthSquared = dx * dx + dy * dy;
+          const t = lengthSquared === 0
+            ? 0
+            : clamp(((from.x - a.x) * dx + (from.y - a.y) * dy) / lengthSquared, 0, 1);
+          const point = { x: a.x + t * dx, y: a.y + t * dy };
+          const distance = Math.hypot(point.x - from.x, point.y - from.y);
+          if (!best || distance < best.distance) best = { point, distance };
+        }
+      }
+      if (!best) return null;
+      const lonLat = unprojectPoint(best.point);
+      return {
+        point: best.point,
+        latitude: lonLat.latitude,
+        longitude: lonLat.longitude,
+        name: road.name || road.ref || "Unnamed road",
+      };
     }
 
     const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
@@ -3692,6 +3734,15 @@
       // excludeBehindDuringTilt: false to keep the fit actually framing them even when
       // they're behind the user's current heading.
       const excludeBehindDuringTilt = options.excludeBehindDuringTilt !== false;
+      // The point the camera will place at `focus`, which every constraint below measures its
+      // point offsets from. It has to be the same point alignHeadingUpNavigationViewport
+      // translates to `focus`, or the fit solves one framing and the camera applies another:
+      // with a browse anchor set, this used to stay on the real GPS fix while the camera
+      // centred the anchor, so the ring was measured as if it sat hundreds of metres off to one
+      // side and the scale collapsed to squeeze that into the rect -- each relocation left the
+      // Nearby view a step further zoomed out. Defaults to the real fix, which is what selected
+      // navigation always wants (you have to walk there from where you actually are).
+      const originPoint = options.originPoint || state.userLocation.point;
       const margin = headingUpFitMarginPx(focusRect);
       const dpr = pixelRatio();
       const left = focusRect.x + margin;
@@ -3729,8 +3780,8 @@
 
       for (const point of points) {
         if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
-        const dx = point.x - state.userLocation.point.x;
-        const dy = point.y - state.userLocation.point.y;
+        const dx = point.x - originPoint.x;
+        const dy = point.y - originPoint.y;
         const rotatedX = dx * cos - dy * sin;
         const rotatedY = dx * sin + dy * cos;
 
@@ -3897,7 +3948,12 @@
       // roughly a third of what the visible half needs. The behind half is still drawn
       // (drawWalkingRadius always draws the full circle) -- it simply runs off the bottom edge,
       // the same way the ground immediately behind you does in any first-person view.
-      const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect, { projectTilt: true });
+      // Same origin alignHeadingUpNavigationViewport anchors the nearby camera on, so a browse
+      // anchor moves the framing without changing how tightly the ring is framed.
+      const maxScale = maxScaleForHeadingUpPoints(points, focus, focusRect, {
+        projectTilt: true,
+        originPoint: nearbyOrigin().point,
+      });
       return maxScale == null ? state.viewport.scale : maxScale;
     }
 
@@ -5213,38 +5269,6 @@
       const projLon = lon1 + t * dx;
       
       return distanceMetres(lat, lon, projLat, projLon);
-    }
-
-    function findContainingFeature(layer, lonLat) {
-      for (const feature of layer.data.features) {
-        const geometry = feature.geometry;
-        if (!geometry) continue;
-        const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
-        for (const polygon of polygons) {
-          if (pointInPolygon([lonLat.longitude, lonLat.latitude], polygon)) return feature;
-        }
-      }
-      return null;
-    }
-
-    function pointInPolygon(point, polygon) {
-      if (!polygon.length || !pointInRing(point, polygon[0])) return false;
-      for (let i = 1; i < polygon.length; i++) {
-        if (pointInRing(point, polygon[i])) return false;
-      }
-      return true;
-    }
-
-    function pointInRing(point, ring) {
-      const [x, y] = point;
-      let inside = false;
-      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        const xi = ring[i][0], yi = ring[i][1];
-        const xj = ring[j][0], yj = ring[j][1];
-        const intersect = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi);
-        if (intersect) inside = !inside;
-      }
-      return inside;
     }
 
     // forEachGeojsonCoordinate, walkCoordinates → js/normalize.js

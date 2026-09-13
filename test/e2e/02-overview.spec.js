@@ -96,30 +96,59 @@ test.describe("Overview / Nearby screen", () => {
   test.describe("Browsing another spot", () => {
     test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 
-    test("tapping empty space outside the walking radius previews that spot instead of resetting to overview", async ({ page }) => {
+    test("tapping open map ground previews that spot instead of resetting to overview", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
 
-      // The camera fit is item-based, not radius-based (see spec-data-rendering.md), so how
-      // much empty, out-of-radius canvas is actually visible varies with the live dataset,
-      // viewport shape, and in-flight GPS-follow animations -- searching screen pixels for a
-      // safe click target is exactly the kind of geometry-dependent flakiness this app's own
-      // tilt/heading-up e2e specs avoid by driving the underlying function directly instead of
-      // simulating the real-world input that would trigger it. A point ~5.5km away (0.05
-      // degrees) is unambiguously outside any walking-radius option (max 30 min ≈ 2.5km)
-      // regardless of where the camera currently happens to be pointed.
+      // Which screen pixels are open ground (rather than a pin or a road) varies with the live
+      // dataset, viewport shape, and in-flight GPS-follow animations -- hunting for a safe click
+      // target is exactly the kind of geometry-dependent flakiness this app's own tilt/heading-up
+      // e2e specs avoid by driving the underlying function directly instead of simulating the
+      // real-world input that would trigger it.
       const after = await page.evaluate(() => {
         const origin = nearbyOrigin();
-        const lonLat = { latitude: origin.latitude + 0.05, longitude: origin.longitude + 0.05 };
+        const lonLat = { latitude: origin.latitude + 0.002, longitude: origin.longitude + 0.002 };
         const world = projectLonLat(lonLat.longitude, lonLat.latitude);
-        const related = isOverviewScreenActive() && trySetNearbyAnchorFromClick(lonLat, world);
+        const related = isOverviewScreenActive() && focusNearbyOnMapPoint(lonLat, world);
         return { related, hasAnchor: state.nearbyAnchor !== null, selected: state.selected };
       });
-      expect(after.related, "trySetNearbyAnchorFromClick should have handled the click").toBe(true);
+      expect(after.related, "focusNearbyOnMapPoint should have handled the tap").toBe(true);
       expect(after.hasAnchor).toBe(true);
       expect(after.selected).toBeNull();
 
       await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+    });
+
+    test("tapping open map ground while a tree is selected returns to nearby, focused on that spot", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+
+      await page.evaluate((hashKey) => {
+        const tree = findTreeByHashKey(hashKey);
+        state.selected = { type: "tree", item: tree };
+        showTreeDetails(tree, distanceFromUser(tree), "Tree record");
+      }, FIXTURE_TREE.hashKey);
+      // transitionInspectorBody() briefly renders two #inspectorTitle elements during the slide
+      // animation; getElementById (first match) avoids Playwright's strict-mode violation.
+      await page.waitForFunction(
+        (name) => document.getElementById("inspectorTitle")?.textContent?.includes(name),
+        FIXTURE_TREE.commonName,
+        { timeout: 5_000 }
+      );
+
+      const tapped = await page.evaluate(() => {
+        const lonLat = { latitude: state.userLocation.latitude + 0.003, longitude: state.userLocation.longitude + 0.003 };
+        focusNearbyOnMapPoint(lonLat, projectLonLat(lonLat.longitude, lonLat.latitude));
+        return { selected: state.selected, anchor: state.nearbyAnchor, expected: lonLat };
+      });
+
+      expect(tapped.selected, "the selection is dropped for nearby mode").toBeNull();
+      expect(tapped.anchor.latitude).toBeCloseTo(tapped.expected.latitude, 6);
+      await page.waitForFunction(
+        () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
+        { timeout: 5_000 }
+      );
       await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
     });
 

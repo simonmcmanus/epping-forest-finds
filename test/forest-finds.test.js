@@ -247,8 +247,20 @@ globalThis.__forestFindsTest = {
   tiltHorizonCanvasY,
   tiltFarClipCssPx,
   buildNearbyIconLookup,
+  overviewRouteTargets,
   isNearCanvas,
   showClusterDetail,
+  findHit,
+  focusNearbyOnMapPoint,
+  isOutsideNearestArea,
+  handleMapClick,
+  distanceFromUserToRoad,
+  nearbyOrigin,
+  setNearbyAnchor,
+  clearNearbyAnchor,
+  roadNavTarget,
+  selectedCompassTarget,
+  showRoadDetails,
   landmarkEmoji,
   appIconHtml,
   treeSpeciesIconHtml,
@@ -256,6 +268,11 @@ globalThis.__forestFindsTest = {
   ICON_PATHS,
   FILTER_GROUPS,
   worldToScreen,
+  screenToWorld,
+  pixelRatio,
+  mapEmojiScale,
+  MAP_PNG_ICON_SIZE,
+  MAP_ICON_SCALE_UNSELECTED,
   cacheVersionLabel,
   selectedNavigationTargetPoints,
   balancedNavigationAnchorY,
@@ -352,6 +369,10 @@ function resetData(app) {
   app.state.landmarks = [];
   app.state.paths = [];
   app.state.selected = null;
+  app.state.roads = [];
+  app.state.nearbyAnchor = null;
+  app.state.clusterExpanded = null;
+  app.state.clusterZoomed = false;
   app.state.overviewFilters = [];
   app.state.walkingDistanceMinutes = 5;
   app.state.showAllOutsideRadius = false;
@@ -4864,6 +4885,285 @@ test("onDeviceOrientation records that the sensor fired even when the event carr
   );
   assert.equal(app.state.compassLastEventAt, null, "an event with no heading must not count as a compass reading");
   assert.equal(app.state.tiltBetaTarget, 40, "beta is still usable on its own");
+});
+
+// --- Map interaction: tap-to-relocate, group isolation, street navigation ---
+
+// The screen point a tap must land on to hit the pin drawn at `worldPoint`, mirroring
+// findHit's own drawPngMapIcon geometry (circle centre sits pinYOffset above the tip).
+function pinTapPoint(app, worldPoint) {
+  const screen = app.worldToScreen(worldPoint);
+  const iconSize = app.MAP_PNG_ICON_SIZE * app.pixelRatio() * app.mapEmojiScale() * app.MAP_ICON_SCALE_UNSELECTED;
+  return { x: screen.x, y: screen.y - iconSize * 0.64 };
+}
+
+test("tapping open ground inside the walking radius moves the nearby browse origin to that spot", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6505, 0.05) });
+
+  // Well inside the 5 min (~415m) radius -- the old rule ignored these taps entirely and reset
+  // the camera instead; every open-ground tap now relocates.
+  const lonLat = { latitude: 51.6502, longitude: 0.0502 };
+  const handled = app.focusNearbyOnMapPoint(lonLat, app.projectLonLat(lonLat.longitude, lonLat.latitude));
+
+  assert.equal(handled, true);
+  assert.equal(app.state.nearbyAnchor.latitude, lonLat.latitude);
+  assert.equal(app.state.nearbyAnchor.longitude, lonLat.longitude);
+  assert.equal(app.nearbyOrigin().latitude, lonLat.latitude, "the nearby list and radius follow the tapped spot");
+  assert.equal(app.state.userLocation.latitude, 51.65, "the real GPS fix is never moved");
+});
+
+test("tapping open ground while a location is selected returns to nearby mode anchored on the tapped spot", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const tree = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6505, 0.05) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+
+  const lonLat = { latitude: 51.6520, longitude: 0.0530 };
+  app.focusNearbyOnMapPoint(lonLat, app.projectLonLat(lonLat.longitude, lonLat.latitude));
+
+  assert.equal(app.state.selected, null, "the selection is dropped for nearby mode");
+  assert.equal(app.state.nearbyAnchor.latitude, lonLat.latitude, "nearby focuses on the area that was tapped");
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby");
+});
+
+test("tapping open ground while a group is expanded returns to nearby mode anchored on the tapped spot", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const tree = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6505, 0.05) };
+  app.state.trees.push(tree);
+  app.state.clusterExpanded = { itemType: "tree", items: [tree], worldPt: tree.point, screenPt: { x: 0, y: 0 } };
+  app.state.clusterZoomed = true;
+
+  const lonLat = { latitude: 51.6512, longitude: 0.0521 };
+  app.focusNearbyOnMapPoint(lonLat, app.projectLonLat(lonLat.longitude, lonLat.latitude));
+
+  assert.equal(app.state.clusterExpanded, null, "the group detail is dropped for nearby mode");
+  assert.equal(app.state.nearbyAnchor.latitude, lonLat.latitude);
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby");
+});
+
+test("moving the nearby browse anchor reframes the same view instead of zooming out", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) });
+  app.selectOverview();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+
+  const baseScale = app.state.viewport.scale;
+  const baseOriginScreen = app.worldToScreen(app.nearbyOrigin().point);
+
+  // The scale fit used to measure its points from the real GPS fix while the camera anchored
+  // nearbyOrigin(), so an off-centre ring collapsed the zoom -- and every further relocation
+  // collapsed it again, walking the Nearby view out to whole-forest scale a tap at a time.
+  const relocate = (latitude, longitude) => {
+    app.state.nearbyAnchor = { latitude, longitude, point: app.projectLonLat(longitude, latitude) };
+    app.ensureOverviewTargetsVisible({ animate: false, force: true });
+    return { scale: app.state.viewport.scale, originScreen: app.worldToScreen(app.nearbyOrigin().point) };
+  };
+
+  for (const [latitude, longitude] of [[51.66, 0.07], [51.64, 0.02], [51.67, 0.09]]) {
+    const after = relocate(latitude, longitude);
+    const label = `anchor at ${latitude},${longitude}`;
+    assert.ok(
+      Math.abs(after.scale - baseScale) / baseScale < 0.01,
+      `${label}: the nearest area should stay framed the same size, got ${after.scale} vs ${baseScale}`
+    );
+    assert.ok(Math.abs(after.originScreen.x - baseOriginScreen.x) < 1, `${label}: origin should sit at the same screen point`);
+    assert.ok(Math.abs(after.originScreen.y - baseOriginScreen.y) < 1, `${label}: origin should sit at the same screen point`);
+  }
+});
+
+test("an expanded group hides every other highlighted location from the map", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const grouped = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  const pub = { id: "p1", name: "The Forester", category: "pub", ...makePoint(app, 51.6502, 0.0503) };
+  app.state.trees.push(grouped, otherTree);
+  app.state.landmarks.push(pub);
+
+  const before = app.buildNearbyIconLookup();
+  assert.equal(before.landmark.has(pub), true, "the pub is a highlighted location in plain nearby mode");
+
+  app.state.clusterExpanded = { itemType: "tree", items: [grouped], worldPt: grouped.point, screenPt: { x: 0, y: 0 } };
+  const lookup = app.buildNearbyIconLookup();
+
+  assert.equal(lookup.tree.has(grouped), true, "the group's own trees stay on the map");
+  assert.equal(lookup.tree.has(otherTree), false, "trees outside the group are hidden");
+  assert.equal(lookup.landmark.has(pub), false, "highlighted locations of other types are hidden too");
+  assert.deepEqual(
+    Array.from(app.overviewRouteTargets(), (target) => target.point),
+    [grouped.point],
+    "the ambient nearby route lines go with the pins they pointed at -- only the group keeps one"
+  );
+});
+
+test("a pin hidden by an expanded group is no longer tappable where it used to be", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const grouped = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  app.state.trees.push(grouped, otherTree);
+  app.state.viewport = { scale: 200000, tx: 0, ty: 0 };
+  app.state.viewport.tx = 500 - otherTree.point.x * 200000;
+  app.state.viewport.ty = 400 - otherTree.point.y * 200000;
+
+  const tap = pinTapPoint(app, otherTree.point);
+  const world = app.screenToWorld(tap.x, tap.y);
+  assert.equal(app.findHit(tap, world).type, "tree", "sanity: this tap hits the pin in plain nearby mode");
+
+  app.state.clusterExpanded = { itemType: "tree", items: [grouped], worldPt: grouped.point, screenPt: { x: 0, y: 0 } };
+
+  assert.equal(app.findHit(tap, world).type, "none", "a hidden pin must not stay selectable");
+});
+
+test("a pin hidden behind a selection is no longer tappable, so the tap is open ground", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const selected = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  app.state.trees.push(selected, otherTree);
+  app.state.viewport = { scale: 200000, tx: 0, ty: 0 };
+  app.state.viewport.tx = 500 - otherTree.point.x * 200000;
+  app.state.viewport.ty = 400 - otherTree.point.y * 200000;
+
+  const tap = pinTapPoint(app, otherTree.point);
+  const world = app.screenToWorld(tap.x, tap.y);
+  assert.equal(app.findHit(tap, world).type, "tree", "sanity: this tap hits the pin in plain nearby mode");
+
+  // A real selection hides every other pin (shouldDrawMapIcon), and with tens of thousands of
+  // trees in the register a tap "away from the selection" would otherwise keep landing on one.
+  app.state.selected = { type: "tree", item: selected };
+
+  assert.equal(app.findHit(tap, world).type, "none");
+});
+
+test("tapping inside a forest polygon is open ground, not a selectable area", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  app.state.environmentFeatures = [{
+    properties: { featureType: "nature_designation", name: "Epping Forest SSSI" },
+    geometry: { type: "Polygon", coordinates: [[[0.04, 51.64], [0.06, 51.64], [0.06, 51.66], [0.04, 51.66], [0.04, 51.64]]] },
+  }];
+  app.state.viewport = { scale: 200000, tx: 500, ty: 400 };
+
+  const world = app.projectLonLat(0.05, 51.65);
+  assert.equal(app.findHit(app.worldToScreen(world), world).type, "none");
+  app.state.environmentFeatures = [];
+});
+
+// Drives the real tap pipeline: handleMapClick reads client coords through canvasPoint(), and
+// the stubbed canvas/stage rect sits at the origin, so a canvas-pixel point converts back by
+// dividing out the device pixel ratio.
+function tapMap(app, canvasPointXY) {
+  const dpr = app.pixelRatio();
+  app.handleMapClick({
+    clientX: (canvasPointXY.x - app.state.canvasInsetX) / dpr,
+    clientY: (canvasPointXY.y - app.state.canvasInsetY) / dpr,
+  });
+}
+
+// A north-south street running past the user, near enough to tap either side of the ring.
+function addTestStreet(app, longitude) {
+  const road = {
+    name: "Forest Road",
+    roadType: "residential",
+    segments: [[app.projectLonLat(longitude, 51.6), app.projectLonLat(longitude, 51.7)]],
+  };
+  app.state.roads.push(road);
+  return road;
+}
+
+test("in the nearby view, tapping a street inside the nearest area opens navigation to it", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) });
+  // ~70m east of the user, well inside the 5 min (~415m) radius.
+  const road = addTestStreet(app, 0.051);
+  app.state.viewport = { scale: 2000000, tx: 0, ty: 0 };
+  app.state.viewport.tx = 500 - app.state.userLocation.point.x * 2000000;
+  app.state.viewport.ty = 400 - app.state.userLocation.point.y * 2000000;
+
+  tapMap(app, app.worldToScreen(app.projectLonLat(0.051, 51.65)));
+
+  assert.equal(app.state.selected?.type, "road", "a street you could walk to now is a destination");
+  assert.equal(app.state.nearbyAnchor, null, "the nearest area stays where it was");
+});
+
+test("in the nearby view, tapping a street beyond the nearest area moves the nearest area there", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) });
+  // ~1.4km east of the user -- far outside the 5 min (~415m) radius, but streets are drawn
+  // right across the map, so it is still under the tap.
+  addTestStreet(app, 0.07);
+  app.state.viewport = { scale: 100000, tx: 0, ty: 0 };
+  app.state.viewport.tx = 500 - app.state.userLocation.point.x * 100000;
+  app.state.viewport.ty = 400 - app.state.userLocation.point.y * 100000;
+
+  const tapLonLat = { latitude: 51.65, longitude: 0.07 };
+  assert.equal(app.isOutsideNearestArea(tapLonLat), true, "sanity: this tap is outside the ring");
+
+  tapMap(app, app.worldToScreen(app.projectLonLat(tapLonLat.longitude, tapLonLat.latitude)));
+
+  assert.equal(app.state.selected, null, "a street out there is somewhere to browse, not navigate to");
+  assert.ok(app.state.nearbyAnchor, "the nearest area moves to the tapped spot");
+  assert.ok(Math.abs(app.state.nearbyAnchor.longitude - 0.07) < 1e-4);
+});
+
+test("the nearest area is measured from the browse anchor once one is set, not the GPS fix", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) });
+  const far = { latitude: 51.65, longitude: 0.07 };
+  assert.equal(app.isOutsideNearestArea(far), true);
+
+  app.setNearbyAnchor(far.latitude, far.longitude, app.projectLonLat(far.longitude, far.latitude));
+
+  assert.equal(app.isOutsideNearestArea(far), false, "the ring moved, so that spot is now inside it");
+  assert.equal(app.isOutsideNearestArea({ latitude: 51.65, longitude: 0.05 }), true, "and the GPS fix is now outside");
+});
+
+test("selecting a street navigates to the point on it nearest the user", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  // A north-south street running past the user, so the nearest point is due east of them.
+  const road = {
+    name: "Forest Road",
+    roadType: "residential",
+    segments: [[app.projectLonLat(0.055, 51.64), app.projectLonLat(0.055, 51.66)]],
+  };
+  app.state.roads.push(road);
+  app.state.selected = { type: "road", item: road };
+
+  const target = app.selectedCompassTarget();
+
+  assert.ok(target, "a street is a navigation target, not just a records list");
+  assert.equal(target.name, "Forest Road");
+  assert.ok(Math.abs(target.longitude - 0.055) < 1e-6, "aims at the street itself");
+  assert.ok(Math.abs(target.latitude - 51.65) < 1e-4, "aims at the closest point along it");
+  assert.equal(app.selectedCompassTarget(), target, "the target is stable across frames so route memoization holds");
+});
+
+test("a street selected before the first GPS fix picks up a navigation target once location arrives", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  const road = {
+    name: "Forest Road",
+    roadType: "residential",
+    segments: [[app.projectLonLat(0.055, 51.64), app.projectLonLat(0.055, 51.66)]],
+  };
+  app.state.roads.push(road);
+  app.state.selected = { type: "road", item: road };
+
+  assert.equal(app.selectedCompassTarget(), null, "no fix, nothing to measure from yet");
+
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+
+  assert.ok(app.selectedCompassTarget(), "the target resolves on the next frame after a fix arrives");
 });
 
 runRegisteredTests().catch((error) => {

@@ -44,13 +44,31 @@ function handleMapClick(event) {
     }
   }
 
+  const world = screenToWorld(screen.x, screen.y);
+  const lonLat = unprojectPoint(world);
+  const hit = findHit(screen, world);
+
+  // Two kinds of tap move the Nearby view instead of selecting something:
+  //
+  //  - open ground (no highlighted location, no street), anywhere on the map -- rather than
+  //    selecting whatever background polygon happens to sit there, or resetting the camera;
+  //  - *any* tap outside the nearest area while the Nearby view is showing, whatever it landed
+  //    on. Streets and waymarked trails are drawn right across the map, so without this a tap
+  //    into the out-of-radius corners of the Nearby screen opened a navigation view to whatever
+  //    road happened to run through there instead of browsing that spot.
+  //
+  // Either way the walking radius and the nearby list move to the tapped spot, leaving any
+  // selection or cluster group behind. isOverviewScreenActive() is false on Filter/Settings/
+  // Report, which keep showing the map behind them and must never be dismissed by a map tap.
+  const beyondNearestArea = isOverviewScreenActive() && isOutsideNearestArea(lonLat);
+  if (hit.type === "none" || beyondNearestArea) {
+    if (!secondaryScreenActive()) focusNearbyOnMapPoint(lonLat, world);
+    return;
+  }
+
   state.clusterZoomed = false;
   state.clusterExpanded = null;
   setInspectorMinimized(false);
-  const world = screenToWorld(screen.x, screen.y);
-  const lonLat = unprojectPoint(world);
-  const hit = findHit(screen, world, lonLat);
-
   if (hit.type === "tree") {
     state.selected = { type: "tree", item: hit.item };
     syncHashFromSelection();
@@ -69,17 +87,13 @@ function handleMapClick(event) {
     showLandmarkDetails(hit.item, distanceFromUser(hit.item));
     startCompassNavigation();
     zoomToSelection();
-  } else if (hit.type === "area") {
-    state.selected = { type: "area", item: hit.item };
-    syncHashFromSelection();
-    showAreaDetails(hit.item);
-    updateCompassOverlay();
   } else if (hit.type === "road") {
     state.selected = { type: "road", item: hit.item };
     syncHashFromSelection();
     const distance = distanceFromUserToRoad(hit.item);
     showRoadDetails(hit.item, distance);
-    updateCompassOverlay();
+    startCompassNavigation();
+    zoomToSelection();
   } else if (hit.type === "path") {
     state.selected = { type: "path", item: hit.item };
     syncHashFromSelection();
@@ -93,13 +107,6 @@ function handleMapClick(event) {
     showRailwayDetails(hit.item);
     updateCompassOverlay();
   } else {
-    const screenOpen = state.filterScreenOpen
-      || state.selected?.type === "settings"
-      || state.selected?.type === "report";
-    if (!screenOpen) {
-      if (isOverviewScreenActive() && trySetNearbyAnchorFromClick(lonLat, world)) return;
-      goToInitialView();
-    }
     return;
   }
   if (hit.type && hit.item && typeof trackClick === "function") {
@@ -180,7 +187,7 @@ function trackSelectionClick(itemType, item, source) {
   trackClick(itemType, item, uLat, uLng, source);
 }
 
-function findHit(screen, world, lonLat) {
+function findHit(screen, world) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
   // drawPngMapIcon geometry: R = size*0.4, circle centre sits R*1.6 above the tip.
@@ -193,8 +200,23 @@ function findHit(screen, world, lonLat) {
     return Math.hypot(point.x - screen.x, (point.y - pinYOffset) - screen.y);
   }
 
+  // Only pins that are actually on screen are tappable: hit testing asks the renderer's own
+  // "is this drawn?" predicate rather than sweeping the raw datasets. Tapping something
+  // invisible could otherwise select it -- and with tens of thousands of trees in the register
+  // against the ~60 the map draws, that was frequent enough to defeat the rule that a tap on
+  // open ground moves the Nearby browse origin (handleMapClick). It covers all three cases the
+  // renderer already distinguishes: outside the nearby set, hidden by an expanded group, and
+  // hidden because a location is selected (where only the selected pin itself is drawn -- so
+  // that one stays tappable, and tapping anywhere else near it is open ground).
+  const iconLookup = buildNearbyIconLookup();
+  const selectedItem = hasRealSelection() ? state.selected.item : null;
+  function isTappablePin(type, item) {
+    return item === selectedItem || shouldDrawMapIcon(type, item, iconLookup);
+  }
+
   let bestPlace = null;
   for (const place of state.landmarks) {
+    if (!isTappablePin("landmark", place)) continue;
     const opacity = markerOpacityFor("landmark", place);
     if (opacity < 0.5) continue;
     const point = worldToScreen(place.point);
@@ -207,6 +229,7 @@ function findHit(screen, world, lonLat) {
 
   let bestCow = null;
   for (const cow of state.cows) {
+    if (!isTappablePin("cow", cow)) continue;
     const opacity = markerOpacityFor("cow", cow);
     if (opacity < 0.5) continue;
     const point = worldToScreen(cow.point);
@@ -219,6 +242,7 @@ function findHit(screen, world, lonLat) {
 
   let bestTree = null;
   for (const tree of state.trees) {
+    if (!isTappablePin("tree", tree)) continue;
     const point = worldToScreen(tree.point);
     if (!isNearCanvas(point, 20 * dpr)) continue;
     const distance = pinDistance(point);
@@ -231,6 +255,9 @@ function findHit(screen, world, lonLat) {
   let bestPath = null;
   const pathClickRadius = 12 * dpr;
   for (const path of state.paths) {
+    // Not gated on isTappablePin: a waymarked trail is hit-tested along its whole drawn line,
+    // and that line is terrain -- drawn whatever the nearby set, group, or selection happens to
+    // be, exactly like a street. Only its pin comes and goes.
     if (!isWaymarkedTrail(path)) continue;
     if (path.bbox) {
       const margin = pathClickRadius * 2;
@@ -296,21 +323,9 @@ function findHit(screen, world, lonLat) {
   }
   if (bestRailway) return bestRailway;
 
-  for (const envFeature of state.environmentFeatures) {
-    if (envFeature.geometry && envFeature.geometry.type && envFeature.geometry.type.includes("Polygon")) {
-      const polygons = envFeature.geometry.type === "Polygon" ? [envFeature.geometry.coordinates] : envFeature.geometry.coordinates;
-      for (const polygon of polygons) {
-        if (pointInPolygon([lonLat.longitude, lonLat.latitude], polygon)) {
-          return { type: "area", item: { source: "environment", feature: envFeature } };
-        }
-      }
-    }
-  }
-
-  for (const layer of state.layers) {
-    const feature = findContainingFeature(layer, lonLat);
-    if (feature) return { type: "area", item: { source: "layer", layer, feature } };
-  }
+  // Background polygons (forest, nature designations, water bodies) are deliberately not
+  // hit-tested: a tap inside one is a tap on open ground, which relocates the Nearby browse
+  // origin instead of selecting the polygon (see handleMapClick).
   return { type: "none" };
 }
 
@@ -494,7 +509,11 @@ function showRoadDetails(road, distance) {
     ["Highway tag", road.highway],
   ].filter(([key, value]) => value != null && value !== "");
 
-  transitionInspectorBody(detailsHtml(rows), "forward");
+  // Same live distance chip the other navigable selections show, so a selected street reads as
+  // somewhere you are being guided to rather than a bare records list.
+  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
+  const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
+  transitionInspectorBody(topRow + detailsHtml(rows), "forward");
 }
 
 function showRailwayDetails(railway) {
@@ -555,65 +574,6 @@ function showWaterDetails(water, distance) {
     ["Source", water.id ? `OpenStreetMap ${water.id}` : "OpenStreetMap"],
   ];
   transitionInspectorBody(detailsHtml(rows), "forward");
-}
-
-function showAreaDetails(area) {
-  els.inspectorTools.hidden = true;
-
-  if (area.source === "environment") {
-    const props = area.feature.properties || {};
-    const featureType = props.featureType || "unknown";
-    const name = props.name || "Unnamed area";
-
-    let emoji = "🗺️";
-    let typeLabel = "Area";
-
-    if (featureType === "hydrology_line" || featureType === "hydrology_area") {
-      emoji = "💧";
-      typeLabel = featureType === "hydrology_line" ? "Waterway" : "Water body";
-    } else if (featureType === "nature_designation") {
-      emoji = "🌳";
-      typeLabel = "Nature designation";
-    }
-
-    setInspectorSelectionChrome({ emoji, showBack: true });
-    els.inspectorTitle.textContent = name;
-    els.inspectorType.textContent = typeLabel;
-
-    const rows = [
-      ["Feature type", featureType],
-      ["Designation", props.designation],
-      ["Waterway", props.waterway],
-      ["Natural", props.natural],
-      ["Water", props.water],
-      ["Landuse", props.landuse],
-      ["Leisure", props.leisure],
-      ["Boundary", props.boundary],
-      ["OSM ID", props.id],
-    ].filter(([key, value]) => value != null && value !== "");
-
-    const bodyHtml = rows.length
-      ? detailsHtml(rows)
-      : `<p class="empty">No additional details recorded for this area. Tap a tree, cow, or landmark on the map to explore.</p>`;
-    transitionInspectorBody(bodyHtml, "forward");
-  } else {
-    const emoji = area.layer.key === "forest" ? "🌲" : "🟢";
-    setInspectorSelectionChrome({ emoji, showBack: true });
-    els.inspectorTitle.textContent = area.layer.label;
-    els.inspectorType.textContent = "Forest boundary";
-
-    const props = area.feature.properties || {};
-    const rows = [
-      ["Area", props["SHAPE.AREA"] ? `${props["SHAPE.AREA"].toFixed(2)} sq m` : null],
-      ["Object ID", props.OBJECTID],
-      ["Global ID", props.GLOBALID],
-    ].filter(([key, value]) => value != null);
-
-    const bodyHtml = rows.length
-      ? detailsHtml(rows)
-      : `<p class="empty">No additional details recorded for this boundary. Tap a tree, cow, or landmark on the map to explore.</p>`;
-    transitionInspectorBody(bodyHtml, "forward");
-  }
 }
 
 // --- Overview screen ---

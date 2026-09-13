@@ -17,7 +17,7 @@ The icon buttons at the top right of the inspector (Nearby, Filters, Settings, F
 The default inspector state: shows the nearest items list and filter controls. "Nearby mode" is the user-facing term; "overview mode" is the code term (`isOverviewScreenActive()`).
 
 **Selected-detail mode**
-Inspector state when a specific tree, landmark, cow, or path is selected. Shows full item detail and hides the filter panel.
+Inspector state when a specific tree, landmark, cow, path, street, or railway is selected. Shows full item detail and hides the filter panel.
 
 **Filter screen / Filters screen**
 Inspector state when the filter toggle panel is open (`state.filterScreenOpen = true`). Shows filter group chips. GPS updates, cow refreshes, and back-button presses do not close it — only explicit navigation away does.
@@ -29,7 +29,7 @@ Inspector collapsed to a header strip only. Auto-reposition is paused; user can 
 When a user has selected a location and is being shown directions to it. A route line is drawn and the compass arrow appears in the inspector title row.
 
 **Cluster detail mode**
-Inspector state after tapping a multi-item cluster pin (`state.clusterExpanded` set, `state.selected` null). Shows a back button, an item-count title (e.g. "4 Trees"), and a nearest-item list of the cluster's members. Tapping a member opens full selected-detail via `focusOverviewItem`; tapping back or empty map space returns to nearby mode.
+Inspector state after tapping a multi-item cluster pin (`state.clusterExpanded` set, `state.selected` null). Shows a back button, an item-count title (e.g. "4 Trees"), and a nearest-item list of the cluster's members. While it is open the map shows only that group's items — every other highlighted location is hidden. Tapping a member opens full selected-detail via `focusOverviewItem`; tapping back returns to nearby mode, and tapping open map ground returns to nearby mode focused on the tapped spot.
 
 **Feedback / Report screen**
 One of the three secondary screens (alongside Filter and Settings). "Feedback" is the user-facing nav button label; "report" is the code term (`state.selected?.type === "report"`, `openReportModal()`, the Report form). Shares `secondaryScreenActive()` navigation behaviour with Filter and Settings.
@@ -73,7 +73,7 @@ The configurable distance (in minutes of walking time) used to filter nearby ite
 When no items of a given type exist within the walking radius, the nearest item of that type is shown in the list with an out-of-radius style. A notice explains no results were found within the selected walking time.
 
 **Browse anchor / nearby anchor**
-A map point (`state.nearbyAnchor`) the user has tapped outside the walking radius on the Nearby screen, previewing that spot's nearby items and radius without moving the real GPS "You" dot. Cleared via the "Use my location" control. Code term: `nearbyOrigin()` resolves to this when set, otherwise the real location.
+A map point (`state.nearbyAnchor`) the user has tapped on open map ground, previewing that spot's nearby items and radius without moving the real GPS "You" dot. Any open-ground tap sets it, at any distance and from any screen except Filter/Settings/Report. Cleared via the "Use my location" control. Code term: `nearbyOrigin()` resolves to this when set, otherwise the real location.
 
 ---
 
@@ -93,6 +93,15 @@ Multiple nearby pins of the same type grouped into a single pin at their screen 
 
 **Cluster badge**
 The small count label (e.g. "4" or "9+") drawn in the top-right of a cluster pin.
+
+**Nearest area**
+The walking-radius ring on the Nearby screen, and everything inside it — the nearby list, the highlighted locations, the route lines. On the Nearby screen a tap beyond it moves the nearest area to the tapped spot whatever it landed on (`isOutsideNearestArea`); inside it, taps select as normal.
+
+**Open ground**
+Any map tap that resolves to neither a highlighted location nor a street. Background polygons (forest, nature designations, water bodies) are not hit-tested, so a tap inside the forest counts as open ground. An open-ground tap moves the browse anchor rather than selecting anything.
+
+**Street navigation target**
+The pseudo-item (`roadNavTarget`) a selected street navigates to: the point on that street's own geometry nearest the user when it was selected. A street has no single position of its own, so this is what the compass arrow, route line, and camera fit aim at.
 
 ---
 

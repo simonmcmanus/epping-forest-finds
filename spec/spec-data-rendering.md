@@ -187,6 +187,8 @@ The teardrop pin uses a compact layout with a large icon:
 - Border opacity: `rgba(0,0,0,0.25)`
 - Unselected scale: `MAP_ICON_SCALE_UNSELECTED = 2.2`; selected scale: `MAP_ICON_SCALE = 2` (plus animated pulse ×1.05–1.17)
 - Hit detection (`findHit`, `findClusterHit`) is derived from `MAP_ICON_SCALE_UNSELECTED`: `pinR = iconSize × 0.52` (×1.3 visual R), `pinYOffset = iconSize × 0.64` (exact circle centre), giving an accurately-centred tap target slightly larger than the visual pin
+- `findHit` resolves, in order: highlighted locations (places, cows, trees, waymarked trails) then streets (roads, railways), and nothing else. Background polygons are not hit-tested, so every remaining tap is "open ground" and relocates the Nearby browse origin (see "Browsing Another Spot").
+- **Only what is drawn is tappable.** Pin hit-testing asks the renderer's own `shouldDrawMapIcon(type, item, buildNearbyIconLookup())` rather than sweeping the raw datasets, so a pin that is not on screen cannot be selected at the position it would occupy. This covers all three cases the renderer already distinguishes: outside the nearby set, hidden by an expanded group, and hidden because a location is selected — in that last case only the selected pin itself is drawn, so it stays tappable and everything around it is open ground. With ~25,000 trees in the register against the ~60 the map draws (`MAX_MAP_TREES`), the old dataset-wide sweep meant a tap "away from the selection" routinely landed on an invisible tree and re-selected it instead of returning to Nearby. Waymarked trails are the exception and are deliberately *not* gated on this: a trail is hit-tested along its whole drawn line, and that line is terrain — drawn whatever the nearby set, group, or selection happens to be, exactly like a street. Only its pin comes and goes.
 
 ### Clustering
 
@@ -198,6 +200,7 @@ Each cluster draws **one pin** at the screen centroid of its members. When a clu
 1. Sets `state.clusterZoomed = true` and `state.clusterExpanded = cluster`.
 2. Animates the viewport to centre on the user's location and scale so the farthest cluster item fills to the edge of the visible focus rect (area above the inspector), using `bestVisibleCanvasRect({ assumeInspectorOpen: true })` with 40 CSS-pixel padding. This keeps the user at the centre of the view and scales to show all cluster items at the edges, matching the "nearby view centred on my location" intent. `state.fitScale` is not modified by this zoom. When user location is unavailable it falls back to `fitToPoints` on cluster item points only.
 3. Switches the inspector to **cluster detail mode** via `showClusterDetail(cluster)`: shows the back button, a title (e.g. "4 Trees"), and a nearest-item list of all items in the cluster (icon, name, combined distance + walk-time chip, direction arrow). Items are tappable to open full detail via the existing `focusOverviewItem` path.
+4. **Shows the group and nothing else.** While `state.clusterExpanded` is set, `buildNearbyIconLookup` narrows to that group's own items — every other highlighted location from the view the user came from, of every type, is hidden — so it is unambiguous which items the list refers to. `overviewRouteTargets` narrows the same way, so the ambient nearby route lines go with the pins they pointed at, and `findHit` applies the same restriction, so a pin hidden by the group cannot still be tapped at the spot it used to occupy. The narrowing is memoized on the expanded group's own object identity plus the full lookup it narrows, so it costs nothing per frame. Cleared (back to the full nearby set) as soon as the group is dismissed.
 
 While `state.clusterZoomed` is true, `ensureOverviewTargetsVisible`, `keepOverviewCenteredOnUser`, and `alignHeadingUpNavigationViewport` all skip their GPS/compass-driven refits so the zoom-in view is not immediately overridden. `selectOverview` also skips its re-render while `state.clusterExpanded` is set, preventing GPS updates from replacing the cluster detail list.
 
@@ -320,8 +323,8 @@ When an item is selected, it gets a pulsing highlight overlay:
 ### Modes
 
 1. **Overview mode** — nearest list + filter controls
-2. **Cluster detail mode** — list of items in a tapped cluster (`state.clusterExpanded` set, `state.selected` null); shows back button, item count title, and nearest-item rows for each cluster member. Each row includes an always-visible combined distance + walk-time chip (`{distance} · {walk time}` with the walking icon) and, for trees, the tag number (`#<tagNumber>`). Back button or empty-space map tap returns to overview.
-3. **Selected-detail mode** — details for selected tree/landmark/cow/path/road
+2. **Cluster detail mode** — list of items in a tapped cluster (`state.clusterExpanded` set, `state.selected` null); shows back button, item count title, and nearest-item rows for each cluster member. Each row includes an always-visible combined distance + walk-time chip (`{distance} · {walk time}` with the walking icon) and, for trees, the tag number (`#<tagNumber>`). Only the group's own items are drawn on the map while it is open (see "Cluster tap interaction"). The back button returns to overview; a map tap on open ground returns to overview focused on the tapped spot.
+3. **Selected-detail mode** — details for selected tree/landmark/cow/path/road/railway
 4. **Minimized mode** — collapsed header only, click to expand
 
 ### Overview Content
@@ -347,11 +350,36 @@ When an item is selected, it gets a pulsing highlight overlay:
 The plain Nearby/overview screen (not Filter/Settings/Report) supports previewing what's near
 a different point on the map without moving the real GPS fix:
 
-- **Tap-to-relocate:** tapping empty map space (no hit) while the Nearby screen is active and
-  the tap point is farther from the current centre than the walking radius sets
-  `state.nearbyAnchor` to that point (`trySetNearbyAnchorFromClick`/`setNearbyAnchor` in
-  `js/nav.js`). A tap on empty space *inside* the radius keeps the existing reset-to-overview
-  behaviour instead of relocating. `state.userLocation` (the real GPS fix) is never modified.
+- **Tap-to-relocate:** tapping open ground anywhere on the map sets `state.nearbyAnchor` to that
+  point (`focusNearbyOnMapPoint`/`setNearbyAnchor` in `js/nav.js`), so the walking-radius ring
+  and the nearby list move to the tapped spot. `state.userLocation` (the real GPS fix) is never
+  modified. "Open ground" is any tap `findHit` does not resolve to a highlighted location (tree,
+  place, cow, waymarked trail) or a street (road, railway) — background polygons (forest, nature
+  designations, water bodies) are deliberately not hit-tested at all, so a tap inside the forest
+  is a tap on open ground rather than a selectable "area" (the area detail view no longer
+  exists). Distance from the current origin is not considered: a tap *inside* the current radius
+  relocates the same way one far outside it does.
+- **Outside the nearest area, everything relocates.** The walking-radius ring *is* the nearest
+  area: everything the Nearby view is about — the list, the highlighted locations, the route
+  lines — lives inside it, so while the Nearby view is showing (`isOverviewScreenActive()`,
+  which excludes Filter/Settings/Report), *any* tap beyond the ring relocates, whatever it
+  landed on, not just taps on open ground (`isOutsideNearestArea` in `js/nav.js`, measured from
+  `nearbyOrigin()` so it follows the browse anchor once one is set). This exists for streets and
+  waymarked trails: their lines are terrain, drawn right across the map, so without this rule a
+  tap into the out-of-radius corners of the Nearby screen opened a navigation view to whichever
+  road ran through there instead of browsing that spot. Inside the ring, taps select as normal —
+  a street you could actually walk to now is a destination. The rule also catches out-of-radius
+  *pins*, which are only ever drawn when the radius filter is toggled off
+  (`state.showAllOutsideRadius`); those items stay reachable from the nearby list, which is
+  unaffected. It does not apply once something is selected: from a selected-detail view, a tap
+  on a street selects that street at any distance (there is no ring being shown to be outside
+  of), and a tap on open ground returns to Nearby focused there, per the rule below.
+- **Tap-to-relocate from a selection or an expanded group:** the same tap made while a location
+  is selected, or while a group is expanded, also leaves that view — the anchor is set and
+  `goToInitialView()` returns to Nearby framed on the tapped spot. The anchor is set *before*
+  that call so its single re-fit already frames the new origin instead of fitting the old one
+  and then animating a second time. Filter/Settings/Report are exempt (see "Secondary Screens"
+  below): a map tap never dismisses them and never relocates the anchor from them.
 - **Pinch-to-resize the radius:** a two-finger pinch on the map canvas while the Nearby screen
   is active scales `state.walkingDistanceMinutes` continuously (no fixed stops) — spreading
   fingers apart shrinks the radius (zoom in), pinching together grows it (zoom out), tracking
@@ -364,8 +392,12 @@ a different point on the map without moving the real GPS fix:
   (`refreshNearbyRadiusView`, `animate:false` mid-gesture so intermediate fits don't queue an
   animation each tick; the gesture's end re-runs it once more with the default `animate:true`
   for a smooth settle). Pinch is ignored outside the plain Nearby screen (a real selection, or
-  Filter/Settings/Report open) and cancels/ignores any in-progress single-finger drag;
-  releasing either finger of a pinch never registers as a map tap.
+  Filter/Settings/Report open) and cancels/ignores any in-progress single-finger drag.
+  Releasing either finger of a **multi-touch** gesture never registers as a map tap
+  (`state.multiTouchOccurred`, set as soon as a second pointer goes down and cleared only once
+  every finger is off the glass) — that holds even where the radius pinch itself is ignored,
+  which is what stops a two-finger gesture over a selected location from releasing as a tap on
+  open ground and dropping the selection.
 - **Walking-radius floor:** the radius cannot be pinched (or, on the Settings slider below,
   dragged) below `walkingRadiusFloorMinutes(origin)` (`js/nav.js`) — the distance to the
   nearest real item respecting active filters (`nearestFallbackEntriesForActiveFilter`, same
@@ -377,11 +409,22 @@ a different point on the map without moving the real GPS fix:
   (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. On the
   Settings slider, the same floor is enforced natively via the `<input type="range">`'s own
   `min` attribute, and a `#settingsWalkMinsFloorNote` appears whenever the slider sits at it.
+- **Relocating reframes; it never zooms out.** The Nearby camera anchors `nearbyOrigin().point`
+  at the focus point and sizes itself to the walking-radius ring, so moving the browse anchor
+  slides the same view onto the new spot: same scale, ring the same size, origin at the same
+  place on screen. Getting that right means the *scale fit* has to measure its points from the
+  same origin the camera anchors — `maxScaleForHeadingUpPoints` takes an `originPoint` option
+  (defaulting to the real GPS fix, which is what selected navigation always wants) and
+  `maxNearbyHeadingUpScale` passes `nearbyOrigin().point`. Previously the fit stayed on the real
+  fix while the camera centred the anchor, so an off-centre ring was measured as if it sat
+  hundreds of metres to one side and the scale collapsed to squeeze that into the rect — and
+  since each relocation re-ran the same calculation from further out, repeated browsing walked
+  the Nearby view out to whole-forest scale a tap at a time.
 - **`nearbyOrigin()`** (`js/nav.js`) is the single seam this feature relies on: it returns
   `state.nearbyAnchor` if set, else `state.userLocation`, and is read by the walking-radius
   circle, the nearby list/camera-fit pipeline (`overviewItemsForActiveFilter`,
-  `nearbyCameraFitPoints`, `alignHeadingUpNavigationViewport`'s nearby branch), and the anchor
-  marker. Everything else — the "You" dot, compass heading, bearing arrows, and distance/
+  `nearbyCameraFitPoints`, `maxNearbyHeadingUpScale`, `alignHeadingUpNavigationViewport`'s
+  nearby branch), and the anchor marker. Everything else — the "You" dot, compass heading, bearing arrows, and distance/
   navigation for an actually-selected item — always reads `state.userLocation` directly and is
   unaffected by browsing. Filter/Settings/Report always use the real GPS fix too (`origin =
   secondaryScreenActive() ? state.userLocation : nearbyOrigin()`), so a lingering anchor from
@@ -430,11 +473,32 @@ The figure itself is the real road/path-following distance (and the walk time de
 - Inspector title icon: `cow.png`
 - Live distance + walking time
 
+#### Street (Road) Details
+
+Tapping a street on the map opens the same navigation view a highlighted location does, not a
+bare records list:
+
+- Road type, name, reference, highway tag
+- Live distance + walking time chip (`.detail-top-row`, the same `data-live-field="distance"`
+  element the other navigable selections use)
+- A street has no single position of its own, so `selectedCompassTarget()` (index.html) resolves
+  a **street navigation target** for it: `roadNavTarget(road)` projects the user's position onto
+  each of the road's own segments in world space and returns the nearest point as a pseudo-item
+  (`{point, latitude, longitude, name}`). Everything downstream — the inspector compass arrow,
+  the routed dashed line, the camera fit, heading-up navigation — then treats a street exactly
+  like any other destination. The target is resolved lazily and cached on `state.selected`, both
+  because `selectedRoutePoints`' memoization keys on target object identity (it must be the same
+  object every frame) and because a street selected before the first GPS fix has nothing to
+  measure from yet, so the attempt has to be repeatable. It stays fixed at the point that was
+  nearest when the street was selected, the way any other destination stays put.
+- The selected street itself keeps its existing pulsing overlay (`drawSelectedRoadOverlay`).
+- Railways are unchanged: still a plain detail view with no navigation target.
+
 ### Secondary Screens (Filter, Settings, Report)
 
 Filter, Settings, and Report share identical navigation behaviour, gated by the shared `secondaryScreenActive()` helper (`state.filterScreenOpen || state.selected?.type === "settings" || state.selected?.type === "report"`):
 
-- **Map canvas tap on empty space does not dismiss the screen.** Only the Nearby button returns to overview. This is enforced in `handleMapClick` (the `else`/no-hit branch checks `secondaryScreenActive()` before calling `goToInitialView`) and in the `hashchange` handler (same guard).
+- **Map canvas tap on open ground does not dismiss the screen, and does not move the browse anchor.** Only the Nearby button returns to overview. This is enforced in `handleMapClick` (the no-hit branch checks `secondaryScreenActive()` before calling `focusNearbyOnMapPoint`) and in the `hashchange` handler (same guard).
 - **Map icon set:** all three screens use `overviewItemsUnlimited()` to build the nearby icon lookup, showing all items regardless of walking radius. The walking-radius filter only applies in the standard Nearby/overview view.
 - **Camera fit is identical across all three screens.** All three use the same "survey mode" camera fit (see Survey mode under Camera Behavior below) — the walking-radius ring plus the nearest match for each selected filter, so the view zooms out past the ring far enough to show that each selected kind exists and which way it lies, even when every one of them is outside the walking radius. Opening any of the three screens (`openFiltersScreen`, `openSettings`, `openReportModal`) triggers this fit with a 420ms animation; GPS updates, resizes (e.g. the on-screen keyboard opening on the Report form), and heading-up compass rotation all keep re-fitting to the same target while any of the three screens is open, so switching between them never changes the view. `ensureOverviewTargetsVisible`, `keepOverviewCenteredOnUser`, and `centerOverviewOnUserLocation` all treat `secondaryScreenActive()` the same as plain overview mode rather than bailing out for the settings/report pseudo-selection. Because `nearestSelectedFilterPoints()` ignores the walking radius, this fit reaches filtered items beyond the radius, not just items within it.
 - **Full 3D tilt is available on all three screens**, exactly as on the nearby overview (see "3D tilt available on every screen" under Camera Behavior below) — the "identical view" invariant above covers pan/zoom framing only; the live tilt angle tracks phone orientation the same way it does everywhere else and is not held fixed across screen switches.

@@ -167,10 +167,10 @@ function drawOverlay() {
   drawSelectedOverlay(ctx, toScreen);
 }
 
-// Marks state.nearbyAnchor (the Nearby view's browse point, set by tapping outside the
-// walking radius -- see nearbyOrigin/trySetNearbyAnchorFromClick) distinctly from the real
-// "You" dot drawn just above, so it's clear the radius/list have pivoted away from the user's
-// actual GPS position without moving it.
+// Marks state.nearbyAnchor (the Nearby view's browse point, set by tapping open ground -- see
+// nearbyOrigin/focusNearbyOnMapPoint) distinctly from the real "You" dot drawn just above, so
+// it's clear the radius/list have pivoted away from the user's actual GPS position without
+// moving it.
 function drawNearbyAnchorMarker(ctx, toScreen) {
   if (!state.nearbyAnchor) return;
   if (!toScreen) toScreen = worldToScreen;
@@ -816,8 +816,12 @@ function overviewRouteTargets(treeClusters) {
   // overviewItemsForActiveFilter() now returns every match within the radius (so the map can
   // show all of them -- see its comment), but a route line per match would draw hundreds of
   // dashed lines at a large radius; cap to the same "nearest handful" the text list shows.
+  // An expanded group hides every other highlighted location (buildNearbyIconLookup), so its
+  // ambient route lines go with them -- only the group's own items keep a line.
+  const groupItems = state.clusterExpanded ? new Set(state.clusterExpanded.items) : null;
   const entries = overviewItemsForActiveFilter()
     .filter((entry) => !entry.outOfRadius && entry.item && entry.item.point)
+    .filter((entry) => !groupItems || groupItems.has(entry.item))
     .slice(0, state.nearestItemsCount);
 
   const nonTreeValues = entries
@@ -1278,7 +1282,35 @@ function sampleSpread(list, max) {
   return result;
 }
 
+// While a group is expanded (state.clusterExpanded, set by tapping a multi-item cluster) the
+// map shows that group and nothing else: every other highlighted location from the view the
+// user came from is hidden, so it is unambiguous which items the group's list refers to.
+// Memoized on the expanded group's own object identity plus the full lookup it narrows, so the
+// extra pass costs nothing per frame; findHit (js/inspector.js) applies the same restriction so
+// a hidden pin can't still be tapped.
+let _groupIconLookupCache = null;
+
 function buildNearbyIconLookup() {
+  const full = buildFullNearbyIconLookup();
+  const group = state.clusterExpanded;
+  if (!group) return full;
+  if (_groupIconLookupCache && _groupIconLookupCache.group === group && _groupIconLookupCache.full === full) {
+    return _groupIconLookupCache.result;
+  }
+  const result = {
+    tree: new Set(),
+    landmark: new Set(),
+    cow: new Set(),
+    path: new Set(),
+    water: new Set(),
+    outOfRadius: full.outOfRadius,
+  };
+  if (result[group.itemType]) result[group.itemType] = new Set(group.items);
+  _groupIconLookupCache = { group, full, result };
+  return result;
+}
+
+function buildFullNearbyIconLookup() {
   const inFilterScreen = Boolean(secondaryScreenActive() && state.userLocation);
   const cacheKey = nearbyIconLookupCacheKey(inFilterScreen);
   if (_nearbyIconLookupCache && _nearbyIconLookupCache.key === cacheKey && nearbyIconLookupDatasetsUnchanged(_nearbyIconLookupCache)) {
