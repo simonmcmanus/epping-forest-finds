@@ -69,6 +69,7 @@ Before finishing any implementation task:
 1. `node --test test/forest-finds.test.js` passes.
 2. `npm run test:e2e` passes (or snapshots are regenerated intentionally).
 3. Relevant `spec/` file is updated, or reason documented.
+4. create a commit with a good concise description summarising the change  
 
 ## Code Quality
 - Separate concerns strictly per the project structure above.
