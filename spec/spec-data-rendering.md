@@ -73,6 +73,7 @@ interface RenderState {
   compassHeading: number | null;
   compassPermission: string;
   dragging: boolean;
+  manualCameraOverrideFor: object | null; // the selection whose camera the user has panned/zoomed by hand
   inspectorHeightPercent: number | null;
   showAllOutsideRadius: boolean;
   // Animation state
@@ -130,14 +131,31 @@ Draw order (back to front):
    perspective twice. When a browse anchor is active, a small ring-and-dot marker
    (`drawNearbyAnchorMarker`, drawn on `#overlayCanvas` right after the "You" dot) marks it in
    amber (`#c9660c`) so it reads as distinct from the real GPS position, which never moves.
-8. **Overview route lines** — dashed lines from user to nearest items
-9. **Selected route line** — dashed line from user to selected target
-10. **Trees** — emoji markers
-11. **Landmarks** — emoji markers with category-specific rendering
-12. **Cows** — emoji markers
-13. **User location** — pulsing blue dot
-14. **Selected overlay** — highlight ring on selected item
-15. **Selected road/path overlay** — highlighted road/path segments
+
+   **User cone.** While a browse anchor is set *and* the user is standing outside the ring,
+   the same pass draws a wedge tying the "You" dot to the circle, so the two read as one
+   picture rather than as unrelated markers. `nearbyUserCone()` builds it in screen space: the
+   apex is the user, the two edges are the tangents from the user to the ring (half-angle
+   `acos(r / d)`), and the far edge is sampled along the circle's near arc — so the wedge and
+   the circle share an edge and never overlap. Points are sampled on the flat map and
+   projected individually (`tiltProjectScreenPoint`), so the wedge lies on the ground plane
+   with the ring. It is shaded as a third tier of the same wash: the circle is clear, the cone
+   is `rgba(18, 28, 23, 0.13)`, everything else is the full `0.4` dim. Mechanically the cone
+   is both a second cutout in the dimming's `evenodd` path and its own fill under the same
+   blur, which is why its edges feather exactly like the circle's. Skipped entirely when the
+   user is inside the ring or within 4% of its edge — the "You" dot is already in the circle
+   there, and a near-180° wedge would flicker on and off as the user hovers on the boundary.
+8. **Selected route line** — dashed line from user to selected target. This is the *only*
+   route line drawn. An earlier version also drew ambient dashed lines from the user to every
+   nearby match on the Nearby/Filters/Settings/Report screens; they were removed because a fan
+   of dotted lines to a dozen pins crowded the map and implied a walk nobody had chosen. A
+   drawn route now always means "this is the destination you selected".
+9. **Trees** — emoji markers
+10. **Landmarks** — emoji markers with category-specific rendering
+11. **Cows** — emoji markers
+12. **User location** — pulsing blue dot
+13. **Selected overlay** — highlight ring on selected item
+14. **Selected road/path overlay** — highlighted road/path segments
 
 ### Performance Rules
 
@@ -213,7 +231,7 @@ Each cluster draws **one pin** at the screen centroid of its members. When a clu
 1. Sets `state.clusterZoomed = true` and `state.clusterExpanded = cluster`.
 2. Animates the viewport to centre on the user's location and scale so the farthest cluster item fills to the edge of the visible focus rect (area above the inspector), using `bestVisibleCanvasRect({ assumeInspectorOpen: true })` with 40 CSS-pixel padding. This keeps the user at the centre of the view and scales to show all cluster items at the edges, matching the "nearby view centred on my location" intent. `state.fitScale` is not modified by this zoom. When user location is unavailable it falls back to `fitToPoints` on cluster item points only.
 3. Switches the inspector to **cluster detail mode** via `showClusterDetail(cluster)`: shows the back button, a title (e.g. "4 Trees"), and a nearest-item list of all items in the cluster (icon, name, combined distance + walk-time chip, direction arrow). Items are tappable to open full detail via the existing `focusOverviewItem` path.
-4. **Shows the group and nothing else.** While `state.clusterExpanded` is set, `buildNearbyIconLookup` narrows to that group's own items — every other highlighted location from the view the user came from, of every type, is hidden — so it is unambiguous which items the list refers to. `overviewRouteTargets` narrows the same way, so the ambient nearby route lines go with the pins they pointed at, and `findHit` applies the same restriction, so a pin hidden by the group cannot still be tapped at the spot it used to occupy. The narrowing is memoized on the expanded group's own object identity plus the full lookup it narrows, so it costs nothing per frame. Cleared (back to the full nearby set) as soon as the group is dismissed.
+4. **Shows the group and nothing else.** While `state.clusterExpanded` is set, `buildNearbyIconLookup` narrows to that group's own items — every other highlighted location from the view the user came from, of every type, is hidden — so it is unambiguous which items the list refers to. `findHit` applies the same restriction, so a pin hidden by the group cannot still be tapped at the spot it used to occupy. The narrowing is memoized on the expanded group's own object identity plus the full lookup it narrows, so it costs nothing per frame. Cleared (back to the full nearby set) as soon as the group is dismissed.
 
 While `state.clusterZoomed` is true, `ensureOverviewTargetsVisible`, `keepOverviewCenteredOnUser`, and `alignHeadingUpNavigationViewport` all skip their GPS/compass-driven refits so the zoom-in view is not immediately overridden. `selectOverview` also skips its re-render while `state.clusterExpanded` is set, preventing GPS updates from replacing the cluster detail list.
 
@@ -315,11 +333,12 @@ When an item is selected, it gets a pulsing highlight overlay:
   - Line width: 3px + 3px halo
   - Dash: 10px on, 8px off
 
-- **Overview mode:** Dashed lines from user → each nearest overview target. Deliberately still a plain straight line, not routed -- these ambient lines exist to show rough direction/distance to everything nearby at a glance, and routing every visible pin would multiply pathfinding cost by however many items are on screen for little benefit; only the single selected/highlighted target (above) is worth a real route to.
-  - Color: per-category color with white halo
-  - Line width: 2.2px + 2.6px halo
-  - Dash: 8px on, 7px off
-  - Only drawn for items with a valid `.point` (paths without a label anchor are excluded)
+- **Overview mode:** no route lines. The Nearby/Filters/Settings/Report screens used to draw an
+  ambient dashed line from the user to every nearby match; a fan of dotted lines to a dozen pins
+  crowded the map and implied a walk the user had never chosen. A drawn route line now always
+  means "this is the destination you selected". Direction and distance to everything nearby are
+  carried by the pins themselves, the per-item bearing arrows in the Nearby list, and (while
+  browsing a spot) the user cone described under "Walking radius" above.
 
 ### Off-ring user direction pointer
 
@@ -328,20 +347,29 @@ around the browse anchor, so the "You" dot is frequently off screen and nothing 
 the user actually is. `drawUserDirectionFromAnchor` (js/renderer.js, drawn on the overlay canvas
 right after the anchor marker) marks it:
 
-- An arrow sitting on the walking-radius ring's edge, on the bearing from the anchor to the
-  user, pointing outward at them, in the same blue as the "You" dot and radar (the anchor marker
-  itself is amber, so the two never read as the same thing).
-- **It lies on the ground plane.** Its four corners are world points (sized as a fraction of the
+- A plain triangle sitting on the walking-radius ring's edge, on the bearing from the anchor to
+  the user, pointing outward at them, filled off-black (`#1b2420`) with a white halo. Earlier
+  versions used the "You" dot's blue and a notched arrow-head silhouette; at the size this has
+  to be drawn the saturated blue shouted over the map, and the notch was invisible at the far
+  end of the perspective while making the near end look busy. Off-black reads as chrome — a
+  signpost pointing off screen — and still cannot be mistaken for the amber anchor marker.
+- **It lies on the ground plane.** Its three corners are world points (sized as a fraction of the
   walking radius — length `radius × 0.24`, half-width `radius × 0.11`) projected individually
   through `toScreen`, not a flat screen-space triangle drawn at a projected position. That is
-  what makes it foreshorten with the ring and the route lines instead of floating over the map
+  what makes it foreshorten with the ring and the route line instead of floating over the map
   like a sticker. It is deliberately generous: at the ring edge on the far side of the
   perspective it is foreshortened to roughly half its flat size, so a subtle one reads as a
   speck in 3D — but no larger than that, since it shares the map with the pins inside the ring.
-- Labelled `You · {distance}` (`formatDistance` of the anchor-to-user distance). The label alone
-  stays upright rather than being projected onto the ground with the arrow — text laid flat in
-  perspective is the one part that would be unreadable, and pins are billboarded the same way.
-- Only drawn when the user is *outside* the ring; inside it their own dot is on screen already.
+- Labelled `You · {distance}` (`formatDistance` of the anchor-to-user distance), in the same
+  off-black. The label alone stays upright rather than being projected onto the ground with the
+  triangle — text laid flat in perspective is the one part that would be unreadable, and pins are
+  billboarded the same way.
+- **Only drawn when the "You" dot itself is not on screen.** That means the user must be outside
+  the ring *and* their dot must fall outside the visible map area — `userDotVisibleOnMap` tests
+  the projected dot against `bestVisibleCanvasRect()` (so a dot hidden behind the inspector still
+  counts as off screen) with a 48px inset, so a dot skimming the boundary keeps its pointer
+  rather than swapping between the two every frame. Without this, zooming out past the ring put
+  two `You` labels a few centimetres apart, one of them standing in for the other.
 - **It is a control, not scenery.** Tapping it clears the browse anchor and returns to the real
   location. `drawUserDirectionFromAnchor` publishes its tap target (`hitUserDirectionPointer`,
   covering arrow plus label, with a floor of 26 CSS px so it stays thumb-sized however far the
@@ -365,14 +393,14 @@ right after the anchor marker) marks it:
 ### Modes
 
 1. **Overview mode** — nearest list + filter controls
-2. **Cluster detail mode** — list of items in a tapped cluster (`state.clusterExpanded` set, `state.selected` null); shows back button, item count title, and nearest-item rows for each cluster member. Each row includes an always-visible combined distance + walk-time chip (`{distance} · {walk time}` with the walking icon) and, for trees, the tag number (`#<tagNumber>`). Only the group's own items are drawn on the map while it is open (see "Cluster tap interaction"). The back button returns to overview; a map tap on open ground returns to overview focused on the tapped spot.
+2. **Cluster detail mode** — list of items in a tapped cluster (`state.clusterExpanded` set, `state.selected` null); shows back button, item count title, and nearest-item rows for each cluster member. Slides in with the `"forward"` screen transition like every other drill-down (its back button returns via `goToInitialView()` → `selectOverview(true)`, which slides `"back"`); it previously passed no direction and was the one screen change in the app that swapped its contents instantly while the map animated underneath it. Each row includes an always-visible combined distance + walk-time chip (`{distance} · {walk time}` with the walking icon) and, for trees, the tag number (`#<tagNumber>`). Only the group's own items are drawn on the map while it is open (see "Cluster tap interaction"). The back button returns to overview; a map tap on open ground returns to overview focused on the tapped spot.
 3. **Selected-detail mode** — details for selected tree/landmark/cow/path/road/railway
 4. **Minimized mode** — collapsed header only, click to expand
 
 ### Overview Content
 
 - List of nearest items across active filter types
-- `overviewItemsForActiveFilter()` (index.html) returns *every* match within the walking radius, memoized on origin/radius/active-filters/cow-refresh so it's only recomputed when one of those actually changes, not on every animation frame (buildNearbyIconLookup in js/renderer.js, which draws the map pins from this same list, is separately memoized the same way). Consumers cap it to what they can usefully show: this text list and the overview route lines both take only the nearest `nearestItemsCount` entries; the map pins use the full list, bounded only by their own existing per-type render limits (e.g. `MAX_MAP_TREES`, 60). This split means growing the walking radius (via Settings or the pinch gesture below) reveals every newly-in-range item on the map, without the list turning into an unreadable wall of entries or the per-frame cost scaling with how much area is covered. Trees are dense enough that a plain nearest-60 cut always resolved to the same tight cluster around the user regardless of radius, defeating that "reveals more" promise — `buildNearbyIconLookup` (js/renderer.js) instead collects every in-radius tree candidate and takes an evenly-strided sample of 60 across that distance-sorted list (`sampleSpread`), so the fixed pin budget spreads from near to far instead of bunching at the near end. Every other type (landmarks, cows, paths, water) has no cap and genuinely renders the full in-radius set.
+- `overviewItemsForActiveFilter()` (index.html) returns *every* match within the walking radius, memoized on origin/radius/active-filters/cow-refresh so it's only recomputed when one of those actually changes, not on every animation frame (buildNearbyIconLookup in js/renderer.js, which draws the map pins from this same list, is separately memoized the same way). Consumers cap it to what they can usefully show: this text list takes only the nearest `nearestItemsCount` entries; the map pins use the full list, bounded only by their own existing per-type render limits (e.g. `MAX_MAP_TREES`, 60). This split means growing the walking radius (via Settings or the pinch gesture below) reveals every newly-in-range item on the map, without the list turning into an unreadable wall of entries or the per-frame cost scaling with how much area is covered. Trees are dense enough that a plain nearest-60 cut always resolved to the same tight cluster around the user regardless of radius, defeating that "reveals more" promise — `buildNearbyIconLookup` (js/renderer.js) instead collects every in-radius tree candidate and takes an evenly-strided sample of 60 across that distance-sorted list (`sampleSpread`), so the fixed pin budget spreads from near to far instead of bunching at the near end. Every other type (landmarks, cows, paths, water) has no cap and genuinely renders the full in-radius set.
 - If no active type has a result within the selected walking radius, show the closest available item for each active type and display a notice naming the selected walking-time radius.
 - The walking-time chip in the overview heading doubles as a **radius filter toggle** (`data-action="toggle-radius"`). When active (green, `aria-pressed="true"`), only items within the walking radius are shown (`state.showAllOutsideRadius = false`). When inactive (grey, `aria-pressed="false"`), items across all distances are shown (up to 10 nearest per type) with no fallback notice. Clicking toggles `state.showAllOutsideRadius` and triggers a full `selectOverview()` re-render.
 - Each entry shows: emoji icon, name, type label, and directional arrow.
@@ -389,12 +417,15 @@ right after the anchor marker) marks it:
 
 ### Browsing Another Spot
 
-The plain Nearby/overview screen (not Filter/Settings/Report) supports previewing what's near
-a different point on the map without moving the real GPS fix:
+Every screen that draws the walking-radius ring — the plain Nearby/overview screen *and*
+Filter/Settings/Report — supports previewing what's near a different point on the map without
+moving the real GPS fix:
 
 - **Tap-to-relocate:** tapping open ground anywhere on the map sets `state.nearbyAnchor` to that
   point (`focusNearbyOnMapPoint`/`setNearbyAnchor` in `js/nav.js`), so the walking-radius ring
-  and the nearby list move to the tapped spot. `state.userLocation` (the real GPS fix) is never
+  and the nearby list move to the tapped spot. This works on Filter/Settings/Report too — they
+  draw the same ring, and moving it must stay possible from them; neither this nor any other map
+  tap ever dismisses the open screen itself. `state.userLocation` (the real GPS fix) is never
   modified. "Open ground" is any tap `findHit` does not resolve to a highlighted location (tree,
   place, cow, waymarked trail) or a street (road, railway) — background polygons (forest, nature
   designations, water bodies) are deliberately not hit-tested at all, so a tap inside the forest
@@ -402,9 +433,11 @@ a different point on the map without moving the real GPS fix:
   exists). Distance from the current origin is not considered: a tap *inside* the current radius
   relocates the same way one far outside it does.
 - **Outside the nearest area, everything relocates.** The walking-radius ring *is* the nearest
-  area: everything the Nearby view is about — the list, the highlighted locations, the route
-  lines — lives inside it, so while the Nearby view is showing (`isOverviewScreenActive()`,
-  which excludes Filter/Settings/Report), *any* tap beyond the ring relocates, whatever it
+  area: everything the Nearby view is about — the list, the highlighted locations — lives inside
+  it, so while the Nearby view is showing (`isOverviewScreenActive()`, which excludes
+  Filter/Settings/Report — those deliberately frame the map wider than the ring to show where
+  each selected kind lies, so "outside the ring" is most of what is on screen there and this
+  rule would make almost any tap relocate), *any* tap beyond the ring relocates, whatever it
   landed on, not just taps on open ground (`isOutsideNearestArea` in `js/nav.js`, measured from
   `nearbyOrigin()` so it follows the browse anchor once one is set). This exists for streets and
   waymarked trails: their lines are terrain, drawn right across the map, so without this rule a
@@ -420,10 +453,10 @@ a different point on the map without moving the real GPS fix:
   is selected, or while a group is expanded, also leaves that view — the anchor is set and
   `goToInitialView()` returns to Nearby framed on the tapped spot. The anchor is set *before*
   that call so its single re-fit already frames the new origin instead of fitting the old one
-  and then animating a second time. Filter/Settings/Report are exempt (see "Secondary Screens"
-  below): a map tap never dismisses them and never relocates the anchor from them.
-- **Pinch-to-resize the radius:** a two-finger pinch on the map canvas while the Nearby screen
-  is active scales `state.walkingDistanceMinutes` continuously (no fixed stops) — spreading
+  and then animating a second time. A map tap never dismisses Filter/Settings/Report (see
+  "Secondary Screens" below), but an open-ground tap does move their anchor, as above.
+- **Pinch-to-resize the radius:** a two-finger pinch on the map canvas while any screen that
+  draws the ring is active (Nearby, or Filter/Settings/Report) scales `state.walkingDistanceMinutes` continuously (no fixed stops) — spreading
   fingers apart shrinks the radius (zoom in), pinching together grows it (zoom out), tracking
   the pinch distance ratio from where the gesture started. Values are rounded to the nearest
   half-minute (`roundWalkingMinutes`) before being applied, so pointermove ticks landing in the
@@ -433,13 +466,20 @@ a different point on the map without moving the real GPS fix:
   nearest list and re-fits the camera via the same path a Settings radius change uses
   (`refreshNearbyRadiusView`, `animate:false` mid-gesture so intermediate fits don't queue an
   animation each tick; the gesture's end re-runs it once more with the default `animate:true`
-  for a smooth settle). Pinch is ignored outside the plain Nearby screen (a real selection, or
-  Filter/Settings/Report open) and cancels/ignores any in-progress single-finger drag.
+  for a smooth settle; and `refreshNearbyRadiusView` deliberately skips `selectOverview()` on a
+  secondary screen so resizing from Settings doesn't throw that screen's own content away). Pinch
+  is ignored over a real selection, which replaces the map view entirely, and cancels/ignores any
+  in-progress single-finger drag.
   Releasing either finger of a **multi-touch** gesture never registers as a map tap
   (`state.multiTouchOccurred`, set as soon as a second pointer goes down and cleared only once
   every finger is off the glass) — that holds even where the radius pinch itself is ignored,
   which is what stops a two-finger gesture over a selected location from releasing as a tap on
-  open ground and dropping the selection.
+  open ground and dropping the selection. When a multi-touch gesture drops back to **one**
+  finger, the pan is handed to the finger still down (`beginMapDrag`, re-seeded from that
+  pointer's current position so the map doesn't jump by however far the two-finger gesture
+  travelled). The second pointer going down sets `state.dragging = false` and nothing used to
+  set it back, so the map went completely dead under a finger that was still on the glass and
+  the user had to lift off entirely and start again.
 - **Walking-radius floor:** the radius cannot be pinched (or, on the Settings slider below,
   dragged) below `walkingRadiusFloorMinutes(origin)` (`js/nav.js`) — the distance to the
   nearest real item respecting active filters (`nearestFallbackEntriesForActiveFilter`, same
@@ -448,7 +488,10 @@ a different point on the map without moving the real GPS fix:
   its edge. Falls back to `WALKING_RADIUS_MIN_MINUTES` (1) with no origin or nothing to measure
   against. While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
   and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
-  (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. On the
+  (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. That notice
+  lives in the Nearby list, so the lightweight re-render that keeps it in sync is skipped on
+  Filter/Settings/Report — there is nothing there to refresh, and `selectOverview()` would
+  replace the open screen. On the
   Settings slider, the same floor is enforced natively via the `<input type="range">`'s own
   `min` attribute, and a `#settingsWalkMinsFloorNote` appears whenever the slider sits at it.
 - **Relocating slides the map, not the circle.** A browse-anchor move is animated by
@@ -471,7 +514,7 @@ a different point on the map without moving the real GPS fix:
     lands slightly off the focus it is pinned to, which is a visible wobble on exactly the
     motion this exists to smooth.
   - **The new nearby set is held back until the map lands.** `nearbyRevealOpacity()` is 0 for the
-    duration of the slide and then fades the highlighted pins and the ambient route lines in over
+    duration of the slide and then fades the highlighted pins in over
     `NEARBY_REVEAL_MS` (180ms). Those belong to the destination, but the map underneath them is
     still travelling: drawing them straight away puts a fan of lines pinned to a stationary
     circle sweeping across moving terrain, with pins sliding under a marker that is not moving —
@@ -515,13 +558,22 @@ a different point on the map without moving the real GPS fix:
   `nearbyCameraFitPoints`, `maxNearbyHeadingUpScale`, `alignHeadingUpNavigationViewport`'s
   nearby branch), and the anchor marker. Everything else — the "You" dot, compass heading, bearing arrows, and distance/
   navigation for an actually-selected item — always reads `state.userLocation` directly and is
-  unaffected by browsing. Filter/Settings/Report always use the real GPS fix too (`origin =
-  secondaryScreenActive() ? state.userLocation : nearbyOrigin()`), so a lingering anchor from
-  the Nearby screen never leaks into those screens' fit or lists.
-- **Returning to the real location:** while a browse anchor is set, the overview heading shows
-  a "Showing places near where you tapped" notice with a **Use my location**
+  unaffected by browsing. Filter/Settings/Report read `nearbyOrigin()` like every other screen:
+  they draw the same ring around the same anchor, so scanning their lists and pins from the raw
+  GPS fix instead left the ring centred on the browsed spot while the matches inside it came
+  from wherever the user was actually standing.
+- **Returning to the real location:** while a browse anchor is set, `#nearbyAnchorBar` shows a
+  "Showing places near where you tapped" notice with a **Use my location**
   (`data-action="reset-nearby-anchor"`) button that clears `state.nearbyAnchor`
-  (`clearNearbyAnchor`) and re-renders/re-fits back to the real GPS fix.
+  (`clearNearbyAnchor`) and re-renders/re-fits back to the real GPS fix. The bar lives in the
+  inspector *chrome* (between the header and the tools row), not in the Nearby list's HTML, so
+  it survives the body swap that opening Filters, Settings or Report performs — all three keep
+  drawing the ring around the browsed spot behind them, and while the notice was part of the
+  list, opening any of them left the user browsing with nothing on screen offering to undo it.
+  `updateNearbyAnchorBar()` (js/nav.js) is called from `setInspectorSelectionChrome` (every
+  screen change routes through it), from `refreshNearbyRadiusView` (every anchor/radius change)
+  and from `focusNearbyOnMapPoint`'s exit-a-selection branch; it hides the bar only for a real
+  selection (`hasRealSelection`), which replaces the whole map view anyway.
 - **One camera origin (`cameraOriginPoint`, index.html).** The point the camera anchors at its
   focus, the point the scale fit measures its points from, the pivot the heading-up rotation
   turns about, and the pivot the 3D perspective projects around are all the same point:
@@ -627,7 +679,8 @@ bare records list:
 
 Filter, Settings, and Report share identical navigation behaviour, gated by the shared `secondaryScreenActive()` helper (`state.filterScreenOpen || state.selected?.type === "settings" || state.selected?.type === "report"`):
 
-- **Map canvas tap on open ground does not dismiss the screen, and does not move the browse anchor.** Only the Nearby button returns to overview. This is enforced in `handleMapClick` (the no-hit branch checks `secondaryScreenActive()` before calling `focusNearbyOnMapPoint`) and in the `hashchange` handler (same guard).
+- **Map canvas tap on open ground does not dismiss the screen**, but it *does* move the browse anchor, exactly as on Nearby. Only the Nearby button returns to overview (the `hashchange` handler keeps its `secondaryScreenActive()` guard for that reason). The "any tap beyond the ring relocates" rule is Nearby-only: these screens deliberately frame the map wider than the ring, so most of what is on screen is outside it.
+- **Everything that removes or adjusts the browse anchor works here too.** All three screens draw the same walking-radius ring around the same `nearbyOrigin()`, and it would be incoherent for the ring to be visible and un-editable: the `#nearbyAnchorBar` "Use my location" control is inspector chrome and stays on screen across all of them, pinch-to-resize the radius engages here, and `overviewItemsForActiveFilter()` reads `nearbyOrigin()` so the matches inside the ring come from the spot the ring is actually drawn around.
 - **Map icon set:** all three screens use `overviewItemsUnlimited()` to build the nearby icon lookup, showing all items regardless of walking radius. The walking-radius filter only applies in the standard Nearby/overview view.
 - **Camera fit is identical across all three screens.** All three use the same "survey mode" camera fit (see Survey mode under Camera Behavior below) — the walking-radius ring plus the nearest match for each selected filter, so the view zooms out past the ring far enough to show that each selected kind exists and which way it lies, even when every one of them is outside the walking radius. Opening any of the three screens (`openFiltersScreen`, `openSettings`, `openReportModal`) triggers this fit with a 420ms animation; GPS updates, resizes (e.g. the on-screen keyboard opening on the Report form), and heading-up compass rotation all keep re-fitting to the same target while any of the three screens is open, so switching between them never changes the view. `ensureOverviewTargetsVisible`, `keepOverviewCenteredOnUser`, and `centerOverviewOnUserLocation` all treat `secondaryScreenActive()` the same as plain overview mode rather than bailing out for the settings/report pseudo-selection. Because `nearestSelectedFilterPoints()` ignores the walking radius, this fit reaches filtered items beyond the radius, not just items within it.
 - **Full 3D tilt is available on all three screens**, exactly as on the nearby overview (see "3D tilt available on every screen" under Camera Behavior below) — the "identical view" invariant above covers pan/zoom framing only; the live tilt angle tracks phone orientation the same way it does everywhere else and is not held fixed across screen switches.
@@ -637,16 +690,22 @@ Filter, Settings, and Report share identical navigation behaviour, gated by the 
 - Hidden when in selected-detail mode
 - Toggle button shows active filter count badge
 
-Filter groups:
+Filter groups (defined by `FILTER_GROUPS` in `js/categories.js`, the single source of truth):
 
 | Group | Subfilters |
 |-------|-----------|
-| 🌿 Nature | Trees, Cows, Waymarked trails |
+| 🌿 Nature | Trees, Cows, Ponds & streams |
 | 🍽️ Food | Pubs & bars, Restaurants, Cafés, Shops |
-| 🚌 Transport | Bus stops, Underground, National Rail |
-| 📜 History | Historic places, Royal, WWII, Social history, Plaques, Blue plaques |
-| 📍 Locations | Celebrity, Science, Education, Medicine, Literature, Theatre, Politics, Art, Churches |
-| ✨ Stories | Legends, Film/TV |
+| 🚌 Transport | Bus stops, Underground, National Rail, Car parks |
+| 📜 History | Historic sites, Plaques, Monuments, WWII sites |
+| 📍 Locations | Churches, Education, Medical sites, Campsites |
+| ✨ Stories | Legends, Literature, Film & TV, Art |
+
+Which places a subfilter matches is decided by `matchesPlaceFilter(place, filterKey)` and its
+`is*Category` predicates, which live in `js/categories.js` alongside the group definitions
+themselves. They are pure functions of a normalised place — no state, no DOM — so the weekly
+report's map inventory (`scripts/report/map-inventory.js`, see `spec-weekly-report.md`) counts
+places using the app's own rules rather than a second copy of them that could drift.
 
 Behavior:
 - Multi-select within and across groups
@@ -659,7 +718,7 @@ Behavior:
 - Dropdown below nearest list
 - Options: 3, 5, 10, 15, 20, 25
 - Default: 10
-- Changing updates: list count, highlighted markers, route lines, camera fit
+- Changing updates: list count, highlighted markers, camera fit
 
 ---
 
@@ -693,7 +752,7 @@ Behavior:
   Pins/roads behind the user's heading cull the same way on every screen (see "Full 3D — hiding what's behind" below) — there is no screen-specific exception. On the filter/settings/feedback screens this means survey-mode zoom (below) frames the filtered items regardless of heading, but items currently behind the user still shrink/vanish from the canvas exactly as they do on the nearby overview and in navigation mode; turning to face them reveals them.
 - **Full 3D — hiding what's behind:** once tilt is active (`tiltActive()` true, i.e. full 3D), `isBehindTiltHeading(worldPoint)` tests whether a world point falls behind the user's current heading (`rotatedY > 0` after rotating into heading-up space, the same test used for the scale-fit exclusions above). This is a rendering-level cull, separate from the camera-fit exclusion: even a point close enough that the fit-scale change alone wouldn't push it off-screen is fully excluded from lines while tilt is active. It is applied to road and path lines in `drawRoads`/`drawPaths` via the shared `traceAheadOnlyPath()` helper, which breaks a polyline into a fresh `moveTo` whenever it crosses back into the ahead half rather than drawing a stray connecting stroke across the hidden gap; path name labels are skipped the same way. Tree/landmark/cow/waymarked-trail/water pins use a continuous companion, `tiltPinScale(worldPoint)`, instead of the hard cull: it returns a 0–1 size multiplier that eases from full size (well ahead) down to `TILT_PIN_COLLAPSE_MIN_SCALE` (0.3, well behind) across a `TILT_PIN_COLLAPSE_BAND_PX` (130px, converted to world units via `state.viewport.scale`) band straddling the same boundary, using a smoothstep ease. Pins are never fully removed from the draw call in `drawAllPinsSorted` — each cluster's icon size (and, for the emoji-fallback landmark case, its badge padding/border) is multiplied by this scale — so turning the heading reads as pins continuously growing/shrinking from their own anchor point rather than popping in and out, while collapsed pins stay small enough not to crowd the pins ahead. Unlike `isBehindTiltHeading`, this is gated on `headingUpActive()` and blended by `tiltInfluence()` — `clamp((state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD), 0, 1)` — rather than switched on at the `tiltActive()` threshold itself: gating on `tiltActive()` directly would let a currently-collapsed pin jump straight to full size the instant tilt deactivates while leaving 3D. `tiltInfluence()` instead ramps across the same active-tilt range as `tiltRotateXDeg()`/`tiltAnchorFraction()` — 0 at `TILT_BETA_THRESHOLD` (12°, where tilt itself first engages) to 1 at `TILT_BETA_MAX` (85°, max tilt) — so pins stay close to full size as tilt begins and only collapse toward minimum size near max tilt, rather than sitting at minimum size through nearly the entire active-tilt range and only growing back in the last few degrees before flattening to map mode. Because the ramp's lower bound coincides exactly with `tiltActive()`'s own threshold, a collapsed pin still eases continuously back to full size as beta drops through 12° and tilt deactivates, so leaving 3D never snaps. The selected navigation target (the one item you're actively walking to) and the route line to it are exempt — they must stay visible per the "selected destination must remain inside the visible map area" rule above, since hiding your actual destination when you walk past it would defeat navigation. The intent is that full 3D is a deliberate "look ahead" view: content behind is revealed by physically turning around (which updates `state.compassHeading` and rotates it into view) rather than by keeping a squashed/enlarged version visible at the bottom of the screen. Heading-up fits keep a 4% zoom buffer so highlighted points stay comfortably inside the visible area with extra draw room when the device rotates; while compass sensor events are still actively arriving, non-essential zoom changes are deferred and then applied once the heading settles, with a small strict-fit tolerance to ignore micro corrections. That deferral (`resolveHeadingUpTargetScale`) branches on whether the *previous* scale still fits within the raw (unbuffered) target: if it does, the correction eases in smoothly over about a second (`HEADING_UP_SCALE_EASE_RATE`) rather than snapping, since nothing is actually off-screen yet; if the previous scale now exceeds the raw target (something has genuinely gone off-screen -- e.g. a destination the phone just tilted away from), the correction applies at once instead, `force: true` bypassing both. The ease integrates real elapsed time between calls (`state.headingUpScaleEaseAt`), clamped per step to `HEADING_UP_SCALE_EASE_MAX_DT` (50ms) so one call never advances further than an ordinary frame would -- but a gap past `HEADING_UP_SCALE_EASE_STALE_MS` (500ms) is treated as genuinely stale (a backgrounded tab, or a screen the ease did not run on) and discards the elapsed time outright rather than integrating it as one large step. Gaps in between -- an occasional slow frame well short of that, e.g. from the tilt-aware fit's own per-frame projection math running while the phone is actively being re-tilted -- still advance the clock by the clamped amount and carry the remainder over onto the next call (a fixed-step accumulator) rather than being discarded like a stale gap would be; discarding every such frame outright used to freeze the ease indefinitely at whatever scale the last *urgent* (off-screen) correction had snapped to, reading as "it zooms out partway through a tilt gesture and never comes back." Explicit navigation events (e.g. `goToInitialView()` returning from the filter screen) pass `force: true` through `ensureOverviewTargetsVisible` → `alignHeadingUpNavigationViewport` → `resolveHeadingUpTargetScale` to bypass this deferral and update the zoom immediately. On first activation an entry animation rotates from north-up to the current heading over 500 ms, driven by the same `headingUpEntryAnim` mechanism. Drag, zoom, resize, compass changes, and nearby filter changes all re-fit the overview targets via `alignHeadingUpNavigationViewport()` / `ensureOverviewTargetsVisible()`. The `headingUpActive()` helper returns true for either selected-navigation or nearby heading-up and is the single check used in the compass smoothing tick and CSS delta rotation path. The user radar cone points toward the top of the screen in both heading-up modes. Tree, landmark, and cow pins are drawn on `#overlayCanvas` (not `#mapCanvas`) so they remain at their correct geographic positions on screen.
 - **Initial selection zoom:** waits for the inspector CSS transition to settle, then runs a single 600 ms `animateToHeadingUpNavigationViewport` (when compass is active) or `ensureUserAndSelectionVisible` (without compass) — never double-stepping. There is no secondary viewport snap after the animation.
-- **Overview mode GPS follow (all cases, including all three secondary screens):** `ensureOverviewTargetsVisible` (via `keepOverviewCenteredOnUser`) is called whenever the user moves ≥ 24 px on screen or any target point goes off-screen. It re-fits `nearbyCameraFitPoints()` so the walking-radius circle (plus any survey-mode filter points) fills the visible map area above the inspector, using a tighter `padding: 28` (CSS px) vs the default 54 to reduce wasted space at the screen edges. Animation fires only on large movements (≥ 200 px on screen); sub-threshold updates are instant to avoid visual jitter. The fit never zooms out beyond `baseFitScale` (initial forest-level scale). If there is no circle to frame (no origin, or a zero radius), the camera pans to keep the user centred without changing zoom. `ensureOverviewTargetsVisible`, `keepOverviewCenteredOnUser`, and `centerOverviewOnUserLocation` bail out only for a real tree/landmark/cow/path/water selection — they treat the Filter/Settings/Report pseudo-selections the same as plain overview mode via `secondaryScreenActive()`, so GPS-triggered re-centering keeps running on all three secondary screens rather than freezing the camera at whatever it showed before the screen opened.
+- **Overview mode GPS follow (all cases, including all three secondary screens):** `ensureOverviewTargetsVisible` (via `keepOverviewCenteredOnUser`) is called whenever the user moves ≥ 24 px on screen or any target point goes off-screen. It re-fits `nearbyCameraFitPoints()` so the walking-radius circle (plus any survey-mode filter points) fills the visible map area above the inspector, using a tighter `padding: 28` (CSS px) vs the default 54 to reduce wasted space at the screen edges. Every correction is animated — 620 ms for large movements (≥ 200 px on screen), 300 ms below that. Sub-threshold corrections used to be applied instantly on the grounds that animating them caused jitter, but a 24–200 px jump landing on each GPS fix *is* the jitter: the map visibly ticked sideways once a second while walking. Consecutive fixes no longer stack, because a re-request of an unchanged target leaves the running ease alone (see "Animations" below). The fit never zooms out beyond `baseFitScale` (initial forest-level scale). If there is no circle to frame (no origin, or a zero radius), the camera pans to keep the user centred without changing zoom. `ensureOverviewTargetsVisible`, `keepOverviewCenteredOnUser`, and `centerOverviewOnUserLocation` bail out only for a real tree/landmark/cow/path/water selection — they treat the Filter/Settings/Report pseudo-selections the same as plain overview mode via `secondaryScreenActive()`, so GPS-triggered re-centering keeps running on all three secondary screens rather than freezing the camera at whatever it showed before the screen opened.
 - **Resize events in overview mode or any secondary screen:** when the viewport resizes (keyboard, orientation, inspector animation) and user location is available, `ensureOverviewTargetsVisible` is called with `animate: false` so the fit is recalculated for the new canvas size without snapping to `fitToBounds` (full-forest zoom). This also covers the Report screen's on-screen keyboard opening — previously this fell through to a full-forest `fitToBounds` snap because the resize handler only checked `isOverviewScreenActive()`; it now also checks `secondaryScreenActive()`.
 - **First location fix / loading reveal:** the map snaps onto the walking-radius circle (`maxScaleForRadiusVisible`, at 0.82x so the reveal eases outward-to-inward rather than starting on the final frame) while the overlay is still visible, then after the 320 ms pause runs the animated reveal. Snapping to the same thing the live Nearby view frames is what stops the reveal beginning on a tight fit of whichever items happened to be nearest and then pulling back out to the circle. If a URL hash selected an item, `applySelectionFromHash()` fires first and the animation uses `ensureUserAndSelectionVisible` (user + item fill screen). Otherwise the animation uses `ensureOverviewTargetsVisible` with fresh GPS points (not the pre-pause snapshot) so a mid-pause GPS update never causes a visible zoom-out during the reveal.
 - **Camera fit target (`nearbyCameraFitPoints`):** the single source of what the overview camera frames, shared by `alignHeadingUpNavigationViewport`, `ensureOverviewTargetsVisible` and `keepOverviewCenteredOnUser`'s off-screen check (so the camera and the "has the view drifted" test can never disagree and re-fit each other in a loop). Two modes:
@@ -703,12 +762,17 @@ Behavior:
 - **GPS-triggered refit during animation:** `keepOverviewCenteredOnUser` skips the off-screen check (`anyOffscreen`) while a programmatic viewport animation is in progress (`state.viewportAnimationFrame != null`). This prevents GPS updates from interrupting smooth transitions (e.g. the loading reveal or back-to-overview zoom) by snapping mid-animation.
 - **Minimized inspector:** auto-reposition paused — free pan/zoom
 - **Expand from minimized:** recenter once to user + selected target, preserve zoom intent
+- **Manual camera override (`state.manualCameraOverrideFor`):** the auto-reposition follow is a correction, never a lock. The first drag or wheel-zoom made while a location is selected and the inspector is expanded records the *current selection object* in `state.manualCameraOverrideFor` (`markManualCameraOverride`) and then pans/zooms normally; while that record still matches `state.selected` (`manualCameraOverrideActive()`), `shouldAutoRepositionSelection()` returns false and unforced `ensureUserAndSelectionVisible` calls — which is what the `watchPosition` handler makes on every fix — return without touching the viewport. Keying on the selection rather than a flag means picking a different location hands the camera straight back with nothing to reset; it is additionally cleared (`clearManualCameraOverride`) by any `force: true` fit, by expanding the inspector from minimized (the one sanctioned re-frame, above), and by `goToInitialView()`. Heading-up modes never set it: they genuinely do pin the viewport to a fitted target, so there is no manual position to preserve. Without this the fit was re-run on every `pointermove` and every GPS fix, and since the fit was already satisfied the map could not be dragged or zoomed anywhere at all while a selection was open.
 
 ### Animations
 
 - GPS-triggered navigation follow uses 800 ms cubic ease-in-out so consecutive position updates blend without visible restarts.
 - Overview repositioning uses 360–620 ms depending on distance moved.
 - View transitions animate with configurable duration; all state-change transitions produce exactly one smooth animation with no intermediate jumps.
+- **One ease per destination (`viewportAnimationAlreadyHeadedTo`):** `animateViewportTo` returns without doing anything when an animation is already in flight toward effectively the same viewport — within 0.5% on scale and 6 device px on `tx`/`ty`. The repeat callers (the GPS watch, the compass tick, the inspector resize drag) re-request their fit many times a second while the target itself barely moves; restarting the ease each time made the camera decelerate toward the end of every ease and then accelerate again from zero, so the motion arrived in visible steps rather than gliding. A genuinely different target still cancels and replaces the running animation as before.
+- **Inspector resize drag:** while the drag handle is held, each frame re-frames the camera instantly (`recentMapForInspectorChange({ animate: false })`), and a single 240 ms animated settle runs on release — the same live/settle split the walking-radius slider and pinch gesture use. Requesting a fresh 180 ms animation per frame instead meant no ease ever got more than a few milliseconds in before the next one cancelled it. `pointercancel` on the handle settles identically to `pointerup`, so an interrupted resize still ends with the camera eased into place.
+- **Waiting for the inspector to settle (`onInspectorHeightTransitionEnd`, `js/inspector.js`):** callers that must measure the panel after it finishes growing/shrinking (`zoomToSelection`, `goToInitialView`) listen for `transitionend` filtered to `event.target === els.inspector && event.propertyName === "max-height"`, with the existing `INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS` fallback. `transitionend` bubbles and the panel is full of descendants with shorter transitions of their own (row backgrounds 120 ms, drag handle 40 ms, nearest-item reorder 150 ms), so an unfiltered one-shot listener routinely fired *before* the 180 ms height transition it was waiting for and the camera then framed the map against a footprint that no longer existed.
+- **Screen transition ghost (`setInspectorSelectionChrome`):** the outgoing screen is cloned for the slide-out, and every `id` attribute is stripped from the clone. `#inspectorTitle`, `#inspectorBody` and friends live inside `.inspector-screen`, so leaving them on the ghost put duplicate ids in the live DOM for the 310 ms of the animation, and any `getElementById`/`#id` lookup running during a transition could answer with the frozen outgoing copy. The ghost is `aria-hidden` and `pointer-events: none`; nothing addresses it.
 - Entering heading-up mode: `renderedNavigationHeading` is eased from 0° toward `state.compassHeading` over the same 600 ms duration as the viewport animation. Each canvas draw reflects the intermediate heading, so pins always point downward throughout.
 - `animateToHeadingUpNavigationViewport(durationMs)` is the single authoritative function for transitioning to heading-up view — it starts the viewport animation while heading interpolation is redrawn frame-by-frame on canvas.
 - `setInspectorMinimized(true)` no longer makes any direct viewport change; the caller (`zoomToSelection`, `goToInitialView`, etc.) is responsible for the camera transition after the inspector settles.
@@ -717,15 +781,16 @@ Behavior:
 
 ## Zoom & Input
 
+- **Pointer lifecycle robustness (`js/nav.js`):** `setPointerCapture`/`releasePointerCapture` are always called through `capturePointerSafely`/`releasePointerSafely`, which swallow the `NotFoundError` the browser raises for a pointer it has already finished with. An uncaught throw there aborted the rest of the `pointerup` handler, leaving `state.dragging` true and the lifted finger still in `state.activePointers` — after which the map ignored every subsequent gesture until the page was reloaded. The canvas also handles `lostpointercapture`, tearing the gesture down the same way `pointercancel` does, because the browser can take a captured pointer away (a system edge gesture claiming the touch, the tab backgrounding mid-drag) without ever sending `pointerup` or `pointercancel`.
 - Browser/page pinch zoom disabled
 - Ctrl+wheel zoom disabled at document level
 - Map zoom via: map interactions only (wheel/drag) — there is no on-screen zoom control in the main map UI
 - Touch double-tap zoom prevented
 - **Two-finger pinch on the map canvas is repurposed** (rather than left inert once native
-  pinch-zoom is disabled): while the plain Nearby overview is active it resizes the walking
-  radius instead of the map scale directly — see "Browsing Another Spot" under Inspector Panel
-  above. Outside the Nearby overview a second touch point is still just ignored, same as
-  before this feature existed.
+  pinch-zoom is disabled): on any screen that draws the walking radius — Nearby, Filters,
+  Settings, Report — it resizes that radius instead of the map scale directly, see "Browsing
+  Another Spot" under Inspector Panel above. Over a real selection a second touch point is still
+  just ignored, same as before this feature existed.
 
 ---
 

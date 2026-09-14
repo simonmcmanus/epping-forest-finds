@@ -432,3 +432,240 @@ function filterKindColor(kind) {
     default: return "rgba(118, 112, 47, 0.85)";
   }
 }
+
+// --- Place classification ---
+// Pure predicates mapping a normalised place onto the app's filter
+// subfilters. They live here, not in index.html, so the map, the
+// inspector and the weekly report's map inventory (scripts/report/
+// map-inventory.js) all classify a place exactly the same way.
+
+const UNDERGROUND_STATION_NAMES = new Set([
+  "aldgate",
+  "aldgate east",
+  "angel",
+  "arsenal",
+  "barkingside",
+  "bethnal green",
+  "blackhorse road",
+  "buckhurst hill",
+  "chigwell",
+  "debden",
+  "epping",
+  "fairlop",
+  "gants hill",
+  "grange hill",
+  "hainault",
+  "leyton",
+  "leytonstone",
+  "loughton",
+  "mile end",
+  "newbury park",
+  "north acton",
+  "perivale",
+  "queensway",
+  "redbridge",
+  "roding valley",
+  "snaresbrook",
+  "south woodford",
+  "theydon bois",
+  "wanstead",
+  "west acton",
+  "white city",
+  "woodford",
+]);
+
+function isPubCategory(place) {
+  return ["pub", "bar"].includes(place.category);
+}
+
+function isRestaurantCategory(place) {
+  return place.category === "restaurant";
+}
+
+function isCafeCategory(place) {
+  return ["cafe", "tea"].includes(place.category);
+}
+
+function isShopCategory(place) {
+  const shopTypes = ["convenience", "supermarket", "grocery", "general", "greengrocer", "butcher", "bakery", "deli", "farm", "pastry", "kiosk", "confectionery"];
+  return shopTypes.includes(place.category)
+    || (place.shop && shopTypes.includes(place.shop))
+    || hasPlaceTag(place, "shop");
+}
+
+function isBusCategory(place) {
+  return ["bus_station", "bus_stop"].includes(place.category);
+}
+
+function isTrainCategory(place) {
+  return ["train_station", "station", "halt", "tram_stop"].includes(place.category);
+}
+
+function normalizePlaceName(place) {
+  return String((place && place.name) || "").trim().toLowerCase();
+}
+
+function isUndergroundCategory(place) {
+  const name = normalizePlaceName(place);
+  if (name.includes("underground") || name.includes("tube")) return true;
+  if (!isTrainCategory(place)) return false;
+  return name.length > 0 && UNDERGROUND_STATION_NAMES.has(name);
+}
+
+function isNationalRailCategory(place) {
+  return isTrainCategory(place) && !isUndergroundCategory(place);
+}
+
+function isParkingCategory(place) {
+  return place.category === "parking";
+}
+
+function isTransportCategory(place) {
+  return isBusCategory(place) || isTrainCategory(place) || place.category === "taxi" || isParkingCategory(place);
+}
+
+function isPlaqueCategory(place) {
+  return place && (place.folkloreCategory === "plaque" || place.category === "plaque") && !isBluePlaqueCategory(place);
+}
+
+function hasFolkloreTopic(place, topic) {
+  return place
+    && Array.isArray(place.folkloreTopics)
+    && place.folkloreTopics.includes(topic);
+}
+
+function isBluePlaqueCategory(place) {
+  return hasFolkloreTopic(place, "blue_plaque");
+}
+
+function isFilmTvCategory(place) {
+  return hasFolkloreTopic(place, "film_tv");
+}
+
+function isWw2Category(place) {
+  return hasFolkloreTopic(place, "ww2");
+}
+
+function isRoyalCategory(place) {
+  return hasFolkloreTopic(place, "royal");
+}
+
+function isHistoryCategory(place) {
+  return Boolean(place) && (
+    place.folkloreCategory === "history"
+    || place.category === "history"
+    || ["historic", "memorial", "monument", "archaeological_site", "ruins", "castle", "boundary_stone", "roman_road", "museum", "folly"].includes(place.category)
+    || hasPlaceTag(place, "historic_site")
+    || hasPlaceTag(place, "war_history")
+    || hasPlaceTag(place, "local_history")
+    || hasPlaceTag(place, "royal_history")
+  );
+}
+
+function isSocialHistoryCategory(place) {
+  return hasFolkloreTopic(place, "social_history")
+    || hasPlaceTag(place, "social_history")
+    || hasPlaceTag(place, "victorian_history")
+    || hasPlaceTag(place, "public_access")
+    || hasPlaceTag(place, "public_health")
+    || hasPlaceTag(place, "recreation")
+    || hasPlaceTag(place, "historic_building");
+}
+
+function isLegendCategory(place) {
+  return Boolean(place) && (
+    place.folkloreCategory === "legend"
+    || place.category === "legend"
+    || hasPlaceTag(place, "local_legend")
+    || hasPlaceTag(place, "folklore")
+    || hasPlaceTag(place, "ghost_story")
+    || hasPlaceTag(place, "paranormal")
+  );
+}
+
+function isCelebrityAssociationCategory(place) {
+  return hasPlaceTag(place, "celebrity_association");
+}
+
+function isScienceCategory(place) {
+  return hasPlaceTag(place, "science")
+    || hasPlaceTag(place, "natural_history")
+    || hasPlaceTag(place, "ecology");
+}
+
+function isEducationCategory(place) {
+  return hasPlaceTag(place, "education")
+    || hasPlaceTag(place, "school_connection")
+    || hasPlaceTag(place, "public_institution");
+}
+
+function isMedicineCategory(place) {
+  return hasPlaceTag(place, "medicine") || hasPlaceTag(place, "public_health");
+}
+
+function isLiteratureCategory(place) {
+  return hasPlaceTag(place, "literature") || hasPlaceTag(place, "poetry");
+}
+
+function isTheatreCategory(place) {
+  return hasPlaceTag(place, "theatre");
+}
+
+function isPoliticsCategory(place) {
+  return hasPlaceTag(place, "politics") || hasPlaceTag(place, "legal_history");
+}
+
+function isArtCategory(place) {
+  return hasPlaceTag(place, "art") || hasPlaceTag(place, "music");
+}
+
+function isChurchCategory(place) {
+  return place?.category === "place_of_worship"
+    || hasPlaceTag(place, "church")
+    || hasPlaceTag(place, "church_history");
+}
+
+function matchesPlaceFilter(place, filterKey) {
+  switch (filterKey) {
+    case "pubs": return isPubCategory(place);
+    case "restaurants": return isRestaurantCategory(place);
+    case "cafes": return isCafeCategory(place);
+    case "shops": return isShopCategory(place);
+    case "bus": return isBusCategory(place);
+    case "underground": return isUndergroundCategory(place);
+    case "national_rail": return isNationalRailCategory(place);
+    case "parking": return isParkingCategory(place);
+    case "plaques": return isPlaqueCategory(place);
+    case "blue_plaques": return isBluePlaqueCategory(place);
+    case "film_tv": return isFilmTvCategory(place);
+    case "ww2": return isWw2Category(place);
+    case "royal": return isRoyalCategory(place);
+    case "history_general":
+      return isHistoryCategory(place)
+        && !isRoyalCategory(place)
+        && !isWw2Category(place)
+        && !isSocialHistoryCategory(place)
+        && !isPlaqueCategory(place)
+        && !isBluePlaqueCategory(place);
+    case "social_history": return isSocialHistoryCategory(place);
+    case "celebrity_association": return isCelebrityAssociationCategory(place);
+    case "science": return isScienceCategory(place);
+    case "education": return isEducationCategory(place);
+    case "medicine": return isMedicineCategory(place);
+    case "literature": return isLiteratureCategory(place);
+    case "theatre": return isTheatreCategory(place);
+    case "politics": return isPoliticsCategory(place);
+    case "art": return isArtCategory(place);
+    case "church": return isChurchCategory(place);
+    case "legends": return isLegendCategory(place);
+    default: return false;
+  }
+}
+
+function getTransportType(place) {
+  if (isUndergroundCategory(place)) return "underground";
+  if (isNationalRailCategory(place)) return "national_rail";
+  if (isBusCategory(place)) return "bus";
+  if (isParkingCategory(place)) return "parking";
+  return "other";
+}

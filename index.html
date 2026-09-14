@@ -153,6 +153,13 @@
         <div class="inspector-header">
           <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back to nearest locations" hidden><svg class="app-icon nav-icon" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14 4 7 11 14 18"/></svg></button>
         </div>
+        <!-- Lives in the inspector chrome rather than in the Nearby list's own HTML so the way
+             back from a browsed spot survives every screen that still draws the walking-radius
+             circle behind it (Nearby, Filters, Settings, Report) -- see updateNearbyAnchorBar. -->
+        <div id="nearbyAnchorBar" class="nearby-anchor-bar" role="status" hidden>
+          <span class="nearby-anchor-bar-text">Showing places near where you tapped</span>
+          <button class="walk-chip walk-chip-btn" type="button" data-action="reset-nearby-anchor">Use my location</button>
+        </div>
         <div class="inspector-tools">
           <div id="treeSearchPanel" class="search-panel" hidden>
             <input id="treeSearchInput" class="search-number" type="search" inputmode="text" autocomplete="off" placeholder="Search tree number" aria-label="Search by tree number">
@@ -327,40 +334,6 @@
         return "unknown";
       }
     })();
-    const UNDERGROUND_STATION_NAMES = new Set([
-      "aldgate",
-      "aldgate east",
-      "angel",
-      "arsenal",
-      "barkingside",
-      "bethnal green",
-      "blackhorse road",
-      "buckhurst hill",
-      "chigwell",
-      "debden",
-      "epping",
-      "fairlop",
-      "gants hill",
-      "grange hill",
-      "hainault",
-      "leyton",
-      "leytonstone",
-      "loughton",
-      "mile end",
-      "newbury park",
-      "north acton",
-      "perivale",
-      "queensway",
-      "redbridge",
-      "roding valley",
-      "snaresbrook",
-      "south woodford",
-      "theydon bois",
-      "wanstead",
-      "west acton",
-      "white city",
-      "woodford",
-    ]);
     // Filter groups, tag functions, and display mappings live in js/categories.js
 
     const state = {
@@ -392,6 +365,14 @@
       pinchBaseDistance: null,
       pinchBaseMinutes: null,
       multiTouchOccurred: false,
+      // The selection (by object identity) whose camera the user has taken over by panning or
+      // zooming by hand. While it matches state.selected, the GPS-driven "keep user + target
+      // framed" follow stands down -- see shouldAutoRepositionSelection(). Without it the
+      // follow re-fitted the camera on every pointermove and every GPS fix, so a selected
+      // location's map could not be dragged anywhere at all. Keyed on the selection rather
+      // than held as a flag so picking a different location hands the camera straight back,
+      // with nothing to remember to reset.
+      manualCameraOverrideFor: null,
       userInMapArea: false,
       nearestTree: null,
       nearestCow: null,
@@ -534,6 +515,7 @@
       inspectorBody: document.getElementById("inspectorBody"),
       inspectorTools: document.querySelector(".inspector-tools"),
       inspectorHeader: document.querySelector(".inspector-header"),
+      nearbyAnchorBar: document.getElementById("nearbyAnchorBar"),
       closeInspector: document.getElementById("closeInspector"),
       treeSearchToggle: document.getElementById("treeSearchToggle"),
       treeSearchPanel: document.getElementById("treeSearchPanel"),
@@ -1078,8 +1060,32 @@
       state.viewportAnimationDuration = 0;
     }
 
+    // How close a newly-requested animation target has to be to the one already in flight to be
+    // treated as the same destination. Scale is compared as a ratio (0.5%), position in device
+    // pixels -- both well below what reads as a different framing on screen.
+    const VIEWPORT_ANIMATION_SAME_TARGET_SCALE_RATIO = 0.005;
+    const VIEWPORT_ANIMATION_SAME_TARGET_PX = 6;
+
+    // True when an animation is already running toward effectively this same viewport.
+    // The repeat callers here -- the GPS watch, the compass tick, the inspector resize drag --
+    // all re-request their fit many times a second while the target itself barely moves. Each
+    // request used to cancel the running ease and start a fresh one from the current position,
+    // so the camera decelerated toward the end of every ease and then accelerated again from
+    // zero: the motion arrived in visible steps instead of gliding. Cancelling here collapses
+    // any pile-up back to the single smooth animation the spec asks for ("all state-change
+    // transitions produce exactly one smooth animation with no intermediate jumps").
+    function viewportAnimationAlreadyHeadedTo(targetViewport) {
+      const inFlight = state.viewportAnimationTo;
+      if (!inFlight || state.viewportAnimationFrame == null) return false;
+      const scaleRatio = Math.abs(inFlight.scale - targetViewport.scale) / Math.max(inFlight.scale, 0.000001);
+      return scaleRatio < VIEWPORT_ANIMATION_SAME_TARGET_SCALE_RATIO
+        && Math.abs(inFlight.tx - targetViewport.tx) < VIEWPORT_ANIMATION_SAME_TARGET_PX
+        && Math.abs(inFlight.ty - targetViewport.ty) < VIEWPORT_ANIMATION_SAME_TARGET_PX;
+    }
+
     function animateViewportTo(targetViewport, durationMs) {
       const safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
+      if (viewportAnimationAlreadyHeadedTo(targetViewport)) return;
       stopViewportAnimation();
 
       const from = {
@@ -1232,10 +1238,11 @@
         requestDraw();
         return;
       }
-      if (shouldAutoRepositionSelection()) {
-        ensureUserAndSelectionVisible({ animate: true, durationMs: 320 });
-        return;
-      }
+      // A selection's auto-reposition is not a lock (unlike heading-up above): wheel/trackpad
+      // zoom is an explicit request, so take the camera over and apply it. Re-running the fit
+      // here instead -- as this used to -- meant the wheel did nothing at all whenever a
+      // location was selected with the inspector open, since the fit is already satisfied.
+      if (shouldAutoRepositionSelection()) markManualCameraOverride();
       const before = screenToWorld(screenPoint.x, screenPoint.y);
       state.viewport.scale = clamp(state.viewport.scale * factor, state.fitScale * 0.65, state.fitScale * 220);
       state.viewport.tx = screenPoint.x - before.x * state.viewport.scale;
@@ -1994,202 +2001,6 @@
       return isSubfilterActive(layerKey);
     }
 
-    function isPubCategory(place) {
-      return ["pub", "bar"].includes(place.category);
-    }
-
-    function isRestaurantCategory(place) {
-      return place.category === "restaurant";
-    }
-
-    function isCafeCategory(place) {
-      return ["cafe", "tea"].includes(place.category);
-    }
-
-    function isShopCategory(place) {
-      const shopTypes = ["convenience", "supermarket", "grocery", "general", "greengrocer", "butcher", "bakery", "deli", "farm", "pastry", "kiosk", "confectionery"];
-      return shopTypes.includes(place.category)
-        || (place.shop && shopTypes.includes(place.shop))
-        || hasPlaceTag(place, "shop");
-    }
-
-    function isBusCategory(place) {
-      return ["bus_station", "bus_stop"].includes(place.category);
-    }
-
-    function isTrainCategory(place) {
-      return ["train_station", "station", "halt", "tram_stop"].includes(place.category);
-    }
-
-    function normalizePlaceName(place) {
-      return String((place && place.name) || "").trim().toLowerCase();
-    }
-
-    function isUndergroundCategory(place) {
-      const name = normalizePlaceName(place);
-      if (name.includes("underground") || name.includes("tube")) return true;
-      if (!isTrainCategory(place)) return false;
-      return name.length > 0 && UNDERGROUND_STATION_NAMES.has(name);
-    }
-
-    function isNationalRailCategory(place) {
-      return isTrainCategory(place) && !isUndergroundCategory(place);
-    }
-
-    function isParkingCategory(place) {
-      return place.category === "parking";
-    }
-
-    function isTransportCategory(place) {
-      return isBusCategory(place) || isTrainCategory(place) || place.category === "taxi" || isParkingCategory(place);
-    }
-
-    function isPlaqueCategory(place) {
-      return place && (place.folkloreCategory === "plaque" || place.category === "plaque") && !isBluePlaqueCategory(place);
-    }
-
-    function hasFolkloreTopic(place, topic) {
-      return place
-        && Array.isArray(place.folkloreTopics)
-        && place.folkloreTopics.includes(topic);
-    }
-
-    function isBluePlaqueCategory(place) {
-      return hasFolkloreTopic(place, "blue_plaque");
-    }
-
-    function isFilmTvCategory(place) {
-      return hasFolkloreTopic(place, "film_tv");
-    }
-
-    function isWw2Category(place) {
-      return hasFolkloreTopic(place, "ww2");
-    }
-
-    function isRoyalCategory(place) {
-      return hasFolkloreTopic(place, "royal");
-    }
-
-    function isHistoryCategory(place) {
-      return Boolean(place) && (
-        place.folkloreCategory === "history"
-        || place.category === "history"
-        || ["historic", "memorial", "monument", "archaeological_site", "ruins", "castle", "boundary_stone", "roman_road", "museum", "folly"].includes(place.category)
-        || hasPlaceTag(place, "historic_site")
-        || hasPlaceTag(place, "war_history")
-        || hasPlaceTag(place, "local_history")
-        || hasPlaceTag(place, "royal_history")
-      );
-    }
-
-    function isSocialHistoryCategory(place) {
-      return hasFolkloreTopic(place, "social_history")
-        || hasPlaceTag(place, "social_history")
-        || hasPlaceTag(place, "victorian_history")
-        || hasPlaceTag(place, "public_access")
-        || hasPlaceTag(place, "public_health")
-        || hasPlaceTag(place, "recreation")
-        || hasPlaceTag(place, "historic_building");
-    }
-
-    function isLegendCategory(place) {
-      return Boolean(place) && (
-        place.folkloreCategory === "legend"
-        || place.category === "legend"
-        || hasPlaceTag(place, "local_legend")
-        || hasPlaceTag(place, "folklore")
-        || hasPlaceTag(place, "ghost_story")
-        || hasPlaceTag(place, "paranormal")
-      );
-    }
-
-    function isCelebrityAssociationCategory(place) {
-      return hasPlaceTag(place, "celebrity_association");
-    }
-
-    function isScienceCategory(place) {
-      return hasPlaceTag(place, "science")
-        || hasPlaceTag(place, "natural_history")
-        || hasPlaceTag(place, "ecology");
-    }
-
-    function isEducationCategory(place) {
-      return hasPlaceTag(place, "education")
-        || hasPlaceTag(place, "school_connection")
-        || hasPlaceTag(place, "public_institution");
-    }
-
-    function isMedicineCategory(place) {
-      return hasPlaceTag(place, "medicine") || hasPlaceTag(place, "public_health");
-    }
-
-    function isLiteratureCategory(place) {
-      return hasPlaceTag(place, "literature") || hasPlaceTag(place, "poetry");
-    }
-
-    function isTheatreCategory(place) {
-      return hasPlaceTag(place, "theatre");
-    }
-
-    function isPoliticsCategory(place) {
-      return hasPlaceTag(place, "politics") || hasPlaceTag(place, "legal_history");
-    }
-
-    function isArtCategory(place) {
-      return hasPlaceTag(place, "art") || hasPlaceTag(place, "music");
-    }
-
-    function isChurchCategory(place) {
-      return place?.category === "place_of_worship"
-        || hasPlaceTag(place, "church")
-        || hasPlaceTag(place, "church_history");
-    }
-
-    function matchesPlaceFilter(place, filterKey) {
-      switch (filterKey) {
-        case "pubs": return isPubCategory(place);
-        case "restaurants": return isRestaurantCategory(place);
-        case "cafes": return isCafeCategory(place);
-        case "shops": return isShopCategory(place);
-        case "bus": return isBusCategory(place);
-        case "underground": return isUndergroundCategory(place);
-        case "national_rail": return isNationalRailCategory(place);
-        case "parking": return isParkingCategory(place);
-        case "plaques": return isPlaqueCategory(place);
-        case "blue_plaques": return isBluePlaqueCategory(place);
-        case "film_tv": return isFilmTvCategory(place);
-        case "ww2": return isWw2Category(place);
-        case "royal": return isRoyalCategory(place);
-        case "history_general":
-          return isHistoryCategory(place)
-            && !isRoyalCategory(place)
-            && !isWw2Category(place)
-            && !isSocialHistoryCategory(place)
-            && !isPlaqueCategory(place)
-            && !isBluePlaqueCategory(place);
-        case "social_history": return isSocialHistoryCategory(place);
-        case "celebrity_association": return isCelebrityAssociationCategory(place);
-        case "science": return isScienceCategory(place);
-        case "education": return isEducationCategory(place);
-        case "medicine": return isMedicineCategory(place);
-        case "literature": return isLiteratureCategory(place);
-        case "theatre": return isTheatreCategory(place);
-        case "politics": return isPoliticsCategory(place);
-        case "art": return isArtCategory(place);
-        case "church": return isChurchCategory(place);
-        case "legends": return isLegendCategory(place);
-        default: return false;
-      }
-    }
-
-    function getTransportType(place) {
-      if (isUndergroundCategory(place)) return "underground";
-      if (isNationalRailCategory(place)) return "national_rail";
-      if (isBusCategory(place)) return "bus";
-      if (isParkingCategory(place)) return "parking";
-      return "other";
-    }
-
     function isTreeVisibleForFilter() {
       return state.overviewFilters.length === 0 || isSubfilterActive("trees");
     }
@@ -2336,10 +2147,13 @@
     }
 
     function overviewItemsForActiveFilter() {
-      // Real GPS during Filter/Settings/Report (pseudo-selections also draw these entries as
-      // overview routes -- see hasRealSelection()/drawOverviewRoutes); the browse anchor only
-      // applies to the plain Nearby overview.
-      const origin = secondaryScreenActive() ? state.userLocation : nearbyOrigin();
+      // nearbyOrigin() everywhere, Filter/Settings/Report included: those screens draw the
+      // walking-radius ring around the browse anchor like the Nearby screen does, and the anchor
+      // can now be moved, reset and resized from them (updateNearbyAnchorBar/startNearbyRadius-
+      // Pinch, js/nav.js). Reading the raw GPS fix here instead left the ring centred on the
+      // browsed spot while the matches inside it were still scanned from wherever the user
+      // actually stood. With no anchor set -- the usual case -- this is the GPS fix as before.
+      const origin = nearbyOrigin();
       if (!origin) return [];
       const { latitude, longitude } = origin;
 
@@ -2481,12 +2295,9 @@
         return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
       }
 
-      // Browsing another spot (see nearbyOrigin/setNearbyAnchor in js/nav.js): the real GPS
-      // dot doesn't move, so surface an explicit way back rather than leaving the user to
-      // guess why the list and radius no longer match where they're actually standing.
-      const anchorNotice = state.nearbyAnchor
-        ? `<p class="source-note">Showing places near where you tapped. <button class="walk-chip walk-chip-btn" type="button" data-action="reset-nearby-anchor">Use my location</button></p>`
-        : "";
+      // The "showing places near where you tapped / use my location" notice is no longer part of
+      // this list -- it is the persistent #nearbyAnchorBar in the inspector chrome, so it stays
+      // reachable from Filters/Settings/Report too (updateNearbyAnchorBar, js/nav.js).
 
       // Set by the pinch-to-resize gesture (updateNearbyRadiusPinch, js/nav.js) while the user
       // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
@@ -2503,13 +2314,13 @@
       const activePointFilters = getActivePointFilterKeys();
       if (!allEntries.length) {
         if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
-          return `${anchorNotice}<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
+          return `<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
         }
         if (activePointFilters.length === 1) {
           const meta = filterMeta(activePointFilters[0]);
-          return `${anchorNotice}<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
+          return `<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
         }
-        return `${anchorNotice}<p class="empty">No nearby places found.</p>`;
+        return `<p class="empty">No nearby places found.</p>`;
       }
 
       const heading = activePointFilters.length === 1
@@ -2557,7 +2368,7 @@
         : `Showing all distances — tap to filter to ${formatWalkingMinutes(state.walkingDistanceMinutes)} min walk`;
       const chipLabel = radiusActive ? `${formatWalkingMinutes(state.walkingDistanceMinutes)} min` : "All";
       const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
-      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${anchorNotice}${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+      return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
 
     function landmarkEmoji(place) {
@@ -4424,8 +4235,34 @@
       return true;
     }
 
+    // True while the camera should keep re-framing the user and the selected target on its own
+    // (GPS follow, resize). Deliberately false once the user has moved the camera by hand: per
+    // spec "Expand from minimized: recenter *once*", the follow is a correction, not a lock.
+    // It used to have no such escape hatch, so with a selection open and the inspector expanded
+    // the map simply could not be panned or zoomed -- every gesture was answered by an
+    // immediate re-fit back to where it started.
     function shouldAutoRepositionSelection() {
+      if (manualCameraOverrideActive()) return false;
       return Boolean(state.userLocation && selectedCompassTarget() && !els.inspector.classList.contains("minimized"));
+    }
+
+    function manualCameraOverrideActive() {
+      return Boolean(state.selected) && state.manualCameraOverrideFor === state.selected;
+    }
+
+    // Records that the user has taken the camera into their own hands for the current
+    // selection. Heading-up modes are exempt: those genuinely do lock the viewport to a fitted
+    // target (see zoomAt below), so there is no manual position to preserve.
+    function markManualCameraOverride() {
+      if (typeof headingUpActive === "function" && headingUpActive()) return;
+      state.manualCameraOverrideFor = state.selected;
+    }
+
+    // Hands the camera back to the app wherever a deliberate app-driven framing happens (a new
+    // selection, expanding the inspector, returning to Nearby), so the follow resumes instead
+    // of staying frozen on a pan the user made earlier.
+    function clearManualCameraOverride() {
+      state.manualCameraOverrideFor = null;
     }
 
     // How much bigger than the straight line a real walking route's bounding box tends to be.
@@ -4446,6 +4283,13 @@
       const target = selectedCompassTarget();
       if (!target || !state.userLocation) return;
       if (!options.force && els.inspector.classList.contains("minimized")) return;
+      // force:true is an app-driven framing (a new selection, the first-load reveal, expanding
+      // the inspector) and therefore also the point at which the app takes the camera back.
+      // Unforced calls are the GPS follow, which must not fight a camera the user has moved by
+      // hand -- the watchPosition handler calls this on every fix, so without this check a
+      // panned-away map was dragged back to the fit roughly once a second.
+      if (options.force) clearManualCameraOverride();
+      else if (manualCameraOverrideActive()) return;
       const shouldAnimate = options.animate !== false;
 
       let pointsToFit = [state.userLocation.point];
@@ -4680,9 +4524,16 @@
           || s.y < focusRect.y || s.y > focusRect.y + focusRect.height;
       });
       if (significantMove || anyOffscreen) {
-        // Animate only for large jumps (GPS correction / fast travel); small steps are instant.
-        const animate = Boolean(previousPoint) && screenMovement >= 200;
-        ensureOverviewTargetsVisible({ animate, durationMs: 300 });
+        // Always animate. Snapping sub-200px corrections instantly (as this used to) was meant
+        // to avoid jitter, but a 24-200px jump landing on each GPS fix *is* the jitter -- the
+        // map visibly ticked sideways once a second while walking. Easing the same correction
+        // over a short, distance-scaled duration covers it smoothly, and repeated fixes no
+        // longer restart the ease (see viewportAnimationAlreadyHeadedTo) so they blend instead
+        // of stacking. Only the very first fit, which has no previous position to ease from,
+        // stays instant.
+        const animate = Boolean(previousPoint);
+        const durationMs = screenMovement >= 200 ? 620 : 300;
+        ensureOverviewTargetsVisible({ animate, durationMs });
       }
     }
 

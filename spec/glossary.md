@@ -73,7 +73,7 @@ The configurable distance (in minutes of walking time) used to filter nearby ite
 When no items of a given type exist within the walking radius, the nearest item of that type is shown in the list with an out-of-radius style. A notice explains no results were found within the selected walking time.
 
 **Browse anchor / nearby anchor**
-A map point (`state.nearbyAnchor`) the user has tapped on open map ground, previewing that spot's nearby items and radius without moving the real GPS "You" dot. Any open-ground tap sets it, at any distance and from any screen except Filter/Settings/Report. Cleared via the "Use my location" control. Code term: `nearbyOrigin()` resolves to this when set, otherwise the real location.
+A map point (`state.nearbyAnchor`) the user has tapped on open map ground, previewing that spot's nearby items and radius without moving the real GPS "You" dot. Any open-ground tap sets it, at any distance, from any screen that draws the walking-radius ring — Nearby, Filters, Settings and Report alike. Cleared via the "Use my location" control in `#nearbyAnchorBar`, which is inspector chrome and so stays reachable from all four. Code term: `nearbyOrigin()` resolves to this when set, otherwise the real location.
 
 ---
 
@@ -95,13 +95,16 @@ Multiple nearby pins of the same type grouped into a single pin at their screen 
 The small count label (e.g. "4" or "9+") drawn in the top-right of a cluster pin.
 
 **Nearest area**
-The walking-radius ring on the Nearby screen, and everything inside it — the nearby list, the highlighted locations, the route lines. On the Nearby screen a tap beyond it moves the nearest area to the tapped spot whatever it landed on (`isOutsideNearestArea`); inside it, taps select as normal.
+The walking-radius ring on the Nearby screen, and everything inside it — the nearby list and the highlighted locations. On the Nearby screen a tap beyond it moves the nearest area to the tapped spot whatever it landed on (`isOutsideNearestArea`); inside it, taps select as normal.
 
 **Open ground**
 Any map tap that resolves to neither a highlighted location nor a street. Background polygons (forest, nature designations, water bodies) are not hit-tested, so a tap inside the forest counts as open ground. An open-ground tap moves the browse anchor rather than selecting anything.
 
 **Off-ring user pointer**
-The blue ground-plane arrow and `You · {distance}` label drawn on the walking-radius ring's edge, on the bearing from the browse anchor to the real GPS position, while browsing has taken the "You" dot off screen (`drawUserDirectionFromAnchor`). Tapping it clears the browse anchor and returns to the real location.
+The off-black ground-plane triangle and `You · {distance}` label drawn on the walking-radius ring's edge, on the bearing from the browse anchor to the real GPS position, while browsing has taken the "You" dot off screen (`drawUserDirectionFromAnchor`). Drawn only while the dot itself is not visible — outside the ring *and* outside `bestVisibleCanvasRect()`, so a dot hidden behind the inspector still counts as off screen. Tapping it clears the browse anchor and returns to the real location.
+
+**User cone**
+The wedge drawn from the "You" dot out to the walking-radius ring while browsing a spot the user is standing outside of (`nearbyUserCone`). Its edges are the tangents from the user to the ring, so it lands exactly on the circle. Shaded as a third tier of the walking-radius wash — the circle clear, the cone lightly dimmed, everything else fully dimmed — so where you are and what the circle is around read as one shape. Not the same thing as the **Radar cone** above, which is the small facing-direction indicator on the dot itself.
 
 **Browse-origin slide**
 The animation between two Nearby origins (`state.nearbyOriginTransition`): the origin is interpolated over ~520ms while the camera keeps it pinned at the focus, so the walking-radius circle holds still on screen and the map moves behind it. Rendering follows the interpolated origin; the nearby list and hit testing use the destination immediately.

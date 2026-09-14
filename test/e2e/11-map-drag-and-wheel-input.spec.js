@@ -37,14 +37,7 @@ test.describe("Map drag input while camera auto-repositions", () => {
     await mockCowApi(page);
     await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/, { timeout: 10_000 });
-    // transitionInspectorBody() briefly creates two #inspectorTitle elements during the slide
-    // animation right after load; use waitForFunction with getElementById (returns the first
-    // match) rather than a strict-mode locator, which would fail while both are present.
-    await page.waitForFunction(
-      (name) => document.getElementById("inspectorTitle")?.textContent?.includes(name),
-      FIXTURE_TREE.commonName,
-      { timeout: 5_000 }
-    );
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
     // Desktop viewport (see playwright.config.js) keeps the inspector expanded after a
     // selection, so shouldAutoRepositionSelection() is active during this drag.
     await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);

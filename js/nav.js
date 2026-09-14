@@ -64,11 +64,11 @@ function secondaryScreenActive() {
 
 // state.selected is truthy for the Settings/Report pseudo-selections (type "settings"/
 // "report") as well as for a real tree/landmark/etc selection, but overview-only rendering
-// (the walking-radius ring, the dashed routes to nearby matches) should stay visible for the
-// pseudo-selections exactly as it does for plain overview/Filters -- only a real selection
-// should hide it. Shared by drawWalkingRadius and drawOverviewRoutes in renderer.js so the
-// two can't drift out of sync with each other again (they did: drawOverviewRoutes used to
-// check `state.selected` directly and hid its route lines on Settings/Report).
+// (the walking-radius ring, the browse-anchor marker and its cone, the off-ring user pointer)
+// should stay visible for the pseudo-selections exactly as it does for plain overview/Filters
+// -- only a real selection should hide it. Shared by every such renderer.js draw so they can't
+// drift out of sync with each other again (they did: the old ambient route lines used to check
+// `state.selected` directly and hid themselves on Settings/Report).
 function hasRealSelection() {
   return Boolean(state.selected && !["settings", "report"].includes(state.selected.type));
 }
@@ -533,6 +533,12 @@ function setupSearchAndNavHandlers() {
     applySelectionFromHash(false);
   });
 
+  if (els.nearbyAnchorBar) {
+    els.nearbyAnchorBar.addEventListener("click", (event) => {
+      if (event.target.closest("[data-action='reset-nearby-anchor']")) clearNearbyAnchor();
+    });
+  }
+
   els.inspectorBody.addEventListener("click", (event) => {
     const shareBtn = event.target.closest("[data-action='share-location']");
     if (shareBtn) { shareCurrentLocation(); return; }
@@ -581,6 +587,7 @@ function refreshNearbyRadiusView(options = {}) {
   // its walking-radius slider fires "input". ensureOverviewTargetsVisible below already knows
   // how to frame the ring correctly for those screens (see secondaryScreenActive()) without it.
   if (!secondaryScreenActive()) selectOverview();
+  updateNearbyAnchorBar();
   ensureOverviewTargetsVisible({ animate, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
   requestDraw();
 }
@@ -609,9 +616,20 @@ function clearNearbyAnchor() {
   refreshNearbyRadiusView({ animate: false });
 }
 
+// Shows/hides #nearbyAnchorBar, the way back from a browsed spot. It lives in the inspector
+// chrome rather than inside the Nearby list's own HTML because Filters, Settings and Report all
+// keep drawing the walking-radius circle around the browse anchor behind them (see
+// secondaryScreenActive) -- while the notice was part of the list, opening any of those three
+// left the user browsing a spot with nothing on screen offering to undo it. Hidden only for a
+// real selection, which replaces that whole map view anyway (hasRealSelection).
+function updateNearbyAnchorBar() {
+  const bar = els.nearbyAnchorBar;
+  if (!bar) return;
+  bar.hidden = !(state.nearbyAnchor && !hasRealSelection());
+}
+
 // The Nearby view's "nearest area" is the walking-radius ring drawn around nearbyOrigin().
-// Everything the view is about -- the list, the highlighted locations, the route lines -- lives
-// inside it, so a tap beyond it reads as "show me what's over there", never as "navigate to
+// Everything the view is about -- the list, the highlighted locations -- lives inside it, so a tap beyond it reads as "show me what's over there", never as "navigate to
 // this". handleMapClick (js/inspector.js) uses this to relocate on such a tap whatever it
 // landed on: streets and waymarked trails are drawn right across the map and would otherwise
 // keep opening a navigation view from the far corners of the Nearby screen.
@@ -633,15 +651,21 @@ function isOutsideNearestArea(lonLat) {
 // rather than fitting the old origin and then animating a second time.
 function focusNearbyOnMapPoint(lonLat, worldPoint) {
   if (!state.userLocation) {
-    // No GPS fix yet, so there is no Nearby view to move -- keep the long-standing
-    // reset-to-the-whole-forest behaviour rather than anchoring a radius nothing can populate.
-    goToInitialView();
+    // No GPS fix yet, so there is no Nearby view to move. On the Nearby screen itself, keep the
+    // long-standing reset-to-the-whole-forest behaviour rather than anchoring a radius nothing
+    // can populate -- but that reset is also what closes an open screen, and a map tap must
+    // never dismiss Filter/Settings/Report, so from those a tap with no fix simply does nothing.
+    if (!secondaryScreenActive()) goToInitialView();
     return false;
   }
-  if (state.selected || state.clusterExpanded) {
+  // hasRealSelection(), not state.selected: the Settings/Report pseudo-selections are also
+  // truthy, and taking this branch from them dismissed the very screen the tap must never
+  // dismiss. They behave like plain Nearby here -- move the anchor, leave the screen open.
+  if (hasRealSelection() || state.clusterExpanded) {
     state.nearbyAnchor = { latitude: lonLat.latitude, longitude: lonLat.longitude, point: worldPoint };
     refreshNearestTreeForNearbyOrigin();
     goToInitialView();
+    updateNearbyAnchorBar();
   } else {
     setInspectorMinimized(false);
     setNearbyAnchor(lonLat.latitude, lonLat.longitude, worldPoint);
@@ -655,9 +679,10 @@ function currentPinchDistance() {
   return Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
 }
 
-// Starts pinch-to-resize for the Nearby view's walking radius. Only engages while the plain
-// Nearby overview is showing (no selection, no Filter/Settings/Report screen) -- elsewhere a
-// second touch point is just ignored, same as before this feature existed.
+// Starts pinch-to-resize for the Nearby view's walking radius. Engages on any screen that still
+// draws that radius behind it -- the plain Nearby overview, and Filters/Settings/Report (see
+// secondaryScreenActive) -- so the circle can be adjusted wherever it is visible. Over a real
+// selection, which replaces the view entirely, a second touch point is still just ignored.
 function startNearbyRadiusPinch() {
   const distance = currentPinchDistance();
   if (distance == null) return;
@@ -693,7 +718,12 @@ function updateNearbyRadiusPinch() {
     // recovers back above) it -- applyWalkingRadiusChange would no-op here since the minutes
     // value itself hasn't moved, so the floor notice needs its own lightweight refresh to stay
     // in sync with the flag instead of going stale.
-    if (flagChanged) { selectOverview(); requestDraw(); }
+    // The floor notice lives in the Nearby list, so only that screen has anything to re-render;
+    // on Filters/Settings/Report selectOverview() would throw the open screen away instead.
+    if (flagChanged) {
+      if (!secondaryScreenActive()) selectOverview();
+      requestDraw();
+    }
     return;
   }
   applyWalkingRadiusChange(minutes, { animate: false });
@@ -714,10 +744,48 @@ function endNearbyRadiusPinch() {
   refreshNearbyRadiusView();
 }
 
+// Pointer capture throws (NotFoundError) for a pointer the browser has already finished with --
+// which happens routinely on touch when a gesture is interrupted (an incoming call, the app
+// backgrounding, the browser claiming the gesture for its own edge swipe). An uncaught throw
+// mid-handler used to abort the rest of pointerup, leaving state.dragging true and the lifted
+// finger still in state.activePointers forever: the map then ignored every subsequent gesture
+// until the page was reloaded.
+function capturePointerSafely(element, pointerId) {
+  try { element.setPointerCapture(pointerId); } catch {}
+}
+
+function releasePointerSafely(element, pointerId) {
+  try {
+    if (element.hasPointerCapture && !element.hasPointerCapture(pointerId)) return;
+    element.releasePointerCapture(pointerId);
+  } catch {}
+}
+
+// Begins (or resumes) a single-finger pan from wherever the given pointer currently is.
+// Shared by pointerdown and the pointerup/pointercancel path that drops a multi-touch gesture
+// back to one finger: without the latter, lifting one of two fingers left state.dragging false
+// while a finger was still on the glass, so the map went completely dead to that finger --
+// the user had to lift off entirely and start again.
+function beginMapDrag(clientX, clientY) {
+  // The viewport has to be still before dragStart snapshots it -- otherwise the drag and a
+  // running animation both write state.viewport.tx/ty and fight each other. pointerdown already
+  // stops animations; the multi-touch handover does not, and the pinch it just ended queues an
+  // animated settle of its own (endNearbyRadiusPinch -> refreshNearbyRadiusView).
+  stopViewportAnimation();
+  state.dragging = true;
+  state.dragStart = {
+    x: clientX,
+    y: clientY,
+    tx: state.viewport.tx,
+    ty: state.viewport.ty,
+  };
+  els.canvas.classList.add("dragging");
+}
+
 function setupMapCanvasHandlers() {
   els.canvas.addEventListener("pointerdown", (event) => {
     stopViewportAnimation();
-    els.canvas.setPointerCapture(event.pointerId);
+    capturePointerSafely(els.canvas, event.pointerId);
     state.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     if (state.activePointers.size >= 2) {
@@ -730,21 +798,18 @@ function setupMapCanvasHandlers() {
       state.multiTouchOccurred = true;
       state.dragging = false;
       els.canvas.classList.remove("dragging");
-      if (state.activePointers.size === 2 && isOverviewScreenActive() && state.userLocation) {
+      // Filters/Settings/Report keep drawing the same walking-radius circle behind them, so the
+      // pinch that resizes it works there too -- refreshNearbyRadiusView already knows not to
+      // blow those screens' own content away when it re-derives the view.
+      if (state.activePointers.size === 2 && state.userLocation
+        && (isOverviewScreenActive() || secondaryScreenActive())) {
         startNearbyRadiusPinch();
       }
       return;
     }
 
-    state.dragging = true;
     state.moved = false;
-    state.dragStart = {
-      x: event.clientX,
-      y: event.clientY,
-      tx: state.viewport.tx,
-      ty: state.viewport.ty,
-    };
-    els.canvas.classList.add("dragging");
+    beginMapDrag(event.clientX, event.clientY);
   });
 
   els.canvas.addEventListener("pointermove", (event) => {
@@ -776,36 +841,67 @@ function setupMapCanvasHandlers() {
       requestDraw();
       return;
     }
-    if (shouldAutoRepositionSelection()) {
-      ensureUserAndSelectionVisible({ animate: true, durationMs: 300 });
-      return;
-    }
+    // A selection's auto-reposition is a correction, not a lock (unlike heading-up above, which
+    // genuinely pins the camera to a fitted target). Take the camera over and pan normally.
+    // Re-running the fit on every pointermove instead -- as this used to -- meant a selected
+    // location with the inspector open could not be panned at all: the fit was already
+    // satisfied so most moves did nothing, and the rest restarted a 300ms animation every few
+    // milliseconds, which crawled and then snapped back. It read as the map going dead.
+    if (shouldAutoRepositionSelection()) markManualCameraOverride();
     state.viewport.tx = state.dragStart.tx + dx;
     state.viewport.ty = state.dragStart.ty + dy;
     requestDraw();
   });
 
-  els.canvas.addEventListener("pointerup", (event) => {
+  // Shared tail of pointerup/pointercancel. Whichever fingers are left on the glass decide what
+  // happens next -- a gesture is only really over once state.activePointers is empty.
+  function endMapPointer(event) {
     state.activePointers.delete(event.pointerId);
-    els.canvas.releasePointerCapture(event.pointerId);
-    els.canvas.classList.remove("dragging");
+    releasePointerSafely(els.canvas, event.pointerId);
     if (state.activePointers.size < 2) endNearbyRadiusPinch();
+
+    if (state.activePointers.size === 1) {
+      // Dropped from a multi-touch gesture back to one finger. That finger is still down and
+      // still moving, so hand the pan back to it from where it is now (a fresh dragStart, so
+      // the map does not jump by however far the two-finger gesture travelled). state.moved
+      // stays as it is: this gesture already counts as a drag, never a tap.
+      const [remaining] = Array.from(state.activePointers.values());
+      state.moved = true;
+      beginMapDrag(remaining.x, remaining.y);
+      return;
+    }
+
+    state.dragging = false;
+    els.canvas.classList.remove("dragging");
+  }
+
+  els.canvas.addEventListener("pointerup", (event) => {
     // A multi-touch gesture ending (either finger lifting first, one at a time) must never
     // register as a tap -- state.moved only tracks single-finger drag distance, so it stays
     // false throughout one and would otherwise fire handleMapClick once the last finger lifts.
     // multiTouchOccurred stays true across both pointerup events for the gesture, clearing
-    // only once every finger is off the glass.
-    const wasClick = !state.moved && !state.multiTouchOccurred && state.activePointers.size === 0;
-    state.dragging = false;
+    // only once every finger is off the glass. Read before endMapPointer, which mutates both.
+    const wasClick = !state.moved
+      && !state.multiTouchOccurred
+      && state.activePointers.size === 1
+      && state.activePointers.has(event.pointerId);
+    endMapPointer(event);
     if (state.activePointers.size === 0) state.multiTouchOccurred = false;
     if (wasClick) handleMapClick(event);
   });
 
   els.canvas.addEventListener("pointercancel", (event) => {
-    state.activePointers.delete(event.pointerId);
-    state.dragging = false;
-    els.canvas.classList.remove("dragging");
-    if (state.activePointers.size < 2) endNearbyRadiusPinch();
+    endMapPointer(event);
+    if (state.activePointers.size === 0) state.multiTouchOccurred = false;
+  });
+
+  // The browser can take a captured pointer away without ever sending pointerup or
+  // pointercancel (a system gesture claiming the touch, the tab being backgrounded mid-drag).
+  // Without this the gesture state was never torn down and the map stayed stuck in a drag it
+  // would never receive another move for.
+  els.canvas.addEventListener("lostpointercapture", (event) => {
+    if (!state.activePointers.has(event.pointerId)) return;
+    endMapPointer(event);
     if (state.activePointers.size === 0) state.multiTouchOccurred = false;
   });
 
@@ -821,6 +917,12 @@ function setupMapCanvasHandlers() {
 function setInspectorMinimized(minimized) {
   const wasMinimized = els.inspector.classList.contains("minimized");
   els.inspector.classList.toggle("minimized", minimized);
+  if (wasMinimized && !minimized) {
+    // Expanding the inspector is the app's one sanctioned re-frame for an existing selection
+    // ("Expand from minimized: recenter once", spec-data-rendering.md), so it takes the camera
+    // back from any manual pan the user made while the panel was collapsed.
+    clearManualCameraOverride();
+  }
   if (wasMinimized && !minimized && state.userLocation && selectedCompassTarget()) {
     if (typeof selectedNavigationHeadingUpActive === "function" && selectedNavigationHeadingUpActive()) {
       // Heading-up navigation has its own scale-fit machinery (alignHeadingUpNavigationViewport),
@@ -872,6 +974,13 @@ function setupInspectorDragResize() {
     els.inspector.style.setProperty("--inspector-height", `${clamped}%`);
   }
 
+  // options.animate is false while the resize drag is still live, so every intermediate height
+  // re-frames the camera instantly, and true once on release for a single settling motion --
+  // the same split the walking-radius slider and pinch gesture use. Requesting a fresh 180ms
+  // animation on every frame of the drag instead (what this used to do, with the
+  // stopViewportAnimation below cancelling the previous one each time) meant the camera never
+  // got more than a few milliseconds into any ease before being restarted: it barely moved
+  // while the sheet was being dragged, then lurched when the finger came off.
   function recentMapForInspectorChange(options = {}) {
     // Stop any existing viewport animation before starting a new one to prevent conflicts
     stopViewportAnimation();
@@ -892,7 +1001,7 @@ function setupInspectorDragResize() {
   dragHandle.addEventListener("pointerdown", (event) => {
     if (!isMobileLayout()) return;
     event.preventDefault();
-    dragHandle.setPointerCapture(event.pointerId);
+    capturePointerSafely(dragHandle, event.pointerId);
     state.inspectorDragging = true;
     els.inspector.classList.add("is-dragging");
     state.inspectorDragStart = {
@@ -912,7 +1021,7 @@ function setupInspectorDragResize() {
     if (dragRecenterFrame == null) {
       dragRecenterFrame = requestAnimationFrame(() => {
         dragRecenterFrame = null;
-        recentMapForInspectorChange({ animate: true, durationMs: 180 });
+        recentMapForInspectorChange({ animate: false });
       });
     }
   });
@@ -922,6 +1031,7 @@ function setupInspectorDragResize() {
     state.inspectorDragging = false;
     els.inspector.classList.remove("is-dragging");
     dragHandle.classList.remove("dragging");
+    releasePointerSafely(dragHandle, event.pointerId);
     if (dragRecenterFrame != null) {
       cancelAnimationFrame(dragRecenterFrame);
       dragRecenterFrame = null;
@@ -929,11 +1039,20 @@ function setupInspectorDragResize() {
     recentMapForInspectorChange({ animate: true, durationMs: 240 });
   });
 
-  dragHandle.addEventListener("pointercancel", () => {
+  // An interrupted resize (system gesture, backgrounding) has to settle exactly like a normal
+  // release -- otherwise the queued per-frame recentre below fires after the drag is over and
+  // the map is left mid-resize with no final easing motion.
+  dragHandle.addEventListener("pointercancel", (event) => {
     if (!state.inspectorDragging) return;
     state.inspectorDragging = false;
     els.inspector.classList.remove("is-dragging");
     dragHandle.classList.remove("dragging");
+    releasePointerSafely(dragHandle, event.pointerId);
+    if (dragRecenterFrame != null) {
+      cancelAnimationFrame(dragRecenterFrame);
+      dragRecenterFrame = null;
+    }
+    recentMapForInspectorChange({ animate: true, durationMs: 240 });
   });
 
   window.addEventListener("resize", () => {
@@ -963,6 +1082,7 @@ function goToInitialView(updateHash = true) {
 
   const wasMinimized = els.inspector.classList.contains("minimized");
   state.selected = null;
+  clearManualCameraOverride();
   state.clusterZoomed = false;
   state.clusterExpanded = null;
   state.filterScreenOpen = false;
@@ -976,14 +1096,9 @@ function goToInitialView(updateHash = true) {
     }
   };
   if (wasMinimized) {
-    let refitTriggered = false;
-    const triggerRefit = () => {
-      if (refitTriggered) return;
-      refitTriggered = true;
-      refitOverview();
-    };
-    els.inspector.addEventListener("transitionend", triggerRefit, { once: true });
-    setTimeout(triggerRefit, INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS);
+    // Wait for the panel's own height transition, not whichever descendant transition happens
+    // to end first -- see onInspectorHeightTransitionEnd (js/inspector.js).
+    onInspectorHeightTransitionEnd(refitOverview);
   } else {
     refitOverview();
   }

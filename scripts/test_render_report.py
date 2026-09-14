@@ -173,6 +173,65 @@ class RenderStatStripTests(unittest.TestCase):
         self.assertIn("cols-6", html)
 
 
+SAMPLE_INVENTORY = {
+    "generatedAt": "2026-09-14",
+    "total": 1130,
+    "groups": [
+        {
+            "key": "food",
+            "label": "Food",
+            "count": 30,
+            "subfilters": [
+                {"key": "pubs", "label": "Pubs & bars", "count": 10},
+                {"key": "cafes", "label": "Cafés", "count": 20},
+            ],
+        },
+        {
+            "key": "nature",
+            "label": "Nature",
+            "count": 1000,
+            "subfilters": [{"key": "trees", "label": "Trees", "count": 1000}],
+        },
+    ],
+    "alwaysShown": {"label": "Gates, benches & other facilities", "count": 100},
+}
+
+
+class RenderInventorySectionTests(unittest.TestCase):
+    def test_shows_the_whole_map_total_not_just_one_dataset(self):
+        html = rr.render_inventory_section(SAMPLE_INVENTORY)
+        self.assertIn("1,130", html)
+        self.assertIn("things you can find on the map today", html)
+
+    def test_breaks_the_total_down_by_the_apps_own_filter_groups(self):
+        html = rr.render_inventory_section(SAMPLE_INVENTORY)
+        for label in ("Food", "Nature", "Pubs &amp; bars", "Cafés", "Trees"):
+            self.assertIn(label, html)
+
+    def test_counts_the_always_shown_features_that_have_no_filter(self):
+        html = rr.render_inventory_section(SAMPLE_INVENTORY)
+        self.assertIn("Gates, benches &amp; other facilities", html)
+        self.assertIn("100", html)
+
+    def test_says_the_cattle_are_tracked_live_rather_than_counted(self):
+        html = rr.render_inventory_section(SAMPLE_INVENTORY)
+        self.assertIn("tracked live", html)
+
+    def test_omitted_entirely_when_no_inventory_is_available(self):
+        self.assertEqual(rr.render_inventory_section(None), "")
+        self.assertEqual(rr.render_inventory_section({"total": 0, "groups": []}), "")
+
+
+class StatStripLabellingTests(unittest.TestCase):
+    def test_food_count_is_labelled_as_food_not_as_the_whole_map(self):
+        """The old "Places on the map" label read as a total for everything
+        the app draws, when it only ever counted the food/drink/shop data."""
+        findings, _ = rr.normalize_findings(BASE_REPORT_DATA)
+        html = rr.render_stat_strip(findings, 689, None)
+        self.assertIn("Places to eat, drink &amp; shop", html)
+        self.assertNotIn("Places on the map", html)
+
+
 class RenderReportEndToEndTests(unittest.TestCase):
     def test_smoke_renders_valid_looking_html(self):
         with tempfile.TemporaryDirectory() as tmp:

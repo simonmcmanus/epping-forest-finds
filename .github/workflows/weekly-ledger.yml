@@ -11,14 +11,29 @@ name: Weekly Epping Forest Ledger
 # open bug in anthropics/claude-code-action where its default GitHub App
 # authentication fails specifically on schedule-triggered runs (works fine
 # on workflow_dispatch) -- see https://github.com/anthropics/claude-code-action/issues/814.
-# Side effect: a push/PR made with this job's own GITHUB_TOKEN does not
-# retrigger this repo's separate ci.yml workflow (GitHub's anti-recursion
-# rule for the default token). Rather than have Claude run the test suites
-# itself as a safety gate (a past run backgrounded the slow e2e suite,
-# said it would "resume once notified", and the job just ended there with
-# nothing committed -- there is no "later" in a single Actions run), this
-# job now explicitly dispatches ci.yml on the branch it pushes (step 4e)
-# so the normal unit/e2e checks show up on the PR for Simon to review.
+#
+# NOTE on WEEKLY_LEDGER_PAT: every git push and `gh pr create` in this job
+# authenticates as this PAT, NOT as the job's own GITHUB_TOKEN. That is
+# deliberate and load-bearing: GitHub never fires `pull_request` / `push`
+# events for anything GITHUB_TOKEN did (anti-recursion), so a PR opened with
+# the default token shows no checks at all and someone has to start ci.yml by
+# hand. A PAT is an ordinary user credential, so the PR it opens triggers
+# ci.yml's normal `pull_request` event -- unit and e2e appear on the PR the
+# moment it opens, and again on every later push to the branch, exactly like
+# a human-opened PR.
+#
+# The secret is a fine-grained PAT scoped to this repository with:
+#   Contents: Read and write     (push the weekly-data-report/* branch)
+#   Pull requests: Read and write (open and edit the PR)
+#   Workflows: Read and write     (only if a run ever touches .github/workflows)
+# Fine-grained PATs expire -- if this job starts failing to push or open PRs,
+# check the token's expiry date first. Claude itself still authenticates with
+# claude_code_oauth_token; the PAT only covers git/gh operations.
+#
+# Because CI now attaches on its own, Claude must NOT run the test suites
+# in-process. A past run backgrounded the slow e2e suite, said it would
+# "resume once notified", and the job just ended there with nothing committed
+# -- there is no "later" in a single unattended Actions run.
 on:
   schedule:
     - cron: "0 1 * * 1"
@@ -28,7 +43,9 @@ permissions:
   contents: write
   pull-requests: write
   id-token: write
-  actions: write
+  # Read-only: this job no longer dispatches ci.yml (the PAT-opened PR
+  # triggers it), it only ever needs to look at workflow runs.
+  actions: read
 
 jobs:
   weekly-ledger:
@@ -40,6 +57,11 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          # Persist the PAT (not GITHUB_TOKEN) as this checkout's git
+          # credential, so the branch push below is attributed to a real user
+          # and therefore triggers ci.yml's pull_request event. See the
+          # WEEKLY_LEDGER_PAT note at the top of this file.
+          token: ${{ secrets.WEEKLY_LEDGER_PAT }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -56,10 +78,12 @@ jobs:
       - name: Run Claude Code
         uses: anthropics/claude-code-action@v1
         env:
-          GH_TOKEN: ${{ github.token }}
+          # `gh pr create` runs as the PAT for the same reason as the checkout
+          # above: a PR opened by GITHUB_TOKEN gets no CI checks.
+          GH_TOKEN: ${{ secrets.WEEKLY_LEDGER_PAT }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ github.token }}
+          github_token: ${{ secrets.WEEKLY_LEDGER_PAT }}
           show_full_output: true
           prompt: |
             You are producing the weekly "Epping Forest Ledger" report for
@@ -242,28 +266,27 @@ jobs:
                   weekly-data-report/<date>-${{ github.run_number }}.
                d. Open a PR: gh pr create --title "..." --body "..." listing
                   exactly what was added/removed and why.
-               e. Explicitly start CI on this PR:
-                  gh workflow run ci.yml --ref weekly-data-report/<date>-${{ github.run_number }}
-                  This step is required, not optional -- a PR opened with
-                  this job's own GITHUB_TOKEN does NOT trigger ci.yml's
-                  normal pull_request event (GitHub's anti-recursion rule
-                  for the default token), so without this explicit dispatch
-                  the PR would show no checks at all for Simon to review.
+               e. Do NOT start CI yourself -- there is nothing to start.
+                  This job pushes and opens PRs as a real user credential
+                  (WEEKLY_LEDGER_PAT), so ci.yml's normal pull_request
+                  event fires the instant the PR opens: unit and e2e are
+                  already queued before you finish. Never run `gh workflow
+                  run ci.yml`; a duplicate dispatch just puts a second,
+                  confusing copy of every check on the PR.
                f. Add a report preview link to the PR body (see REPORT
                   PREVIEW LINK below) -- do this for every PR this workflow
-                  opens, this one included. Also mention in the PR body
-                  that CI was triggered explicitly (step e) and that Simon
-                  should wait for those checks to go green before merging.
+                  opens, this one included. Also mention in the PR body that
+                  CI starts automatically and that Simon should wait for
+                  those checks to go green before merging.
                g. Do NOT merge the PR. Auto-merge is temporarily
                   disabled while this workflow is being tested -- leave it
                   open for Simon to review and merge by hand once CI passes.
                   Say so plainly in the PR body and in your final summary.
             5. If the changeset is empty, skip the data branch/PR/merge
                entirely and say so in the report -- but still open the
-               small standalone report-only PR described in step 6 (and
-               still run step 4e's gh workflow run against its branch, so
-               the report-only change gets checked too), and it still
-               needs the REPORT PREVIEW LINK below.
+               small standalone report-only PR described in step 6 (CI
+               attaches to that PR automatically too, same as step 4e), and
+               it still needs the REPORT PREVIEW LINK below.
 
             REPORT PREVIEW LINK: this site's Netlify Deploy Previews are
             always reachable at a fixed, predictable address --
@@ -315,4 +338,4 @@ jobs:
           # below -- auto-merge is disabled while Simon tests this workflow.
           # Add it back (and flip the prompt language above) once he is happy.
           claude_args: |
-            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*),Bash(gh workflow run:*)"
+            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*)"

@@ -195,7 +195,7 @@ globalThis.__forestFindsTest = {
   bestVisibleCanvasRect,
   walkingRadiusCirclePoints,
   drawWalkingRadius,
-  drawOverviewRoutes,
+  nearbyUserCone,
   selectOverview,
   ensureOverviewTargetsVisible,
   alignHeadingUpNavigationViewport,
@@ -250,12 +250,12 @@ globalThis.__forestFindsTest = {
   tiltHorizonCanvasY,
   tiltFarClipCssPx,
   buildNearbyIconLookup,
-  overviewRouteTargets,
   isNearCanvas,
   showClusterDetail,
   findHit,
   focusNearbyOnMapPoint,
   isOutsideNearestArea,
+  updateNearbyAnchorBar,
   nearbyRenderOriginPoint,
   nearbyOriginTransitionActive,
   nearbyRevealOpacity,
@@ -1552,73 +1552,14 @@ test("walking radius marker draws on the report (feedback) screen", () => {
   assert.equal(arcCount, 1);
 });
 
-test("dashed route lines to nearby matches draw on the report (feedback) screen, same as filters", () => {
-  // Regression test: drawOverviewRoutes() used to bail out on any truthy state.selected,
-  // which incorrectly included the Settings/Report pseudo-selections (type "settings"/
-  // "report") -- so these dashed connector lines only ever showed on the Filters screen, even
-  // though Filters/Settings/Report are meant to render the exact same map background (see
-  // secondaryScreenActive() in js/nav.js). Fixed via hasRealSelection(), shared with
-  // drawWalkingRadius just above, which already excluded the pseudo-selections correctly.
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  app.state.selected = { type: "report", item: null };
-  app.state.overviewFilters = ["pubs"];
-  app.state.landmarks.push({ id: "near-pub", name: "Near pub", category: "pub", ...makePoint(app, 0.001, 0) });
-
-  let lineToCount = 0;
-  app.drawOverviewRoutes({
-    save() {},
-    restore() {},
-    beginPath() {},
-    moveTo() {},
-    lineTo() { lineToCount += 1; },
-    stroke() {},
-    setLineDash() {},
-  }, []);
-
-  assert.ok(lineToCount > 0, "should draw at least one route line on the report screen");
-});
-
-test("dashed route lines to nearby matches draw on the settings screen, same as filters", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  app.state.selected = { type: "settings", item: null };
-  app.state.overviewFilters = ["pubs"];
-  app.state.landmarks.push({ id: "near-pub", name: "Near pub", category: "pub", ...makePoint(app, 0.001, 0) });
-
-  let lineToCount = 0;
-  app.drawOverviewRoutes({
-    save() {},
-    restore() {},
-    beginPath() {},
-    moveTo() {},
-    lineTo() { lineToCount += 1; },
-    stroke() {},
-    setLineDash() {},
-  }, []);
-
-  assert.ok(lineToCount > 0, "should draw at least one route line on the settings screen");
-});
-
-test("dashed route lines hide when a real selection is active, same as the walking radius ring", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  app.state.selected = { type: "tree", item: { ...makePoint(app, 0.001, 0) } };
-  app.state.overviewFilters = ["pubs"];
-  app.state.landmarks.push({ id: "near-pub", name: "Near pub", category: "pub", ...makePoint(app, 0.001, 0) });
-
-  let lineToCount = 0;
-  app.drawOverviewRoutes({
-    save() {},
-    restore() {},
-    beginPath() {},
-    moveTo() {},
-    lineTo() { lineToCount += 1; },
-    stroke() {},
-    setLineDash() {},
-  }, []);
-
-  assert.equal(lineToCount, 0, "a real selection should suppress the overview route lines");
+test("nothing draws a route line until a destination is actually selected", () => {
+  // A dashed line from the user to every nearby match used to be drawn on the Nearby, Filters,
+  // Settings and Report screens alike; a fan of them to a dozen pins crowded the map and implied
+  // a walk nobody had chosen. drawSelectedRoute is now the only thing that draws one, so a route
+  // line always means "this is the destination you picked". The `map-with-location` e2e snapshot
+  // is the visual guard; this pins the removal itself so the drawing code can't quietly return.
+  assert.equal(typeof app.drawOverviewRoutes, "undefined", "ambient overview route lines are gone");
+  assert.equal(typeof app.overviewRouteTargets, "undefined", "and so is the target list that fed them");
 });
 
 test("minimized inspector preserves user-controlled map position on GPS updates", () => {
@@ -5321,6 +5262,7 @@ function recordingCtx() {
     lineTo: noop, arc: noop, fill: noop, stroke: noop, setLineDash: noop,
     fillText: noop, strokeText: noop,
     createRadialGradient() { return { addColorStop: noop }; },
+    createLinearGradient() { return { addColorStop: noop }; },
     measureText(text) { return { width: String(text).length * 8 }; },
   };
 }
@@ -5490,6 +5432,99 @@ test("the radar cone stays on the user dot while browsing another spot in 3D", (
   assert.ok(Math.abs(apex.y - drawnDot.y) < 0.001, "the cone's apex sits on the user dot");
 });
 
+// Geometry drawWalkingRadius works out before handing off to the cone, recreated here so the
+// cone can be exercised without a full canvas-filter-capable context stub.
+function nearbyRingScreenGeometry(app) {
+  app.prepareCanvasForDraw();
+  const origin = app.nearbyRenderOriginPoint();
+  const center = app.worldToScreenFlat(origin);
+  const edge = app.worldToScreenFlat({ x: origin.x + app.walkingRadiusWorldUnits(), y: origin.y });
+  return { center, radiusPx: Math.max(8, Math.hypot(edge.x - center.x, edge.y - center.y)) };
+}
+
+function coneShape(app) {
+  const { center, radiusPx } = nearbyRingScreenGeometry(app);
+  return app.nearbyUserCone(center, radiusPx, false);
+}
+
+test("the cone to the nearby circle is drawn only while browsing a spot the user stands outside of", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.userInMapArea = true;
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
+
+  assert.equal(coneShape(app), null, "no anchor: the You dot is the circle's own centre");
+
+  // Inside the ring the dot is already in the circle, so there is nothing for a cone to bridge.
+  const near = makePoint(app, 51.6652, 0.0452);
+  app.setNearbyAnchor(near.latitude, near.longitude, near.point);
+  app.state.nearbyOriginTransition = null;
+  assert.equal(coneShape(app), null, "no cone while the user is inside the ring");
+
+  const far = makePoint(app, 51.64, 0.02);
+  app.setNearbyAnchor(far.latitude, far.longitude, far.point);
+  app.state.nearbyOriginTransition = null;
+  const { center, radiusPx } = nearbyRingScreenGeometry(app);
+  const cone = coneShape(app);
+  assert.ok(cone && cone.length > 2, "browsing a distant spot builds the cone back to the user");
+
+  // Apex on the user, far edge on the circle: the wedge bridges exactly the gap between them.
+  const apex = cone[0];
+  const user = app.worldToScreenFlat(app.state.userLocation.point);
+  assert.ok(Math.hypot(apex.x - user.x, apex.y - user.y) < 0.001, "the wedge starts at the You dot");
+  for (const point of cone.slice(1)) {
+    const offRing = Math.abs(Math.hypot(point.x - center.x, point.y - center.y) - radiusPx);
+    assert.ok(offRing < 0.001, "and every other corner sits on the ring itself");
+  }
+});
+
+test("the way back from a browsed spot stays on screen across Nearby, Filters, Settings and Report", () => {
+  // The "Use my location" control used to be part of the Nearby list's HTML, so opening any of
+  // the three secondary screens -- all of which keep drawing the walking-radius circle around
+  // the browsed spot behind them -- left the user with no way to undo the browse.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  const bar = app.els.nearbyAnchorBar;
+  assert.ok(bar, "the bar lives in the inspector chrome, not in a screen's body");
+
+  app.updateNearbyAnchorBar();
+  assert.equal(bar.hidden, true, "nothing to undo while the view is centred on the real fix");
+
+  const far = makePoint(app, 51.64, 0.02);
+  app.setNearbyAnchor(far.latitude, far.longitude, far.point);
+  assert.equal(bar.hidden, false, "browsing a spot offers the way back on the Nearby screen");
+
+  for (const selected of [null, { type: "settings", item: null }, { type: "report", item: null }]) {
+    app.state.filterScreenOpen = selected === null;
+    app.state.selected = selected;
+    app.updateNearbyAnchorBar();
+    assert.equal(bar.hidden, false, "and on every screen that still draws the circle behind it");
+  }
+
+  app.state.filterScreenOpen = false;
+  app.state.selected = { type: "tree", item: { ...makePoint(app, 51.6653, 0.045) } };
+  app.updateNearbyAnchorBar();
+  assert.equal(bar.hidden, true, "a real selection replaces the whole view, bar included");
+});
+
+test("the nearby list reads from the browsed spot on the Filters screen too, not the GPS fix", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.overviewFilters = ["trees"];
+  const byUser = { id: "by-user", commonName: "Oak", ...makePoint(app, 51.6651, 0.045) };
+  const byAnchor = { id: "by-anchor", commonName: "Beech", ...makePoint(app, 51.6401, 0.02) };
+  app.state.trees.push(byUser, byAnchor);
+
+  const far = makePoint(app, 51.64, 0.02);
+  app.setNearbyAnchor(far.latitude, far.longitude, far.point);
+  app.state.filterScreenOpen = true;
+
+  const ids = app.overviewItemsForActiveFilter().map((entry) => entry.item.id);
+  assert.ok(ids.includes("by-anchor"), "the ring and the matches inside it share one origin");
+  assert.ok(!ids.includes("by-user"), "the distant GPS fix is no longer what the list scans from");
+  app.state.filterScreenOpen = false;
+});
+
 test("tapping the off-ring user pointer goes back to using the real location", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
@@ -5561,11 +5596,6 @@ test("an expanded group hides every other highlighted location from the map", ()
   assert.equal(lookup.tree.has(grouped), true, "the group's own trees stay on the map");
   assert.equal(lookup.tree.has(otherTree), false, "trees outside the group are hidden");
   assert.equal(lookup.landmark.has(pub), false, "highlighted locations of other types are hidden too");
-  assert.deepEqual(
-    Array.from(app.overviewRouteTargets(), (target) => target.point),
-    [grouped.point],
-    "the ambient nearby route lines go with the pins they pointed at -- only the group keeps one"
-  );
 });
 
 test("a pin hidden by an expanded group is no longer tappable where it used to be", () => {
@@ -5731,6 +5761,55 @@ test("a street selected before the first GPS fix picks up a navigation target on
   app.state.userLocation = makePoint(app, 51.65, 0.05);
 
   assert.ok(app.selectedCompassTarget(), "the target resolves on the next frame after a fix arrives");
+});
+
+test("the weekly report's map inventory counts every filter group the app offers", () => {
+  const { buildInventory } = require("../scripts/report/map-inventory.js");
+  const inventory = buildInventory();
+
+  const groupKeys = inventory.groups.map((group) => group.key);
+  assert.deepEqual(
+    groupKeys,
+    ["nature", "food", "transport", "history", "locations", "stories"],
+    "the report groups things exactly the way the app's Filter screen does"
+  );
+  for (const group of inventory.groups) {
+    assert.ok(group.subfilters.length > 0, `${group.key} should list its subfilters`);
+  }
+});
+
+test("the map inventory's breakdown adds up to the total it reports", () => {
+  // The whole point of the "What's on the map" section is that a reader can
+  // add the categories up and get the headline number -- so nothing may be
+  // counted twice, and nothing drawn on the map may be left out.
+  const { buildInventory } = require("../scripts/report/map-inventory.js");
+  const inventory = buildInventory();
+
+  const grouped = inventory.groups.reduce((sum, group) => {
+    const fromSubfilters = group.subfilters.reduce((s, sub) => s + sub.count, 0);
+    assert.equal(group.count, fromSubfilters, `${group.key} total should be its subfilters' sum`);
+    return sum + group.count;
+  }, 0);
+
+  assert.equal(
+    grouped + inventory.alwaysShown.count,
+    inventory.total,
+    "every group plus the always-shown features should equal the headline total"
+  );
+});
+
+test("the map inventory counts far more than the food places alone", () => {
+  // The bug this section fixes: the report's only count used to be the
+  // food/drink/shop dataset, presented as if it were everything on the map.
+  const { buildInventory } = require("../scripts/report/map-inventory.js");
+  const inventory = buildInventory();
+
+  const food = inventory.groups.find((group) => group.key === "food");
+  assert.ok(food.count > 0, "there should be food places");
+  assert.ok(
+    inventory.total > food.count * 10,
+    "the whole-map total should dwarf the food-only count it used to be confused with"
+  );
 });
 
 runRegisteredTests().catch((error) => {
