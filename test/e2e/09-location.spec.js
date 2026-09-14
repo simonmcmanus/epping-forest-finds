@@ -44,6 +44,17 @@ test.describe("Location and GPS — happy path", () => {
 
     test("snapshot: map with user location active", async ({ page }, testInfo) => {
       test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
+      // Let the inspector's entry animation finish first. triggerInspectorEntry (index.html)
+      // adds .entering for a 0.52s slide-in and drops it on animationend, and this is the one
+      // snapshot taken straight off boot rather than after navigating to a screen, so on a slow
+      // runner the slide can still be in flight here. toHaveScreenshot "disables all CSS
+      // animations", which freezes an in-flight one wherever it had got to rather than
+      // completing it — so the panel lands a few pixels low with its text part-way through the
+      // fade, and the baseline records whichever frame that run happened to stop on.
+      await page.waitForFunction(
+        () => !document.getElementById("inspector")?.classList.contains("entering"),
+        { timeout: 5_000 }
+      );
       await page.waitForTimeout(800);
       await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
       await page.waitForTimeout(50);
