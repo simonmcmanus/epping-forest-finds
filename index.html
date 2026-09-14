@@ -392,6 +392,14 @@
       pinchBaseDistance: null,
       pinchBaseMinutes: null,
       multiTouchOccurred: false,
+      // The selection (by object identity) whose camera the user has taken over by panning or
+      // zooming by hand. While it matches state.selected, the GPS-driven "keep user + target
+      // framed" follow stands down -- see shouldAutoRepositionSelection(). Without it the
+      // follow re-fitted the camera on every pointermove and every GPS fix, so a selected
+      // location's map could not be dragged anywhere at all. Keyed on the selection rather
+      // than held as a flag so picking a different location hands the camera straight back,
+      // with nothing to remember to reset.
+      manualCameraOverrideFor: null,
       userInMapArea: false,
       nearestTree: null,
       nearestCow: null,
@@ -1078,8 +1086,32 @@
       state.viewportAnimationDuration = 0;
     }
 
+    // How close a newly-requested animation target has to be to the one already in flight to be
+    // treated as the same destination. Scale is compared as a ratio (0.5%), position in device
+    // pixels -- both well below what reads as a different framing on screen.
+    const VIEWPORT_ANIMATION_SAME_TARGET_SCALE_RATIO = 0.005;
+    const VIEWPORT_ANIMATION_SAME_TARGET_PX = 6;
+
+    // True when an animation is already running toward effectively this same viewport.
+    // The repeat callers here -- the GPS watch, the compass tick, the inspector resize drag --
+    // all re-request their fit many times a second while the target itself barely moves. Each
+    // request used to cancel the running ease and start a fresh one from the current position,
+    // so the camera decelerated toward the end of every ease and then accelerated again from
+    // zero: the motion arrived in visible steps instead of gliding. Cancelling here collapses
+    // any pile-up back to the single smooth animation the spec asks for ("all state-change
+    // transitions produce exactly one smooth animation with no intermediate jumps").
+    function viewportAnimationAlreadyHeadedTo(targetViewport) {
+      const inFlight = state.viewportAnimationTo;
+      if (!inFlight || state.viewportAnimationFrame == null) return false;
+      const scaleRatio = Math.abs(inFlight.scale - targetViewport.scale) / Math.max(inFlight.scale, 0.000001);
+      return scaleRatio < VIEWPORT_ANIMATION_SAME_TARGET_SCALE_RATIO
+        && Math.abs(inFlight.tx - targetViewport.tx) < VIEWPORT_ANIMATION_SAME_TARGET_PX
+        && Math.abs(inFlight.ty - targetViewport.ty) < VIEWPORT_ANIMATION_SAME_TARGET_PX;
+    }
+
     function animateViewportTo(targetViewport, durationMs) {
       const safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
+      if (viewportAnimationAlreadyHeadedTo(targetViewport)) return;
       stopViewportAnimation();
 
       const from = {
@@ -1232,10 +1264,11 @@
         requestDraw();
         return;
       }
-      if (shouldAutoRepositionSelection()) {
-        ensureUserAndSelectionVisible({ animate: true, durationMs: 320 });
-        return;
-      }
+      // A selection's auto-reposition is not a lock (unlike heading-up above): wheel/trackpad
+      // zoom is an explicit request, so take the camera over and apply it. Re-running the fit
+      // here instead -- as this used to -- meant the wheel did nothing at all whenever a
+      // location was selected with the inspector open, since the fit is already satisfied.
+      if (shouldAutoRepositionSelection()) markManualCameraOverride();
       const before = screenToWorld(screenPoint.x, screenPoint.y);
       state.viewport.scale = clamp(state.viewport.scale * factor, state.fitScale * 0.65, state.fitScale * 220);
       state.viewport.tx = screenPoint.x - before.x * state.viewport.scale;
@@ -4424,8 +4457,34 @@
       return true;
     }
 
+    // True while the camera should keep re-framing the user and the selected target on its own
+    // (GPS follow, resize). Deliberately false once the user has moved the camera by hand: per
+    // spec "Expand from minimized: recenter *once*", the follow is a correction, not a lock.
+    // It used to have no such escape hatch, so with a selection open and the inspector expanded
+    // the map simply could not be panned or zoomed -- every gesture was answered by an
+    // immediate re-fit back to where it started.
     function shouldAutoRepositionSelection() {
+      if (manualCameraOverrideActive()) return false;
       return Boolean(state.userLocation && selectedCompassTarget() && !els.inspector.classList.contains("minimized"));
+    }
+
+    function manualCameraOverrideActive() {
+      return Boolean(state.selected) && state.manualCameraOverrideFor === state.selected;
+    }
+
+    // Records that the user has taken the camera into their own hands for the current
+    // selection. Heading-up modes are exempt: those genuinely do lock the viewport to a fitted
+    // target (see zoomAt below), so there is no manual position to preserve.
+    function markManualCameraOverride() {
+      if (typeof headingUpActive === "function" && headingUpActive()) return;
+      state.manualCameraOverrideFor = state.selected;
+    }
+
+    // Hands the camera back to the app wherever a deliberate app-driven framing happens (a new
+    // selection, expanding the inspector, returning to Nearby), so the follow resumes instead
+    // of staying frozen on a pan the user made earlier.
+    function clearManualCameraOverride() {
+      state.manualCameraOverrideFor = null;
     }
 
     // How much bigger than the straight line a real walking route's bounding box tends to be.
@@ -4446,6 +4505,13 @@
       const target = selectedCompassTarget();
       if (!target || !state.userLocation) return;
       if (!options.force && els.inspector.classList.contains("minimized")) return;
+      // force:true is an app-driven framing (a new selection, the first-load reveal, expanding
+      // the inspector) and therefore also the point at which the app takes the camera back.
+      // Unforced calls are the GPS follow, which must not fight a camera the user has moved by
+      // hand -- the watchPosition handler calls this on every fix, so without this check a
+      // panned-away map was dragged back to the fit roughly once a second.
+      if (options.force) clearManualCameraOverride();
+      else if (manualCameraOverrideActive()) return;
       const shouldAnimate = options.animate !== false;
 
       let pointsToFit = [state.userLocation.point];
@@ -4680,9 +4746,16 @@
           || s.y < focusRect.y || s.y > focusRect.y + focusRect.height;
       });
       if (significantMove || anyOffscreen) {
-        // Animate only for large jumps (GPS correction / fast travel); small steps are instant.
-        const animate = Boolean(previousPoint) && screenMovement >= 200;
-        ensureOverviewTargetsVisible({ animate, durationMs: 300 });
+        // Always animate. Snapping sub-200px corrections instantly (as this used to) was meant
+        // to avoid jitter, but a 24-200px jump landing on each GPS fix *is* the jitter -- the
+        // map visibly ticked sideways once a second while walking. Easing the same correction
+        // over a short, distance-scaled duration covers it smoothly, and repeated fixes no
+        // longer restart the ease (see viewportAnimationAlreadyHeadedTo) so they blend instead
+        // of stacking. Only the very first fit, which has no previous position to ease from,
+        // stays instant.
+        const animate = Boolean(previousPoint);
+        const durationMs = screenMovement >= 200 ? 620 : 300;
+        ensureOverviewTargetsVisible({ animate, durationMs });
       }
     }
 

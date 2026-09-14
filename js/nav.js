@@ -714,10 +714,48 @@ function endNearbyRadiusPinch() {
   refreshNearbyRadiusView();
 }
 
+// Pointer capture throws (NotFoundError) for a pointer the browser has already finished with --
+// which happens routinely on touch when a gesture is interrupted (an incoming call, the app
+// backgrounding, the browser claiming the gesture for its own edge swipe). An uncaught throw
+// mid-handler used to abort the rest of pointerup, leaving state.dragging true and the lifted
+// finger still in state.activePointers forever: the map then ignored every subsequent gesture
+// until the page was reloaded.
+function capturePointerSafely(element, pointerId) {
+  try { element.setPointerCapture(pointerId); } catch {}
+}
+
+function releasePointerSafely(element, pointerId) {
+  try {
+    if (element.hasPointerCapture && !element.hasPointerCapture(pointerId)) return;
+    element.releasePointerCapture(pointerId);
+  } catch {}
+}
+
+// Begins (or resumes) a single-finger pan from wherever the given pointer currently is.
+// Shared by pointerdown and the pointerup/pointercancel path that drops a multi-touch gesture
+// back to one finger: without the latter, lifting one of two fingers left state.dragging false
+// while a finger was still on the glass, so the map went completely dead to that finger --
+// the user had to lift off entirely and start again.
+function beginMapDrag(clientX, clientY) {
+  // The viewport has to be still before dragStart snapshots it -- otherwise the drag and a
+  // running animation both write state.viewport.tx/ty and fight each other. pointerdown already
+  // stops animations; the multi-touch handover does not, and the pinch it just ended queues an
+  // animated settle of its own (endNearbyRadiusPinch -> refreshNearbyRadiusView).
+  stopViewportAnimation();
+  state.dragging = true;
+  state.dragStart = {
+    x: clientX,
+    y: clientY,
+    tx: state.viewport.tx,
+    ty: state.viewport.ty,
+  };
+  els.canvas.classList.add("dragging");
+}
+
 function setupMapCanvasHandlers() {
   els.canvas.addEventListener("pointerdown", (event) => {
     stopViewportAnimation();
-    els.canvas.setPointerCapture(event.pointerId);
+    capturePointerSafely(els.canvas, event.pointerId);
     state.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     if (state.activePointers.size >= 2) {
@@ -736,15 +774,8 @@ function setupMapCanvasHandlers() {
       return;
     }
 
-    state.dragging = true;
     state.moved = false;
-    state.dragStart = {
-      x: event.clientX,
-      y: event.clientY,
-      tx: state.viewport.tx,
-      ty: state.viewport.ty,
-    };
-    els.canvas.classList.add("dragging");
+    beginMapDrag(event.clientX, event.clientY);
   });
 
   els.canvas.addEventListener("pointermove", (event) => {
@@ -776,36 +807,67 @@ function setupMapCanvasHandlers() {
       requestDraw();
       return;
     }
-    if (shouldAutoRepositionSelection()) {
-      ensureUserAndSelectionVisible({ animate: true, durationMs: 300 });
-      return;
-    }
+    // A selection's auto-reposition is a correction, not a lock (unlike heading-up above, which
+    // genuinely pins the camera to a fitted target). Take the camera over and pan normally.
+    // Re-running the fit on every pointermove instead -- as this used to -- meant a selected
+    // location with the inspector open could not be panned at all: the fit was already
+    // satisfied so most moves did nothing, and the rest restarted a 300ms animation every few
+    // milliseconds, which crawled and then snapped back. It read as the map going dead.
+    if (shouldAutoRepositionSelection()) markManualCameraOverride();
     state.viewport.tx = state.dragStart.tx + dx;
     state.viewport.ty = state.dragStart.ty + dy;
     requestDraw();
   });
 
-  els.canvas.addEventListener("pointerup", (event) => {
+  // Shared tail of pointerup/pointercancel. Whichever fingers are left on the glass decide what
+  // happens next -- a gesture is only really over once state.activePointers is empty.
+  function endMapPointer(event) {
     state.activePointers.delete(event.pointerId);
-    els.canvas.releasePointerCapture(event.pointerId);
-    els.canvas.classList.remove("dragging");
+    releasePointerSafely(els.canvas, event.pointerId);
     if (state.activePointers.size < 2) endNearbyRadiusPinch();
+
+    if (state.activePointers.size === 1) {
+      // Dropped from a multi-touch gesture back to one finger. That finger is still down and
+      // still moving, so hand the pan back to it from where it is now (a fresh dragStart, so
+      // the map does not jump by however far the two-finger gesture travelled). state.moved
+      // stays as it is: this gesture already counts as a drag, never a tap.
+      const [remaining] = Array.from(state.activePointers.values());
+      state.moved = true;
+      beginMapDrag(remaining.x, remaining.y);
+      return;
+    }
+
+    state.dragging = false;
+    els.canvas.classList.remove("dragging");
+  }
+
+  els.canvas.addEventListener("pointerup", (event) => {
     // A multi-touch gesture ending (either finger lifting first, one at a time) must never
     // register as a tap -- state.moved only tracks single-finger drag distance, so it stays
     // false throughout one and would otherwise fire handleMapClick once the last finger lifts.
     // multiTouchOccurred stays true across both pointerup events for the gesture, clearing
-    // only once every finger is off the glass.
-    const wasClick = !state.moved && !state.multiTouchOccurred && state.activePointers.size === 0;
-    state.dragging = false;
+    // only once every finger is off the glass. Read before endMapPointer, which mutates both.
+    const wasClick = !state.moved
+      && !state.multiTouchOccurred
+      && state.activePointers.size === 1
+      && state.activePointers.has(event.pointerId);
+    endMapPointer(event);
     if (state.activePointers.size === 0) state.multiTouchOccurred = false;
     if (wasClick) handleMapClick(event);
   });
 
   els.canvas.addEventListener("pointercancel", (event) => {
-    state.activePointers.delete(event.pointerId);
-    state.dragging = false;
-    els.canvas.classList.remove("dragging");
-    if (state.activePointers.size < 2) endNearbyRadiusPinch();
+    endMapPointer(event);
+    if (state.activePointers.size === 0) state.multiTouchOccurred = false;
+  });
+
+  // The browser can take a captured pointer away without ever sending pointerup or
+  // pointercancel (a system gesture claiming the touch, the tab being backgrounded mid-drag).
+  // Without this the gesture state was never torn down and the map stayed stuck in a drag it
+  // would never receive another move for.
+  els.canvas.addEventListener("lostpointercapture", (event) => {
+    if (!state.activePointers.has(event.pointerId)) return;
+    endMapPointer(event);
     if (state.activePointers.size === 0) state.multiTouchOccurred = false;
   });
 
@@ -821,6 +883,12 @@ function setupMapCanvasHandlers() {
 function setInspectorMinimized(minimized) {
   const wasMinimized = els.inspector.classList.contains("minimized");
   els.inspector.classList.toggle("minimized", minimized);
+  if (wasMinimized && !minimized) {
+    // Expanding the inspector is the app's one sanctioned re-frame for an existing selection
+    // ("Expand from minimized: recenter once", spec-data-rendering.md), so it takes the camera
+    // back from any manual pan the user made while the panel was collapsed.
+    clearManualCameraOverride();
+  }
   if (wasMinimized && !minimized && state.userLocation && selectedCompassTarget()) {
     if (typeof selectedNavigationHeadingUpActive === "function" && selectedNavigationHeadingUpActive()) {
       // Heading-up navigation has its own scale-fit machinery (alignHeadingUpNavigationViewport),
@@ -872,6 +940,13 @@ function setupInspectorDragResize() {
     els.inspector.style.setProperty("--inspector-height", `${clamped}%`);
   }
 
+  // options.animate is false while the resize drag is still live, so every intermediate height
+  // re-frames the camera instantly, and true once on release for a single settling motion --
+  // the same split the walking-radius slider and pinch gesture use. Requesting a fresh 180ms
+  // animation on every frame of the drag instead (what this used to do, with the
+  // stopViewportAnimation below cancelling the previous one each time) meant the camera never
+  // got more than a few milliseconds into any ease before being restarted: it barely moved
+  // while the sheet was being dragged, then lurched when the finger came off.
   function recentMapForInspectorChange(options = {}) {
     // Stop any existing viewport animation before starting a new one to prevent conflicts
     stopViewportAnimation();
@@ -892,7 +967,7 @@ function setupInspectorDragResize() {
   dragHandle.addEventListener("pointerdown", (event) => {
     if (!isMobileLayout()) return;
     event.preventDefault();
-    dragHandle.setPointerCapture(event.pointerId);
+    capturePointerSafely(dragHandle, event.pointerId);
     state.inspectorDragging = true;
     els.inspector.classList.add("is-dragging");
     state.inspectorDragStart = {
@@ -912,7 +987,7 @@ function setupInspectorDragResize() {
     if (dragRecenterFrame == null) {
       dragRecenterFrame = requestAnimationFrame(() => {
         dragRecenterFrame = null;
-        recentMapForInspectorChange({ animate: true, durationMs: 180 });
+        recentMapForInspectorChange({ animate: false });
       });
     }
   });
@@ -922,6 +997,7 @@ function setupInspectorDragResize() {
     state.inspectorDragging = false;
     els.inspector.classList.remove("is-dragging");
     dragHandle.classList.remove("dragging");
+    releasePointerSafely(dragHandle, event.pointerId);
     if (dragRecenterFrame != null) {
       cancelAnimationFrame(dragRecenterFrame);
       dragRecenterFrame = null;
@@ -929,11 +1005,20 @@ function setupInspectorDragResize() {
     recentMapForInspectorChange({ animate: true, durationMs: 240 });
   });
 
-  dragHandle.addEventListener("pointercancel", () => {
+  // An interrupted resize (system gesture, backgrounding) has to settle exactly like a normal
+  // release -- otherwise the queued per-frame recentre below fires after the drag is over and
+  // the map is left mid-resize with no final easing motion.
+  dragHandle.addEventListener("pointercancel", (event) => {
     if (!state.inspectorDragging) return;
     state.inspectorDragging = false;
     els.inspector.classList.remove("is-dragging");
     dragHandle.classList.remove("dragging");
+    releasePointerSafely(dragHandle, event.pointerId);
+    if (dragRecenterFrame != null) {
+      cancelAnimationFrame(dragRecenterFrame);
+      dragRecenterFrame = null;
+    }
+    recentMapForInspectorChange({ animate: true, durationMs: 240 });
   });
 
   window.addEventListener("resize", () => {
@@ -963,6 +1048,7 @@ function goToInitialView(updateHash = true) {
 
   const wasMinimized = els.inspector.classList.contains("minimized");
   state.selected = null;
+  clearManualCameraOverride();
   state.clusterZoomed = false;
   state.clusterExpanded = null;
   state.filterScreenOpen = false;
@@ -976,14 +1062,9 @@ function goToInitialView(updateHash = true) {
     }
   };
   if (wasMinimized) {
-    let refitTriggered = false;
-    const triggerRefit = () => {
-      if (refitTriggered) return;
-      refitTriggered = true;
-      refitOverview();
-    };
-    els.inspector.addEventListener("transitionend", triggerRefit, { once: true });
-    setTimeout(triggerRefit, INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS);
+    // Wait for the panel's own height transition, not whichever descendant transition happens
+    // to end first -- see onInspectorHeightTransitionEnd (js/inspector.js).
+    onInspectorHeightTransitionEnd(refitOverview);
   } else {
     refitOverview();
   }

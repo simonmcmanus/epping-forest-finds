@@ -184,7 +184,11 @@ function showClusterDetail(cluster) {
     </button></li>`;
   }).join("");
 
-  transitionInspectorBody(`<ul class="nearest-list">${itemsHtml}</ul>`, null, () => {
+  // "forward", like every other drill-down screen: the group list is one level in from Nearby
+  // and its back button returns via goToInitialView -> selectOverview(true), which slides
+  // "back". Passing no direction here left this the one screen change in the app that swapped
+  // its contents instantly while the map animated underneath it.
+  transitionInspectorBody(`<ul class="nearest-list">${itemsHtml}</ul>`, "forward", () => {
     updateOverviewDirectionArrows();
   });
 }
@@ -763,6 +767,15 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
     const scroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
     const screen = scroll && scroll.querySelector(".inspector-screen");
     _transitionSnapshot = screen ? screen.cloneNode(true) : null;
+    // The outgoing screen is cloned wholesale, ids and all -- and #inspectorTitle,
+    // #inspectorBody and friends live inside it. Leaving those on the ghost put duplicate ids
+    // in the live DOM for the 310ms of the slide, so any getElementById/#id lookup running
+    // during a transition could answer with the frozen outgoing copy instead of the real
+    // element. The ghost is aria-hidden and pointer-events:none; nothing needs to address it.
+    if (_transitionSnapshot) {
+      _transitionSnapshot.removeAttribute("id");
+      _transitionSnapshot.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
+    }
   } else {
     _transitionSnapshot = null;
   }
@@ -891,6 +904,34 @@ function focusOverviewItem(type, key) {
   }
 }
 
+// Runs `callback` once the inspector's own height transition has finished, or after a timeout
+// if it never fires (reduced motion, an interrupted transition, a panel that was already at the
+// target height).
+//
+// transitionend bubbles, and the inspector is full of descendants with their own transitions --
+// row backgrounds (120ms), the drag handle (40ms), nearest-item reorder (150ms). A bare
+// `addEventListener("transitionend", ..., { once: true })` on #inspector therefore fired on
+// whichever of those happened to finish first, which is routinely *before* the 180ms max-height
+// transition this is actually waiting for. The camera fit then measured a half-transitioned
+// panel and framed the map against a footprint that no longer existed a moment later -- the
+// "screens don't settle properly on the map" symptom. Match the element and the property.
+function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS) {
+  let fired = false;
+  const fire = () => {
+    if (fired) return;
+    fired = true;
+    els.inspector.removeEventListener("transitionend", onTransitionEnd);
+    callback();
+  };
+  function onTransitionEnd(event) {
+    if (event.target !== els.inspector) return;
+    if (event.propertyName !== "max-height") return;
+    fire();
+  }
+  els.inspector.addEventListener("transitionend", onTransitionEnd);
+  setTimeout(fire, timeoutMs);
+}
+
 // Defers the selection camera zoom until after the inspector's max-height CSS
 // transition completes, so getBoundingClientRect() returns the correct
 // minimized height when bestVisibleCanvasRect() measures the focus rect.
@@ -909,16 +950,9 @@ function zoomToSelection() {
     return;
   }
   state.selectionViewportTransitionPending = true;
-  let fired = false;
-  const fire = () => {
-    if (fired) return;
-    fired = true;
-    doZoom();
-  };
-  els.inspector.addEventListener("transitionend", fire, { once: true });
   // Mirrors the 180ms `.inspector` max-height transition in css/inspector.css
   // plus a ~40ms buffer so the camera measures after the minimized layout settles.
-  setTimeout(fire, INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS);
+  onInspectorHeightTransitionEnd(doZoom);
 }
 
 // --- HTML helpers ---
