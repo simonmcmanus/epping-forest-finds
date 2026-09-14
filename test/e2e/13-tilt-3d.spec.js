@@ -187,6 +187,15 @@ test.describe("3D tilt view", () => {
         // the first draw after a tilt change, which would swamp the diff.
         for (let i = 0; i < 4; i += 1) { alignHeadingUpNavigationViewport(); draw(); }
 
+        // Land the buildings reveal fade before sampling. It eases building opacity in over
+        // BUILDINGS_FADE_MS (1200ms, drawBuildings in js/renderer.js) from first paint, so on a
+        // slow enough machine it is still advancing when the two draws below are taken — and the
+        // opacity step between them darkens every building pixel by enough to clear NOISE_FLOOR.
+        // The measurement then reads the near edge of the nearest built-up area as if it were the
+        // edge of the wash: whichever cardinal direction happens to have buildings comes back
+        // roughly half the true radius (e.g. 133 against 245), and the aspect ratio with it.
+        if (state.buildingsRevealStartTime) state.buildingsRevealStartTime = performance.now() - 100_000;
+
         const real = window.drawWalkingRadiusDimming;
         window.drawWalkingRadiusDimming = () => {};
         draw();
