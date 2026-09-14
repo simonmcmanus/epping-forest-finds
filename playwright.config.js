@@ -27,7 +27,18 @@ const launchOptions = chromiumExecutablePath
 module.exports = defineConfig({
   testDir: "./test/e2e",
   timeout: 60_000,
-  workers: 4,
+  // One worker per vCPU in CI, four locally. The screenshot-timeout bump below
+  // was the first attempt at surviving a GitHub-hosted runner's 2 vCPUs with
+  // four workers, and it was not enough: oversubscribing 2 vCPUs four ways
+  // starves each page's animation-frame loop badly enough that whole tests time
+  // out, not just screenshot comparisons, and the frame-sampling tests in
+  // 13-tilt-3d/14-map-interaction stop seeing the animations they measure
+  // because a single frame can take longer than the animation itself. None of
+  // those failures reproduce when workers match the available cores. "100%" is
+  // os.cpus().length, so this tracks the runner size instead of hard-coding 2 —
+  // and it costs little wall-clock time, because most of what four workers were
+  // buying back was spent waiting out 60s timeouts.
+  workers: process.env.CI ? "100%" : 4,
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
 

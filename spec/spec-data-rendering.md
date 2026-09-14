@@ -519,9 +519,14 @@ moving the real GPS fix:
     still travelling: drawing them straight away puts a fan of lines pinned to a stationary
     circle sweeping across moving terrain, with pins sliding under a marker that is not moving —
     it reads as jitter even though every element is where it should be. The transition object
-    deliberately outlives the slide by `NEARBY_REVEAL_MS` so the fade has frames; only the camera
-    work stops when the slide lands. The "You" dot is exempt: it is the user's real position, not
-    part of the nearby set.
+    deliberately outlives the slide by `NEARBY_REVEAL_MS` so the fade has frames, and the camera
+    keeps being realigned across those fade frames too — `nearbyRenderOriginPoint()` snaps to the
+    destination the moment progress hits 1, so the last align made while the slide was still
+    moving pinned the circle to wherever the origin had reached on that frame. That is a fraction
+    of a pixel short at 60fps and around twenty pixels short when the previous frame landed well
+    before the end, and leaving it uncorrected held the circle off its pinned spot for up to
+    `NEARBY_REVEAL_MS` before closing the gap in one jump. The "You" dot is exempt: it is the
+    user's real position, not part of the nearby set.
   - In 3D the pivot fraction also differs between the first-person and browsing cases (0.90 at
     max tilt vs 0.5, see below), so `tiltRampedAnchor` eases between them across the same slide
     rather than jerking the whole view up or down the screen on one frame. The transition

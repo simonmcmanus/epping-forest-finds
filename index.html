@@ -295,7 +295,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v24"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+    const APP_VERSION = "v25"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     // Declared up here with the other boot-time constants, not next to the compass
     // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -4135,11 +4135,19 @@
       // which is what holds the walking-radius circle still while the map moves behind it.
       if (state.nearbyOriginTransition) {
         // The transition object outlives the slide itself by NEARBY_REVEAL_MS so the fade-in has
-        // frames to run; only the camera work stops when the slide lands.
-        const sliding = nearbyOriginTransitionActive();
+        // frames to run. The camera is realigned on every one of those frames too, not just
+        // while the slide is still moving: nearbyRenderOriginPoint() snaps to the destination
+        // the moment progress hits 1, so the last align made while sliding pinned the circle to
+        // wherever the origin had reached on that frame -- a fraction of a pixel behind the
+        // destination at 60fps, and a good twenty pixels behind it on a device slow enough that
+        // the previous frame landed well short of the end. Skipping the fade frames left that
+        // gap on screen for up to NEARBY_REVEAL_MS and then closed it in one jump when the
+        // transition was finally cleared, which is exactly the twitch the slide exists to avoid.
+        // Once the slide has landed the origin is constant, so these extra aligns settle the
+        // camera on the first of them and are no-ops after that.
         const fading = nearbyRevealInProgress();
         if (!fading) state.nearbyOriginTransition = null;
-        if (sliding || !fading) alignHeadingUpNavigationViewport({ animate: false, force: true });
+        alignHeadingUpNavigationViewport({ animate: false, force: true });
         if (fading) requestDraw();
       }
       // Resize whenever heading-up mode activates or deactivates so the canvas is only
