@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Epping Forest Ledger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340;0,9..144,480;0,9..144,600;0,9..144,720;1,9..144,480;1,9..144,600&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+
+  :root{
+    --bg:#f4f4ec;
+    --surface:#ffffff;
+    --surface-2:#eaeedd;
+    --ink:#181c11;
+    --ink-soft:#52514e;
+    --muted:#898781;
+    --line:#ded9c6;
+    --line-strong:#c9c3ac;
+    --forest:#2e6b44;
+    --forest-deep:#1d4a2f;
+    --bark:#9c6b34;
+    --forest-opacity:0.4;
+    --status-good:#0ca30c;
+    --status-good-ink:#0a4a0a;
+    --status-warning:#fab219;
+    --status-warning-ink:#6b4a00;
+    --status-critical:#d03b3b;
+    --status-event:#4a3aa7;
+    --shadow: 0 1px 2px rgba(24,28,17,0.06), 0 8px 24px -12px rgba(24,28,17,0.18);
+  }
+  /* status-good, status-warning and status-critical are the same four steps in
+     both themes by design (validated against both surfaces) - only the "-ink"
+     text variants and the categorical --status-event hue change below. */
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e120b;
+      --surface:#171b11;
+      --surface-2:#1d2216;
+      --ink:#edeee2;
+      --ink-soft:#c3c2b3;
+      --muted:#8f8d80;
+      --line:#2c3121;
+      --line-strong:#3a4029;
+      --forest:#6fc98a;
+      --forest-deep:#4fa96c;
+      --bark:#d3a467;
+      --forest-opacity:0.55;
+      --status-good-ink:#0ca30c;
+      --status-warning-ink:#fab219;
+      --status-event:#9085e9;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e120b;
+    --surface:#171b11;
+    --surface-2:#1d2216;
+    --ink:#edeee2;
+    --ink-soft:#c3c2b3;
+    --muted:#8f8d80;
+    --line:#2c3121;
+    --line-strong:#3a4029;
+    --forest:#6fc98a;
+    --forest-deep:#4fa96c;
+    --bark:#d3a467;
+    --forest-opacity:0.55;
+    --status-good-ink:#0ca30c;
+    --status-warning-ink:#fab219;
+    --status-event:#9085e9;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.6);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height:1.5;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:0 24px 64px;}
+  a{color:var(--forest-deep);}
+  .mono{font-family:"JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums;}
+
+  header.masthead{
+    background:var(--forest-deep);
+    color:#f4f4ec;
+    padding:40px 24px 32px;
+  }
+  header.masthead .inner{max-width:1040px;margin:0 auto;}
+  .eyebrow{
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:480;
+    font-size:0.95rem;
+    letter-spacing:0.06em;
+    color:#c9dfc9;
+    margin:0 0 6px;
+  }
+  h1.title{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:clamp(2.1rem, 4vw, 3rem);
+    letter-spacing:-0.01em;
+    margin:0 0 14px;
+    text-wrap:balance;
+  }
+  .meta-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px 18px;
+    align-items:center;
+    font-size:0.92rem;
+    color:#d8e5d3;
+  }
+  .meta-row .coverage{color:#b9ceb4;}
+  .tag{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 10px;
+    border-radius:999px;
+    font-size:0.78rem;
+    font-weight:600;
+    letter-spacing:0.03em;
+    text-transform:uppercase;
+  }
+  .tag.sample{
+    background:rgba(250,178,25,0.18);
+    color:#ffd98a;
+    border:1px solid rgba(250,178,25,0.4);
+  }
+  .banner{
+    margin-top:20px;
+    padding:14px 16px;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.16);
+    border-radius:10px;
+    font-size:0.92rem;
+    color:#e7efe2;
+  }
+  .banner strong{color:#fff;}
+
+  .stat-strip{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+    margin:-28px 0 40px;
+    box-shadow:var(--shadow);
+    position:relative;
+    z-index:2;
+  }
+  .stat{
+    background:var(--surface);
+    padding:18px 16px;
+    text-align:left;
+  }
+  .stat .n{
+    font-family:"JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    font-size:1.9rem;
+    font-weight:600;
+    line-height:1;
+  }
+  .stat .n.good{color:var(--status-good-ink);}
+  .stat .n.critical{color:var(--status-critical);}
+  .stat .n.warning{color:var(--status-warning-ink);}
+  .stat .n.event{color:var(--status-event);}
+  .stat .lbl{
+    margin-top:4px;
+    font-size:0.78rem;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+  }
+
+  section{margin:48px 0;}
+  h2.section-title{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:1.5rem;
+    margin:0 0 4px;
+  }
+  .section-sub{color:var(--ink-soft); font-size:0.95rem; margin:0 0 20px;}
+
+  .map-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    padding:20px;
+    display:grid;
+    grid-template-columns:minmax(0,340px) 1fr;
+    gap:24px;
+    align-items:start;
+  }
+  .map-svg-holder{
+    background:var(--surface-2);
+    border-radius:12px;
+    border:1px solid var(--line);
+    padding:10px;
+  }
+  .map-svg-holder svg{display:block;width:100%;height:auto;}
+  .forest-fill{fill:var(--forest); opacity:var(--forest-opacity);}
+  .town-dot{fill:var(--muted);}
+  .town-label{
+    font-family:"Public Sans", sans-serif;
+    font-size:10.5px;
+    fill:var(--ink-soft);
+  }
+  .pin-ring{stroke:var(--surface); stroke-width:2;}
+  .pin-num{
+    font-family:"JetBrains Mono", monospace;
+    font-size:10px;
+    font-weight:600;
+    fill:#fff;
+    text-anchor:middle;
+    dominant-baseline:central;
+  }
+  .compass text{font-family:"Fraunces",serif; font-size:12px; fill:var(--ink-soft); font-weight:600;}
+  .compass line{stroke:var(--ink-soft); stroke-width:1;}
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px 16px;
+    margin-top:14px;
+    padding-top:14px;
+    border-top:1px solid var(--line);
+  }
+  .legend-item{display:flex;align-items:center;gap:7px;font-size:0.84rem;color:var(--ink-soft);}
+  .legend-dot{width:11px;height:11px;border-radius:50%;flex:none;}
+
+  .map-side{display:flex;flex-direction:column;gap:14px;}
+  .map-side p{margin:0; color:var(--ink-soft); font-size:0.92rem;}
+  .find-mini{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    font-size:0.88rem;
+  }
+  .find-mini .badge{
+    flex:none;
+    width:20px;height:20px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:600;color:#fff;
+    margin-top:1px;
+  }
+  .find-mini .txt strong{display:block;}
+  .find-mini .txt span{color:var(--ink-soft);}
+
+  .cards{display:flex; flex-direction:column; gap:14px;}
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left-width:5px;
+    border-radius:10px;
+    padding:16px 18px;
+    box-shadow:var(--shadow);
+  }
+  .card.good{border-left-color:var(--status-good);}
+  .card.critical{border-left-color:var(--status-critical);}
+  .card.warning{border-left-color:var(--status-warning);}
+  .card.event{border-left-color:var(--status-event);}
+  .card-head{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:6px;
+    flex-wrap:wrap;
+  }
+  .pin-chip{
+    width:22px;height:22px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:600;color:#fff;
+    flex:none;
+  }
+  .pin-chip.good{background:var(--status-good);}
+  .pin-chip.critical{background:var(--status-critical);}
+  .pin-chip.warning{background:var(--status-warning); color:var(--status-warning-ink);}
+  .pin-chip.event{background:var(--status-event);}
+  .card h3{font-family:"Fraunces", serif; font-weight:600; font-size:1.12rem; margin:0;}
+  .status-label{
+    font-size:0.72rem;
+    font-weight:700;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    padding:2px 8px;
+    border-radius:999px;
+  }
+  .status-label.good{background:color-mix(in srgb, var(--status-good) 18%, transparent); color:var(--status-good-ink);}
+  .status-label.critical{background:color-mix(in srgb, var(--status-critical) 16%, transparent); color:var(--status-critical);}
+  .status-label.warning{background:color-mix(in srgb, var(--status-warning) 22%, transparent); color:var(--status-warning-ink);}
+  .status-label.event{background:color-mix(in srgb, var(--status-event) 16%, transparent); color:var(--status-event);}
+  .card p{margin:6px 0; color:var(--ink-soft); font-size:0.94rem;}
+  .card .addr{font-family:"JetBrains Mono",monospace; font-size:0.82rem; color:var(--muted);}
+  .card .src{font-size:0.82rem; margin-top:8px;}
+  .card .flag{
+    margin-top:10px;
+    padding:8px 10px;
+    background:var(--surface-2);
+    border-radius:8px;
+    font-size:0.84rem;
+    color:var(--ink-soft);
+  }
+
+  .methodology{
+    background:var(--surface-2);
+    border-radius:12px;
+    padding:22px 24px;
+    border:1px solid var(--line);
+  }
+  .methodology ol{padding-left:1.1em; margin:10px 0 0;}
+  .methodology li{margin-bottom:10px; color:var(--ink-soft); font-size:0.94rem;}
+  .methodology li strong{color:var(--ink);}
+
+  footer.sources{
+    margin-top:56px;
+    padding-top:24px;
+    border-top:1px solid var(--line);
+    color:var(--muted);
+    font-size:0.86rem;
+  }
+  footer.sources h4{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    color:var(--ink-soft);
+    font-size:0.95rem;
+    margin:0 0 10px;
+  }
+  footer.sources ul{margin:0; padding-left:1.1em; columns:2; column-gap:24px;}
+  footer.sources li{margin-bottom:6px; break-inside:avoid;}
+  footer.sources a{color:var(--ink-soft); text-decoration:underline; text-decoration-color:var(--line-strong);}
+
+  @media (max-width: 760px){
+    .map-card{grid-template-columns:1fr;}
+    .stat-strip{grid-template-columns:repeat(2,1fr);}
+    footer.sources ul{columns:1;}
+  }
+
+
+  /* --- Added for the scripted report renderer (scripts/report/) --- */
+
+  /* A 6th stat cell (the cattle-grazing update) needs a wider grid than
+     the original 5-column layout. */
+  .stat-strip.cols-6{grid-template-columns:repeat(6,1fr);}
+  @media (max-width: 760px){
+    .stat-strip.cols-6{grid-template-columns:repeat(2,1fr);}
+  }
+
+
+  /* "grazing" is a 5th finding category (the cattle/grazing update),
+     reusing --bark (already defined above in both themes) rather than
+     introducing a new colour -- it reads naturally as cattle/grazing and
+     keeps the same "four steps, one shared hue per theme" pattern the
+     other categories use. */
+  .card.grazing{border-left-color:var(--bark);}
+  .pin-chip.grazing{background:var(--bark);}
+  .status-label.grazing{background:color-mix(in srgb, var(--bark) 18%, transparent); color:var(--bark);}
+
+  /* The dashed outline on the map showing the area this report searches
+     for updates in (see "This week on the map"). */
+  .search-area{
+    fill:none;
+    stroke:var(--line-strong);
+    stroke-width:1.2;
+    stroke-dasharray:5 4;
+  }
+
+  .map-caption{
+    font-size:0.84rem;
+    color:var(--muted);
+    margin:10px 0 0;
+  }
+  .map-caption .search-key{display:inline-flex; align-items:center; gap:6px;}
+  .map-caption .search-swatch{
+    display:inline-block; width:14px; height:0; border-top:1.4px dashed var(--line-strong);
+  }
+
+  .app-link{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    margin-top:14px;
+    padding:9px 16px;
+    background:#f4f4ec;
+    color:var(--forest-deep);
+    font-weight:600;
+    font-size:0.92rem;
+    border-radius:999px;
+    text-decoration:none;
+  }
+  .app-link:hover, .app-link:focus-visible{ text-decoration:underline; }
+
+  .about-note{
+    margin-top:40px;
+    padding:18px 20px;
+    background:var(--surface-2);
+    border-radius:12px;
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+    font-size:0.92rem;
+  }
+
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="inner">
+    <p class="eyebrow">Weekly Epping Forest report</p>
+    <h1 class="title">Epping Forest Ledger</h1>
+    <div class="meta-row">
+      <span>Monday, 14 September 2026</span>
+      <span class="coverage">Loughton · Chingford · Buckhurst Hill · Chigwell · Theydon Bois · Epping · Woodford Green · Waltham Abbey</span>
+    </div>
+    <div class="banner">This week's cross-check against the Food Standards Agency's public hygiene register turned up five real, currently-trading places that had never made it onto the map, and pointed to one likely closure in Loughton. We've also chased up last week's open question about Theydon Bois Golf Club.</div>
+    <a class="app-link" href="https://epping-forest.netlify.app">Open the live map →</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="stat-strip cols-6"><div class="stat"><div class="n mono">689</div><div class="lbl">Places on the map</div></div><div class="stat"><div class="n mono good">5</div><div class="lbl">Openings flagged</div></div><div class="stat"><div class="n mono critical">1</div><div class="lbl">Closures flagged</div></div><div class="stat"><div class="n mono warning">2</div><div class="lbl">Road &amp; access changes</div></div><div class="stat"><div class="n mono event">0</div><div class="lbl">Events this week</div></div><div class="stat"><div class="n mono grazing">Moved</div><div class="lbl">Cattle grazing area</div></div></div>
+  <p class="section-sub" style="margin-top:-8px;">There are currently 689 places to eat, drink and shop around the forest, including 213 restaurants, 158 cafés, 127 convenience stores, 75 pubs, 37 supermarkets, 23 bars, 22 bakeries, 16 butchers, 8 confectioneries, 4 greengrocers, 3 delis, 1 pastry shop, 1 kiosk, and 1 farm shop.</p>
+
+  <section id="map">
+    <h2 class="section-title">This week on the map</h2>
+    <p class="section-sub">The dashed line shows the area this report searches for updates in — not just the forest itself, but the towns around its edge.</p>
+    <div class="map-card">
+      <div class="map-svg-holder">
+        <svg viewBox="0 0 480 859.5" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Map of Epping Forest and the surrounding area covered by this report">
+          <path class="search-area" d="M 25.7,46.2 L 454.3,46.2 L 454.3,813.5 L 25.7,813.5 Z"/>
+          <path class="forest-fill" d="M 77.3,469.6 L 77.6,468.5 L 77.3,469.6 Z M 386.5,208.0 L 386.6,207.2 L 386.5,208.0 Z M 207.5,301.6 L 208.5,301.5 L 208.2,300.5 L 207.5,301.6 Z M 188.1,502.1 L 186.9,501.8 L 188.1,502.1 Z M 162.0,253.5 L 163.7,251.6 L 162.0,253.5 Z M 135.9,565.7 L 136.0,566.9 L 135.9,565.7 Z M 352.4,261.9 L 347.7,263.0 L 344.5,262.5 L 348.7,263.7 L 348.7,262.8 L 352.4,261.9 Z M 115.9,532.2 L 119.0,531.4 L 115.9,532.2 Z M 358.3,261.1 L 362.9,261.0 L 358.3,261.1 Z M 337.8,253.6 L 336.6,251.5 L 326.6,257.9 L 333.2,258.5 L 331.8,256.5 L 337.0,253.4 L 339.0,255.1 L 337.8,253.6 Z M 328.5,294.0 L 328.0,296.5 L 333.0,295.9 L 340.0,293.4 L 340.9,288.7 L 333.1,285.0 L 328.5,294.0 Z M 253.4,388.8 L 253.3,389.6 L 254.1,388.5 L 253.4,388.8 Z M 445.1,173.3 L 438.0,178.2 L 426.6,183.0 L 429.8,191.5 L 433.6,188.1 L 439.5,184.9 L 448.9,182.5 L 448.9,180.2 L 447.8,180.2 L 447.0,178.8 L 447.8,178.0 L 447.2,176.6 L 442.7,178.0 L 441.9,175.7 L 445.1,173.3 Z M 268.5,115.4 L 278.6,112.1 L 290.6,104.4 L 289.9,103.1 L 284.9,107.4 L 274.8,112.2 L 257.7,117.2 L 249.5,122.9 L 252.8,125.5 L 255.1,131.1 L 252.1,122.5 L 255.2,120.0 L 268.5,115.4 Z M 412.2,197.6 L 416.8,196.6 L 416.1,194.4 L 422.9,191.7 L 429.4,191.0 L 426.3,183.4 L 410.1,191.8 L 412.2,197.6 Z M 383.8,211.1 L 384.1,211.9 L 386.0,209.5 L 384.7,208.9 L 383.8,211.1 Z M 384.9,208.4 L 386.3,209.3 L 386.0,206.4 L 384.9,208.4 Z M 401.7,198.2 L 403.2,197.7 L 402.2,195.4 L 401.0,196.0 L 401.7,198.2 Z M 396.4,191.7 L 402.2,182.8 L 394.5,190.3 L 396.4,191.7 Z M 405.1,194.1 L 406.6,193.7 L 405.1,194.1 Z M 386.7,207.0 L 387.2,207.7 L 388.0,206.4 L 386.7,205.6 L 386.7,207.0 Z M 386.1,205.8 L 386.5,205.0 L 386.1,205.8 Z M 382.6,212.9 L 384.0,212.0 L 382.6,212.9 Z M 382.3,215.7 L 384.6,212.0 L 381.6,214.9 L 382.3,215.7 Z M 386.7,127.4 L 391.6,125.3 L 390.2,117.4 L 389.2,117.5 L 389.1,119.3 L 386.8,121.2 L 386.7,127.4 Z M 343.5,219.8 L 342.9,223.9 L 344.4,220.9 L 343.5,219.8 Z M 358.2,239.0 L 359.2,239.4 L 357.9,237.9 L 358.2,239.0 Z M 333.2,336.6 L 334.8,334.6 L 333.2,336.6 Z M 345.2,242.0 L 344.8,233.9 L 341.8,228.3 L 343.5,220.4 L 341.7,213.1 L 341.8,218.4 L 343.3,220.4 L 340.5,228.3 L 344.4,233.3 L 345.2,242.0 Z M 339.7,333.2 L 340.9,332.8 L 345.0,336.3 L 348.7,328.9 L 346.0,327.9 L 338.2,330.1 L 339.7,333.2 Z M 337.1,330.2 L 335.4,332.7 L 337.1,330.2 Z M 338.0,329.9 L 346.0,327.7 L 334.5,324.2 L 338.0,329.9 Z M 337.9,259.9 L 338.8,260.2 L 339.1,257.1 L 338.3,258.6 L 334.0,258.7 L 337.9,259.9 Z M 350.3,261.9 L 351.6,261.4 L 350.0,261.3 L 345.6,262.6 L 350.3,261.9 Z M 250.7,393.6 L 251.4,393.0 L 250.7,393.6 Z M 433.0,179.9 L 438.7,177.4 L 447.3,171.5 L 447.1,170.8 L 442.7,168.5 L 440.4,168.3 L 440.4,169.5 L 439.4,169.7 L 438.7,168.1 L 437.2,168.7 L 437.1,167.1 L 434.4,165.9 L 433.5,163.9 L 431.6,162.5 L 431.1,163.2 L 429.3,160.2 L 428.7,160.7 L 426.3,158.3 L 426.9,157.6 L 425.9,156.9 L 427.0,156.2 L 426.1,150.9 L 424.8,151.0 L 418.6,147.6 L 417.6,145.8 L 417.3,148.6 L 410.0,163.8 L 406.3,176.3 L 393.0,198.9 L 417.2,188.4 L 433.0,179.9 Z M 405.4,178.5 L 406.6,176.0 L 409.7,176.8 L 408.3,181.4 L 405.0,179.6 L 405.4,178.5 Z M 443.2,173.1 L 443.6,173.6 L 442.2,174.7 L 441.8,173.7 L 443.2,173.1 Z M 395.3,194.7 L 395.9,195.0 L 394.8,196.2 L 395.3,194.7 Z M 331.8,271.3 L 333.8,264.9 L 335.0,264.8 L 335.0,267.0 L 337.1,262.1 L 339.4,263.4 L 338.9,261.8 L 331.6,259.7 L 324.6,259.4 L 293.0,280.6 L 301.4,290.2 L 312.7,289.8 L 313.6,288.8 L 317.8,289.9 L 323.8,288.9 L 325.2,289.9 L 328.0,289.9 L 331.2,287.8 L 334.3,280.5 L 334.3,275.9 L 332.1,275.3 L 332.8,271.8 L 331.8,271.3 Z M 258.2,316.6 L 257.3,324.4 L 261.7,334.1 L 262.4,344.9 L 265.1,357.6 L 270.0,354.6 L 273.5,355.0 L 286.5,353.2 L 290.0,352.6 L 290.5,351.6 L 292.0,352.3 L 283.7,347.3 L 282.6,345.1 L 287.4,336.6 L 290.6,334.1 L 304.4,348.6 L 301.8,352.3 L 301.3,357.2 L 309.1,359.5 L 301.9,357.2 L 302.4,352.6 L 308.9,343.0 L 304.2,337.8 L 301.8,332.0 L 298.2,333.9 L 296.2,333.1 L 294.6,326.2 L 295.2,322.0 L 298.6,321.0 L 298.5,317.9 L 300.3,317.6 L 302.2,313.3 L 300.2,311.2 L 297.6,309.9 L 289.2,308.6 L 282.5,312.1 L 272.4,313.1 L 266.9,314.8 L 261.4,314.2 L 259.1,314.9 L 258.2,316.6 Z M 364.3,261.8 L 358.0,261.3 L 364.3,261.8 Z M 262.2,343.0 L 261.4,333.9 L 257.0,324.2 L 258.2,314.4 L 219.7,356.8 L 216.9,361.5 L 218.5,361.6 L 237.7,372.9 L 241.1,376.1 L 254.4,384.3 L 252.9,383.2 L 253.1,382.4 L 254.0,380.3 L 255.6,380.7 L 257.3,375.7 L 255.3,374.0 L 255.8,372.4 L 256.9,372.7 L 257.5,370.5 L 260.1,371.4 L 266.2,364.0 L 262.2,343.0 Z M 232.7,258.2 L 235.5,258.6 L 232.7,258.2 Z M 199.1,323.8 L 200.4,322.6 L 199.1,323.8 Z M 132.7,211.5 L 132.7,210.3 L 136.0,209.2 L 138.6,206.5 L 142.0,198.3 L 150.0,191.3 L 154.9,189.8 L 151.5,199.8 L 152.7,200.5 L 152.9,208.7 L 151.9,212.4 L 153.0,209.2 L 152.8,200.9 L 155.1,192.4 L 168.1,188.8 L 171.2,186.8 L 175.0,182.4 L 170.5,187.0 L 165.7,189.3 L 155.5,189.0 L 157.2,176.5 L 160.5,168.8 L 168.2,160.9 L 171.8,160.0 L 182.5,153.8 L 193.4,140.5 L 196.0,139.3 L 195.7,137.4 L 191.3,140.5 L 173.0,157.8 L 167.3,159.9 L 156.5,171.4 L 153.1,188.0 L 145.1,187.3 L 140.1,188.6 L 140.5,189.3 L 147.7,187.9 L 151.2,189.2 L 143.1,195.6 L 140.7,198.6 L 136.6,208.0 L 135.5,209.1 L 132.8,209.5 L 132.1,211.0 L 132.7,211.5 Z M 146.1,252.0 L 146.4,251.3 L 146.1,252.0 Z M 90.2,407.7 L 91.2,406.2 L 90.2,407.7 Z M 208.4,702.8 L 208.8,701.6 L 207.3,700.9 L 205.0,703.1 L 204.6,710.3 L 199.7,711.3 L 200.8,715.4 L 199.5,728.7 L 187.0,728.7 L 187.2,736.1 L 198.6,735.0 L 206.7,737.6 L 214.5,737.0 L 217.1,737.6 L 224.9,733.9 L 227.1,735.4 L 231.4,734.2 L 228.5,732.9 L 227.9,730.0 L 228.9,725.9 L 227.2,720.4 L 222.1,719.8 L 216.1,711.2 L 208.4,702.8 Z M 198.1,439.8 L 196.5,442.6 L 197.9,441.7 L 203.5,444.1 L 211.4,431.3 L 210.4,430.8 L 210.9,428.2 L 212.1,426.6 L 213.9,427.5 L 214.9,426.1 L 210.1,423.4 L 213.5,418.1 L 219.2,421.7 L 226.4,415.4 L 224.4,411.5 L 221.2,410.2 L 216.8,406.0 L 203.8,390.4 L 202.0,392.8 L 193.6,429.6 L 197.4,431.2 L 198.1,439.8 Z M 187.7,501.4 L 189.3,501.5 L 187.7,501.4 Z M 199.0,479.7 L 200.9,480.4 L 201.5,479.1 L 199.0,479.7 Z M 147.4,473.0 L 150.9,471.5 L 161.8,470.8 L 169.0,467.4 L 167.8,464.6 L 168.9,459.7 L 164.0,457.9 L 163.8,450.9 L 164.7,448.4 L 163.9,448.2 L 164.4,447.5 L 163.3,445.6 L 163.8,442.6 L 162.9,442.7 L 162.5,440.7 L 161.4,441.0 L 162.0,440.0 L 161.1,440.7 L 160.0,439.1 L 159.4,439.8 L 158.0,439.2 L 156.9,437.9 L 155.8,433.0 L 152.9,430.1 L 150.9,429.4 L 150.6,428.1 L 148.7,427.6 L 149.0,426.8 L 146.8,424.9 L 141.0,433.5 L 136.0,436.7 L 139.4,453.5 L 138.9,466.7 L 137.3,471.7 L 144.6,472.0 L 147.4,473.0 Z M 148.5,472.3 L 147.9,472.6 L 146.8,471.0 L 148.4,468.5 L 150.1,471.4 L 148.5,472.3 Z M 171.3,537.5 L 171.6,536.6 L 171.3,537.5 Z M 177.5,675.5 L 178.0,673.6 L 176.7,673.7 L 177.5,675.5 Z M 130.1,529.2 L 134.8,526.7 L 143.2,525.0 L 144.1,527.1 L 143.6,530.4 L 138.4,529.6 L 134.4,530.2 L 132.2,529.4 L 130.1,530.0 L 135.5,538.3 L 143.6,545.1 L 153.7,558.6 L 160.1,560.1 L 160.4,552.4 L 156.9,543.5 L 155.8,541.9 L 150.6,539.9 L 148.1,537.9 L 148.9,535.4 L 155.7,536.8 L 149.0,535.1 L 149.6,532.8 L 156.3,534.4 L 155.9,536.8 L 156.6,534.4 L 160.5,535.4 L 162.6,528.4 L 161.0,526.2 L 165.1,523.6 L 163.5,518.0 L 164.2,521.0 L 160.0,522.1 L 159.7,521.0 L 157.9,521.5 L 157.3,519.2 L 163.4,517.3 L 163.0,515.1 L 163.1,516.6 L 159.5,517.5 L 156.0,514.2 L 156.6,508.2 L 160.2,506.3 L 160.9,507.4 L 158.2,503.0 L 155.9,501.2 L 152.6,505.2 L 150.0,505.8 L 149.6,503.4 L 142.1,504.4 L 143.1,509.0 L 150.8,508.5 L 150.8,511.1 L 149.7,512.9 L 143.3,513.4 L 140.1,518.1 L 141.9,523.2 L 129.9,528.2 L 130.1,529.2 Z M 158.7,557.2 L 157.3,556.2 L 158.4,554.8 L 159.7,555.8 L 158.7,557.2 Z M 148.6,522.9 L 148.4,524.6 L 144.6,523.5 L 146.9,522.5 L 147.6,519.4 L 149.6,518.6 L 149.6,517.1 L 151.2,517.2 L 153.0,515.5 L 151.6,519.4 L 148.7,521.5 L 148.6,522.9 Z M 139.1,586.5 L 136.1,586.2 L 135.6,570.9 L 132.5,570.9 L 130.3,568.6 L 129.8,569.7 L 133.1,578.4 L 130.9,581.5 L 127.3,584.1 L 130.4,585.9 L 130.5,583.3 L 133.9,580.4 L 134.0,586.2 L 129.5,586.2 L 132.2,589.4 L 135.3,588.1 L 137.4,590.3 L 134.7,591.1 L 138.5,596.8 L 139.7,596.0 L 139.2,597.9 L 141.4,600.3 L 156.2,575.1 L 155.7,573.6 L 150.7,582.4 L 147.4,585.6 L 145.5,585.2 L 139.1,586.5 Z M 112.4,512.4 L 112.4,513.5 L 112.4,512.4 Z M 108.2,528.0 L 108.1,526.5 L 108.2,528.0 Z M 82.2,431.7 L 82.2,429.9 L 82.2,431.7 Z M 108.2,539.2 L 108.4,538.1 L 108.2,539.2 Z M 104.4,484.0 L 105.1,483.4 L 104.4,484.0 Z M 101.6,393.8 L 96.8,388.7 L 101.6,393.8 Z M 92.1,404.8 L 91.7,405.6 L 92.8,404.6 L 93.1,401.5 L 92.1,404.8 Z M 101.5,204.2 L 103.7,206.6 L 101.3,203.5 L 100.8,201.1 L 101.5,204.2 Z M 108.7,187.5 L 112.1,188.7 L 114.6,188.7 L 116.4,187.6 L 112.2,188.4 L 108.7,187.5 Z M 244.2,228.6 L 243.5,227.0 L 244.2,228.6 Z M 111.5,188.0 L 102.2,184.8 L 105.2,186.9 L 111.5,188.0 Z M 151.4,219.8 L 151.9,216.6 L 151.4,219.8 Z M 266.4,377.8 L 264.0,380.5 L 262.6,380.2 L 264.8,380.8 L 268.6,383.9 L 268.5,378.1 L 266.4,377.8 Z M 269.1,385.4 L 268.9,383.9 L 269.1,385.4 Z M 269.1,383.8 L 269.0,375.0 L 269.1,383.8 Z M 269.4,382.2 L 269.8,381.5 L 269.4,382.2 Z M 157.2,396.4 L 159.2,398.9 L 157.2,396.4 Z M 153.8,385.5 L 151.9,382.9 L 143.7,376.7 L 143.1,375.0 L 143.9,377.9 L 147.5,379.9 L 153.8,385.5 Z M 329.6,315.7 L 326.3,316.2 L 324.8,314.1 L 323.1,314.2 L 319.7,299.1 L 327.3,296.8 L 330.9,288.2 L 328.0,289.9 L 325.2,289.9 L 324.4,288.9 L 317.8,289.9 L 313.6,288.8 L 312.7,289.8 L 301.4,290.2 L 293.0,280.6 L 285.1,287.4 L 276.9,297.3 L 265.7,306.2 L 258.9,314.0 L 267.3,314.4 L 273.0,312.7 L 282.1,311.9 L 285.1,309.8 L 289.8,308.3 L 298.8,310.0 L 304.6,315.2 L 309.8,318.2 L 311.3,314.1 L 318.7,317.0 L 320.0,317.9 L 319.8,319.7 L 322.9,320.4 L 322.7,322.1 L 328.3,322.5 L 328.2,320.0 L 332.6,319.8 L 332.0,320.3 L 332.9,322.2 L 332.1,323.3 L 334.1,323.8 L 334.3,322.3 L 331.2,316.0 L 330.8,315.3 L 329.6,315.7 Z M 253.7,271.8 L 253.3,273.1 L 259.4,274.9 L 269.0,277.3 L 268.8,276.5 L 270.0,276.4 L 268.9,265.6 L 263.5,267.8 L 258.4,268.2 L 254.6,270.1 L 253.7,271.8 Z M 293.4,356.2 L 294.4,357.1 L 292.7,354.0 L 293.4,356.2 Z M 290.4,381.4 L 290.4,379.5 L 290.4,381.4 Z M 215.5,335.4 L 217.2,332.0 L 221.7,327.9 L 235.2,321.3 L 243.7,318.8 L 254.1,313.9 L 248.0,313.0 L 240.2,313.5 L 230.7,310.6 L 220.0,301.6 L 207.6,301.9 L 204.9,316.9 L 204.5,324.2 L 206.7,329.7 L 215.5,335.4 Z M 218.4,358.2 L 256.3,316.3 L 256.7,314.3 L 254.6,313.9 L 243.8,318.9 L 235.4,321.4 L 221.4,328.3 L 217.3,332.1 L 215.8,335.1 L 216.1,338.4 L 206.6,347.5 L 204.0,354.9 L 204.4,354.3 L 218.4,358.2 Z M 270.1,265.0 L 270.9,276.5 L 272.0,276.4 L 275.1,279.5 L 285.1,279.9 L 293.3,277.8 L 301.2,273.0 L 301.9,273.8 L 318.2,263.7 L 316.9,262.3 L 317.9,260.9 L 313.2,260.9 L 298.5,263.5 L 295.5,265.0 L 291.6,263.8 L 288.7,264.5 L 282.0,263.6 L 270.1,265.0 Z M 288.4,267.8 L 289.8,268.1 L 289.8,269.1 L 287.1,269.8 L 286.6,268.6 L 288.4,267.8 Z M 289.4,377.4 L 291.9,372.2 L 289.4,377.4 Z M 297.4,359.0 L 297.9,358.4 L 294.7,357.3 L 295.2,361.9 L 297.4,359.0 Z M 283.3,396.8 L 288.8,392.9 L 284.6,395.4 L 281.1,395.2 L 279.6,393.7 L 283.3,396.8 Z M 293.8,370.6 L 295.1,368.7 L 293.8,370.6 Z M 287.2,395.4 L 290.5,391.8 L 287.2,395.4 Z M 290.8,390.4 L 291.1,389.0 L 290.8,390.4 Z M 290.0,103.0 L 290.5,101.7 L 290.0,103.0 Z M 291.1,103.1 L 291.7,102.6 L 290.9,101.8 L 290.3,103.4 L 291.1,103.1 Z M 199.3,324.4 L 200.2,323.3 L 201.6,324.1 L 200.5,325.6 L 205.2,349.2 L 209.4,344.4 L 214.0,340.9 L 216.4,336.9 L 213.8,334.1 L 206.5,329.8 L 204.3,324.1 L 204.6,319.6 L 199.3,324.4 Z M 200.7,322.0 L 204.7,318.8 L 207.2,302.0 L 204.9,302.5 L 203.9,307.3 L 204.2,313.2 L 202.2,316.8 L 203.5,317.2 L 202.5,320.3 L 200.7,322.0 Z M 202.4,357.6 L 205.5,349.1 L 201.4,355.5 L 199.9,356.4 L 202.6,356.6 L 202.4,357.6 Z M 183.3,342.1 L 179.5,340.0 L 178.4,338.3 L 179.2,339.9 L 183.3,342.1 Z M 169.0,348.3 L 170.3,349.9 L 170.0,347.5 L 169.0,348.3 Z M 175.1,342.3 L 178.0,338.4 L 168.4,348.5 L 175.1,342.3 Z M 171.2,292.0 L 169.1,290.3 L 171.2,292.0 Z M 169.8,245.7 L 174.1,247.1 L 179.6,251.6 L 190.1,255.1 L 196.2,258.7 L 199.4,257.2 L 193.5,256.3 L 179.3,250.6 L 174.7,246.6 L 170.7,244.6 L 166.8,247.9 L 169.8,245.7 Z M 197.5,259.3 L 196.3,259.0 L 196.8,260.1 L 197.5,259.3 Z M 188.8,367.3 L 191.4,361.1 L 185.3,364.5 L 188.8,367.3 Z M 207.4,271.0 L 204.9,268.1 L 196.6,264.4 L 207.4,271.0 Z M 206.8,274.8 L 207.4,275.1 L 207.7,272.3 L 207.0,270.8 L 197.2,265.5 L 200.3,268.0 L 205.1,269.8 L 206.8,274.8 Z M 163.4,409.4 L 190.9,412.8 L 197.0,383.0 L 195.8,377.9 L 192.4,372.2 L 189.0,367.7 L 184.9,364.8 L 181.4,367.2 L 180.3,372.9 L 180.9,379.8 L 178.7,389.0 L 175.5,391.7 L 165.8,404.9 L 164.8,405.3 L 163.6,404.3 L 163.7,405.7 L 157.7,410.1 L 161.7,410.7 L 163.4,409.4 Z M 185.2,364.4 L 189.9,361.5 L 179.2,360.8 L 185.2,364.4 Z M 185.1,361.2 L 188.5,361.4 L 185.1,361.2 Z M 101.0,393.6 L 103.1,394.8 L 101.0,393.6 Z M 183.7,364.2 L 183.7,365.3 L 184.3,364.4 L 179.5,361.3 L 183.7,364.2 Z M 199.2,355.9 L 199.3,356.6 L 200.8,355.5 L 198.8,354.8 L 199.2,355.9 Z M 157.4,390.8 L 158.7,388.9 L 156.3,387.8 L 157.4,390.8 Z M 254.6,313.7 L 255.7,312.7 L 254.0,310.9 L 253.1,305.2 L 251.1,301.4 L 245.9,308.6 L 240.8,312.4 L 232.4,306.6 L 231.8,301.0 L 229.1,301.1 L 228.7,300.3 L 212.6,300.5 L 212.7,301.4 L 221.1,301.7 L 231.4,310.6 L 240.8,313.3 L 248.2,312.8 L 254.6,313.7 Z M 100.0,393.2 L 96.5,389.5 L 100.0,393.2 Z M 191.8,360.6 L 196.7,359.0 L 199.1,356.2 L 193.7,348.5 L 192.1,351.4 L 189.9,350.7 L 190.4,352.7 L 191.3,351.8 L 192.2,353.0 L 193.7,358.2 L 191.1,359.0 L 191.8,360.6 Z M 147.1,246.9 L 146.8,236.8 L 146.0,239.8 L 147.1,246.9 Z M 115.7,187.4 L 121.1,185.4 L 115.7,187.4 Z M 90.1,407.0 L 89.7,407.8 L 90.1,407.0 Z M 126.6,358.3 L 124.6,357.5 L 126.6,358.3 Z M 129.6,359.9 L 128.1,359.1 L 131.1,361.4 L 134.9,366.3 L 142.7,368.5 L 134.9,366.2 L 129.6,359.9 Z M 157.7,770.8 L 162.8,771.1 L 162.9,768.9 L 164.1,768.2 L 165.2,769.0 L 165.6,773.3 L 168.9,773.2 L 169.7,750.0 L 168.4,742.4 L 160.3,750.0 L 156.7,752.1 L 152.6,763.7 L 157.7,770.8 Z M 164.6,718.6 L 164.8,713.7 L 156.9,713.4 L 156.9,709.7 L 147.0,713.5 L 150.2,714.7 L 154.5,718.1 L 164.6,718.6 Z M 149.2,718.0 L 151.6,716.5 L 147.4,714.8 L 147.3,716.1 L 149.2,718.0 Z M 149.7,702.9 L 150.4,699.3 L 146.5,706.0 L 147.9,706.2 L 149.7,702.9 Z M 225.0,584.1 L 228.1,583.2 L 227.9,582.5 L 225.0,584.1 Z M 207.1,605.3 L 216.6,595.0 L 205.7,606.2 L 198.8,624.8 L 205.7,606.6 L 207.1,605.3 Z M 201.7,616.8 L 200.4,620.0 L 201.7,616.8 Z M 217.2,594.0 L 218.3,593.7 L 222.0,587.0 L 217.2,594.0 Z M 234.3,429.2 L 234.6,429.8 L 235.0,429.0 L 234.3,429.2 Z M 227.9,411.7 L 230.0,410.0 L 229.4,408.7 L 224.8,410.8 L 227.9,411.7 Z M 219.6,424.3 L 226.3,420.4 L 229.7,416.4 L 226.5,415.5 L 218.5,422.8 L 219.6,424.3 Z M 225.8,413.7 L 227.7,411.9 L 224.8,411.5 L 225.8,413.7 Z M 146.3,672.6 L 145.5,669.8 L 155.1,672.3 L 155.0,667.4 L 123.0,665.5 L 116.0,671.6 L 114.7,676.6 L 120.4,681.3 L 135.4,689.6 L 142.9,699.6 L 145.2,697.4 L 150.5,697.0 L 150.7,688.9 L 146.2,675.7 L 145.5,673.1 L 146.3,672.6 Z M 147.1,244.8 L 147.1,236.9 L 146.5,239.2 L 147.4,247.5 L 146.1,253.0 L 147.8,248.6 L 147.1,244.8 Z M 150.9,227.0 L 152.8,219.9 L 152.6,216.7 L 150.8,227.0 L 148.3,229.5 L 149.6,229.6 L 150.9,227.0 Z M 131.1,173.2 L 128.8,177.9 L 131.1,173.2 Z M 134.3,164.5 L 133.3,165.9 L 136.0,165.6 L 137.3,163.7 L 136.2,163.0 L 134.3,164.5 Z M 101.7,203.5 L 104.0,206.4 L 101.7,203.5 Z M 103.3,189.0 L 101.6,191.5 L 101.3,195.7 L 102.0,190.9 L 104.6,187.9 L 103.3,189.0 Z M 227.8,720.1 L 227.2,720.0 L 227.5,721.9 L 229.0,725.0 L 231.0,723.1 L 229.9,720.8 L 227.8,720.1 Z M 231.7,777.0 L 215.2,765.4 L 220.2,770.0 L 231.7,777.0 Z M 214.3,765.1 L 191.0,747.4 L 188.4,750.8 L 187.8,750.4 L 186.6,749.3 L 189.1,746.1 L 188.1,745.5 L 185.6,749.4 L 186.7,753.6 L 188.1,775.7 L 193.3,774.1 L 219.0,775.9 L 214.3,765.1 Z M 145.0,254.6 L 145.5,253.8 L 145.0,254.6 Z M 144.6,256.2 L 145.7,254.3 L 144.6,256.2 Z M 246.5,409.8 L 247.5,408.8 L 247.0,408.2 L 246.5,409.8 Z M 247.6,391.5 L 249.5,390.1 L 251.7,386.2 L 253.7,386.8 L 254.4,384.3 L 241.1,376.1 L 237.7,372.9 L 217.5,361.2 L 213.4,367.8 L 204.1,387.7 L 205.8,388.2 L 204.4,390.4 L 206.8,394.5 L 218.0,407.0 L 223.7,411.0 L 237.9,404.7 L 245.5,404.7 L 245.1,403.3 L 243.4,404.4 L 241.5,403.2 L 242.1,401.2 L 241.2,399.9 L 242.3,397.3 L 244.4,395.6 L 241.2,393.9 L 241.2,391.8 L 246.9,384.8 L 250.3,388.5 L 247.6,391.5 Z M 223.4,258.0 L 214.4,255.1 L 210.7,258.3 L 200.3,257.4 L 197.8,259.0 L 199.2,258.4 L 204.4,260.5 L 211.2,266.3 L 216.5,269.3 L 215.3,276.2 L 207.6,275.4 L 208.7,288.8 L 209.7,287.5 L 208.6,283.3 L 208.7,276.4 L 215.6,277.8 L 218.0,266.7 L 228.5,257.9 L 224.9,258.5 L 225.6,258.9 L 225.2,260.2 L 217.8,266.2 L 216.9,268.4 L 213.8,267.1 L 214.2,266.5 L 206.9,261.3 L 208.4,259.1 L 211.5,258.8 L 213.2,256.1 L 215.0,255.4 L 223.4,258.0 Z M 109.5,218.3 L 110.1,217.0 L 113.0,215.8 L 120.3,214.8 L 126.3,216.6 L 132.2,216.8 L 132.7,211.5 L 131.1,216.6 L 120.9,214.3 L 112.0,215.5 L 109.6,216.4 L 109.5,218.3 Z M 256.0,415.1 L 250.2,414.0 L 256.0,415.1 Z M 242.4,245.2 L 239.4,249.7 L 237.2,250.5 L 235.6,258.2 L 240.9,261.1 L 248.6,270.8 L 249.8,270.3 L 242.2,259.7 L 242.7,258.9 L 240.0,253.0 L 240.1,251.4 L 244.1,246.6 L 242.4,245.2 Z M 203.7,288.3 L 208.5,288.6 L 208.0,287.0 L 203.7,288.3 Z M 208.3,292.9 L 209.3,292.8 L 209.0,290.3 L 208.3,292.9 Z M 208.7,301.5 L 209.4,301.6 L 208.6,301.1 L 209.6,289.9 L 208.7,301.5 Z M 207.4,301.2 L 208.6,298.8 L 208.6,295.7 L 207.4,301.2 Z M 225.9,236.6 L 224.4,225.4 L 230.9,216.9 L 224.3,225.2 L 225.9,236.6 Z M 225.4,258.2 L 235.3,258.1 L 236.6,252.7 L 237.0,250.5 L 235.4,247.4 L 228.9,240.8 L 234.7,246.7 L 236.9,250.3 L 232.2,253.0 L 230.5,255.2 L 226.0,257.2 L 217.1,255.5 L 225.4,258.2 Z M 244.1,246.6 L 248.6,241.6 L 251.0,240.4 L 252.0,237.1 L 248.3,235.2 L 245.8,229.4 L 244.8,228.3 L 244.1,228.7 L 241.1,223.8 L 244.2,229.0 L 244.7,232.1 L 239.2,235.7 L 235.3,236.2 L 228.0,239.6 L 229.0,240.7 L 230.6,239.0 L 235.8,237.8 L 238.8,240.8 L 239.1,242.3 L 244.1,246.6 Z M 225.6,236.0 L 224.7,230.8 L 225.6,236.0 Z M 194.7,329.2 L 198.7,324.4 L 194.7,329.2 Z M 151.0,216.2 L 152.0,216.3 L 151.9,215.4 L 151.0,216.2 Z M 105.7,482.6 L 106.2,482.0 L 105.4,481.6 L 105.7,482.6 Z M 98.7,480.6 L 102.3,481.0 L 98.7,480.6 Z M 97.7,480.3 L 93.9,479.1 L 97.7,480.3 Z M 112.9,484.4 L 115.9,482.8 L 112.7,482.4 L 112.9,484.4 Z M 77.5,467.1 L 77.9,466.2 L 77.5,467.1 Z M 157.3,571.4 L 155.7,573.0 L 156.3,573.8 L 157.3,571.4 Z M 136.9,594.6 L 135.2,591.8 L 130.7,587.9 L 126.8,592.2 L 111.9,601.5 L 112.5,604.8 L 118.6,608.5 L 119.5,607.5 L 119.2,608.6 L 120.4,609.8 L 133.1,617.3 L 136.0,615.0 L 139.1,605.8 L 136.7,605.1 L 138.2,601.6 L 137.5,601.2 L 139.4,599.0 L 139.0,598.3 L 137.0,600.2 L 133.2,598.5 L 134.2,595.8 L 137.8,596.4 L 136.9,594.6 Z M 133.8,592.6 L 133.0,592.6 L 133.6,591.7 L 133.8,592.6 Z M 197.0,413.5 L 202.4,390.7 L 200.8,386.9 L 197.4,383.7 L 192.2,404.1 L 191.0,412.4 L 197.0,413.5 Z M 164.8,566.3 L 165.0,563.6 L 167.7,557.4 L 172.2,551.8 L 166.2,554.1 L 161.9,563.5 L 164.8,566.3 Z M 171.3,551.8 L 173.6,550.5 L 168.6,547.5 L 166.4,553.6 L 171.3,551.8 Z M 168.7,547.1 L 169.2,545.9 L 168.7,547.1 Z M 169.4,547.3 L 170.1,548.2 L 169.5,545.4 L 169.4,547.3 Z M 132.3,168.7 L 133.4,165.2 L 135.9,162.9 L 132.7,165.2 L 132.3,168.7 Z M 165.5,683.2 L 166.7,681.6 L 165.5,680.4 L 165.5,683.2 Z M 222.6,444.5 L 223.4,445.3 L 224.6,444.2 L 223.9,443.5 L 222.6,444.5 Z M 190.8,440.6 L 197.0,413.8 L 191.0,412.8 L 189.3,434.3 L 190.8,440.6 Z M 212.0,449.0 L 212.9,449.9 L 215.0,448.2 L 212.0,449.0 Z M 204.7,467.8 L 206.8,464.1 L 206.3,463.1 L 207.7,462.5 L 209.6,458.1 L 208.0,457.2 L 202.7,467.2 L 204.7,467.8 Z M 197.8,535.2 L 196.6,536.1 L 197.8,535.2 Z M 173.0,527.8 L 171.9,530.8 L 172.7,530.9 L 174.3,525.7 L 176.8,511.9 L 173.4,511.4 L 173.1,513.2 L 171.2,512.9 L 170.5,517.1 L 163.9,517.5 L 162.5,511.0 L 166.3,525.1 L 167.4,520.0 L 173.2,523.4 L 173.9,525.5 L 173.0,527.8 Z M 180.6,512.3 L 181.4,512.6 L 181.7,511.8 L 180.9,511.4 L 180.6,512.3 Z M 159.4,504.0 L 165.1,500.4 L 167.1,496.9 L 171.2,494.3 L 169.8,493.8 L 172.0,486.1 L 169.0,481.9 L 168.9,477.4 L 156.8,476.8 L 158.3,479.7 L 154.9,481.3 L 154.2,478.1 L 152.6,478.8 L 142.8,477.7 L 144.4,484.7 L 146.3,484.2 L 147.2,485.8 L 149.1,484.1 L 152.6,487.0 L 155.2,494.7 L 150.6,495.7 L 151.0,497.1 L 154.3,499.5 L 155.0,497.0 L 156.5,497.6 L 156.0,500.6 L 159.4,504.0 Z M 179.6,516.8 L 176.5,515.8 L 175.4,522.3 L 179.6,516.8 Z M 173.8,530.0 L 172.4,535.9 L 173.6,534.8 L 175.9,528.6 L 174.3,528.1 L 173.8,530.0 Z M 163.2,559.6 L 164.3,557.0 L 163.2,559.6 Z M 159.8,563.0 L 161.7,562.8 L 163.2,559.8 L 160.4,558.5 L 159.8,563.0 Z M 144.5,153.7 L 146.1,152.4 L 146.0,151.0 L 144.5,153.7 Z M 130.4,173.8 L 129.8,175.9 L 130.4,173.8 Z M 122.4,187.1 L 125.4,192.1 L 128.1,193.4 L 134.4,191.2 L 136.8,191.3 L 140.5,189.3 L 140.1,188.6 L 136.6,190.6 L 133.2,190.8 L 127.9,193.2 L 124.8,190.3 L 122.3,184.6 L 118.5,187.0 L 120.6,186.3 L 122.4,187.1 Z M 198.4,534.1 L 198.5,531.6 L 199.4,530.7 L 201.9,530.6 L 205.9,526.2 L 209.8,526.8 L 212.3,524.0 L 213.6,520.8 L 214.8,511.6 L 202.4,509.7 L 201.5,511.1 L 196.0,510.2 L 190.2,506.4 L 187.1,512.9 L 184.5,514.8 L 185.1,519.2 L 183.4,519.7 L 186.0,534.6 L 189.6,537.5 L 192.6,538.6 L 198.4,534.1 Z M 195.7,481.9 L 201.3,477.0 L 201.6,474.8 L 200.2,472.4 L 195.7,481.9 Z M 192.3,487.5 L 193.2,485.7 L 183.4,481.6 L 182.9,483.9 L 192.3,487.5 Z M 191.9,494.6 L 192.7,492.7 L 190.6,491.9 L 189.5,494.8 L 191.9,494.6 Z M 185.5,495.9 L 188.1,497.1 L 188.9,495.0 L 186.3,493.6 L 185.5,495.9 Z M 194.0,484.0 L 189.1,481.9 L 194.0,484.0 Z M 200.5,478.4 L 201.8,478.4 L 201.5,477.1 L 200.5,478.4 Z M 200.9,473.3 L 202.8,471.8 L 204.7,467.8 L 202.6,467.4 L 200.4,472.0 L 200.9,473.3 Z M 195.6,481.2 L 202.5,466.9 L 196.6,463.6 L 190.8,471.4 L 189.2,471.9 L 186.0,469.4 L 187.5,471.3 L 187.0,471.9 L 185.7,471.2 L 184.6,476.1 L 195.6,481.2 Z M 129.0,660.0 L 124.8,659.6 L 124.5,662.7 L 125.5,662.9 L 129.0,660.0 Z M 132.9,537.1 L 133.0,538.4 L 134.3,537.1 L 132.8,535.0 L 132.9,537.1 Z M 159.3,570.5 L 153.7,580.5 L 154.4,588.3 L 156.1,586.8 L 162.4,574.5 L 162.7,572.1 L 159.3,570.5 Z M 154.8,564.2 L 156.6,564.8 L 154.8,562.7 L 154.8,564.2 Z M 160.9,565.8 L 164.8,567.1 L 161.8,564.0 L 160.9,565.8 Z M 153.7,588.4 L 153.4,585.0 L 151.3,584.5 L 148.4,589.6 L 150.2,590.1 L 151.2,586.7 L 152.0,587.0 L 151.7,587.9 L 153.7,588.4 Z M 139.3,606.5 L 136.7,614.9 L 139.0,619.6 L 139.4,613.1 L 140.7,608.8 L 139.7,608.5 L 139.3,606.5 Z M 140.4,604.8 L 141.3,602.4 L 140.4,604.8 Z M 163.0,571.1 L 164.7,567.4 L 163.7,567.1 L 163.1,568.4 L 162.0,570.9 L 163.0,571.1 Z M 111.5,672.7 L 117.2,668.8 L 111.5,672.7 Z M 108.3,541.5 L 108.2,539.6 L 108.3,541.5 Z M 109.0,547.7 L 108.3,541.9 L 109.0,547.7 Z M 104.0,552.8 L 108.9,547.9 L 104.0,552.8 Z M 101.8,554.1 L 102.6,554.3 L 102.3,553.5 L 101.2,553.7 L 101.8,554.1 Z M 104.5,551.6 L 108.4,548.6 L 104.5,551.6 Z M 101.5,486.9 L 102.8,485.8 L 101.5,486.9 Z M 103.3,485.2 L 104.0,484.7 L 103.3,485.2 Z M 122.7,664.4 L 124.3,659.8 L 121.5,659.7 L 121.0,654.3 L 124.6,654.0 L 124.8,652.8 L 123.0,653.0 L 123.1,649.8 L 119.9,648.9 L 119.9,659.0 L 122.7,664.4 Z M 112.1,517.2 L 113.1,512.0 L 112.1,517.2 Z M 99.7,505.3 L 96.7,504.8 L 99.8,505.6 L 97.7,508.4 L 97.7,514.1 L 99.3,517.5 L 101.2,518.5 L 101.1,520.9 L 102.1,521.2 L 101.5,518.4 L 99.4,517.0 L 98.1,514.4 L 98.2,508.8 L 100.4,505.9 L 99.7,505.3 Z M 108.3,523.8 L 108.7,522.9 L 101.3,521.3 L 100.1,523.4 L 101.1,521.9 L 107.9,523.6 L 108.0,524.5 L 108.3,523.8 Z M 79.6,458.7 L 79.2,460.0 L 79.6,458.7 Z M 79.4,460.9 L 79.8,459.4 L 79.4,460.9 Z M 82.0,447.6 L 81.9,448.4 L 82.0,447.6 Z M 81.3,452.4 L 81.9,449.0 L 81.3,452.4 Z M 81.1,451.7 L 81.7,446.7 L 81.1,451.7 Z M 83.0,428.7 L 82.6,431.4 L 83.0,428.7 Z M 103.7,425.1 L 116.7,422.0 L 117.1,416.0 L 125.9,416.5 L 132.2,431.1 L 134.9,434.5 L 130.1,425.3 L 129.4,421.2 L 123.3,407.4 L 123.4,403.4 L 116.8,396.9 L 116.0,397.0 L 120.5,400.3 L 125.6,415.7 L 116.6,415.0 L 115.9,420.9 L 105.4,422.1 L 103.5,423.1 L 103.7,425.1 Z M 82.3,443.8 L 84.1,443.0 L 82.3,443.8 Z M 109.6,544.7 L 108.6,539.6 L 109.6,544.7 Z M 108.4,538.0 L 105.4,535.4 L 104.4,532.7 L 103.4,533.1 L 104.7,535.3 L 108.4,538.0 Z M 119.1,660.7 L 122.3,664.4 L 120.7,660.5 L 119.1,660.7 Z M 118.3,648.8 L 120.0,649.7 L 118.3,648.8 Z M 295.0,98.1 L 291.3,101.4 L 295.0,98.1 Z M 127.2,631.4 L 125.8,631.8 L 124.7,628.0 L 121.7,628.8 L 122.0,634.0 L 126.4,633.4 L 124.5,639.8 L 118.4,638.1 L 118.2,646.0 L 120.6,646.5 L 120.1,648.9 L 124.1,650.0 L 124.4,648.6 L 125.7,648.9 L 131.3,630.3 L 127.2,631.4 Z M 252.8,239.4 L 251.3,239.0 L 251.0,240.4 L 246.8,243.4 L 240.1,251.4 L 240.0,253.0 L 241.5,257.5 L 243.4,258.5 L 243.1,256.7 L 244.9,252.5 L 250.7,244.9 L 251.8,247.4 L 256.7,252.3 L 257.3,266.4 L 258.7,266.2 L 258.6,253.0 L 259.7,249.8 L 256.6,246.3 L 254.5,248.3 L 253.6,247.0 L 251.9,242.1 L 252.8,239.4 Z M 119.2,616.2 L 121.3,628.1 L 133.0,624.7 L 133.5,622.9 L 132.1,619.3 L 127.3,617.1 L 117.2,609.1 L 116.4,608.7 L 117.1,611.8 L 119.2,616.2 Z M 128.7,619.6 L 130.7,619.7 L 132.2,621.6 L 131.7,623.9 L 130.4,624.8 L 128.0,624.4 L 126.8,622.8 L 127.0,620.7 L 128.7,619.6 Z M 141.1,544.4 L 141.6,543.8 L 137.8,541.4 L 140.5,544.8 L 141.1,544.4 Z M 130.0,532.8 L 131.7,533.2 L 129.7,531.7 L 130.0,532.8 Z M 105.9,506.8 L 105.5,506.1 L 111.9,503.4 L 115.7,502.8 L 113.1,502.7 L 105.6,505.9 L 103.9,505.5 L 105.9,506.8 Z M 100.8,505.2 L 100.5,502.4 L 102.3,494.1 L 101.8,487.6 L 102.0,494.1 L 100.0,501.6 L 100.8,505.2 Z M 96.2,504.8 L 92.8,503.3 L 93.6,504.4 L 96.2,504.8 Z M 89.6,689.5 L 90.4,690.7 L 90.6,689.0 L 89.6,689.5 Z M 112.1,675.5 L 111.3,675.3 L 112.3,677.8 L 114.4,680.4 L 116.1,678.7 L 112.1,675.5 Z M 162.5,684.8 L 165.4,683.7 L 165.3,680.2 L 164.0,679.0 L 161.1,683.2 L 160.9,684.3 L 162.5,684.8 Z M 158.7,658.9 L 159.4,656.5 L 158.7,658.9 Z M 158.2,659.6 L 161.5,642.6 L 160.7,642.7 L 158.2,655.5 L 157.5,659.2 L 158.2,659.6 Z M 157.4,663.5 L 158.0,659.8 L 156.6,664.0 L 156.7,667.0 L 157.4,663.5 Z M 127.7,688.1 L 127.3,689.6 L 131.1,687.5 L 128.5,686.5 L 127.7,688.1 Z M 162.3,510.3 L 161.6,507.6 L 162.9,507.2 L 165.7,506.6 L 166.5,509.4 L 169.6,508.6 L 168.5,502.3 L 170.8,500.7 L 172.5,503.4 L 177.8,506.2 L 175.7,504.0 L 172.5,503.1 L 169.9,499.4 L 170.2,494.9 L 166.7,497.9 L 166.2,499.2 L 168.0,500.3 L 167.1,501.5 L 165.3,500.4 L 159.5,504.1 L 162.3,510.3 Z M 161.8,510.4 L 161.0,507.9 L 161.8,510.4 Z M 176.2,492.2 L 177.7,487.7 L 177.1,487.3 L 176.2,492.2 Z M 124.0,585.3 L 125.2,584.6 L 124.0,585.3 Z M 150.3,494.7 L 152.2,493.7 L 152.5,491.5 L 151.0,493.0 L 150.5,491.3 L 149.5,491.5 L 150.3,494.7 Z M 169.9,538.5 L 170.8,536.9 L 169.9,538.5 Z M 151.4,710.3 L 152.0,710.0 L 151.1,708.5 L 148.5,706.9 L 150.1,709.8 L 151.4,710.3 Z M 186.9,735.9 L 187.0,728.7 L 184.8,728.0 L 178.6,728.3 L 168.4,732.1 L 168.5,734.5 L 179.5,733.4 L 186.9,735.9 Z M 174.2,704.3 L 178.2,703.2 L 175.5,696.9 L 171.0,699.4 L 174.2,704.3 Z M 123.8,357.8 L 129.8,360.7 L 133.3,365.5 L 132.0,372.5 L 132.8,380.8 L 131.6,390.0 L 129.7,395.4 L 128.2,397.1 L 121.2,398.3 L 116.6,396.7 L 123.5,403.1 L 123.6,407.7 L 132.3,428.9 L 130.7,425.7 L 131.9,425.2 L 123.5,406.1 L 125.3,401.7 L 131.2,394.9 L 133.0,389.2 L 133.4,382.7 L 135.6,380.8 L 141.7,382.2 L 145.0,379.1 L 151.8,385.1 L 155.5,387.1 L 156.3,389.8 L 157.0,389.7 L 155.4,386.9 L 143.5,377.7 L 143.0,373.1 L 140.9,368.4 L 134.9,366.4 L 129.5,360.1 L 118.7,353.9 L 123.8,357.8 Z M 140.8,369.3 L 143.0,373.7 L 143.3,378.5 L 139.6,380.8 L 134.3,380.7 L 133.0,371.6 L 134.1,366.6 L 140.8,369.3 Z M 187.6,746.4 L 188.2,745.4 L 185.0,744.8 L 174.7,745.7 L 168.6,740.1 L 170.1,749.8 L 169.4,778.8 L 188.1,775.8 L 186.7,753.6 L 185.6,749.4 L 187.6,746.4 Z M 128.9,542.8 L 127.7,545.4 L 130.0,556.0 L 130.3,568.1 L 132.7,570.6 L 135.6,570.5 L 135.9,565.7 L 137.2,562.9 L 135.8,551.4 L 136.8,550.6 L 136.6,549.7 L 134.8,549.9 L 134.5,544.9 L 134.9,543.4 L 137.6,541.0 L 134.4,537.8 L 133.1,538.8 L 133.8,540.1 L 130.5,542.7 L 129.2,543.1 L 129.0,542.1 L 128.9,542.8 Z M 125.4,764.4 L 126.7,763.6 L 125.9,762.1 L 125.4,764.4 Z M 138.7,636.7 L 137.8,630.3 L 138.8,621.6 L 137.4,621.5 L 134.5,623.5 L 128.1,642.1 L 124.6,656.4 L 125.3,659.4 L 124.7,656.7 L 127.1,656.5 L 127.4,654.6 L 128.4,654.2 L 128.2,652.5 L 135.8,652.7 L 136.5,656.9 L 131.8,660.0 L 132.5,662.8 L 132.2,661.0 L 135.3,659.6 L 137.5,664.2 L 132.7,665.0 L 131.2,659.5 L 125.6,663.0 L 124.4,662.9 L 123.5,664.8 L 124.0,665.5 L 142.7,666.6 L 140.9,665.0 L 138.7,636.7 Z M 113.3,533.5 L 115.6,532.2 L 113.3,533.5 Z M 108.0,525.5 L 107.9,524.8 L 108.0,525.5 Z M 125.7,584.6 L 126.6,583.3 L 125.7,584.6 Z M 113.8,582.7 L 113.7,581.6 L 113.8,582.7 Z M 120.0,587.5 L 123.6,585.5 L 119.4,586.9 L 120.0,587.5 Z M 30.6,595.7 L 36.5,594.4 L 38.9,592.6 L 39.4,591.1 L 36.9,594.0 L 30.6,595.7 Z M 70.0,584.1 L 69.9,586.9 L 70.0,584.1 Z M 70.8,592.5 L 70.1,588.4 L 69.8,592.8 L 70.8,592.5 Z M 69.1,591.2 L 69.5,587.7 L 69.1,591.2 Z M 69.1,591.4 L 69.3,593.1 L 69.1,591.4 Z M 196.6,352.6 L 198.5,354.5 L 201.0,355.3 L 205.2,349.2 L 200.5,325.6 L 199.1,324.7 L 194.6,329.9 L 191.3,331.2 L 194.1,334.3 L 189.2,341.6 L 191.5,343.3 L 190.1,346.0 L 194.6,349.0 L 196.6,352.6 Z M 133.8,498.0 L 136.6,497.4 L 133.8,498.0 Z M 128.3,498.9 L 132.5,498.1 L 125.8,499.0 L 124.8,497.3 L 123.3,497.3 L 124.7,497.5 L 126.0,499.2 L 128.3,498.9 Z M 227.1,735.5 L 231.7,747.6 L 233.6,748.8 L 234.3,747.8 L 231.6,741.0 L 232.4,739.1 L 234.0,738.2 L 233.4,736.5 L 231.5,734.2 L 227.1,735.5 Z M 219.1,736.7 L 222.7,743.7 L 226.6,741.8 L 223.9,734.3 L 219.1,736.7 Z M 91.7,690.7 L 92.4,690.9 L 92.6,688.8 L 93.6,688.5 L 92.3,688.3 L 91.7,690.7 Z M 118.6,637.5 L 124.6,639.7 L 126.4,633.4 L 122.0,634.0 L 121.7,628.8 L 118.6,637.5 Z M 137.0,562.5 L 136.1,551.3 L 137.0,562.5 Z M 148.7,554.0 L 147.7,553.0 L 148.7,554.0 Z M 77.1,475.1 L 77.6,473.8 L 77.1,475.1 Z M 134.2,366.6 L 133.0,369.8 L 133.7,380.3 L 141.2,380.3 L 143.4,378.3 L 143.0,373.7 L 141.3,369.7 L 134.2,366.6 Z M 77.0,476.0 L 77.2,476.9 L 77.6,475.2 L 77.0,476.0 Z M 76.7,473.3 L 77.5,469.9 L 76.7,473.3 Z M 78.5,489.6 L 76.9,477.3 L 77.6,487.4 L 78.5,489.6 Z M 91.3,477.6 L 91.9,477.9 L 91.3,477.6 Z M 77.5,488.1 L 76.6,479.7 L 77.5,488.1 Z M 79.6,495.2 L 79.3,491.7 L 77.5,488.6 L 79.1,491.9 L 79.6,498.4 L 80.6,498.5 L 79.6,495.2 Z M 74.5,503.7 L 75.8,502.5 L 73.1,502.7 L 74.5,503.7 Z M 80.8,497.5 L 81.5,497.6 L 80.5,496.4 L 80.8,497.5 Z M 421.6,148.8 L 424.7,150.3 L 422.9,148.6 L 423.6,146.6 L 423.0,146.2 L 421.6,148.8 Z M 349.5,261.5 L 352.6,261.2 L 353.3,259.8 L 353.0,255.3 L 349.0,256.4 L 345.6,252.8 L 344.1,254.1 L 346.6,256.1 L 349.5,261.5 Z M 333.3,266.9 L 334.9,267.0 L 335.0,264.8 L 333.8,264.9 L 333.3,266.9 Z M 274.4,279.9 L 289.1,283.5 L 292.8,280.4 L 290.5,278.9 L 285.1,279.9 L 275.1,279.5 L 272.3,277.2 L 269.3,277.4 L 252.9,273.0 L 250.4,271.4 L 249.3,271.8 L 250.9,273.2 L 258.2,274.7 L 263.7,278.2 L 274.4,279.9 Z M 215.6,274.5 L 216.4,269.1 L 211.1,266.2 L 210.0,267.3 L 209.2,271.0 L 208.0,271.6 L 209.2,271.1 L 209.2,272.5 L 215.6,274.5 Z M 220.0,264.6 L 224.0,261.3 L 215.2,257.7 L 214.3,256.9 L 214.9,255.4 L 213.2,256.1 L 211.5,258.8 L 208.4,259.1 L 206.9,261.3 L 216.5,268.4 L 220.0,264.6 Z M 132.8,390.1 L 131.0,395.1 L 132.5,395.8 L 130.8,398.8 L 134.2,400.6 L 136.1,395.9 L 141.4,388.8 L 139.9,386.7 L 142.6,386.2 L 144.8,384.6 L 146.8,381.5 L 146.7,380.2 L 144.4,379.0 L 141.7,382.2 L 136.0,380.8 L 134.3,381.6 L 133.4,382.7 L 132.8,390.1 Z M 103.9,425.1 L 107.2,434.1 L 119.9,429.7 L 116.5,422.1 L 103.9,425.1 Z M 92.7,424.0 L 93.5,424.7 L 95.5,423.3 L 95.2,420.9 L 94.5,420.9 L 94.4,422.7 L 92.3,422.7 L 92.7,424.0 Z M 85.1,424.1 L 91.5,425.2 L 85.1,424.1 Z M 84.7,442.7 L 89.0,442.4 L 84.7,442.7 Z M 96.8,452.8 L 95.9,455.4 L 96.8,452.8 Z M 210.0,526.5 L 213.4,521.5 L 214.8,512.2 L 213.3,521.8 L 210.0,526.5 Z M 114.6,673.6 L 115.6,671.0 L 111.2,673.7 L 114.2,676.2 L 114.6,673.6 Z M 117.6,669.3 L 122.8,665.0 L 117.6,669.3 Z M 90.3,691.9 L 90.5,691.1 L 90.3,691.9 Z M 92.4,687.4 L 91.1,687.9 L 90.9,692.8 L 92.4,687.4 Z M 93.1,683.7 L 94.4,683.3 L 93.1,683.7 Z M 87.4,703.8 L 87.2,702.3 L 86.2,703.0 L 87.4,703.8 Z M 135.0,690.2 L 131.4,687.8 L 124.7,691.3 L 121.1,694.9 L 122.2,696.0 L 125.3,694.3 L 126.6,696.2 L 135.0,690.2 Z M 201.5,302.5 L 204.2,302.1 L 201.5,302.5 Z M 397.1,200.4 L 399.6,199.1 L 398.8,197.1 L 394.1,198.9 L 397.1,200.4 Z M 152.2,763.1 L 156.4,751.8 L 159.8,749.9 L 163.9,745.9 L 158.6,750.2 L 156.9,749.3 L 157.2,737.2 L 159.0,736.1 L 162.1,729.7 L 164.1,729.2 L 164.4,730.5 L 167.6,730.7 L 164.5,719.1 L 156.6,718.7 L 157.0,724.3 L 154.9,724.2 L 154.6,718.5 L 152.6,717.3 L 151.1,718.2 L 154.2,729.1 L 154.1,731.4 L 151.1,734.4 L 143.4,734.6 L 142.8,751.0 L 144.2,758.2 L 149.2,759.9 L 152.2,763.1 Z M 161.4,364.2 L 158.4,362.1 L 154.7,362.7 L 161.4,364.2 Z M 189.8,368.3 L 189.1,367.3 L 189.9,365.3 L 191.8,365.9 L 189.9,368.5 L 195.8,377.4 L 197.5,365.4 L 201.1,359.3 L 196.9,359.0 L 191.8,360.8 L 189.2,366.8 L 189.8,368.3 Z M 202.2,613.6 L 204.7,607.5 L 202.2,613.6 Z M 199.4,622.2 L 200.1,620.4 L 199.4,622.2 Z M 163.0,556.0 L 164.5,556.8 L 165.0,555.5 L 163.0,556.0 Z M 220.7,782.7 L 225.7,781.4 L 232.4,777.4 L 226.7,774.7 L 215.3,766.0 L 219.5,774.6 L 220.7,782.7 Z M 202.4,389.1 L 203.5,388.3 L 218.3,358.1 L 206.1,354.8 L 204.4,359.0 L 202.5,357.9 L 197.9,365.0 L 196.0,377.9 L 197.3,383.3 L 202.4,389.1 Z M 152.1,212.5 L 153.4,209.2 L 153.2,200.6 L 155.7,193.7 L 158.0,191.8 L 166.9,190.5 L 172.0,186.6 L 175.1,182.5 L 171.3,186.9 L 168.5,188.7 L 155.2,192.6 L 152.9,201.2 L 153.2,208.9 L 152.1,212.5 Z M 82.6,443.6 L 84.1,442.9 L 82.6,443.6 Z M 222.9,445.5 L 221.4,445.2 L 222.9,445.5 Z M 254.6,384.4 L 254.4,385.9 L 255.0,385.0 L 257.2,386.5 L 258.0,379.2 L 256.5,378.7 L 254.6,384.4 Z M 337.0,330.6 L 335.0,334.3 L 337.0,330.6 Z M 340.9,288.7 L 341.8,279.6 L 339.7,281.1 L 334.6,280.5 L 333.4,284.1 L 335.3,284.8 L 335.1,286.0 L 340.9,288.7 Z M 116.7,494.3 L 115.7,493.3 L 116.7,494.3 Z M 103.8,188.2 L 104.6,186.7 L 102.2,185.2 L 103.9,186.3 L 100.9,192.0 L 100.1,197.9 L 89.8,196.9 L 88.0,197.5 L 88.2,198.3 L 94.5,198.1 L 100.6,199.2 L 101.3,191.7 L 103.8,188.2 Z M 293.3,370.6 L 294.9,368.5 L 293.3,370.6 Z M 168.2,465.9 L 169.0,467.5 L 169.6,467.2 L 188.9,452.4 L 190.8,441.0 L 189.1,435.1 L 190.9,412.8 L 163.4,409.4 L 161.7,410.7 L 157.7,410.1 L 157.8,412.3 L 155.6,414.7 L 154.0,414.5 L 152.3,417.5 L 150.8,418.1 L 146.4,425.3 L 146.9,424.9 L 149.0,426.7 L 148.7,427.6 L 150.6,428.1 L 150.9,429.4 L 154.7,431.6 L 156.5,433.9 L 156.9,437.9 L 158.0,439.2 L 159.4,439.8 L 160.0,439.1 L 161.1,440.7 L 162.1,440.0 L 161.4,441.0 L 162.5,440.7 L 162.9,442.7 L 163.8,442.5 L 163.3,445.6 L 164.4,447.5 L 163.9,448.2 L 164.7,448.4 L 163.8,450.9 L 164.1,458.2 L 168.9,459.7 L 167.8,462.9 L 168.2,465.9 Z M 270.3,277.4 L 270.9,276.5 L 269.7,265.3 L 268.9,265.6 L 270.3,277.4 Z M 352.4,247.0 L 357.1,243.5 L 356.8,242.0 L 359.2,239.7 L 357.4,238.2 L 352.3,242.6 L 337.1,251.6 L 340.0,256.3 L 343.5,251.8 L 344.2,252.0 L 344.2,250.9 L 346.0,252.4 L 344.3,250.6 L 347.8,247.3 L 351.8,245.3 L 352.4,247.0 Z M 89.1,475.3 L 88.3,474.2 L 89.1,475.3 Z M 161.5,642.3 L 162.4,635.4 L 161.7,634.1 L 160.8,642.2 L 161.5,642.3 Z M 191.9,460.4 L 202.7,466.4 L 212.2,449.9 L 205.0,444.8 L 197.4,441.8 L 195.5,447.4 L 190.0,446.3 L 189.2,453.2 L 193.4,454.5 L 194.3,455.8 L 194.1,458.0 L 192.6,458.7 L 191.9,460.4 Z M 162.6,513.5 L 162.9,514.6 L 162.6,513.5 Z M 188.0,499.3 L 190.2,499.1 L 191.8,495.0 L 189.3,495.2 L 188.0,499.3 Z M 142.4,600.5 L 144.9,595.9 L 142.4,600.5 Z M 112.5,484.3 L 112.3,481.7 L 107.0,481.2 L 109.3,483.0 L 109.6,482.1 L 112.0,482.3 L 112.5,484.3 Z M 87.8,443.0 L 84.8,443.1 L 87.8,443.0 Z M 334.8,80.6 L 334.4,77.8 L 340.1,73.1 L 339.4,72.5 L 330.2,79.9 L 311.6,84.7 L 306.1,90.2 L 298.1,94.2 L 298.4,94.9 L 295.0,98.1 L 295.7,98.7 L 306.4,91.5 L 308.9,88.5 L 311.5,91.6 L 313.1,90.9 L 314.5,91.5 L 313.4,85.8 L 314.6,84.8 L 330.4,80.5 L 333.7,92.3 L 334.8,80.6 Z M 255.6,274.1 L 252.6,274.0 L 259.0,275.7 L 261.7,277.4 L 260.7,279.7 L 262.3,279.9 L 262.3,281.4 L 260.0,281.6 L 254.9,294.7 L 251.0,301.3 L 253.1,305.3 L 254.1,311.2 L 255.7,312.7 L 261.5,306.1 L 263.7,308.0 L 274.3,299.3 L 288.6,283.7 L 271.4,279.2 L 263.0,278.2 L 255.6,274.1 Z M 251.7,274.7 L 252.5,273.7 L 250.9,273.3 L 251.7,274.7 Z M 184.6,534.9 L 186.0,534.6 L 185.8,533.2 L 184.4,533.6 L 182.9,532.4 L 184.6,534.9 Z M 114.7,680.5 L 119.9,685.7 L 123.4,684.1 L 126.7,687.1 L 127.1,688.4 L 124.4,690.9 L 123.1,690.8 L 123.6,691.6 L 126.6,689.9 L 128.1,686.3 L 116.4,678.9 L 114.7,680.5 Z M 136.5,472.4 L 143.2,472.5 L 142.8,477.7 L 152.6,478.8 L 156.7,476.6 L 168.9,477.4 L 170.9,472.9 L 175.7,470.0 L 185.2,471.5 L 188.8,453.2 L 165.1,469.9 L 160.7,471.2 L 152.1,471.6 L 147.8,473.3 L 144.2,472.2 L 136.5,472.4 Z M 149.3,554.6 L 152.0,557.1 L 149.3,554.6 Z M 77.6,473.6 L 78.2,470.0 L 77.6,473.6 Z M 350.2,249.2 L 353.6,255.2 L 363.6,256.2 L 364.0,252.7 L 365.2,253.1 L 359.2,250.4 L 357.1,243.5 L 353.2,246.2 L 353.8,247.7 L 352.7,248.3 L 352.2,247.5 L 350.2,249.2 Z M 89.2,443.4 L 94.6,442.6 L 89.2,443.4 Z M 149.9,697.0 L 145.2,697.4 L 142.9,699.6 L 145.9,704.8 L 147.8,702.5 L 149.9,697.0 Z M 148.7,554.0 L 152.8,557.8 L 152.5,556.6 L 143.0,545.0 L 142.3,546.6 L 148.7,554.0 Z M 84.8,423.8 L 84.0,419.4 L 84.4,424.2 L 83.5,427.0 L 85.1,424.5 L 91.4,425.8 L 88.9,432.1 L 89.1,435.7 L 95.3,436.6 L 95.8,441.5 L 84.4,443.0 L 94.6,442.6 L 102.5,437.7 L 109.3,446.7 L 105.4,452.1 L 97.5,450.2 L 92.3,463.8 L 89.8,475.7 L 94.1,470.7 L 102.0,473.6 L 102.1,470.1 L 104.8,466.0 L 106.7,467.9 L 109.0,467.9 L 110.1,465.4 L 110.2,461.1 L 119.5,462.6 L 138.1,470.5 L 139.2,453.6 L 136.1,438.2 L 131.6,438.8 L 128.3,438.2 L 128.2,437.0 L 127.0,436.6 L 112.4,435.8 L 112.3,432.3 L 107.2,434.1 L 103.5,423.1 L 99.3,424.3 L 99.0,422.7 L 95.4,422.5 L 94.3,424.2 L 93.4,424.7 L 92.6,423.9 L 91.5,425.2 L 84.8,423.8 Z M 114.7,676.3 L 115.4,672.8 L 117.2,670.2 L 114.7,673.0 L 114.7,676.3 Z M 114.7,676.3 L 115.4,672.8 L 117.2,670.2 L 114.7,673.0 L 114.7,676.3 Z M 114.7,676.3 L 115.4,672.8 L 117.2,670.2 L 114.7,673.0 L 114.7,676.3 Z"/>
+
+          <!-- towns -->
+          <g>
+            <circle class="town-dot" cx="236.9" cy="441.4" r="2.4"/><text class="town-label" x="236.9" y="455.6" text-anchor="middle">Loughton</text>
+            <circle class="town-dot" cx="95.2" cy="493.6" r="2.4"/><text class="town-label" x="95.2" y="507.8" text-anchor="middle">Chingford</text>
+            <circle class="town-dot" cx="179.5" cy="495.5" r="2.4"/><text class="town-label" x="179.5" y="509.7" text-anchor="middle">Buckhurst Hill</text>
+            <circle class="town-dot" cx="288.8" cy="535.8" r="2.4"/><text class="town-label" x="288.8" y="550.0" text-anchor="middle">Chigwell</text>
+            <circle class="town-dot" cx="353.6" cy="326.3" r="2.4"/><text class="town-label" x="353.6" y="340.5" text-anchor="middle">Theydon Bois</text>
+            <circle class="town-dot" cx="379.3" cy="238.7" r="2.4"/><text class="town-label" x="379.3" y="252.9" text-anchor="middle">Epping</text>
+            <circle class="town-dot" cx="158.8" cy="564.9" r="2.4"/><text class="town-label" x="158.8" y="579.1" text-anchor="middle">Woodford Green</text>
+            <circle class="town-dot" cx="106.4" cy="265.6" r="2.4"/><text class="town-label" x="106.4" y="279.8" text-anchor="middle">Waltham Abbey</text>
+          </g>
+
+          <!-- compass -->
+          <g class="compass" transform="translate(440,40)"><line x1="0" y1="14" x2="0" y2="-10"/><line x1="0" y1="-10" x2="-4" y2="-3"/><line x1="0" y1="-10" x2="4" y2="-3"/><text x="0" y="26" text-anchor="middle">N</text></g>
+
+          <!-- pins -->
+          <g><title>1 — Railway Tavern</title><circle class="pin-ring" cx="202.6" cy="573.3" r="9" style="fill:var(--status-good)"/><text class="pin-num" x="202.6" y="573.7">1</text></g>
+          <g><title>2 — Brothers Supermarket</title><circle class="pin-ring" cx="65.7" cy="563.3" r="9" style="fill:var(--status-good)"/><text class="pin-num" x="65.7" y="563.7">2</text></g>
+          <g><title>3 — Eesa Halal Meat &amp; Groceries</title><circle class="pin-ring" cx="67.0" cy="562.5" r="9" style="fill:var(--status-good)"/><text class="pin-num" x="67.0" y="562.9">3</text></g>
+          <g><title>4 — Leo's Caffe Bar</title><circle class="pin-ring" cx="67.0" cy="562.0" r="9" style="fill:var(--status-good)"/><text class="pin-num" x="67.0" y="562.4">4</text></g>
+          <g><title>5 — Tandoori Cottage</title><circle class="pin-ring" cx="67.0" cy="562.9" r="9" style="fill:var(--status-good)"/><text class="pin-num" x="67.0" y="563.3">5</text></g>
+          <g><title>6 — The Gelato Kitchen</title><circle class="pin-ring" cx="243.1" cy="415.1" r="9" style="fill:var(--status-critical)"/><text class="pin-num" x="243.1" y="415.5">6</text></g>
+          <g><title>7 — Bakers Lane, Epping</title><circle class="pin-ring" cx="371.7" cy="214.6" r="9" style="fill:var(--status-warning)"/><text class="pin-num" x="371.7" y="215.0" style="fill:var(--status-warning-ink)">7</text></g>
+          <g><title>8 — Water mains replacement</title><circle class="pin-ring" cx="167.9" cy="380.4" r="9" style="fill:var(--status-warning)"/><text class="pin-num" x="167.9" y="380.8" style="fill:var(--status-warning-ink)">8</text></g>
+          <g><title>9 — Where the cattle are grazing</title><circle class="pin-ring" cx="113.3" cy="326.5" r="9" style="fill:var(--bark)"/><text class="pin-num" x="113.3" y="326.9">9</text></g>
+        </svg>
+        <div class="legend"><div class="legend-item"><span class="legend-dot" style="background:var(--status-good)"></span>Opening</div><div class="legend-item"><span class="legend-dot" style="background:var(--status-critical)"></span>Closure</div><div class="legend-item"><span class="legend-dot" style="background:var(--status-warning)"></span>Road / access</div><div class="legend-item"><span class="legend-dot" style="background:var(--status-event)"></span>Event</div><div class="legend-item"><span class="legend-dot" style="background:var(--bark)"></span>Cattle grazing</div></div>
+      </div>
+      <div class="map-side">
+        <p>9 items flagged this run. Full detail is below the map.</p>
+        <div class="find-mini"><span class="badge good" style="background:var(--status-good)">1</span><div class="txt"><strong>Railway Tavern</strong><span>Woodford Green</span></div></div><div class="find-mini"><span class="badge good" style="background:var(--status-good)">2</span><div class="txt"><strong>Brothers Supermarket</strong><span>Chingford</span></div></div><div class="find-mini"><span class="badge good" style="background:var(--status-good)">3</span><div class="txt"><strong>Eesa Halal Meat &amp; Groceries</strong><span>Chingford</span></div></div><div class="find-mini"><span class="badge good" style="background:var(--status-good)">4</span><div class="txt"><strong>Leo's Caffe Bar</strong><span>Chingford</span></div></div><div class="find-mini"><span class="badge good" style="background:var(--status-good)">5</span><div class="txt"><strong>Tandoori Cottage</strong><span>Chingford</span></div></div><div class="find-mini"><span class="badge critical" style="background:var(--status-critical)">6</span><div class="txt"><strong>The Gelato Kitchen</strong><span>Loughton</span></div></div><div class="find-mini"><span class="badge warning" style="background:var(--status-warning)">7</span><div class="txt"><strong>Bakers Lane, Epping</strong><span>Epping</span></div></div><div class="find-mini"><span class="badge warning" style="background:var(--status-warning)">8</span><div class="txt"><strong>Water mains replacement</strong><span>Loughton</span></div></div><div class="find-mini"><span class="badge grazing" style="background:var(--bark)">9</span><div class="txt"><strong>Where the cattle are grazing</strong><span>Sewardstone</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="businesses"><h2 class="section-title">Shops, cafés, restaurants &amp; pubs</h2><p class="section-sub">What's opened, closed, or might have.</p><div class="cards"><div class="card good"><div class="card-head"><span class="pin-chip good">1</span><h3>Railway Tavern</h3><span class="status-label good">Already open, newly added to the map</span></div><p class="addr">Woodford Green</p><p>This pub on Snakes Lane East has been trading and is registered with the Food Standards Agency, but had never made it onto the map. It's on there now.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/443081">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">2</span><h3>Brothers Supermarket</h3><span class="status-label good">Already open, newly added to the map</span></div><p class="addr">Chingford</p><p>A grocery shop on Chingford Mount Road, confirmed as currently trading and registered for food hygiene inspection. Newly added to the map.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/689508">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">3</span><h3>Eesa Halal Meat &amp; Groceries</h3><span class="status-label good">Already open, newly added to the map</span></div><p class="addr">Chingford</p><p>A halal grocer on Chingford Mount Road, confirmed as currently trading. Newly added to the map.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/654279">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">4</span><h3>Leo's Caffe Bar</h3><span class="status-label good">Already open, newly added to the map</span></div><p class="addr">Chingford</p><p>A café on Chingford Mount Road, confirmed as currently trading. Newly added to the map.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/1218441">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">5</span><h3>Tandoori Cottage</h3><span class="status-label good">Already open, newly added to the map</span></div><p class="addr">Chingford</p><p>An Indian restaurant on Chingford Mount Road, confirmed as currently trading. Newly added to the map.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/1109329">Food Standards Agency</a></p></div><div class="card critical"><div class="card-head"><span class="pin-chip critical">6</span><h3>The Gelato Kitchen</h3><span class="status-label critical">Proposed removal, likely closed</span></div><p class="addr">Loughton</p><p>This gelato and dessert café on Loughton High Road looks to have closed. Neighbours in a local community group say it's been shut for several months with no explanation, and it no longer shows up as a registered food business at that address, even though every other shop on the same stretch does. We'd like to remove it from the map, though this hasn't been confirmed by the business itself.</p><p class="src">Source: <a href="https://www.facebook.com/groups/542803182420186/posts/27010964931843984/">Loughton community Facebook group</a></p></div></div></section>
+
+  <section id="road"><h2 class="section-title">Road closures &amp; access</h2><p class="section-sub">Things that might affect getting around the forest.</p><div class="cards"><div class="card warning"><div class="card-head"><span class="pin-chip warning">7</span><h3>Bakers Lane, Epping</h3><span class="status-label warning">Ongoing closure</span></div><p class="addr">Epping</p><p>Bakers Lane's roadworks and resurfacing, which began on 8 September, are still running as previously reported -- essential improvements ahead of the new Epping Leisure Centre opening. We weren't able to pull a fresh week-by-week update this time, as the council's own closures page turned away our automated request again.</p><p class="src">Source: <a href="https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures">Epping Forest District Council</a></p></div><div class="card warning"><div class="card-head"><span class="pin-chip warning">8</span><h3>Water mains replacement</h3><span class="status-label warning">Ongoing, multi-year project</span></div><p class="addr">Loughton</p><p>Thames Water's three-year mains replacement across more than sixty roads in and around Loughton continues. Queens Road, Spareleaze Hill, Hillyfields, Woodbury Hill and Rectory Lane have already been completed; more streets are due to be dug up through the rest of this year and into next. Anyone on an affected road should get a letter beforehand with exact dates.</p><p class="src">Source: <a href="https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/high-beech-loughton-mains-replacement">Thames Water</a></p></div></div></section>
+
+  
+
+  <section id="grazing"><h2 class="section-title">The forest's grazing cattle</h2><p class="section-sub">Epping Forest's conservation-grazing cattle move around the forest through the year.</p><div class="cards"><div class="card grazing"><div class="card-head"><h3>Where the cattle are grazing</h3><span class="status-label grazing">Moved this week</span></div><p class="addr">Sewardstone</p><p>The forest's grazing cattle have moved to a new area close to Sewardstone.</p></div></div></section>
+
+  <div class="about-note">The Food Standards Agency's hygiene register worked well this week and was the main way we confirmed today's additions. The district council's own road-closures and events pages both refused automated requests again this week (as they did last time) -- those two sections lean on other official sources instead. A wider sweep this week also turned up around thirty more small shops and cafes in the surrounding towns that share a postcode with our usual area but sit well outside sensible walking distance of the forest itself -- they've been left off the map on purpose, not forgotten.</div>
+
+  <footer class="sources"><h4>Sources used in this report</h4><ul><li><a href="https://ratings.food.gov.uk/business/443081">Food Standards Agency</a></li><li><a href="https://ratings.food.gov.uk/business/689508">Food Standards Agency</a></li><li><a href="https://ratings.food.gov.uk/business/654279">Food Standards Agency</a></li><li><a href="https://ratings.food.gov.uk/business/1218441">Food Standards Agency</a></li><li><a href="https://ratings.food.gov.uk/business/1109329">Food Standards Agency</a></li><li><a href="https://www.facebook.com/groups/542803182420186/posts/27010964931843984/">Loughton community Facebook group</a></li><li><a href="https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures">Epping Forest District Council</a></li><li><a href="https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/high-beech-loughton-mains-replacement">Thames Water</a></li></ul></footer>
+
+</div>
+</body>
+</html>
