@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-09-03T18:55:48.227479Z",
+  "generatedAt": "2026-09-14T05:46:48.490114Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -5365,39 +5365,6 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 465.1,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "node/7181493652",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.056306,
-          51.6489651
-        ]
-      },
-      "properties": {
-        "id": "node/7181493652",
-        "osmType": "node",
-        "osmId": 7181493652,
-        "name": "The Gelato Kitchen",
-        "category": "cafe",
-        "categoryLabel": "Caf\u00e9",
-        "amenity": "cafe",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": null,
-        "distanceToForestBoundaryMetres": 345.3,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
@@ -22624,6 +22591,171 @@
         "phone": "020 3538 4948",
         "address": "36 Chingford Mount Road, Chingford, London E4 9AB",
         "distanceToForestBoundaryMetres": 513.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/railway-tavern",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0392717,
+          51.6077167
+        ]
+      },
+      "properties": {
+        "id": "manual/railway-tavern",
+        "osmType": "way",
+        "osmId": 135977599,
+        "name": "Railway Tavern",
+        "category": "pub",
+        "categoryLabel": "Pub",
+        "amenity": "pub",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "126 Snakes Lane East Woodford Green IG8 7HY",
+        "distanceToForestBoundaryMetres": 684.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/brothers-supermarket",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0181992,
+          51.6103143
+        ]
+      },
+      "properties": {
+        "id": "manual/brothers-supermarket",
+        "osmType": "way",
+        "osmId": 685449169,
+        "name": "Brothers Supermarket",
+        "category": "supermarket",
+        "categoryLabel": "Supermarket",
+        "amenity": null,
+        "shop": "supermarket",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "61 Chingford Mount Road London E4 8LU",
+        "distanceToForestBoundaryMetres": 616.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/leo-s",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0176776,
+          51.6106491
+        ]
+      },
+      "properties": {
+        "id": "manual/leo-s",
+        "osmType": "way",
+        "osmId": 917519934,
+        "name": "Leo\u2019s",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Chingford Mount Road London E4 9AA",
+        "distanceToForestBoundaryMetres": 646.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/eesa",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0176627,
+          51.610513
+        ]
+      },
+      "properties": {
+        "id": "manual/eesa",
+        "osmType": "way",
+        "osmId": 917519937,
+        "name": "Eesa",
+        "category": "supermarket",
+        "categoryLabel": "Supermarket",
+        "amenity": null,
+        "shop": "supermarket",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Chingford Mount Road London E4 9AA",
+        "distanceToForestBoundaryMetres": 631.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/tandoori-cottage",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0176526,
+          51.6104222
+        ]
+      },
+      "properties": {
+        "id": "manual/tandoori-cottage",
+        "osmType": "way",
+        "osmId": 917519939,
+        "name": "Tandoori Cottage",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Chingford Mount Road London E4 9AA",
+        "distanceToForestBoundaryMetres": 620.9,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
