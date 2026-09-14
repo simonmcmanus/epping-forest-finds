@@ -64,11 +64,11 @@ function secondaryScreenActive() {
 
 // state.selected is truthy for the Settings/Report pseudo-selections (type "settings"/
 // "report") as well as for a real tree/landmark/etc selection, but overview-only rendering
-// (the walking-radius ring, the dashed routes to nearby matches) should stay visible for the
-// pseudo-selections exactly as it does for plain overview/Filters -- only a real selection
-// should hide it. Shared by drawWalkingRadius and drawOverviewRoutes in renderer.js so the
-// two can't drift out of sync with each other again (they did: drawOverviewRoutes used to
-// check `state.selected` directly and hid its route lines on Settings/Report).
+// (the walking-radius ring, the browse-anchor marker and its cone, the off-ring user pointer)
+// should stay visible for the pseudo-selections exactly as it does for plain overview/Filters
+// -- only a real selection should hide it. Shared by every such renderer.js draw so they can't
+// drift out of sync with each other again (they did: the old ambient route lines used to check
+// `state.selected` directly and hid themselves on Settings/Report).
 function hasRealSelection() {
   return Boolean(state.selected && !["settings", "report"].includes(state.selected.type));
 }
@@ -533,6 +533,12 @@ function setupSearchAndNavHandlers() {
     applySelectionFromHash(false);
   });
 
+  if (els.nearbyAnchorBar) {
+    els.nearbyAnchorBar.addEventListener("click", (event) => {
+      if (event.target.closest("[data-action='reset-nearby-anchor']")) clearNearbyAnchor();
+    });
+  }
+
   els.inspectorBody.addEventListener("click", (event) => {
     const shareBtn = event.target.closest("[data-action='share-location']");
     if (shareBtn) { shareCurrentLocation(); return; }
@@ -581,6 +587,7 @@ function refreshNearbyRadiusView(options = {}) {
   // its walking-radius slider fires "input". ensureOverviewTargetsVisible below already knows
   // how to frame the ring correctly for those screens (see secondaryScreenActive()) without it.
   if (!secondaryScreenActive()) selectOverview();
+  updateNearbyAnchorBar();
   ensureOverviewTargetsVisible({ animate, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
   requestDraw();
 }
@@ -609,9 +616,20 @@ function clearNearbyAnchor() {
   refreshNearbyRadiusView({ animate: false });
 }
 
+// Shows/hides #nearbyAnchorBar, the way back from a browsed spot. It lives in the inspector
+// chrome rather than inside the Nearby list's own HTML because Filters, Settings and Report all
+// keep drawing the walking-radius circle around the browse anchor behind them (see
+// secondaryScreenActive) -- while the notice was part of the list, opening any of those three
+// left the user browsing a spot with nothing on screen offering to undo it. Hidden only for a
+// real selection, which replaces that whole map view anyway (hasRealSelection).
+function updateNearbyAnchorBar() {
+  const bar = els.nearbyAnchorBar;
+  if (!bar) return;
+  bar.hidden = !(state.nearbyAnchor && !hasRealSelection());
+}
+
 // The Nearby view's "nearest area" is the walking-radius ring drawn around nearbyOrigin().
-// Everything the view is about -- the list, the highlighted locations, the route lines -- lives
-// inside it, so a tap beyond it reads as "show me what's over there", never as "navigate to
+// Everything the view is about -- the list, the highlighted locations -- lives inside it, so a tap beyond it reads as "show me what's over there", never as "navigate to
 // this". handleMapClick (js/inspector.js) uses this to relocate on such a tap whatever it
 // landed on: streets and waymarked trails are drawn right across the map and would otherwise
 // keep opening a navigation view from the far corners of the Nearby screen.
@@ -633,15 +651,21 @@ function isOutsideNearestArea(lonLat) {
 // rather than fitting the old origin and then animating a second time.
 function focusNearbyOnMapPoint(lonLat, worldPoint) {
   if (!state.userLocation) {
-    // No GPS fix yet, so there is no Nearby view to move -- keep the long-standing
-    // reset-to-the-whole-forest behaviour rather than anchoring a radius nothing can populate.
-    goToInitialView();
+    // No GPS fix yet, so there is no Nearby view to move. On the Nearby screen itself, keep the
+    // long-standing reset-to-the-whole-forest behaviour rather than anchoring a radius nothing
+    // can populate -- but that reset is also what closes an open screen, and a map tap must
+    // never dismiss Filter/Settings/Report, so from those a tap with no fix simply does nothing.
+    if (!secondaryScreenActive()) goToInitialView();
     return false;
   }
-  if (state.selected || state.clusterExpanded) {
+  // hasRealSelection(), not state.selected: the Settings/Report pseudo-selections are also
+  // truthy, and taking this branch from them dismissed the very screen the tap must never
+  // dismiss. They behave like plain Nearby here -- move the anchor, leave the screen open.
+  if (hasRealSelection() || state.clusterExpanded) {
     state.nearbyAnchor = { latitude: lonLat.latitude, longitude: lonLat.longitude, point: worldPoint };
     refreshNearestTreeForNearbyOrigin();
     goToInitialView();
+    updateNearbyAnchorBar();
   } else {
     setInspectorMinimized(false);
     setNearbyAnchor(lonLat.latitude, lonLat.longitude, worldPoint);
@@ -655,9 +679,10 @@ function currentPinchDistance() {
   return Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
 }
 
-// Starts pinch-to-resize for the Nearby view's walking radius. Only engages while the plain
-// Nearby overview is showing (no selection, no Filter/Settings/Report screen) -- elsewhere a
-// second touch point is just ignored, same as before this feature existed.
+// Starts pinch-to-resize for the Nearby view's walking radius. Engages on any screen that still
+// draws that radius behind it -- the plain Nearby overview, and Filters/Settings/Report (see
+// secondaryScreenActive) -- so the circle can be adjusted wherever it is visible. Over a real
+// selection, which replaces the view entirely, a second touch point is still just ignored.
 function startNearbyRadiusPinch() {
   const distance = currentPinchDistance();
   if (distance == null) return;
@@ -693,7 +718,12 @@ function updateNearbyRadiusPinch() {
     // recovers back above) it -- applyWalkingRadiusChange would no-op here since the minutes
     // value itself hasn't moved, so the floor notice needs its own lightweight refresh to stay
     // in sync with the flag instead of going stale.
-    if (flagChanged) { selectOverview(); requestDraw(); }
+    // The floor notice lives in the Nearby list, so only that screen has anything to re-render;
+    // on Filters/Settings/Report selectOverview() would throw the open screen away instead.
+    if (flagChanged) {
+      if (!secondaryScreenActive()) selectOverview();
+      requestDraw();
+    }
     return;
   }
   applyWalkingRadiusChange(minutes, { animate: false });
@@ -768,7 +798,11 @@ function setupMapCanvasHandlers() {
       state.multiTouchOccurred = true;
       state.dragging = false;
       els.canvas.classList.remove("dragging");
-      if (state.activePointers.size === 2 && isOverviewScreenActive() && state.userLocation) {
+      // Filters/Settings/Report keep drawing the same walking-radius circle behind them, so the
+      // pinch that resizes it works there too -- refreshNearbyRadiusView already knows not to
+      // blow those screens' own content away when it re-derives the view.
+      if (state.activePointers.size === 2 && state.userLocation
+        && (isOverviewScreenActive() || secondaryScreenActive())) {
         startNearbyRadiusPinch();
       }
       return;

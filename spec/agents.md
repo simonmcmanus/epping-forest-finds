@@ -8,6 +8,7 @@ Update the relevant spec file(s) with every code change that adds, removes, or a
 - `spec/spec-data-rendering.md` — drawing, interaction, inspector, UI state
 - `spec/spec-admin.md` — admin dashboard, tracking data API, Netlify routing
 - `spec/spec-native.md` — iOS/Android native wrapper (Capacitor shell, `js/native.js`, native heading/permissions, bundled data + delta updates, store requirements)
+- `spec/spec-weekly-report.md` — weekly Epping Forest Ledger report generator (`scripts/report/`)
 - `spec/spec-icons.md` — icon registry, icon rendering, generated icon asset requirements
 - `spec/spec-issue-workflow.md` — GitHub issue clarification automation (`.github/workflows/issue-clarify.yml`)
 - `spec/glossary.md` — product terminology
@@ -26,7 +27,7 @@ Before finishing any implementation task:
 - `js/loader.js` — data fetching, parallel fetch, normalisation triggers
 - `js/routing.js` — walkable road/path graph builder and pathfinding for the selected-route line (pure, no state/DOM access)
 - `js/normalize.js` — data normalisation utilities
-- `js/categories.js` — filter groups, tag builders, emoji/color maps (no DOM dependency)
+- `js/categories.js` — filter groups, place classification (`matchesPlaceFilter` and its `is*Category` predicates), tag builders, emoji/color maps (no DOM dependency)
 - `js/renderer.js` — canvas draw loop
 - `js/inspector.js` — inspector panel, detail views, overview HTML
 - `js/nav.js` — navigation, camera helpers, gate/fade utilities

@@ -67,11 +67,15 @@ function handleMapClick(event) {
   //    road happened to run through there instead of browsing that spot.
   //
   // Either way the walking radius and the nearby list move to the tapped spot, leaving any
-  // selection or cluster group behind. isOverviewScreenActive() is false on Filter/Settings/
-  // Report, which keep showing the map behind them and must never be dismissed by a map tap.
+  // selection or cluster group behind. The second rule is Nearby-only (isOverviewScreenActive()
+  // is false on Filter/Settings/Report): those screens deliberately frame the map wider than the
+  // ring to show where each selected kind lies, so "outside the ring" is most of what is on
+  // screen there and would make almost any tap relocate. An open-ground tap still does, though
+  // -- they draw the same ring, and moving it is one of the things it must stay possible to do
+  // from them. Neither ever dismisses the screen itself.
   const beyondNearestArea = isOverviewScreenActive() && isOutsideNearestArea(lonLat);
   if (hit.type === "none" || beyondNearestArea) {
-    if (!secondaryScreenActive()) focusNearbyOnMapPoint(lonLat, world);
+    focusNearbyOnMapPoint(lonLat, world);
     return;
   }
 
@@ -796,6 +800,10 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
   }
   if (els.reportToggle) els.reportToggle.classList.remove("active");
   if (els.settingsToggle) els.settingsToggle.classList.remove("active");
+  // Every screen change routes through here, so this is the one place the browse-anchor bar
+  // needs re-evaluating as the user moves between Nearby, Filters, Settings, Report and a
+  // selection (js/nav.js).
+  updateNearbyAnchorBar();
 }
 
 function markerOpacityFor(kind, item) {

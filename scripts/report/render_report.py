@@ -15,6 +15,7 @@ reports/epping-forest-ledger-<report-data date>.html.
 See report-data.schema.md (next to this file) for the input format.
 """
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -49,6 +50,26 @@ BUSINESS_CATEGORIES = {"opening", "closing"}
 
 def load_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def load_map_inventory(repo_root):
+    """Counts of everything the app can draw, grouped the way the app's own
+    Filter screen groups them.
+
+    Delegated to scripts/report/map-inventory.js because a place's group is
+    decided by the app's classification rules, which are written in
+    JavaScript and shared with the app itself. Re-stating those rules here
+    would let the report's numbers drift away from what the map shows -- the
+    exact problem this section exists to fix.
+    """
+    script = Path(__file__).resolve().parent / "map-inventory.js"
+    result = subprocess.run(
+        ["node", str(script), "--root", str(repo_root)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(result.stdout)
 
 
 def compute_food_stats(food_geojson):
@@ -130,7 +151,10 @@ def render_stat_strip(findings, food_total, grazing):
         return sum(1 for f in findings if f.get("category") == category)
 
     stats = [
-        (str(food_total), "Places on the map"),
+        # Deliberately specific: this is the food/drink/shop dataset only,
+        # not everything on the map. The whole-map total lives in the
+        # "What's on the map" section below.
+        (str(food_total), "Places to eat, drink & shop"),
         (str(count("opening")), "Openings flagged", "good"),
         (str(count("closing")), "Closures flagged", "critical"),
         (str(count("road")), "Road & access changes", "warning"),
@@ -148,6 +172,62 @@ def render_stat_strip(findings, food_total, grazing):
         cells.append(f'<div class="stat"><div class="n mono{class_attr}">{escape(value)}</div><div class="lbl">{escape(label)}</div></div>')
     strip_class = "stat-strip cols-6" if len(stats) == 6 else "stat-strip"
     return f'<div class="{strip_class}">{"".join(cells)}</div>'
+
+
+def render_inventory_section(inventory):
+    """The running "what's on the map" total and its breakdown.
+
+    Every number here comes from the map data itself, so the breakdown always
+    adds up to the headline total and always matches what someone filtering in
+    the app would actually see.
+    """
+    if not inventory or not inventory.get("total"):
+        return ""
+
+    def fmt(n):
+        return f"{n:,}"
+
+    group_blocks = []
+    for group in inventory.get("groups", []):
+        rows = "".join(
+            f'<li><span>{escape(sub["label"])}</span><span class="c">{fmt(sub["count"])}</span></li>'
+            for sub in group.get("subfilters", [])
+        )
+        group_blocks.append(
+            '<div class="inventory-group">'
+            f'<div class="grp"><span>{escape(group["label"])}</span>'
+            f'<span class="c">{fmt(group["count"])}</span></div>'
+            f'<ul>{rows}</ul></div>'
+        )
+
+    always = inventory.get("alwaysShown") or {}
+    if always.get("count"):
+        group_blocks.append(
+            '<div class="inventory-group full">'
+            f'<div class="grp"><span>{escape(always["label"])}</span>'
+            f'<span class="c">{fmt(always["count"])}</span></div>'
+            '<ul><li><span>Always shown, whatever you have filtered</span></li></ul>'
+            '</div>'
+        )
+
+    groups_html = "".join(group_blocks)
+    return (
+        '<section>\n'
+        '  <h2 class="section-title">What\'s on the map</h2>\n'
+        '  <p class="section-sub">Everything the app can show you, counted and grouped '
+        'exactly the way the app\'s own filters group it.</p>\n'
+        '  <div class="inventory-card">\n'
+        '    <div class="inventory-head">\n'
+        f'      <span class="n">{fmt(inventory["total"])}</span>\n'
+        '      <span class="lbl">things you can find on the map today</span>\n'
+        '    </div>\n'
+        f'    <div class="inventory-groups">{groups_html}</div>\n'
+        '  </div>\n'
+        '  <p class="section-sub" style="margin-top:14px;">The forest\'s grazing cattle are '
+        'tracked live rather than stored with the map, so they are not part of this count. '
+        'Neither are the roads, paths and water drawn underneath everything else.</p>\n'
+        '</section>\n'
+    )
 
 
 def render_sources_line(sources):
@@ -297,6 +377,8 @@ def render_report(report_data, repo_root):
     food_geojson = load_json(repo_root / "data" / "local-landmarks-food.geojson")
     food_stats = compute_food_stats(food_geojson)
 
+    inventory = load_map_inventory(repo_root)
+
     findings, grazing_pin = normalize_findings(report_data)
     grazing = report_data.get("grazing")
 
@@ -306,6 +388,7 @@ def render_report(report_data, repo_root):
     app_link = report_data.get("app_link") or DEFAULT_APP_LINK
 
     stat_strip = render_stat_strip(findings, food_stats["total"], grazing)
+    inventory_section = render_inventory_section(inventory)
     map_section = render_map_section(forest_geojson, findings)
     business_section = render_business_section(findings)
     road_section = render_category_section("road", "road", findings)
@@ -349,6 +432,8 @@ def render_report(report_data, repo_root):
   <p class="section-sub" style="margin-top:-8px;">{escape(food_sentence)}</p>
 
   {map_section}
+
+  {inventory_section}
 
   {business_section}
 

@@ -5,11 +5,10 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
-  # Lets the weekly-ledger workflow explicitly kick off real CI checks on a
-  # PR it opens (see weekly-ledger.yml step 4e) -- a PR/push made with that
-  # job's own GITHUB_TOKEN does NOT trigger the pull_request/push events
-  # above (GitHub's anti-recursion rule for the default token), so without
-  # this, those PRs would show no checks at all.
+  # Manual "Run workflow" button. The weekly-ledger workflow no longer needs
+  # it: that job pushes and opens PRs as WEEKLY_LEDGER_PAT rather than its own
+  # GITHUB_TOKEN, so the pull_request event above fires normally and its PRs
+  # get checks without anyone pressing anything. Kept for ad-hoc re-runs.
   workflow_dispatch: {}
 
 jobs:

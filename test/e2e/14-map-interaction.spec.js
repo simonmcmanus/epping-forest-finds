@@ -361,7 +361,115 @@ test.describe("Map interaction", () => {
       const after = await page.evaluate(() => ({ anchor: state.nearbyAnchor, selected: state.selected }));
       expect(after.anchor, "tapping the pointer returns to the real location").toBeNull();
       expect(after.selected, "and selects nothing on the way").toBeNull();
-      await expect(page.locator("[data-action='reset-nearby-anchor']")).toHaveCount(0);
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeHidden();
+    });
+
+    test("it stands down once the You dot itself is on screen", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+
+      const shown = await page.evaluate(() => {
+        const latitude = state.userLocation.latitude - 0.005;
+        const longitude = state.userLocation.longitude - 0.012;
+        setNearbyAnchor(latitude, longitude, projectLonLat(longitude, latitude));
+        state.nearbyOriginTransition = null;
+        stopViewportAnimation();
+        prepareCanvasForDraw();
+
+        // Frame the user *and* the ring inside the part of the canvas the inspector isn't
+        // covering, so the dot is unmistakably on screen and the ring (where the pointer would
+        // sit) is too -- otherwise the pointer could be missing merely for being off canvas.
+        const rect = bestVisibleCanvasRect();
+        const user = state.userLocation.point;
+        const anchor = state.nearbyAnchor.point;
+        const ring = walkingRadiusWorldUnits();
+        const span = Math.hypot(anchor.x - user.x, anchor.y - user.y) + ring * 2;
+        const scale = (Math.min(rect.width, rect.height) * 0.8) / span;
+        const cx = (user.x + anchor.x) / 2;
+        const cy = (user.y + anchor.y) / 2;
+        state.viewport = {
+          scale,
+          tx: rect.x + rect.width / 2 - cx * scale,
+          ty: rect.y + rect.height / 2 - cy * scale,
+        };
+        prepareCanvasForDraw();
+        draw();
+        drawOverlay();
+
+        const cssRect = (els.mapStage || els.canvas).getBoundingClientRect();
+        const dpr = pixelRatio();
+        let pointerDrawn = false;
+        for (let px = 0; px < cssRect.width && !pointerDrawn; px += 8) {
+          for (let py = 0; py < cssRect.height; py += 8) {
+            if (hitUserDirectionPointer({ x: state.canvasInsetX + px * dpr, y: state.canvasInsetY + py * dpr })) {
+              pointerDrawn = true;
+              break;
+            }
+          }
+        }
+        return { pointerDrawn, dotVisible: userDotVisibleOnMap(worldToScreenForOverlay) };
+      });
+
+      expect(shown.dotVisible, "the framing should have put the You dot on screen").toBe(true);
+      expect(shown.pointerDrawn, "two You labels a few centimetres apart is noise, not guidance").toBe(false);
+    });
+  });
+
+  test.describe("The cone from you to the nearby circle", () => {
+    // Browsing a spot puts the walking-radius circle somewhere the user is not standing. The
+    // cone is what ties the two together on screen, so the relationship between "where I am"
+    // and "what this circle is around" is readable at a glance instead of being two unrelated
+    // markers -- and it has to bridge exactly the gap, apex on the dot, far edge on the ring.
+    test("it bridges the You dot and the ring while browsing a distant spot", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+
+      const shape = await page.evaluate(() => {
+        const latitude = state.userLocation.latitude - 0.005;
+        const longitude = state.userLocation.longitude - 0.012;
+        setNearbyAnchor(latitude, longitude, projectLonLat(longitude, latitude));
+        state.nearbyOriginTransition = null;
+        stopViewportAnimation();
+        prepareCanvasForDraw();
+
+        const origin = nearbyRenderOriginPoint();
+        const center = worldToScreenFlat(origin);
+        const edge = worldToScreenFlat({ x: origin.x + walkingRadiusWorldUnits(), y: origin.y });
+        const radiusPx = Math.hypot(edge.x - center.x, edge.y - center.y);
+        const cone = nearbyUserCone(center, radiusPx, false);
+        if (!cone) return null;
+        const user = worldToScreenFlat(state.userLocation.point);
+        return {
+          apexOffUser: Math.hypot(cone[0].x - user.x, cone[0].y - user.y),
+          maxRingError: Math.max(...cone.slice(1).map((p) => Math.abs(Math.hypot(p.x - center.x, p.y - center.y) - radiusPx))),
+          corners: cone.length,
+        };
+      });
+
+      expect(shape, "a cone should be drawn while the user stands outside the ring").not.toBeNull();
+      expect(shape.corners).toBeGreaterThan(2);
+      expect(shape.apexOffUser, "the cone starts at the You dot").toBeLessThan(0.5);
+      expect(shape.maxRingError, "and opens out onto the ring itself").toBeLessThan(0.5);
+    });
+
+    test("it is not drawn once the user is standing inside the ring", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+
+      const cone = await page.evaluate(() => {
+        const latitude = state.userLocation.latitude + 0.0002;
+        const longitude = state.userLocation.longitude + 0.0002;
+        setNearbyAnchor(latitude, longitude, projectLonLat(longitude, latitude));
+        state.nearbyOriginTransition = null;
+        stopViewportAnimation();
+        prepareCanvasForDraw();
+        const origin = nearbyRenderOriginPoint();
+        const center = worldToScreenFlat(origin);
+        const edge = worldToScreenFlat({ x: origin.x + walkingRadiusWorldUnits(), y: origin.y });
+        return nearbyUserCone(center, Math.hypot(edge.x - center.x, edge.y - center.y), false);
+      });
+
+      expect(cone, "the You dot is already inside the circle, saying it more directly").toBeNull();
     });
   });
 

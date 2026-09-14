@@ -124,7 +124,6 @@ function draw() {
   drawRoads(ctx);
   drawPaths(ctx);
   drawWalkingRadius(ctx);
-  drawOverviewRoutes(ctx, treeClusters);
   drawSelectedRoute(ctx);
   drawUserRadarMainCanvas(ctx);
   const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
@@ -210,9 +209,11 @@ function drawNearbyAnchorMarker(ctx, toScreen) {
   ctx.restore();
 }
 
-// Matches the "You" dot and radar cone, so the off-ring pointer below reads as belonging to
-// the user rather than to the browse anchor (which is amber, see drawNearbyAnchorMarker).
-const USER_MARKER_BLUE = "#1f5eff";
+// Ink for the off-ring user pointer below. Deliberately off-black rather than the "You" dot's
+// own blue: at the size this thing has to be drawn, a saturated blue triangle plus its white
+// halo shouted over the map it sits on. Off-black reads as chrome -- a signpost pointing off
+// screen -- and still cannot be confused with the amber browse anchor (drawNearbyAnchorMarker).
+const USER_POINTER_INK = "#1b2420";
 
 // Tap target for the off-ring user pointer, in canvas px, published by the draw below and read
 // by handleMapClick (js/inspector.js). Null whenever the pointer is not on screen, so a stale
@@ -230,11 +231,11 @@ function hitUserDirectionPointer(screen) {
 
 // While the Nearby view is browsing a spot away from the real GPS fix, the camera frames the
 // walking-radius ring around the browse anchor -- so the "You" dot is frequently off screen
-// altogether, and nothing on the map says which way the user actually is. This marks it: an
-// arrow lying on the ground at the ring's edge along the bearing from the anchor to the user,
+// altogether, and nothing on the map says which way the user actually is. This marks it: a
+// triangle lying on the ground at the ring's edge along the bearing from the anchor to the user,
 // pointing outward at them, labelled with how far away they are. Tapping it returns to the real
 // location. Skipped when the user is inside the ring, where their own dot is already on screen
-// saying the same thing.
+// saying the same thing...
 function drawUserDirectionFromAnchor(ctx, toScreen) {
   _userDirectionPointerHit = null;
   if (!state.nearbyAnchor || !state.userLocation) return;
@@ -249,17 +250,25 @@ function drawUserDirectionFromAnchor(ctx, toScreen) {
 
   const project = toScreen || worldToScreen;
   const dpr = pixelRatio();
+  // ...and skipped just as readily when the dot happens to be on screen anyway (the user has
+  // zoomed out past the ring, say). Two "You" labels a few centimetres apart, one of them on a
+  // marker whose whole job is to stand in for the other, is noise -- and the cone between the
+  // dot and the ring (nearbyUserCone) is already saying it more quietly. bestVisibleCanvasRect
+  // rather than the raw canvas: the inspector covers a large part of the map (the lower half on
+  // a phone, a side panel on desktop), and a dot behind it is not on screen in any sense the
+  // user cares about.
+  if (userDotVisibleOnMap(project)) return;
   const along = { x: dx / worldDistance, y: dy / worldDistance };
-  // Perpendicular in world space, so the arrow's width foreshortens with the ground the same
+  // Perpendicular in world space, so the triangle's width foreshortens with the ground the same
   // way its length does.
   const across = { x: -along.y, y: along.x };
 
-  // The arrow is built from world points and projected corner by corner rather than drawn as a
-  // flat screen-space triangle at a projected position -- that is what makes it lie on the
-  // ground plane with the ring and the route lines instead of floating above the map like a
-  // sticker. Sized as a fraction of the walking radius so it scales with whatever the ring is.
-  // Generous: at the ring edge on the far side of the perspective the arrow is foreshortened to
-  // roughly half its flat size, so a subtle one reads as a speck in 3D.
+  // Built from world points and projected corner by corner rather than drawn as a flat
+  // screen-space triangle at a projected position -- that is what makes it lie on the ground
+  // plane with the ring and the route line instead of floating above the map like a sticker.
+  // Sized as a fraction of the walking radius so it scales with whatever the ring is. Generous:
+  // at the ring edge on the far side of the perspective it is foreshortened to roughly half its
+  // flat size, so a subtle one reads as a speck in 3D.
   const lengthWorld = radius * 0.24;
   const halfWidthWorld = radius * 0.11;
   const baseCentre = { x: anchor.x + along.x * radius, y: anchor.y + along.y * radius };
@@ -267,11 +276,12 @@ function drawUserDirectionFromAnchor(ctx, toScreen) {
     x: baseCentre.x + along.x * lengthWorld,
     y: baseCentre.y + along.y * lengthWorld,
   };
+  // A plain triangle, not the notched arrow head this used to draw: the notch was invisible at
+  // the far end of the perspective and merely made the near end look busy, and a triangle is the
+  // calmer shape for something whose only job is "they are that way".
   const corners = [
     tipWorld,
     { x: baseCentre.x + across.x * halfWidthWorld, y: baseCentre.y + across.y * halfWidthWorld },
-    // Notched tail, so it reads as an arrow head rather than a plain triangle once foreshortened.
-    { x: baseCentre.x + along.x * lengthWorld * 0.28, y: baseCentre.y + along.y * lengthWorld * 0.28 },
     { x: baseCentre.x - across.x * halfWidthWorld, y: baseCentre.y - across.y * halfWidthWorld },
   ].map(project);
   if (!corners.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) return;
@@ -284,14 +294,14 @@ function drawUserDirectionFromAnchor(ctx, toScreen) {
   ctx.moveTo(corners[0].x, corners[0].y);
   for (let i = 1; i < corners.length; i += 1) ctx.lineTo(corners[i].x, corners[i].y);
   ctx.closePath();
-  ctx.fillStyle = USER_MARKER_BLUE;
+  ctx.fillStyle = USER_POINTER_INK;
   ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
   ctx.lineWidth = 2 * dpr;
   ctx.lineJoin = "round";
   ctx.fill();
   ctx.stroke();
 
-  // The label stays upright rather than being projected onto the ground with the arrow: text
+  // The label stays upright rather than being projected onto the ground with the triangle: text
   // laid flat in perspective is the one part of this that would be unreadable, and pins are
   // already billboarded the same way.
   const anchorLonLat = unprojectPoint(anchor);
@@ -310,21 +320,38 @@ function drawUserDirectionFromAnchor(ctx, toScreen) {
   ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
   ctx.lineWidth = 3.5 * dpr;
   ctx.strokeText(label, labelX, labelY);
-  ctx.fillStyle = USER_MARKER_BLUE;
+  ctx.fillStyle = USER_POINTER_INK;
   ctx.fillText(label, labelX, labelY);
   ctx.restore();
 
-  // Covers the arrow and its label as one target, with a floor so it stays thumb-sized however
-  // far the perspective has shrunk the arrow itself.
+  // Covers the triangle and its label as one target, with a floor so it stays thumb-sized
+  // however far the perspective has shrunk the triangle itself.
   const drawnSpan = Math.max(
     Math.hypot(tip.x - base.x, tip.y - base.y),
-    Math.hypot(corners[1].x - corners[3].x, corners[1].y - corners[3].y)
+    Math.hypot(corners[1].x - corners[2].x, corners[1].y - corners[2].y)
   );
   _userDirectionPointerHit = {
     x: (base.x + labelX) / 2,
     y: (base.y + labelY) / 2,
     radius: Math.max(26 * dpr, drawnSpan * 0.75 + labelOffset),
   };
+}
+
+// Whether the "You" dot is drawn somewhere the user can actually see it this frame: inside the
+// part of the canvas the inspector isn't covering, and not so close to its edge that the dot is
+// half off. The inset is generous on purpose -- a dot skimming the boundary is exactly the case
+// where it helps to keep the off-ring pointer rather than swap between the two every frame.
+function userDotVisibleOnMap(project) {
+  if (!state.userLocation) return false;
+  const point = project(state.userLocation.point);
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
+  const rect = typeof bestVisibleCanvasRect === "function" ? bestVisibleCanvasRect() : null;
+  if (!rect) return false;
+  const inset = 48 * pixelRatio();
+  return point.x >= rect.x + inset
+    && point.x <= rect.x + rect.width - inset
+    && point.y >= rect.y + inset
+    && point.y <= rect.y + rect.height - inset;
 }
 
 // Flat-mode footprint/roof colour. 3D building extrusion (walls in tilt mode) was
@@ -746,48 +773,6 @@ function drawRailwayLines(ctx, geometry, properties, style) {
   }
 }
 
-function drawOverviewRoutes(ctx, treeClusters) {
-  // Was `if (!state.userLocation || state.selected) return;` -- state.selected is also
-  // truthy for the Settings/Report pseudo-selections, which wrongly hid these route lines on
-  // those two screens while Filters (which leaves state.selected null) kept showing them.
-  // hasRealSelection() (js/nav.js) excludes those pseudo-selections, matching drawWalkingRadius
-  // just below, which already got this right.
-  if (!state.userLocation || hasRealSelection()) return;
-
-  const targets = overviewRouteTargets(treeClusters);
-  if (!targets.length) return;
-  // These lines belong to the nearby set, so they arrive with it rather than sweeping across
-  // the map while a browse-origin slide is still moving the terrain underneath them.
-  const reveal = nearbyRevealOpacity();
-  if (reveal <= 0) return;
-
-  const dpr = pixelRatio();
-  const from = worldToScreen(state.userLocation.point);
-  const routeLineWidth = 2.2 * dpr;
-  const haloLineWidth = routeLineWidth + 2.6 * dpr;
-
-  ctx.save();
-  ctx.globalAlpha = reveal;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.setLineDash([8 * dpr, 7 * dpr]);
-
-  for (const target of targets) {
-    const to = worldToScreen(target.point);
-    ctx.beginPath();
-    ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
-    ctx.lineWidth = haloLineWidth;
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-    ctx.stroke();
-    ctx.lineWidth = routeLineWidth;
-    ctx.strokeStyle = target.color;
-    ctx.stroke();
-  }
-
-  ctx.restore();
-}
-
 // Traces a circle that lies on the ground plane, so it foreshortens with the terrain
 // instead of staying a screen-space circle. ctx.arc() takes a single scalar radius and so
 // can only ever draw a true circle; under tilt that reads as a ring standing up out of the
@@ -809,30 +794,50 @@ function traceGroundCirclePath(ctx, centerFlat, radiusFlatPx) {
   ctx.closePath();
 }
 
-// Inside the radius stays completely untouched ("clear") -- everything outside gets a darker,
-// translucent wash so the walkable circle reads as the highlighted area rather than the
-// reverse (a filled-in circle used to read as *less* important than the map around it). No
-// separate boundary line is drawn any more (it read as broken against the soft flat-mode edge
-// and didn't match the hard tilted-mode edge) -- flat and tilted now share one implementation:
-// fill everywhere except the radius shape (evenodd, using the same ground-projected polygon
-// path under tilt that the rest of this file uses for the same reason -- a plain radial
-// gradient can't represent that foreshortened ellipse), then blur the whole fill so the edge
-// itself is the only soft transition, in both modes alike. featherPx is deliberately half the
-// original flat-only gradient's feather size.
-function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr) {
+// Three tiers of one wash, so the Nearby view reads as a single picture rather than a set of
+// unrelated markers: the walkable circle is left completely clear, everything outside it is
+// dimmed, and -- while the user is browsing a spot they are standing away from -- the cone
+// between them and the circle sits between the two at a fraction of the dim. The circle's
+// clearness is the point (a filled-in circle used to read as *less* important than the map
+// around it), and giving the cone its own shade rather than clearing it too keeps the circle
+// the brightest thing on screen while still tying the "You" dot to it.
+const WALKING_RADIUS_DIM = "rgba(18, 28, 23, 0.4)";
+const NEARBY_CONE_DIM = "rgba(18, 28, 23, 0.13)";
+
+// Inside the radius stays completely untouched ("clear"). No separate boundary line is drawn
+// (it read as broken against the soft flat-mode edge and didn't match the hard tilted-mode
+// edge) -- flat and tilted share one implementation: fill everywhere except the radius shape
+// and the cone (evenodd, using the same ground-projected polygon path under tilt that the rest
+// of this file uses for the same reason -- a plain radial gradient can't represent that
+// foreshortened ellipse), then blur the whole fill so the edge itself is the only soft
+// transition, in both modes alike. featherPx is deliberately half the original flat-only
+// gradient's feather size.
+function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, cone) {
   const featherPx = Math.max(7 * dpr, radiusPx * 0.06);
   ctx.save();
   ctx.filter = `blur(${featherPx}px)`;
+
+  // The cone first and on its own, so it carries its own lighter shade instead of the dim. It
+  // never overlaps the circle (its far edge *is* the circle's near arc), so the two cutouts
+  // below can't fight each other.
+  if (cone) {
+    ctx.beginPath();
+    traceNearbyUserConePath(ctx, cone);
+    ctx.fillStyle = NEARBY_CONE_DIM;
+    ctx.fill();
+  }
+
   ctx.beginPath();
-  // The outer rect extends well past the canvas edges so the blur softens only the radius
-  // cutout -- if it matched the canvas bounds exactly, the blur would also fade the wash out
-  // near the screen edges instead of staying solidly dark there.
+  // The outer rect extends well past the canvas edges so the blur softens only the cutouts --
+  // if it matched the canvas bounds exactly, the blur would also fade the wash out near the
+  // screen edges instead of staying solidly dark there.
   const margin = featherPx * 3;
   ctx.rect(-margin, -margin, els.canvas.width + margin * 2, els.canvas.height + margin * 2);
   if (tilted) traceGroundCirclePath(ctx, center, radiusPx);
   else ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
   ctx.closePath();
-  ctx.fillStyle = "rgba(18, 28, 23, 0.4)";
+  if (cone) traceNearbyUserConePath(ctx, cone);
+  ctx.fillStyle = WALKING_RADIUS_DIM;
   ctx.fill("evenodd");
   ctx.restore();
 }
@@ -852,7 +857,59 @@ function drawWalkingRadius(ctx) {
   const radiusPx = Math.max(8, Math.hypot(edge.x - center.x, edge.y - center.y));
   const tilted = typeof tiltActive === "function" && tiltActive();
 
-  drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr);
+  drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, nearbyUserCone(center, radiusPx, tilted));
+}
+
+// Screen-space geometry for the wedge that ties the "You" dot to the walking-radius ring while
+// the Nearby view is browsing an anchor (see setNearbyAnchor, js/nav.js) the user is standing
+// away from. Its two edges are the tangents from the user to the ring, so the wedge opens out to
+// land exactly on the circle: at a glance the shape says both which way the nearby circle lies
+// and how far off it the user actually is, which two separate dots never did.
+//
+// Sampled on the flat map and projected point by point (same treatment as traceGroundCirclePath
+// above) so it lies on the ground plane with the ring instead of floating over it under tilt.
+// Returns null whenever there is no wedge to draw, which is what lets drawWalkingRadiusDimming
+// take the result straight from here.
+function nearbyUserCone(centerFlat, radiusPx, tilted) {
+  if (!state.nearbyAnchor || !state.userLocation || !state.userInMapArea) return null;
+  const userFlat = worldToScreenFlat(state.userLocation.point);
+  if (!Number.isFinite(userFlat.x) || !Number.isFinite(userFlat.y)) return null;
+
+  const dx = centerFlat.x - userFlat.x;
+  const dy = centerFlat.y - userFlat.y;
+  const distance = Math.hypot(dx, dy);
+  // Inside the ring (or all but touching it) there is no wedge worth drawing -- the "You" dot is
+  // already sitting in the circle, saying the same thing more directly. The margin keeps a user
+  // hovering right on the edge from flickering a degenerate, near-180deg wedge on and off.
+  if (distance <= radiusPx * 1.04) return null;
+
+  // Tangent geometry: the tangent point subtends acos(r/d) at the centre from the centre->user
+  // direction, so sweeping +/- that angle about it traces exactly the near face of the circle --
+  // which is why the wedge and the circle share an edge instead of overlapping.
+  const towardsUser = Math.atan2(-dy, -dx);
+  const halfAngle = Math.acos(clamp(radiusPx / distance, 0, 1));
+  const project = tilted ? tiltProjectScreenPoint : (point) => point;
+  const STEPS = 28;
+
+  const points = [project(userFlat)];
+  for (let i = 0; i <= STEPS; i += 1) {
+    const angle = towardsUser - halfAngle + (halfAngle * 2 * i) / STEPS;
+    points.push(project({
+      x: centerFlat.x + radiusPx * Math.cos(angle),
+      y: centerFlat.y + radiusPx * Math.sin(angle),
+    }));
+  }
+  if (!points.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))) return null;
+  return points;
+}
+
+// Adds a nearbyUserCone() result to the current path. Used twice per frame on the same geometry
+// -- once to lay down the cone's own shade, once as a cutout in the dimming laid over it -- so
+// the two can never disagree about where the cone is.
+function traceNearbyUserConePath(ctx, points) {
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i += 1) ctx.lineTo(points[i].x, points[i].y);
+  ctx.closePath();
 }
 
 // Minimum ground movement (in real metres) before the selected route line is recomputed. GPS
@@ -870,10 +927,10 @@ const SELECTED_ROUTE_RECOMPUTE_MIN_METRES = 20;
 // user movement, so Dijkstra runs only when the destination or the user's position actually
 // changes meaningfully, never once per animation frame.
 //
-// Deliberately only used for the single selected/highlighted target (this function), not for
-// the ambient drawOverviewRoutes lines to every nearby item -- routing every visible pin would
-// multiply the cost of this by however many items are on screen for comparatively little value,
-// since those lines exist to show rough direction/distance at a glance, not to be walked.
+// The selected destination is the only thing that gets a drawn route at all: the ambient dashed
+// lines from the user to every nearby match were removed (they crowded the map with a fan of
+// dotted lines that nobody had asked to walk), so a route line now always means "this is the
+// place you chose".
 function selectedRoutePoints(target) {
   const from = state.userLocation.point;
   const to = target.point;
@@ -946,35 +1003,6 @@ function drawSelectedRoute(ctx) {
   ctx.lineWidth = routeLineWidth;
   ctx.stroke();
   ctx.restore();
-}
-
-function overviewRouteTargets(treeClusters) {
-  // overviewItemsForActiveFilter() now returns every match within the radius (so the map can
-  // show all of them -- see its comment), but a route line per match would draw hundreds of
-  // dashed lines at a large radius; cap to the same "nearest handful" the text list shows.
-  // An expanded group hides every other highlighted location (buildNearbyIconLookup), so its
-  // ambient route lines go with them -- only the group's own items keep a line.
-  const groupItems = state.clusterExpanded ? new Set(state.clusterExpanded.items) : null;
-  const entries = overviewItemsForActiveFilter()
-    .filter((entry) => !entry.outOfRadius && entry.item && entry.item.point)
-    .filter((entry) => !groupItems || groupItems.has(entry.item))
-    .slice(0, state.nearestItemsCount);
-
-  const nonTreeValues = entries
-    .filter((entry) => entry.type !== "tree")
-    .map((entry) => ({ point: entry.item.point, color: filterKindColor(entry.kind) }));
-
-  const treeValues = treeClusters
-    ? treeClusters.map((cluster) => ({ point: cluster.worldPt, color: filterKindColor("tree") }))
-    : entries.filter((entry) => entry.type === "tree").map((entry) => ({ point: entry.item.point, color: filterKindColor("tree") }));
-
-  const seen = new Set();
-  return [...nonTreeValues, ...treeValues].filter((target) => {
-    const key = `${target.point.x.toFixed(6)},${target.point.y.toFixed(6)}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 function drawBase(ctx, width, height) {

@@ -399,6 +399,73 @@ REPORT_CSS = """
   }
   .app-link:hover, .app-link:focus-visible{ text-decoration:underline; }
 
+  /* "What's on the map" -- the running inventory of everything the app can
+     draw, headline total plus a breakdown by the app's own filter groups.
+     The total sits in the card's own header rather than the stat strip at
+     the top, which is strictly about what changed this week. */
+  .inventory-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .inventory-head{
+    display:flex;
+    align-items:baseline;
+    gap:14px;
+    flex-wrap:wrap;
+    padding:20px 22px;
+    border-bottom:1px solid var(--line);
+    background:var(--surface-2);
+  }
+  .inventory-head .n{
+    font-family:"JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    font-size:2.4rem;
+    font-weight:600;
+    line-height:1;
+  }
+  .inventory-head .lbl{color:var(--ink-soft); font-size:0.95rem;}
+  .inventory-groups{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:1px;
+    background:var(--line);
+  }
+  .inventory-group{background:var(--surface); padding:16px 20px 18px;}
+  /* The always-shown features have no filter to sit beside, so they get a
+     row of their own rather than leaving two empty cells next to them. */
+  .inventory-group.full{grid-column:1 / -1;}
+  .inventory-group .grp{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:10px;
+    font-weight:600;
+    margin-bottom:8px;
+  }
+  .inventory-group .grp .c{
+    font-family:"JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .inventory-group ul{margin:0; padding:0; list-style:none;}
+  .inventory-group li{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    font-size:0.88rem;
+    color:var(--ink-soft);
+    padding:2px 0;
+  }
+  .inventory-group li .c{
+    font-family:"JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  @media (max-width: 760px){
+    .inventory-groups{grid-template-columns:1fr;}
+  }
+
   .about-note{
     margin-top:40px;
     padding:18px 20px;

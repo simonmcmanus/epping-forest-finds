@@ -168,8 +168,72 @@ test.describe("Overview / Nearby screen", () => {
 
       await page.click("[data-action='reset-nearby-anchor']");
 
-      await expect(page.locator("[data-action='reset-nearby-anchor']")).toHaveCount(0);
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeHidden();
       expect(await page.evaluate(() => state.nearbyAnchor)).toBeNull();
+    });
+  });
+
+  // Filters, Settings and Report all keep drawing the walking-radius ring around the browse
+  // anchor behind them, so everything that removes or adjusts that ring has to work from them
+  // too -- otherwise opening one of the three strands the user on a browsed spot with nothing
+  // on screen offering to undo it.
+  test.describe("Adjusting the browsed spot from Filters, Settings and Report", () => {
+    test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
+
+    test.beforeEach(async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await page.evaluate(() => {
+        const latitude = state.userLocation.latitude + 0.02;
+        const longitude = state.userLocation.longitude;
+        setNearbyAnchor(latitude, longitude, projectLonLat(longitude, latitude));
+      });
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+    });
+
+    test("'Use my location' stays on screen across all three, and works from any of them", async ({ page }) => {
+      for (const toggle of ["#filterToggle", "#settingsToggle", "#reportToggle"]) {
+        await page.click(toggle);
+        await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+      }
+
+      // Cleared from the Report screen, which is the furthest from where the browse started.
+      await page.click("[data-action='reset-nearby-anchor']");
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeHidden();
+      expect(await page.evaluate(() => state.nearbyAnchor)).toBeNull();
+      await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
+    });
+
+    test("tapping open ground moves the browsed spot without closing the settings screen", async ({ page }) => {
+      await page.click("#settingsToggle");
+      await expect(page.locator("#settingsToggle")).toHaveClass(/screen-active/);
+
+      const moved = await page.evaluate(() => {
+        const before = { ...state.nearbyAnchor };
+        const lonLat = { latitude: before.latitude - 0.004, longitude: before.longitude + 0.004 };
+        focusNearbyOnMapPoint(lonLat, projectLonLat(lonLat.longitude, lonLat.latitude));
+        return { before, after: { ...state.nearbyAnchor }, expected: lonLat };
+      });
+      expect(moved.after.latitude).toBeCloseTo(moved.expected.latitude, 6);
+      expect(moved.after.latitude).not.toBeCloseTo(moved.before.latitude, 6);
+
+      await expect(page.locator("#settingsToggle")).toHaveClass(/screen-active/);
+      await expect(page.locator("#inspectorTitle")).toContainText("Settings");
+    });
+
+    test("pinching resizes the walking radius from the filter screen", async ({ page }) => {
+      await page.click("#filterToggle");
+      await expect(page).toHaveURL(/#filters$/, { timeout: 3_000 });
+
+      const before = await page.evaluate(() => state.walkingDistanceMinutes);
+      await firePinch(page, { startHalfGap: 140, endHalfGap: 20 });
+      const grown = await page.evaluate(() => state.walkingDistanceMinutes);
+
+      expect(grown).toBeGreaterThan(before);
+      // The screen it was performed on survives: refreshNearbyRadiusView must not re-render
+      // the Nearby list over the top of it.
+      await expect(page).toHaveURL(/#filters$/);
+      await expect(page.locator("#inspectorTitle")).toContainText("Filters");
     });
   });
 
