@@ -222,3 +222,29 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await expect(page.locator("#inspector")).not.toHaveClass(/keyboard-avoiding/);
   });
 });
+
+test.describe("Reporting a mistake from a weekly report", () => {
+  test("a #report link opens the report form straight away", async ({ page }) => {
+    await setup(page, "/#report");
+    await expect(page.locator("#reportForm")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
+  });
+
+  test("the link says which report the reader was looking at", async ({ page }) => {
+    await setup(page, "/#report=Mistake%20in%20the%20Epping%20Forest%20Ledger%20for%2015%20September%202026");
+    await expect(page.locator("#reportDetails")).toHaveValue(
+      /Mistake in the Epping Forest Ledger for 15 September 2026/
+    );
+  });
+
+  test("an unsaved draft of the reader's own is never overwritten by the link", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "forest-finds-report-draft-v1",
+        JSON.stringify({ details: "Half-written note I came back to" })
+      );
+    });
+    await setup(page, "/#report=Mistake%20in%20the%20ledger");
+    await expect(page.locator("#reportDetails")).toHaveValue("Half-written note I came back to");
+  });
+});

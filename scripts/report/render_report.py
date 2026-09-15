@@ -18,25 +18,44 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from scripts.report import places, svg_map, template  # noqa: E402
+    from scripts.report import places, png_icon, svg_map, template  # noqa: E402
     from scripts.report.categories import CATEGORY_STYLES, style_for  # noqa: E402
     from scripts.report.jargon_guard import assert_reader_friendly  # noqa: E402
     from scripts.report.text_utils import oxford_comma_join, pluralize_label  # noqa: E402
 else:
-    from . import places, svg_map, template
+    from . import places, png_icon, svg_map, template
     from .categories import CATEGORY_STYLES, style_for
     from .jargon_guard import assert_reader_friendly
     from .text_utils import oxford_comma_join, pluralize_label
 
-DEFAULT_APP_LINK = "https://epping-forest.netlify.app"
+SITE_BASE = "https://www.eppingforestfinds.uk"
+DEFAULT_APP_LINK = SITE_BASE + "/"
+SOCIAL_IMAGE_URL = SITE_BASE + "/data/icons/icon-512.png"
+
+# The cattle on the report's map are drawn with the app's own cow icon, shrunk
+# to pin size and written into the page itself rather than linked. A report is
+# read on a phone with no signal, saved for later and forwarded by email, and a
+# linked image turns into a broken-image box in all three.
+COW_ICON_SOURCE = Path("data") / "icons" / "cow.png"
+COW_ICON_SIZE_PX = 64
+# Used only when the icon isn't there to read (the report's own tests render
+# against a stand-in folder holding just the map data).
+COW_ICON_FALLBACK_URL = SITE_BASE + "/data/icons/cow.png"
 DEFAULT_ABOUT_NOTE = (
     "This report is put together each week from council and City of London updates, "
     "local news, an open map of shops and small businesses (OpenStreetMap), and the "
     "live tracker for the forest's grazing cattle. It won't catch everything — if "
     "you spot something wrong or missing, we'd like to know."
+)
+AI_DISCLAIMER = (
+    "This report is researched and written automatically by AI. It reads public "
+    "sources each week and it can get things wrong — a date misread, a shop listed "
+    "as closed when it is still trading, or something missed altogether. Please "
+    "check anything important before you rely on it."
 )
 
 SECTION_TITLES = {
@@ -44,6 +63,19 @@ SECTION_TITLES = {
     "road": ("Road closures & access", "Things that might affect getting around the forest."),
     "event": ("Events in the forest", "What's on this week."),
 }
+
+# Sections that always appear, even with nothing to report, each with the line
+# shown when the week turned up nothing. A missing section reads as "we forgot
+# to look"; an explicit "nothing this week" reads as "we looked".
+EMPTY_SECTION_NOTES = {
+    "business": ("Nothing to report this week", "No likely openings or closures turned up this week."),
+    "road": ("No closures to report this week", "Nothing new was announced for the roads around the forest this week."),
+    "event": ("No events listed this week", "Nothing had been listed for the forest this week when this report was put together. Organisers often add things at short notice, so it is worth a look closer to the weekend."),
+}
+
+# Anchor names in the published page. Kept as they were so links people have
+# already shared into a past report still land in the right place.
+SECTION_IDS = {"business": "businesses", "road": "road", "event": "event"}
 
 BUSINESS_CATEGORIES = {"opening", "closing"}
 
@@ -243,7 +275,12 @@ def render_sources_line(sources):
 def render_card(finding):
     style = style_for(finding.get("category"))
     css_class = style["css_class"]
-    chip = f'<span class="pin-chip {css_class}">{finding["number"]}</span>' if finding.get("lon") is not None else ""
+    if finding.get("lon") is None:
+        chip = ""
+    elif finding.get("category") == "grazing":
+        chip = cow_marker_html("pin-chip")
+    else:
+        chip = f'<span class="pin-chip {css_class}">{finding["number"]}</span>'
     status = finding.get("status_label")
     status_html = f'<span class="status-label {css_class}">{escape(status)}</span>' if status else ""
     place_html = f'<p class="addr">{escape(finding["place"])}</p>' if finding.get("place") else ""
@@ -257,23 +294,34 @@ def render_card(finding):
     )
 
 
-def render_business_section(findings):
-    items = [f for f in findings if f.get("category") in BUSINESS_CATEGORIES]
-    title, subtitle = SECTION_TITLES["business"]
-    body = "".join(render_card(f) for f in items) if items else (
-        '<div class="card"><div class="card-head"><h3 style="font-size:1rem;">Nothing to report this week</h3></div>'
-        "<p>No likely openings or closures turned up this run.</p></div>"
+def render_empty_card(section_key):
+    heading, body = EMPTY_SECTION_NOTES[section_key]
+    return (
+        '<div class="card empty">'
+        f'<div class="card-head"><h3>{escape(heading)}</h3></div>'
+        f'<p>{escape(body)}</p></div>'
     )
-    return f'<section id="businesses"><h2 class="section-title">{escape(title)}</h2><p class="section-sub">{escape(subtitle)}</p><div class="cards">{body}</div></section>'
+
+
+def render_section(section_key, items):
+    """A report section. Always rendered, even with nothing in it -- a reader
+    who sees no "Events" heading at all can't tell whether the forest was
+    quiet or whether nobody looked."""
+    title, subtitle = SECTION_TITLES[section_key]
+    body = "".join(render_card(f) for f in items) if items else render_empty_card(section_key)
+    return (
+        f'<section id="{SECTION_IDS[section_key]}"><h2 class="section-title">{escape(title)}</h2>'
+        f'<p class="section-sub">{escape(subtitle)}</p>'
+        f'<div class="cards">{body}</div></section>'
+    )
+
+
+def render_business_section(findings):
+    return render_section("business", [f for f in findings if f.get("category") in BUSINESS_CATEGORIES])
 
 
 def render_category_section(section_key, category, findings):
-    items = [f for f in findings if f.get("category") == category]
-    if not items:
-        return ""
-    title, subtitle = SECTION_TITLES[section_key]
-    body = "".join(render_card(f) for f in items)
-    return f'<section id="{section_key}"><h2 class="section-title">{escape(title)}</h2><p class="section-sub">{escape(subtitle)}</p><div class="cards">{body}</div></section>'
+    return render_section(section_key, [f for f in findings if f.get("category") == category])
 
 
 def render_grazing_section(grazing):
@@ -289,7 +337,7 @@ def render_grazing_section(grazing):
     sources_html = render_sources_line(grazing.get("sources"))
     card = (
         f'<div class="card {css_class}">'
-        f'<div class="card-head"><h3>Where the cattle are grazing</h3><span class="status-label {css_class or "event"}">{escape(status)}</span></div>'
+        f'<div class="card-head">{cow_marker_html("pin-chip")}<h3>Where the cattle are grazing</h3><span class="status-label {css_class or "event"}">{escape(status)}</span></div>'
         f'{place_html}{body_html}{sources_html}'
         f'</div>'
     )
@@ -300,10 +348,32 @@ def render_grazing_section(grazing):
     )
 
 
+def cow_icon_uri(repo_root):
+    """The app's cow icon, shrunk to pin size and ready to inline. Falls back
+    to the icon's address on the site if this checkout hasn't got it."""
+    icon = Path(repo_root) / COW_ICON_SOURCE
+    if not icon.exists():
+        return COW_ICON_FALLBACK_URL
+    return png_icon.icon_data_uri(icon, COW_ICON_SIZE_PX)
+
+
+def cow_marker_html(class_name):
+    """The app's cow icon in the app's white map-pin surround, for the report's
+    HTML (legend, the list beside the map, the cattle card). The icon itself is
+    carried once by the page's own `--cow-icon` rule rather than repeated on
+    every marker; the map SVG draws the same thing in SVG -- see
+    svg_map.build_pins_markup."""
+    return f'<span class="{class_name} cow-marker" aria-hidden="true"></span>'
+
+
 def render_map_legend():
     items = []
     for category, style in CATEGORY_STYLES.items():
-        items.append(f'<div class="legend-item"><span class="legend-dot" style="background:var({style["css_var"]})"></span>{escape(style["label"])}</div>')
+        if category == "grazing":
+            marker = cow_marker_html("legend-dot")
+        else:
+            marker = f'<span class="legend-dot" style="background:var({style["css_var"]})"></span>'
+        items.append(f'<div class="legend-item">{marker}{escape(style["label"])}</div>')
     return f'<div class="legend">{"".join(items)}</div>'
 
 
@@ -314,23 +384,32 @@ def render_map_side_list(findings):
             continue
         style = style_for(f.get("category"))
         css_class = style["css_class"]
-        text_style = ' style="color:var(--status-warning-ink)"' if css_class == "warning" else ""
+        if f.get("category") == "grazing":
+            badge = cow_marker_html("badge")
+        else:
+            badge = (
+                f'<span class="badge{" " + css_class if css_class else ""}" '
+                f'style="background:var({style["css_var"]})">{f["number"]}</span>'
+            )
         items.append(
-            f'<div class="find-mini"><span class="badge{" " + css_class if css_class else ""}" style="background:var({style["css_var"]})">{f["number"]}</span>'
+            f'<div class="find-mini">{badge}'
             f'<div class="txt"><strong>{escape(f.get("title",""))}</strong><span>{escape(f.get("place",""))}</span></div></div>'
         )
     return "".join(items)
 
 
-def render_map_section(forest_geojson, findings):
+def render_map_section(forest_geojson, findings, cow_icon):
     pinned = [f for f in findings if f.get("lon") is not None]
-    svg = svg_map.render_map_svg(forest_geojson, pinned)
+    svg = svg_map.render_map_svg(forest_geojson, pinned, cow_icon_url=cow_icon)
     legend = render_map_legend()
     side_list = render_map_side_list(findings)
-    count_line = f"{len(pinned)} item{'s' if len(pinned) != 1 else ''} flagged this run. Full detail is below the map." if pinned else "Nothing needed a pin on the map this run."
+    count_line = (
+        f"{len(pinned)} thing{'s' if len(pinned) != 1 else ''} to know about this week. "
+        "Full detail is below the map."
+    ) if pinned else "Nothing needed a pin on the map this week."
     return f'''<section id="map">
     <h2 class="section-title">This week on the map</h2>
-    <p class="section-sub">The dashed line shows the area this report searches for updates in — not just the forest itself, but the towns around its edge.</p>
+    <p class="section-sub">The dashed box is the area this report searches each week. It is a straight-sided box on purpose: the search covers everything inside it, so it takes in the forest itself and all the towns along its edge, not just the woodland.</p>
     <div class="map-card">
       <div class="map-svg-holder">
         {svg}
@@ -344,15 +423,145 @@ def render_map_section(forest_geojson, findings):
   </section>'''
 
 
-def render_app_link(app_link):
+APP_SELLING_POINTS = [
+    ("Works with no signal", "Once it has loaded, the whole map lives on your phone. Deep in the forest, with no bars showing, it still knows exactly where you are."),
+    ("Find what is near you", "Tap anywhere and it lists what is within a walk — pubs, cafés, car parks, toilets, benches, gates and stations — with how long each one takes on foot."),
+    ("Every veteran tree", "Thousands of the forest's ancient and veteran trees, each one findable by its tag number."),
+    ("See where the cattle are", "The forest's grazing cattle wear tracking collars, and the map shows roughly where the herd is right now."),
+]
+
+
+def render_app_promo(app_link, inventory):
+    """The advert for the app itself. Deliberately near the end: someone who
+    has just read the week's news is far likelier to want the map than
+    someone who has only read the headline."""
+    total = (inventory or {}).get("total")
+    total_line = (
+        f"There are {total:,} things on it to find, and it costs nothing to use."
+        if total else "Everything in this report is on it, and it costs nothing to use."
+    )
+    points = "".join(
+        f'<li><strong>{escape(head)}</strong><span>{escape(body)}</span></li>'
+        for head, body in APP_SELLING_POINTS
+    )
+    return f'''<section id="app" class="app-promo">
+    <h2 class="section-title">Take Epping Forest with you</h2>
+    <p class="section-sub">Epping Forest Finds is a free map of the forest that works on your phone
+      even when your signal does not. {escape(total_line)}</p>
+    <ul class="promo-points">{points}</ul>
+    <p class="promo-cta"><a class="app-link" href="{escape(app_link)}">Open the map →</a></p>
+    <p class="promo-foot">No app store, no account, nothing to install — it opens in your browser,
+      and your phone will offer to add it to your home screen if you want it there.</p>
+  </section>'''
+
+
+def render_ai_note(app_link, date_display):
+    """The "this was written by AI, tell us if it is wrong" note, with a link
+    straight into the app's own report-a-problem screen, pre-filled so we know
+    which week it came from."""
+    subject = f"Mistake in the Epping Forest Ledger for {date_display}" if date_display else "Mistake in the Epping Forest Ledger"
+    deep_link = f"{app_link.rstrip('/')}/#report={quote(subject, safe='')}"
     return (
-        f'<a class="app-link" href="{escape(app_link)}">Open the live map →</a>'
+        '<aside class="ai-note">'
+        '<h4>Written by AI — please tell us if it is wrong</h4>'
+        f'<p>{escape(AI_DISCLAIMER)}</p>'
+        f'<p>If you spot a mistake, <a href="{escape(deep_link)}">report it here</a> — '
+        'the link opens the map with a short form already filled in with which report '
+        'you are talking about. Every one gets read, and corrections go into the next week\'s report.</p>'
+        '</aside>'
     )
 
 
 def render_about_note(report_data):
     text = report_data.get("about_note") or DEFAULT_ABOUT_NOTE
     return f'<div class="about-note">{escape(text)}</div>'
+
+
+def meta_description(report_data, findings, coverage_area, date_display):
+    """A one-line summary for search results and link previews. Built from
+    the week's own numbers so every report reads differently -- a page whose
+    description never changes is a page search engines treat as boilerplate."""
+    counts = {}
+    for f in findings:
+        counts[f.get("category")] = counts.get(f.get("category"), 0) + 1
+    parts = []
+    for category, singular, plural in (
+        ("opening", "opening", "openings"),
+        ("closing", "closure", "closures"),
+        ("road", "road or access change", "road and access changes"),
+        ("event", "event", "events"),
+    ):
+        n = counts.get(category, 0)
+        if n:
+            parts.append(f"{n} {singular if n == 1 else plural}")
+    listed = list(coverage_area)
+    towns = oxford_comma_join(listed[:4])
+    if len(listed) > 4:
+        towns += f" and {len(listed) - 4} more"
+    summary = oxford_comma_join(parts) if parts else "no changes of note"
+    lead = f"Epping Forest news for {date_display}: " if date_display else "Epping Forest news: "
+    return (
+        f"{lead}{summary} around {towns}. "
+        "Shops, pubs and cafés opening and closing, road closures, events, and where "
+        "the forest's grazing cattle have moved to."
+    )
+
+
+def render_head(*, title, description, canonical_url, date, date_display, coverage_area):
+    """Head tags. Kept deliberately small: a title, a description, a canonical
+    address, link-preview tags, and one block of structured data describing
+    the report as a news article about Epping Forest -- enough for a search
+    engine to index the page properly without padding the page itself."""
+    structured = {
+        "@context": "https://schema.org",
+        "@type": "NewsArticle",
+        "headline": title,
+        "description": description,
+        "datePublished": date,
+        "dateModified": date,
+        "inLanguage": "en-GB",
+        "url": canonical_url,
+        "isAccessibleForFree": True,
+        "author": {"@type": "Organization", "name": "Epping Forest Finds", "url": SITE_BASE + "/"},
+        "publisher": {
+            "@type": "Organization",
+            "name": "Epping Forest Finds",
+            "url": SITE_BASE + "/",
+            "logo": {"@type": "ImageObject", "url": SOCIAL_IMAGE_URL},
+        },
+        "about": [{"@type": "Place", "name": name} for name in ["Epping Forest"] + list(coverage_area)],
+        "isPartOf": {
+            "@type": "CreativeWorkSeries",
+            "name": "Epping Forest Ledger",
+            "url": f"{SITE_BASE}/reports/",
+        },
+    }
+    keywords = ", ".join(
+        [f"Epping Forest {w}" for w in ("news", "road closures", "events", "pubs", "walks")]
+        + [f"{town} news" for town in coverage_area]
+    )
+    return f'''<title>{escape(title)}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="{escape(description)}">
+<meta name="keywords" content="{escape(keywords)}">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<link rel="canonical" href="{escape(canonical_url)}">
+<link rel="icon" href="{SITE_BASE}/data/icons/trees/logo.png" type="image/png">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Epping Forest Finds">
+<meta property="og:locale" content="en_GB">
+<meta property="og:title" content="{escape(title)}">
+<meta property="og:description" content="{escape(description)}">
+<meta property="og:url" content="{escape(canonical_url)}">
+<meta property="og:image" content="{SOCIAL_IMAGE_URL}">
+<meta property="article:published_time" content="{escape(date)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{escape(title)}">
+<meta name="twitter:description" content="{escape(description)}">
+<meta name="twitter:image" content="{SOCIAL_IMAGE_URL}">
+<script type="application/ld+json">
+{json.dumps(structured, ensure_ascii=False, indent=2)}
+</script>'''
 
 
 def render_sources_footer(findings, grazing):
@@ -378,6 +587,7 @@ def render_report(report_data, repo_root):
     food_stats = compute_food_stats(food_geojson)
 
     inventory = load_map_inventory(repo_root)
+    cow_icon = cow_icon_uri(repo_root)
 
     findings, grazing_pin = normalize_findings(report_data)
     grazing = report_data.get("grazing")
@@ -389,14 +599,28 @@ def render_report(report_data, repo_root):
 
     stat_strip = render_stat_strip(findings, food_stats["total"], grazing)
     inventory_section = render_inventory_section(inventory)
-    map_section = render_map_section(forest_geojson, findings)
+    map_section = render_map_section(forest_geojson, findings, cow_icon)
     business_section = render_business_section(findings)
     road_section = render_category_section("road", "road", findings)
     event_section = render_category_section("event", "event", findings)
     grazing_section = render_grazing_section(grazing)
+    app_promo = render_app_promo(app_link, inventory)
     about_note = render_about_note(report_data)
+    ai_note = render_ai_note(app_link, date_display)
     sources_footer = render_sources_footer(findings, grazing)
     food_sentence = food_stats_sentence(food_stats)
+
+    title = f"Epping Forest Ledger — {date_display}" if date_display else "Epping Forest Ledger"
+    description = meta_description(report_data, findings, coverage_area, date_display)
+    canonical_url = f"{SITE_BASE}/reports/epping-forest-ledger-{report_data.get('date', '')}.html"
+    head = render_head(
+        title=title,
+        description=description,
+        canonical_url=canonical_url,
+        date=report_data.get("date", ""),
+        date_display=date_display,
+        coverage_area=coverage_area,
+    )
 
     banner_html = f'<div class="banner">{escape(intro)}</div>' if intro else ""
 
@@ -404,11 +628,11 @@ def render_report(report_data, repo_root):
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Epping Forest Ledger</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+{head}
 {template.FONT_LINKS}
 <style>
 {template.REPORT_CSS}
+:root{{--cow-icon:url("{cow_icon}");}}
 </style>
 </head>
 <body>
@@ -422,7 +646,6 @@ def render_report(report_data, repo_root):
       <span class="coverage">{escape(" · ".join(coverage_area))}</span>
     </div>
     {banner_html}
-    {render_app_link(app_link)}
   </div>
 </header>
 
@@ -443,9 +666,13 @@ def render_report(report_data, repo_root):
 
   {grazing_section}
 
+  {app_promo}
+
   {about_note}
 
   {sources_footer}
+
+  {ai_note}
 
 </div>
 </body>

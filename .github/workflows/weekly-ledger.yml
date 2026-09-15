@@ -265,7 +265,12 @@ jobs:
                   only), and git push -u origin
                   weekly-data-report/<date>-${{ github.run_number }}.
                d. Open a PR: gh pr create --title "..." --body "..." listing
-                  exactly what was added/removed and why.
+                  exactly what was added/removed and why. Keep the body
+                  SHORT -- a few lines plus the list of data changes. This is
+                  also the only place any technical note about the run belongs
+                  (a source that was unreachable, an unusual thing the tooling
+                  did, the state of the food-hygiene cross-check): none of that
+                  goes in the report itself.
                e. Do NOT start CI yourself -- there is nothing to start.
                   This job pushes and opens PRs as a real user credential
                   (WEEKLY_LEDGER_PAT), so ci.yml's normal pull_request
@@ -294,7 +299,9 @@ jobs:
             -- no API lookup needed, just the PR number `gh pr create` (or
             `gh pr view --json number -q .number`) gives you. Once the PR
             exists, build the report's URL from that pattern, e.g.
-            `https://deploy-preview-42--epping-forest.netlify.app/reports/epping-forest-ledger-<date>.html`,
+            `https://deploy-preview-42--epping-forest.netlify.app/reports/epping-forest-ledger-<date>.html`
+            (the live site is https://www.eppingforestfinds.uk/ -- the
+            deploy-preview address is only for reviewing an unmerged change),
             and put it near the top of the PR body with
             `gh pr edit <number> --body "..."` (rewrite the full body: keep
             everything the initial `gh pr create` body had, just add this
@@ -313,23 +320,38 @@ jobs:
                Only the rendered HTML this produces gets committed, as part
                of the same branch/PR as the data change (or, if the
                changeset was empty, on a small standalone branch/PR of its
-               own, same merge rule).
+               own, same merge rule). Never commit a Markdown copy, working
+               notes or a draft of the report into reports/ -- the published
+               site only ever carries the finished pages.
 
                Write every finding for a general reader who has never seen
-               this project -- no file names, OSM ids, branch names, or
-               git/PR/CI talk (the render script itself will refuse to write
-               the report if any of that shows up in the visible text, so
-               treat an error from it as "rewrite this sentence in plain
-               English" and try again). Auto-merge is temporarily disabled
-               while this workflow is being tested, so phrase anything
-               sitting on the open PR as proposed and pending a quick
-               review -- e.g. "we'd like to remove this" rather than "this
-               has been removed" -- never as already live on the map. Once
-               Simon re-enables auto-merge, switch to describing changes as
-               already made. report-data.json's "about_note" field can
-               mention the FSA check status or any other honest caveat in
-               plain language if it's worth flagging that week -- keep it
-               short and reader-facing, not a developer changelog.
+               this project and never will. They want to know what is going
+               on in Epping Forest, nothing else. So: no file names, OSM ids,
+               branch names, git/PR/CI talk, and nothing at all about how
+               this report is produced -- which sources the tooling reached,
+               what it checked, what failed, how the page is built. All of
+               that belongs in the PR body (step 4d), not on the page. The
+               render script refuses to write the report if any of it shows
+               up in the visible text, so treat an error from it as "this
+               sentence is about the plumbing, take it out or say it in
+               plain English" and try again.
+
+               Auto-merge is temporarily disabled while this workflow is
+               being tested, so phrase anything sitting on the open PR as
+               proposed and pending a quick review -- e.g. "we'd like to
+               remove this" rather than "this has been removed" -- never as
+               already live on the map. Once Simon re-enables auto-merge,
+               switch to describing changes as already made.
+
+               report-data.json's "about_note" field is a reader-facing note
+               about the report's coverage, in plain language, only if there
+               is something a reader would actually want to know that week.
+               It is not a changelog and not a status report on the tooling.
+               Leave it out if there is nothing to say.
+
+               The report already carries its own "written by AI, tell us if
+               it is wrong" note and its own advert for the app -- do not add
+               either by hand.
 
             7. End with a short plain-text summary in the workflow log:
                what changed, whether it merged, and anything that needs a

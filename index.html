@@ -4,7 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#24382f">
-  <title>Epping Forest Finds</title>
+  <title>Epping Forest Finds — offline map of Epping Forest</title>
+  <!-- The map is the page people land on from search and from the weekly
+       reports, so it describes itself properly. Kept to head tags only: no
+       filler copy on a page whose whole job is to be a map. -->
+  <meta name="description" content="A free offline map of Epping Forest. Find veteran trees, pubs, cafés, car parks, toilets, paths and stations near you, see where the forest's grazing cattle are, and keep working with no phone signal.">
+  <link rel="canonical" href="https://www.eppingforestfinds.uk/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Epping Forest Finds">
+  <meta property="og:locale" content="en_GB">
+  <meta property="og:title" content="Epping Forest Finds — offline map of Epping Forest">
+  <meta property="og:description" content="A free offline map of Epping Forest: veteran trees, pubs and cafés, paths, car parks and the forest's grazing cattle — working with no phone signal.">
+  <meta property="og:url" content="https://www.eppingforestfinds.uk/">
+  <meta property="og:image" content="https://www.eppingforestfinds.uk/data/icons/icon-512.png">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="data/icons/trees/logo.png" type="image/png">
   <link rel="apple-touch-icon" href="data/icons/apple-touch-icon.png">
@@ -4665,6 +4678,20 @@
       }
 
       const params = new URLSearchParams(raw);
+
+      // #report opens the report-a-problem form. The weekly reports link here
+      // so a reader who spots a mistake lands straight on the form, and
+      // #report=<text> pre-fills it with which report they were reading.
+      if (params.has("report")) {
+        openReportModal();
+        const prefill = params.get("report");
+        const detailsInput = document.getElementById("reportDetails");
+        if (prefill && detailsInput && !detailsInput.value) {
+          detailsInput.value = `${prefill}: `;
+        }
+        return true;
+      }
+
       const treeKey = params.get("tree");
       const placeKey = params.get("place");
 

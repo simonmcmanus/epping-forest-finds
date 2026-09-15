@@ -173,6 +173,7 @@ REPORT_CSS = """
   .stat .n.critical{color:var(--status-critical);}
   .stat .n.warning{color:var(--status-warning-ink);}
   .stat .n.event{color:var(--status-event);}
+  .stat .n.grazing{color:var(--bark);}
   .stat .lbl{
     margin-top:4px;
     font-size:0.78rem;
@@ -475,6 +476,83 @@ REPORT_CSS = """
     color:var(--ink-soft);
     font-size:0.92rem;
   }
+
+  /* The cattle marker: the app's own white map pin with its cow icon inside,
+     so a cow reads as a cow here exactly as it does on the map. Used in the
+     legend, the list beside the map, and on the cattle card. The map SVG
+     draws the same shape -- see .cow-pin-body / .cow-pin-icon below. */
+  .cow-marker{
+    background-color:#fff !important;
+    background-image:var(--cow-icon);
+    background-size:76% 76%;
+    background-position:center;
+    background-repeat:no-repeat;
+    border:1px solid var(--line-strong);
+    display:inline-block;
+    flex:none;
+  }
+  .legend-item .cow-marker{width:17px;height:17px;border-radius:50%;}
+  .cow-pin-body{fill:#fff; stroke:rgba(0,0,0,0.25); stroke-width:1.1;}
+
+  /* The advert for the app itself, near the foot of the report -- after the
+     week's news, where a reader has a reason to want the map. */
+  .app-promo{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    padding:26px 28px 24px;
+  }
+  .app-promo .section-sub{margin-bottom:18px; max-width:62ch;}
+  .promo-points{
+    list-style:none;
+    margin:0 0 22px;
+    padding:0;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:16px 28px;
+  }
+  .promo-points li{display:flex; flex-direction:column; gap:2px;}
+  .promo-points strong{font-size:0.95rem;}
+  .promo-points span{color:var(--ink-soft); font-size:0.9rem;}
+  .promo-cta{margin:0;}
+  /* The masthead version of this button sat on the dark green header; here it
+     sits on a light card, so it needs the colours the other way round. */
+  .app-promo .app-link{
+    margin-top:0;
+    background:var(--forest-deep);
+    color:#f4f4ec;
+    padding:12px 22px;
+    font-size:1rem;
+  }
+  .promo-foot{margin:14px 0 0; color:var(--muted); font-size:0.85rem;}
+  @media (max-width: 760px){
+    .promo-points{grid-template-columns:1fr;}
+  }
+
+  /* "Nothing to report" cards: present on purpose, so a quiet week reads as a
+     quiet week rather than a missing section. */
+  .card.empty h3{font-size:1rem;}
+  .card.empty p{margin-bottom:0;}
+
+  /* The AI-authored notice. Last thing on the page, quiet but not hidden. */
+  .ai-note{
+    margin-top:40px;
+    padding:18px 20px;
+    border:1px dashed var(--line-strong);
+    border-radius:12px;
+    color:var(--ink-soft);
+    font-size:0.88rem;
+  }
+  .ai-note h4{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:0.95rem;
+    color:var(--ink);
+    margin:0 0 8px;
+  }
+  .ai-note p{margin:0 0 8px;}
+  .ai-note p:last-child{margin-bottom:0;}
 """
 
 FONT_LINKS = (

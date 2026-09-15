@@ -5,9 +5,16 @@ weekly research step needs to produce -- the script owns the map, the CSS,
 the layout and the point-count stats.
 
 Write every piece of prose here in plain English, as if explaining it to a
-neighbour who has never seen this project's code: no file names, OSM
-node/way ids, branch names, or git/PR/CI talk. The renderer will refuse to
-write the report if any of that slips in (see `jargon_guard.py`).
+neighbour who has never seen this project's code and never will: no file
+names, OSM node/way ids, branch names, git/PR/CI talk, and nothing about how
+the report itself is produced. Notes about the run belong in the write-up on
+the weekly change, where the person reviewing it will look -- the page is for
+a reader who only wants to know what is going on in Epping Forest. The
+renderer refuses to write the report if any of that slips in (see
+`jargon_guard.py`).
+
+The "written by AI, tell us if it is wrong" note and the advert for the app
+are added by the renderer itself -- never write either by hand.
 
 ```jsonc
 {
@@ -21,10 +28,13 @@ write the report if any of that slips in (see `jargon_guard.py`).
   // Optional. Defaults to the 8 coverage settlements (see places.py).
   "coverage_area": ["Loughton", "Chingford", "..."],
 
-  // Optional. Overrides the default app-link URL.
-  "app_link": "https://epping-forest.netlify.app",
+  // Optional. Overrides the default app address (https://www.eppingforestfinds.uk/).
+  // Also decides where the "report a mistake" link at the foot of the page points.
+  "app_link": "https://www.eppingforestfinds.uk/",
 
-  // Optional. Overrides the default "About this report" paragraph.
+  // Optional. Overrides the default "About this report" paragraph. A
+  // reader-facing note about coverage, not a status report on the tooling --
+  // leave it out when there is nothing a reader would want to know.
   "about_note": "...",
 
   // One entry per business/road/event finding. Order doesn't matter --
