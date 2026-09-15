@@ -74,6 +74,11 @@ function hasRealSelection() {
 }
 
 function refreshSettingsVersionDisplay() {
+  // The background data sync (syncData in sw.js) caches newer map data without disturbing the
+  // running session, so the only thing left to tell the user is that a reload will show it.
+  const dataNote = document.getElementById("dataUpdateNote");
+  if (dataNote) dataNote.hidden = !state.dataUpdateAvailable;
+
   const el = document.getElementById("appVersionDisplay");
   if (!el) return;
   if (state.swVersion) el.textContent = state.swVersion;
@@ -103,48 +108,84 @@ function applySwUpdate() {
   }
 }
 
-// Keeps the Settings "Force refresh" button (and its offline note) in sync with
+// The three Settings refresh buttons, keyed by the scope of cached state each one throws away.
+// They were one "Force refresh" button that always cleared everything — which on this app means
+// re-downloading ~67 MB of map data just to pick up a CSS tweak. Splitting them lets the common
+// case (a stale build) cost the app shell alone.
+const REFRESH_SCOPES = {
+  data: { buttonId: "refreshDataButton" },
+  app: { buttonId: "refreshAppButton" },
+  all: { buttonId: "refreshAllButton" },
+};
+
+function refreshScopeButtons() {
+  return Object.keys(REFRESH_SCOPES)
+    .map((scope) => document.getElementById(REFRESH_SCOPES[scope].buttonId))
+    .filter(Boolean);
+}
+
+// Keeps the Settings refresh buttons (and their shared offline note) in sync with
 // connectivity, both on first render and whenever the browser's online/offline
 // events fire while Settings happens to be open.
-function updateForceRefreshOnlineState() {
-  const btn = document.getElementById("forceRefreshButton");
-  if (!btn) return; // Settings screen isn't currently open
-  const note = document.getElementById("forceRefreshOfflineNote");
+function updateRefreshButtonsOnlineState() {
+  const buttons = refreshScopeButtons();
+  if (buttons.length === 0) return; // Settings screen isn't currently open
+  const note = document.getElementById("refreshOfflineNote");
   const online = navigator.onLine;
-  btn.disabled = !online;
+  buttons.forEach((button) => {
+    button.disabled = !online;
+  });
   if (note) note.hidden = online;
+}
+
+// Does this cache name belong to the scope being refreshed? Cache names gain a "dev-" segment
+// when served by the local dev server (injectDevFlag in server.js), so both spellings have to be
+// matched or a local "Refresh data" would silently clear nothing.
+function cacheMatchesRefreshScope(name, scope) {
+  if (!name.startsWith("forest-finds-")) return false;
+  if (scope === "all") return true;
+  return name.startsWith(`forest-finds-${scope}-`) || name.startsWith(`forest-finds-dev-${scope}-`);
 }
 
 // Manual escape hatch for stale PWA state: the normal update flow (setupPwa below)
 // relies on the browser noticing sw.js changed and silently activating a new worker
 // in the background, which the open tab's own "App version" display only reflects
 // after a full reload — sometimes two, since the reload that triggers the update
-// check can itself still be served by the outgoing worker. Unregistering every
-// registration and clearing every forest-finds-* cache before reloading sidesteps
-// that timing entirely and guarantees the reload after this shows the true latest
-// version. Requires connectivity, since it briefly leaves the app with no offline
-// fallback until the new install completes.
-async function forceRefreshServiceWorker() {
+// check can itself still be served by the outgoing worker. Clearing the cached state
+// before reloading sidesteps that timing entirely.
+//
+//   "data" — drops the cached datasets only. The service worker registration and the cached
+//            app shell survive, so the reload re-downloads map data and nothing else.
+//   "app"  — unregisters every service worker and drops the cached app shell, leaving the map
+//            data alone. This is the "I'm not on the latest build" case, and the one that used
+//            to needlessly cost a full data re-download.
+//   "all"  — both, i.e. a completely cold start.
+//
+// Requires connectivity in every scope, since it briefly leaves the app with no offline
+// fallback until the fresh install completes.
+async function refreshCachedState(scope) {
   if (!navigator.onLine) {
-    updateForceRefreshOnlineState();
+    updateRefreshButtonsOnlineState();
     return;
   }
 
-  const btn = document.getElementById("forceRefreshButton");
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Refreshing…";
-  }
+  const active = REFRESH_SCOPES[scope] && document.getElementById(REFRESH_SCOPES[scope].buttonId);
+  refreshScopeButtons().forEach((button) => {
+    button.disabled = true;
+  });
+  if (active) active.textContent = "Refreshing…";
 
   try {
-    if ("serviceWorker" in navigator) {
+    // Only an app-level refresh needs the worker itself gone; unregistering for a data refresh
+    // would throw away the cached app shell as collateral on the very next install.
+    if (scope !== "data" && "serviceWorker" in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
       await Promise.all(registrations.map((registration) => registration.unregister()));
     }
     if ("caches" in window) {
       const cacheNames = await caches.keys();
       await Promise.all(
-        cacheNames.filter((name) => name.startsWith("forest-finds-")).map((name) => caches.delete(name))
+        cacheNames.filter((name) => cacheMatchesRefreshScope(name, scope)).map((name) => caches.delete(name))
       );
     }
   } catch (error) {
@@ -152,6 +193,27 @@ async function forceRefreshServiceWorker() {
   } finally {
     location.reload();
   }
+}
+
+// Asks the active service worker to revalidate the cached map data out of band (syncData in
+// sw.js). Called once the map is up and interactive rather than during boot, so the freshness
+// pass never competes with the render — the load itself is served entirely from cache, and any
+// genuinely changed file lands quietly afterwards. The worker throttles this internally, so
+// calling it on every load is cheap.
+function requestBackgroundDataSync(options) {
+  if (!("serviceWorker" in navigator)) return;
+  if (!navigator.onLine) return;
+  const controller = navigator.serviceWorker.controller;
+  if (!controller) return; // First load — nothing cached yet to refresh
+  controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
+}
+
+// The background sync found newer map data and has already cached it; it only becomes visible
+// on the next load, so flag it the same way a pending app update is flagged.
+function _markDataUpdateAvailable() {
+  state.dataUpdateAvailable = true;
+  if (els.settingsToggle) els.settingsToggle.classList.add("has-update");
+  refreshSettingsVersionDisplay();
 }
 
 // Reads the app/data cache versions out of caches.keys() for the About screen and for bug
@@ -185,6 +247,10 @@ function cacheVersionLabel(keys) {
 function setupPwa() {
   if ("serviceWorker" in navigator) {
     let _firstChange = !navigator.serviceWorker.controller;
+
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data?.type === "DATA_UPDATED") _markDataUpdateAvailable();
+    });
 
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (_firstChange) { _firstChange = false; return; }

@@ -407,15 +407,22 @@ button.settings-toggle.active {
   font-weight: 700;
 }
 
-.settings-force-refresh {
+.settings-refresh {
   display: grid;
   gap: 6px;
   margin-top: 4px;
 }
 
-.settings-force-refresh-btn {
-  justify-self: start;
-  padding: 8px 16px;
+/* Three scoped refresh buttons sit on one row and wrap on narrow phones rather than
+   stretching — they stay compact and equally weighted, since none is the default action. */
+.settings-refresh-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-refresh-btn {
+  padding: 8px 14px;
   border-radius: 8px;
   border: 1px solid rgba(47, 111, 78, 0.25);
   background: #fff;
@@ -426,11 +433,11 @@ button.settings-toggle.active {
   transition: all 140ms ease;
 }
 
-.settings-force-refresh-btn:active {
+.settings-refresh-btn:active {
   transform: scale(0.97);
 }
 
-.settings-force-refresh-btn:disabled {
+.settings-refresh-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }

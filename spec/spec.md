@@ -267,8 +267,13 @@ Marker rules:
 
 - Accessible via the generated settings icon button in the inspector header.
 - Contains a **Walking radius** control: a slider (1–30 min, half-minute steps, with tick marks at the old preset stops) choosing how far to walk when listing nearby places. Its lower bound tracks the distance to the nearest real item so it can't be dragged down to a radius with nothing in it; sitting at that floor shows a "nothing closer to show nearby" note.
-- Contains an **About** section displaying the current app version (e.g. `v80`; `dev-v80` when served by the local dev server — see "Local dev flag" in `spec/glossary.md`) and a **Force refresh** button.
-- **Force refresh**: unregisters every service worker registration and deletes every `forest-finds-*` cache (both app and data caches) before reloading, so a stuck/stale cached version is guaranteed to clear on the next load — sidesteps the normal update flow, where the open tab's version display can otherwise lag a reload or two behind a service worker that already updated silently in the background. Disabled (with an inline note) while offline, since it briefly leaves the app with no offline fallback until the fresh install completes.
+- Contains an **About** section displaying the current app version (e.g. `v80`; `dev-v80` when served by the local dev server — see "Local dev flag" in `spec/glossary.md`) and three refresh buttons: **Refresh data**, **Refresh app**, and **Refresh both**.
+- **Refresh buttons**: all three clear cached state and reload, sidestepping the normal update flow — where the open tab's version display can otherwise lag a reload or two behind a service worker that already updated silently in the background. They differ only in scope, because clearing everything to pick up a code change used to also throw away ~67 MB of map data:
+  - **Refresh data** — deletes the `forest-finds-(dev-)data-*` caches only. The service worker registration and the cached app shell survive, so the reload re-downloads the trees, paths and places and nothing else.
+  - **Refresh app** — unregisters every service worker registration and deletes the `forest-finds-(dev-)app-*` caches, leaving the downloaded map data in place.
+  - **Refresh both** — does both, i.e. a completely cold start.
+  - Caches belonging to other apps are never touched (the name must start with `forest-finds-`). All three are disabled, with one shared inline note, while offline, since they briefly leave the app with no offline fallback until the fresh install completes.
+- When the background data sync (see `spec/spec-data-fetching.md`) has cached newer map data, the About section shows a "New map data has been downloaded — reload to see it" note and the settings icon carries the same update marker used for a pending app update.
 - Changing the walking radius stays on the settings screen, immediately animates the map to fit the new radius, updates the nearby list and nearest tree selection, and keeps the walking radius ring visible.
 - Opening Settings shows the same map view as the Filter and Feedback screens (see below).
 

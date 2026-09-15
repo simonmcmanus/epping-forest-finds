@@ -295,7 +295,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v24"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+    const APP_VERSION = "v25"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     // Declared up here with the other boot-time constants, not next to the compass
     // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -420,6 +420,7 @@
       dragStart: null,
       installPrompt: null,
       swUpdateAvailable: false,
+      dataUpdateAvailable: false,
       swVersion: "",
       swWaiting: null,
       swPendingReload: false,
@@ -693,6 +694,13 @@
           hideWithFade(els.loadingOverlay);
         }
         showFilterHintIfFirstVisit();
+
+        // Everything above was served from the service worker's caches on a return visit, which
+        // is what makes the reload instant — but also means nothing here ever noticed newer data
+        // upstream. Now that the map is interactive, ask the worker to revalidate its cached
+        // datasets in the background (syncData in sw.js); anything that actually changed is
+        // picked up on the next load, and Settings says so.
+        requestBackgroundDataSync();
       } catch (error) {
         console.error(error);
         hideWithFade(els.loadingOverlay);
@@ -1644,10 +1652,15 @@
           <h3 class="settings-section-title">About</h3>
           <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
           <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
-          <div class="settings-force-refresh">
-            <button id="forceRefreshButton" class="settings-force-refresh-btn" type="button"${online ? "" : " disabled"}>Force refresh</button>
-            <p class="settings-description">Not seeing the latest version? This clears the cached app and reloads.</p>
-            <p id="forceRefreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Force refresh needs an internet connection — you\'re offline right now.</p>
+          <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded — reload to see it.</p>
+          <div class="settings-refresh">
+            <div class="settings-refresh-row">
+              <button id="refreshDataButton" class="settings-refresh-btn" type="button"${online ? "" : " disabled"}>Refresh data</button>
+              <button id="refreshAppButton" class="settings-refresh-btn" type="button"${online ? "" : " disabled"}>Refresh app</button>
+              <button id="refreshAllButton" class="settings-refresh-btn" type="button"${online ? "" : " disabled"}>Refresh both</button>
+            </div>
+            <p class="settings-description">Map missing or out of date? <strong>Refresh data</strong> re-downloads the trees, paths and places. Not seeing the latest version? <strong>Refresh app</strong> clears the cached app. <strong>Refresh both</strong> starts completely cold.</p>
+            <p id="refreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Refreshing needs an internet connection — you\'re offline right now.</p>
           </div>
         </section>
       </div>`;
@@ -1688,15 +1701,17 @@
         });
       }
 
-      const forceRefreshButton = document.getElementById("forceRefreshButton");
-      if (forceRefreshButton) forceRefreshButton.addEventListener("click", forceRefreshServiceWorker);
+      for (const scope of Object.keys(REFRESH_SCOPES)) {
+        const button = document.getElementById(REFRESH_SCOPES[scope].buttonId);
+        if (button) button.addEventListener("click", () => refreshCachedState(scope));
+      }
       // Settings HTML is rebuilt fresh every time the screen opens (see openSettings above),
       // so remove before re-adding — otherwise every open leaks another window-level listener.
-      window.removeEventListener("online", updateForceRefreshOnlineState);
-      window.removeEventListener("offline", updateForceRefreshOnlineState);
-      window.addEventListener("online", updateForceRefreshOnlineState);
-      window.addEventListener("offline", updateForceRefreshOnlineState);
-      updateForceRefreshOnlineState();
+      window.removeEventListener("online", updateRefreshButtonsOnlineState);
+      window.removeEventListener("offline", updateRefreshButtonsOnlineState);
+      window.addEventListener("online", updateRefreshButtonsOnlineState);
+      window.addEventListener("offline", updateRefreshButtonsOnlineState);
+      updateRefreshButtonsOnlineState();
     }
 
     function openReportModal() {
