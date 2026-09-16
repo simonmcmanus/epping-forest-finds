@@ -52,12 +52,12 @@ test.describe("Location and GPS — happy path", () => {
   });
 
   test.describe("geolocation denied", () => {
-    // No geolocation permission granted — browser will trigger error callback
+    // No geolocation permission granted, so denyGeolocationUnlessGranted (see
+    // helpers.js) answers the request with PERMISSION_DENIED straight away.
 
     test.beforeEach(async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
-      // Grant no permissions — geolocation will be blocked at OS level in the test browser
     });
 
     test("location gate is shown after geolocation is denied or times out", async ({ page }) => {
@@ -69,6 +69,42 @@ test.describe("Location and GPS — happy path", () => {
     test("location gate button re-enables after the gate re-appears", async ({ page }) => {
       await gotoAndWaitForMap(page);
       await expect(page.locator("#locationGateButton")).toBeEnabled({ timeout: 15_000 });
+    });
+  });
+
+  test.describe("the location request never answers", () => {
+    // The hard case, and the real-world one: a permission prompt sitting
+    // unanswered on the screen. The Geolocation API's own `timeout` option does
+    // not start counting until the permission decision is made, so the request
+    // calls back neither way — not success, not error, not ever. Boot waits for
+    // that request before revealing the map, so it needs a bound of its own or
+    // the map never appears at all.
+    //
+    // These two wait out that whole bound on top of the normal data load, so
+    // they get more room than the 60s every other test runs under.
+    test.describe.configure({ timeout: 90_000 });
+
+    test.beforeEach(async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await page.addInitScript(() => {
+        // Registered before the helper's stub, so this one wins.
+        window.__forestFindsGeolocationStubbed = true;
+        navigator.geolocation.getCurrentPosition = () => {};
+      });
+    });
+
+    test("the map still opens when the location request never calls back", async ({ page }) => {
+      // Deliberately sits through the whole BOOT_LOCATION_TIMEOUT_MS bound on top
+      // of the normal data load, so it needs more room than the default wait.
+      await gotoAndWaitForMap(page, "/", { timeout: 45_000 });
+      await expect(page.locator("#mapCanvas")).toBeVisible();
+    });
+
+    test("and the gate offers a retry rather than leaving the reader stuck", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/", { timeout: 45_000 });
+      await expect(page.locator("#locationGate")).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#locationGateButton")).toBeEnabled();
     });
   });
 });
