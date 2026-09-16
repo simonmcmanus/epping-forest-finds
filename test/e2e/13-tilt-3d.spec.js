@@ -13,6 +13,13 @@ const TILT_SWEEP = [0, 12, 20, 30, 40, 50, 60, 70, 80, 85];
  * Put the app into heading-up mode at a given tilt, then draw and settle a frame.
  * Drives the same state the compass/orientation handlers write, so this exercises the
  * real projection rather than a test-only path.
+ *
+ * force: true so the camera lands on the fit this tilt angle actually asks for. Without it,
+ * resolveHeadingUpTargetScale eases the scale in over about a second while the compass sensor
+ * reads as live (which it does here, compassLastEventAt is set just above), so a single call
+ * leaves the viewport a fraction of the way there and every measurement below is really
+ * measuring the ease rather than the camera. In the field the phone has been held at an angle
+ * for a while before any of this matters.
  */
 async function tiltTo(page, beta) {
   await page.evaluate(async (b) => {
@@ -22,7 +29,7 @@ async function tiltTo(page, beta) {
     state.compassLastEventAt = performance.now();
     state.tiltBetaTarget = b;
     state.tiltBetaSmoothed = b;
-    alignHeadingUpNavigationViewport();
+    alignHeadingUpNavigationViewport({ force: true });
     draw();
     await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
   }, beta);
@@ -41,12 +48,16 @@ test.describe("3D tilt view", () => {
     });
   });
 
-  test("the walking-radius circle keeps filling the map at every tilt angle", async ({ page }) => {
-    // The "still way too zoomed out in 3D" report. The Nearby camera frames the radius circle,
-    // and the circle's behind half is never drawn in 3D (isBehindTiltHeading culls it) -- but
-    // the fit used to force that hidden half into the few pixels below the deep-tilt anchor,
-    // which collapsed the scale to roughly a third of what the visible half needed and left a
-    // tiny circle adrift in the middle of the screen.
+  test("raising the phone walks you into the walking radius instead of showing it from outside", async ({ page }) => {
+    // The "still way too zoomed out in 3D" report, twice over. The Nearby camera frames the
+    // radius circle, and the circle's behind half is never drawn in 3D (isBehindTiltHeading
+    // culls it) -- but the fit used to force that hidden half into the few pixels below the
+    // deep-tilt anchor, which collapsed the scale to roughly a third of what the visible half
+    // needed and left a tiny circle adrift in the middle of the screen. Fixing that still left
+    // 3D framing the ring exactly, edges and all, so the search area read as a disc of forest
+    // being looked at from outside. Flat 2D is the view that is about seeing the whole ring;
+    // raising the phone must zoom in past its sides (NEARBY_TILT_FIT_ZOOM), monotonically, so
+    // you end up standing inside the radius looking down it.
     const measure = () => page.evaluate(() => {
       const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
       let minX = Infinity;
@@ -62,17 +73,27 @@ test.describe("3D tilt view", () => {
     await tiltTo(page, 0);
     const flat = await measure();
 
+    // Flat 2D is the one view that is *about* the whole ring, so it must still frame all of it.
+    expect(flat.widthFraction, "flat: the whole radius circle is on screen").toBeLessThanOrEqual(1.001);
+    expect(flat.widthFraction, "flat: and it fills the map rather than floating in it").toBeGreaterThan(0.6);
+
+    let previousScale = flat.scale;
     for (const beta of TILT_SWEEP) {
       await tiltTo(page, beta);
       const { widthFraction, scale } = await measure();
 
       // Pre-fix this sat around a quarter of the map width once tilt engaged.
       expect(widthFraction, `beta=${beta}: fraction of the map width the radius circle spans`).toBeGreaterThan(0.6);
-      expect(widthFraction).toBeLessThanOrEqual(1.001);
-      // Tilting into 3D must never zoom further out than the flat view -- it frames the same
-      // circle, minus the half it no longer draws.
-      expect(scale, `beta=${beta}: 3D must not be more zoomed out than 2D`).toBeGreaterThanOrEqual(flat.scale * 0.99);
+      // Raising the phone only ever zooms in -- never out, and never back and forth on the way.
+      expect(scale, `beta=${beta}: tilting further must not zoom back out`).toBeGreaterThanOrEqual(previousScale * 0.99);
+      previousScale = scale;
     }
+
+    // At full 3D you are inside the radius: its left and right edges run off the sides of the
+    // screen rather than being drawn across it.
+    const full = await measure();
+    expect(full.widthFraction, "full 3D: the radius runs off both sides").toBeGreaterThan(1);
+    expect(full.scale, "full 3D: meaningfully closer in than the flat survey view").toBeGreaterThan(flat.scale * 1.5);
   });
 
   test("map items stay visible at every tilt angle, from flat to full 3D", async ({ page }) => {
@@ -345,6 +366,10 @@ test.describe("3D tilt view", () => {
     });
     test.skip(!target, "no open ground on screen at this camera");
 
+    // The framing the camera is on before the tap. The slide has to travel from here to the
+    // browse framing and stop, without visiting anything outside the two.
+    const startScale = await page.evaluate(() => state.viewport.scale);
+
     // Watch the zoom and the repaint count on every animation frame from the tap until the
     // slide has landed.
     const samplingDone = page.evaluate(() => new Promise((resolve) => {
@@ -379,13 +404,30 @@ test.describe("3D tilt view", () => {
     const worstPaints = Math.max(...painted.map((frame) => frame.paints));
     expect(worstPaints, "the map must be painted once per frame, not several times over").toBe(1);
 
+    // Headless rAF runs at a few frames a second under a full canvas repaint, so this cannot
+    // measure per-frame smoothness -- it measures where the zoom *goes*. Both ends of the slide
+    // are legitimate framings; the jump this test exists for was the camera solving one end
+    // against the other end's pivot and landing on a scale neither would choose, then creeping
+    // back over the whole slide. So: the zoom must stay within the two framings, and no single
+    // sample may move it further than the whole distance between them. (The easing itself is
+    // covered by "in 3D the nearby zoom eases across a browse slide instead of switching
+    // framings" in the unit suite, where frame timing is deterministic.)
+    const endScale = frames[frames.length - 1].scale;
+    const low = Math.min(startScale, endScale);
+    const high = Math.max(startScale, endScale);
+    for (const frame of frames) {
+      expect(frame.scale, `zoom left the two framings (${low.toFixed(0)}..${high.toFixed(0)})`).toBeGreaterThan(low * 0.98);
+      expect(frame.scale, `zoom left the two framings (${low.toFixed(0)}..${high.toFixed(0)})`).toBeLessThan(high * 1.02);
+    }
+
     let worstStep = 1;
     for (let i = 1; i < frames.length; i += 1) {
       worstStep = Math.max(worstStep, frames[i].scale / frames[i - 1].scale, frames[i - 1].scale / frames[i].scale);
     }
-    // An eased zoom moves a few percent per frame. A framing switch shows up here as a step of
-    // several times over -- which is what reads as a jump on screen.
-    expect(worstStep, `worst single-frame zoom step was ${worstStep.toFixed(2)}x`).toBeLessThan(1.35);
+    expect(
+      worstStep,
+      `worst single-frame zoom step was ${worstStep.toFixed(2)}x against a ${(high / low).toFixed(2)}x slide`,
+    ).toBeLessThanOrEqual((high / low) * 1.02);
   });
 
   test("the canvas carries no CSS 3D transform of its own", async ({ page }) => {
