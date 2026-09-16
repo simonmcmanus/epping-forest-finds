@@ -308,7 +308,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v25"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+    const APP_VERSION = "v26"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     // Declared up here with the other boot-time constants, not next to the compass
     // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -609,8 +609,9 @@
         state.dataLoaded = true;
 
         if (locationPromise) {
-          // Await the location request that was started in parallel with data loading.
-          const locResult = await locationPromise;
+          // Await the location request that was started in parallel with data loading,
+          // but never unconditionally -- see withBootLocationTimeout.
+          const locResult = await withBootLocationTimeout(locationPromise);
 
           if (locResult.ok) {
             const { latitude, longitude } = applyLocationFix(locResult.position);
@@ -758,6 +759,27 @@
       state.viewport.ty = target.ty + els.canvas.height * (1 - f) / 2;
       draw();
       animateViewportTo(target, durationMs);
+    }
+
+    // The Geolocation API's own `timeout` option does not start counting until the
+    // permission decision has been made. A prompt left unanswered on the screen, or an
+    // OS location service that stalls, therefore means getCurrentPosition never calls
+    // back at all -- neither the success nor the error handler. Boot awaits that
+    // request before revealing the map, so without a bound of our own the map sits
+    // behind the loading screen for ever.
+    //
+    // Falling back to { ok: false } takes the same path a genuine failure takes: the
+    // map opens uncentred and the location gate offers a retry. The bound sits just
+    // above the 8s the request itself asks for, so it only ever bites when the browser
+    // is not honouring that timeout -- someone who has already granted location is
+    // answered long before this fires.
+    const BOOT_LOCATION_TIMEOUT_MS = 10000;
+
+    function withBootLocationTimeout(locationPromise) {
+      return Promise.race([
+        locationPromise,
+        new Promise((resolve) => setTimeout(() => resolve({ ok: false }), BOOT_LOCATION_TIMEOUT_MS)),
+      ]);
     }
 
     function locateUser({ initial }) {

@@ -34,29 +34,78 @@ async function mockCowApi(page) {
 }
 
 /**
+ * Make an ungranted geolocation request fail immediately instead of hanging.
+ *
+ * Chromium answers getCurrentPosition neither way while the permission is still
+ * undecided -- no success callback, no error callback, and the request's own
+ * `timeout` option does not start until the decision is made, so nothing ever
+ * fires. A spec that does not grant location would otherwise sit through the
+ * app's whole boot-location bound on every single page load, and whether it got
+ * there before the test timeout depended on how loaded the machine was. That is
+ * what made whole spec files fail together on CI.
+ *
+ * Only getCurrentPosition is replaced, and only when the test has not granted
+ * the permission: a spec using test.use({ permissions: ["geolocation"] }) keeps
+ * the real API and Playwright's mock position. watchPosition is left alone
+ * because the app only ever starts a watch after a fix has succeeded.
+ */
+async function denyGeolocationUnlessGranted(page) {
+  await page.addInitScript(() => {
+    if (window.__forestFindsGeolocationStubbed) return;
+    window.__forestFindsGeolocationStubbed = true;
+
+    const geolocation = navigator.geolocation;
+    if (!geolocation) return;
+    const realGetCurrentPosition = geolocation.getCurrentPosition.bind(geolocation);
+
+    geolocation.getCurrentPosition = (onSuccess, onError, options) => {
+      Promise.resolve()
+        .then(() => navigator.permissions.query({ name: "geolocation" }))
+        .then((status) => status.state === "granted")
+        .catch(() => false)
+        .then((isGranted) => {
+          if (isGranted) {
+            realGetCurrentPosition(onSuccess, onError, options);
+          } else if (onError) {
+            onError({
+              code: 1,
+              PERMISSION_DENIED: 1,
+              POSITION_UNAVAILABLE: 2,
+              TIMEOUT: 3,
+              message: "Geolocation was not granted to this test",
+            });
+          }
+        });
+    };
+  });
+}
+
+/**
  * Navigate to the app and wait for the loading overlay to be fully gone.
  *
  * hideWithFade() fades opacity to 0 (CSS) and then sets el.hidden = true after
  * a 420 ms timer. We must wait for el.hidden === true (not just CSS opacity 0)
  * because the transparent overlay still intercepts pointer events until then.
  */
-async function gotoAndWaitForMap(page, path = "/") {
+async function gotoAndWaitForMap(page, path = "/", { timeout = 30_000 } = {}) {
+  await denyGeolocationUnlessGranted(page);
   await page.goto(path);
   await page.waitForFunction(
     () => {
       const el = document.getElementById("loadingOverlay");
       return !el || el.hidden === true;
     },
-    { timeout: 30_000 }
+    { timeout }
   );
 }
 
 /**
  * Full standard setup: skip onboarding, mock cows, navigate, wait for map.
- * Also force-hides the location gate if it appeared (location always fails in tests
- * because no geolocation permission is granted). The gate is full-screen and would
- * block all button clicks — hiding it here leaves state.userLocation null so the
- * overview empty-state assertion in 02-overview still works.
+ * Also force-hides the location gate if it appeared (location fails in any test that
+ * has not granted the permission — see denyGeolocationUnlessGranted). The gate is
+ * full-screen and would block all button clicks — hiding it here leaves
+ * state.userLocation null so the overview empty-state assertion in 02-overview still
+ * works.
  */
 async function setup(page, urlPath = "/") {
   await skipOnboarding(page);
@@ -92,4 +141,12 @@ async function tapCanvasPoint(page, canvasPoint, options = {}) {
   }, { point: canvasPoint, alreadyClient: Boolean(options.alreadyClient) });
 }
 
-module.exports = { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, tapCanvasPoint, FIXTURE_TREE };
+module.exports = {
+  setup,
+  skipOnboarding,
+  mockCowApi,
+  denyGeolocationUnlessGranted,
+  gotoAndWaitForMap,
+  tapCanvasPoint,
+  FIXTURE_TREE,
+};
