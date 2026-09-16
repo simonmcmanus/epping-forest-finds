@@ -97,8 +97,45 @@ def build_compass_markup():
     )
 
 
-def build_pins_markup(findings, projection):
-    """findings: list of {number, lon, lat, category, title, place}."""
+# The app draws a place as a white map pin -- a round head on a short point,
+# with the place's icon inside -- see drawPngMapIcon in js/renderer.js. The
+# cattle pin below is the same shape at report scale, so the cows look the
+# same here as they do on the map itself.
+COW_PIN_HEAD_RADIUS = 10.0
+COW_PIN_POINT_DROP = 7.0
+COW_PIN_ICON_SIZE = 15.0
+
+
+def build_cow_pin_markup(x, y, icon_url, title):
+    """The app's white map pin with its cow icon inside, drawn at (x, y) with
+    the pin's point sitting on that spot."""
+    cy = round(y - COW_PIN_POINT_DROP - COW_PIN_HEAD_RADIUS, 1)
+    r = COW_PIN_HEAD_RADIUS
+    # Arc across the top of the head, then two straight sides down to the point.
+    head = (
+        f"M {round(x - r * 0.81, 1)},{round(cy + r * 0.59, 1)} "
+        f"A {r},{r} 0 1 1 {round(x + r * 0.81, 1)},{round(cy + r * 0.59, 1)} "
+        f"L {x},{y} Z"
+    )
+    size = COW_PIN_ICON_SIZE
+    return (
+        "<g>"
+        f"<title>{title}</title>"
+        f'<path class="cow-pin-body" d="{head}"/>'
+        f'<image class="cow-pin-icon" href="{escape_text(icon_url)}" '
+        f'x="{round(x - size / 2, 1)}" y="{round(cy - size / 2, 1)}" '
+        f'width="{size}" height="{size}" preserveAspectRatio="xMidYMid meet"/>'
+        "</g>"
+    )
+
+
+def build_pins_markup(findings, projection, cow_icon_url=None):
+    """findings: list of {number, lon, lat, category, title, place}.
+
+    Cattle are drawn with the app's cow icon rather than a numbered dot --
+    everywhere else in the product a cow is a cow, and the map should read the
+    same way. Everything else keeps its numbered dot, which is what the cards
+    below the map refer back to."""
     parts = []
     for finding in findings:
         lon, lat = finding.get("lon"), finding.get("lat")
@@ -106,13 +143,17 @@ def build_pins_markup(findings, projection):
             continue
         x, y = projection.project(lon, lat)
         style = style_for(finding.get("category"))
-        title = escape_text(f'{finding["number"]} — {finding.get("title", "")}')
+        title = escape_text(finding.get("title", ""))
+        if finding.get("category") == "grazing" and cow_icon_url:
+            parts.append(build_cow_pin_markup(x, y, cow_icon_url, title))
+            continue
+        numbered_title = escape_text(f'{finding["number"]} — {finding.get("title", "")}')
         text_style = ""
         if style["css_class"] == "warning":
             text_style = ' style="fill:var(--status-warning-ink)"'
         parts.append(
             "<g>"
-            f"<title>{title}</title>"
+            f"<title>{numbered_title}</title>"
             f'<circle class="pin-ring" cx="{x}" cy="{y}" r="9" style="fill:var({style["css_var"]})"/>'
             f'<text class="pin-num" x="{x}" y="{round(y + 0.4, 1)}"{text_style}>{finding["number"]}</text>'
             "</g>"
@@ -130,13 +171,13 @@ def escape_text(value):
     )
 
 
-def render_map_svg(forest_geojson, findings, projection=None):
+def render_map_svg(forest_geojson, findings, projection=None, cow_icon_url=None):
     projection = projection or MapProjection()
     forest_d = build_forest_path(forest_geojson, projection)
     search_area_d = build_search_area_path(projection)
     towns = build_towns_markup(projection)
     compass = build_compass_markup()
-    pins = build_pins_markup(findings, projection)
+    pins = build_pins_markup(findings, projection, cow_icon_url=cow_icon_url)
     height = projection.height or VIEWBOX_HEIGHT_FALLBACK
 
     return f'''<svg viewBox="0 0 {projection.width} {height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Map of Epping Forest and the surrounding area covered by this report">

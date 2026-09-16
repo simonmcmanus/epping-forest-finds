@@ -871,6 +871,7 @@ Always visible, shows active marker semantics:
 ## URL Hash / Deep Linking
 
 - Selection reflected in URL hash for restore/share
+- `#filters` opens the Filter screen; `#report` opens the Feedback / Report screen, and `#report=<text>` pre-fills its textarea with `<text>: ` when the field is empty (a saved draft is never overwritten). Both are handled in `applySelectionFromHash()` before the tree/place lookups
 - `applySelectionFromHash()` is called after the 320 ms loading-overlay pause (after the overview snap, before the animated reveal) so the selection zoom overrides the overview snap rather than being overridden by it
 - Hash updates suppressed during programmatic navigation
 

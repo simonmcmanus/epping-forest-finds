@@ -31,3 +31,7 @@ __pycache__/
 
 # Generated at build time by scripts/generate-reports-index.js -- never hand-edit
 reports/index.html
+
+# Generated at build time by scripts/generate-sitemap.js -- never hand-edit
+sitemap.xml
+robots.txt

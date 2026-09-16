@@ -17,11 +17,31 @@ const path = require("node:path");
 
 const REPORTS_DIR_NAME = "reports";
 const INDEX_FILE_NAME = "index.html";
+const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
+
+/**
+ * Only these extensions are published. Reports are written as finished web
+ * pages; a Markdown working file that happens to be sitting in the folder is
+ * raw notes, not something to put in front of a reader (or a search engine),
+ * so the listing never links to one.
+ */
+const PUBLISHABLE_EXTENSIONS = new Set([".html", ".htm"]);
+
+const INDEX_DESCRIPTION =
+  "A weekly round-up of what has changed in and around Epping Forest: shops, pubs " +
+  "and cafés opening and closing, road closures, events, and where the forest's " +
+  "grazing cattle have moved to — across Loughton, Chingford, Buckhurst Hill, " +
+  "Chigwell, Theydon Bois, Epping, Woodford Green and Waltham Abbey.";
+
+function isPublishable(name) {
+  return PUBLISHABLE_EXTENSIONS.has(path.extname(name).toLowerCase());
+}
 
 /**
  * Reads a reports directory and returns metadata for every listable file.
- * Skips subdirectories, dotfiles, and the generated index itself so the
- * listing never links to itself or to stray folders.
+ * Skips subdirectories, dotfiles, anything that isn't a published web page,
+ * and the generated index itself so the listing never links to itself or to
+ * stray folders.
  *
  * @param {string} reportsDir absolute path to the reports directory
  * @returns {{name: string, size: number, mtimeMs: number}[]} newest first
@@ -34,6 +54,7 @@ function listReportFiles(reportsDir) {
     .filter((entry) => entry.isFile())
     .filter((entry) => entry.name !== INDEX_FILE_NAME)
     .filter((entry) => !entry.name.startsWith("."))
+    .filter((entry) => isPublishable(entry.name))
     .map((entry) => {
       const stat = fs.statSync(path.join(reportsDir, entry.name));
       return { name: entry.name, size: stat.size, mtimeMs: stat.mtimeMs };
@@ -79,11 +100,30 @@ function labelForFile(name) {
   return ext ? ext.slice(1).toUpperCase() : "FILE";
 }
 
+/**
+ * A readable title for a report file. A weekly ledger is named by the week it
+ * covers, so the listing can say "Epping Forest Ledger — 14 September 2026"
+ * instead of showing a reader (or a search result) a raw file name.
+ */
+function titleForFile(name) {
+  const match = /^epping-forest-ledger-(\d{4})-(\d{2})-(\d{2})\.html?$/i.exec(name);
+  if (!match) return name;
+  const [, year, month, day] = match;
+  const when = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  if (Number.isNaN(when.getTime())) return name;
+  return `Epping Forest Ledger — ${when.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  })}`;
+}
+
 function renderRow(file) {
   return `
       <li class="report-row">
         <a class="report-link" href="./${encodeURIComponent(file.name)}">
-          <span class="report-name">${escapeHtml(file.name)}</span>
+          <span class="report-name">${escapeHtml(titleForFile(file.name))}</span>
           <span class="report-meta">
             <span class="report-type">${escapeHtml(labelForFile(file.name))}</span>
             <span class="report-date">${escapeHtml(formatDate(file.mtimeMs))}</span>
@@ -102,9 +142,18 @@ function buildIndexHtml(files) {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Reports · Forest Finds</title>
+<title>Epping Forest Ledger — weekly Epping Forest news</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
+<meta name="description" content="${escapeHtml(INDEX_DESCRIPTION)}">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="${SITE_ORIGIN}/reports/">
+<link rel="icon" href="${SITE_ORIGIN}/data/icons/trees/logo.png" type="image/png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Epping Forest Finds">
+<meta property="og:title" content="Epping Forest Ledger — weekly Epping Forest news">
+<meta property="og:description" content="${escapeHtml(INDEX_DESCRIPTION)}">
+<meta property="og:url" content="${SITE_ORIGIN}/reports/">
+<meta property="og:image" content="${SITE_ORIGIN}/data/icons/icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340;0,9..144,480;0,9..144,600;0,9..144,720;1,9..144,480;1,9..144,600&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -161,14 +210,21 @@ function buildIndexHtml(files) {
   :root[data-theme="dark"] .report-type{ color:var(--forest); }
   .empty-state{ color:var(--muted); }
   footer{ margin-top:32px; color:var(--muted); font-size:0.85rem; }
+  .app-cta{
+    display:inline-flex; margin-top:28px; padding:12px 22px; border-radius:999px;
+    background:var(--forest-deep); color:#f4f4ec; font-weight:600; text-decoration:none;
+  }
+  .app-cta:hover, .app-cta:focus-visible{ text-decoration:underline; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Reports</h1>
-  <p class="subtitle">Generated ledgers and data reports published from this site.</p>
+  <h1>Epping Forest Ledger</h1>
+  <p class="subtitle">${escapeHtml(INDEX_DESCRIPTION)}</p>
   ${body}
-  <footer>Generated automatically at build time — do not edit this file by hand.</footer>
+  <a class="app-cta" href="${SITE_ORIGIN}/">Open the Epping Forest map →</a>
+  <footer>Written automatically each week — it can get things wrong, so please check
+  anything important. Every report has a link for telling us about a mistake.</footer>
 </main>
 </body>
 </html>
@@ -184,6 +240,8 @@ function generate(reportsDir) {
 
 module.exports = {
   listReportFiles,
+  titleForFile,
+  isPublishable,
   buildIndexHtml,
   formatBytes,
   formatDate,

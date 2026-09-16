@@ -5,6 +5,7 @@ Unit tests for scripts/report/render_report.py.
 Run with:  python3 scripts/test_render_report.py
 """
 import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -12,6 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.report import render_report as rr  # noqa: E402
+
+REAL_COW_ICON = Path(__file__).resolve().parent.parent / "data" / "icons" / "cow.png"
 
 TINY_FOREST_GEOJSON = {
     "type": "FeatureCollection",
@@ -232,6 +235,163 @@ class StatStripLabellingTests(unittest.TestCase):
         self.assertNotIn("Places on the map", html)
 
 
+class EventsSectionTests(unittest.TestCase):
+    """A reader shouldn't have to guess whether a quiet week means "nothing
+    on" or "nobody looked"."""
+
+    def test_events_section_still_appears_when_there_are_no_events(self):
+        findings, _ = rr.normalize_findings({"findings": []})
+        html = rr.render_category_section("event", "event", findings)
+        self.assertIn("Events in the forest", html)
+        self.assertIn("No events listed this week", html)
+
+    def test_road_section_still_appears_when_there_are_no_closures(self):
+        findings, _ = rr.normalize_findings({"findings": []})
+        html = rr.render_category_section("road", "road", findings)
+        self.assertIn("Road closures &amp; access", html)
+        self.assertIn("No closures to report this week", html)
+
+    def test_events_section_lists_the_events_when_there_are_some(self):
+        findings, _ = rr.normalize_findings(BASE_REPORT_DATA)
+        html = rr.render_category_section("event", "event", findings)
+        self.assertIn("Skylark Event", html)
+        self.assertNotIn("No events listed this week", html)
+
+
+class CowIconTests(unittest.TestCase):
+    """Cattle are shown with the app's own cow icon, not a numbered dot."""
+
+    GRAZING = {
+        "category": "grazing",
+        "title": "Where the cattle are grazing",
+        "place": "High Beach",
+        "number": 5,
+        "lon": 0.0247,
+        "lat": 51.6580,
+    }
+
+    ICON = "data:image/png;base64,AAAA"
+
+    def test_map_pin_for_cattle_uses_the_cow_icon(self):
+        svg = rr.svg_map.build_pins_markup(
+            [self.GRAZING], rr.svg_map.MapProjection(), cow_icon_url=self.ICON
+        )
+        self.assertIn(self.ICON, svg)
+        self.assertIn("cow-pin-body", svg)
+        self.assertNotIn("pin-num", svg)
+
+    def test_other_findings_keep_their_numbered_dot(self):
+        finding = {"category": "opening", "title": "A pub", "number": 1, "lon": 0.05, "lat": 51.62}
+        svg = rr.svg_map.build_pins_markup(
+            [finding], rr.svg_map.MapProjection(), cow_icon_url=self.ICON
+        )
+        self.assertIn("pin-num", svg)
+        self.assertNotIn(self.ICON, svg)
+
+    def test_legend_shows_a_cow_for_the_cattle_category(self):
+        html = rr.render_map_legend()
+        self.assertIn("cow-marker", html)
+        self.assertIn("Cattle grazing", html)
+
+    def test_list_beside_the_map_shows_a_cow_for_the_cattle_entry(self):
+        html = rr.render_map_side_list([self.GRAZING])
+        self.assertIn("cow-marker", html)
+        self.assertNotIn(">5<", html)
+
+    def test_the_icon_travels_with_the_page_rather_than_being_linked(self):
+        """A report is read with no signal, saved and emailed on -- a linked
+        image is a broken-image box in all three."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = make_repo_root(Path(tmp), ["Pub"])
+            icons = root / "data" / "icons"
+            icons.mkdir(parents=True, exist_ok=True)
+            shutil.copy(REAL_COW_ICON, icons / "cow.png")
+            data = json.loads(json.dumps(BASE_REPORT_DATA))
+            data["grazing"] = {"moved": True, "lon": 0.05, "lat": 51.62,
+                               "place": "High Beach", "body": "Moved."}
+            html = rr.render_report(data, root)
+            self.assertIn("--cow-icon:url(\"data:image/png;base64,", html)
+            self.assertNotIn("/data/icons/cow.png", html)
+
+    def test_falls_back_to_the_icons_address_when_it_cannot_be_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(rr.cow_icon_uri(Path(tmp)), rr.COW_ICON_FALLBACK_URL)
+
+
+class AppPromoTests(unittest.TestCase):
+    def test_promo_sells_the_app_rather_than_just_linking_to_it(self):
+        html = rr.render_app_promo("https://www.eppingforestfinds.uk/", {"total": 1130})
+        self.assertIn("Works with no signal", html)
+        self.assertIn("1,130", html)
+        self.assertIn("https://www.eppingforestfinds.uk/", html)
+
+    def test_promo_copes_without_an_inventory_total(self):
+        html = rr.render_app_promo("https://www.eppingforestfinds.uk/", None)
+        self.assertIn("Everything in this report is on it", html)
+
+    def test_promo_sits_after_the_weeks_news_not_in_the_masthead(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = make_repo_root(Path(tmp), ["Pub"])
+            html = rr.render_report(BASE_REPORT_DATA, root)
+            self.assertLess(html.index('id="businesses"'), html.index('id="app"'))
+            self.assertLess(html.index("</header>"), html.index('id="app"'))
+
+
+class AiNoteTests(unittest.TestCase):
+    def test_says_plainly_that_it_was_written_by_ai_and_may_be_wrong(self):
+        html = rr.render_ai_note("https://www.eppingforestfinds.uk/", "Monday, 15 September 2026")
+        self.assertIn("automatically by AI", html)
+        self.assertIn("can get things wrong", html)
+
+    def test_links_into_the_apps_own_report_screen_naming_this_report(self):
+        html = rr.render_ai_note("https://www.eppingforestfinds.uk/", "Monday, 15 September 2026")
+        self.assertIn("https://www.eppingforestfinds.uk/#report=", html)
+        self.assertIn("Monday%2C%2015%20September%202026", html)
+
+    def test_is_the_last_thing_on_the_page(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = make_repo_root(Path(tmp), ["Pub"])
+            html = rr.render_report(BASE_REPORT_DATA, root)
+            self.assertLess(html.index('class="about-note"'), html.index('class="ai-note"'))
+
+
+class SearchEngineTests(unittest.TestCase):
+    """The report is a way for people to find the app, so each page has to be
+    indexable and describe itself honestly -- without padding the page."""
+
+    def render(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = make_repo_root(Path(tmp), ["Pub", "Café"])
+            return rr.render_report(BASE_REPORT_DATA, root)
+
+    def test_title_names_the_week(self):
+        self.assertIn("<title>Epping Forest Ledger — Wednesday, 3 September 2026</title>", self.render())
+
+    def test_has_a_description_built_from_this_weeks_findings(self):
+        html = self.render()
+        self.assertIn('<meta name="description"', html)
+        self.assertIn("1 opening", html)
+
+    def test_description_lists_no_changes_when_the_week_was_quiet(self):
+        text = rr.meta_description({}, [], ["Loughton"], "Monday, 15 September 2026")
+        self.assertIn("no changes of note", text)
+
+    def test_has_a_canonical_address_on_the_official_domain(self):
+        self.assertIn(
+            '<link rel="canonical" href="https://www.eppingforestfinds.uk/reports/'
+            'epping-forest-ledger-2026-09-03.html">',
+            self.render(),
+        )
+
+    def test_is_open_to_search_engines(self):
+        self.assertIn('content="index, follow', self.render())
+
+    def test_has_link_preview_and_structured_data(self):
+        html = self.render()
+        self.assertIn('property="og:title"', html)
+        self.assertIn('"@type": "NewsArticle"', html)
+
+
 class RenderReportEndToEndTests(unittest.TestCase):
     def test_smoke_renders_valid_looking_html(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -239,7 +399,7 @@ class RenderReportEndToEndTests(unittest.TestCase):
             html = rr.render_report(BASE_REPORT_DATA, root)
             self.assertTrue(html.strip().startswith("<!doctype html>"))
             self.assertIn("<svg", html)
-            self.assertIn("epping-forest.netlify.app", html)
+            self.assertIn("https://www.eppingforestfinds.uk", html)
             self.assertIn("The Hair of the Dog", html)
 
     def test_jargon_in_finding_body_blocks_render(self):

@@ -12,6 +12,7 @@ const {
   buildIndexHtml,
   formatBytes,
   labelForFile,
+  titleForFile,
   escapeHtml,
   generate,
   INDEX_FILE_NAME,
@@ -140,7 +141,7 @@ test("buildIndexHtml URL-encodes filenames containing spaces or special characte
 test("generate() writes reports/index.html to disk and is idempotent (re-running never lists itself)", () => {
   const dir = makeTempReportsDir();
   writeFile(dir, "report-one.html");
-  writeFile(dir, "report-two.md");
+  writeFile(dir, "report-two.html");
 
   const first = generate(dir);
   assert.equal(first.files.length, 2);
@@ -151,8 +152,39 @@ test("generate() writes reports/index.html to disk and is idempotent (re-running
   assert.equal(second.files.length, 2);
   assert.deepEqual(
     second.files.map((f) => f.name).sort(),
-    ["report-one.html", "report-two.md"]
+    ["report-one.html", "report-two.html"]
   );
+});
+
+test("only finished web pages are published — working notes are never listed", () => {
+  const dir = makeTempReportsDir();
+  writeFile(dir, "epping-forest-ledger-2026-09-14.html");
+  writeFile(dir, "epping-forest-data-report-2026-09-03.md");
+  writeFile(dir, "notes.txt");
+
+  const { files, html } = generate(dir);
+  assert.deepEqual(files.map((f) => f.name), ["epping-forest-ledger-2026-09-14.html"]);
+  assert.ok(!html.includes(".md"));
+  assert.ok(!html.includes("notes.txt"));
+});
+
+test("a report is listed by the week it covers, not by its file name", () => {
+  const html = buildIndexHtml([
+    { name: "epping-forest-ledger-2026-09-14.html", size: 10, mtimeMs: Date.now() },
+  ]);
+  assert.match(html, /Epping Forest Ledger — 14 September 2026/);
+});
+
+test("titleForFile falls back to the file name for anything it does not recognise", () => {
+  assert.equal(titleForFile("something-else.html"), "something-else.html");
+});
+
+test("the report index invites search engines in and points at the app", () => {
+  const html = buildIndexHtml([]);
+  assert.ok(!html.includes('content="noindex"'));
+  assert.match(html, /<meta name="description"/);
+  assert.match(html, /rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/reports\/"/);
+  assert.match(html, /href="https:\/\/www\.eppingforestfinds\.uk\/"/);
 });
 
 test("generate() produces valid, non-empty HTML for a directory with no reports yet", () => {
@@ -176,7 +208,7 @@ test("smoke test: running the real CLI script against the project's actual repor
 
   const html = fs.readFileSync(indexPath, "utf8");
   assert.match(html, /^<!doctype html>/);
-  assert.match(html, /<title>Reports/);
+  assert.match(html, /<title>Epping Forest Ledger/);
   // The index must never link to itself.
   assert.doesNotMatch(html, /href="\.\/index\.html"/);
 });
@@ -195,11 +227,11 @@ test("local dev server (server.js) serves reports/index.html for both /reports a
 
   const withoutSlash = await get(port, "/reports");
   assert.equal(withoutSlash.statusCode, 200);
-  assert.match(withoutSlash.body, /<title>Reports/);
+  assert.match(withoutSlash.body, /<title>Epping Forest Ledger/);
 
   const withSlash = await get(port, "/reports/");
   assert.equal(withSlash.statusCode, 200);
-  assert.match(withSlash.body, /<title>Reports/);
+  assert.match(withSlash.body, /<title>Epping Forest Ledger/);
 
   const missingDir = await get(port, "/this-directory-does-not-exist");
   assert.equal(missingDir.statusCode, 404);

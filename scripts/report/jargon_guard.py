@@ -5,10 +5,14 @@ OpenStreetMap ids. render_report.py runs this on every section's rendered
 text and refuses to write the report if any of this slips back in.
 
 Deliberately narrow: it flags internal/dev-process jargon (raw OSM ids,
-file paths, git/PR terms, "changeset"/"diff" talk), not legitimate
-source-crediting language like "OpenStreetMap" or "the map" -- a report
-telling a reader where information came from is exactly what we want to
-keep.
+file paths, git/PR terms, "changeset"/"diff" talk) and any description of
+how the report itself is produced, not legitimate source-crediting language
+like "OpenStreetMap" or "the map" -- a report telling a reader where
+information came from is exactly what we want to keep.
+
+Notes on how the report was built belong in the write-up on the proposed
+weekly change, which is where the person reviewing it will look. The report
+page is for a reader who has never heard of any of that.
 """
 import re
 
@@ -25,6 +29,19 @@ JARGON_PATTERNS = [
     (re.compile(r"\bcommit(ted|s|ting)?\b", re.I), "the word 'commit'"),
     (re.compile(r"\bGitHub Actions\b", re.I), "GitHub Actions"),
     (re.compile(r"\brepo(sitory)?\b", re.I), "the word 'repo(sitory)'"),
+    # How the report itself is produced is of no interest to a reader who
+    # just wants to know what is going on in the forest. That belongs in the
+    # write-up for whoever reviews the week's changes, not on this page.
+    (re.compile(r"\bworkflow\b", re.I), "the word 'workflow'"),
+    (re.compile(r"\bscript(s|ed)?\b", re.I), "the word 'script'"),
+    (re.compile(r"\bAPI\b"), "the word 'API'"),
+    (re.compile(r"\bJSON\b", re.I), "the word 'JSON'"),
+    (re.compile(r"\bendpoint\b", re.I), "the word 'endpoint'"),
+    (re.compile(r"\bdataset\b", re.I), "the word 'dataset'"),
+    (re.compile(r"\bcodebase\b", re.I), "the word 'codebase'"),
+    (re.compile(r"\bdeploy(ed|ment|s)?\b", re.I), "deployment talk"),
+    (re.compile(r"\bthis run\b", re.I), "the phrase 'this run' (say 'this week')"),
+    (re.compile(r"\brender(ed|er|ing)?\b", re.I), "the word 'render'"),
 ]
 
 

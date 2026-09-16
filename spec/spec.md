@@ -121,6 +121,26 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
 - Mobile layout keeps controls compact and avoids overflow.
 - On mobile, the modal navigation controls sit below the drag-to-resize bar with a clear gap so the resize handle remains visually distinct and easy to touch.
 
+## Search Visibility
+
+The weekly reports are the main way someone who has never heard of the app
+finds it — they are real, dated, local news about Epping Forest. So the site
+has to be indexable, without a word of filler added to a product whose whole
+job is to be a map:
+
+- `index.html`, the report index and every weekly report carry a title, a
+  meta description, a canonical address on `https://www.eppingforestfinds.uk`
+  and Open Graph / Twitter link-preview tags. Each report also carries
+  `NewsArticle` structured data and a description built from that week's own
+  findings, so no two reports look like boilerplate to a crawler.
+- `sitemap.xml` and `robots.txt` are generated at build time by
+  `scripts/generate-sitemap.js` (see `spec-weekly-report.md`). Both are
+  generated, never hand-edited, and are gitignored for that reason.
+- `robots.txt` keeps crawlers out of `/admin.html`, `/api/` and
+  `/.netlify/`, and points them at the sitemap.
+- Only finished web pages are ever published under `reports/` — working
+  notes and Markdown drafts are neither committed there nor listed.
+
 ## Loading Experience
 
 - A blocking loading overlay is shown at startup.
@@ -195,6 +215,7 @@ Marker rules:
 
 - All hash changes use `history.replaceState` (never `pushState`) so no in-app history entries are created and browser back/swipe gestures take the user out of the app rather than undoing in-app navigation.
 - `hashchange` with an empty hash only triggers `goToInitialView()` when the filter screen is not open.
+- `#report` opens the Feedback / Report screen directly. `#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
 
 ### Camera behavior
 
@@ -279,7 +300,7 @@ Marker rules:
 
 ## Feedback / Report Screen
 
-- Accessible via the generated feedback icon button in the inspector header.
+- Accessible via the generated feedback icon button in the inspector header, and by a direct link to `#report` (see "URL hash / navigation state" above).
 - Allows users to report missing data or request features; submissions are tracked as GitHub issues.
 - The current app version is displayed in the form so the user can see which version will be reported.
 - The app version, user agent, page URL, and optional geolocation are included in every submission payload.
