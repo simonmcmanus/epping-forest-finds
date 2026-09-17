@@ -885,7 +885,23 @@ function updateNearbyRadiusPinch() {
   const distance = currentPinchDistance();
   if (distance == null || !state.pinchBaseDistance) return;
   const ratio = distance / state.pinchBaseDistance;
-  const rawMinutes = state.pinchBaseMinutes / ratio;
+  applyWalkingRadiusGesture(state.pinchBaseMinutes / ratio);
+}
+
+// The shared body of every continuous radius gesture -- the two-finger pinch above and the
+// wheel/trackpad below. Takes the radius the gesture is asking for, in minutes, and applies as
+// much of it as the floor allows; returns that floor so a caller tracking its own running value
+// can clamp it without paying for a second nearest-item scan.
+//
+// Clamped to walkingRadiusFloorMinutes()..WALKING_RADIUS_MAX_MINUTES so the user feels the limit
+// (state.walkingRadiusAtFloor drives the "nothing closer to show" notice in overviewNearestHtml,
+// index.html) rather than the radius silently refusing to shrink further. Gesture events fire far
+// faster than applyWalkingRadiusChange's real work (a nearest-item rescan plus a list re-render)
+// can usefully keep up with on a phone, so values are rounded to the value grid
+// (roundWalkingMinutes) before being applied -- applyWalkingRadiusChange already no-ops when that
+// rounded value hasn't moved, so a run of events landing in the same bucket costs only this
+// arithmetic, same as the old stepped version's between-step moves did.
+function applyWalkingRadiusGesture(rawMinutes) {
   const floor = walkingRadiusFloorMinutes(nearbyOrigin());
   const clamped = clamp(rawMinutes, floor, WALKING_RADIUS_MAX_MINUTES);
   const atFloor = rawMinutes < floor;
@@ -906,9 +922,109 @@ function updateNearbyRadiusPinch() {
       if (!secondaryScreenActive()) selectOverview();
       requestDraw();
     }
-    return;
+    return floor;
   }
   applyWalkingRadiusChange(minutes, { animate: false });
+  return floor;
+}
+
+// --- Wheel and trackpad ------------------------------------------------------------------
+//
+// A laptop has no two fingers on the glass, so the same "zoom in on what is near me" gesture
+// arrives as wheel events: a mouse wheel notch (~100px of deltaY), or a trackpad pinch, which
+// every desktop browser reports as a wheel with ctrlKey set. Both resize the walking radius on
+// the screens that draw it, exactly as the phone's pinch does -- the map then follows the ring,
+// because the Nearby camera frames the ring and nothing else.
+//
+// One wheel notch takes the same 1.22x step the old map zoom did. A trackpad pinch arrives as a
+// stream of much smaller deltas (a whole pinch is often under 100px in total), so it is scaled
+// up -- without that, a full pinch would barely move the ring.
+const WHEEL_RADIUS_RATE_PER_PIXEL = Math.log(1.22) / 100;
+const TRACKPAD_PINCH_RATE_MULTIPLIER = 4;
+
+// How long after the last wheel event the gesture counts as over: the settle animation and the
+// "nothing closer to show" notice both key off it, and a wheel has no equivalent of the pinch's
+// pointerup to end on. Long enough to span the gap between notches of one deliberate scroll.
+const WHEEL_RADIUS_SETTLE_MS = 220;
+
+// deltaY is in whichever unit deltaMode names -- pixels on every trackpad and most wheels, but
+// Firefox reports a mouse wheel in lines, and page mode exists. Normalised to pixels so one
+// notch means the same step everywhere.
+const WHEEL_LINE_HEIGHT_PX = 16;
+const WHEEL_PAGE_HEIGHT_PX = 100;
+
+function normalizeWheelPixels(event) {
+  const delta = Number(event.deltaY);
+  if (!Number.isFinite(delta)) return 0;
+  if (event.deltaMode === 1) return delta * WHEEL_LINE_HEIGHT_PX;
+  if (event.deltaMode === 2) return delta * WHEEL_PAGE_HEIGHT_PX;
+  return delta;
+}
+
+// Resizes the walking radius from one wheel event. deltaY < 0 is "zoom in", which shrinks the
+// radius -- the same direction the two-finger pinch maps, and the same direction the wheel used
+// to zoom the map in.
+//
+// The running value is kept unrounded in state.wheelRadiusMinutes rather than read back from
+// state.walkingDistanceMinutes each time: a trackpad's individual deltas are small enough that
+// every single one would round away to the radius it started from, and the ring would never
+// move however long the user kept pinching.
+function updateNearbyRadiusWheel(event) {
+  const pixels = normalizeWheelPixels(event);
+  if (!pixels) return;
+  const rate = WHEEL_RADIUS_RATE_PER_PIXEL * (event.ctrlKey ? TRACKPAD_PINCH_RATE_MULTIPLIER : 1);
+  const base = Number.isFinite(state.wheelRadiusMinutes) ? state.wheelRadiusMinutes : state.walkingDistanceMinutes;
+  const rawMinutes = base * Math.exp(pixels * rate);
+  const floor = applyWalkingRadiusGesture(rawMinutes);
+  // Clamped, unlike the pinch's own running value: a pinch recovers by moving the fingers back,
+  // but a wheel only accumulates, so an unclamped value would leave the user scrolling back
+  // through everything they overshot by before the ring moved again.
+  state.wheelRadiusMinutes = clamp(rawMinutes, floor, WALKING_RADIUS_MAX_MINUTES);
+  clearTimeout(state.wheelRadiusSettleTimer);
+  state.wheelRadiusSettleTimer = setTimeout(endNearbyRadiusWheel, WHEEL_RADIUS_SETTLE_MS);
+}
+
+// The wheel's equivalent of lifting the fingers (endNearbyRadiusPinch below): one smooth settling
+// animation, the transient floor notice cleared, and the running value dropped so the next scroll
+// starts from wherever the radius actually ended up.
+function endNearbyRadiusWheel() {
+  state.wheelRadiusSettleTimer = null;
+  state.wheelRadiusMinutes = null;
+  state.walkingRadiusAtFloor = false;
+  refreshNearbyRadiusView();
+  syncSettingsWalkSlider();
+}
+
+// Safari on a Mac does not report a trackpad pinch as a ctrl+wheel the way Chrome and Firefox do
+// -- it sends its own gesturestart/gesturechange/gestureend with a cumulative `scale`, which is
+// the pinch ratio the two-finger gesture already speaks in. Same mapping as the phone's pinch:
+// spreading apart (scale > 1) shrinks the radius.
+function startNearbyRadiusGesture() {
+  state.gestureRadiusBaseMinutes = state.walkingDistanceMinutes;
+}
+
+function updateNearbyRadiusGesture(event) {
+  const scale = Number(event && event.scale);
+  if (!Number.isFinite(scale) || scale <= 0) return;
+  const base = Number.isFinite(state.gestureRadiusBaseMinutes)
+    ? state.gestureRadiusBaseMinutes
+    : state.walkingDistanceMinutes;
+  applyWalkingRadiusGesture(base / scale);
+}
+
+function endNearbyRadiusGesture() {
+  if (!Number.isFinite(state.gestureRadiusBaseMinutes)) return;
+  state.gestureRadiusBaseMinutes = null;
+  state.walkingRadiusAtFloor = false;
+  refreshNearbyRadiusView();
+  syncSettingsWalkSlider();
+}
+
+// Every screen that draws the walking-radius ring resizes it on a wheel or a trackpad pinch;
+// anywhere else (a real selection, which replaces the view) the wheel still zooms the map as it
+// always has. Same gate the two-finger pinch uses in setupMapCanvasHandlers below.
+function zoomInputResizesNearbyRadius() {
+  return Boolean(state.userLocation && (isOverviewScreenActive() || secondaryScreenActive()));
 }
 
 function endNearbyRadiusPinch() {
@@ -1094,8 +1210,33 @@ function setupMapCanvasHandlers() {
     event.preventDefault();
     state.clusterZoomed = false;
     state.clusterExpanded = null;
+    if (zoomInputResizesNearbyRadius()) {
+      updateNearbyRadiusWheel(event);
+      return;
+    }
     const factor = event.deltaY < 0 ? 1.22 : 1 / 1.22;
     zoomAt(factor, canvasPoint(event));
+  }, { passive: false });
+
+  // Safari's trackpad pinch (see startNearbyRadiusGesture). setupUiZoomLock already stops these
+  // from zooming the page itself; here they resize the ring instead, on the same screens the
+  // wheel does. Safari alone fires them, so on every other browser these never run.
+  els.canvas.addEventListener("gesturestart", (event) => {
+    if (!zoomInputResizesNearbyRadius()) return;
+    event.preventDefault();
+    startNearbyRadiusGesture();
+  }, { passive: false });
+
+  els.canvas.addEventListener("gesturechange", (event) => {
+    if (!Number.isFinite(state.gestureRadiusBaseMinutes)) return;
+    event.preventDefault();
+    updateNearbyRadiusGesture(event);
+  }, { passive: false });
+
+  els.canvas.addEventListener("gestureend", (event) => {
+    if (!Number.isFinite(state.gestureRadiusBaseMinutes)) return;
+    event.preventDefault();
+    endNearbyRadiusGesture();
   }, { passive: false });
 }
 

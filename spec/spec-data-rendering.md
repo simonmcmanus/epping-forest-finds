@@ -512,6 +512,35 @@ moving the real GPS fix:
   the new value, floor, step and label back into it via `syncSettingsWalkSlider()` (`js/nav.js`).
   It is deliberately not called from `refreshNearbyRadiusView`, which a live slider drag runs
   through on every `input`: writing the value back mid-drag would tug the thumb under the finger.
+- **Wheel and trackpad resize the ring (`updateNearbyRadiusWheel`, js/nav.js).** The canvas wheel
+  handler routes to the radius gesture on exactly the screens the two-finger pinch engages on
+  (`wheelResizesNearbyRadius()`: a user location plus `isOverviewScreenActive()` or
+  `secondaryScreenActive()`); anywhere else it falls through to the old `zoomAt()` map zoom.
+  `deltaY < 0` (zoom in) shrinks the radius, matching both the pinch's direction and what the
+  wheel used to do to the map. Deltas are normalised to pixels first (`normalizeWheelPixels`
+  handles Firefox's line mode and page mode), then applied as `Math.exp(pixels * rate)` —
+  `WHEEL_RADIUS_RATE_PER_PIXEL` puts a ~100px wheel notch at the 1.22x step the map zoom took,
+  and a trackpad pinch (reported as ctrl+wheel, in far smaller deltas) multiplies that rate by
+  `TRACKPAD_PINCH_RATE_MULTIPLIER` so a whole pinch is worth a whole pinch. The running value
+  lives unrounded in `state.wheelRadiusMinutes` rather than being read back from the applied
+  radius: a single trackpad delta is smaller than the value grid, so reading it back would round
+  every event away to the radius it started from and the ring would never move. It is clamped to
+  the floor/maximum, unlike the pinch's own base, because a wheel only accumulates — an unclamped
+  value would make the user scroll back through everything they overshot before the ring moved.
+  A wheel has no pointerup, so the gesture ends `WHEEL_RADIUS_SETTLE_MS` (220ms) after the last
+  event (`endNearbyRadiusWheel`), which is where the settling animation, the cleared floor notice
+  and the Settings-slider sync happen — the same things `endNearbyRadiusPinch` does on lift-off.
+  Both gestures share one body, `applyWalkingRadiusGesture(rawMinutes)`, which does the clamp,
+  the at-floor flag, the grid snap and the apply, and returns the floor it used so the wheel can
+  clamp its running value without a second nearest-item scan.
+- **Safari's trackpad pinch** does not arrive as a ctrl+wheel at all: it comes as
+  `gesturestart`/`gesturechange`/`gestureend` carrying a cumulative `scale`, which is the same
+  ratio the two-finger pinch already speaks in, so `startNearbyRadiusGesture`/
+  `updateNearbyRadiusGesture`/`endNearbyRadiusGesture` (js/nav.js) map it straight onto
+  `applyWalkingRadiusGesture` from a `state.gestureRadiusBaseMinutes` baseline — measured from
+  where the gesture began, so returning the fingers returns the radius. Only Safari fires these
+  events, so the handlers are inert everywhere else, and the Playwright projects (Chromium) can
+  only cover this path in unit tests.
 - **Automatic grow-back:** a radius closed down onto one find becomes an empty circle as soon as
   the user walks away from it, so every GPS fix runs `ensureWalkingRadiusCoversNearest()`
   (`js/nav.js`, called from the `watchPosition` handler in `ensureLocationWatch`, index.html).

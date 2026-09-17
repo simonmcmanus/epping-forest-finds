@@ -308,7 +308,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v29"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+    const APP_VERSION = "v30"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     // Declared up here with the other boot-time constants, not next to the compass
     // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -418,6 +418,14 @@
       nearestItemsCount: 10,
       walkingDistanceMinutes: 5,
       walkingRadiusAtFloor: false,
+      // The wheel/trackpad radius gesture's running (unrounded) value and its settle timer --
+      // a wheel has no pointerup to end on, so the gesture ends on a timeout instead
+      // (updateNearbyRadiusWheel/endNearbyRadiusWheel, js/nav.js).
+      wheelRadiusMinutes: null,
+      wheelRadiusSettleTimer: null,
+      // Safari's trackpad pinch (gesturestart/change/end) measures from where the gesture began,
+      // like the two-finger pinch does -- see startNearbyRadiusGesture, js/nav.js.
+      gestureRadiusBaseMinutes: null,
       showAllOutsideRadius: false,
       compassHeading: null,
       compassHeadingTarget: null,

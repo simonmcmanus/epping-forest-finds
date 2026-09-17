@@ -197,6 +197,16 @@ globalThis.__forestFindsTest = {
   ensureWalkingRadiusCoversNearest,
   nearbyRadiusIsEmpty,
   syncSettingsWalkSlider,
+  applyWalkingRadiusGesture,
+  normalizeWheelPixels,
+  updateNearbyRadiusWheel,
+  endNearbyRadiusWheel,
+  zoomInputResizesNearbyRadius,
+  startNearbyRadiusGesture,
+  updateNearbyRadiusGesture,
+  endNearbyRadiusGesture,
+  WHEEL_RADIUS_RATE_PER_PIXEL,
+  TRACKPAD_PINCH_RATE_MULTIPLIER,
   WALKING_RADIUS_PRESET_MINUTES,
   WALKING_RADIUS_MIN_MINUTES,
   WALKING_RADIUS_TIGHT_MIN_MINUTES,
@@ -2785,6 +2795,113 @@ test("the automatic grow-back stands off gestures and open selections", () => {
   const midSlide = app.state.walkingDistanceMinutes;
   assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "a browse slide holds the ring still");
   assert.equal(app.state.walkingDistanceMinutes, midSlide);
+});
+
+// A wheel event as the canvas handler reads it: deltaY in whichever unit deltaMode names, plus
+// the ctrlKey every browser sets for a trackpad pinch.
+function wheelEvent(deltaY, options = {}) {
+  return { deltaY, deltaMode: options.deltaMode ?? 0, ctrlKey: Boolean(options.ctrlKey) };
+}
+
+function setUpWheelNearby(app) {
+  resetData(app);
+  app.state.trees.push({ id: "close-tree", commonName: "Close tree", ...makePoint(app, 0.0009, 0) }); // ~100m
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 5;
+  app.state.wheelRadiusMinutes = null;
+}
+
+test("scrolling the wheel resizes the walking radius rather than the map", () => {
+  setUpWheelNearby(app);
+  assert.equal(app.zoomInputResizesNearbyRadius(), true, "the Nearby screen is a screen that draws the ring");
+
+  app.updateNearbyRadiusWheel(wheelEvent(-100)); // one notch "zoom in"
+  const zoomedIn = app.state.walkingDistanceMinutes;
+  assert.ok(zoomedIn < 5, "scrolling in should shrink the ring");
+
+  app.updateNearbyRadiusWheel(wheelEvent(100)); // one notch back out
+  assert.ok(app.state.walkingDistanceMinutes > zoomedIn, "scrolling out should grow it again");
+});
+
+test("a wheel gesture keeps its own running value, so small trackpad deltas still add up", () => {
+  setUpWheelNearby(app);
+
+  // One tiny delta rounds away to the radius it started from...
+  app.updateNearbyRadiusWheel(wheelEvent(-2, { ctrlKey: true }));
+  assert.equal(app.state.walkingDistanceMinutes, 5, "a single trackpad delta is below the value grid");
+  assert.ok(app.state.wheelRadiusMinutes < 5, "but the gesture remembers it");
+
+  // ...while a run of them moves the ring.
+  for (let i = 0; i < 20; i += 1) app.updateNearbyRadiusWheel(wheelEvent(-2, { ctrlKey: true }));
+  assert.ok(app.state.walkingDistanceMinutes < 5, "a continued trackpad pinch should reach the next step");
+});
+
+test("a trackpad pinch moves the radius further than the same wheel delta", () => {
+  setUpWheelNearby(app);
+  app.updateNearbyRadiusWheel(wheelEvent(-30));
+  const byWheel = app.state.wheelRadiusMinutes;
+
+  setUpWheelNearby(app);
+  app.updateNearbyRadiusWheel(wheelEvent(-30, { ctrlKey: true }));
+  assert.ok(app.state.wheelRadiusMinutes < byWheel, "the trackpad rate should be the faster of the two");
+});
+
+test("normalizeWheelPixels converts line and page deltas to pixels", () => {
+  assert.equal(app.normalizeWheelPixels(wheelEvent(120)), 120);
+  assert.equal(app.normalizeWheelPixels(wheelEvent(3, { deltaMode: 1 })), 48);
+  assert.equal(app.normalizeWheelPixels(wheelEvent(1, { deltaMode: 2 })), 100);
+  assert.equal(app.normalizeWheelPixels(wheelEvent(NaN)), 0);
+});
+
+test("the wheel stops at the walking-radius floor and shows the same limit notice the pinch does", () => {
+  setUpWheelNearby(app);
+  const floor = app.walkingRadiusFloorMinutes(app.nearbyOrigin());
+
+  for (let i = 0; i < 30; i += 1) app.updateNearbyRadiusWheel(wheelEvent(-100));
+  assert.ok(app.state.walkingDistanceMinutes >= floor, "the ring never closes past its own contents");
+  assert.equal(app.state.walkingRadiusAtFloor, true, "scrolling past the floor should raise the notice");
+
+  // The gesture ends on a timeout rather than a pointerup, and clears the transient notice.
+  app.endNearbyRadiusWheel();
+  assert.equal(app.state.walkingRadiusAtFloor, false);
+  assert.equal(app.state.wheelRadiusMinutes, null, "the next scroll starts from where the radius ended up");
+});
+
+test("a wheel over a real selection is left to zoom the map", () => {
+  setUpWheelNearby(app);
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  assert.equal(app.zoomInputResizesNearbyRadius(), false, "a selection replaces the ring view entirely");
+  app.state.selected = null;
+
+  app.state.userLocation = null;
+  assert.equal(app.zoomInputResizesNearbyRadius(), false, "and with no location there is no ring to resize");
+});
+
+test("Safari's own trackpad pinch events resize the radius too", () => {
+  setUpWheelNearby(app);
+  app.state.gestureRadiusBaseMinutes = null;
+
+  // Safari sends gesturestart/gesturechange/gestureend with a cumulative scale rather than the
+  // ctrl+wheel Chrome and Firefox report, so without this path a Mac pinch would do nothing.
+  app.startNearbyRadiusGesture();
+  app.updateNearbyRadiusGesture({ scale: 2 }); // fingers spread apart -- zoom in
+  assert.ok(app.state.walkingDistanceMinutes < 5, "spreading apart should close the ring in");
+
+  app.updateNearbyRadiusGesture({ scale: 0.5 }); // and back past where it started
+  assert.ok(app.state.walkingDistanceMinutes > 5, "pinching together should widen it");
+
+  // Measured from where the gesture began, not from the last frame, so it tracks the fingers.
+  app.updateNearbyRadiusGesture({ scale: 1 });
+  assert.equal(app.state.walkingDistanceMinutes, 5, "returning the fingers returns the radius");
+
+  app.endNearbyRadiusGesture();
+  assert.equal(app.state.gestureRadiusBaseMinutes, null);
+  assert.equal(app.state.walkingRadiusAtFloor, false);
+
+  // A stray gesturechange outside a gesture (or a garbage scale) must not move anything.
+  app.updateNearbyRadiusGesture({ scale: 0 });
+  app.updateNearbyRadiusGesture({});
+  assert.equal(app.state.walkingDistanceMinutes, 5);
 });
 
 test("settings form's slider floor hides tick marks the user can no longer reach", () => {
