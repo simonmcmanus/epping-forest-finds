@@ -62,7 +62,7 @@ test.describe("Heads-up Nearby list", () => {
       const gate = document.getElementById("locationGate");
       if (gate && !gate.hidden) gate.hidden = true;
     });
-    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
   });
 
   test("the list leans toward whatever you are facing, and follows you round as you turn", async ({ page }) => {

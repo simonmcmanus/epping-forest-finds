@@ -11,19 +11,19 @@ test.describe("Onboarding", () => {
 
     test("onboarding overlay is shown on first visit", async ({ page }) => {
       await page.goto("/");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
     });
 
     test("the location/compass opt-in step is shown first", async ({ page }) => {
       await page.goto("/");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
       // The first step asks the user to enable location — look for the enable button or location text
       await expect(page.locator("#onboardingOverlay")).toContainText(/location|compass/i);
     });
 
     test("map data loads in the background while onboarding is visible", async ({ page }) => {
       await page.goto("/");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
       // Loading overlay may already be hidden (data loaded behind onboarding) — either state is valid,
       // but the loading overlay must not block onboarding visibility
       const overlayHidden = await page.locator("#loadingOverlay").getAttribute("hidden");
@@ -33,7 +33,7 @@ test.describe("Onboarding", () => {
 
     test("'Skip for now' advances past the location step without granting permission", async ({ page }) => {
       await page.goto("/");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
       const skipBtn = page.locator("#onboardingOverlay .onboarding-skip-btn, #onboardingOverlay [class*='skip']").first();
       await skipBtn.click();
       // Should have moved to the next step — the overlay may still be visible
@@ -51,7 +51,7 @@ test.describe("Onboarding", () => {
       });
       await page.goto("/");
       // Onboarding overlay must remain hidden
-      await expect(page.locator("#onboardingOverlay")).toBeHidden({ timeout: 5_000 });
+      await expect(page.locator("#onboardingOverlay")).toBeHidden();
     });
 
     test("map reveals directly without onboarding on return visit", async ({ page }) => {

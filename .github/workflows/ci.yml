@@ -31,10 +31,20 @@ jobs:
       - run: npm test
 
   e2e:
-    name: E2E tests
+    # One Playwright project per runner, rather than both on one. A GitHub-hosted runner has
+    # 2 vCPUs; running the whole suite on a single one meant 4 workers sharing them, which
+    # starved the app's boot-and-draw cycle and failed whole spec files in `beforeEach`. Two
+    # runners at 2 workers each (see playwright.config.js) gives every worker a full core for
+    # the same total parallelism, and the two jobs run concurrently so wall-clock does not
+    # suffer. fail-fast is off so one project's failure still lets the other report.
+    name: E2E tests (${{ matrix.project }})
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, mobile]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -49,12 +59,16 @@ jobs:
         # continue-on-error so the commit step always runs even when baselines are missing.
         # Playwright's "missing" mode writes new baselines but still exits non-zero —
         # the explicit fail step below re-surfaces any genuine failures.
-        run: npx playwright test --update-snapshots=missing
+        run: npx playwright test --project=${{ matrix.project }} --update-snapshots=missing
         continue-on-error: true
       - name: Commit new snapshot baselines
+        # Mobile only: every toHaveScreenshot() spec is guarded by
+        # `test.skip(testInfo.project.name !== 'mobile')`, so the desktop job never writes a
+        # baseline -- and having both jobs push to the same branch concurrently would race.
         # Runs even after test failure. git add only touches test/e2e/__screenshots__/,
         # so regression diffs (written to test-results/ as "actual") are never committed.
         # New linux PNGs committed here will be found on the next CI run.
+        if: matrix.project == 'mobile'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -70,7 +84,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report
+          # Per project, or the two matrix jobs collide on one artifact name.
+          name: playwright-report-${{ matrix.project }}
           path: playwright-report/
           retention-days: 14
       - name: Fail if E2E tests had failures

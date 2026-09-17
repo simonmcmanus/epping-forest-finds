@@ -34,7 +34,7 @@ test.describe("Map gesture continuity", () => {
   // finger lifted. The user had to take every finger off and start again.
   test("lifting one of two fingers hands the pan back to the finger still down", async ({ page }) => {
     await setup(page);
-    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
     await page.evaluate(() => { stopViewportAnimation(); });
 
     // Two fingers down, one lifted, then the survivor drags 120px across.
@@ -75,7 +75,7 @@ test.describe("Map gesture continuity", () => {
   // every later gesture for the rest of the session.
   test("a gesture the browser takes away does not leave the map stuck", async ({ page }) => {
     await setup(page);
-    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
     await fireCanvasPointers(page, [
       ["pointerdown", 3101, 0, 0],
@@ -113,8 +113,8 @@ test.describe("Panning a selected location", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.hashKey}`);
-    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/, { timeout: 10_000 });
-    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
     expect(await page.evaluate(() => shouldAutoRepositionSelection())).toBe(true);
 
@@ -160,7 +160,7 @@ test.describe("Camera animation continuity", () => {
 
   test("re-requesting the same camera target keeps one continuous animation", async ({ page }) => {
     await setup(page);
-    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
     const result = await page.evaluate(async () => {
       stopViewportAnimation();

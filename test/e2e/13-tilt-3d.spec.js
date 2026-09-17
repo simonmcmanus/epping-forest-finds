@@ -437,8 +437,14 @@ test.describe("3D tilt view", () => {
     const anchored = await page.evaluate(() => Boolean(state.nearbyAnchor));
     expect(anchored, "sanity: the tap should have moved the nearby browse origin").toBe(true);
 
+    // How many animation frames a 1200ms window yields is the machine's business, not this
+    // app's: a 2-vCPU CI runner repainting a full canvas delivers a handful where a dev machine
+    // delivers seventy. Requiring three painted samples was really requiring a fast machine, and
+    // it is what failed this test on CI while it passed everywhere else. One painted frame is
+    // enough to sanity-check that the slide ran; the assertion that matters is the next one, and
+    // it holds on however many samples arrive.
     const painted = frames.filter((frame) => frame.paints > 0);
-    expect(painted.length, "sanity: the slide should have painted the map").toBeGreaterThan(2);
+    expect(painted.length, "sanity: the slide should have painted the map").toBeGreaterThanOrEqual(1);
     const worstPaints = Math.max(...painted.map((frame) => frame.paints));
     expect(worstPaints, "the map must be painted once per frame, not several times over").toBe(1);
 
