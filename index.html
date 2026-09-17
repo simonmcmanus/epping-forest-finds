@@ -308,7 +308,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v27"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+    const APP_VERSION = "v28"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     // Declared up here with the other boot-time constants, not next to the compass
     // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -4289,11 +4289,19 @@
       // which is what holds the walking-radius circle still while the map moves behind it.
       if (state.nearbyOriginTransition) {
         // The transition object outlives the slide itself by NEARBY_REVEAL_MS so the fade-in has
-        // frames to run; only the camera work stops when the slide lands.
+        // frames to run.
         const sliding = nearbyOriginTransitionActive();
         const fading = nearbyRevealInProgress();
         if (!fading) state.nearbyOriginTransition = null;
-        if (sliding || !fading) alignHeadingUpNavigationViewport({ animate: false, force: true });
+        // Re-derive the camera on every frame the transition object is alive, not just while the
+        // slide is moving. This used to be `sliding || !fading`, which skipped exactly the frames
+        // where the slide had landed but the reveal fade was still running -- and on those frames
+        // nearbyRenderOriginPoint() has already snapped from the interpolated origin to the final
+        // one while the camera is still the last interpolated framing. The walking-radius circle,
+        // which the whole slide exists to hold still, twitched a few pixels as the slide landed
+        // and hopped back when the fade ended. Once the origin has stopped moving this call is a
+        // no-op that costs a fit solve for the ~180ms of the fade.
+        alignHeadingUpNavigationViewport({ animate: false, force: true });
         if (fading) requestDraw();
       }
       // Resize whenever heading-up mode activates or deactivates so the canvas is only

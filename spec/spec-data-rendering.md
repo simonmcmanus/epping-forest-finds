@@ -521,8 +521,13 @@ moving the real GPS fix:
     still travelling: drawing them straight away puts a fan of lines pinned to a stationary
     circle sweeping across moving terrain, with pins sliding under a marker that is not moving —
     it reads as jitter even though every element is where it should be. The transition object
-    deliberately outlives the slide by `NEARBY_REVEAL_MS` so the fade has frames; only the camera
-    work stops when the slide lands. The "You" dot is exempt: it is the user's real position, not
+    deliberately outlives the slide by `NEARBY_REVEAL_MS` so the fade has frames. The camera is
+    re-derived on every frame that object is alive, including the fade tail after the slide has
+    landed: `nearbyRenderOriginPoint()` snaps from the interpolated origin to the final one the
+    moment the slide ends, so a frame that skipped the re-derive left the camera on the last
+    interpolated framing and the ring — the one thing the slide exists to hold still — twitched a
+    few pixels on landing and hopped back when the fade finished. Once the origin has stopped
+    moving the re-derive is a no-op. The "You" dot is exempt: it is the user's real position, not
     part of the nearby set.
   - In 3D the pivot fraction also differs between the first-person and browsing cases (0.94 at
     max tilt vs 0.5, see below), so `tiltRampedAnchor` eases between them across the same slide

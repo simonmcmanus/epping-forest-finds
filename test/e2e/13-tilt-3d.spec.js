@@ -395,7 +395,7 @@ test.describe("3D tilt view", () => {
     //    had moved, throwing the map several-fold out of zoom on one frame;
     //  - the map was repainted four times per animation frame for the whole slide, so it
     //    actually moved at a fraction of the frame rate (see draw(), js/renderer.js).
-    await tiltTo(page, 60);
+    await tiltToSettled(page, 60);
 
     // Open ground well off to one side of the pivot, so the tap moves the browse origin (rather
     // than selecting whatever it landed on) and there is a real move for the camera to make.
