@@ -13,16 +13,6 @@ const TILT_SWEEP = [0, 12, 20, 30, 40, 50, 60, 70, 80, 85];
  * Put the app into heading-up mode at a given tilt, then draw and settle a frame.
  * Drives the same state the compass/orientation handlers write, so this exercises the
  * real projection rather than a test-only path.
- *
- * The camera is settled rather than nudged: `stopViewportAnimation()` first, because a boot
- * reveal still in flight will keep moving the viewport out from under whatever is measured
- * next, and `force: true` because resolveHeadingUpTargetScale otherwise eases the scale in over
- * about a second while the compass sensor reads as live (which it does here, compassLastEventAt
- * is set just above) -- so a single un-forced call leaves the viewport a fraction of the way
- * there and every measurement below reads the ease rather than the camera, differently each run
- * depending on how loaded the machine is. The align/draw pair repeats because prepareCanvasForDraw
- * can still adjust the fit on the first draw after a tilt change. In the field the phone has
- * been held at an angle for a while before any of this matters.
  */
 async function tiltTo(page, beta) {
   await page.evaluate(async (b) => {
@@ -32,13 +22,38 @@ async function tiltTo(page, beta) {
     state.compassLastEventAt = performance.now();
     state.tiltBetaTarget = b;
     state.tiltBetaSmoothed = b;
+    alignHeadingUpNavigationViewport();
+    draw();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+  }, beta);
+}
+
+/**
+ * tiltTo, then settle the camera on the fit this tilt angle actually asks for.
+ *
+ * Deliberately separate from tiltTo rather than folded into it: every other test in this file
+ * measures pixels the camera has already painted, and moving that camera changes what they are
+ * looking at -- folding the settle into the shared helper broke the dimming-edge measurement on
+ * a phone viewport. Only a test whose subject *is* the fit wants this.
+ *
+ * `stopViewportAnimation()` because a boot reveal still in flight keeps moving the viewport out
+ * from under the measurement; `force: true` because resolveHeadingUpTargetScale otherwise eases
+ * the scale in over about a second while the compass sensor reads as live (it does here --
+ * compassLastEventAt is set in tiltTo), so an un-forced call leaves the viewport a fraction of
+ * the way there and the measurement reads the ease rather than the camera, differently each run
+ * depending on how loaded the machine is. The align/draw pair repeats because
+ * prepareCanvasForDraw can still adjust the fit on the first draw after a tilt change.
+ */
+async function tiltToSettled(page, beta) {
+  await tiltTo(page, beta);
+  await page.evaluate(async () => {
     stopViewportAnimation();
     for (let i = 0; i < 3; i += 1) {
       alignHeadingUpNavigationViewport({ force: true });
       draw();
     }
     await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-  }, beta);
+  });
 }
 
 test.describe("3D tilt view", () => {
@@ -88,7 +103,7 @@ test.describe("3D tilt view", () => {
       };
     });
 
-    await tiltTo(page, 0);
+    await tiltToSettled(page, 0);
     const flat = await measure();
 
     // Flat 2D is the one view that is *about* the whole ring, so it must still frame all of it.
@@ -100,7 +115,7 @@ test.describe("3D tilt view", () => {
     // fitted around, which is a percent or so of scale and nothing to do with tilt.
     let previousScale = null;
     for (const beta of TILT_SWEEP) {
-      await tiltTo(page, beta);
+      await tiltToSettled(page, beta);
       const { fillFraction, scale } = await measure();
 
       // Pre-fix this sat around a quarter of the map width once tilt engaged.

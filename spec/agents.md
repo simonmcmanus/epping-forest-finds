@@ -66,11 +66,55 @@ Before finishing any implementation task:
 - `PLAYWRIGHT_CHROMIUM_EXECUTABLE` (optional, unset by default) points Playwright at an existing Chromium binary instead of the one it downloads. It exists only for sandboxes that cannot reach `cdn.playwright.dev` and so cannot run `npx playwright install`; local Macs and CI are unaffected and keep using Playwright's own pinned browser. A mismatched Chromium build renders text differently, so `toHaveScreenshot()` failures under this var are environmental and must never be used to regenerate the committed snapshots.
 - `playwright.config.js` extends the `toHaveScreenshot()` stability timeout to 15s under `process.env.CI` (default 5s elsewhere). GitHub-hosted runners only have 2 vCPUs, and running the full 4 workers there can slow a page's animation-frame loop enough that the default 5s isn't always enough to catch a stable frame before comparing pixels. Workers stay at 4 everywhere — this fixes the flakiness without giving up CI parallelism/speed.
 
+### CI is the verdict, not your local run
+
+**A local `npm run test:e2e` is a pre-filter. The CI `E2E tests` job on your own branch is the
+result.** The two disagree badly and routinely: this suite has repeatedly run 3-4 failures in a
+dev sandbox and 20-25 on a GitHub runner, because the runner has 2 vCPUs for 4 workers and the
+whole job takes ~27 minutes, so timing-sensitive specs (`beforeEach` waits, animation frames,
+paint counts) fail there and nowhere else. Two consecutive PRs were handed over as done on the
+strength of a green-ish local run while their CI job was red the whole time.
+
+So, before a PR is done — every time, no exceptions:
+
+1. **Push, then read the CI run for your head SHA.** `actions_list` → `list_workflow_runs`
+   filtered to your branch, then `list_workflow_jobs`, then `get_job_logs` on the `E2E tests`
+   job. Read the `N failed / N passed` line and the failure list under it.
+2. **The job must be green.** Not "green apart from the environmental ones" — green.
+3. **Never call a failure pre-existing on the basis of a local run.** Establish it CI-to-CI:
+   pull the CI failure list for your merge-base commit (the run on `main` for the SHA you
+   branched from) and diff the two lists by test name. A failure on your branch that is not on
+   that list is yours, whatever it looks like.
+4. **Never write "passes locally" as evidence in a commit message, PR body, or hand-off.** State
+   what CI said: the run URL, the pass/fail counts, and — if anything is still red — exactly
+   which tests and why they are not yours, with the merge-base run that proves it.
+
+If a wait is unavoidable, wait: the e2e job takes ~27 minutes. Reporting a task finished before
+its CI run exists is reporting a guess.
+
+### If the suite is already red when you arrive
+
+Say so, with numbers, in your first report — do not absorb it silently and do not let it become
+cover for your own failures. Then either fix it, or get a decision from the user about scope.
+Shipping onto a red suite without flagging it is what let the failure count drift upward
+unnoticed for a week.
+
+### Changing a shared test helper
+
+A helper like `tiltTo` in `test/e2e/13-tilt-3d.spec.js` sets up the state that every test in the
+file then measures. Changing it changes what all of them are looking at, and a change that fixes
+the one test you had in mind can silently break another on a viewport you did not run. If only
+one test needs different setup, give that test its own helper rather than editing the shared one.
+If you do edit a shared one, re-run every spec that uses it, on **every** Playwright project
+(`--project=desktop` and `--project=mobile`), and then confirm in CI.
+
 ### Completion checklist for every task
 1. `node --test test/forest-finds.test.js` passes.
-2. `npm run test:e2e` passes (or snapshots are regenerated intentionally).
+2. `npm run test:e2e` passes locally (or snapshots are regenerated intentionally).
 3. Relevant `spec/` file is updated, or reason documented.
-4. create a commit with a good concise description summarising the change  
+4. Create a commit with a good concise description summarising the change.
+5. Push, wait for CI, and confirm the `E2E tests` job is **green on your branch** — per "CI is
+   the verdict" above. The task is not finished until it is, and the report says what CI said.
 
 ## Code Quality
 - Separate concerns strictly per the project structure above.
