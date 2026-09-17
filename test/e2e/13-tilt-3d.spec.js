@@ -284,11 +284,21 @@ test.describe("3D tilt view", () => {
       });
     };
 
+    // Ahead radius against sideways radius. Deliberately not the "down" (behind) edge: under
+    // tilt the ground behind you runs off the bottom of the screen by design -- that is the
+    // whole point of the first-person camera, and drawWalkingRadius keeps drawing the full
+    // circle regardless -- so below about 60 degrees of tilt there is simply no behind edge
+    // left on the canvas to measure. Averaging it in meant the test demanded the opposite of
+    // the behaviour the app is specified to have, and failed on a desktop-shaped viewport
+    // where the pivot sits closest to the bottom. The foreshortening this test exists to prove
+    // is entirely in the ahead radius: flat it equals the sideways radius, and it compresses
+    // toward the horizon as the ground tilts away. Measured across the sweep, that is
+    // 1.00 -> 0.72 -> 0.48 -> 0.15 on desktop and 1.00 -> 0.75 -> 0.50 -> 0.15 on mobile.
     const aspectOf = (edges) => {
-      for (const key of ["right", "left", "down", "up"]) {
+      for (const key of ["right", "left", "up"]) {
         expect(edges[key], `${key} edge of the walking radius must be found`).not.toBeNull();
       }
-      return ((edges.up + edges.down) / 2) / ((edges.left + edges.right) / 2);
+      return edges.up / ((edges.left + edges.right) / 2);
     };
 
     const flat = await measure(0);
