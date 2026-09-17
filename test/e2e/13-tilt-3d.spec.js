@@ -237,14 +237,21 @@ test.describe("3D tilt view", () => {
     // small unrelated diffs (something else redraws slightly differently there between the
     // two draw() calls), which threw off the up/down/left/right comparison; a fixed threshold
     // sidesteps needing that reference at all.
+    // tiltToSettled, and a forced converge loop below: what this measures is the shape the
+    // ground plane projects the radius into, which depends on the camera actually being on this
+    // tilt angle's fit. An un-forced settle leaves resolveHeadingUpTargetScale part-way through
+    // easing the scale in, and the radii come out of a projection still in transit -- measured
+    // on a loaded machine as an aspect of 0.44 at beta 40 where a settled camera gives 0.75, and
+    // the strictly-flattening check then failed at beta 60. Settled, the sweep is bit-identical
+    // run to run: 1.00 / 0.72 / 0.48 / 0.15 on desktop and 1.00 / 0.75 / 0.50 / 0.15 on mobile.
     const measure = async (beta) => {
-      await tiltTo(page, beta);
+      await tiltToSettled(page, beta);
       return page.evaluate(() => {
         const canvas = els.canvas;
         const context = canvas.getContext("2d");
         // Let the viewport converge first: prepareCanvasForDraw can still adjust the fit on
         // the first draw after a tilt change, which would swamp the diff.
-        for (let i = 0; i < 4; i += 1) { alignHeadingUpNavigationViewport(); draw(); }
+        for (let i = 0; i < 4; i += 1) { alignHeadingUpNavigationViewport({ force: true }); draw(); }
 
         const real = window.drawWalkingRadiusDimming;
         window.drawWalkingRadiusDimming = () => {};
