@@ -3,8 +3,24 @@
 // remaining "steps" are only tick-mark/label suggestions shown on the Settings slider.
 const WALKING_RADIUS_PRESET_MINUTES = [1, 2, 5, 10, 15, 20, 30];
 
+// The floor's fallback when there is nothing real to measure against -- not a limit on how far
+// in the user can go. A highlighted location closer than a minute's walk lowers the floor all
+// the way to WALKING_RADIUS_TIGHT_MIN_MINUTES, so the ring (and the camera fitted to it) keeps
+// closing in on it; the map used to stop a minute out however close the thing being walked to
+// was, which on a phone meant standing next to a tree looking at a 200 m-wide circle.
 const WALKING_RADIUS_MIN_MINUTES = 1;
 const WALKING_RADIUS_MAX_MINUTES = 30;
+
+// The tightest radius any origin can reach: ~21 m at the shared 5 km/h assumption. Close enough
+// to stand over a single find, far enough that the ring is still a circle with map around it
+// rather than a camera buried in one pin.
+const WALKING_RADIUS_TIGHT_MIN_MINUTES = 0.25;
+
+// The grid radius values snap to. Half a minute reads as stepless across most of the 1-30 min
+// range, but below a minute it is a third of everything left, so sub-minute radii step by a
+// quarter minute (15 seconds) instead.
+const WALKING_RADIUS_STEP_MINUTES = 0.5;
+const WALKING_RADIUS_FINE_STEP_MINUTES = 0.25;
 
 // How far past the single nearest real item (see walkingRadiusFloorMinutes) the floor sits,
 // so that item settles clearly inside the drawn ring instead of sitting right on its edge.
@@ -15,12 +31,16 @@ const WALKING_RADIUS_FLOOR_BUFFER = 1.15;
 // priority nearestFallbackEntriesForActiveFilter (index.html) uses for the "nothing in radius"
 // list fallback) sits closest to origin. Falls back to WALKING_RADIUS_MIN_MINUTES when there's
 // no origin yet, or nothing to measure against (e.g. an empty dataset).
+//
+// A real nearest item is what licenses going below that fallback: the floor tracks it down to
+// WALKING_RADIUS_TIGHT_MIN_MINUTES, so a find seconds away can be zoomed right in on, while an
+// origin with nothing to measure still can't be squeezed below a minute of empty ground.
 function walkingRadiusFloorMinutes(origin) {
   if (!origin) return WALKING_RADIUS_MIN_MINUTES;
   const nearest = nearestFallbackEntriesForActiveFilter(origin.latitude, origin.longitude)[0];
   if (!nearest) return WALKING_RADIUS_MIN_MINUTES;
   const floorMinutes = metresToWalkingMinutes(nearest.metres * WALKING_RADIUS_FLOOR_BUFFER);
-  return clamp(floorMinutes, WALKING_RADIUS_MIN_MINUTES, WALKING_RADIUS_MAX_MINUTES);
+  return clamp(floorMinutes, WALKING_RADIUS_TIGHT_MIN_MINUTES, WALKING_RADIUS_MAX_MINUTES);
 }
 
 // Inverse of walkingDistanceToMetres (index.html) -- kept in sync with its 5 km/h assumption.
@@ -28,17 +48,40 @@ function metresToWalkingMinutes(metres) {
   return metres * 60 / 5000;
 }
 
-// Rounds a continuous walking-radius value to the nearest half-minute: fine enough to feel
-// stepless while dragging, coarse enough to avoid floating-point noise in the displayed
-// "X min" label and in the overview cache key (see overviewItemsForActiveFilter, index.html).
+// The step a given radius snaps to (see the constants above).
+function walkingMinutesStep(minutes) {
+  return minutes < 1 ? WALKING_RADIUS_FINE_STEP_MINUTES : WALKING_RADIUS_STEP_MINUTES;
+}
+
+// Rounds a continuous walking-radius value onto that grid: fine enough to feel stepless while
+// dragging, coarse enough to avoid floating-point noise in the displayed label and in the
+// overview cache key (see overviewItemsForActiveFilter, index.html).
 function roundWalkingMinutes(minutes) {
-  return Math.round(minutes * 2) / 2;
+  const step = walkingMinutesStep(minutes);
+  return Math.round(minutes / step) * step;
+}
+
+// Same grid, rounded up. Used wherever a value has to stay at or above a floor after snapping --
+// the Settings slider's min attribute, and the automatic grow-back below -- since rounding to
+// nearest could otherwise land just under the floor it was derived from. The epsilon keeps a
+// value already exactly on the grid from being pushed up a whole step by binary rounding noise.
+function ceilWalkingMinutes(minutes) {
+  const step = walkingMinutesStep(minutes);
+  return Math.ceil(minutes / step - 1e-9) * step;
 }
 
 // Formats a (possibly fractional) walking-time value for display: whole minutes as "5",
 // half-minutes as "5.5".
 function formatWalkingMinutes(minutes) {
   return Number.isInteger(minutes) ? String(minutes) : minutes.toFixed(1);
+}
+
+// The same value with its unit, for anywhere the radius is shown to the user. Sub-minute radii
+// (reachable since the floor started tracking finds closer than a minute's walk) read as
+// seconds: "15 sec" is how anyone describes that walk, "0.3 min" is not.
+function formatWalkingRadius(minutes) {
+  if (minutes < 1) return `${Math.round(minutes * 60)} sec`;
+  return `${formatWalkingMinutes(minutes)} min`;
 }
 
 // The effective centre for everything the Nearby view shows (walking-radius circle, nearest-
@@ -664,6 +707,76 @@ function applyWalkingRadiusChange(minutes, options = {}) {
   refreshNearbyRadiusView(options);
 }
 
+// Is the walking-radius ring empty -- nothing of the active kinds actually inside it? Reads the
+// memoized in-radius scan every draw already runs (overviewItemsForActiveFilter, index.html)
+// rather than measuring again: state.overviewOutsideRadiusFallback is set by that same scan
+// precisely when it had to reach past the radius to find anything at all.
+function nearbyRadiusIsEmpty() {
+  // "Show all distances" deliberately ignores the radius, so there is no empty ring to fix.
+  if (state.showAllOutsideRadius) return false;
+  const entries = overviewItemsForActiveFilter();
+  return state.overviewOutsideRadiusFallback || entries.length === 0;
+}
+
+// Grows the walking radius back to whatever still has something in it, as the user walks. Zoomed
+// right in on one find (now that the floor lets the ring close to ~21 m), walking away from it
+// leaves a ring with nothing inside and a map zoomed into empty ground -- so a fix that empties
+// the ring lifts it to the current floor, i.e. just past the nearest remaining highlighted
+// location, and the camera fitted to the ring zooms out with it.
+//
+// Grow-only, and only as far as the floor: a deliberately wide radius is never pulled in, and
+// the radius the user chose is never overridden while it still has something to show.
+//
+// Returns the radius to grow to, or null for "leave it alone" -- split out from the applying
+// wrapper below so a caller mid-way through its own state change can fold the new radius into
+// one refresh instead of triggering a second one.
+function walkingRadiusGrowBackMinutes() {
+  if (!state.dataLoaded || state.pinchActive) return null;
+  // A real selection or an expanded cluster is its own view: refreshNearbyRadiusView would
+  // replace it with the Nearby list. The radius is re-checked on the next fix after it closes.
+  if (hasRealSelection() || state.clusterExpanded || state.clusterZoomed) return null;
+  // Mid-slide to a browsed spot the camera is easing between two framings of the ring
+  // (maxNearbyHeadingUpScale, index.html); resizing the ring underneath that is the one thing
+  // that slide is built to avoid. The next fix picks it up once the slide has landed.
+  if (nearbyOriginTransitionActive()) return null;
+  const origin = nearbyOrigin();
+  if (!origin) return null;
+  if (!nearbyRadiusIsEmpty()) return null;
+  const floor = ceilWalkingMinutes(walkingRadiusFloorMinutes(origin));
+  return floor > state.walkingDistanceMinutes ? floor : null;
+}
+
+// Applies the above. Called from the watchPosition handler (ensureLocationWatch, index.html) on
+// every fix; reports whether it actually grew the radius.
+function ensureWalkingRadiusCoversNearest() {
+  const minutes = walkingRadiusGrowBackMinutes();
+  if (minutes == null) return false;
+  applyWalkingRadiusChange(minutes, { animate: true });
+  syncSettingsWalkSlider();
+  return true;
+}
+
+// Re-states the Settings slider from state after something *other* than the slider changed the
+// radius -- the pinch gesture (which engages over the Settings screen too), or the automatic
+// grow-back above. The form is built once when the screen opens (settingsFormHtml, index.html),
+// so without this its thumb, its floor and its label drift away from the ring drawn behind it.
+// Deliberately not called from refreshNearbyRadiusView: a live slider drag goes through there on
+// every "input", and writing the value back mid-drag would tug the thumb under the finger.
+function syncSettingsWalkSlider() {
+  const range = document.getElementById("settingsWalkMins");
+  if (!range) return;
+  const minutes = state.walkingDistanceMinutes;
+  // Same origin settingsFormHtml derives the rendered floor from.
+  const floorMinutes = ceilWalkingMinutes(walkingRadiusFloorMinutes(state.userLocation));
+  range.min = String(floorMinutes);
+  range.step = String(floorMinutes < 1 ? WALKING_RADIUS_FINE_STEP_MINUTES : WALKING_RADIUS_STEP_MINUTES);
+  range.value = String(minutes);
+  const valueLabel = document.getElementById("settingsWalkMinsValue");
+  if (valueLabel) valueLabel.textContent = formatWalkingRadius(minutes);
+  const floorNote = document.getElementById("settingsWalkMinsFloorNote");
+  if (floorNote) floorNote.hidden = minutes > floorMinutes;
+}
+
 // Moves the Nearby view's browse anchor to an arbitrary map point (see nearbyOrigin above),
 // leaving the real GPS fix (state.userLocation) untouched. The move is animated by sliding the
 // *origin* rather than the camera (startNearbyOriginTransition, index.html), which keeps the
@@ -778,7 +891,10 @@ function updateNearbyRadiusPinch() {
   const atFloor = rawMinutes < floor;
   const flagChanged = atFloor !== state.walkingRadiusAtFloor;
   state.walkingRadiusAtFloor = atFloor;
-  const minutes = roundWalkingMinutes(clamped);
+  // Snapping to the value grid can land just under the floor the value was clamped to, which
+  // would put the nearest item back outside the ring the floor exists to keep it inside (and
+  // leave the next GPS fix to grow the radius straight back). At the floor, snap up instead.
+  const minutes = Math.max(roundWalkingMinutes(clamped), ceilWalkingMinutes(floor));
   if (minutes === state.walkingDistanceMinutes) {
     // Rounding can pin the applied value at the floor while rawMinutes keeps drifting below (or
     // recovers back above) it -- applyWalkingRadiusChange would no-op here since the minutes
@@ -808,6 +924,9 @@ function endNearbyRadiusPinch() {
   // One smooth settling animation now that the gesture has ended, mirroring the single
   // animated re-fit a Settings-slider release triggers (bindSettingsHandlers, index.html).
   refreshNearbyRadiusView();
+  // The gesture runs over the Settings screen too, where its own slider must not be left
+  // showing the radius the ring had before the pinch.
+  syncSettingsWalkSlider();
 }
 
 // Pointer capture throws (NotFoundError) for a pointer the browser has already finished with --

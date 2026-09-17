@@ -191,9 +191,15 @@ globalThis.__forestFindsTest = {
   walkingRadiusFloorMinutes,
   metresToWalkingMinutes,
   roundWalkingMinutes,
+  ceilWalkingMinutes,
   formatWalkingMinutes,
+  formatWalkingRadius,
+  ensureWalkingRadiusCoversNearest,
+  nearbyRadiusIsEmpty,
+  syncSettingsWalkSlider,
   WALKING_RADIUS_PRESET_MINUTES,
   WALKING_RADIUS_MIN_MINUTES,
+  WALKING_RADIUS_TIGHT_MIN_MINUTES,
   WALKING_RADIUS_MAX_MINUTES,
   keepOverviewCenteredOnUser,
   centerOverviewOnUserLocation,
@@ -1412,7 +1418,7 @@ test("fallback notice names the selected walking distance", () => {
 
   const html = app.overviewNearestHtml();
 
-  assert.match(html, /Nothing found within 10 mins walking distance/);
+  assert.match(html, /Nothing found within 10 min walking distance/);
   assert.match(html, /Showing the closest match for each selected type instead/);
 });
 
@@ -2669,6 +2675,116 @@ test("walkingRadiusFloorMinutes rises to keep the nearest real item inside the r
   addFixtureData(app); // every fixture item sits >10km from (0,0), far past the 30 min ceiling
   const farFloor = app.walkingRadiusFloorMinutes(makePoint(app, 0, 0));
   assert.equal(farFloor, app.WALKING_RADIUS_MAX_MINUTES, "the floor should never exceed the slider's own maximum");
+});
+
+test("walkingRadiusFloorMinutes follows a find closer than a minute's walk below the one-minute fallback", () => {
+  resetData(app);
+  app.state.trees.push({ id: "underfoot-tree", commonName: "Underfoot tree", ...makePoint(app, 0.00027, 0) }); // ~30m away
+  const floor = app.walkingRadiusFloorMinutes(makePoint(app, 0, 0));
+  assert.ok(floor < app.WALKING_RADIUS_MIN_MINUTES, "a find seconds away should let the radius close in past a minute");
+  assert.ok(floor >= app.WALKING_RADIUS_TIGHT_MIN_MINUTES, "the radius should still stop at the tightest supported ring");
+
+  resetData(app);
+  app.state.trees.push({ id: "touching-tree", commonName: "Touching tree", ...makePoint(app, 0.00001, 0) }); // ~1m away
+  assert.equal(
+    app.walkingRadiusFloorMinutes(makePoint(app, 0, 0)),
+    app.WALKING_RADIUS_TIGHT_MIN_MINUTES,
+    "standing on top of a find pins the floor at the tightest ring rather than collapsing it"
+  );
+});
+
+test("sub-minute radii snap to quarter-minute steps and read as seconds", () => {
+  assert.equal(app.roundWalkingMinutes(0.3), 0.25);
+  assert.equal(app.roundWalkingMinutes(0.4), 0.5);
+  assert.equal(app.roundWalkingMinutes(0.9), 1);
+  assert.equal(app.ceilWalkingMinutes(0.26), 0.5);
+  assert.equal(app.ceilWalkingMinutes(0.5), 0.5, "a value already on the grid should not jump a step");
+  assert.equal(app.ceilWalkingMinutes(1.1), 1.5);
+  assert.equal(app.formatWalkingRadius(0.25), "15 sec");
+  assert.equal(app.formatWalkingRadius(0.5), "30 sec");
+  assert.equal(app.formatWalkingRadius(1), "1 min");
+  assert.equal(app.formatWalkingRadius(5.5), "5.5 min");
+});
+
+test("settings slider offers the finer step once the floor drops below a minute", () => {
+  resetData(app);
+  app.state.trees.push({ id: "underfoot-tree", commonName: "Underfoot tree", ...makePoint(app, 0.00027, 0) });
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 0.5;
+
+  const html = app.settingsFormHtml();
+  assert.match(html, /min="0\.5" max="30" step="0\.25"/, "a close find should open up the sub-minute end of the slider");
+  assert.match(html, /30 sec<\/span>/, "the live value label should read a sub-minute radius in seconds");
+});
+
+test("the walking radius grows back to the nearest remaining find once the ring empties", () => {
+  resetData(app);
+  app.state.trees.push({ id: "left-behind", commonName: "Left behind", ...makePoint(app, 0.009, 0) }); // ~1km away
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 0.5;
+
+  assert.equal(app.nearbyRadiusIsEmpty(), true, "a 30-second ring a kilometre from the nearest tree holds nothing");
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), true);
+  const grown = app.state.walkingDistanceMinutes;
+  assert.ok(grown >= app.walkingRadiusFloorMinutes(app.nearbyOrigin()), "the radius should reach past the nearest remaining find");
+  assert.ok(grown > 0.5 && grown < app.WALKING_RADIUS_MAX_MINUTES, "it grows to the floor, not to the whole forest");
+
+  // A ring with something in it is left exactly as the user set it, however wide.
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false);
+  assert.equal(app.state.walkingDistanceMinutes, grown);
+
+  app.state.walkingDistanceMinutes = 30;
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "the radius is never pulled back in automatically");
+  assert.equal(app.state.walkingDistanceMinutes, 30);
+});
+
+test("an open settings slider follows a radius changed from outside it", () => {
+  resetData(app);
+  app.state.trees.push({ id: "left-behind", commonName: "Left behind", ...makePoint(app, 0.009, 0) });
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 0.5;
+  app.settingsFormHtml(); // the screen is open, showing the tight radius
+
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), true);
+
+  const slider = app.documentStub.getElementById("settingsWalkMins");
+  assert.equal(slider.value, String(app.state.walkingDistanceMinutes), "the thumb should sit at the radius the ring actually has");
+  assert.equal(Number(slider.min), app.ceilWalkingMinutes(app.walkingRadiusFloorMinutes(app.state.userLocation)), "and its floor should be the new one");
+  assert.equal(
+    app.documentStub.getElementById("settingsWalkMinsValue").textContent,
+    app.formatWalkingRadius(app.state.walkingDistanceMinutes),
+    "and its label should read the same value"
+  );
+});
+
+test("the automatic grow-back stands off gestures and open selections", () => {
+  resetData(app);
+  app.state.trees.push({ id: "left-behind", commonName: "Left behind", ...makePoint(app, 0.009, 0) });
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 0.5;
+
+  app.state.pinchActive = true;
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "a live pinch owns the radius");
+  app.state.pinchActive = false;
+
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "an open selection must not be replaced by the nearby list");
+  app.state.selected = null;
+
+  app.state.showAllOutsideRadius = true;
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "showing all distances has no empty ring to fix");
+  app.state.showAllOutsideRadius = false;
+
+  assert.equal(app.state.walkingDistanceMinutes, 0.5, "none of the above changed the radius");
+
+  // Mid-slide to a browsed spot the ring is what holds still on screen, so it must not resize
+  // underneath the animation -- the next fix picks it up once the slide has landed.
+  const spot = makePoint(app, 0.02, 0.02);
+  app.setNearbyAnchor(spot.latitude, spot.longitude, spot.point);
+  assert.ok(app.nearbyOriginTransitionActive(), "sanity: the browse slide is running");
+  const midSlide = app.state.walkingDistanceMinutes;
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "a browse slide holds the ring still");
+  assert.equal(app.state.walkingDistanceMinutes, midSlide);
 });
 
 test("settings form's slider floor hides tick marks the user can no longer reach", () => {
