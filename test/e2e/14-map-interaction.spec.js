@@ -333,7 +333,17 @@ test.describe("Map interaction", () => {
       // recomputing its geometry here and risking the test agreeing with itself.
       // The browse-origin slide leaves the rendered origin on the old spot for its first frames,
       // where the user is still inside the ring and the pointer is deliberately not drawn.
-      await page.waitForFunction(() => !nearbyOriginTransitionActive());
+      //
+      // Wait for the move to be *completely* over -- the transition object gone (so the reveal
+      // fade has finished too, not just the slide) and no viewport animation in flight. Waiting
+      // only for the slide and then calling stopViewportAnimation() freezes the camera wherever
+      // the animation had got to, which on a loaded machine is an intermediate framing where the
+      // user can still be on screen -- and the pointer is deliberately not drawn then, so the
+      // scan below finds nothing and the test fails for lack of a settled camera rather than for
+      // anything the app got wrong. Seen on CI, never on a dev box.
+      await page.waitForFunction(
+        () => !state.nearbyOriginTransition && state.viewportAnimationFrame == null
+      );
 
       const target = await page.evaluate(() => {
         stopViewportAnimation();
