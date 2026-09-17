@@ -180,6 +180,13 @@ globalThis.__forestFindsTest = {
   formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
+  headsUpSortedEntries,
+  headsUpScore,
+  nearbyListHeading,
+  syncNearbyListHeading,
+  refreshNearbyListForHeading,
+  HEADS_UP_BEHIND_PENALTY,
+  HEADS_UP_REORDER_DEGREES,
   walkingDistanceToMetres,
   walkingRadiusFloorMinutes,
   metresToWalkingMinutes,
@@ -210,6 +217,8 @@ globalThis.__forestFindsTest = {
   HEADING_UP_SCALE_EASE_RATE,
   HEADING_UP_SCALE_EASE_MAX_DT,
   maxNearbyHeadingUpScale,
+  nearbyFirstPersonFitZoom,
+  NEARBY_TILT_FIT_ZOOM,
   nearbyCameraFitPoints,
   nearestSelectedFilterPoints,
   walkingRadiusWorldUnits,
@@ -416,6 +425,7 @@ function resetData(app) {
   app.state.renderedNavigationHeading = null;
   app.state.compassHeading = null;
   app.state.compassHeadingTarget = null;
+  app.state.nearbyListHeading = null;
   app.state.compassCalibrationSamples = [];
   app.state.compassCalibrationStartedAt = null;
   app.state.compassCalibrationPromptVisible = false;
@@ -1284,6 +1294,115 @@ test("nearest list uses in-radius matches before fallback", () => {
   assert.equal(entries.filter(e => e.kind === "tree")[0].outOfRadius, true);
 });
 
+test("the nearby list ranks what you are facing above what is behind you at the same distance", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0; // facing north
+  app.state.overviewFilters = ["trees"];
+  // Same distance from the user, opposite sides: one due north (dead ahead), one due south.
+  app.state.trees.push(
+    { id: "behind-tree", commonName: "Behind tree", ...makePoint(app, -0.001, 0) },
+    { id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) }
+  );
+
+  const order = app.headsUpSortedEntries(app.overviewItemsForActiveFilter()).map((entry) => entry.item.id);
+
+  // .join, not deepEqual: arrays mapped from the vm sandbox carry the sandbox's Array prototype.
+  assert.equal(order.join(","), "ahead-tree,behind-tree");
+});
+
+test("the nearby list still puts a much closer find first, even when it is behind you", () => {
+  // Heads-up ordering biases the list, it does not override it: distance stays the dominant
+  // term, so something at your back that you could reach in seconds is not pushed below a
+  // far-off one you happen to be pointed at.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0; // facing north
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push(
+    { id: "far-ahead-tree", commonName: "Far ahead", ...makePoint(app, 0.003, 0) },
+    { id: "close-behind-tree", commonName: "Close behind", ...makePoint(app, -0.0005, 0) }
+  );
+
+  const order = app.headsUpSortedEntries(app.overviewItemsForActiveFilter()).map((entry) => entry.item.id);
+
+  assert.equal(order.join(","), "close-behind-tree,far-ahead-tree");
+});
+
+test("without a compass heading the nearby list is ordered by plain distance", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = null; // desktop, or location without orientation
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push(
+    { id: "behind-tree", commonName: "Behind tree", ...makePoint(app, -0.0009, 0) },
+    { id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) }
+  );
+
+  const entries = app.overviewItemsForActiveFilter();
+  const order = app.headsUpSortedEntries(entries).map((entry) => entry.item.id);
+
+  assert.equal(order.join(","), "behind-tree,ahead-tree", "nearest first, exactly as before");
+  assert.equal(app.headsUpSortedEntries(entries), entries, "and the memoized array is handed straight back");
+});
+
+test("heads-up ordering never mutates the memoized nearby item list the map also reads", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push(
+    { id: "behind-tree", commonName: "Behind tree", ...makePoint(app, -0.0009, 0) },
+    { id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) }
+  );
+
+  const entries = app.overviewItemsForActiveFilter();
+  const distanceOrder = entries.map((entry) => entry.item.id);
+  const headsUpOrder = app.headsUpSortedEntries(entries).map((entry) => entry.item.id);
+
+  assert.notEqual(headsUpOrder.join(","), distanceOrder.join(","), "sanity: this fixture should actually reorder");
+  assert.equal(entries.map((entry) => entry.item.id).join(","), distanceOrder.join(","), "the shared array keeps its distance order");
+});
+
+test("a find you are walking at climbs into the listed handful past closer ones behind you", () => {
+  // The order is applied to the whole in-radius set before the display cap, not to the top few
+  // by distance -- otherwise the item you are pointed at can never reach the list at all.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0; // facing north
+  app.state.overviewFilters = ["trees"];
+  app.state.nearestItemsCount = 2;
+  app.state.trees.push(
+    { id: "behind-1", commonName: "Behind one", ...makePoint(app, -0.0004, 0) },
+    { id: "behind-2", commonName: "Behind two", ...makePoint(app, -0.00045, 0) },
+    { id: "behind-3", commonName: "Behind three", ...makePoint(app, -0.0005, 0) },
+    { id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.0006, 0) }
+  );
+
+  const html = app.overviewNearestHtml();
+  app.state.nearestItemsCount = 10;
+
+  assert.match(html, /Ahead tree/, "the tree dead ahead makes the visible list");
+  assert.doesNotMatch(html, /Behind three/, "the third one at your back does not");
+});
+
+test("the nearby list only re-sorts once you have actually turned", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 40;
+
+  assert.equal(app.nearbyListHeading(), 40, "the first heading is adopted straight away");
+  assert.equal(app.syncNearbyListHeading(), false, "and re-syncing it changes nothing");
+
+  app.state.compassHeading = 40 + app.HEADS_UP_REORDER_DEGREES - 1; // sensor noise / a small sway
+  assert.equal(app.syncNearbyListHeading(), false);
+  assert.equal(app.nearbyListHeading(), 40, "the list stays ordered by the settled heading");
+
+  app.state.compassHeading = 40 + app.HEADS_UP_REORDER_DEGREES + 1; // a deliberate turn
+  assert.equal(app.syncNearbyListHeading(), true);
+  assert.equal(app.nearbyListHeading(), 40 + app.HEADS_UP_REORDER_DEGREES + 1);
+});
+
 test("fallback notice names the selected walking distance", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -1801,9 +1920,9 @@ test("headingUpAnchorFraction mirrors the selected-navigation anchor around the 
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 90; // facing east
-  app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> the full max-tilt anchor (0.90/0.88) applies
+  app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> the full max-tilt anchor (0.94/0.88) applies
 
-  const aheadAnchor = 0.90; // HEADING_UP_ANCHOR_NEARBY_TILT, reused here as the "ahead" selected anchor's sibling value would differ (0.88) -- computed below instead of hardcoded twice
+  const aheadAnchor = 0.94; // HEADING_UP_ANCHOR_NEARBY_TILT, reused here as the "ahead" selected anchor's sibling value would differ (0.88) -- computed below instead of hardcoded twice
 
   // Dead ahead (target due east): matches the plain tilt-ramped anchor exactly, same as
   // before this feature existed.
@@ -1957,6 +2076,49 @@ test("maxNearbyHeadingUpScale keeps a usable scale in full 3D, where the behind 
     wholeRingScale == null || actual > wholeRingScale * 1.5,
     `3D should zoom in well past the collapsed whole-ring fit (actual=${actual}, wholeRing=${wholeRingScale})`,
   );
+});
+
+test("in 3D the nearby camera frames past the edges of the walking radius instead of fitting the whole ring on screen", () => {
+  // The "too zoomed out in 3D" report: fitting the ahead half of the ring exactly put its left
+  // and right extremes on the screen edges, so the search area read as a small disc of forest
+  // with its own boundary drawn round it. First-person 3D zooms in past that by
+  // NEARBY_TILT_FIT_ZOOM, ramped in with the tilt.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.nearbyNavigationFocusPoint();
+  const ringPoints = app.walkingRadiusCirclePoints();
+
+  app.state.tiltBetaSmoothed = 0; // flat 2D
+  assert.equal(app.nearbyFirstPersonFitZoom(false), 1, "2D is about seeing the whole ring, so it is untouched");
+  assert.equal(
+    app.maxNearbyHeadingUpScale(focus, focusRect),
+    app.maxScaleForHeadingUpPoints(ringPoints, focus, focusRect, { projectTilt: true }),
+  );
+
+  app.state.tiltBetaSmoothed = 85; // full 3D
+  const tiltFocus = app.nearbyNavigationFocusPoint();
+  const plainFit = app.maxScaleForHeadingUpPoints(ringPoints, tiltFocus, focusRect, { projectTilt: true });
+  assert.ok(Math.abs(app.nearbyFirstPersonFitZoom(false) - app.NEARBY_TILT_FIT_ZOOM) < 1e-9, "at max tilt the full zoom applies");
+  assert.ok(
+    Math.abs(app.maxNearbyHeadingUpScale(tiltFocus, focusRect) - plainFit * app.NEARBY_TILT_FIT_ZOOM) < 1e-6,
+    "full 3D frames past the ring edges",
+  );
+});
+
+test("browsing a tapped spot in 3D keeps framing the whole nearest area rather than zooming into it", () => {
+  // The first-person zoom is about what is ahead of *you*. A browsed spot has no "ahead" -- the
+  // pivot is a place being looked at and its whole area has to stay on screen.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.compassHeading = 0;
+  app.state.tiltBetaSmoothed = 85;
+
+  assert.equal(app.nearbyFirstPersonFitZoom(true), 1);
 });
 
 test("maxNearbyHeadingUpScale does not depend on the compass heading, so the camera holds still while you turn", () => {
@@ -3802,11 +3964,11 @@ test("headingUpAnchorFraction ramps from the flat anchor to the max-tilt anchor,
   assert.equal(app.headingUpAnchorFraction(true), 0.62, "flat selected anchor (HEADING_UP_ANCHOR_SELECTED)");
 
   app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> ramp t = 1
-  assert.ok(Math.abs(app.headingUpAnchorFraction(false) - 0.90) < 1e-9, "max-tilt nearby anchor (HEADING_UP_ANCHOR_NEARBY_TILT)");
+  assert.ok(Math.abs(app.headingUpAnchorFraction(false) - 0.94) < 1e-9, "max-tilt nearby anchor (HEADING_UP_ANCHOR_NEARBY_TILT)");
   assert.ok(Math.abs(app.headingUpAnchorFraction(true) - 0.88) < 1e-9, "max-tilt selected anchor (HEADING_UP_ANCHOR_SELECTED_TILT)");
 
   app.state.tiltBetaSmoothed = 48.5; // midpoint of 12-85 -> ramp t = 0.5, same fixture beta other tilt tests use
-  assert.ok(Math.abs(app.headingUpAnchorFraction(false) - 0.70) < 1e-9, "midway nearby anchor: 0.5 + (0.90-0.5)*0.5");
+  assert.ok(Math.abs(app.headingUpAnchorFraction(false) - 0.72) < 1e-9, "midway nearby anchor: 0.5 + (0.94-0.5)*0.5");
   assert.ok(Math.abs(app.headingUpAnchorFraction(true) - 0.75) < 1e-9, "midway selected anchor: 0.62 + (0.88-0.62)*0.5");
 });
 
@@ -3837,17 +3999,17 @@ test("tiltAvailableAheadCssPx is the visible map height above the pivot, convert
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
-  app.state.tiltBetaSmoothed = 85; // max tilt -> nearby anchor is exactly 0.90
+  app.state.tiltBetaSmoothed = 85; // max tilt -> nearby anchor is exactly 0.94
 
   app.state.canvasVisibleHeight = 800;
-  assert.ok(Math.abs(app.tiltAvailableAheadCssPx() - 720) < 1e-9, "800 * 0.90 / dpr(1) = 720");
+  assert.ok(Math.abs(app.tiltAvailableAheadCssPx() - 752) < 1e-9, "800 * 0.94 / dpr(1) = 752");
 
   // pixelRatio() prefers els.canvas.dataset.dpr (set by resizeCanvas in real use) over
   // window.devicePixelRatio, so set that directly for a deterministic check here.
   const originalDatasetDpr = app.els.canvas.dataset.dpr;
   try {
     app.els.canvas.dataset.dpr = "2";
-    assert.ok(Math.abs(app.tiltAvailableAheadCssPx() - 360) < 1e-9, "800 * 0.90 / dpr(2) = 360 -- bitmap px converted down to CSS px");
+    assert.ok(Math.abs(app.tiltAvailableAheadCssPx() - 376) < 1e-9, "800 * 0.94 / dpr(2) = 376 -- bitmap px converted down to CSS px");
   } finally {
     app.els.canvas.dataset.dpr = originalDatasetDpr;
   }
@@ -5495,6 +5657,41 @@ test("in 3D the pivot eases across a slide instead of popping, and holds still b
   app.setNearbyAnchor(next.latitude, next.longitude, next.point);
   app.prepareCanvasForDraw();
   assert.equal(app.nearbyHeadingUpFocusY(), 0.5, "browse-to-browse keeps the centred pivot throughout");
+});
+
+test("in 3D the nearby zoom eases across a browse slide instead of switching framings", () => {
+  // The first-person camera frames past the walking radius (NEARBY_TILT_FIT_ZOOM) while a
+  // browsed spot frames the whole area around it, so the two ends of a slide now sit further
+  // apart in zoom than they used to. The scale has to travel between them on the slide's own
+  // easing: solving either end outright on the frame the tap lands is the "it jumps instead of
+  // sliding" report, and it is the only thing the e2e frame sampling cannot see for itself.
+  enterNearby3D(app);
+  app.prepareCanvasForDraw();
+  const focusRect = app.bestVisibleCanvasRect();
+  const firstPersonScale = app.maxNearbyHeadingUpScale(app.nearbyNavigationFocusPoint(focusRect), focusRect);
+
+  const anchorPoint = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchorPoint.latitude, anchorPoint.longitude, anchorPoint.point);
+  app.prepareCanvasForDraw();
+  const started = app.maxNearbyHeadingUpScale(app.nearbyNavigationFocusPoint(focusRect), focusRect);
+  assert.ok(
+    Math.abs(started - firstPersonScale) < firstPersonScale * 0.01,
+    `the slide starts from the first-person framing (${started} vs ${firstPersonScale})`
+  );
+
+  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs / 2;
+  app.prepareCanvasForDraw();
+  const midway = app.maxNearbyHeadingUpScale(app.nearbyNavigationFocusPoint(focusRect), focusRect);
+
+  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs + 1;
+  app.prepareCanvasForDraw();
+  const landed = app.maxNearbyHeadingUpScale(app.nearbyNavigationFocusPoint(focusRect), focusRect);
+
+  assert.ok(landed < firstPersonScale, `sanity: the browse framing is the wider of the two (${landed} vs ${firstPersonScale})`);
+  assert.ok(
+    midway < started && midway > landed,
+    `mid-slide the zoom sits between the two framings, got ${midway} between ${started} and ${landed}`
+  );
 });
 
 test("the radar cone stays on the user dot while browsing another spot in 3D", () => {

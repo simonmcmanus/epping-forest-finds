@@ -36,8 +36,8 @@ test.describe("Map drag input while camera auto-repositions", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.hashKey}`);
-    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/, { timeout: 10_000 });
-    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     // Desktop viewport (see playwright.config.js) keeps the inspector expanded after a
     // selection, so shouldAutoRepositionSelection() is active during this drag.
     await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
@@ -66,7 +66,7 @@ test.describe("Map drag input while camera auto-repositions", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page);
-    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/, { timeout: 10_000 });
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     await page.evaluate(() => {
       state.compassHeading = 90;
       state.compassHeadingTarget = 90;
@@ -108,7 +108,7 @@ test.describe("Wheel input while heading-up is active", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page);
-    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/, { timeout: 10_000 });
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     await page.evaluate(() => {
       state.compassHeading = 90;
       state.compassHeadingTarget = 90;

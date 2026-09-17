@@ -9,16 +9,16 @@ test.describe("Selection and Inspector", () => {
     });
 
     test("inspector title changes to the selected tree name", async ({ page }) => {
-      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     });
 
     test("inspector type line shows veteran tree label", async ({ page }) => {
-      await expect(page.locator("#inspectorType")).toContainText("Veteran tree", { timeout: 5_000 });
+      await expect(page.locator("#inspectorType")).toContainText("Veteran tree");
     });
 
     test("inspector body shows tree register details", async ({ page }) => {
       // Tag number should appear somewhere in the detail panel
-      await expect(page.locator("#inspectorBody")).toContainText(FIXTURE_TREE.tagNumber, { timeout: 5_000 });
+      await expect(page.locator("#inspectorBody")).toContainText(FIXTURE_TREE.tagNumber);
     });
 
     test("URL hash reflects the selected tree", async ({ page }) => {
@@ -32,7 +32,7 @@ test.describe("Selection and Inspector", () => {
     // runs on both the "desktop" and "mobile" (Pixel 5, 393px) Playwright projects, so this
     // one assertion covers both widths.
     test("inspector opens expanded, not minimized, when a location is loaded via a link", async ({ page }) => {
-      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
       await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
     });
 
@@ -64,13 +64,12 @@ test.describe("Selection and Inspector", () => {
     });
 
     test("back button returns inspector to overview mode", async ({ page }) => {
-      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
       await page.click("#nearbyToggle");
       // transitionInspectorBody() briefly creates two #inspectorTitle elements during the slide animation;
       // use waitForFunction with getElementById (returns first match) to avoid strict-mode violations
       await page.waitForFunction(
-        () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
-        { timeout: 5_000 }
+        () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
       );
     });
 
@@ -100,7 +99,7 @@ test.describe("Selection and Inspector", () => {
           new MouseEvent("click", { bubbles: true, cancelable: true })
         )
       );
-      await expect(page.locator("#treeSearchPanel")).toBeVisible({ timeout: 3_000 });
+      await expect(page.locator("#treeSearchPanel")).toBeVisible();
     });
 
     test("searching by tree number selects the correct tree", async ({ page }) => {
@@ -116,8 +115,7 @@ test.describe("Selection and Inspector", () => {
       // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
       await page.waitForFunction(
         (name) => document.getElementById("inspectorTitle")?.textContent?.includes(name),
-        FIXTURE_TREE.commonName,
-        { timeout: 5_000 }
+        FIXTURE_TREE.commonName
       );
     });
   });
@@ -125,7 +123,7 @@ test.describe("Selection and Inspector", () => {
   test.describe("inspector state when location is selected", () => {
     test.beforeEach(async ({ page }) => {
       await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
-      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     });
 
     test("inspector tools section is hidden in selected-detail mode", async ({ page }) => {

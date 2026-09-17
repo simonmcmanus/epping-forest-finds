@@ -8,7 +8,7 @@ test.describe("URL hash navigation", () => {
       await skipOnboarding(page);
       await mockCowApi(page);
       await gotoAndWaitForMap(page, "/#filters");
-      await expect(page).toHaveURL(/#filters$/, { timeout: 3_000 });
+      await expect(page).toHaveURL(/#filters$/);
       await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
     });
   });
@@ -22,7 +22,7 @@ test.describe("URL hash navigation", () => {
       await skipOnboarding(page);
       await mockCowApi(page);
       await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.hashKey}`);
-      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     });
 
     test("selecting a tree sets the URL hash via replaceState", async ({ page }) => {
@@ -40,7 +40,7 @@ test.describe("URL hash navigation", () => {
       // After toggle, #treeSearchInput and #treeSearchButton are in inspector-tools (not covered)
       await page.fill("#treeSearchInput", FIXTURE_TREE.tagNumber);
       await page.click("#treeSearchButton");
-      await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`), { timeout: 5_000 });
+      await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
 
       // replaceState must not add a history entry (pressing back should exit the app)
       const historyAfter = await page.evaluate(() => window.history.length);
@@ -51,21 +51,20 @@ test.describe("URL hash navigation", () => {
   test.describe("empty hash", () => {
     test("an empty hashchange triggers goToInitialView when filter screen is not open", async ({ page }) => {
       await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
-      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
       // Manually clear hash to trigger hashchange
       await page.evaluate(() => history.replaceState(null, "", "/"));
       await page.evaluate(() => window.dispatchEvent(new HashChangeEvent("hashchange")));
       // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
       await page.waitForFunction(
-        () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
-        { timeout: 5_000 }
+        () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
       );
     });
 
     test("an empty hashchange does not close the filter screen", async ({ page }) => {
       await setup(page);
       await page.click("#filterToggle");
-      await expect(page).toHaveURL(/#filters$/, { timeout: 3_000 });
+      await expect(page).toHaveURL(/#filters$/);
       // Clear hash while filter screen is open — it must stay open
       await page.evaluate(() => history.replaceState(null, "", "/"));
       await page.evaluate(() => window.dispatchEvent(new HashChangeEvent("hashchange")));

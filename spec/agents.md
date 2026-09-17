@@ -64,13 +64,61 @@ Before finishing any implementation task:
 - `/api/cows` is always mocked via `test/e2e/fixtures/cows.json` — never hit the live Nofence API in tests.
 - **Geolocation is always answered, one way or the other.** A spec that wants a position says so with `test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] })`; every other spec gets an immediate `PERMISSION_DENIED` from `denyGeolocationUnlessGranted` in `test/e2e/helpers.js`. Chromium answers an ungranted `getCurrentPosition` neither way — no success callback, no error callback, and the request's own `timeout` option does not start until the permission decision is made — so without this a spec that does not grant location sat through the app's whole boot-location bound on every page load, and whether it beat the test timeout depended on how loaded the machine was. That is what used to make whole spec files fail together on CI. The stub only replaces `getCurrentPosition`, and only when the permission has not been granted, so a granting spec keeps the real API and Playwright's mock position.
 - `PLAYWRIGHT_CHROMIUM_EXECUTABLE` (optional, unset by default) points Playwright at an existing Chromium binary instead of the one it downloads. It exists only for sandboxes that cannot reach `cdn.playwright.dev` and so cannot run `npx playwright install`; local Macs and CI are unaffected and keep using Playwright's own pinned browser. A mismatched Chromium build renders text differently, so `toHaveScreenshot()` failures under this var are environmental and must never be used to regenerate the committed snapshots.
-- `playwright.config.js` extends the `toHaveScreenshot()` stability timeout to 15s under `process.env.CI` (default 5s elsewhere). GitHub-hosted runners only have 2 vCPUs, and running the full 4 workers there can slow a page's animation-frame loop enough that the default 5s isn't always enough to catch a stable frame before comparing pixels. Workers stay at 4 everywhere — this fixes the flakiness without giving up CI parallelism/speed.
+- **One Playwright project per CI runner, two workers each.** A GitHub-hosted runner has 2 vCPUs. Running the whole suite on one of them at `workers: 4` gave every worker half a core, which stretched the app's boot-and-draw cycle past the waits the specs bound it with and failed whole spec files together in `beforeEach` — around 20 failures a run, while the same suite showed 3-4 on a 4-core dev box. That was starvation, not flakiness. `.github/workflows/ci.yml` now runs the `E2E tests` job as a `project: [desktop, mobile]` matrix, and `playwright.config.js` sets `workers: process.env.CI ? 2 : 4`: two runners, two workers each, a full core per worker, the same total parallelism, and both jobs concurrent so wall-clock does not suffer. The snapshot-baseline commit step is `if: matrix.project == 'mobile'` — every `toHaveScreenshot()` spec is skipped outside mobile, and two jobs pushing to one branch would race.
+- **To reproduce a CI-only failure locally, constrain the CPU:** `CI=1 taskset -c 0,1 npx playwright test --project=mobile`. Two cores and `CI=1` is what the runner actually gives a job, and it reproduces starvation failures that a 4-core box hides completely. Do this before concluding a CI failure is "environmental".
+- **Specs say *what* they wait for; `playwright.config.js` says how long.** `expect.timeout` is 20s under CI and 5s elsewhere, so don't pass `{ timeout: N }` to an `expect()` assertion. An assertion's timeout bounds how long the UI may take to get somewhere — it is not a behaviour under test, and a genuinely broken UI still fails on the 60s test timeout. Roughly a hundred hard-coded few-second bounds were what turned a slow runner into a red suite; they are gone, and new ones should not appear. A deliberately long bound for something genuinely slow (the boot-location tests in `09-location`) is fine and stays explicit.
+- `toHaveScreenshot()` allows `maxDiffPixelRatio: 0.001`. Even comparing against baselines CI generated itself on the same runner image, canvas antialiasing and font hinting came back ~28 pixels apart on a ~334k-pixel screenshot under load. 0.1% is ten times the headroom that noise needs and still catches any diff big enough to see. The `toHaveScreenshot()` stability timeout is 15s under CI (5s elsewhere) for the same reason.
+
+### CI is the verdict, not your local run
+
+**A local `npm run test:e2e` is a pre-filter. The CI `E2E tests` job on your own branch is the
+result.** The two disagree badly and routinely: this suite has repeatedly run 3-4 failures in a
+dev sandbox and 20-25 on a GitHub runner, because the runner has 2 vCPUs for 4 workers and the
+whole job takes ~27 minutes, so timing-sensitive specs (`beforeEach` waits, animation frames,
+paint counts) fail there and nowhere else. Two consecutive PRs were handed over as done on the
+strength of a green-ish local run while their CI job was red the whole time.
+
+So, before a PR is done — every time, no exceptions:
+
+1. **Push, then read the CI run for your head SHA.** `actions_list` → `list_workflow_runs`
+   filtered to your branch, then `list_workflow_jobs`, then `get_job_logs` on the `E2E tests`
+   job. Read the `N failed / N passed` line and the failure list under it.
+2. **The job must be green.** Not "green apart from the environmental ones" — green.
+3. **Never call a failure pre-existing on the basis of a local run.** Establish it CI-to-CI:
+   pull the CI failure list for your merge-base commit (the run on `main` for the SHA you
+   branched from) and diff the two lists by test name. A failure on your branch that is not on
+   that list is yours, whatever it looks like.
+4. **Never write "passes locally" as evidence in a commit message, PR body, or hand-off.** State
+   what CI said: the run URL, the pass/fail counts, and — if anything is still red — exactly
+   which tests and why they are not yours, with the merge-base run that proves it.
+
+If a wait is unavoidable, wait: the e2e job takes ~27 minutes. Reporting a task finished before
+its CI run exists is reporting a guess.
+
+### If the suite is already red when you arrive
+
+Say so, with numbers, in your first report — do not absorb it silently and do not let it become
+cover for your own failures. Then either fix it, or get a decision from the user about scope.
+Shipping onto a red suite without flagging it is what let the failure count drift upward
+unnoticed for a week.
+
+### Changing a shared test helper
+
+A helper like `tiltTo` in `test/e2e/13-tilt-3d.spec.js` sets up the state that every test in the
+file then measures. Changing it changes what all of them are looking at, and a change that fixes
+the one test you had in mind can silently break another on a viewport you did not run. If only
+one test needs different setup, give that test its own helper rather than editing the shared one.
+If you do edit a shared one, re-run every spec that uses it, on **every** Playwright project
+(`--project=desktop` and `--project=mobile`), and then confirm in CI.
 
 ### Completion checklist for every task
 1. `node --test test/forest-finds.test.js` passes.
-2. `npm run test:e2e` passes (or snapshots are regenerated intentionally).
+2. `npm run test:e2e` passes locally (or snapshots are regenerated intentionally). For anything
+   timing-sensitive, run it the way CI will: `CI=1 taskset -c 0,1 npx playwright test --project=<name>`.
 3. Relevant `spec/` file is updated, or reason documented.
-4. create a commit with a good concise description summarising the change  
+4. Create a commit with a good concise description summarising the change.
+5. Push, wait for CI, and confirm the `E2E tests` job is **green on your branch** — per "CI is
+   the verdict" above. The task is not finished until it is, and the report says what CI said.
 
 ## Code Quality
 - Separate concerns strictly per the project structure above.

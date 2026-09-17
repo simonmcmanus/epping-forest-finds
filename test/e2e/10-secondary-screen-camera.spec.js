@@ -19,7 +19,7 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page);
-    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/, { timeout: 10_000 });
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
   });
 
   async function readViewport(page) {
@@ -34,15 +34,15 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
 
   test("filter, settings, and feedback screens converge on the same camera fit", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/, { timeout: 3_000 });
+    await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
     const filterViewport = await readViewport(page);
 
     await page.click("#settingsToggle");
-    await expect(page.locator("#settingsWalkMins")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#settingsWalkMins")).toBeVisible();
     const settingsViewport = await readViewport(page);
 
     await page.click("#reportToggle");
-    await expect(page.locator("#reportDetails")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#reportDetails")).toBeVisible();
     const feedbackViewport = await readViewport(page);
 
     const tolerance = 0.5;

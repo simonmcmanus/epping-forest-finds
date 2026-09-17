@@ -7,7 +7,7 @@ test.describe("Settings screen", () => {
     await setup(page);
     await page.click("#settingsToggle");
     // Wait for the settings panel to render
-    await expect(page.locator("#settingsWalkMins")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#settingsWalkMins")).toBeVisible();
   });
 
   test("settings button opens the settings screen", async ({ page }) => {
@@ -61,8 +61,7 @@ test.describe("Settings screen", () => {
     await page.click("#nearbyToggle");
     // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
     await page.waitForFunction(
-      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
-      { timeout: 5_000 }
+      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
     );
   });
 

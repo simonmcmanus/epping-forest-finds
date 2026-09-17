@@ -1140,6 +1140,7 @@ function goToInitialView(updateHash = true) {
     if (compassAge > 5000) {
       state.compassHeading = null;
       state.compassHeadingTarget = null;
+      state.nearbyListHeading = null;
       state.renderedNavigationHeading = null;
       state.headingUpEntryAnim = null;
       if (typeof resetCompassCalibration === "function") resetCompassCalibration();

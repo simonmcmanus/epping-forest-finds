@@ -6,7 +6,7 @@ test.describe("Feedback / Report screen", () => {
   test.beforeEach(async ({ page }) => {
     await setup(page);
     await page.click("#reportToggle");
-    await expect(page.locator("#reportDetails")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#reportDetails")).toBeVisible();
   });
 
   test("feedback button opens the report form", async ({ page }) => {
@@ -35,8 +35,7 @@ test.describe("Feedback / Report screen", () => {
   test("Nearby button closes the report screen and returns to overview", async ({ page }) => {
     await page.click("#nearbyToggle");
     await page.waitForFunction(
-      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
-      { timeout: 5_000 }
+      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
     );
     await expect(page.locator("#reportToggle")).not.toHaveClass(/screen-active/);
   });
@@ -45,8 +44,7 @@ test.describe("Feedback / Report screen", () => {
     await page.click("#reportCancel");
     // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
     await page.waitForFunction(
-      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
-      { timeout: 5_000 }
+      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
     );
   });
 
@@ -71,7 +69,7 @@ test.describe("Feedback / Report screen", () => {
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
-    await expect(page.locator("#reportStatus")).toContainText("submitted successfully", { timeout: 5_000 });
+    await expect(page.locator("#reportStatus")).toContainText("submitted successfully");
     expect(requestCount).toBe(1);
   });
 
@@ -86,12 +84,12 @@ test.describe("Feedback / Report screen", () => {
 
     await page.fill("#reportDetails", "Retry keeps request id test");
     await page.click("#reportSubmit");
-    await expect(page.locator("#reportStatus")).toContainText("Failed to reach GitHub API", { timeout: 5_000 });
+    await expect(page.locator("#reportStatus")).toContainText("Failed to reach GitHub API");
     const firstId = await page.evaluate(() => localStorage.getItem("forest-finds-report-request-id-v1"));
     expect(firstId).toBeTruthy();
 
     await page.click("#reportSubmit");
-    await expect(page.locator("#reportStatus")).toContainText("Failed to reach GitHub API", { timeout: 5_000 });
+    await expect(page.locator("#reportStatus")).toContainText("Failed to reach GitHub API");
     const secondId = await page.evaluate(() => localStorage.getItem("forest-finds-report-request-id-v1"));
     expect(secondId).toBe(firstId);
   });
@@ -152,7 +150,7 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
   test("portrait bottom sheet: repositions above the simulated keyboard and keeps the textarea visible", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.click("#reportToggle");
-    await expect(page.locator("#reportDetails")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#reportDetails")).toBeVisible();
 
     const beforeBox = await page.locator("#reportDetails").boundingBox();
     const insetPx = 260;
@@ -190,7 +188,7 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await installFakeVisualViewport(page);
     await setup(page);
     await page.click("#reportToggle");
-    await expect(page.locator("#reportDetails")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#reportDetails")).toBeVisible();
 
     const beforeBox = await page.locator("#reportDetails").boundingBox();
     const insetPx = 180;
@@ -216,7 +214,7 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
   test("is scoped to the Report screen — Settings is unaffected by the simulated keyboard", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.click("#settingsToggle");
-    await expect(page.locator("#settingsWalkMins")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#settingsWalkMins")).toBeVisible();
 
     await simulateKeyboardInset(page, 260);
     await expect(page.locator("#inspector")).not.toHaveClass(/keyboard-avoiding/);
@@ -226,7 +224,7 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
 test.describe("Reporting a mistake from a weekly report", () => {
   test("a #report link opens the report form straight away", async ({ page }) => {
     await setup(page, "/#report");
-    await expect(page.locator("#reportForm")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#reportForm")).toBeVisible();
     await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
   });
 

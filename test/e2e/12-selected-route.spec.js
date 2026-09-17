@@ -14,7 +14,7 @@ test.describe("Selected route line follows the road/path network", () => {
 
   test("routes to a selected tree along mapped paths/roads instead of a straight line once the routing graph is ready", async ({ page }) => {
     await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
-    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
 
     // Building the ~120k-node regional graph from the full roads+paths GeoJSON is deliberately
     // lazy (see "Routing Graph (Lazy, Derived)" in spec-data-fetching.md) and triggered only once
@@ -24,8 +24,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // Once the graph is ready, drawSelectedRoute's next frame should have populated the memoized
     // route cache for this selection (js/renderer.js's selectedRoutePoints).
     await page.waitForFunction(
-      () => Boolean(state.selectedRouteCache && state.selectedRouteCache.points && state.selectedRouteCache.points.length > 2),
-      { timeout: 10_000 }
+      () => Boolean(state.selectedRouteCache && state.selectedRouteCache.points && state.selectedRouteCache.points.length > 2)
     );
 
     const result = await page.evaluate(() => {
@@ -62,8 +61,7 @@ test.describe("Selected route line follows the road/path network", () => {
         const pill = document.querySelector('[data-live-field="distance"]');
         return Boolean(pill) && pill.innerHTML.includes(formatDistance(metres));
       },
-      result.routeMetres,
-      { timeout: 5_000 }
+      result.routeMetres
     );
     const pillText = await page.locator('[data-live-field="distance"]').first().innerText();
     expect(pillText).toContain(await page.evaluate((metres) => formatDistance(metres), result.routeMetres));
@@ -71,7 +69,7 @@ test.describe("Selected route line follows the road/path network", () => {
 
   test("re-fits the viewport once the routing graph is ready so the whole routed line stays on screen", async ({ page }) => {
     await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
-    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
 
     // The selection's own viewport fit runs immediately, while the graph is still building, so it
     // can only fit the straight-line [user, destination] fallback. This is the regression guard
@@ -80,8 +78,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // lands off-screen or behind the inspector.
     await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
     await page.waitForFunction(
-      () => Boolean(state.selectedRouteCache && state.selectedRouteCache.points && state.selectedRouteCache.points.length > 2),
-      { timeout: 10_000 }
+      () => Boolean(state.selectedRouteCache && state.selectedRouteCache.points && state.selectedRouteCache.points.length > 2)
     );
 
     // Poll rather than assert-once: the re-fit deliberately waits out any in-flight viewport
@@ -98,7 +95,7 @@ test.describe("Selected route line follows the road/path network", () => {
       });
     };
 
-    await page.waitForFunction(allPointsVisible, { timeout: 15_000 });
+    await page.waitForFunction(allPointsVisible);
 
     // Re-assert on a settled viewport so a transient pass mid-animation cannot green the test.
     const offScreenCount = await page.evaluate(() => {
@@ -122,7 +119,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // 60, 5.27x at 85). Reported from the field as the selected-route view being far too
     // zoomed out. See claude/heading-up-tilt-aware-fit.md.
     await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
-    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
 
     for (const beta of [20, 30, 45, 60]) {

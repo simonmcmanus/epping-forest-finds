@@ -10,7 +10,7 @@ test.describe("Map interaction", () => {
   test.describe("Selecting a group", () => {
     test("tapping a group of trees shows only that group on the map", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       // Find a real multi-item tree cluster at the current camera and tap its pin. Which pins
       // cluster together depends on the live dataset and the settled camera, so the target is
@@ -54,8 +54,8 @@ test.describe("Map interaction", () => {
   test.describe("The nearest area", () => {
     test("a tap on a street beyond the walking radius moves the nearest area instead of selecting it", async ({ page }) => {
       await setup(page);
-      await page.waitForFunction(() => Boolean(state.userLocation) && state.roads.length > 0, { timeout: 15_000 });
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await page.waitForFunction(() => Boolean(state.userLocation) && state.roads.length > 0);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       // The nearby camera frames the ring, so the out-of-radius region on screen is the corners.
       // Read a real road vertex that lands there from the road geometry itself rather than
@@ -96,7 +96,7 @@ test.describe("Map interaction", () => {
 
     test("repeated taps outside the nearest area keep moving it, at a steady zoom", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
       await page.waitForTimeout(1000);
 
       // How big the ring is drawn and where its centre sits on screen are what "still in nearby
@@ -184,7 +184,7 @@ test.describe("Map interaction", () => {
 
     test("the whole walking radius stays in the map area at every tilt angle", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       await page.evaluate(() => {
         const origin = state.userLocation;
@@ -208,7 +208,7 @@ test.describe("Map interaction", () => {
 
     test("the content inside the browsed radius is not hidden as 'behind you'", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
       await tiltTo(page, 60);
 
       const firstPerson = await page.evaluate(() => {
@@ -242,7 +242,7 @@ test.describe("Map interaction", () => {
   test.describe("Moving the nearby point", () => {
     test("the radius circle holds still on screen while the map slides behind it", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
       await page.waitForTimeout(1000);
 
       const sample = () => page.evaluate(() => {
@@ -272,7 +272,7 @@ test.describe("Map interaction", () => {
         await page.waitForTimeout(60);
         frames.push(await sample());
       }
-      await page.waitForFunction(() => !nearbyOriginTransitionActive(), { timeout: 5_000 });
+      await page.waitForFunction(() => !nearbyOriginTransitionActive());
       const settled = await sample();
 
       expect(frames.some((f) => f.sliding), "the slide should have been observed running").toBe(true);
@@ -286,7 +286,7 @@ test.describe("Map interaction", () => {
 
     test("the new nearby set is held back until the map lands, then fades in", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
       await page.waitForTimeout(1000);
 
       // Both read in one round trip: sampled separately, the slide can finish between them and
@@ -313,14 +313,14 @@ test.describe("Map interaction", () => {
       }
       expect(during.some((sample) => sample.sliding), "the slide should have been observed running").toBe(true);
 
-      await page.waitForFunction(() => nearbyRevealOpacity() === 1, { timeout: 5_000 });
+      await page.waitForFunction(() => nearbyRevealOpacity() === 1);
     });
   });
 
   test.describe("The off-ring user pointer", () => {
     test("tapping it goes back to using the real location", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       await page.evaluate(() => {
         const latitude = state.userLocation.latitude - 0.005;
@@ -333,7 +333,17 @@ test.describe("Map interaction", () => {
       // recomputing its geometry here and risking the test agreeing with itself.
       // The browse-origin slide leaves the rendered origin on the old spot for its first frames,
       // where the user is still inside the ring and the pointer is deliberately not drawn.
-      await page.waitForFunction(() => !nearbyOriginTransitionActive(), { timeout: 5_000 });
+      //
+      // Wait for the move to be *completely* over -- the transition object gone (so the reveal
+      // fade has finished too, not just the slide) and no viewport animation in flight. Waiting
+      // only for the slide and then calling stopViewportAnimation() freezes the camera wherever
+      // the animation had got to, which on a loaded machine is an intermediate framing where the
+      // user can still be on screen -- and the pointer is deliberately not drawn then, so the
+      // scan below finds nothing and the test fails for lack of a settled camera rather than for
+      // anything the app got wrong. Seen on CI, never on a dev box.
+      await page.waitForFunction(
+        () => !state.nearbyOriginTransition && state.viewportAnimationFrame == null
+      );
 
       const target = await page.evaluate(() => {
         stopViewportAnimation();
@@ -366,7 +376,7 @@ test.describe("Map interaction", () => {
 
     test("it stands down once the You dot itself is on screen", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       const shown = await page.evaluate(() => {
         const latitude = state.userLocation.latitude - 0.005;
@@ -422,7 +432,7 @@ test.describe("Map interaction", () => {
     // markers -- and it has to bridge exactly the gap, apex on the dot, far edge on the ring.
     test("it bridges the You dot and the ring while browsing a distant spot", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       const shape = await page.evaluate(() => {
         const latitude = state.userLocation.latitude - 0.005;
@@ -454,7 +464,7 @@ test.describe("Map interaction", () => {
 
     test("it is not drawn once the user is standing inside the ring", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       const cone = await page.evaluate(() => {
         const latitude = state.userLocation.latitude + 0.0002;
@@ -476,7 +486,7 @@ test.describe("Map interaction", () => {
   test.describe("Selecting a street", () => {
     test("a selected street becomes a navigation target with a route and distance", async ({ page }) => {
       await setup(page);
-      await page.waitForFunction(() => Boolean(state.userLocation) && state.roads.length > 0, { timeout: 15_000 });
+      await page.waitForFunction(() => Boolean(state.userLocation) && state.roads.length > 0);
 
       const navigating = await page.evaluate(() => {
         const road = state.roads.find((r) => r.segments && r.segments.length && (r.name || r.ref));
@@ -496,8 +506,7 @@ test.describe("Map interaction", () => {
       expect(navigating.routePointCount).toBeGreaterThanOrEqual(2);
       // startCompassNavigation awaits the compass-permission check before it reveals the arrow.
       await page.waitForFunction(
-        () => document.getElementById("compassArrow").hidden === false,
-        { timeout: 5_000 }
+        () => document.getElementById("compassArrow").hidden === false
       );
       await expect(page.locator("#inspectorBody .detail-top-row")).toBeVisible();
     });

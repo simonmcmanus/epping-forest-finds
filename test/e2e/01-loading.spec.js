@@ -15,7 +15,7 @@ test.describe("Loading experience", () => {
       await route.continue();
     });
     await page.goto("/");
-    await expect(page.locator("#loadingOverlay")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#loadingOverlay")).toBeVisible();
   });
 
   test("overlay shows a version badge element", async ({ page }) => {
