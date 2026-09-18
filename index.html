@@ -308,7 +308,7 @@
     const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
     const MAX_CANVAS_DIMENSION = 3072;
     const MAX_CANVAS_PIXEL_COUNT = 9437184;
-    const APP_VERSION = "v28"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+    const APP_VERSION = "v30"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
     const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
     // Declared up here with the other boot-time constants, not next to the compass
     // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -418,6 +418,14 @@
       nearestItemsCount: 10,
       walkingDistanceMinutes: 5,
       walkingRadiusAtFloor: false,
+      // The wheel/trackpad radius gesture's running (unrounded) value and its settle timer --
+      // a wheel has no pointerup to end on, so the gesture ends on a timeout instead
+      // (updateNearbyRadiusWheel/endNearbyRadiusWheel, js/nav.js).
+      wheelRadiusMinutes: null,
+      wheelRadiusSettleTimer: null,
+      // Safari's trackpad pinch (gesturestart/change/end) measures from where the gesture began,
+      // like the two-finger pinch does -- see startNearbyRadiusGesture, js/nav.js.
+      gestureRadiusBaseMinutes: null,
       showAllOutsideRadius: false,
       compassHeading: null,
       compassHeadingTarget: null,
@@ -1663,7 +1671,12 @@
       // The floor keeps the slider from being dragged down to a radius with nothing in it (see
       // walkingRadiusFloorMinutes, js/nav.js); a native <input type="range"> min attribute
       // enforces it directly, so there's no separate clamp to keep in sync here.
-      const floorMinutes = walkingRadiusFloorMinutes(state.userLocation);
+      // Snapped up onto the value grid (ceilWalkingMinutes): a range input steps from its own
+      // min, so a raw floor like 0.41 would put every reachable value off the grid the label and
+      // the pinch gesture use.
+      const floorMinutes = ceilWalkingMinutes(walkingRadiusFloorMinutes(state.userLocation));
+      // A floor below a minute means something is close enough to be worth the finer step.
+      const stepMinutes = floorMinutes < 1 ? WALKING_RADIUS_FINE_STEP_MINUTES : WALKING_RADIUS_STEP_MINUTES;
       const sliderValue = clamp(minutes, floorMinutes, WALKING_RADIUS_MAX_MINUTES);
       const ticks = WALKING_RADIUS_PRESET_MINUTES
         .filter((m) => m >= floorMinutes && m <= WALKING_RADIUS_MAX_MINUTES)
@@ -1676,9 +1689,9 @@
           <label for="settingsWalkMins" class="settings-label">Walking time
             <span class="walk-radius-row">
               <input type="range" id="settingsWalkMins" class="walk-radius-range"
-                min="${floorMinutes}" max="${WALKING_RADIUS_MAX_MINUTES}" step="0.5"
+                min="${floorMinutes}" max="${WALKING_RADIUS_MAX_MINUTES}" step="${stepMinutes}"
                 value="${sliderValue}" list="walkRadiusTicks">
-              <span class="walk-radius-value" id="settingsWalkMinsValue">${formatWalkingMinutes(sliderValue)} min</span>
+              <span class="walk-radius-value" id="settingsWalkMinsValue">${formatWalkingRadius(sliderValue)}</span>
             </span>
             <datalist id="walkRadiusTicks">${ticks}</datalist>
           </label>
@@ -1727,8 +1740,11 @@
         // to each intermediate fit rather than queuing an animation per tick; "change" fires
         // once on release for the smooth settling motion (default animate:true).
         range.addEventListener("input", () => {
-          const value = Number(range.value);
-          if (valueLabel) valueLabel.textContent = `${formatWalkingMinutes(value)} min`;
+          // Snapped to the same grid the pinch gesture applies, so a fine-step slider (offered
+          // when something sits less than a minute away) still lands on whole half-minutes once
+          // it is dragged up past a minute.
+          const value = roundWalkingMinutes(Number(range.value));
+          if (valueLabel) valueLabel.textContent = formatWalkingRadius(value);
           if (floorNote) floorNote.hidden = value > floorMinutes;
           applyWalkingRadiusChange(value, { animate: false });
         });
@@ -2454,7 +2470,7 @@
       const heading = activePointFilters.length === 1
         ? `Nearest ${filterMeta(activePointFilters[0])?.title || "items"} around you`
         : state.overviewFilters.length > 0
-          ? `Nearest selected filters within ${formatWalkingMinutes(state.walkingDistanceMinutes)} min walk`
+          ? `Nearest selected filters within ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`
           : "Nearest around you";
 
       const itemsHtml = entries.map((entry) => {
@@ -2488,13 +2504,13 @@
       }).join("");
 
       const fallbackNotice = state.overviewOutsideRadiusFallback
-        ? `<p class="source-note"><strong>Nothing found within ${formatWalkingMinutes(state.walkingDistanceMinutes)} mins walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
+        ? `<p class="source-note"><strong>Nothing found within ${formatWalkingRadius(state.walkingDistanceMinutes)} walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
         : "";
       const radiusActive = !state.showAllOutsideRadius;
       const chipTitle = radiusActive
-        ? `Showing within ${formatWalkingMinutes(state.walkingDistanceMinutes)} min walk — tap to show all`
-        : `Showing all distances — tap to filter to ${formatWalkingMinutes(state.walkingDistanceMinutes)} min walk`;
-      const chipLabel = radiusActive ? `${formatWalkingMinutes(state.walkingDistanceMinutes)} min` : "All";
+        ? `Showing within ${formatWalkingRadius(state.walkingDistanceMinutes)} walk — tap to show all`
+        : `Showing all distances — tap to filter to ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
+      const chipLabel = radiusActive ? formatWalkingRadius(state.walkingDistanceMinutes) : "All";
       const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
       return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
     }
@@ -3089,6 +3105,9 @@
           state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
           state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
           state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+          // Walked out of a radius that was framing one nearby find? Grow it back to whatever is
+          // still in reach before the list and camera are re-derived below (js/nav.js).
+          ensureWalkingRadiusCoversNearest();
           if (isOverviewScreenActive()) {
             selectOverview();
           }

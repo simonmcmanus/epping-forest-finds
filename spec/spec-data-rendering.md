@@ -488,14 +488,72 @@ moving the real GPS fix:
   priority the "nothing in radius" list fallback uses), plus a 15% buffer
   (`WALKING_RADIUS_FLOOR_BUFFER`) so that item settles clearly inside the ring rather than on
   its edge. Falls back to `WALKING_RADIUS_MIN_MINUTES` (1) with no origin or nothing to measure
-  against. While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
+  against — that fallback is *not* a limit on zooming in: a real nearest item takes the floor
+  all the way down to `WALKING_RADIUS_TIGHT_MIN_MINUTES` (0.25 min, ~21 m), so a find a few
+  seconds away can be closed right in on, ring and camera together. The camera follows because
+  the Nearby fit frames the ring and nothing else (see "Heading-up nearby mode" below).
+  Values snap to a grid: `WALKING_RADIUS_STEP_MINUTES` (0.5) at a minute and above,
+  `WALKING_RADIUS_FINE_STEP_MINUTES` (0.25) below it, where half-minute steps would be a third
+  of what is left (`walkingMinutesStep`/`roundWalkingMinutes`/`ceilWalkingMinutes`). A value
+  snapped at the floor is rounded *up* onto that grid so it can never land just inside it.
+  Sub-minute radii are shown in seconds ("15 sec") rather than as a fraction of a minute —
+  `formatWalkingRadius()` is what every user-facing radius label goes through.
+  While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
   and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
   (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. That notice
   lives in the Nearby list, so the lightweight re-render that keeps it in sync is skipped on
   Filter/Settings/Report — there is nothing there to refresh, and `selectOverview()` would
   replace the open screen. On the
   Settings slider, the same floor is enforced natively via the `<input type="range">`'s own
-  `min` attribute, and a `#settingsWalkMinsFloorNote` appears whenever the slider sits at it.
+  `min` attribute (rounded up onto the value grid, since a range input steps from its own `min`)
+  with a matching `step`, and a `#settingsWalkMinsFloorNote` appears whenever the slider sits
+  at it. That form is built once when the screen opens, so a radius changed from *outside* it --
+  the pinch gesture (which engages over Settings too) or the automatic grow-back below -- writes
+  the new value, floor, step and label back into it via `syncSettingsWalkSlider()` (`js/nav.js`).
+  It is deliberately not called from `refreshNearbyRadiusView`, which a live slider drag runs
+  through on every `input`: writing the value back mid-drag would tug the thumb under the finger.
+- **Wheel and trackpad resize the ring (`updateNearbyRadiusWheel`, js/nav.js).** The canvas wheel
+  handler routes to the radius gesture on exactly the screens the two-finger pinch engages on
+  (`wheelResizesNearbyRadius()`: a user location plus `isOverviewScreenActive()` or
+  `secondaryScreenActive()`); anywhere else it falls through to the old `zoomAt()` map zoom.
+  `deltaY < 0` (zoom in) shrinks the radius, matching both the pinch's direction and what the
+  wheel used to do to the map. Deltas are normalised to pixels first (`normalizeWheelPixels`
+  handles Firefox's line mode and page mode), then applied as `Math.exp(pixels * rate)` —
+  `WHEEL_RADIUS_RATE_PER_PIXEL` puts a ~100px wheel notch at the 1.22x step the map zoom took,
+  and a trackpad pinch (reported as ctrl+wheel, in far smaller deltas) multiplies that rate by
+  `TRACKPAD_PINCH_RATE_MULTIPLIER` so a whole pinch is worth a whole pinch. The running value
+  lives unrounded in `state.wheelRadiusMinutes` rather than being read back from the applied
+  radius: a single trackpad delta is smaller than the value grid, so reading it back would round
+  every event away to the radius it started from and the ring would never move. It is clamped to
+  the floor/maximum, unlike the pinch's own base, because a wheel only accumulates — an unclamped
+  value would make the user scroll back through everything they overshot before the ring moved.
+  A wheel has no pointerup, so the gesture ends `WHEEL_RADIUS_SETTLE_MS` (220ms) after the last
+  event (`endNearbyRadiusWheel`), which is where the settling animation, the cleared floor notice
+  and the Settings-slider sync happen — the same things `endNearbyRadiusPinch` does on lift-off.
+  Both gestures share one body, `applyWalkingRadiusGesture(rawMinutes)`, which does the clamp,
+  the at-floor flag, the grid snap and the apply, and returns the floor it used so the wheel can
+  clamp its running value without a second nearest-item scan.
+- **Safari's trackpad pinch** does not arrive as a ctrl+wheel at all: it comes as
+  `gesturestart`/`gesturechange`/`gestureend` carrying a cumulative `scale`, which is the same
+  ratio the two-finger pinch already speaks in, so `startNearbyRadiusGesture`/
+  `updateNearbyRadiusGesture`/`endNearbyRadiusGesture` (js/nav.js) map it straight onto
+  `applyWalkingRadiusGesture` from a `state.gestureRadiusBaseMinutes` baseline — measured from
+  where the gesture began, so returning the fingers returns the radius. Only Safari fires these
+  events, so the handlers are inert everywhere else, and the Playwright projects (Chromium) can
+  only cover this path in unit tests.
+- **Automatic grow-back:** a radius closed down onto one find becomes an empty circle as soon as
+  the user walks away from it, so every GPS fix runs `ensureWalkingRadiusCoversNearest()`
+  (`js/nav.js`, called from the `watchPosition` handler in `ensureLocationWatch`, index.html).
+  When the ring holds nothing — `nearbyRadiusIsEmpty()`, which reads the memoized in-radius scan
+  and its `state.overviewOutsideRadiusFallback` flag rather than measuring again — the radius is
+  lifted to the current floor, i.e. just past the nearest remaining highlighted location, and the
+  camera zooms out with it through the usual `refreshNearbyRadiusView` fit. It is **grow-only and
+  floor-only**: a deliberately wide radius is never pulled back in, and a ring that still has
+  something in it is never touched. It stands down entirely while a pinch is live
+  (`state.pinchActive`), while a browse-origin slide is animating
+  (`nearbyOriginTransitionActive()`, whose whole point is that the ring holds still), and behind a
+  real selection or an expanded cluster, which `refreshNearbyRadiusView` would otherwise replace
+  with the Nearby list — each is re-checked on the next fix.
 - **Relocating slides the map, not the circle.** A browse-anchor move is animated by
   interpolating the *origin* (`nearbyRenderOriginPoint`/`startNearbyOriginTransition`,
   index.html) over `NEARBY_ORIGIN_TRANSITION_MS` (520ms, animateViewportTo's cubic ease-in-out)
