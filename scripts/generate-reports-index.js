@@ -147,7 +147,7 @@ function buildIndexHtml(files) {
 <meta name="description" content="${escapeHtml(INDEX_DESCRIPTION)}">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <link rel="canonical" href="${SITE_ORIGIN}/reports/">
-<link rel="icon" href="${SITE_ORIGIN}/data/icons/trees/logo.png" type="image/png">
+<link rel="icon" href="${SITE_ORIGIN}/data/icons/favicon.png" type="image/png">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Epping Forest Finds">
 <meta property="og:title" content="Epping Forest Ledger — weekly Epping Forest news">

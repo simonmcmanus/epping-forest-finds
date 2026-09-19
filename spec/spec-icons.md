@@ -237,3 +237,21 @@ A single field maple leaf with five compact lobes
 
 tree-ash
 A single ash compound leaf with paired leaflets
+## Generated app icon assets
+
+`scripts/generate-app-icon.py` composites `trees/oak.png` — the English oak
+leaf — onto a gold gradient tile (#f7dc82 top-left to #e2a13c bottom-right)
+and writes:
+
+- `icon-192.png`, `icon-512.png` — manifest `purpose: any`. Corners rounded at
+  19% and knocked out to transparency, so the tile sits on any wallpaper.
+- `icon-maskable-512.png` — manifest `purpose: maskable`. Gold bleeds to the
+  edge and the leaf is drawn at 50% of the tile height to clear Android's
+  circular crop.
+- `apple-touch-icon.png` — 180px, square and opaque: iOS ignores transparency
+  and applies its own mask.
+- `favicon.png` — 128px, square, leaf at 72% so it still reads at 16px. Linked
+  from `index.html`, `admin.html`, `terms.html` and the generated reports index.
+
+`trees/logo.png` is not part of this set. It stays the location pin, and is
+used by the onboarding welcome step and the loading screen.
