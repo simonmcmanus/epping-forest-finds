@@ -277,6 +277,7 @@ const state = {
   // Best heading source seen so far this session -- see orientationHeadingSource().
   compassHeadingSource: HEADING_SOURCE_NONE,
   headingUpScaleEaseAt: null, // timestamp the heading-up scale ease last integrated (see resolveHeadingUpTargetScale)
+  headingUpScaleEasing: false, // latch: the heading-up scale ease is mid-glide (see resolveHeadingUpTargetScale)
   lastLocationUpdateAt: null,
   navigationHeadingUp: false,
   renderedNavigationHeading: null,
@@ -3232,6 +3233,49 @@ const HEADING_UP_SCALE_EASE_MAX_DT = 0.05;
 // restart the clock instead of integrating a jump.
 const HEADING_UP_SCALE_EASE_STALE_MS = 500;
 
+// How far the fit the camera *wants* may drift from the scale actually on screen before
+// the camera responds at all -- a hysteresis deadband, sized as a fraction of the current
+// scale.
+//
+// The fit is re-solved on every compass frame against a live heading, a live GPS fix and a
+// route whose head is the walker's current position, so the scale it asks for is never
+// still: every step and every degree of heading noise moves it a little. Chasing that
+// continuously is what made walking navigation read as the map breathing in and out. A
+// 2% settle tolerance (HEADING_UP_SCALE_SETTLE_RATIO, which exists for a different job --
+// absorbing sub-pixel noise between two otherwise identical fits) is nowhere near enough
+// to cover it.
+//
+// 13% is comfortably wider than the wander a normal walking pace produces, and still well
+// inside the room the fit leaves itself: with HEADING_UP_SCALE_BUFFER_RATIO holding the
+// camera 4% tighter than the true fit, the worst a full band of drift can do is put the
+// framed target about 8% past where a perfect fit would place it -- still inside
+// headingUpFitMarginPx, which is 10% of the rect plus 12dp. Anything genuinely off-screen
+// is caught by HEADING_UP_SCALE_SNAP_RATIO below rather than by this band.
+//
+// Once the band is broken the ease runs to completion rather than stopping the moment it
+// is back inside it -- otherwise the camera would glide a token amount, halt 13% short of
+// the fit, and sit there re-triggering. state.headingUpScaleEasing is that latch; it
+// clears when the ease converges, and on any snap or settle path.
+const HEADING_UP_SCALE_HOLD_RATIO = 0.13;
+
+// Overshoot past which a zoom-out is applied in one frame instead of eased. Below it the
+// target is merely encroaching on the fit margin and there is nothing to correct urgently;
+// at or above it the target has genuinely left the framed area and waiting out an ease
+// would leave the thing being navigated to off-screen.
+//
+// This is the asymmetry that caused the reported jumping. Zoom-*in* has always been eased,
+// but ANY zoom-out -- however slight -- used to fall straight through to the snap at the
+// bottom of resolveHeadingUpTargetScale. Walking with a live compass produces a steady
+// trickle of small zoom-out requests, so the camera sawtoothed: snap out hard, ease back
+// in over ~1s, snap out hard again. Easing both directions and reserving the snap for a
+// real overshoot is what turns that into one continuous motion.
+const HEADING_UP_SCALE_SNAP_RATIO = 1.25;
+// Rate (per second) a zoom-*out* ease integrates at. Faster than HEADING_UP_SCALE_EASE_RATE
+// because the two directions are not equally urgent: zooming out is recovering room the
+// target is running out of, zooming in is only tightening a frame that is already correct.
+// ~0.45s to converge against the zoom-in's ~1s.
+const HEADING_UP_SCALE_EASE_OUT_RATE = 9;
+
 function selectedNavigationHeadingUpActive() {
   return Boolean(
     state.userLocation
@@ -3809,61 +3853,73 @@ function resolveHeadingUpTargetScale(maxScale, previousScale, force = false, now
   if (!Number.isFinite(previousScale) || previousScale <= 0) return nextScale;
   const settleTolerance = Math.max(HEADING_UP_SCALE_SETTLE_MIN, previousScale * HEADING_UP_SCALE_SETTLE_RATIO);
 
-  // A change where the target still fits (previousScale <= maxScale -- typically a
-  // zoom-in) needs no immediate correction: nothing is off-screen, and snapping the
-  // scale frame by frame against a live compass reads as the map fighting the rotation.
-  // If previousScale > maxScale the target has left the view and is corrected below at
-  // once. force=true bypasses this entirely, for explicit navigation (e.g. returning
-  // from the filter screen's wide survey view back to the nearby screen).
+  // While the compass is quiet, or a caller has explicitly asked for this fit, the camera
+  // goes straight there: nothing is fighting it, so there is no jitter to smooth over.
+  // force=true is explicit navigation (returning from the filter screen's wide survey view
+  // back to the nearby screen, committing a selection), where the whole point is that the
+  // requested framing takes effect.
   //
-  // This used to `return previousScale` outright, which deferred such a change for as
-  // long as the sensor stayed live -- and the sensor only counts as quiet after
-  // HEADING_UP_SENSOR_ACTIVE_MS without an event, while iOS deviceorientation fires
-  // continuously the whole time the phone is held. So outdoors it was never quiet, the
-  // smoothing loop's settle branch (the only other place a deferred zoom could land)
-  // never ran either, and a deferred zoom-in simply never happened -- while zoom-*out*
-  // corrections applied immediately, so the scale could only ever ratchet wider. That
-  // is the "why is it so zoomed out" report, and the reason several callers had to grow
-  // a force:true to get a fit to stick at all. Easing toward the target instead keeps
-  // the anti-fighting intent (no snap, and frame-to-frame sensor noise averages out
-  // rather than driving the zoom) while sustained changes -- a tilt, a settled new
-  // heading -- still converge, in about a second at HEADING_UP_SCALE_EASE_RATE.
-  if (!force && headingUpCompassSensorActive(now) && previousScale <= maxScale) {
-    if (Math.abs(previousScale - nextScale) <= settleTolerance) {
+  // The one case that still snaps with the sensor live is an urgent zoom-out: previousScale
+  // more than HEADING_UP_SCALE_SNAP_RATIO past what fits means the target has genuinely
+  // left the framed area, and easing that over half a second would leave the destination
+  // off-screen while it ran. Everything short of that is eased below.
+  const urgent = previousScale > maxScale * HEADING_UP_SCALE_SNAP_RATIO;
+  if (force || urgent || !headingUpCompassSensorActive(now)) {
+    state.headingUpScaleEaseAt = null;
+    state.headingUpScaleEasing = false;
+    if (Math.abs(previousScale - nextScale) <= settleTolerance) return previousScale;
+    return nextScale;
+  }
+
+  // Converged: stop, and drop the latch so the deadband below guards the next move.
+  if (Math.abs(previousScale - nextScale) <= settleTolerance) {
+    state.headingUpScaleEaseAt = null;
+    state.headingUpScaleEasing = false;
+    return previousScale;
+  }
+
+  // Hysteresis deadband (HEADING_UP_SCALE_HOLD_RATIO). The fit moves a little on every
+  // frame -- live heading, live GPS, a route re-headed at the walker's current position --
+  // and responding to all of it is what read as the map breathing. Hold the scale that is
+  // on screen until the fit has drifted a real amount away from it, then glide the whole
+  // way there. `headingUpScaleEasing` latches that glide so it is not cut short the moment
+  // it re-enters the band; holding does not freeze the frame, since
+  // alignHeadingUpNavigationViewport still re-derives tx/ty every frame.
+  if (!state.headingUpScaleEasing) {
+    if (Math.abs(nextScale - previousScale) <= previousScale * HEADING_UP_SCALE_HOLD_RATIO) {
       state.headingUpScaleEaseAt = null;
       return previousScale;
     }
-    const lastEaseAt = state.headingUpScaleEaseAt;
-    const gapMs = Number.isFinite(lastEaseAt) ? (now - lastEaseAt) : null;
-    // The first frame of an ease only starts the clock, and so does a gap past
-    // HEADING_UP_SCALE_EASE_STALE_MS -- a genuinely stale timestamp (a backgrounded tab, a
-    // screen the ease did not run on) would otherwise be integrated as one enormous dt and
-    // snap, which is exactly the jump the ease exists to avoid.
-    if (gapMs == null || gapMs > HEADING_UP_SCALE_EASE_STALE_MS) {
-      state.headingUpScaleEaseAt = now;
-      return previousScale;
-    }
-    if (!(gapMs > 0)) return previousScale; // clock has not advanced (duplicate call this tick)
-    // Ordinary frames (including an occasional slow one well short of the stale
-    // threshold -- see HEADING_UP_SCALE_EASE_STALE_MS) integrate a dt clamped to
-    // HEADING_UP_SCALE_EASE_MAX_DT, same as before, so a single frame still never steps
-    // more than that bounded amount. The difference is the clock now only advances by the
-    // clamped amount actually integrated (not all the way to `now`), carrying the
-    // remainder over onto the next frame instead of dropping it -- a fixed-step
-    // accumulator, so a stretch of moderately slow frames (heavy per-frame tilt-projection
-    // work while the phone is actively being re-tilted, well short of a background-tab
-    // gap) still converges, just a little slower, rather than freezing indefinitely
-    // because every individual frame's gap kept resetting the clock without ever
-    // integrating anything.
-    const dt = Math.min(gapMs, HEADING_UP_SCALE_EASE_MAX_DT * 1000) / 1000;
-    state.headingUpScaleEaseAt = lastEaseAt + dt * 1000;
-    const eased = previousScale + (nextScale - previousScale) * (1 - Math.exp(-HEADING_UP_SCALE_EASE_RATE * dt));
-    return Number.isFinite(eased) && eased > 0 ? eased : previousScale;
+    state.headingUpScaleEasing = true;
   }
 
-  state.headingUpScaleEaseAt = null;
-  if (Math.abs(previousScale - nextScale) <= settleTolerance) return previousScale;
-  return nextScale;
+  const lastEaseAt = state.headingUpScaleEaseAt;
+  const gapMs = Number.isFinite(lastEaseAt) ? (now - lastEaseAt) : null;
+  // The first frame of an ease only starts the clock, and so does a gap past
+  // HEADING_UP_SCALE_EASE_STALE_MS -- a genuinely stale timestamp (a backgrounded tab, a
+  // screen the ease did not run on) would otherwise be integrated as one enormous dt and
+  // snap, which is exactly the jump the ease exists to avoid.
+  if (gapMs == null || gapMs > HEADING_UP_SCALE_EASE_STALE_MS) {
+    state.headingUpScaleEaseAt = now;
+    return previousScale;
+  }
+  if (!(gapMs > 0)) return previousScale; // clock has not advanced (duplicate call this tick)
+  // Ordinary frames (including an occasional slow one well short of the stale
+  // threshold -- see HEADING_UP_SCALE_EASE_STALE_MS) integrate a dt clamped to
+  // HEADING_UP_SCALE_EASE_MAX_DT, so a single frame still never steps more than that
+  // bounded amount. The clock only advances by the clamped amount actually integrated (not
+  // all the way to `now`), carrying the remainder over onto the next frame instead of
+  // dropping it -- a fixed-step accumulator, so a stretch of moderately slow frames (heavy
+  // per-frame tilt-projection work while the phone is actively being re-tilted, well short
+  // of a background-tab gap) still converges, just a little slower, rather than freezing
+  // indefinitely because every individual frame's gap kept resetting the clock without
+  // ever integrating anything.
+  const dt = Math.min(gapMs, HEADING_UP_SCALE_EASE_MAX_DT * 1000) / 1000;
+  state.headingUpScaleEaseAt = lastEaseAt + dt * 1000;
+  // Zoom-out runs at the faster rate: see HEADING_UP_SCALE_EASE_OUT_RATE.
+  const rate = nextScale < previousScale ? HEADING_UP_SCALE_EASE_OUT_RATE : HEADING_UP_SCALE_EASE_RATE;
+  const eased = previousScale + (nextScale - previousScale) * (1 - Math.exp(-rate * dt));
+  return Number.isFinite(eased) && eased > 0 ? eased : previousScale;
 }
 
 // The tilt camera as the viewport fit needs it. For a point `m` canvas px from the pivot

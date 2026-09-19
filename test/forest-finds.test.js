@@ -240,6 +240,9 @@ globalThis.__forestFindsTest = {
   HEADING_UP_SCALE_SETTLE_RATIO,
   HEADING_UP_SCALE_EASE_RATE,
   HEADING_UP_SCALE_EASE_MAX_DT,
+  HEADING_UP_SCALE_HOLD_RATIO,
+  HEADING_UP_SCALE_SNAP_RATIO,
+  HEADING_UP_SCALE_EASE_OUT_RATE,
   maxNearbyHeadingUpScale,
   nearbyFirstPersonFitZoom,
   NEARBY_TILT_FIT_ZOOM,
@@ -5496,6 +5499,156 @@ test("a sustained run of moderately slow (but not stale) frames still converges 
 
   const fill = (app.navigationFocusPoint().y - app.worldToScreen(destination.point).y) / fit.band;
   assert.ok(fill > 0.5, `destination should have moved meaningfully toward framed after converging, filled ${(fill * 100).toFixed(0)}%`);
+});
+
+// ---------------------------------------------------------------------------------------
+// resolveHeadingUpTargetScale: walking to a destination must not make the map breathe.
+//
+// Field report ("JARRING ZOOM"): walking a route, the zoom jumped in and out and the view
+// kept reframing. Two causes, both here.
+//
+//   A. Zoom-*in* was eased but ANY zoom-out, however slight, fell straight through to a
+//      one-frame snap. A live compass and a live GPS fix produce a steady trickle of small
+//      zoom-out requests, so the camera sawtoothed: snap out hard, ease back in over ~1s,
+//      snap out hard again.
+//   B. The only thing standing between the camera and the fit was the 2% settle tolerance,
+//      which exists to absorb sub-pixel noise between two identical fits and is far too
+//      tight to cover the wander a walking pace produces.
+//
+// The fix eases both directions (reserving the snap for a real overshoot,
+// HEADING_UP_SCALE_SNAP_RATIO) behind a hysteresis deadband (HEADING_UP_SCALE_HOLD_RATIO).
+// ---------------------------------------------------------------------------------------
+
+// Drives resolveHeadingUpTargetScale the way a real frame loop does -- each frame's result
+// fed back in as the next frame's previousScale, with the compass firing throughout, which
+// is the condition under which all of this smoothing applies.
+//
+// Fully transparent to the rest of the suite, which matters more here than usual: all of
+// these tests share one `app`, run in registration order, and have no per-test isolation
+// (see "Unit tests" in spec/agents.md), so every field this touches is inherited by
+// whatever runs next. Two ways that bit while this was being written --
+//
+//   - the synthetic clock below is not the app's `performance.now()`, so a leftover
+//     state.headingUpScaleEaseAt hands the next test an ease clock in its *future*: gapMs
+//     comes out negative, the `!(gapMs > 0)` guard fires every frame, and that test's ease
+//     silently freezes;
+//   - leaving state.compassLastEventAt at one of these timestamps (or at null) flips
+//     headingUpCompassSensorActive() for every later test, which is what decides whether
+//     the scale is smoothed at all.
+//
+// Both showed up as an unrelated nearby-slide test failing about one run in four. So save
+// and restore, and return the latch rather than leaving it set for tests to read.
+function easeScaleFrames(app, { maxScale, from, frames, frameMs = 16 }) {
+  const saved = {
+    compassLastEventAt: app.state.compassLastEventAt,
+    headingUpScaleEaseAt: app.state.headingUpScaleEaseAt,
+    headingUpScaleEasing: app.state.headingUpScaleEasing,
+  };
+  app.state.headingUpScaleEaseAt = null;
+  app.state.headingUpScaleEasing = false;
+  let scale = from;
+  let now = 100000;
+  for (let i = 0; i < frames; i++) {
+    app.state.compassLastEventAt = now;
+    scale = app.resolveHeadingUpTargetScale(maxScale, scale, false, now);
+    now += frameMs;
+  }
+  const easing = app.state.headingUpScaleEasing;
+  Object.assign(app.state, saved);
+  return { scale, easing };
+}
+
+test("a modest heading-up zoom-out eases instead of snapping, so walking does not sawtooth the zoom", () => {
+  const maxScale = 1000;
+  const fit = maxScale * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO);
+  // Past the hold band, but well short of HEADING_UP_SCALE_SNAP_RATIO: the target is
+  // encroaching on the fit margin, not off the screen.
+  const from = maxScale * 1.18;
+  assert.ok(from < maxScale * app.HEADING_UP_SCALE_SNAP_RATIO, "fixture must not be an urgent correction");
+
+  const { scale: afterOne } = easeScaleFrames(app, { maxScale, from, frames: 1 });
+  assert.equal(afterOne, from, "the first frame only starts the ease clock");
+
+  const { scale: afterFive } = easeScaleFrames(app, { maxScale, from, frames: 5 });
+  assert.ok(afterFive < from, "the zoom-out should be moving");
+  assert.ok(
+    afterFive > from - (from - fit) * 0.6,
+    `no snap: five frames should not cover most of the gap, went ${from.toFixed(0)} -> ${afterFive.toFixed(0)} of ${fit.toFixed(0)} (pre-fix: ${fit.toFixed(0)} on frame one)`
+  );
+
+  const { scale: settled } = easeScaleFrames(app, { maxScale, from, frames: 60 });
+  // "Converged" is the ease's own stopping condition: within settleTolerance, which is
+  // measured against the scale it has reached rather than the fit, so it lands just inside
+  // HEADING_UP_SCALE_SETTLE_RATIO of the target rather than exactly on it.
+  assert.ok(
+    Math.abs(settled - fit) <= settled * app.HEADING_UP_SCALE_SETTLE_RATIO + 1e-6,
+    `the zoom-out should still converge on the fit (${fit.toFixed(0)}), got ${settled.toFixed(0)}`
+  );
+});
+
+test("a heading-up target that has genuinely left the view is still corrected in one frame", () => {
+  const maxScale = 1000;
+  const fit = maxScale * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO);
+  const from = maxScale * (app.HEADING_UP_SCALE_SNAP_RATIO + 0.25);
+
+  const { scale: afterOne, easing } = easeScaleFrames(app, { maxScale, from, frames: 1 });
+  assert.ok(
+    Math.abs(afterOne - fit) < 1e-6,
+    `an overshoot past HEADING_UP_SCALE_SNAP_RATIO should snap, got ${afterOne.toFixed(0)} want ${fit.toFixed(0)}`
+  );
+  assert.equal(easing, false, "a snap should not leave the ease latched");
+});
+
+test("heading-up scale drift inside the hold band moves the camera not at all", () => {
+  const maxScale = 1000;
+  const fit = maxScale * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO);
+  // 8% away from the fit: outside HEADING_UP_SCALE_SETTLE_RATIO (2%), so it is specifically
+  // the deadband holding here and not the old settle tolerance, and inside
+  // HEADING_UP_SCALE_HOLD_RATIO (13%).
+  const from = fit * 1.08;
+  assert.ok(Math.abs(fit - from) > from * app.HEADING_UP_SCALE_SETTLE_RATIO, "fixture must clear the settle tolerance");
+  assert.ok(Math.abs(fit - from) < from * app.HEADING_UP_SCALE_HOLD_RATIO, "fixture must sit inside the hold band");
+
+  const { scale: after } = easeScaleFrames(app, { maxScale, from, frames: 120 }); // ~2s of frames
+  assert.equal(after, from, "a fit drifting inside the hold band should not move the camera at all");
+});
+
+test("once the heading-up hold band is broken the ease runs all the way to the fit, not just back to the band edge", () => {
+  const maxScale = 1000;
+  const fit = maxScale * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO);
+  const from = fit / 2;
+
+  const { scale: settled, easing } = easeScaleFrames(app, { maxScale, from, frames: 120 });
+  const bandEdge = fit * (1 - app.HEADING_UP_SCALE_HOLD_RATIO);
+  assert.ok(
+    settled > bandEdge,
+    `the latch should carry the ease past the band edge (${bandEdge.toFixed(0)}), stopped at ${settled.toFixed(0)}`
+  );
+  assert.ok(
+    Math.abs(settled - fit) <= settled * app.HEADING_UP_SCALE_SETTLE_RATIO + 1e-6,
+    `and land on the fit (${fit.toFixed(0)}), got ${settled.toFixed(0)}`
+  );
+  assert.equal(easing, false, "converging should drop the latch so the band guards the next move");
+});
+
+test("a heading-up zoom-out eases faster than a zoom-in of the same proportion", () => {
+  const maxScale = 1000;
+  const fit = maxScale * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO);
+  const frames = 6;
+
+  const outFrom = fit * 1.3;
+  const { scale: outAfter } = easeScaleFrames(app, { maxScale, from: outFrom, frames });
+  const outCovered = (outFrom - outAfter) / (outFrom - fit);
+
+  const inFrom = fit / 1.3;
+  const { scale: inAfter } = easeScaleFrames(app, { maxScale, from: inFrom, frames });
+  const inCovered = (inAfter - inFrom) / (fit - inFrom);
+
+  assert.ok(outCovered > 0 && inCovered > 0, "both directions should be easing");
+  assert.ok(
+    outCovered > inCovered * 1.5,
+    `recovering room the target is running out of should be quicker than tightening an already-correct frame: out covered ${(outCovered * 100).toFixed(0)}%, in ${(inCovered * 100).toFixed(0)}%`
+  );
 });
 
 // --- Compass staleness recovery -------------------------------------------------
