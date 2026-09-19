@@ -10,6 +10,7 @@ Update the relevant spec file(s) with every code change that adds, removes, or a
 - `spec/spec-native.md` — iOS/Android native wrapper (Capacitor shell, `js/native.js`, native heading/permissions, bundled data + delta updates, store requirements)
 - `spec/spec-weekly-report.md` — weekly Epping Forest Ledger report generator (`scripts/report/`)
 - `spec/spec-icons.md` — icon registry, icon rendering, generated icon asset requirements
+- `spec/spec-marketing.md` — positioning, approved phrase bank, marketing homepage at `/`, mailing-list sign-up, social sharing assets
 - `spec/spec-issue-workflow.md` — GitHub issue clarification automation (`.github/workflows/issue-clarify.yml`)
 - `spec/glossary.md` — product terminology
 
