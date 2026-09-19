@@ -403,6 +403,8 @@ right after the anchor marker) marks it:
 - `overviewItemsForActiveFilter()` (js/app.js) returns *every* match within the walking radius, memoized on origin/radius/active-filters/cow-refresh so it's only recomputed when one of those actually changes, not on every animation frame (buildNearbyIconLookup in js/renderer.js, which draws the map pins from this same list, is separately memoized the same way). Consumers cap it to what they can usefully show: this text list takes only the nearest `nearestItemsCount` entries; the map pins use the full list, bounded only by their own existing per-type render limits (e.g. `MAX_MAP_TREES`, 60). This split means growing the walking radius (via Settings or the pinch gesture below) reveals every newly-in-range item on the map, without the list turning into an unreadable wall of entries or the per-frame cost scaling with how much area is covered. Trees are dense enough that a plain nearest-60 cut always resolved to the same tight cluster around the user regardless of radius, defeating that "reveals more" promise — `buildNearbyIconLookup` (js/renderer.js) instead collects every in-radius tree candidate and takes an evenly-strided sample of 60 across that distance-sorted list (`sampleSpread`), so the fixed pin budget spreads from near to far instead of bunching at the near end. Every other type (landmarks, cows, paths, water) has no cap and genuinely renders the full in-radius set.
 - If no active type has a result within the selected walking radius, show the closest available item for each active type and display a notice naming the selected walking-time radius.
 - The walking-time chip in the overview heading doubles as a **radius filter toggle** (`data-action="toggle-radius"`). When active (green, `aria-pressed="true"`), only items within the walking radius are shown (`state.showAllOutsideRadius = false`). When inactive (grey, `aria-pressed="false"`), items across all distances are shown (up to 10 nearest per type) with no fallback notice. Clicking toggles `state.showAllOutsideRadius` and triggers a full `selectOverview()` re-render.
+- **Heads-up ordering.** The list is ordered by a *heads-up score*, not by raw distance: `metres * (1 + HEADS_UP_BEHIND_PENALTY * (1 - cos(delta)) / 2)`, where `delta` is the angle between the compass heading the list is ordered by and the bearing from `nearbyOrigin()` to the item. Something dead ahead keeps its true distance, something dead behind counts as twice as far (`HEADS_UP_BEHIND_PENALTY` is 1), and the sides fall smoothly in between — so of two finds the same walk away, the one you are facing is listed first, while distance still dominates enough that a find at your back never drops below one more than twice as far ahead. `headsUpSortedEntries()` applies this to the *whole* in-radius set before the `nearestItemsCount` cap, so an item you are walking straight at can climb into the visible handful rather than being cut off by closer ones behind your shoulder; it returns a new array and never reorders the memoized `overviewItemsForActiveFilter()` result the map pins are drawn from. Items with no single coordinate (trails, water features) keep their plain distance rank. With no compass heading — desktop, or location without orientation — the list is plain nearest-first exactly as before.
+- **The order follows you round, but does not churn.** The list is ordered by `state.nearbyListHeading`, a latched heading rather than the live smoothed one. `refreshNearbyListForHeading()` runs from the compass smoothing loop alongside `updateOverviewDirectionArrows()` (which spins the per-item arrows every frame regardless): it adopts the live heading, and re-renders via `selectOverview()`, only once the two differ by `HEADS_UP_REORDER_DEGREES` (12°). A deliberate turn crosses that in one movement; sensor noise and small sways never do, so the list does not shuffle under the user's thumb. The re-render reuses the existing FLIP reorder animation (`animateNearestItemReorder`, `js/inspector.js`), and `selectOverview()`'s own list-key check drops the re-render entirely when the new heading leaves the order unchanged. Losing the heading (sensor stall, or `goToInitialView` on a stale compass) clears the latch along with `state.compassHeading`.
 - Each entry shows: emoji icon, name, type label, and directional arrow.
 - Each entry includes an always-visible combined distance + walk-time chip (`{distance} · {walk time}`) using the existing walking icon (`appIconHtml("walking", ...)`).
 - Tree entries additionally show the physical **tag number** (`#<tagNumber>`) in the footer meta line. The footer meta line order is: **walk chip first** (`🚶 {distance} · {walk time}`), then the type label and tag number (`Tree · #15961`), so that all distance pills align to the left across all item types. The tag chip is omitted when the tree has no `tagNumber`.
@@ -486,14 +488,72 @@ moving the real GPS fix:
   priority the "nothing in radius" list fallback uses), plus a 15% buffer
   (`WALKING_RADIUS_FLOOR_BUFFER`) so that item settles clearly inside the ring rather than on
   its edge. Falls back to `WALKING_RADIUS_MIN_MINUTES` (1) with no origin or nothing to measure
-  against. While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
+  against — that fallback is *not* a limit on zooming in: a real nearest item takes the floor
+  all the way down to `WALKING_RADIUS_TIGHT_MIN_MINUTES` (0.25 min, ~21 m), so a find a few
+  seconds away can be closed right in on, ring and camera together. The camera follows because
+  the Nearby fit frames the ring and nothing else (see "Heading-up nearby mode" below).
+  Values snap to a grid: `WALKING_RADIUS_STEP_MINUTES` (0.5) at a minute and above,
+  `WALKING_RADIUS_FINE_STEP_MINUTES` (0.25) below it, where half-minute steps would be a third
+  of what is left (`walkingMinutesStep`/`roundWalkingMinutes`/`ceilWalkingMinutes`). A value
+  snapped at the floor is rounded *up* onto that grid so it can never land just inside it.
+  Sub-minute radii are shown in seconds ("15 sec") rather than as a fraction of a minute —
+  `formatWalkingRadius()` is what every user-facing radius label goes through.
+  While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
   and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
   (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. That notice
   lives in the Nearby list, so the lightweight re-render that keeps it in sync is skipped on
   Filter/Settings/Report — there is nothing there to refresh, and `selectOverview()` would
   replace the open screen. On the
   Settings slider, the same floor is enforced natively via the `<input type="range">`'s own
-  `min` attribute, and a `#settingsWalkMinsFloorNote` appears whenever the slider sits at it.
+  `min` attribute (rounded up onto the value grid, since a range input steps from its own `min`)
+  with a matching `step`, and a `#settingsWalkMinsFloorNote` appears whenever the slider sits
+  at it. That form is built once when the screen opens, so a radius changed from *outside* it --
+  the pinch gesture (which engages over Settings too) or the automatic grow-back below -- writes
+  the new value, floor, step and label back into it via `syncSettingsWalkSlider()` (`js/nav.js`).
+  It is deliberately not called from `refreshNearbyRadiusView`, which a live slider drag runs
+  through on every `input`: writing the value back mid-drag would tug the thumb under the finger.
+- **Wheel and trackpad resize the ring (`updateNearbyRadiusWheel`, js/nav.js).** The canvas wheel
+  handler routes to the radius gesture on exactly the screens the two-finger pinch engages on
+  (`wheelResizesNearbyRadius()`: a user location plus `isOverviewScreenActive()` or
+  `secondaryScreenActive()`); anywhere else it falls through to the old `zoomAt()` map zoom.
+  `deltaY < 0` (zoom in) shrinks the radius, matching both the pinch's direction and what the
+  wheel used to do to the map. Deltas are normalised to pixels first (`normalizeWheelPixels`
+  handles Firefox's line mode and page mode), then applied as `Math.exp(pixels * rate)` —
+  `WHEEL_RADIUS_RATE_PER_PIXEL` puts a ~100px wheel notch at the 1.22x step the map zoom took,
+  and a trackpad pinch (reported as ctrl+wheel, in far smaller deltas) multiplies that rate by
+  `TRACKPAD_PINCH_RATE_MULTIPLIER` so a whole pinch is worth a whole pinch. The running value
+  lives unrounded in `state.wheelRadiusMinutes` rather than being read back from the applied
+  radius: a single trackpad delta is smaller than the value grid, so reading it back would round
+  every event away to the radius it started from and the ring would never move. It is clamped to
+  the floor/maximum, unlike the pinch's own base, because a wheel only accumulates — an unclamped
+  value would make the user scroll back through everything they overshot before the ring moved.
+  A wheel has no pointerup, so the gesture ends `WHEEL_RADIUS_SETTLE_MS` (220ms) after the last
+  event (`endNearbyRadiusWheel`), which is where the settling animation, the cleared floor notice
+  and the Settings-slider sync happen — the same things `endNearbyRadiusPinch` does on lift-off.
+  Both gestures share one body, `applyWalkingRadiusGesture(rawMinutes)`, which does the clamp,
+  the at-floor flag, the grid snap and the apply, and returns the floor it used so the wheel can
+  clamp its running value without a second nearest-item scan.
+- **Safari's trackpad pinch** does not arrive as a ctrl+wheel at all: it comes as
+  `gesturestart`/`gesturechange`/`gestureend` carrying a cumulative `scale`, which is the same
+  ratio the two-finger pinch already speaks in, so `startNearbyRadiusGesture`/
+  `updateNearbyRadiusGesture`/`endNearbyRadiusGesture` (js/nav.js) map it straight onto
+  `applyWalkingRadiusGesture` from a `state.gestureRadiusBaseMinutes` baseline — measured from
+  where the gesture began, so returning the fingers returns the radius. Only Safari fires these
+  events, so the handlers are inert everywhere else, and the Playwright projects (Chromium) can
+  only cover this path in unit tests.
+- **Automatic grow-back:** a radius closed down onto one find becomes an empty circle as soon as
+  the user walks away from it, so every GPS fix runs `ensureWalkingRadiusCoversNearest()`
+  (`js/nav.js`, called from the `watchPosition` handler in `ensureLocationWatch`, js/app.js).
+  When the ring holds nothing — `nearbyRadiusIsEmpty()`, which reads the memoized in-radius scan
+  and its `state.overviewOutsideRadiusFallback` flag rather than measuring again — the radius is
+  lifted to the current floor, i.e. just past the nearest remaining highlighted location, and the
+  camera zooms out with it through the usual `refreshNearbyRadiusView` fit. It is **grow-only and
+  floor-only**: a deliberately wide radius is never pulled back in, and a ring that still has
+  something in it is never touched. It stands down entirely while a pinch is live
+  (`state.pinchActive`), while a browse-origin slide is animating
+  (`nearbyOriginTransitionActive()`, whose whole point is that the ring holds still), and behind a
+  real selection or an expanded cluster, which `refreshNearbyRadiusView` would otherwise replace
+  with the Nearby list — each is re-checked on the next fix.
 - **Relocating slides the map, not the circle.** A browse-anchor move is animated by
   interpolating the *origin* (`nearbyRenderOriginPoint`/`startNearbyOriginTransition`,
   js/app.js) over `NEARBY_ORIGIN_TRANSITION_MS` (520ms, animateViewportTo's cubic ease-in-out)
@@ -519,10 +579,15 @@ moving the real GPS fix:
     still travelling: drawing them straight away puts a fan of lines pinned to a stationary
     circle sweeping across moving terrain, with pins sliding under a marker that is not moving —
     it reads as jitter even though every element is where it should be. The transition object
-    deliberately outlives the slide by `NEARBY_REVEAL_MS` so the fade has frames; only the camera
-    work stops when the slide lands. The "You" dot is exempt: it is the user's real position, not
+    deliberately outlives the slide by `NEARBY_REVEAL_MS` so the fade has frames. The camera is
+    re-derived on every frame that object is alive, including the fade tail after the slide has
+    landed: `nearbyRenderOriginPoint()` snaps from the interpolated origin to the final one the
+    moment the slide ends, so a frame that skipped the re-derive left the camera on the last
+    interpolated framing and the ring — the one thing the slide exists to hold still — twitched a
+    few pixels on landing and hopped back when the fade finished. Once the origin has stopped
+    moving the re-derive is a no-op. The "You" dot is exempt: it is the user's real position, not
     part of the nearby set.
-  - In 3D the pivot fraction also differs between the first-person and browsing cases (0.90 at
+  - In 3D the pivot fraction also differs between the first-person and browsing cases (0.94 at
     max tilt vs 0.5, see below), so `tiltRampedAnchor` eases between them across the same slide
     rather than jerking the whole view up or down the screen on one frame. The transition
     records whether it started from a browsed spot (`fromBrowsing`), so hopping between two
@@ -530,10 +595,11 @@ moving the real GPS fix:
     anchor and back.
   - **The 3D zoom is eased across the same crossing.** The two pivots come with two different
     scale fits: first-person lets the behind half of the ring run off the bottom edge
-    (`excludeBehindDuringTilt`), browsing frames the whole ring. Which one applies flips the
-    frame the anchor is set, a whole slide before the pivot has moved to where the browse rule
-    makes sense — solved as-is, that put the behind half into a fit still anchored near the
-    bottom edge, which is exactly the collapse the first-person rule exists to avoid, so the map
+    (`excludeBehindDuringTilt`) and then frames past its sides (`NEARBY_TILT_FIT_ZOOM`), browsing
+    frames the whole ring. Which one applies flips the frame the anchor is set, a whole slide
+    before the pivot has moved to where the browse rule makes sense — solved as-is, that put the
+    behind half into a fit still anchored near the bottom edge, which is exactly the collapse
+    the first-person rule exists to avoid, so the map
     zoomed out several-fold on one frame and crept back in over the slide. `maxNearbyHeadingUpScale`
     instead solves each end in its own consistent pivot-and-rule pair (`nearbyPivotFitScale`,
     `nearbyPivotAnchorFraction`) and blends the two scales on the slide's own easing, so the zoom
@@ -591,9 +657,11 @@ moving the real GPS fix:
   the shared `tiltHidesWhatIsBehind()` (`!state.nearbyAnchor`):
   - `maxNearbyHeadingUpScale` stops passing `excludeBehindDuringTilt`, so the *whole*
     walking-radius ring is framed inside the available map area rather than letting its behind
-    half run off the bottom edge.
+    half run off the bottom edge, and `nearbyFirstPersonFitZoom()` returns 1 rather than
+    `NEARBY_TILT_FIT_ZOOM`, so the ring is framed rather than zoomed past — a browsed spot has no
+    "ahead" to walk into, and its whole nearest area has to stay on screen.
   - `tiltRampedAnchor` stops ramping the pivot toward the bottom of the screen
-    (`HEADING_UP_ANCHOR_NEARBY_TILT`, 0.90) and pins it at the untilted centre
+    (`HEADING_UP_ANCHOR_NEARBY_TILT`, 0.94) and pins it at the untilted centre
     (`HEADING_UP_ANCHOR_NEARBY`, 0.5), so the ring gets equal room above and below the pivot and
     is framed at a useful size instead of squeezed into the sliver below a bottom anchor —
     measured on a 375×812 phone at 49° of tilt, that is the difference between the ring filling
@@ -735,7 +803,9 @@ Behavior:
 - **Heading-up selected navigation:** when a selected navigation target is active, the user location exists, and compass heading is available, the map switches from north-up to heading-up regardless of whether the inspector is expanded or minimized. The user anchor ramps from a base of 62% (no tilt) to 88% (max tilt, full 3D) via `tiltAnchorFraction()`, then `headingUpAnchorFraction(true)` mirrors that ramped anchor around the screen's 50% centre based on `selectedNavigationTargetBearingOffsetRadians()` -- the destination's bearing relative to straight ahead, computed by rotating the vector from the user to the destination (averaged across `selectedNavigationTargetPoints()`, which includes any waypoints along the route, not just the final destination) into heading-up space the same way pin rotation does, then `Math.atan2`: a destination dead ahead (offset 0) keeps the plain ramped anchor unchanged, a destination dead behind (offset ±π) mirrors it to `1 - anchor` (user anchored high, most of the screen given to what's behind them since that's where the route actually is), and a destination directly to either side (offset ±π/2) settles exactly at the 50% centre -- interpolated by `cos(offset)` so the transition across all bearings is smooth, not a snap at some threshold. This only applies to selected navigation; nearby mode's anchor (`headingUpAnchorFraction(false)`) is unaffected and still just the plain `tiltAnchorFraction()` ramp, since nearby has no single destination bearing to mirror around. The map rotates around the user as `state.compassHeading` changes, so the direction the device is facing is always toward the top of the screen. The map/overlay canvases are rendered with an overscan bitmap area (150% of viewport, centered) while heading-up is active so CSS delta rotation can run through full compass turns without exposing clipped canvas edges; in north-up mode the canvas uses an exact-fit allocation to avoid unnecessary GPU fill-rate overhead. Tilt does not change this allocation at any angle: it is projected per point in `worldToScreen()` rather than applied to the finished bitmap, so there is no canvas edge for perspective to expose (see "3D tilt projection" below). On mode change `prepareCanvasForDraw()` detects the heading-up transition and calls `resizeCanvas()` to expand or shrink the allocation immediately. On very large/high-DPR screens, overscan resize logic caps bitmap allocation to a conservative budget (max dimension 3072 px, max area 9,437,184 px) and lowers effective DPR as needed. During normal heading updates, `updateHeadingUpCanvasRotationTransform()` applies a CSS rotation delta around the user point and avoids full redraw churn; on heading entry animation frames the rotation is still baked into redraws. While tilt is active that delta shortcut is skipped and a redraw is requested instead — rolling an already-projected 3D image around the pivot would visibly roll the horizon rather than re-project the ground at the new heading. The redraw is `requestAnimationFrame`-coalesced, and in 3D the main canvas carries terrain only (pins move to `#overlayCanvas`), so it stays one draw per frame for as long as the compass is actually moving. Heading-up fits in this mode keep the same scale stabilisation as nearby mode: a 4% fit buffer (extra off-screen render room), deferred non-essential zoom updates while compass sensor events are active, and a small strict-fit tolerance so tiny corrections do not trigger redraw churn. Unlike nearby mode (below), the scale fit for selected navigation no longer excludes points that fall behind the user's heading (`rotatedY > 0` after rotating into heading-up space) while tilt is active: `maxScaleForHeadingUpPoints` takes an `excludeBehindDuringTilt` option (default `true`, matching the old behaviour), and `maxHeadingUpNavigationScale` passes `false`, so the origin, route waypoints, and destination are all fit onto the available map space together even when the destination is currently behind the user during full 3D tilt -- previously such a destination was excluded from the fit entirely (only its rendering was affected by "Full 3D — hiding what's behind" below, but the *zoom* stayed anchored on wherever the last-visible-ahead fit had left it, wasting the screen space freed up by the destination no longer constraining anything). The points themselves are still culled from being drawn while behind the heading and tilt is active, per "Full 3D — hiding what's behind" below, except the selected navigation target and its route line, which are exempted from that cull for exactly this reason (see the exemption noted there) — so a destination behind the user during tilt now correctly pulls the fit in to include it, and stays visible, rather than sitting off-screen at a stale zoom. Because a destination behind the user can now occupy most of the screen below a mirrored-toward-top anchor, `setInspectorMinimized` (`js/nav.js`) re-runs the real heading-up scale fit (`alignHeadingUpNavigationViewport({ force: true })`) when the inspector expands during heading-up selected navigation, instead of the plain-mode `centerViewportOnPointsKeepScale` recentre (which keeps whatever scale was already in effect) -- otherwise a fit computed against the smaller minimized-inspector footprint would never get corrected once the inspector grows to its full size, letting the destination end up rendered behind the now-larger panel. North-up selected navigation (no compass heading) is unaffected and keeps the plain recentre. The selected destination must remain inside the visible map area while heading-up mode is active; if heading, resize, drag, or zoom would push the destination out of view, the viewport zoom is set to the exact scale that places the destination at the edge of the visible area — `Math.min` is not used here, so the viewport always zooms to the correct level even when coming from a wider zoom such as the walking-radius overview. When this mode is inactive, the map remains north-up. On entering heading-up mode for the first time (transition from north-up), `state.renderedNavigationHeading` is interpolated from 0° toward `state.compassHeading` over the same duration as the viewport animation using `state.headingUpEntryAnim` (from/to/startTime/duration). `prepareCanvasForDraw()` advances the interpolation each frame and calls `requestDraw()` while in progress, so every canvas draw already reflects the correct intermediate heading — pins always point downward throughout the transition.
 - **Heading-up nearby mode:** when there is no real navigation target (`selectedCompassTarget()` returns null) but user location and compass heading are available, `nearbyHeadingUpActive()` returns true and the map switches to heading-up. This covers the overview/nearby screen, the filter panel, and pseudo-selection screens (settings, report) — all of which show the map in the background and rotate with the device heading, escalating into full 3D tilt exactly like the plain nearby screen (see "3D tilt available on every screen" below). **The Nearby camera frames one thing and one thing only: the walking-radius circle.** It is what the screen is about ("how far can I get in N minutes"), it is centred on `nearbyOrigin()`, and it is a circle -- so the fit is a fixed calculation that does not depend on the compass heading at all, and the camera holds still while you turn on the spot. Highlighted items do not enter the fit: every earlier design fitted the item cluster and tried to bound the result somehow, and each one had the camera chasing whichever matches happened to be nearest -- zooming in past the ring and clipping it when they were clustered close, zooming out past it when one sat near the edge, and re-solving on every compass frame. The fit points come from `nearbyCameraFitPoints()` (see "Camera fit target" below); the scale is one `maxScaleForHeadingUpPoints(..., { projectTilt: true })` call on them.
 
-  The user anchor ramps smoothly from 50% (no tilt -- dead centre, so the circle is centred in the available map space and the four corners fall outside it and show the out-of-radius wash) to 90% of the visible map height as tilt deepens (via `tiltAnchorFraction()`, the same 0-1 ramp used for `rotateX`), leaving a small gap below the dot at max tilt rather than pinning it flush to the edge. The forward-shifted anchor keeps more geographic content rendered in the ahead direction during deep tilt, reducing the chance of a bare-background horizon.
+  The user anchor ramps smoothly from 50% (no tilt -- dead centre, so the circle is centred in the available map space and the four corners fall outside it and show the out-of-radius wash) to 94% of the visible map height as tilt deepens (via `tiltAnchorFraction()`, the same 0-1 ramp used for `rotateX`), leaving only a narrow gap below the dot at max tilt rather than pinning it flush to the edge. A heads-up view is about what is in front of you, so every pixel spent on the ground behind you is a pixel not spent on where you are walking; the forward-shifted anchor also keeps more geographic content rendered in the ahead direction during deep tilt, reducing the chance of a bare-background horizon.
+
+  **In 3D the camera frames past the ring, not around it** (`nearbyFirstPersonFitZoom()`). Fitting the ahead half of the ring exactly put its left and right extremes right on the screen edges, so 3D read as a small disc of forest being looked at from outside, with the search area's own boundary drawn around it -- the second half of the "too zoomed out in 3D" report. The first-person fit is therefore multiplied by `NEARBY_TILT_FIT_ZOOM` (1.6), ramped in on `tiltAnchorFraction()` like the anchor is: flat 2D -- the one view that is *about* seeing the whole ring -- stays at 1.0 and is untouched, raising the phone eases the zoom in rather than stepping it, and at full 3D the ring's sides run off the screen so you stand inside the radius looking down it. The ring is still drawn in full; it is simply no longer the thing being framed. Browsing a tapped spot keeps the plain fit (see "Browsing is not a first-person view" above), and the crossing between the two is blended on the slide's own easing like the pivot is.
 
   The behind-heading exclusion (`excludeBehindDuringTilt`, default `true`) applies to the ring like any other fit points: while tilt is active only the half of the circle ahead of the heading constrains the scale. That matches what 3D actually renders -- `isBehindTiltHeading` culls everything behind the user -- and is what keeps 3D usable: with the pivot anchored near the bottom of the screen at tilt, forcing the behind half of the ring into the few pixels below it collapsed the scale to roughly a third of what the visible half needs (the "far too zoomed out in 3D" report). The behind half is still *drawn* (`drawWalkingRadius` always draws the full 360-degree circle) -- it simply runs off the bottom edge, the way the ground immediately behind you does in any first-person view. Outside tilt nothing is excluded, so the whole circle is framed.
 

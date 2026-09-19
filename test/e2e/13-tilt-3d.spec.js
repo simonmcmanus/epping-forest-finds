@@ -28,6 +28,34 @@ async function tiltTo(page, beta) {
   }, beta);
 }
 
+/**
+ * tiltTo, then settle the camera on the fit this tilt angle actually asks for.
+ *
+ * Deliberately separate from tiltTo rather than folded into it: every other test in this file
+ * measures pixels the camera has already painted, and moving that camera changes what they are
+ * looking at -- folding the settle into the shared helper broke the dimming-edge measurement on
+ * a phone viewport. Only a test whose subject *is* the fit wants this.
+ *
+ * `stopViewportAnimation()` because a boot reveal still in flight keeps moving the viewport out
+ * from under the measurement; `force: true` because resolveHeadingUpTargetScale otherwise eases
+ * the scale in over about a second while the compass sensor reads as live (it does here --
+ * compassLastEventAt is set in tiltTo), so an un-forced call leaves the viewport a fraction of
+ * the way there and the measurement reads the ease rather than the camera, differently each run
+ * depending on how loaded the machine is. The align/draw pair repeats because
+ * prepareCanvasForDraw can still adjust the fit on the first draw after a tilt change.
+ */
+async function tiltToSettled(page, beta) {
+  await tiltTo(page, beta);
+  await page.evaluate(async () => {
+    stopViewportAnimation();
+    for (let i = 0; i < 3; i += 1) {
+      alignHeadingUpNavigationViewport({ force: true });
+      draw();
+    }
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+  });
+}
+
 test.describe("3D tilt view", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 
@@ -41,38 +69,69 @@ test.describe("3D tilt view", () => {
     });
   });
 
-  test("the walking-radius circle keeps filling the map at every tilt angle", async ({ page }) => {
-    // The "still way too zoomed out in 3D" report. The Nearby camera frames the radius circle,
-    // and the circle's behind half is never drawn in 3D (isBehindTiltHeading culls it) -- but
-    // the fit used to force that hidden half into the few pixels below the deep-tilt anchor,
-    // which collapsed the scale to roughly a third of what the visible half needed and left a
-    // tiny circle adrift in the middle of the screen.
+  test("raising the phone walks you into the walking radius instead of showing it from outside", async ({ page }) => {
+    // The "still way too zoomed out in 3D" report, twice over. The Nearby camera frames the
+    // radius circle, and the circle's behind half is never drawn in 3D (isBehindTiltHeading
+    // culls it) -- but the fit used to force that hidden half into the few pixels below the
+    // deep-tilt anchor, which collapsed the scale to roughly a third of what the visible half
+    // needed and left a tiny circle adrift in the middle of the screen. Fixing that still left
+    // 3D framing the ring exactly, edges and all, so the search area read as a disc of forest
+    // being looked at from outside. Flat 2D is the view that is about seeing the whole ring;
+    // raising the phone must zoom in past its sides (NEARBY_TILT_FIT_ZOOM), monotonically, so
+    // you end up standing inside the radius looking down it.
     const measure = () => page.evaluate(() => {
       const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
       let minX = Infinity;
       let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
       for (const point of walkingRadiusCirclePoints()) {
         const screen = worldToScreen(point);
         minX = Math.min(minX, screen.x);
         maxX = Math.max(maxX, screen.x);
+        minY = Math.min(minY, screen.y);
+        maxY = Math.max(maxY, screen.y);
       }
-      return { widthFraction: (maxX - minX) / rect.width, scale: state.viewport.scale };
+      return {
+        widthFraction: (maxX - minX) / rect.width,
+        // Whichever screen dimension the flat fit is actually up against: the map area is
+        // portrait on a phone and landscape on a desktop, and a circle framed inside a
+        // landscape rect is constrained by its height, so width alone says nothing about
+        // whether the fit is tight.
+        fillFraction: Math.max((maxX - minX) / rect.width, (maxY - minY) / rect.height),
+        scale: state.viewport.scale,
+      };
     });
 
-    await tiltTo(page, 0);
+    await tiltToSettled(page, 0);
     const flat = await measure();
 
+    // Flat 2D is the one view that is *about* the whole ring, so it must still frame all of it.
+    expect(flat.widthFraction, "flat: the whole radius circle is on screen").toBeLessThanOrEqual(1.001);
+    expect(flat.fillFraction, "flat: and it fills the map rather than floating in it").toBeGreaterThan(0.6);
+
+    // Seeded from the sweep's own first angle rather than from `flat` above: the two are the
+    // same tilt but a second GPS fix can land between them and move the origin the ring is
+    // fitted around, which is a percent or so of scale and nothing to do with tilt.
+    let previousScale = null;
     for (const beta of TILT_SWEEP) {
-      await tiltTo(page, beta);
-      const { widthFraction, scale } = await measure();
+      await tiltToSettled(page, beta);
+      const { fillFraction, scale } = await measure();
 
       // Pre-fix this sat around a quarter of the map width once tilt engaged.
-      expect(widthFraction, `beta=${beta}: fraction of the map width the radius circle spans`).toBeGreaterThan(0.6);
-      expect(widthFraction).toBeLessThanOrEqual(1.001);
-      // Tilting into 3D must never zoom further out than the flat view -- it frames the same
-      // circle, minus the half it no longer draws.
-      expect(scale, `beta=${beta}: 3D must not be more zoomed out than 2D`).toBeGreaterThanOrEqual(flat.scale * 0.99);
+      expect(fillFraction, `beta=${beta}: fraction of the map the radius circle spans`).toBeGreaterThan(0.6);
+      // Raising the phone only ever zooms in -- never out, and never back and forth on the way.
+      if (previousScale !== null) {
+        expect(scale, `beta=${beta}: tilting further must not zoom back out`).toBeGreaterThanOrEqual(previousScale * 0.99);
+      }
+      previousScale = scale;
     }
+
+    // At full 3D you are inside the radius: its left and right edges run off the sides of the
+    // screen rather than being drawn across it.
+    const full = await measure();
+    expect(full.widthFraction, "full 3D: the radius runs off both sides").toBeGreaterThan(1);
+    expect(full.scale, "full 3D: meaningfully closer in than the flat survey view").toBeGreaterThan(flat.scale * 1.4);
   });
 
   test("map items stay visible at every tilt angle, from flat to full 3D", async ({ page }) => {
@@ -178,14 +237,21 @@ test.describe("3D tilt view", () => {
     // small unrelated diffs (something else redraws slightly differently there between the
     // two draw() calls), which threw off the up/down/left/right comparison; a fixed threshold
     // sidesteps needing that reference at all.
+    // tiltToSettled, and a forced converge loop below: what this measures is the shape the
+    // ground plane projects the radius into, which depends on the camera actually being on this
+    // tilt angle's fit. An un-forced settle leaves resolveHeadingUpTargetScale part-way through
+    // easing the scale in, and the radii come out of a projection still in transit -- measured
+    // on a loaded machine as an aspect of 0.44 at beta 40 where a settled camera gives 0.75, and
+    // the strictly-flattening check then failed at beta 60. Settled, the sweep is bit-identical
+    // run to run: 1.00 / 0.72 / 0.48 / 0.15 on desktop and 1.00 / 0.75 / 0.50 / 0.15 on mobile.
     const measure = async (beta) => {
-      await tiltTo(page, beta);
+      await tiltToSettled(page, beta);
       return page.evaluate(() => {
         const canvas = els.canvas;
         const context = canvas.getContext("2d");
         // Let the viewport converge first: prepareCanvasForDraw can still adjust the fit on
         // the first draw after a tilt change, which would swamp the diff.
-        for (let i = 0; i < 4; i += 1) { alignHeadingUpNavigationViewport(); draw(); }
+        for (let i = 0; i < 4; i += 1) { alignHeadingUpNavigationViewport({ force: true }); draw(); }
 
         const real = window.drawWalkingRadiusDimming;
         window.drawWalkingRadiusDimming = () => {};
@@ -225,11 +291,21 @@ test.describe("3D tilt view", () => {
       });
     };
 
+    // Ahead radius against sideways radius. Deliberately not the "down" (behind) edge: under
+    // tilt the ground behind you runs off the bottom of the screen by design -- that is the
+    // whole point of the first-person camera, and drawWalkingRadius keeps drawing the full
+    // circle regardless -- so below about 60 degrees of tilt there is simply no behind edge
+    // left on the canvas to measure. Averaging it in meant the test demanded the opposite of
+    // the behaviour the app is specified to have, and failed on a desktop-shaped viewport
+    // where the pivot sits closest to the bottom. The foreshortening this test exists to prove
+    // is entirely in the ahead radius: flat it equals the sideways radius, and it compresses
+    // toward the horizon as the ground tilts away. Measured across the sweep, that is
+    // 1.00 -> 0.72 -> 0.48 -> 0.15 on desktop and 1.00 -> 0.75 -> 0.50 -> 0.15 on mobile.
     const aspectOf = (edges) => {
-      for (const key of ["right", "left", "down", "up"]) {
+      for (const key of ["right", "left", "up"]) {
         expect(edges[key], `${key} edge of the walking radius must be found`).not.toBeNull();
       }
-      return ((edges.up + edges.down) / 2) / ((edges.left + edges.right) / 2);
+      return edges.up / ((edges.left + edges.right) / 2);
     };
 
     const flat = await measure(0);
@@ -326,7 +402,7 @@ test.describe("3D tilt view", () => {
     //    had moved, throwing the map several-fold out of zoom on one frame;
     //  - the map was repainted four times per animation frame for the whole slide, so it
     //    actually moved at a fraction of the frame rate (see draw(), js/renderer.js).
-    await tiltTo(page, 60);
+    await tiltToSettled(page, 60);
 
     // Open ground well off to one side of the pivot, so the tap moves the browse origin (rather
     // than selecting whatever it landed on) and there is a real move for the camera to make.
@@ -344,6 +420,10 @@ test.describe("3D tilt view", () => {
       return null;
     });
     test.skip(!target, "no open ground on screen at this camera");
+
+    // The framing the camera is on before the tap. The slide has to travel from here to the
+    // browse framing and stop, without visiting anything outside the two.
+    const startScale = await page.evaluate(() => state.viewport.scale);
 
     // Watch the zoom and the repaint count on every animation frame from the tap until the
     // slide has landed.
@@ -374,18 +454,41 @@ test.describe("3D tilt view", () => {
     const anchored = await page.evaluate(() => Boolean(state.nearbyAnchor));
     expect(anchored, "sanity: the tap should have moved the nearby browse origin").toBe(true);
 
+    // How many animation frames a 1200ms window yields is the machine's business, not this
+    // app's: a 2-vCPU CI runner repainting a full canvas delivers a handful where a dev machine
+    // delivers seventy. Requiring three painted samples was really requiring a fast machine, and
+    // it is what failed this test on CI while it passed everywhere else. One painted frame is
+    // enough to sanity-check that the slide ran; the assertion that matters is the next one, and
+    // it holds on however many samples arrive.
     const painted = frames.filter((frame) => frame.paints > 0);
-    expect(painted.length, "sanity: the slide should have painted the map").toBeGreaterThan(2);
+    expect(painted.length, "sanity: the slide should have painted the map").toBeGreaterThanOrEqual(1);
     const worstPaints = Math.max(...painted.map((frame) => frame.paints));
     expect(worstPaints, "the map must be painted once per frame, not several times over").toBe(1);
+
+    // Headless rAF runs at a few frames a second under a full canvas repaint, so this cannot
+    // measure per-frame smoothness -- it measures where the zoom *goes*. Both ends of the slide
+    // are legitimate framings; the jump this test exists for was the camera solving one end
+    // against the other end's pivot and landing on a scale neither would choose, then creeping
+    // back over the whole slide. So: the zoom must stay within the two framings, and no single
+    // sample may move it further than the whole distance between them. (The easing itself is
+    // covered by "in 3D the nearby zoom eases across a browse slide instead of switching
+    // framings" in the unit suite, where frame timing is deterministic.)
+    const endScale = frames[frames.length - 1].scale;
+    const low = Math.min(startScale, endScale);
+    const high = Math.max(startScale, endScale);
+    for (const frame of frames) {
+      expect(frame.scale, `zoom left the two framings (${low.toFixed(0)}..${high.toFixed(0)})`).toBeGreaterThan(low * 0.98);
+      expect(frame.scale, `zoom left the two framings (${low.toFixed(0)}..${high.toFixed(0)})`).toBeLessThan(high * 1.02);
+    }
 
     let worstStep = 1;
     for (let i = 1; i < frames.length; i += 1) {
       worstStep = Math.max(worstStep, frames[i].scale / frames[i - 1].scale, frames[i - 1].scale / frames[i].scale);
     }
-    // An eased zoom moves a few percent per frame. A framing switch shows up here as a step of
-    // several times over -- which is what reads as a jump on screen.
-    expect(worstStep, `worst single-frame zoom step was ${worstStep.toFixed(2)}x`).toBeLessThan(1.35);
+    expect(
+      worstStep,
+      `worst single-frame zoom step was ${worstStep.toFixed(2)}x against a ${(high / low).toFixed(2)}x slide`,
+    ).toBeLessThanOrEqual((high / low) * 1.02);
   });
 
   test("the canvas carries no CSS 3D transform of its own", async ({ page }) => {

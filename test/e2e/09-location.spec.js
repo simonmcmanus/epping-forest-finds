@@ -21,11 +21,11 @@ test.describe("Location and GPS — happy path", () => {
 
     test("location loading step reaches 'done' after a GPS fix", async ({ page }) => {
       // The location step should transition to done class after a fix arrives
-      await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/, { timeout: 10_000 });
+      await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     });
 
     test("the location gate is not shown when geolocation is pre-granted", async ({ page }) => {
-      await expect(page.locator("#locationGate")).toBeHidden({ timeout: 5_000 });
+      await expect(page.locator("#locationGate")).toBeHidden();
     });
 
     test("distance info appears as an always-visible combined distance and walk chip after a GPS fix", async ({ page }) => {
@@ -37,7 +37,7 @@ test.describe("Location and GPS — happy path", () => {
       );
       await page.evaluate(() => { const g = document.getElementById("locationGate"); if (g && !g.hidden) g.hidden = true; });
       const walkChip = page.locator("#inspectorBody .walk-chip").first();
-      await expect(walkChip).toHaveCount(1, { timeout: 5_000 });
+      await expect(walkChip).toHaveCount(1);
       await expect(walkChip).toContainText(/\b(?:\d+\s*m|\d+(?:\.\d+)?\s*km)\s*·\s*(?:<\s*1\s*min|\d+\s*min|\d+h(?:\s*\d+min)?)/);
       await expect(page.locator("#inspectorBody .walk-chip-btn")).toHaveCount(0);
     });
@@ -63,12 +63,12 @@ test.describe("Location and GPS — happy path", () => {
     test("location gate is shown after geolocation is denied or times out", async ({ page }) => {
       await gotoAndWaitForMap(page);
       // The location gate should become visible once the error/timeout path runs
-      await expect(page.locator("#locationGate")).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#locationGate")).toBeVisible();
     });
 
     test("location gate button re-enables after the gate re-appears", async ({ page }) => {
       await gotoAndWaitForMap(page);
-      await expect(page.locator("#locationGateButton")).toBeEnabled({ timeout: 15_000 });
+      await expect(page.locator("#locationGateButton")).toBeEnabled();
     });
   });
 
@@ -103,7 +103,7 @@ test.describe("Location and GPS — happy path", () => {
 
     test("and the gate offers a retry rather than leaving the reader stuck", async ({ page }) => {
       await gotoAndWaitForMap(page, "/", { timeout: 45_000 });
-      await expect(page.locator("#locationGate")).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#locationGate")).toBeVisible();
       await expect(page.locator("#locationGateButton")).toBeEnabled();
     });
   });

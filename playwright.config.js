@@ -27,19 +27,30 @@ const launchOptions = chromiumExecutablePath
 module.exports = defineConfig({
   testDir: "./test/e2e",
   timeout: 60_000,
-  workers: 4,
+  // One worker per available core. GitHub-hosted runners have 2 vCPUs, and the CI job runs one
+  // Playwright project per runner (see the `project` matrix in .github/workflows/ci.yml), so 2
+  // there and 4 on a typical dev machine. Four workers on two vCPUs was the single biggest
+  // source of red CI: every worker got half a core, the app's boot-and-draw cycle stretched
+  // past the waits the specs bound it with, and whole spec files failed together in `beforeEach`
+  // while the same suite passed locally. That looked like flakiness and was really starvation.
+  workers: process.env.CI ? 2 : 4,
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
 
-  // GitHub-hosted runners only get 2 vCPUs; 4 workers there oversubscribes
-  // the CPU and slows each page's animation-frame loop enough that the
-  // default 5s toHaveScreenshot() stability check can time out waiting for
-  // a stable frame, before it ever compares pixels. Rather than cutting
-  // parallelism (and CI wall-clock time) to fix that, just give screenshot
-  // assertions more real time to converge under contention; other
-  // assertions keep the fast default everywhere.
+  // Everything a spec waits on gets more real time under CI, not just screenshots. A runner is
+  // slower than a dev machine even with the contention above fixed, and an assertion's timeout
+  // is a bound on how long the UI may take to get somewhere -- not a behaviour being tested. A
+  // genuinely broken UI still fails, on the 60s test timeout; all a tight bound bought was a
+  // red suite on a loaded machine. Specs therefore state *what* they wait for and leave *how
+  // long* to this, rather than each hard-coding its own few seconds.
   expect: {
-    toHaveScreenshot: { timeout: process.env.CI ? 15_000 : 5_000 },
+    timeout: process.env.CI ? 20_000 : 5_000,
+    // maxDiffPixelRatio, not an exact match: the baselines CI compares against are PNGs CI
+    // generated itself on the same runner image, and they still came back 28 pixels apart on a
+    // ~334k-pixel screenshot -- canvas antialiasing and font hinting are not bit-deterministic
+    // under load. 0.1% leaves better than ten times the headroom that noise needs while still
+    // catching any diff big enough to see.
+    toHaveScreenshot: { timeout: process.env.CI ? 15_000 : 5_000, maxDiffPixelRatio: 0.001 },
   },
 
   // Flat, screenshot-name-only path (not derived from the spec file path or

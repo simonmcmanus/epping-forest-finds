@@ -36,8 +36,8 @@ test.describe("Map drag input while camera auto-repositions", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.hashKey}`);
-    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/, { timeout: 10_000 });
-    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName, { timeout: 5_000 });
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     // Desktop viewport (see playwright.config.js) keeps the inspector expanded after a
     // selection, so shouldAutoRepositionSelection() is active during this drag.
     await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
@@ -66,7 +66,7 @@ test.describe("Map drag input while camera auto-repositions", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page);
-    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/, { timeout: 10_000 });
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     await page.evaluate(() => {
       state.compassHeading = 90;
       state.compassHeadingTarget = 90;
@@ -91,48 +91,101 @@ test.describe("Map drag input while camera auto-repositions", () => {
   });
 });
 
-// Regression coverage for zoomAt() applying a raw pointer-anchored zoom before deferring
-// to alignHeadingUpNavigationViewport(): the pan always snapped back to the heading-up
-// anchor, but the scale from the raw multiply could survive depending on timing, so wheel
-// input didn't reliably zoom toward the cursor or settle at a predictable value. Heading-up
-// mode should treat wheel input the same as drag: just re-run the locked fit (spec:
-// "Drag, zoom, resize, compass changes ... all re-fit the overview targets via
-// alignHeadingUpNavigationViewport()").
-test.describe("Wheel input while heading-up is active", () => {
+// The wheel is a laptop's version of the phone's two-finger radius pinch: on every screen that
+// draws the walking-radius ring it resizes that ring, and the camera follows because the Nearby
+// fit frames the ring and nothing else. It must never apply a raw pointer-anchored zoom on top
+// of that -- the original bug here was zoomAt() multiplying the scale before deferring to
+// alignHeadingUpNavigationViewport(), so wheel input settled at an unpredictable value.
+test.describe("Wheel and trackpad input on the Nearby screen", () => {
   test.use({
     geolocation: FOREST_LOCATION,
     permissions: ["geolocation"],
   });
 
-  test("wheel-zoom re-fits to the heading-up view instead of applying a raw pointer-anchored zoom", async ({ page }) => {
+  async function openNearbyHeadingUp(page) {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page);
-    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/, { timeout: 10_000 });
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     await page.evaluate(() => {
       state.compassHeading = 90;
       state.compassHeadingTarget = 90;
       alignHeadingUpNavigationViewport({ force: true });
     });
-    await page.waitForTimeout(50);
-    const referenceScale = await page.evaluate(() => state.viewport.scale);
+    return page.locator("#mapCanvas").boundingBox();
+  }
 
-    const box = await page.locator("#mapCanvas").boundingBox();
-    // Wheel near a corner, far from the user's on-screen anchor point, so a raw
-    // pointer-anchored zoom (the pre-fix behaviour) would move the viewport away from
-    // the locked fit.
-    await page.mouse.move(box.x + 15, box.y + 15);
+  // The radius gesture ends on a timeout and settles the camera with an animation, so the scale
+  // is only meaningful once it has stopped moving.
+  async function settledScale(page) {
+    let previous = null;
+    await expect.poll(async () => {
+      const scale = await page.evaluate(() => state.viewport.scale);
+      const stable = previous !== null && Math.abs(scale - previous) < previous * 0.0005;
+      previous = scale;
+      return stable;
+    }).toBe(true);
+    return previous;
+  }
+
+  test("scrolling the wheel zooms by resizing the walking radius, both ways", async ({ page }) => {
+    const box = await openNearbyHeadingUp(page);
+    const before = await page.evaluate(() => state.walkingDistanceMinutes);
+    const beforeScale = await settledScale(page);
+
+    // Well away from the user's on-screen anchor point (but still over the map, not the chrome
+    // around it): a raw pointer-anchored zoom would move the viewport away from the ring's own
+    // fit, while resizing the ring does not care where the cursor is.
+    await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.25);
     await page.mouse.wheel(0, -600);
-    await page.waitForTimeout(50);
-    const afterZoomIn = await page.evaluate(() => state.viewport.scale);
 
+    await expect.poll(() => page.evaluate(() => state.walkingDistanceMinutes)).toBeLessThan(before);
+    const zoomedInScale = await settledScale(page);
+    expect(zoomedInScale).toBeGreaterThan(beforeScale);
+
+    // The camera is the ring's locked fit, not a raw multiply: re-running that fit moves nothing.
+    const refit = await page.evaluate(() => {
+      alignHeadingUpNavigationViewport({ force: true });
+      return state.viewport.scale;
+    });
+    expect(Math.abs(refit - zoomedInScale)).toBeLessThan(zoomedInScale * 0.01);
+
+    // And scrolling the other way widens the ring again.
+    const tight = await page.evaluate(() => state.walkingDistanceMinutes);
     await page.mouse.wheel(0, 600);
-    await page.waitForTimeout(50);
-    const afterZoomOut = await page.evaluate(() => state.viewport.scale);
+    await expect.poll(() => page.evaluate(() => state.walkingDistanceMinutes)).toBeGreaterThan(tight);
+    expect(await settledScale(page)).toBeLessThan(zoomedInScale);
+  });
 
-    // Locked to the heading-up fit: the resulting scale is the same regardless of scroll
-    // direction, because wheel input just re-triggers the fit rather than applying `factor`.
-    expect(Math.abs(afterZoomIn - referenceScale)).toBeLessThan(referenceScale * 0.001);
-    expect(Math.abs(afterZoomOut - referenceScale)).toBeLessThan(referenceScale * 0.001);
+  test("a laptop trackpad pinch resizes the radius the same way", async ({ page }) => {
+    const box = await openNearbyHeadingUp(page);
+    const before = await page.evaluate(() => state.walkingDistanceMinutes);
+
+    // Every desktop browser reports a trackpad pinch as a wheel with ctrlKey set, in deltas far
+    // smaller than a wheel notch -- which is why the gesture accumulates its own running value.
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.keyboard.down("Control");
+    for (let i = 0; i < 8; i += 1) await page.mouse.wheel(0, -8);
+    await page.keyboard.up("Control");
+
+    await expect.poll(() => page.evaluate(() => state.walkingDistanceMinutes)).toBeLessThan(before);
+  });
+
+  test("with a location selected the wheel still zooms the map itself", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+
+    const before = await page.evaluate(() => ({
+      minutes: state.walkingDistanceMinutes,
+      scale: state.viewport.scale,
+    }));
+    const box = await page.locator("#mapCanvas").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, -300);
+
+    await expect.poll(() => page.evaluate(() => state.viewport.scale)).toBeGreaterThan(before.scale);
+    expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(before.minutes);
   });
 });

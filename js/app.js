@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v28"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v30"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -208,9 +208,18 @@ const state = {
   nearestItemsCount: 10,
   walkingDistanceMinutes: 5,
   walkingRadiusAtFloor: false,
+  // The wheel/trackpad radius gesture's running (unrounded) value and its settle timer --
+  // a wheel has no pointerup to end on, so the gesture ends on a timeout instead
+  // (updateNearbyRadiusWheel/endNearbyRadiusWheel, js/nav.js).
+  wheelRadiusMinutes: null,
+  wheelRadiusSettleTimer: null,
+  // Safari's trackpad pinch (gesturestart/change/end) measures from where the gesture began,
+  // like the two-finger pinch does -- see startNearbyRadiusGesture, js/nav.js.
+  gestureRadiusBaseMinutes: null,
   showAllOutsideRadius: false,
   compassHeading: null,
   compassHeadingTarget: null,
+  nearbyListHeading: null, // heading the Nearby list is ordered by -- see headsUpSortedEntries
   compassPermission: STORED_COMPASS_PERMISSION,
   compassCalibrationSamples: [],
   compassCalibrationStartedAt: null,
@@ -1452,7 +1461,12 @@ function settingsFormHtml() {
   // The floor keeps the slider from being dragged down to a radius with nothing in it (see
   // walkingRadiusFloorMinutes, js/nav.js); a native <input type="range"> min attribute
   // enforces it directly, so there's no separate clamp to keep in sync here.
-  const floorMinutes = walkingRadiusFloorMinutes(state.userLocation);
+  // Snapped up onto the value grid (ceilWalkingMinutes): a range input steps from its own
+  // min, so a raw floor like 0.41 would put every reachable value off the grid the label and
+  // the pinch gesture use.
+  const floorMinutes = ceilWalkingMinutes(walkingRadiusFloorMinutes(state.userLocation));
+  // A floor below a minute means something is close enough to be worth the finer step.
+  const stepMinutes = floorMinutes < 1 ? WALKING_RADIUS_FINE_STEP_MINUTES : WALKING_RADIUS_STEP_MINUTES;
   const sliderValue = clamp(minutes, floorMinutes, WALKING_RADIUS_MAX_MINUTES);
   const ticks = WALKING_RADIUS_PRESET_MINUTES
     .filter((m) => m >= floorMinutes && m <= WALKING_RADIUS_MAX_MINUTES)
@@ -1465,9 +1479,9 @@ function settingsFormHtml() {
       <label for="settingsWalkMins" class="settings-label">Walking time
         <span class="walk-radius-row">
           <input type="range" id="settingsWalkMins" class="walk-radius-range"
-            min="${floorMinutes}" max="${WALKING_RADIUS_MAX_MINUTES}" step="0.5"
+            min="${floorMinutes}" max="${WALKING_RADIUS_MAX_MINUTES}" step="${stepMinutes}"
             value="${sliderValue}" list="walkRadiusTicks">
-          <span class="walk-radius-value" id="settingsWalkMinsValue">${formatWalkingMinutes(sliderValue)} min</span>
+          <span class="walk-radius-value" id="settingsWalkMinsValue">${formatWalkingRadius(sliderValue)}</span>
         </span>
         <datalist id="walkRadiusTicks">${ticks}</datalist>
       </label>
@@ -1516,8 +1530,11 @@ function bindSettingsHandlers() {
     // to each intermediate fit rather than queuing an animation per tick; "change" fires
     // once on release for the smooth settling motion (default animate:true).
     range.addEventListener("input", () => {
-      const value = Number(range.value);
-      if (valueLabel) valueLabel.textContent = `${formatWalkingMinutes(value)} min`;
+      // Snapped to the same grid the pinch gesture applies, so a fine-step slider (offered
+      // when something sits less than a minute away) still lands on whole half-minutes once
+      // it is dragged up past a minute.
+      const value = roundWalkingMinutes(Number(range.value));
+      if (valueLabel) valueLabel.textContent = formatWalkingRadius(value);
       if (floorNote) floorNote.hidden = value > floorMinutes;
       applyWalkingRadiusChange(value, { animate: false });
     });
@@ -2130,6 +2147,80 @@ function overviewItemsForActiveFilter() {
   return storeOverviewItemsCache(cacheKey, sortedEntries);
 }
 
+// --- Heads-up ordering ---------------------------------------------------------------
+//
+// The Nearby list is a heads-up view, not a distance table: of two things the same walk
+// away, the one you are facing is the one you are about to walk into, so it belongs above
+// the one at your back. Each entry is scored as an *effective* distance --
+//
+//   metres * (1 + HEADS_UP_BEHIND_PENALTY * (1 - cos(delta)) / 2)
+//
+// -- where delta is the angle between your heading and the bearing to the item. Dead ahead
+// keeps its true distance, dead behind counts as (1 + penalty) times as far, and the sides
+// fall smoothly in between. Distance still dominates: at penalty 1 something behind you only
+// loses to something ahead that is less than twice as far, so the list never promotes a
+// far-off thing over one you could reach in seconds.
+const HEADS_UP_BEHIND_PENALTY = 1;
+
+// How far you have to turn before the list re-sorts. The compass is smoothed but never
+// still, and re-ranking on every frame would have the list shuffling under your thumb; a
+// deliberate turn crosses this in one movement, and the reorder animates (see
+// animateNearestItemReorder, js/inspector.js) so the change is legible rather than abrupt.
+const HEADS_UP_REORDER_DEGREES = 12;
+
+// The heading the list is currently ordered by -- deliberately *not* the live compass value,
+// for the reason above. Latched to the live heading the first time one is available, and
+// afterwards only by syncNearbyListHeading().
+function nearbyListHeading() {
+  if (!Number.isFinite(state.compassHeading)) return null;
+  if (!Number.isFinite(state.nearbyListHeading)) {
+    state.nearbyListHeading = normalizeDegrees(state.compassHeading);
+  }
+  return state.nearbyListHeading;
+}
+
+// Called from the compass smoothing loop. Adopts the live heading once it has moved a real
+// turn away from the one the list is ordered by, and reports whether it did, so the caller
+// can re-render.
+function syncNearbyListHeading() {
+  if (!Number.isFinite(state.compassHeading)) return false;
+  const live = normalizeDegrees(state.compassHeading);
+  const settled = state.nearbyListHeading;
+  if (Number.isFinite(settled) && Math.abs(shortestCompassDelta(settled, live)) < HEADS_UP_REORDER_DEGREES) {
+    return false;
+  }
+  state.nearbyListHeading = live;
+  return true;
+}
+
+function headsUpScore(entry, origin, heading) {
+  const metres = Number(entry && entry.metres);
+  if (!Number.isFinite(metres)) return Number.POSITIVE_INFINITY;
+  if (!origin || !Number.isFinite(heading)) return metres;
+  const item = entry.item;
+  // Trails and water features are lines/areas with no single coordinate to take a bearing
+  // to, so they keep their plain distance rank rather than being guessed at.
+  if (!item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return metres;
+  const bearing = bearingDegrees(origin.latitude, origin.longitude, item.latitude, item.longitude);
+  const delta = toRadians(shortestCompassDelta(heading, bearing));
+  return metres * (1 + HEADS_UP_BEHIND_PENALTY * (1 - Math.cos(delta)) / 2);
+}
+
+// Returns a new array (never the memoized overviewItemsForActiveFilter() result, which the
+// renderer also reads) ordered by heads-up score. With no compass -- desktop, or location
+// without orientation -- this is the plain nearest-first order it has always been.
+function headsUpSortedEntries(entries) {
+  if (!Array.isArray(entries) || entries.length < 2) return entries;
+  const heading = nearbyListHeading();
+  const origin = nearbyOrigin();
+  if (!Number.isFinite(heading) || !origin) return entries;
+  return entries
+    .map((entry, index) => ({ entry, index, score: headsUpScore(entry, origin, heading) }))
+    // Ties fall back to the incoming distance order, so the sort stays deterministic.
+    .sort((a, b) => (a.score - b.score) || (a.index - b.index))
+    .map((scored) => scored.entry);
+}
+
 function overviewNearestHtml() {
   if (!state.userLocation) {
     return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
@@ -2149,7 +2240,10 @@ function overviewNearestHtml() {
   // overviewItemsForActiveFilter() now returns every match within the radius (see its
   // comment) so the map can show all of them -- this scrollable text list still only
   // wants to display the nearest handful, so cap it here instead.
-  const allEntries = overviewItemsForActiveFilter();
+  // Heads-up ordering is applied to the *whole* in-radius set before the display cap, so a
+  // find you are walking straight at can climb into the visible handful rather than being
+  // cut off by a closer one behind your shoulder.
+  const allEntries = headsUpSortedEntries(overviewItemsForActiveFilter());
   const entries = allEntries.slice(0, state.nearestItemsCount);
   const activePointFilters = getActivePointFilterKeys();
   if (!allEntries.length) {
@@ -2166,7 +2260,7 @@ function overviewNearestHtml() {
   const heading = activePointFilters.length === 1
     ? `Nearest ${filterMeta(activePointFilters[0])?.title || "items"} around you`
     : state.overviewFilters.length > 0
-      ? `Nearest selected filters within ${formatWalkingMinutes(state.walkingDistanceMinutes)} min walk`
+      ? `Nearest selected filters within ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`
       : "Nearest around you";
 
   const itemsHtml = entries.map((entry) => {
@@ -2200,13 +2294,13 @@ function overviewNearestHtml() {
   }).join("");
 
   const fallbackNotice = state.overviewOutsideRadiusFallback
-    ? `<p class="source-note"><strong>Nothing found within ${formatWalkingMinutes(state.walkingDistanceMinutes)} mins walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
+    ? `<p class="source-note"><strong>Nothing found within ${formatWalkingRadius(state.walkingDistanceMinutes)} walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
     : "";
   const radiusActive = !state.showAllOutsideRadius;
   const chipTitle = radiusActive
-    ? `Showing within ${formatWalkingMinutes(state.walkingDistanceMinutes)} min walk — tap to show all`
-    : `Showing all distances — tap to filter to ${formatWalkingMinutes(state.walkingDistanceMinutes)} min walk`;
-  const chipLabel = radiusActive ? `${formatWalkingMinutes(state.walkingDistanceMinutes)} min` : "All";
+    ? `Showing within ${formatWalkingRadius(state.walkingDistanceMinutes)} walk — tap to show all`
+    : `Showing all distances — tap to filter to ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
+  const chipLabel = radiusActive ? formatWalkingRadius(state.walkingDistanceMinutes) : "All";
   const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
   return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
 }
@@ -2391,6 +2485,7 @@ function recoverStalledCompass(now = performance.now()) {
   if (Number.isFinite(state.compassHeading)) {
     state.compassHeading = null;
     state.compassHeadingTarget = null;
+    state.nearbyListHeading = null;
     state.renderedNavigationHeading = null;
     state.headingUpEntryAnim = null;
     resetCompassCalibration();
@@ -2718,6 +2813,7 @@ function startCompassSmoothing() {
     state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
 
     updateOverviewDirectionArrows();
+    refreshNearbyListForHeading();
     updateCompassOverlay();
     const viewportChanged = alignHeadingUpNavigationViewport();
     if (headingUpActive()) {
@@ -2735,6 +2831,7 @@ function startCompassSmoothing() {
     if (remaining < 0.05 && !sensorIsActive && betaSettled) {
       state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
       updateOverviewDirectionArrows();
+      refreshNearbyListForHeading();
       updateCompassOverlay();
       // REVERTED (was: animate this settle call to ease in the zoom that
       // resolveHeadingUpTargetScale deferred while the sensor was live). Animating here puts
@@ -2798,6 +2895,9 @@ function ensureLocationWatch() {
       state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
       state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
       state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+      // Walked out of a radius that was framing one nearby find? Grow it back to whatever is
+      // still in reach before the list and camera are re-derived below (js/nav.js).
+      ensureWalkingRadiusCoversNearest();
       if (isOverviewScreenActive()) {
         selectOverview();
       }
@@ -2881,7 +2981,7 @@ function roadNavTarget(road) {
 const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
 const HEADING_UP_ANCHOR_NEARBY = 0.5; // flat/2D nearby: dead centre, so the walking-radius circle -- the only thing this view's camera frames -- is centred in the available map space
 const HEADING_UP_ANCHOR_SELECTED_TILT = 0.88; // at max tilt (full 3D), user sits near the bottom edge with a small gap so the view isn't obscured by anything behind
-const HEADING_UP_ANCHOR_NEARBY_TILT = 0.90;   // at max tilt (full 3D), user sits near the bottom edge with a small gap so the view isn't obscured by anything behind
+const HEADING_UP_ANCHOR_NEARBY_TILT = 0.94;   // at max tilt (full 3D), you sit right down at the bottom edge: a heads-up view is about what is in front of you, and every pixel spent on the ground behind you is a pixel not spent on where you are walking
 const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
 const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
 const HEADING_UP_SCALE_BUFFER_RATIO = 0.04; // keep extra off-screen room so quick heading changes do not expose unrendered edges
@@ -3860,11 +3960,34 @@ function nearbyPivotFitScale(points, browsing, focusRect, focus) {
     x: focusRect.x + focusRect.width / 2,
     y: focusRect.y + focusRect.height * nearbyPivotAnchorFraction(browsing),
   };
-  return maxScaleForHeadingUpPoints(points, pivotFocus, focusRect, {
+  const maxScale = maxScaleForHeadingUpPoints(points, pivotFocus, focusRect, {
     projectTilt: true,
     originPoint: cameraOriginPoint(),
     excludeBehindDuringTilt: !browsing,
   });
+  if (maxScale == null) return maxScale;
+  return maxScale * nearbyFirstPersonFitZoom(browsing);
+}
+
+// How much tighter than "the whole ahead half of the walking-radius ring fits on screen" the
+// first-person 3D camera frames. Fitting the ring exactly put its left and right extremes
+// right on the screen edges, so 3D read as a small disc of forest floating in the middle of
+// the map with the search area's own boundary drawn around it -- the "too zoomed out in 3D"
+// report. Framing past those edges instead puts you *inside* the radius looking down it,
+// which is what a heads-up view is for: the ring still runs off the sides (and behind you,
+// as it already did), it is simply no longer the thing being framed.
+//
+// Ramped by tiltAnchorFraction(), like nearbyPivotAnchorFraction is, so the flat 2D fit --
+// which is precisely about seeing the whole ring -- is untouched at 1.0, and raising the
+// phone eases the zoom in rather than stepping it.
+const NEARBY_TILT_FIT_ZOOM = 1.6;
+
+function nearbyFirstPersonFitZoom(browsing) {
+  // Browsing a spot away from yourself has no "ahead" to zoom into: that pivot exists to
+  // show the whole nearest area around the tapped point (see tiltHidesWhatIsBehind), so it
+  // keeps the plain fit.
+  if (browsing) return 1;
+  return 1 + (NEARBY_TILT_FIT_ZOOM - 1) * tiltAnchorFraction();
 }
 
 function alignHeadingUpNavigationViewport(options = {}) {
@@ -3975,11 +4098,19 @@ function prepareCanvasForDraw() {
   // which is what holds the walking-radius circle still while the map moves behind it.
   if (state.nearbyOriginTransition) {
     // The transition object outlives the slide itself by NEARBY_REVEAL_MS so the fade-in has
-    // frames to run; only the camera work stops when the slide lands.
+    // frames to run.
     const sliding = nearbyOriginTransitionActive();
     const fading = nearbyRevealInProgress();
     if (!fading) state.nearbyOriginTransition = null;
-    if (sliding || !fading) alignHeadingUpNavigationViewport({ animate: false, force: true });
+    // Re-derive the camera on every frame the transition object is alive, not just while the
+    // slide is moving. This used to be `sliding || !fading`, which skipped exactly the frames
+    // where the slide had landed but the reveal fade was still running -- and on those frames
+    // nearbyRenderOriginPoint() has already snapped from the interpolated origin to the final
+    // one while the camera is still the last interpolated framing. The walking-radius circle,
+    // which the whole slide exists to hold still, twitched a few pixels as the slide landed
+    // and hopped back when the fade ended. Once the origin has stopped moving this call is a
+    // no-op that costs a fit solve for the ~180ms of the fade.
+    alignHeadingUpNavigationViewport({ animate: false, force: true });
     if (fading) requestDraw();
   }
   // Resize whenever heading-up mode activates or deactivates so the canvas is only
@@ -4640,6 +4771,18 @@ function updateOverviewDirectionArrows() {
     arrow.dataset.currentAngle = String(nextAngle);
     arrow.style.transform = `rotate(${nextAngle}deg)`;
   }
+}
+
+// Re-renders the Nearby list when you have turned far enough for its heads-up order to
+// change (see headsUpSortedEntries). Called from the compass smoothing loop alongside
+// updateOverviewDirectionArrows, which spins the per-item arrows every frame; the list
+// itself only re-sorts on a real turn, and selectOverview's own list-key check drops the
+// re-render when the new heading happens to leave the order alone.
+function refreshNearbyListForHeading() {
+  if (!syncNearbyListHeading()) return;
+  if (!isOverviewScreenActive()) return;
+  if (typeof selectOverview !== "function") return;
+  selectOverview();
 }
 
 function unwrapAngle(previous, target) {

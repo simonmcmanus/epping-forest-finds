@@ -43,7 +43,7 @@ test.describe("Overview / Nearby screen", () => {
 
   test("inspector body prompts for location when GPS is not available", async ({ page }) => {
     // Without geolocation, overviewNearestHtml() returns an empty-state message
-    await expect(page.locator("#inspectorBody .empty")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#inspectorBody .empty")).toBeVisible();
   });
 
   test.describe("with mocked GPS inside the forest", () => {
@@ -54,13 +54,13 @@ test.describe("Overview / Nearby screen", () => {
 
     test("inspector body shows nearest items when location is available", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
     });
 
     test("nearby entries show a combined distance and walk-time chip", async ({ page }) => {
       await setup(page);
       const walkChip = page.locator("#inspectorBody .nearest-item .walk-chip").first();
-      await expect(walkChip).toBeVisible({ timeout: 15_000 });
+      await expect(walkChip).toBeVisible();
       await expect(walkChip).toContainText(/\b(?:\d+\s*m|\d+(?:\.\d+)?\s*km)\s*·\s*(?:<\s*1\s*min|\d+\s*min|\d+h(?:\s*\d+min)?)/);
     });
   });
@@ -98,7 +98,7 @@ test.describe("Overview / Nearby screen", () => {
 
     test("tapping open map ground previews that spot instead of resetting to overview", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       // Which screen pixels are open ground (rather than a pin or a road) varies with the live
       // dataset, viewport shape, and in-flight GPS-follow animations -- hunting for a safe click
@@ -122,7 +122,7 @@ test.describe("Overview / Nearby screen", () => {
 
     test("tapping open map ground while a tree is selected returns to nearby, focused on that spot", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       await page.evaluate((hashKey) => {
         const tree = findTreeByHashKey(hashKey);
@@ -133,8 +133,7 @@ test.describe("Overview / Nearby screen", () => {
       // animation; getElementById (first match) avoids Playwright's strict-mode violation.
       await page.waitForFunction(
         (name) => document.getElementById("inspectorTitle")?.textContent?.includes(name),
-        FIXTURE_TREE.commonName,
-        { timeout: 5_000 }
+        FIXTURE_TREE.commonName
       );
 
       const tapped = await page.evaluate(() => {
@@ -146,15 +145,14 @@ test.describe("Overview / Nearby screen", () => {
       expect(tapped.selected, "the selection is dropped for nearby mode").toBeNull();
       expect(tapped.anchor.latitude).toBeCloseTo(tapped.expected.latitude, 6);
       await page.waitForFunction(
-        () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
-        { timeout: 5_000 }
+        () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
       );
       await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
     });
 
     test("'Use my location' clears the browse anchor and restores the real nearest list", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       await page.evaluate(() => {
         const origin = state.userLocation;
@@ -182,7 +180,7 @@ test.describe("Overview / Nearby screen", () => {
 
     test.beforeEach(async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
       await page.evaluate(() => {
         const latitude = state.userLocation.latitude + 0.02;
         const longitude = state.userLocation.longitude;
@@ -223,7 +221,7 @@ test.describe("Overview / Nearby screen", () => {
 
     test("pinching resizes the walking radius from the filter screen", async ({ page }) => {
       await page.click("#filterToggle");
-      await expect(page).toHaveURL(/#filters$/, { timeout: 3_000 });
+      await expect(page).toHaveURL(/#filters$/);
 
       const before = await page.evaluate(() => state.walkingDistanceMinutes);
       await firePinch(page, { startHalfGap: 140, endHalfGap: 20 });
@@ -245,7 +243,7 @@ test.describe("Overview / Nearby screen", () => {
     // nearest: zoomed in past the ring and clipped it when they were clustered close, zoomed
     // out past it when one sat near the edge.
     async function measureRing(page) {
-      await page.waitForFunction(() => Boolean(state.userLocation), { timeout: 15_000 });
+      await page.waitForFunction(() => Boolean(state.userLocation));
       await page.waitForTimeout(900); // let the reveal animation settle
       return page.evaluate(() => {
         stopViewportAnimation();
@@ -287,7 +285,7 @@ test.describe("Overview / Nearby screen", () => {
       // A circle centred on the user looks the same from every heading, so the fit is
       // heading-invariant by construction and the map must not breathe as you turn on the spot.
       await setup(page);
-      await page.waitForFunction(() => Boolean(state.userLocation), { timeout: 15_000 });
+      await page.waitForFunction(() => Boolean(state.userLocation));
       await page.waitForTimeout(900);
 
       const scales = await page.evaluate(() => {
@@ -313,7 +311,7 @@ test.describe("Overview / Nearby screen", () => {
       // "It doesn't need to re-render the things in the circle unless the circle moves": once
       // the fit has landed, the per-frame compass tick must be a no-op for the viewport.
       await setup(page);
-      await page.waitForFunction(() => Boolean(state.userLocation), { timeout: 15_000 });
+      await page.waitForFunction(() => Boolean(state.userLocation));
       await page.waitForTimeout(900);
 
       const changedOnRepeat = await page.evaluate(() => {
@@ -335,7 +333,7 @@ test.describe("Overview / Nearby screen", () => {
 
     test("spreading two fingers apart shrinks the radius; pinching together grows it", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       const before = await page.evaluate(() => state.walkingDistanceMinutes);
       await firePinch(page, { startHalfGap: 20, endHalfGap: 140 });
@@ -356,7 +354,7 @@ test.describe("Overview / Nearby screen", () => {
 
     test("pinching well past the floor pins the radius there and shows a visual limit", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       // Inspects state mid-gesture (before the fingers lift) by dispatching the pointer
       // sequence inline rather than through firePinch, which only returns once the gesture --
@@ -401,12 +399,93 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator(".walk-radius-floor-notice")).toHaveCount(0);
     });
 
+    // Stands the user right next to whatever is nearest, so "the closest thing to me" is
+    // seconds away rather than minutes -- the case the sub-minute floor exists for.
+    async function standBesideTheNearestFind(page, context) {
+      const spot = await page.evaluate(() => {
+        const nearest = nearestFallbackEntriesForActiveFilter(state.userLocation.latitude, state.userLocation.longitude)[0];
+        return { latitude: nearest.item.latitude + 0.0002, longitude: nearest.item.longitude };
+      });
+      await context.setGeolocation({ ...spot, accuracy: 5 });
+      await page.waitForFunction(
+        (target) => Math.abs(state.userLocation.latitude - target.latitude) < 0.00005,
+        spot
+      );
+      return spot;
+    }
+
+    test("a find closer than a minute's walk can be zoomed in on past the one-minute limit", async ({ page, context }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      await standBesideTheNearestFind(page, context);
+
+      const floor = await page.evaluate(() => walkingRadiusFloorMinutes(nearbyOrigin()));
+      expect(floor).toBeLessThan(1);
+
+      const beforeScale = await page.evaluate(() => state.viewport.scale);
+      await firePinch(page, { startHalfGap: 20, endHalfGap: 600, step: 20 });
+
+      const after = await page.evaluate(() => ({
+        minutes: state.walkingDistanceMinutes,
+        scale: state.viewport.scale,
+        listed: document.querySelectorAll("#inspectorBody .nearest-item").length,
+      }));
+      expect(after.minutes).toBeLessThan(1);
+      expect(after.minutes).toBeGreaterThanOrEqual(floor);
+      // The map follows the ring in: zoomed in past where a one-minute radius would have stopped.
+      expect(after.scale).toBeGreaterThan(beforeScale);
+      // And what is that close is still listed -- the ring never closes past its own contents.
+      expect(after.listed).toBeGreaterThan(0);
+    });
+
+    test("walking away from the last find in the ring widens it again", async ({ page, context }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      await standBesideTheNearestFind(page, context);
+      await firePinch(page, { startHalfGap: 20, endHalfGap: 600, step: 20 });
+      const tight = await page.evaluate(() => state.walkingDistanceMinutes);
+      expect(tight).toBeLessThan(1);
+
+      // Somewhere in the forest with nothing within a few tens of metres, so the tight ring the
+      // pinch left behind really does empty out on arrival.
+      const emptySpot = await page.evaluate((origin) => {
+        let best = null;
+        for (let dLat = -0.01; dLat <= 0.0101; dLat += 0.005) {
+          for (let dLon = -0.01; dLon <= 0.0101; dLon += 0.005) {
+            const latitude = origin.latitude + dLat;
+            const longitude = origin.longitude + dLon;
+            const nearest = nearestFallbackEntriesForActiveFilter(latitude, longitude)[0];
+            if (!nearest) continue;
+            if (!best || nearest.metres > best.metres) best = { latitude, longitude, metres: nearest.metres };
+          }
+        }
+        return best;
+      }, FOREST_LOCATION);
+      expect(emptySpot.metres).toBeGreaterThan(100);
+
+      await context.setGeolocation({ latitude: emptySpot.latitude, longitude: emptySpot.longitude, accuracy: 5 });
+
+      // The radius grows itself back out to whatever is nearest now, and the list fills again --
+      // no pinching, no "nothing found" dead end.
+      await expect.poll(() => page.evaluate(() => state.walkingDistanceMinutes)).toBeGreaterThan(tight);
+      expect(await page.evaluate(() => state.overviewOutsideRadiusFallback)).toBe(false);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+
+      // Grow-only: the radius the user chose is never quietly pulled back in.
+      await page.evaluate(() => { state.walkingDistanceMinutes = 30; });
+      await context.setGeolocation({ latitude: FOREST_LOCATION.latitude, longitude: FOREST_LOCATION.longitude, accuracy: 5 });
+      await page.waitForFunction(
+        (target) => Math.abs(state.userLocation.latitude - target.latitude) < 0.00005,
+        FOREST_LOCATION
+      );
+      expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(30);
+    });
+
     test("pinching is ignored while a real selection is open", async ({ page }) => {
       await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
       await page.waitForFunction(
         (name) => document.getElementById("inspectorTitle")?.textContent?.includes(name),
-        FIXTURE_TREE.commonName,
-        { timeout: 10_000 }
+        FIXTURE_TREE.commonName
       );
 
       const before = await page.evaluate(() => state.walkingDistanceMinutes);

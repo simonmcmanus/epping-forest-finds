@@ -180,13 +180,36 @@ globalThis.__forestFindsTest = {
   formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
+  headsUpSortedEntries,
+  headsUpScore,
+  nearbyListHeading,
+  syncNearbyListHeading,
+  refreshNearbyListForHeading,
+  HEADS_UP_BEHIND_PENALTY,
+  HEADS_UP_REORDER_DEGREES,
   walkingDistanceToMetres,
   walkingRadiusFloorMinutes,
   metresToWalkingMinutes,
   roundWalkingMinutes,
+  ceilWalkingMinutes,
   formatWalkingMinutes,
+  formatWalkingRadius,
+  ensureWalkingRadiusCoversNearest,
+  nearbyRadiusIsEmpty,
+  syncSettingsWalkSlider,
+  applyWalkingRadiusGesture,
+  normalizeWheelPixels,
+  updateNearbyRadiusWheel,
+  endNearbyRadiusWheel,
+  zoomInputResizesNearbyRadius,
+  startNearbyRadiusGesture,
+  updateNearbyRadiusGesture,
+  endNearbyRadiusGesture,
+  WHEEL_RADIUS_RATE_PER_PIXEL,
+  TRACKPAD_PINCH_RATE_MULTIPLIER,
   WALKING_RADIUS_PRESET_MINUTES,
   WALKING_RADIUS_MIN_MINUTES,
+  WALKING_RADIUS_TIGHT_MIN_MINUTES,
   WALKING_RADIUS_MAX_MINUTES,
   keepOverviewCenteredOnUser,
   centerOverviewOnUserLocation,
@@ -210,6 +233,8 @@ globalThis.__forestFindsTest = {
   HEADING_UP_SCALE_EASE_RATE,
   HEADING_UP_SCALE_EASE_MAX_DT,
   maxNearbyHeadingUpScale,
+  nearbyFirstPersonFitZoom,
+  NEARBY_TILT_FIT_ZOOM,
   nearbyCameraFitPoints,
   nearestSelectedFilterPoints,
   walkingRadiusWorldUnits,
@@ -416,6 +441,7 @@ function resetData(app) {
   app.state.renderedNavigationHeading = null;
   app.state.compassHeading = null;
   app.state.compassHeadingTarget = null;
+  app.state.nearbyListHeading = null;
   app.state.compassCalibrationSamples = [];
   app.state.compassCalibrationStartedAt = null;
   app.state.compassCalibrationPromptVisible = false;
@@ -1316,6 +1342,115 @@ test("nearest list uses in-radius matches before fallback", () => {
   assert.equal(entries.filter(e => e.kind === "tree")[0].outOfRadius, true);
 });
 
+test("the nearby list ranks what you are facing above what is behind you at the same distance", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0; // facing north
+  app.state.overviewFilters = ["trees"];
+  // Same distance from the user, opposite sides: one due north (dead ahead), one due south.
+  app.state.trees.push(
+    { id: "behind-tree", commonName: "Behind tree", ...makePoint(app, -0.001, 0) },
+    { id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) }
+  );
+
+  const order = app.headsUpSortedEntries(app.overviewItemsForActiveFilter()).map((entry) => entry.item.id);
+
+  // .join, not deepEqual: arrays mapped from the vm sandbox carry the sandbox's Array prototype.
+  assert.equal(order.join(","), "ahead-tree,behind-tree");
+});
+
+test("the nearby list still puts a much closer find first, even when it is behind you", () => {
+  // Heads-up ordering biases the list, it does not override it: distance stays the dominant
+  // term, so something at your back that you could reach in seconds is not pushed below a
+  // far-off one you happen to be pointed at.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0; // facing north
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push(
+    { id: "far-ahead-tree", commonName: "Far ahead", ...makePoint(app, 0.003, 0) },
+    { id: "close-behind-tree", commonName: "Close behind", ...makePoint(app, -0.0005, 0) }
+  );
+
+  const order = app.headsUpSortedEntries(app.overviewItemsForActiveFilter()).map((entry) => entry.item.id);
+
+  assert.equal(order.join(","), "close-behind-tree,far-ahead-tree");
+});
+
+test("without a compass heading the nearby list is ordered by plain distance", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = null; // desktop, or location without orientation
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push(
+    { id: "behind-tree", commonName: "Behind tree", ...makePoint(app, -0.0009, 0) },
+    { id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) }
+  );
+
+  const entries = app.overviewItemsForActiveFilter();
+  const order = app.headsUpSortedEntries(entries).map((entry) => entry.item.id);
+
+  assert.equal(order.join(","), "behind-tree,ahead-tree", "nearest first, exactly as before");
+  assert.equal(app.headsUpSortedEntries(entries), entries, "and the memoized array is handed straight back");
+});
+
+test("heads-up ordering never mutates the memoized nearby item list the map also reads", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push(
+    { id: "behind-tree", commonName: "Behind tree", ...makePoint(app, -0.0009, 0) },
+    { id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) }
+  );
+
+  const entries = app.overviewItemsForActiveFilter();
+  const distanceOrder = entries.map((entry) => entry.item.id);
+  const headsUpOrder = app.headsUpSortedEntries(entries).map((entry) => entry.item.id);
+
+  assert.notEqual(headsUpOrder.join(","), distanceOrder.join(","), "sanity: this fixture should actually reorder");
+  assert.equal(entries.map((entry) => entry.item.id).join(","), distanceOrder.join(","), "the shared array keeps its distance order");
+});
+
+test("a find you are walking at climbs into the listed handful past closer ones behind you", () => {
+  // The order is applied to the whole in-radius set before the display cap, not to the top few
+  // by distance -- otherwise the item you are pointed at can never reach the list at all.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0; // facing north
+  app.state.overviewFilters = ["trees"];
+  app.state.nearestItemsCount = 2;
+  app.state.trees.push(
+    { id: "behind-1", commonName: "Behind one", ...makePoint(app, -0.0004, 0) },
+    { id: "behind-2", commonName: "Behind two", ...makePoint(app, -0.00045, 0) },
+    { id: "behind-3", commonName: "Behind three", ...makePoint(app, -0.0005, 0) },
+    { id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.0006, 0) }
+  );
+
+  const html = app.overviewNearestHtml();
+  app.state.nearestItemsCount = 10;
+
+  assert.match(html, /Ahead tree/, "the tree dead ahead makes the visible list");
+  assert.doesNotMatch(html, /Behind three/, "the third one at your back does not");
+});
+
+test("the nearby list only re-sorts once you have actually turned", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 40;
+
+  assert.equal(app.nearbyListHeading(), 40, "the first heading is adopted straight away");
+  assert.equal(app.syncNearbyListHeading(), false, "and re-syncing it changes nothing");
+
+  app.state.compassHeading = 40 + app.HEADS_UP_REORDER_DEGREES - 1; // sensor noise / a small sway
+  assert.equal(app.syncNearbyListHeading(), false);
+  assert.equal(app.nearbyListHeading(), 40, "the list stays ordered by the settled heading");
+
+  app.state.compassHeading = 40 + app.HEADS_UP_REORDER_DEGREES + 1; // a deliberate turn
+  assert.equal(app.syncNearbyListHeading(), true);
+  assert.equal(app.nearbyListHeading(), 40 + app.HEADS_UP_REORDER_DEGREES + 1);
+});
+
 test("fallback notice names the selected walking distance", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -1325,7 +1460,7 @@ test("fallback notice names the selected walking distance", () => {
 
   const html = app.overviewNearestHtml();
 
-  assert.match(html, /Nothing found within 10 mins walking distance/);
+  assert.match(html, /Nothing found within 10 min walking distance/);
   assert.match(html, /Showing the closest match for each selected type instead/);
 });
 
@@ -1833,9 +1968,9 @@ test("headingUpAnchorFraction mirrors the selected-navigation anchor around the 
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 90; // facing east
-  app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> the full max-tilt anchor (0.90/0.88) applies
+  app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> the full max-tilt anchor (0.94/0.88) applies
 
-  const aheadAnchor = 0.90; // HEADING_UP_ANCHOR_NEARBY_TILT, reused here as the "ahead" selected anchor's sibling value would differ (0.88) -- computed below instead of hardcoded twice
+  const aheadAnchor = 0.94; // HEADING_UP_ANCHOR_NEARBY_TILT, reused here as the "ahead" selected anchor's sibling value would differ (0.88) -- computed below instead of hardcoded twice
 
   // Dead ahead (target due east): matches the plain tilt-ramped anchor exactly, same as
   // before this feature existed.
@@ -1989,6 +2124,49 @@ test("maxNearbyHeadingUpScale keeps a usable scale in full 3D, where the behind 
     wholeRingScale == null || actual > wholeRingScale * 1.5,
     `3D should zoom in well past the collapsed whole-ring fit (actual=${actual}, wholeRing=${wholeRingScale})`,
   );
+});
+
+test("in 3D the nearby camera frames past the edges of the walking radius instead of fitting the whole ring on screen", () => {
+  // The "too zoomed out in 3D" report: fitting the ahead half of the ring exactly put its left
+  // and right extremes on the screen edges, so the search area read as a small disc of forest
+  // with its own boundary drawn round it. First-person 3D zooms in past that by
+  // NEARBY_TILT_FIT_ZOOM, ramped in with the tilt.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+
+  const focusRect = app.bestVisibleCanvasRect();
+  const focus = app.nearbyNavigationFocusPoint();
+  const ringPoints = app.walkingRadiusCirclePoints();
+
+  app.state.tiltBetaSmoothed = 0; // flat 2D
+  assert.equal(app.nearbyFirstPersonFitZoom(false), 1, "2D is about seeing the whole ring, so it is untouched");
+  assert.equal(
+    app.maxNearbyHeadingUpScale(focus, focusRect),
+    app.maxScaleForHeadingUpPoints(ringPoints, focus, focusRect, { projectTilt: true }),
+  );
+
+  app.state.tiltBetaSmoothed = 85; // full 3D
+  const tiltFocus = app.nearbyNavigationFocusPoint();
+  const plainFit = app.maxScaleForHeadingUpPoints(ringPoints, tiltFocus, focusRect, { projectTilt: true });
+  assert.ok(Math.abs(app.nearbyFirstPersonFitZoom(false) - app.NEARBY_TILT_FIT_ZOOM) < 1e-9, "at max tilt the full zoom applies");
+  assert.ok(
+    Math.abs(app.maxNearbyHeadingUpScale(tiltFocus, focusRect) - plainFit * app.NEARBY_TILT_FIT_ZOOM) < 1e-6,
+    "full 3D frames past the ring edges",
+  );
+});
+
+test("browsing a tapped spot in 3D keeps framing the whole nearest area rather than zooming into it", () => {
+  // The first-person zoom is about what is ahead of *you*. A browsed spot has no "ahead" -- the
+  // pivot is a place being looked at and its whole area has to stay on screen.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.compassHeading = 0;
+  app.state.tiltBetaSmoothed = 85;
+
+  assert.equal(app.nearbyFirstPersonFitZoom(true), 1);
 });
 
 test("maxNearbyHeadingUpScale does not depend on the compass heading, so the camera holds still while you turn", () => {
@@ -2539,6 +2717,223 @@ test("walkingRadiusFloorMinutes rises to keep the nearest real item inside the r
   addFixtureData(app); // every fixture item sits >10km from (0,0), far past the 30 min ceiling
   const farFloor = app.walkingRadiusFloorMinutes(makePoint(app, 0, 0));
   assert.equal(farFloor, app.WALKING_RADIUS_MAX_MINUTES, "the floor should never exceed the slider's own maximum");
+});
+
+test("walkingRadiusFloorMinutes follows a find closer than a minute's walk below the one-minute fallback", () => {
+  resetData(app);
+  app.state.trees.push({ id: "underfoot-tree", commonName: "Underfoot tree", ...makePoint(app, 0.00027, 0) }); // ~30m away
+  const floor = app.walkingRadiusFloorMinutes(makePoint(app, 0, 0));
+  assert.ok(floor < app.WALKING_RADIUS_MIN_MINUTES, "a find seconds away should let the radius close in past a minute");
+  assert.ok(floor >= app.WALKING_RADIUS_TIGHT_MIN_MINUTES, "the radius should still stop at the tightest supported ring");
+
+  resetData(app);
+  app.state.trees.push({ id: "touching-tree", commonName: "Touching tree", ...makePoint(app, 0.00001, 0) }); // ~1m away
+  assert.equal(
+    app.walkingRadiusFloorMinutes(makePoint(app, 0, 0)),
+    app.WALKING_RADIUS_TIGHT_MIN_MINUTES,
+    "standing on top of a find pins the floor at the tightest ring rather than collapsing it"
+  );
+});
+
+test("sub-minute radii snap to quarter-minute steps and read as seconds", () => {
+  assert.equal(app.roundWalkingMinutes(0.3), 0.25);
+  assert.equal(app.roundWalkingMinutes(0.4), 0.5);
+  assert.equal(app.roundWalkingMinutes(0.9), 1);
+  assert.equal(app.ceilWalkingMinutes(0.26), 0.5);
+  assert.equal(app.ceilWalkingMinutes(0.5), 0.5, "a value already on the grid should not jump a step");
+  assert.equal(app.ceilWalkingMinutes(1.1), 1.5);
+  assert.equal(app.formatWalkingRadius(0.25), "15 sec");
+  assert.equal(app.formatWalkingRadius(0.5), "30 sec");
+  assert.equal(app.formatWalkingRadius(1), "1 min");
+  assert.equal(app.formatWalkingRadius(5.5), "5.5 min");
+});
+
+test("settings slider offers the finer step once the floor drops below a minute", () => {
+  resetData(app);
+  app.state.trees.push({ id: "underfoot-tree", commonName: "Underfoot tree", ...makePoint(app, 0.00027, 0) });
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 0.5;
+
+  const html = app.settingsFormHtml();
+  assert.match(html, /min="0\.5" max="30" step="0\.25"/, "a close find should open up the sub-minute end of the slider");
+  assert.match(html, /30 sec<\/span>/, "the live value label should read a sub-minute radius in seconds");
+});
+
+test("the walking radius grows back to the nearest remaining find once the ring empties", () => {
+  resetData(app);
+  app.state.trees.push({ id: "left-behind", commonName: "Left behind", ...makePoint(app, 0.009, 0) }); // ~1km away
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 0.5;
+
+  assert.equal(app.nearbyRadiusIsEmpty(), true, "a 30-second ring a kilometre from the nearest tree holds nothing");
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), true);
+  const grown = app.state.walkingDistanceMinutes;
+  assert.ok(grown >= app.walkingRadiusFloorMinutes(app.nearbyOrigin()), "the radius should reach past the nearest remaining find");
+  assert.ok(grown > 0.5 && grown < app.WALKING_RADIUS_MAX_MINUTES, "it grows to the floor, not to the whole forest");
+
+  // A ring with something in it is left exactly as the user set it, however wide.
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false);
+  assert.equal(app.state.walkingDistanceMinutes, grown);
+
+  app.state.walkingDistanceMinutes = 30;
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "the radius is never pulled back in automatically");
+  assert.equal(app.state.walkingDistanceMinutes, 30);
+});
+
+test("an open settings slider follows a radius changed from outside it", () => {
+  resetData(app);
+  app.state.trees.push({ id: "left-behind", commonName: "Left behind", ...makePoint(app, 0.009, 0) });
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 0.5;
+  app.settingsFormHtml(); // the screen is open, showing the tight radius
+
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), true);
+
+  const slider = app.documentStub.getElementById("settingsWalkMins");
+  assert.equal(slider.value, String(app.state.walkingDistanceMinutes), "the thumb should sit at the radius the ring actually has");
+  assert.equal(Number(slider.min), app.ceilWalkingMinutes(app.walkingRadiusFloorMinutes(app.state.userLocation)), "and its floor should be the new one");
+  assert.equal(
+    app.documentStub.getElementById("settingsWalkMinsValue").textContent,
+    app.formatWalkingRadius(app.state.walkingDistanceMinutes),
+    "and its label should read the same value"
+  );
+});
+
+test("the automatic grow-back stands off gestures and open selections", () => {
+  resetData(app);
+  app.state.trees.push({ id: "left-behind", commonName: "Left behind", ...makePoint(app, 0.009, 0) });
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 0.5;
+
+  app.state.pinchActive = true;
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "a live pinch owns the radius");
+  app.state.pinchActive = false;
+
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "an open selection must not be replaced by the nearby list");
+  app.state.selected = null;
+
+  app.state.showAllOutsideRadius = true;
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "showing all distances has no empty ring to fix");
+  app.state.showAllOutsideRadius = false;
+
+  assert.equal(app.state.walkingDistanceMinutes, 0.5, "none of the above changed the radius");
+
+  // Mid-slide to a browsed spot the ring is what holds still on screen, so it must not resize
+  // underneath the animation -- the next fix picks it up once the slide has landed.
+  const spot = makePoint(app, 0.02, 0.02);
+  app.setNearbyAnchor(spot.latitude, spot.longitude, spot.point);
+  assert.ok(app.nearbyOriginTransitionActive(), "sanity: the browse slide is running");
+  const midSlide = app.state.walkingDistanceMinutes;
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "a browse slide holds the ring still");
+  assert.equal(app.state.walkingDistanceMinutes, midSlide);
+});
+
+// A wheel event as the canvas handler reads it: deltaY in whichever unit deltaMode names, plus
+// the ctrlKey every browser sets for a trackpad pinch.
+function wheelEvent(deltaY, options = {}) {
+  return { deltaY, deltaMode: options.deltaMode ?? 0, ctrlKey: Boolean(options.ctrlKey) };
+}
+
+function setUpWheelNearby(app) {
+  resetData(app);
+  app.state.trees.push({ id: "close-tree", commonName: "Close tree", ...makePoint(app, 0.0009, 0) }); // ~100m
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 5;
+  app.state.wheelRadiusMinutes = null;
+}
+
+test("scrolling the wheel resizes the walking radius rather than the map", () => {
+  setUpWheelNearby(app);
+  assert.equal(app.zoomInputResizesNearbyRadius(), true, "the Nearby screen is a screen that draws the ring");
+
+  app.updateNearbyRadiusWheel(wheelEvent(-100)); // one notch "zoom in"
+  const zoomedIn = app.state.walkingDistanceMinutes;
+  assert.ok(zoomedIn < 5, "scrolling in should shrink the ring");
+
+  app.updateNearbyRadiusWheel(wheelEvent(100)); // one notch back out
+  assert.ok(app.state.walkingDistanceMinutes > zoomedIn, "scrolling out should grow it again");
+});
+
+test("a wheel gesture keeps its own running value, so small trackpad deltas still add up", () => {
+  setUpWheelNearby(app);
+
+  // One tiny delta rounds away to the radius it started from...
+  app.updateNearbyRadiusWheel(wheelEvent(-2, { ctrlKey: true }));
+  assert.equal(app.state.walkingDistanceMinutes, 5, "a single trackpad delta is below the value grid");
+  assert.ok(app.state.wheelRadiusMinutes < 5, "but the gesture remembers it");
+
+  // ...while a run of them moves the ring.
+  for (let i = 0; i < 20; i += 1) app.updateNearbyRadiusWheel(wheelEvent(-2, { ctrlKey: true }));
+  assert.ok(app.state.walkingDistanceMinutes < 5, "a continued trackpad pinch should reach the next step");
+});
+
+test("a trackpad pinch moves the radius further than the same wheel delta", () => {
+  setUpWheelNearby(app);
+  app.updateNearbyRadiusWheel(wheelEvent(-30));
+  const byWheel = app.state.wheelRadiusMinutes;
+
+  setUpWheelNearby(app);
+  app.updateNearbyRadiusWheel(wheelEvent(-30, { ctrlKey: true }));
+  assert.ok(app.state.wheelRadiusMinutes < byWheel, "the trackpad rate should be the faster of the two");
+});
+
+test("normalizeWheelPixels converts line and page deltas to pixels", () => {
+  assert.equal(app.normalizeWheelPixels(wheelEvent(120)), 120);
+  assert.equal(app.normalizeWheelPixels(wheelEvent(3, { deltaMode: 1 })), 48);
+  assert.equal(app.normalizeWheelPixels(wheelEvent(1, { deltaMode: 2 })), 100);
+  assert.equal(app.normalizeWheelPixels(wheelEvent(NaN)), 0);
+});
+
+test("the wheel stops at the walking-radius floor and shows the same limit notice the pinch does", () => {
+  setUpWheelNearby(app);
+  const floor = app.walkingRadiusFloorMinutes(app.nearbyOrigin());
+
+  for (let i = 0; i < 30; i += 1) app.updateNearbyRadiusWheel(wheelEvent(-100));
+  assert.ok(app.state.walkingDistanceMinutes >= floor, "the ring never closes past its own contents");
+  assert.equal(app.state.walkingRadiusAtFloor, true, "scrolling past the floor should raise the notice");
+
+  // The gesture ends on a timeout rather than a pointerup, and clears the transient notice.
+  app.endNearbyRadiusWheel();
+  assert.equal(app.state.walkingRadiusAtFloor, false);
+  assert.equal(app.state.wheelRadiusMinutes, null, "the next scroll starts from where the radius ended up");
+});
+
+test("a wheel over a real selection is left to zoom the map", () => {
+  setUpWheelNearby(app);
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  assert.equal(app.zoomInputResizesNearbyRadius(), false, "a selection replaces the ring view entirely");
+  app.state.selected = null;
+
+  app.state.userLocation = null;
+  assert.equal(app.zoomInputResizesNearbyRadius(), false, "and with no location there is no ring to resize");
+});
+
+test("Safari's own trackpad pinch events resize the radius too", () => {
+  setUpWheelNearby(app);
+  app.state.gestureRadiusBaseMinutes = null;
+
+  // Safari sends gesturestart/gesturechange/gestureend with a cumulative scale rather than the
+  // ctrl+wheel Chrome and Firefox report, so without this path a Mac pinch would do nothing.
+  app.startNearbyRadiusGesture();
+  app.updateNearbyRadiusGesture({ scale: 2 }); // fingers spread apart -- zoom in
+  assert.ok(app.state.walkingDistanceMinutes < 5, "spreading apart should close the ring in");
+
+  app.updateNearbyRadiusGesture({ scale: 0.5 }); // and back past where it started
+  assert.ok(app.state.walkingDistanceMinutes > 5, "pinching together should widen it");
+
+  // Measured from where the gesture began, not from the last frame, so it tracks the fingers.
+  app.updateNearbyRadiusGesture({ scale: 1 });
+  assert.equal(app.state.walkingDistanceMinutes, 5, "returning the fingers returns the radius");
+
+  app.endNearbyRadiusGesture();
+  assert.equal(app.state.gestureRadiusBaseMinutes, null);
+  assert.equal(app.state.walkingRadiusAtFloor, false);
+
+  // A stray gesturechange outside a gesture (or a garbage scale) must not move anything.
+  app.updateNearbyRadiusGesture({ scale: 0 });
+  app.updateNearbyRadiusGesture({});
+  assert.equal(app.state.walkingDistanceMinutes, 5);
 });
 
 test("settings form's slider floor hides tick marks the user can no longer reach", () => {
@@ -3835,11 +4230,11 @@ test("headingUpAnchorFraction ramps from the flat anchor to the max-tilt anchor,
   assert.equal(app.headingUpAnchorFraction(true), 0.62, "flat selected anchor (HEADING_UP_ANCHOR_SELECTED)");
 
   app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> ramp t = 1
-  assert.ok(Math.abs(app.headingUpAnchorFraction(false) - 0.90) < 1e-9, "max-tilt nearby anchor (HEADING_UP_ANCHOR_NEARBY_TILT)");
+  assert.ok(Math.abs(app.headingUpAnchorFraction(false) - 0.94) < 1e-9, "max-tilt nearby anchor (HEADING_UP_ANCHOR_NEARBY_TILT)");
   assert.ok(Math.abs(app.headingUpAnchorFraction(true) - 0.88) < 1e-9, "max-tilt selected anchor (HEADING_UP_ANCHOR_SELECTED_TILT)");
 
   app.state.tiltBetaSmoothed = 48.5; // midpoint of 12-85 -> ramp t = 0.5, same fixture beta other tilt tests use
-  assert.ok(Math.abs(app.headingUpAnchorFraction(false) - 0.70) < 1e-9, "midway nearby anchor: 0.5 + (0.90-0.5)*0.5");
+  assert.ok(Math.abs(app.headingUpAnchorFraction(false) - 0.72) < 1e-9, "midway nearby anchor: 0.5 + (0.94-0.5)*0.5");
   assert.ok(Math.abs(app.headingUpAnchorFraction(true) - 0.75) < 1e-9, "midway selected anchor: 0.62 + (0.88-0.62)*0.5");
 });
 
@@ -3870,17 +4265,17 @@ test("tiltAvailableAheadCssPx is the visible map height above the pivot, convert
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
-  app.state.tiltBetaSmoothed = 85; // max tilt -> nearby anchor is exactly 0.90
+  app.state.tiltBetaSmoothed = 85; // max tilt -> nearby anchor is exactly 0.94
 
   app.state.canvasVisibleHeight = 800;
-  assert.ok(Math.abs(app.tiltAvailableAheadCssPx() - 720) < 1e-9, "800 * 0.90 / dpr(1) = 720");
+  assert.ok(Math.abs(app.tiltAvailableAheadCssPx() - 752) < 1e-9, "800 * 0.94 / dpr(1) = 752");
 
   // pixelRatio() prefers els.canvas.dataset.dpr (set by resizeCanvas in real use) over
   // window.devicePixelRatio, so set that directly for a deterministic check here.
   const originalDatasetDpr = app.els.canvas.dataset.dpr;
   try {
     app.els.canvas.dataset.dpr = "2";
-    assert.ok(Math.abs(app.tiltAvailableAheadCssPx() - 360) < 1e-9, "800 * 0.90 / dpr(2) = 360 -- bitmap px converted down to CSS px");
+    assert.ok(Math.abs(app.tiltAvailableAheadCssPx() - 376) < 1e-9, "800 * 0.94 / dpr(2) = 376 -- bitmap px converted down to CSS px");
   } finally {
     app.els.canvas.dataset.dpr = originalDatasetDpr;
   }
@@ -5531,6 +5926,41 @@ test("in 3D the pivot eases across a slide instead of popping, and holds still b
   app.setNearbyAnchor(next.latitude, next.longitude, next.point);
   app.prepareCanvasForDraw();
   assert.equal(app.nearbyHeadingUpFocusY(), 0.5, "browse-to-browse keeps the centred pivot throughout");
+});
+
+test("in 3D the nearby zoom eases across a browse slide instead of switching framings", () => {
+  // The first-person camera frames past the walking radius (NEARBY_TILT_FIT_ZOOM) while a
+  // browsed spot frames the whole area around it, so the two ends of a slide now sit further
+  // apart in zoom than they used to. The scale has to travel between them on the slide's own
+  // easing: solving either end outright on the frame the tap lands is the "it jumps instead of
+  // sliding" report, and it is the only thing the e2e frame sampling cannot see for itself.
+  enterNearby3D(app);
+  app.prepareCanvasForDraw();
+  const focusRect = app.bestVisibleCanvasRect();
+  const firstPersonScale = app.maxNearbyHeadingUpScale(app.nearbyNavigationFocusPoint(focusRect), focusRect);
+
+  const anchorPoint = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchorPoint.latitude, anchorPoint.longitude, anchorPoint.point);
+  app.prepareCanvasForDraw();
+  const started = app.maxNearbyHeadingUpScale(app.nearbyNavigationFocusPoint(focusRect), focusRect);
+  assert.ok(
+    Math.abs(started - firstPersonScale) < firstPersonScale * 0.01,
+    `the slide starts from the first-person framing (${started} vs ${firstPersonScale})`
+  );
+
+  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs / 2;
+  app.prepareCanvasForDraw();
+  const midway = app.maxNearbyHeadingUpScale(app.nearbyNavigationFocusPoint(focusRect), focusRect);
+
+  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs + 1;
+  app.prepareCanvasForDraw();
+  const landed = app.maxNearbyHeadingUpScale(app.nearbyNavigationFocusPoint(focusRect), focusRect);
+
+  assert.ok(landed < firstPersonScale, `sanity: the browse framing is the wider of the two (${landed} vs ${firstPersonScale})`);
+  assert.ok(
+    midway < started && midway > landed,
+    `mid-slide the zoom sits between the two framings, got ${midway} between ${started} and ${landed}`
+  );
 });
 
 test("the radar cone stays on the user dot while browsing another spot in 3D", () => {

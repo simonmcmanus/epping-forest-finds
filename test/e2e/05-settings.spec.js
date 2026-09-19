@@ -7,7 +7,7 @@ test.describe("Settings screen", () => {
     await setup(page);
     await page.click("#settingsToggle");
     // Wait for the settings panel to render
-    await expect(page.locator("#settingsWalkMins")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#settingsWalkMins")).toBeVisible();
   });
 
   test("settings button opens the settings screen", async ({ page }) => {
@@ -46,6 +46,37 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#settingsWalkMinsFloorNote")).toBeHidden();
   });
 
+  test.describe("With a find closer than a minute's walk", () => {
+    test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+    test("the slider reaches below a minute and reads the radius in seconds", async ({ page, context }) => {
+      // Stand beside whatever is nearest, so the closest thing to the user is seconds away.
+      const spot = await page.evaluate(() => {
+        const nearest = nearestFallbackEntriesForActiveFilter(state.userLocation.latitude, state.userLocation.longitude)[0];
+        return { latitude: nearest.item.latitude + 0.0002, longitude: nearest.item.longitude };
+      });
+      await context.setGeolocation({ ...spot, accuracy: 5 });
+      await page.waitForFunction(
+        (target) => Math.abs(state.userLocation.latitude - target.latitude) < 0.00005,
+        spot
+      );
+
+      // The form is built when the screen opens, so re-open it on the new position.
+      await page.click("#nearbyToggle");
+      await page.click("#settingsToggle");
+      const slider = page.locator("#settingsWalkMins");
+      await expect(slider).toBeVisible();
+
+      const min = Number(await slider.getAttribute("min"));
+      expect(min).toBeLessThan(1);
+      expect(Number(await slider.getAttribute("step"))).toBe(0.25);
+
+      await setWalkSlider(page, min);
+      await expect(page.locator("#settingsWalkMinsValue")).toHaveText(`${Math.round(min * 60)} sec`);
+      expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(min);
+    });
+  });
+
   test("settings screen shows the app version in the About section", async ({ page }) => {
     await expect(page.locator("#appVersionDisplay")).toBeVisible();
     // Should start with 'v' — e.g. "v120"
@@ -61,8 +92,7 @@ test.describe("Settings screen", () => {
     await page.click("#nearbyToggle");
     // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
     await page.waitForFunction(
-      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"),
-      { timeout: 5_000 }
+      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
     );
   });
 
