@@ -25,6 +25,16 @@ test.describe("URL hash navigation", () => {
       await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     });
 
+    test("a link shared before the tree key changed still opens the tree it named", async ({ page }) => {
+      // The old key was the tag number. Those links are out in the world, so findTreeByHashKey
+      // still accepts them -- and must not resolve them to the unrelated record that happens
+      // to share the number.
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.legacyHashKey}`);
+      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    });
+
     test("selecting a tree sets the URL hash via replaceState", async ({ page }) => {
       await setup(page);
       // Capture history before any tree selection

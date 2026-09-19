@@ -317,8 +317,12 @@ test.describe("Map interaction", () => {
     });
   });
 
-  test.describe("The off-ring user pointer", () => {
-    test("tapping it goes back to using the real location", async ({ page }) => {
+  test.describe("Browsing away from where you are standing", () => {
+    // The Nearby view used to plant a black arrow on the ring's edge pointing back at the
+    // user's real position, with a "You · 1.2 km" label and a tap target of its own. Between
+    // the amber browse-anchor marker, the cone from the dot to the ring and the "Use my
+    // location" bar, the map was already saying it three times over -- so the arrow is gone.
+    test("no arrow is planted on the ring pointing back at the user", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
@@ -328,100 +332,22 @@ test.describe("Map interaction", () => {
         focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
       });
       await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
-
-      // Find where the pointer was actually drawn by asking its own hit test, rather than
-      // recomputing its geometry here and risking the test agreeing with itself.
-      // The browse-origin slide leaves the rendered origin on the old spot for its first frames,
-      // where the user is still inside the ring and the pointer is deliberately not drawn.
-      //
-      // Wait for the move to be *completely* over -- the transition object gone (so the reveal
-      // fade has finished too, not just the slide) and no viewport animation in flight. Waiting
-      // only for the slide and then calling stopViewportAnimation() freezes the camera wherever
-      // the animation had got to, which on a loaded machine is an intermediate framing where the
-      // user can still be on screen -- and the pointer is deliberately not drawn then, so the
-      // scan below finds nothing and the test fails for lack of a settled camera rather than for
-      // anything the app got wrong. Seen on CI, never on a dev box.
       await page.waitForFunction(
         () => !state.nearbyOriginTransition && state.viewportAnimationFrame == null
       );
 
-      const target = await page.evaluate(() => {
-        stopViewportAnimation();
-        draw();
-        drawOverlay();
-        const rect = (els.mapStage || els.canvas).getBoundingClientRect();
-        const dpr = pixelRatio();
-        // The centre of the hit area, not the first pixel of it: the first hit is on the rim,
-        // where a pixel of drift between probing and tapping is enough to miss.
-        const hits = [];
-        for (let cx = 0; cx < rect.width; cx += 4) {
-          for (let cy = 0; cy < rect.height; cy += 4) {
-            const screen = { x: state.canvasInsetX + cx * dpr, y: state.canvasInsetY + cy * dpr };
-            if (hitUserDirectionPointer(screen)) hits.push({ cx, cy });
-          }
-        }
-        if (!hits.length) return null;
-        const mean = hits.reduce((acc, h) => ({ cx: acc.cx + h.cx / hits.length, cy: acc.cy + h.cy / hits.length }), { cx: 0, cy: 0 });
-        return { clientX: rect.left + mean.cx, clientY: rect.top + mean.cy };
-      });
-      expect(target, "the pointer should be on screen while browsing 1km away").not.toBeNull();
+      const drawn = await page.evaluate(() => ({
+        drawFn: typeof window.drawUserDirectionFromAnchor,
+        hitFn: typeof window.hitUserDirectionPointer,
+      }));
+      expect(drawn.drawFn, "the off-ring pointer is no longer drawn").toBe("undefined");
+      expect(drawn.hitFn, "and leaves no invisible tap target behind").toBe("undefined");
 
-      await tapCanvasPoint(page, target, { alreadyClient: true });
-
+      // The way back to the real location is the bar, which is still there and still works.
+      await page.locator("[data-action='reset-nearby-anchor']").click();
       const after = await page.evaluate(() => ({ anchor: state.nearbyAnchor, selected: state.selected }));
-      expect(after.anchor, "tapping the pointer returns to the real location").toBeNull();
+      expect(after.anchor, "the anchor bar still returns to the real location").toBeNull();
       expect(after.selected, "and selects nothing on the way").toBeNull();
-      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeHidden();
-    });
-
-    test("it stands down once the You dot itself is on screen", async ({ page }) => {
-      await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
-
-      const shown = await page.evaluate(() => {
-        const latitude = state.userLocation.latitude - 0.005;
-        const longitude = state.userLocation.longitude - 0.012;
-        setNearbyAnchor(latitude, longitude, projectLonLat(longitude, latitude));
-        state.nearbyOriginTransition = null;
-        stopViewportAnimation();
-        prepareCanvasForDraw();
-
-        // Frame the user *and* the ring inside the part of the canvas the inspector isn't
-        // covering, so the dot is unmistakably on screen and the ring (where the pointer would
-        // sit) is too -- otherwise the pointer could be missing merely for being off canvas.
-        const rect = bestVisibleCanvasRect();
-        const user = state.userLocation.point;
-        const anchor = state.nearbyAnchor.point;
-        const ring = walkingRadiusWorldUnits();
-        const span = Math.hypot(anchor.x - user.x, anchor.y - user.y) + ring * 2;
-        const scale = (Math.min(rect.width, rect.height) * 0.8) / span;
-        const cx = (user.x + anchor.x) / 2;
-        const cy = (user.y + anchor.y) / 2;
-        state.viewport = {
-          scale,
-          tx: rect.x + rect.width / 2 - cx * scale,
-          ty: rect.y + rect.height / 2 - cy * scale,
-        };
-        prepareCanvasForDraw();
-        draw();
-        drawOverlay();
-
-        const cssRect = (els.mapStage || els.canvas).getBoundingClientRect();
-        const dpr = pixelRatio();
-        let pointerDrawn = false;
-        for (let px = 0; px < cssRect.width && !pointerDrawn; px += 8) {
-          for (let py = 0; py < cssRect.height; py += 8) {
-            if (hitUserDirectionPointer({ x: state.canvasInsetX + px * dpr, y: state.canvasInsetY + py * dpr })) {
-              pointerDrawn = true;
-              break;
-            }
-          }
-        }
-        return { pointerDrawn, dotVisible: userDotVisibleOnMap(worldToScreenForOverlay) };
-      });
-
-      expect(shown.dotVisible, "the framing should have put the You dot on screen").toBe(true);
-      expect(shown.pointerDrawn, "two You labels a few centimetres apart is noise, not guidance").toBe(false);
     });
   });
 

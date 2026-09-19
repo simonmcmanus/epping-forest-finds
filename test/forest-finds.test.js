@@ -173,6 +173,7 @@ globalThis.__forestFindsTest = {
   selectedRoutePoints,
   selectedRouteMetres,
   drawSelectedRoute,
+  selectedRouteIsFallback,
   updateSelectedDetailFields,
   selectedCompassTarget,
   distanceFromUser,
@@ -180,6 +181,13 @@ globalThis.__forestFindsTest = {
   formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
+  treeHashKey,
+  findTreeByHashKey,
+  treeDisplayName,
+  releaseStrandedAnimationFrames,
+  setOverviewFilters,
+  applyWalkingRadiusChange,
+  selectionCameraTransitionActive,
   headsUpSortedEntries,
   headsUpScore,
   nearbyListHeading,
@@ -290,8 +298,6 @@ globalThis.__forestFindsTest = {
   tiltHidesWhatIsBehind,
   tiltProjection,
   drawUserRadarOverlayTilted,
-  drawUserDirectionFromAnchor,
-  hitUserDirectionPointer,
   worldToScreenForOverlayTilted,
   worldToScreenFlat,
   projectCanvasPoint,
@@ -1137,7 +1143,7 @@ test("nearby heading-up viewport frames the walking-radius circle and ignores wh
   app.state.renderedNavigationHeading = 0;
   app.state.selected = null;
   app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
-  app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.0012, 0) });
+  app.state.trees.push({ id: "ahead-tree", recordNumber: 901, commonName: "Ahead tree", ...makePoint(app, 0.0012, 0) });
   app.state.landmarks.push({ id: "behind-pub", name: "Behind Pub", category: "pub", ...makePoint(app, -0.15, 0) });
 
   app.state.overviewFilters = ["trees", "pubs"];
@@ -1157,6 +1163,55 @@ test("nearby heading-up viewport frames the walking-radius circle and ignores wh
     Math.abs(app.state.viewport.scale - scaleWithItems) < scaleWithItems * 0.001,
     "zoom should be identical with and without highlighted items",
   );
+});
+
+test("a filter with nothing inside the radius pulls the nearby camera out far enough to show its nearest match", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.selected = null;
+  app.state.trees.push({ id: "near-tree", recordNumber: 902, commonName: "Near tree", ...makePoint(app, 0.0012, 0) });
+
+  app.state.landmarks.push({ id: "far-station", name: "Far Underground Station", category: "station", ...makePoint(app, 0.03, 0) });
+
+  // Trees alone: everything the filter matches is inside the ring, so the ring is the fit.
+  app.setOverviewFilters(["trees"]);
+  app.stopViewportAnimation();
+  app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
+  app.alignHeadingUpNavigationViewport();
+  const ringOnlyScale = app.state.viewport.scale;
+
+  // Switch on a filter whose only match is a long walk outside the ring. The Nearby list
+  // already falls back to showing it (overviewItemsForActiveFilter marks it outOfRadius), so
+  // the map has to reach it too -- otherwise the list names a station the map never shows.
+  app.setOverviewFilters(["trees", "underground"]);
+  app.stopViewportAnimation();
+  assert.deepEqual(Array.from(app.state.outOfRadiusRevealFilters), ["underground"], "the added filter is what the camera reaches for");
+  app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
+  app.alignHeadingUpNavigationViewport();
+  const revealedScale = app.state.viewport.scale;
+  assert.ok(
+    revealedScale < ringOnlyScale * 0.9,
+    `the camera zooms out past the ring to reach the out-of-radius match (${revealedScale} vs ${ringOnlyScale})`,
+  );
+
+  // It is a response to that action, not a standing property of the camera. A saved filter set
+  // restored at boot -- same filters, no action -- must leave the ring framed as it always was,
+  // or every launch would open zoomed out around one far-off kind.
+  app.state.outOfRadiusRevealFilters = [];
+  app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
+  app.alignHeadingUpNavigationViewport();
+  assert.ok(
+    Math.abs(app.state.viewport.scale - ringOnlyScale) < ringOnlyScale * 0.001,
+    "with nothing just added, the fit is the ring again",
+  );
+
+  // Resizing the ring is the user taking the camera back.
+  app.state.outOfRadiusRevealFilters = ["underground"];
+  app.applyWalkingRadiusChange(6, { animate: false });
+  assert.equal(app.state.outOfRadiusRevealFilters.length, 0, "changing the radius hands the camera back to the ring");
+  app.state.walkingDistanceMinutes = 5;
 });
 
 test("nearby heading-up viewport shows the whole walking-radius circle, leaving the corners outside it", () => {
@@ -2192,7 +2247,7 @@ test("maxNearbyHeadingUpScale does not depend on the compass heading, so the cam
   }
 });
 
-test("the filter screen zooms out past the walking radius to reach the nearest match of every selected filter", () => {
+test("nearby and the filter screen both zoom out past the walking radius to reach the nearest match of every selected filter", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
@@ -2201,27 +2256,48 @@ test("the filter screen zooms out past the walking radius to reach the nearest m
   app.state.walkingDistanceMinutes = 5; // ~417m radius
   // Both selected kinds sit well outside the walking radius, so the ring alone would leave
   // them off the map entirely.
-  app.state.trees.push({ id: "far-tree", commonName: "Far tree", ...makePoint(app, 0.012, 0.004) });
+  app.state.trees.push({ id: "far-tree", recordNumber: 903, commonName: "Far tree", ...makePoint(app, 0.012, 0.004) });
   app.state.landmarks.push({ id: "far-pub", name: "Far Pub", category: "pub", ...makePoint(app, -0.004, -0.011) });
-  app.state.overviewFilters = ["trees", "pubs"];
 
   const focusRect = app.bestVisibleCanvasRect();
   const focus = app.nearbyNavigationFocusPoint();
+
+  // Baseline: no filters at all, so nothing is out-of-radius and the ring is the whole fit.
+  app.setOverviewFilters([]);
+  app.stopViewportAnimation();
+  const ringOnlyScale = app.maxNearbyHeadingUpScale(focus, focusRect);
+
+  // setOverviewFilters, not a direct assignment: reaching past the ring is a response to the
+  // user switching a filter on (refreshOutOfRadiusReveal), not a standing camera property.
+  app.setOverviewFilters(["trees", "pubs"]);
+  app.stopViewportAnimation();
+  const nearbyPoints = app.nearbyCameraFitPoints();
   const nearbyScale = app.maxNearbyHeadingUpScale(focus, focusRect);
 
   app.state.filterScreenOpen = true;
   const filterPoints = app.nearbyCameraFitPoints();
   const filterScale = app.maxNearbyHeadingUpScale(focus, focusRect);
+  app.state.filterScreenOpen = false;
 
   for (const point of [app.state.trees[0].point, app.state.landmarks[0].point]) {
     assert.ok(
       filterPoints.some((p) => p.x === point.x && p.y === point.y),
       "the nearest match of each selected filter should be part of the filter-screen fit",
     );
+    // The Nearby screen reaches them too: a filter with nothing inside the ring is exactly
+    // the case where the list shows an out-of-radius fallback, and the map has to agree.
+    assert.ok(
+      nearbyPoints.some((p) => p.x === point.x && p.y === point.y),
+      "and part of the plain Nearby fit, since neither filter has anything inside the ring",
+    );
   }
   assert.ok(
-    filterScale < nearbyScale,
-    `the filter screen should zoom out past the Nearby fit (filter=${filterScale}, nearby=${nearbyScale})`,
+    nearbyScale < ringOnlyScale,
+    `Nearby should zoom out past the ring-only fit (nearby=${nearbyScale}, ringOnly=${ringOnlyScale})`,
+  );
+  assert.ok(
+    filterScale <= nearbyScale * 1.001,
+    `the filter screen should reach at least as far (filter=${filterScale}, nearby=${nearbyScale})`,
   );
 });
 
@@ -2545,6 +2621,78 @@ test("nearby list shows tag number for trees", () => {
   const html = app.overviewNearestHtml();
 
   assert.match(html, /#15961/, "nearby list must show the tree tag number");
+});
+
+test("the nearby heading names the walking radius, not just the filter", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 5;
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push({ id: "near-tree", recordNumber: 910, commonName: "Near Oak", ...makePoint(app, 0.001, 0) });
+
+  const html = app.overviewNearestHtml();
+  assert.match(html, /Trees within 5 min walk/, "the heading answers how far the list is reaching");
+  assert.ok(!html.includes("around you"), "the vaguer wording is gone");
+
+  // With the radius toggled off there is no radius to name, so the heading says so instead of
+  // claiming a reach the list is not applying.
+  app.state.showAllOutsideRadius = true;
+  assert.match(app.overviewNearestHtml(), /Nearest Trees around you/);
+  app.state.showAllOutsideRadius = false;
+});
+
+test("untagged trees each keep their own identity instead of collapsing onto one another", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  // The Veteran Tree Register gives every untagged record id "0" and tagNumber "0" -- 6,504 of
+  // them. Keying on those collapsed all of them to a single nearby row and made tapping it open
+  // whichever one happened to sit first in the dataset, however far away that was.
+  const near = { id: "0", tagNumber: "0", recordNumber: 5001, ...makePoint(app, 0.0005, 0) };
+  const alsoNear = { id: "0", tagNumber: "0", recordNumber: 5002, ...makePoint(app, 0.0008, 0) };
+  const farAway = { id: "0", tagNumber: "0", recordNumber: 5003, ...makePoint(app, 0.2, 0.2) };
+  app.state.trees.push(farAway, near, alsoNear); // far one first, as the dataset order has it
+
+  assert.notEqual(app.treeHashKey(near), app.treeHashKey(alsoNear), "two untagged trees are not the same tree");
+  assert.equal(app.findTreeByHashKey(app.treeHashKey(near)), near, "a key resolves back to its own tree");
+
+  // .join, not deepEqual against a host array: arrays built inside the vm sandbox carry the
+  // sandbox's own Array prototype, which assert treats as a mismatch.
+  const listed = app.overviewItemsForActiveFilter().map((entry) => entry.item.recordNumber).join(",");
+  assert.equal(listed, "5001,5002", "both nearby untagged trees are listed, nearest first");
+
+  // And an untagged tree is not called "0": that is the register's placeholder, not a name.
+  assert.equal(app.treeDisplayName(near), "Veteran tree");
+  assert.equal(app.treeDisplayName({ tagNumber: "15961" }), "15961");
+  assert.equal(app.treeDisplayName({ commonName: "Hornbeam", tagNumber: "0" }), "Hornbeam");
+  assert.ok(!app.overviewNearestHtml().includes(" · #0"), "and carries no #0 tag chip");
+});
+
+test("coming back to the foreground releases animation frames the browser dropped while hidden", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+
+  // rAF callbacks do not run while the page is hidden, and a frame requested just before the
+  // app went away is often dropped rather than delivered on return. Each loop's handle is then
+  // stuck set, and the guard that stops duplicate loops silently stops the loop restarting.
+  app.state.animationFrame = 12345;
+  app.state.overlayAnimationFrame = 12346;
+  app.state.compassAnimationFrame = 12347;
+  app.state.compassAnimationTime = 999;
+  app.state.viewportAnimationFrame = 12348;
+  app.state.viewportAnimationTo = { scale: 1, tx: 0, ty: 0 };
+
+  app.releaseStrandedAnimationFrames();
+
+  assert.equal(app.state.animationFrame, null, "the map draw loop can be started again");
+  assert.equal(app.state.overlayAnimationFrame, null, "so can the overlay loop");
+  assert.equal(app.state.compassAnimationFrame, null, "and the compass/tilt smoothing loop");
+  assert.equal(app.state.compassAnimationTime, null, "without carrying a timestamp from before the break");
+  // A stranded viewportAnimationTo keeps selectionCameraTransitionActive() true, which makes
+  // alignHeadingUpNavigationViewport bail on every call -- the map stops rotating and stops
+  // tilting until a reload.
+  assert.equal(app.state.viewportAnimationTo, null, "and the heading-up fit is no longer switched off");
+  assert.equal(app.selectionCameraTransitionActive(), false);
 });
 
 test("nearby list omits tag chip when tree has no tag number", () => {
@@ -3061,10 +3209,40 @@ test("returning to nearby screen clears the hash", () => {
 
 test("selecting a tree sets hash with tree parameter", () => {
   resetData(app);
-  app.state.trees = [{ id: "12345", latitude: 51.65, longitude: 0.05, point: app.projectLonLat(0.05, 51.65) }];
+  // The link carries the record number, prefixed so it cannot be read as the old id/tag-based
+  // key -- the two numbering spaces overlap, so an unprefixed key would be ambiguous about
+  // which scheme it was written in.
+  app.state.trees = [{
+    id: "0", tagNumber: "0", recordNumber: 12345,
+    latitude: 51.65, longitude: 0.05, point: app.projectLonLat(0.05, 51.65),
+    location: { britishNationalGrid: { easting: 540000, northing: 195000, gridReference: "TL 400 950" } },
+  }];
   app.state.selected = { type: "tree", item: app.state.trees[0] };
   app.syncHashFromSelection();
-  assert.ok(app.location.hash.includes("tree=12345"), "hash contains tree parameter");
+  assert.ok(app.location.hash.includes("tree=r12345"), `hash contains the record-number key, got ${app.location.hash}`);
+
+  app.location.hash = "#tree=r12345";
+  app.applySelectionFromHash(false);
+  assert.equal(app.state.selected?.item?.recordNumber, 12345, "and that link opens the tree it names");
+});
+
+test("links shared before the tree key changed still open the tree they always did", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  // Tag 11383 and record 11383 are two different real trees. An old #tree=11383 link was
+  // written against the tag, so it must not now resolve to the record that happens to share
+  // the number.
+  const taggedTree = { id: "11383", tagNumber: "11383", recordNumber: 700, commonName: "English Oak", ...makePoint(app, 51.6501, 0.05) };
+  const sameNumberedRecord = { id: "0", tagNumber: "0", recordNumber: 11383, commonName: "Common Beech", ...makePoint(app, 51.6502, 0.05) };
+  const anotherUntagged = { id: "0", tagNumber: "0", recordNumber: 701, commonName: "Hornbeam", ...makePoint(app, 51.6503, 0.05) };
+  app.state.trees = [sameNumberedRecord, taggedTree, anotherUntagged];
+
+  assert.equal(app.findTreeByHashKey("11383"), taggedTree, "the unprefixed key is read as the old tag-based one");
+  assert.equal(app.findTreeByHashKey("r11383"), sameNumberedRecord, "the prefixed key is read as a record number");
+
+  // A key that was ambiguous under the old scheme ("0" matched 6,504 trees) resolves to
+  // nothing rather than to an arbitrary one of them.
+  assert.equal(app.findTreeByHashKey("0"), null, "an ambiguous legacy key opens nothing");
 });
 
 test("hash with tree parameter loads that tree", () => {
@@ -4137,12 +4315,21 @@ test("ensureRoutingGraph lazily builds a routing graph from state.roads/state.pa
   app.state.trees.push(target);
   app.state.selected = { type: "tree", item: target };
 
-  // Before the graph is ready, drawSelectedRoute's straight-line fallback (unchanged from before
-  // this feature existed) must still be what's used -- never a broken/absent line.
+  // Before the graph is ready, selectedRoutePoints still answers with the straight line so the
+  // distance chip and the camera fit have something to work from...
   const straightLine = app.selectedRoutePoints(target);
   assert.equal(straightLine.length, 2, "falls back to the plain straight line while the graph is still building");
   assert.ok(app.state.routingGraphBuilding, "calling selectedRoutePoints must have kicked off the lazy background build");
+  assert.equal(app.selectedRouteIsFallback(target), true, "and reports that line as a fallback, not a route");
   assert.doesNotThrow(() => app.drawSelectedRoute(app.els.canvas.getContext("2d")), "drawing must not throw while the graph is still building");
+
+  // ...but nothing is drawn yet. A crow-flies line that flicks over to a winding route a
+  // second later reads as the app changing its mind, and points the walker the wrong way in
+  // the meantime; the straight line is a fallback for "we looked and there is no route", not
+  // a placeholder for "we have not looked yet".
+  const buildingCtx = recordingCtx();
+  app.drawSelectedRoute(buildingCtx);
+  assert.equal(buildingCtx.moves.length, 0, "no line is drawn while the routing graph is still building");
 
   // The displayed distance/walk-time chip must match the straight-line fallback while routing
   // isn't ready yet -- it must never show a broken/blank figure, and must never race ahead of
@@ -4172,18 +4359,29 @@ test("ensureRoutingGraph lazily builds a routing graph from state.roads/state.pa
   );
   assert.doesNotThrow(() => app.updateSelectedDetailFields(), "updateSelectedDetailFields must not throw once a routed path is available");
 
+  // The graph is ready and a route was found, so the line is a real route, not the fallback.
+  assert.equal(app.selectedRouteIsFallback(target), false, "a found route is not reported as a fallback");
+  const routedCtx = recordingCtx();
+  app.drawSelectedRoute(routedCtx);
+  assert.equal(routedCtx.moves.length, 1, "the routed line is drawn once the graph is ready");
+
   // Memoization: everything from here on is synchronous (the graph is already built), so it
-  // can't race any other test's pending timer.
+  // can't race any other test's pending timer. Only the *tail* of the route is memoized --
+  // the head is re-read from the live user position on every call, so the line always starts
+  // where the walker is standing rather than where the journey began.
   const first = app.selectedRoutePoints(target);
-  assert.equal(first, routed, "an unmoved user must keep reusing the same cached route object");
+  const cachedTail = app.state.selectedRouteCache.tail;
+  assert.deepEqual(first.slice(1), routed.slice(1), "an unmoved user must keep reusing the cached route tail");
+  assert.equal(first[0], app.state.userLocation.point, "the route starts at the live user position");
 
   app.state.userLocation = makePoint(app, 51.65001, 0.0000); // ~1m north -- under the 20m threshold
   const second = app.selectedRoutePoints(target);
-  assert.equal(second, first, "a couple of metres of GPS movement must reuse the cached route, not recompute it");
+  assert.equal(app.state.selectedRouteCache.tail, cachedTail, "a couple of metres of GPS movement must reuse the cached route, not recompute it");
+  assert.equal(second[0], app.state.userLocation.point, "and the line still starts from where the walker now is");
 
   app.state.userLocation = makePoint(app, 51.6503, 0.0000); // ~33m north -- past the threshold
-  const third = app.selectedRoutePoints(target);
-  assert.notEqual(third, first, "moving past the recompute threshold must produce a freshly computed route");
+  app.selectedRoutePoints(target);
+  assert.notEqual(app.state.selectedRouteCache.tail, cachedTail, "moving past the recompute threshold must produce a freshly computed route");
 
   resetData(app);
   app.state.userLocation = previousUserLocation;
@@ -4598,7 +4796,10 @@ test("selection viewport re-fits to the whole routed line once the routing graph
     target: tree,
     fromLatitude: app.state.userLocation.latitude,
     fromLongitude: app.state.userLocation.longitude,
-    points: routePoints,
+    // Only the tail is cached -- the head is always the live user position, so the drawn line
+    // starts where the walker is standing now (selectedRoutePoints, js/renderer.js).
+    tail: routePoints.slice(1),
+    routed: true,
   };
 
   app.refitSelectionAfterRoutingGraphReady();
@@ -4631,7 +4832,8 @@ test("selection fit honours assumeInspectorOpen so a route is not framed behind 
     target: tree,
     fromLatitude: app.state.userLocation.latitude,
     fromLongitude: app.state.userLocation.longitude,
-    points: [app.state.userLocation.point, tree.point],
+    tail: [tree.point],
+    routed: true,
   };
   app.els.inspector.classList.add("minimized"); // mid-transition: class toggled, height not yet
   app.resizeCanvas();
@@ -4650,7 +4852,7 @@ test("selection fit honours assumeInspectorOpen so a route is not framed behind 
   // And the whole route must sit inside the area the inspector will actually leave.
   app.ensureUserAndSelectionVisible({ animate: false, force: true, assumeInspectorOpen: true });
   const openRect = app.bestVisibleCanvasRect({ assumeInspectorOpen: true });
-  for (const point of app.state.selectedRouteCache.points) {
+  for (const point of app.selectedRoutePoints(tree)) {
     const screen = app.worldToScreen(point);
     assert.ok(
       screen.y >= openRect.y && screen.y <= openRect.y + openRect.height,
@@ -4682,12 +4884,12 @@ test("a route with points ahead and behind stays framed at full tilt instead of 
       target: tree,
       fromLatitude: app.state.userLocation.latitude,
       fromLongitude: app.state.userLocation.longitude,
-      points: [
-        app.state.userLocation.point,
+      tail: [
         app.projectLonLat(0.0500, 51.6513), // loops AHEAD first
         app.projectLonLat(0.0512, 51.6490),
         tree.point,
       ],
+      routed: true,
     };
     const rect = app.bestVisibleCanvasRect();
     const focus = app.navigationFocusPoint(rect);
@@ -4727,7 +4929,8 @@ test("the balanced anchor only overrides the bearing anchor when points lie on b
     target: tree,
     fromLatitude: app.state.userLocation.latitude,
     fromLongitude: app.state.userLocation.longitude,
-    points: [app.state.userLocation.point, tree.point], // nothing behind
+    tail: [tree.point], // nothing behind
+    routed: true,
   };
 
   const rect = app.bestVisibleCanvasRect();
@@ -4766,7 +4969,10 @@ test("heading-up navigation frames the whole walking route, not just the destina
     target: tree,
     fromLatitude: app.state.userLocation.latitude,
     fromLongitude: app.state.userLocation.longitude,
-    points: routePoints,
+    // Only the tail is cached -- the head is always the live user position, so the drawn line
+    // starts where the walker is standing now (selectedRoutePoints, js/renderer.js).
+    tail: routePoints.slice(1),
+    routed: true,
   };
 
   const fitted = app.selectedNavigationTargetPoints();
@@ -4849,7 +5055,8 @@ test("detour slack is dropped once the routing graph resolves, including when th
     target: tree,
     fromLatitude: app.state.userLocation.latitude,
     fromLongitude: app.state.userLocation.longitude,
-    points: [app.state.userLocation.point, tree.point],
+    tail: [tree.point],
+    routed: true,
   };
   const succeededScale = fitScaleNow();
 
@@ -4947,7 +5154,8 @@ test("a selection made before the routing graph is ready is fitted with room for
         target: tree,
         fromLatitude: app.state.userLocation.latitude,
         fromLongitude: app.state.userLocation.longitude,
-        points: [app.state.userLocation.point, tree.point],
+        tail: [tree.point],
+        routed: true,
       }
       : null;
     app.ensureUserAndSelectionVisible({ animate: false, force: true });
@@ -4982,7 +5190,8 @@ test("routing-graph re-fit leaves a settled viewport alone when the whole route 
     target: tree,
     fromLatitude: app.state.userLocation.latitude,
     fromLongitude: app.state.userLocation.longitude,
-    points: [app.state.userLocation.point, tree.point],
+    tail: [tree.point],
+    routed: true,
   };
 
   // Fit to that same route first, so everything is already comfortably on screen.
@@ -6089,23 +6298,21 @@ test("the nearby list reads from the browsed spot on the Filters screen too, not
   app.state.filterScreenOpen = false;
 });
 
-test("tapping the off-ring user pointer goes back to using the real location", () => {
+test("no off-ring arrow is drawn once the browse anchor moves away from the user", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
-  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
+  app.state.trees.push({ id: "t1", recordNumber: 1, commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
   const anchor = makePoint(app, 51.66, 0.033);
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   app.state.nearbyOriginTransition = null; // settle the browse-origin slide
   app.prepareCanvasForDraw();
-  app.stopViewportAnimation();
-  app.ensureOverviewTargetsVisible({ animate: false, force: true });
-  app.stopViewportAnimation();
-  app.prepareCanvasForDraw();
 
-  app.drawUserDirectionFromAnchor(recordingCtx(), app.worldToScreen);
+  // The amber anchor marker, the dimmed ring and the anchor bar already say the Nearby view
+  // has pivoted away from the real GPS fix; the black arrow at the ring's edge was one signal
+  // too many, so it is gone along with its tap target.
+  assert.equal(typeof app.drawUserDirectionFromAnchor, "undefined", "the off-ring pointer is not drawn");
+  assert.equal(typeof app.hitUserDirectionPointer, "undefined", "and has no tap target left behind");
 
-  // The pointer sits outside the walking radius, where a plain tap would otherwise just move the
-  // browse anchor onto the pointer's own position -- so handleMapClick has to test it first.
   const user = app.state.userLocation.point;
   const dx = user.x - anchor.point.x;
   const dy = user.y - anchor.point.y;
@@ -6115,31 +6322,12 @@ test("tapping the off-ring user pointer goes back to using the real location", (
     x: anchor.point.x + (dx / length) * radius * 1.17,
     y: anchor.point.y + (dy / length) * radius * 1.17,
   });
-  assert.equal(app.hitUserDirectionPointer(onRing), true, "sanity: that point is on the pointer");
-  assert.equal(app.isOutsideNearestArea(app.unprojectPoint(app.screenToWorld(onRing.x, onRing.y))), true);
 
+  // A tap out there is now plain open ground: it re-anchors the browse point, as any other
+  // tap outside the nearest area does, rather than being swallowed by an invisible control.
   tapMap(app, onRing);
-
-  assert.equal(app.state.nearbyAnchor, null, "the browse anchor is cleared");
+  assert.notEqual(app.state.nearbyAnchor, null, "the tap moves the browse anchor");
   assert.equal(app.state.selected, null, "and nothing gets selected by the tap");
-});
-
-test("the off-ring user pointer is only drawn while the user is outside the ring", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 51.665, 0.045);
-  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
-
-  app.drawUserDirectionFromAnchor(recordingCtx(), app.worldToScreen);
-  assert.equal(app.hitUserDirectionPointer({ x: 500, y: 400 }), false, "no anchor, no pointer");
-
-  // Inside the walking radius: the user's own dot is on screen saying the same thing.
-  const near = makePoint(app, 51.6652, 0.0452);
-  app.setNearbyAnchor(near.latitude, near.longitude, near.point);
-  app.state.nearbyOriginTransition = null;
-  app.prepareCanvasForDraw();
-  app.drawUserDirectionFromAnchor(recordingCtx(), app.worldToScreen);
-  const nearHit = [0, 1, 2, 3].some((i) => app.hitUserDirectionPointer({ x: 400 + i * 60, y: 400 }));
-  assert.equal(nearHit, false, "no pointer while the user is inside the ring");
 });
 
 test("an expanded group hides every other highlighted location from the map", () => {

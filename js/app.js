@@ -189,6 +189,9 @@ const state = {
   cowRefreshTimerId: null,
   cowDetailTimerId: null,
   cowFetchInFlight: false,
+  // Filter keys just switched on that have nothing inside the walking radius, so the Nearby
+  // camera reaches their nearest match once -- see refreshOutOfRadiusReveal/outOfRadiusFitPoints.
+  outOfRadiusRevealFilters: [],
   overviewFilters: (() => {
     try {
       const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
@@ -1300,7 +1303,11 @@ function saveFilterState() {
 }
 
 function setOverviewFilters(nextFilters) {
+  const previousFilters = state.overviewFilters;
   state.overviewFilters = sanitizeOverviewFilters(nextFilters);
+  // Before the camera work below: a filter switched on with nothing inside the walking radius
+  // is what lets the fit reach its nearest match (outOfRadiusFitPoints).
+  refreshOutOfRadiusReveal(previousFilters);
   saveFilterState();
   updateFilterUi();
   if (isOverviewScreenActive() && !state.filterScreenOpen) {
@@ -2081,10 +2088,14 @@ function overviewItemsForActiveFilter() {
         selectedEntries.push(...entriesForFilter);
         filterTypesWithResults.add(filterKey);
       } else {
-        // No items within radius for this filter - add nearest 3 as fallback
+        // No items within radius for this filter - add nearest 3 as fallback.
+        // outOfRadiusFilterKey records *which* filter went unanswered: entry.kind is the item's
+        // own kind ("tree" for the "trees" filter), so it cannot be matched back to a filter key
+        // on its own, and the camera reveal below needs exactly that mapping.
         const fallbackEntries = nearestOverviewEntriesForFilter(filterKey, latitude, longitude, 3);
         for (const entry of fallbackEntries) {
           entry.outOfRadius = true;
+          entry.outOfRadiusFilterKey = filterKey;
           selectedEntries.push(entry);
         }
       }
@@ -2257,15 +2268,30 @@ function overviewNearestHtml() {
     return `<p class="empty">No nearby places found.</p>`;
   }
 
-  const heading = activePointFilters.length === 1
-    ? `Nearest ${filterMeta(activePointFilters[0])?.title || "items"} around you`
+  // The radius is the whole premise of this list, so the heading names it rather than the
+  // vaguer "around you" -- "Trees within 5 min walk" answers "how far is this list reaching?"
+  // without the user having to go and read the walk chip. The radius chip can be toggled off
+  // (showAllOutsideRadius), in which case there is no radius to name and the heading says so.
+  const radiusLabel = state.showAllOutsideRadius
+    ? null
+    : `${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
+  // Filter titles are stored lower case ("trees", "pubs and bars") because they read as a
+  // fragment everywhere else they are used; at the head of a sentence they need a capital.
+  // .nearby-heading uppercases the whole thing visually, but the underlying text is what a
+  // screen reader announces.
+  const rawTitle = activePointFilters.length === 1
+    ? (filterMeta(activePointFilters[0])?.title || "items")
+    : null;
+  const singleFilterTitle = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : null;
+  const heading = singleFilterTitle
+    ? (radiusLabel ? `${singleFilterTitle} within ${radiusLabel}` : `Nearest ${singleFilterTitle} around you`)
     : state.overviewFilters.length > 0
-      ? `Nearest selected filters within ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`
-      : "Nearest around you";
+      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : "Nearest selected filters around you")
+      : (radiusLabel ? `Nearest within ${radiusLabel}` : "Nearest around you");
 
   const itemsHtml = entries.map((entry) => {
     const name = entry.type === "tree"
-      ? displayValue(entry.item.commonName || entry.item.tagNumber || entry.item.recordNumber)
+      ? treeDisplayName(entry.item)
       : entry.type === "cow"
         ? "Cow"
         : entry.type === "path"
@@ -2279,7 +2305,8 @@ function overviewNearestHtml() {
     const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
     const walkChip = walkInfoHtml(entry.metres);
     const typeLabel = filterMeta(entry.kind)?.label || (entry.type === "tree" ? "Tree" : entry.type === "cow" ? "Cow" : entry.type === "path" ? "Trail" : entry.type === "water" ? "Water" : "Place");
-    const treeTagChip = entry.type === "tree" && entry.item.tagNumber ? ` · #${escapeHtml(String(entry.item.tagNumber))}` : "";
+    const treeTag = entry.type === "tree" ? treeTagLabel(entry.item) : null;
+    const treeTagChip = treeTag ? ` · #${escapeHtml(treeTag)}` : "";
     const outOfRadiusClass = entry.outOfRadius ? " out-of-radius" : "";
     return `<li><button class="nearest-item${outOfRadiusClass}" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}">
       <div class="nearest-header">
@@ -2504,11 +2531,40 @@ function recoverStalledCompass(now = performance.now()) {
   reattachCompassListeners();
 }
 
+// Every animation loop here re-arms itself from inside its own requestAnimationFrame callback
+// and parks the pending handle on `state`, so a second request cannot stack a duplicate loop.
+// Backgrounding the page breaks that contract: rAF callbacks do not run while hidden, and a
+// frame requested just before the app went away is frequently dropped outright rather than
+// delivered on return (iOS does this routinely when you switch to another app). The handle is
+// then set for ever, and the guard that exists to stop duplicate loops silently stops the loop
+// restarting at all -- requestDraw() never paints again, startCompassSmoothing() never eases
+// the heading or the tilt again, and a stranded state.viewportAnimationTo keeps
+// selectionCameraTransitionActive() true, which makes alignHeadingUpNavigationViewport bail on
+// every single call. Between them that is the whole "the compass and the 3D tilt stop updating
+// after I come back from another app, and only a reload fixes it" report. Releasing the handles
+// on the way back in lets each loop be started again from scratch.
+function releaseStrandedAnimationFrames() {
+  if (state.animationFrame != null) cancelAnimationFrame(state.animationFrame);
+  state.animationFrame = null;
+  if (state.overlayAnimationFrame != null) cancelAnimationFrame(state.overlayAnimationFrame);
+  state.overlayAnimationFrame = null;
+  if (state.compassAnimationFrame != null) cancelAnimationFrame(state.compassAnimationFrame);
+  state.compassAnimationFrame = null;
+  // A timestamp from before the break would give the first frame back a dt measured in
+  // minutes; the loop clamps it, but starting from null is the honest reset.
+  state.compassAnimationTime = null;
+  // Clears state.viewportAnimationTo as well as the frame handle, so a camera ease that was
+  // interrupted by the app going away cannot keep the heading-up fit switched off.
+  stopViewportAnimation();
+}
+
 // Everything that needs doing when the page returns to the foreground. Hooked to
 // visibilitychange and pageshow (a bfcache restore never fires visibilitychange); both
 // are idempotent and cheap enough to run on each.
 function handleForegroundResume() {
   if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+
+  releaseStrandedAnimationFrames();
 
   // Resume GPS watch + location-tracking interval paused on backgrounding.
   ensureLocationWatch();
@@ -2522,6 +2578,12 @@ function handleForegroundResume() {
 
   // Restart GPS watch if it has gone silent for >20 s.
   restartStaleGpsWatch();
+
+  // Loops released above have to be started again -- nothing else will, since the sensors that
+  // normally kick them may take several seconds to resume (or may already be delivering into a
+  // smoothing loop that is no longer running).
+  startCompassSmoothing();
+  requestDraw();
 }
 
 function setupVisibilityRecovery() {
@@ -2908,7 +2970,12 @@ function ensureLocationWatch() {
         keepOverviewCenteredOnUser(previousPoint);
         updateCompassOverlay();
         updateHeadingUpCanvasRotationTransform();
-        if (vpChanged || tiltRenderStale()) requestDraw();
+        // The route line lives on the main canvas, and the main canvas is only repainted when
+        // the viewport itself moves -- so while navigating with the camera already settled,
+        // every fix took the overlay-only path and the line stayed painted where the walker
+        // used to be. It starts at the live position now (selectedRoutePoints, js/renderer.js),
+        // which is only visible if the frame that draws it is actually requested.
+        if (vpChanged || tiltRenderStale() || selectedCompassTarget()) requestDraw();
         else if (typeof drawOverlay === "function") drawOverlay();
       } else {
         ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
@@ -3898,10 +3965,84 @@ function nearestSelectedFilterPoints() {
 // The Filter/Settings/Report screens add the nearest match for each selected filter, so the
 // view zooms out past the ring far enough to show that each selected kind exists and which
 // way it lies -- see nearestSelectedFilterPoints.
+//
+// Every screen also reaches the nearest match of a filter the user has *just switched on* that
+// turned out to have nothing inside the ring (see outOfRadiusFitPoints). Without that, adding a
+// filter whose nearest match is beyond the ring -- Underground stations from inside the forest,
+// say -- changed the list and left the map framed on a ring with nothing new in it, so the
+// station the list had just named was nowhere to be seen.
 function nearbyCameraFitPoints() {
   const ring = walkingRadiusCirclePoints();
-  if (!secondaryScreenActive()) return ring;
-  return ring.concat(nearestSelectedFilterPoints());
+  const reach = ring.concat(outOfRadiusFitPoints());
+  if (!secondaryScreenActive()) return reach;
+  return reach.concat(nearestSelectedFilterPoints());
+}
+
+// How far past the walking radius the Nearby camera will reach for an out-of-radius match,
+// as a multiple of the radius itself. There has to be a limit: some filters have their
+// nearest match hundreds of kilometres away (a category with no local example at all), and
+// framing that would shrink the walking radius -- the thing the screen is actually about --
+// to a speck and put the user's own surroundings off the map entirely. At 12x the ring still
+// occupies a legible slice of the view, which covers the case this exists for: a 5-minute
+// radius reaching a few kilometres out to the nearest Underground station. Beyond that the
+// list still names the match (and marks it out-of-radius); the map just stays where the user
+// can read it.
+const NEARBY_OUT_OF_RADIUS_FIT_MAX_RATIO = 12;
+
+// The single nearest fallback match for each filter that has nothing at all inside the
+// walking radius -- exactly the entries overviewItemsForActiveFilter marks `outOfRadius`, and
+// exactly what the Nearby list is showing for those filters. One per kind, not the three the
+// list offers: the camera only has to reach far enough to show that the nearest one exists
+// and which way it lies. Reads the memoized scan, so this costs a walk of an array the list
+// has already built.
+function outOfRadiusFitPoints() {
+  // Only for filters the user has just turned on (state.outOfRadiusRevealFilters, set by
+  // setOverviewFilters). This is a response to an action, not a standing property of the
+  // camera: reaching for every unanswered filter all the time would mean a saved filter set
+  // with one far-off kind in it left the Nearby view permanently zoomed out, with the walking
+  // radius -- the thing the screen is about -- a quarter of its proper size on every boot.
+  if (!state.outOfRadiusRevealFilters.length) return [];
+  // Not while browsing a tapped spot either. That view is "show me what is around *there*",
+  // and the ring around the tapped spot is the whole of it.
+  if (state.nearbyAnchor) return [];
+  const origin = nearbyOrigin();
+  if (!origin || !origin.point) return [];
+  const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+  if (!(radiusMetres > 0)) return [];
+  const maxMetres = radiusMetres * NEARBY_OUT_OF_RADIUS_FIT_MAX_RATIO;
+  const revealing = new Set(state.outOfRadiusRevealFilters);
+  const nearestByFilter = new Map();
+  for (const entry of overviewItemsForActiveFilter()) {
+    if (!entry.outOfRadius || !revealing.has(entry.outOfRadiusFilterKey)) continue;
+    if (!(entry.metres <= maxMetres)) continue;
+    const existing = nearestByFilter.get(entry.outOfRadiusFilterKey);
+    if (!existing || entry.metres < existing.metres) nearestByFilter.set(entry.outOfRadiusFilterKey, entry);
+  }
+  const points = [];
+  for (const entry of nearestByFilter.values()) {
+    const point = nearestFitPointForEntry(entry, origin.point);
+    if (point) points.push(point);
+  }
+  return points;
+}
+
+// The filter keys whose nearest match the camera should currently reach past the ring for:
+// the ones just switched on that turned out to have nothing inside the walking radius at all.
+// Recomputed on every filter change, so switching one off (or switching anything on that *is*
+// in range) hands the camera straight back to the ring with nothing to reset.
+function refreshOutOfRadiusReveal(previousFilters) {
+  const previous = new Set(previousFilters || []);
+  const added = state.overviewFilters.filter((key) => !previous.has(key));
+  if (!added.length) {
+    state.outOfRadiusRevealFilters = [];
+    return;
+  }
+  const addedSet = new Set(added);
+  const unanswered = new Set();
+  for (const entry of overviewItemsForActiveFilter()) {
+    if (entry.outOfRadius && addedSet.has(entry.outOfRadiusFilterKey)) unanswered.add(entry.outOfRadiusFilterKey);
+  }
+  state.outOfRadiusRevealFilters = Array.from(unanswered);
 }
 
 function maxNearbyHeadingUpScale(focus, focusRect) {
@@ -4690,8 +4831,56 @@ function applySelectionFromHash(announceMissing = true) {
   return false;
 }
 
+// The identity of a tree, used for the #tree= deep link, for the Nearby list's own
+// de-duplication (overviewEntryKey/uniqueSortedOverviewEntries) and for resolving a tapped
+// list row back to a tree (findTreeByHashKey). recordNumber first, and only recordNumber:
+// it is the one field the Veteran Tree Register guarantees unique (verified: 24,906 records,
+// 24,906 distinct recordNumbers). `id` -- which this used to prefer -- is "0" on the 6,504
+// untagged trees, so every one of them hashed to the same key. That collapsed all of them to
+// a single row in the Nearby list (hiding every untagged tree closer than the one that
+// survived the de-dupe), and made tapping that row open whichever "0" tree happened to sit
+// first in the dataset -- a tree nowhere near the user. Reported as "Tree 0 is listed as the
+// closest tree when it is nowhere nearby".
+//
+// The key is prefixed so it cannot be confused with the old id/tag-based one: record numbers and
+// tag numbers are separate numbering spaces that overlap (11383 is both a real tag and a real,
+// different, record), so an unprefixed key would make every link ambiguous about which scheme it
+// was written in. With the prefix, findTreeByHashKey can tell them apart and links shared before
+// this change still open the tree they always did.
+const TREE_RECORD_KEY_PREFIX = "r";
+
 function treeHashKey(tree) {
-  return normalizeTreeNumber(tree.id || tree.tagNumber || tree.nationalDatabaseTagNumber || tree.recordNumber || "");
+  if (!tree) return "";
+  const recordNumber = tree.recordNumber;
+  if (recordNumber !== null && recordNumber !== undefined && recordNumber !== "") {
+    return TREE_RECORD_KEY_PREFIX + normalizeTreeNumber(recordNumber);
+  }
+  // No record number at all. Never true of the real register, but a future source (or a test
+  // fixture) may lack one, and returning a blank key would silently drop the tree from every
+  // de-duplicated list. Fall back to the position, which is what actually tells two trees
+  // apart -- kept alphanumeric, and with the sign spelled out, so normalizeTreeNumber (which
+  // strips "-" and ".") cannot merge a coordinate with its mirror image.
+  if (Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)) {
+    const axis = (value) => (value < 0 ? "n" : "p") + Math.round(Math.abs(value) * 1e6);
+    return `ll${axis(tree.latitude)}${axis(tree.longitude)}`;
+  }
+  return normalizeTreeNumber(tree.id ?? tree.tagNumber ?? "");
+}
+
+// The 6,504 untagged records in the Veteran Tree Register carry tagNumber "0" rather than
+// null, so a plain `commonName || tagNumber || recordNumber` chain rendered them as a tree
+// called "0" wherever the species was also unrecorded. "0" is a placeholder, not a tag.
+function treeTagLabel(tree) {
+  const tag = tree && (tree.tagNumber ?? tree.nationalDatabaseTagNumber);
+  if (tag === null || tag === undefined) return null;
+  const text = String(tag).trim();
+  if (!text || Number(text) === 0) return null;
+  return text;
+}
+
+function treeDisplayName(tree) {
+  if (!tree) return "Unknown tree";
+  return tree.commonName || treeTagLabel(tree) || "Veteran tree";
 }
 
 function placeHashKey(place) {
@@ -4701,12 +4890,24 @@ function placeHashKey(place) {
   return `ll:${Number(place.latitude).toFixed(6)},${Number(place.longitude).toFixed(6)}`;
 }
 
+// Links shared before treeHashKey moved to recordNumber carry the old, unprefixed id/tag-based
+// key. Those are still accepted -- but only once no record-number key has matched, and never for
+// a key that is ambiguous under the old scheme ("0" matched 6,504 trees), which would otherwise
+// resolve to an arbitrary one of them.
 function findTreeByHashKey(key) {
   const normalized = normalizeTreeNumber(key);
+  if (!normalized) return null;
   for (const tree of state.trees) {
     if (treeHashKey(tree) === normalized) return tree;
   }
-  return null;
+  let legacyMatch = null;
+  for (const tree of state.trees) {
+    const legacyKeys = [tree.id, tree.tagNumber, tree.nationalDatabaseTagNumber];
+    if (!legacyKeys.some((value) => value != null && value !== "" && normalizeTreeNumber(value) === normalized)) continue;
+    if (legacyMatch) return null;
+    legacyMatch = tree;
+  }
+  return legacyMatch;
 }
 
 function findPlaceByHashKey(key) {
@@ -4743,7 +4944,7 @@ function updateCompassOverlay() {
   state.compassArrowAngle = unwrapAngle(state.compassArrowAngle, relative);
 
   const title = state.selected.type === "tree"
-    ? displayValue(target.commonName || target.tagNumber || target.recordNumber)
+    ? treeDisplayName(target)
     : placeTitle(target);
   if (els.compassArrow) {
     els.compassArrow.hidden = false;

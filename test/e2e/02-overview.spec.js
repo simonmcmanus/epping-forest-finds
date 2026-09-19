@@ -57,6 +57,22 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
     });
 
+    test("the list heading says how far it is reaching, not just what it is listing", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+
+      // One filter selected: the heading has room to name both the kind and the radius, which
+      // is the question a walker is actually asking ("what can I get to in five minutes?").
+      await page.evaluate(() => {
+        state.walkingDistanceMinutes = 5;
+        setOverviewFilters(["trees"]);
+        selectOverview();
+      });
+
+      await expect(page.locator("#inspectorBody .nearby-heading strong"))
+        .toHaveText(/Trees within 5 min walk/i);
+    });
+
     test("nearby entries show a combined distance and walk-time chip", async ({ page }) => {
       await setup(page);
       const walkChip = page.locator("#inspectorBody .nearest-item .walk-chip").first();
