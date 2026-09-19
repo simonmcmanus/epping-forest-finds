@@ -351,6 +351,13 @@ globalThis.__forestFindsTest = {
   reattachCompassListeners,
   compassSensorStalled,
   recoverStalledCompass,
+  orientationHeadingSource,
+  animationLoopsWedged,
+  recoverWedgedAnimationFrames,
+  HEADING_SOURCE_NONE,
+  HEADING_SOURCE_RELATIVE,
+  HEADING_SOURCE_ABSOLUTE,
+  ANIMATION_FRAME_WEDGED_MS,
   handleForegroundResume,
   COMPASS_STALE_MS,
   COMPASS_HEADINGLESS_PROMPT_MS,
@@ -5709,6 +5716,189 @@ test("onDeviceOrientation records that the sensor fired even when the event carr
   );
   assert.equal(app.state.compassLastEventAt, null, "an event with no heading must not count as a compass reading");
   assert.equal(app.state.tiltBetaTarget, 40, "beta is still usable on its own");
+});
+
+// --- Heading source ranking: keeping Android's two orientation streams apart ---
+
+function resetHeadingSource(app) {
+  app.state.compassHeadingSource = app.HEADING_SOURCE_NONE;
+  app.state.compassHeading = null;
+  app.state.compassHeadingTarget = null;
+  app.state.compassLastEventAt = null;
+  app.resetCompassCalibration();
+}
+
+test("orientationHeadingSource ranks a north-referenced reading above a bare relative alpha", () => {
+  assert.equal(app.orientationHeadingSource({ webkitCompassHeading: 12 }), app.HEADING_SOURCE_ABSOLUTE);
+  assert.equal(app.orientationHeadingSource({ alpha: 90, absolute: true }), app.HEADING_SOURCE_ABSOLUTE);
+  assert.equal(
+    app.orientationHeadingSource({ alpha: 90, type: "deviceorientationabsolute" }),
+    app.HEADING_SOURCE_ABSOLUTE,
+    "the absolute event carries a north-referenced alpha by definition"
+  );
+  assert.equal(app.orientationHeadingSource({ alpha: 90, absolute: false }), app.HEADING_SOURCE_RELATIVE);
+  assert.equal(app.orientationHeadingSource({ alpha: 90 }), app.HEADING_SOURCE_RELATIVE);
+  assert.equal(app.orientationHeadingSource({ beta: 40 }), app.HEADING_SOURCE_NONE);
+  assert.equal(app.orientationHeadingSource(null), app.HEADING_SOURCE_NONE);
+});
+
+test("an iPhone heading flagged invalid by webkitCompassAccuracy is not trusted", () => {
+  // Apple documents a negative webkitCompassAccuracy as "this heading is not valid". The
+  // number next to it is arbitrary, not merely imprecise, so it must not reach the map.
+  assert.equal(
+    app.orientationHeadingSource({ webkitCompassHeading: 210, webkitCompassAccuracy: -1 }),
+    app.HEADING_SOURCE_NONE
+  );
+  assert.equal(
+    app.orientationHeadingSource({ webkitCompassHeading: 210, webkitCompassAccuracy: 15 }),
+    app.HEADING_SOURCE_ABSOLUTE,
+    "a valid accuracy reading is the good case and must still be trusted"
+  );
+  assert.equal(
+    app.orientationHeadingSource({ webkitCompassHeading: 210, webkitCompassAccuracy: 0 }),
+    app.HEADING_SOURCE_ABSOLUTE,
+    "zero is a perfect reading, not a negative one"
+  );
+  assert.equal(
+    app.orientationHeadingSource({ webkitCompassHeading: 210 }),
+    app.HEADING_SOURCE_ABSOLUTE,
+    "no accuracy field at all (non-iOS, older iOS) is not evidence of a bad heading"
+  );
+});
+
+test("an invalid iPhone heading does not fall through to iOS's relative alpha", () => {
+  resetData(app);
+  resetHeadingSource(app);
+
+  // iOS alpha is measured from wherever the phone was when the sensor started, not from
+  // north, so it is no better than the invalid heading it would be standing in for.
+  app.onDeviceOrientation({ webkitCompassHeading: 210, webkitCompassAccuracy: -1, alpha: 90, beta: 20 });
+
+  assert.equal(app.state.compassHeadingSource, app.HEADING_SOURCE_NONE, "nothing usable arrived");
+  assert.equal(app.state.compassHeading, null);
+  assert.equal(app.state.compassLastEventAt, null, "an invalid heading is not a compass reading");
+  assert.ok(
+    Number.isFinite(app.state.orientationLastEventAt),
+    "the sensor is alive though -- this is what makes recoverStalledCompass ask for the figure-8 rather than thrash listeners"
+  );
+  assert.equal(app.state.tiltBetaTarget, 20, "beta is unaffected by a bad magnetometer and still drives tilt");
+  resetHeadingSource(app);
+});
+
+test("a device with only the relative orientation stream still gets a heading", () => {
+  resetData(app);
+  resetHeadingSource(app);
+
+  app.onDeviceOrientation({ alpha: 270, beta: 10, absolute: false });
+  app.onDeviceOrientation({ alpha: 270, beta: 10, absolute: false });
+  app.onDeviceOrientation({ alpha: 270, beta: 10, absolute: false });
+  app.onDeviceOrientation({ alpha: 270, beta: 10, absolute: false });
+
+  assert.equal(app.state.compassHeadingSource, app.HEADING_SOURCE_RELATIVE);
+  assert.equal(app.state.compassHeading, 90, "a drifting heading beats no heading at all");
+  resetHeadingSource(app);
+});
+
+test("the relative stream is ignored for heading once a north-referenced one has been seen", () => {
+  resetData(app);
+  resetHeadingSource(app);
+
+  // Chrome on Android fires both events, interleaved, many times a second. Only one of them
+  // measures from north; feeding both into the same heading is what made the compass flip
+  // between a true bearing and an arbitrary one.
+  app.onDeviceOrientation({ alpha: 270, beta: 10, absolute: true }); // heading 90
+  app.completeCompassCalibration(90);
+  const absoluteEventAt = app.state.compassLastEventAt;
+
+  app.onDeviceOrientation({ alpha: 10, beta: 10, absolute: false }); // would be heading 350
+
+  assert.equal(app.state.compassHeadingTarget, 90, "the drifting stream must not move the target");
+  assert.equal(
+    app.state.compassLastEventAt,
+    absoluteEventAt,
+    "staleness is judged on the stream actually in use, so a live relative stream cannot mask a dead absolute one"
+  );
+  assert.equal(app.state.tiltBetaTarget, 10, "beta is valid on both streams and is still read");
+  resetHeadingSource(app);
+});
+
+test("upgrading to a north-referenced source discards the heading measured from an arbitrary zero", () => {
+  resetData(app);
+  resetHeadingSource(app);
+
+  app.onDeviceOrientation({ alpha: 270, beta: 10, absolute: false });
+  app.completeCompassCalibration(90);
+  assert.equal(app.state.compassHeading, 90);
+
+  app.onDeviceOrientation({ alpha: 180, beta: 10, absolute: true });
+
+  assert.equal(app.state.compassHeadingSource, app.HEADING_SOURCE_ABSOLUTE);
+  assert.equal(
+    app.state.compassHeading,
+    null,
+    "the two streams measure from different zeroes, so the old heading is re-gated rather than averaged"
+  );
+  assert.equal(app.state.renderedNavigationHeading, null, "the map falls back to north-up rather than a wrong rotation");
+  assert.equal(
+    app.state.compassCalibrationSamples.length,
+    1,
+    "only the absolute reading that triggered the upgrade survives in the buffer"
+  );
+  resetHeadingSource(app);
+});
+
+// --- Wedged animation loops ---
+
+test("animationLoopsWedged only fires once a requested frame is provably overdue", () => {
+  const now = 100000;
+  app.state.animationFrame = 7;
+  app.state.animationFrameRequestedAt = now - 16;
+  assert.equal(app.animationLoopsWedged(now), false, "a frame requested one frame ago is simply pending");
+
+  app.state.animationFrameRequestedAt = now - (app.ANIMATION_FRAME_WEDGED_MS + 1);
+  assert.equal(app.animationLoopsWedged(now), true);
+
+  app.state.animationFrame = null;
+  app.state.animationFrameRequestedAt = null;
+  assert.equal(app.animationLoopsWedged(now), false, "no parked handle, nothing to recover");
+});
+
+test("recoverWedgedAnimationFrames releases a loop whose frame never ran, so requestDraw works again", () => {
+  resetData(app);
+  const now = 200000;
+  // The state a dropped frame or a throwing callback leaves behind: the handle is parked, so
+  // requestDraw()'s duplicate guard refuses to queue anything, and nothing ever clears it.
+  app.state.animationFrame = 42;
+  app.state.animationFrameRequestedAt = now - (app.ANIMATION_FRAME_WEDGED_MS + 1);
+  app.state.viewportAnimationTo = { scale: 1, tx: 0, ty: 0 };
+
+  assert.equal(app.recoverWedgedAnimationFrames(now), true);
+
+  assert.notEqual(app.state.animationFrame, 42, "the stale handle must not survive -- it is the lock");
+  assert.equal(
+    app.selectionCameraTransitionActive(),
+    false,
+    "a stranded viewportAnimationTo keeps alignHeadingUpNavigationViewport bailing on every call"
+  );
+});
+
+test("recoverWedgedAnimationFrames leaves a healthy loop alone on the watchdog heartbeat", () => {
+  resetData(app);
+  const now = 300000;
+  app.state.animationFrame = 9;
+  app.state.animationFrameRequestedAt = now - 8;
+  app.state.viewportAnimationFrame = 11;
+  app.state.viewportAnimationFrameRequestedAt = now - 8;
+  app.state.viewportAnimationTo = { scale: 1, tx: 0, ty: 0 };
+
+  assert.equal(app.recoverWedgedAnimationFrames(now), false);
+  assert.equal(app.state.viewportAnimationTo != null, true, "an in-flight camera animation must not be cancelled");
+
+  app.state.animationFrame = null;
+  app.state.animationFrameRequestedAt = null;
+  app.state.viewportAnimationFrame = null;
+  app.state.viewportAnimationFrameRequestedAt = null;
+  app.state.viewportAnimationTo = null;
 });
 
 // --- Map interaction: tap-to-relocate, group isolation, street navigation ---

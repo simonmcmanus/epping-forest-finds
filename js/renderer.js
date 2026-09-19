@@ -88,6 +88,9 @@ function draw() {
     cancelAnimationFrame(state.animationFrame);
   }
   state.animationFrame = null;
+  // The frame asked for in requestDraw() has now run: stop the wedge watchdog counting
+  // against it (see recoverWedgedAnimationFrames, js/app.js).
+  state.animationFrameRequestedAt = null;
   // Initialize animation timing on first draw
   if (_animationStartTime === null) _animationStartTime = performance.now();
 
