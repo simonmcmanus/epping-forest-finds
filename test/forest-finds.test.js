@@ -70,10 +70,10 @@ function createElementStub(id = "") {
 }
 
 function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
-  const htmlPath = path.join(__dirname, "..", "index.html");
-  const html = fs.readFileSync(htmlPath, "utf8");
-  const scriptMatch = html.match(/<script>([\s\S]*)<\/script>/);
-  assert.ok(scriptMatch, "index.html should contain the app script");
+  // The app script lives in js/app.js; index.html only <script src>es it.
+  const appPath = path.join(__dirname, "..", "js", "app.js");
+  const appSource = fs.readFileSync(appPath, "utf8");
+  assert.ok(appSource.trim(), "js/app.js should contain the app script");
 
   const elements = new Map();
   const storage = new Map(Object.entries(initialLocalStorage));
@@ -153,7 +153,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
   };
   context.globalThis = context;
 
-  const script = scriptMatch[1]
+  const script = appSource
     .replace(/\n\s*boot\(\);\s*\n/, "\n")
     + `
 globalThis.__forestFindsTest = {
@@ -341,7 +341,7 @@ globalThis.__forestFindsTest = {
     }
   }
 
-  vm.runInContext(script, context, { filename: "index.html" });
+  vm.runInContext(script, context, { filename: "js/app.js" });
   const api = context.__forestFindsTest;
 
   // The default element stub reports the full 1000x800 stage for every element, which made
@@ -506,12 +506,37 @@ function addFixtureData(app) {
 // fully awaited before the next starts -- see that function for why.
 const registeredTests = [];
 
+// TEST_FILTER runs only the tests whose name contains the given text
+// (case-insensitive), so a change to one area can be checked without waiting on
+// -- or reading the output of -- all 251. It is a development aid only, never a
+// substitute for the full run: every test here shares the one `app` instance
+// below, so a filtered subset starts from whatever state the skipped tests would
+// have left behind. The full suite stays the gate for finishing a task.
+const TEST_FILTER = (process.env.TEST_FILTER || "").toLowerCase();
+
+// Passing tests print a dot rather than a line each, because the full names of
+// 251 passing tests are ~250 lines of output nobody reads (and, under
+// `node --test`, ~270 lines of captured diagnostics). Failures still print in
+// full, and TEST_VERBOSE=1 restores the per-test lines.
+const TEST_VERBOSE = process.env.TEST_VERBOSE === "1";
+
 function test(name, fn) {
   registeredTests.push({ name, fn });
 }
 
 async function runRegisteredTests() {
-  for (const { name, fn } of registeredTests) {
+  const selected = TEST_FILTER
+    ? registeredTests.filter(({ name }) => name.toLowerCase().includes(TEST_FILTER))
+    : registeredTests;
+
+  if (TEST_FILTER && selected.length === 0) {
+    console.error(`no test matches TEST_FILTER="${process.env.TEST_FILTER}"`);
+    process.exitCode = 1;
+    return;
+  }
+
+  let passed = 0;
+  for (const { name, fn } of selected) {
     try {
       // Always await, even for a synchronous fn() (awaiting a non-promise
       // is a harmless no-op). Previously test() called fn() without
@@ -528,12 +553,19 @@ async function runRegisteredTests() {
       // a chance to overwrite app.state.roads/paths/selected/userLocation
       // before its post-await assertions ran).
       await fn();
-      console.log(`ok - ${name}`);
+      passed += 1;
+      if (TEST_VERBOSE) console.log(`ok - ${name}`);
+      else process.stdout.write(".");
     } catch (error) {
+      if (!TEST_VERBOSE) process.stdout.write("\n");
       console.error(`not ok - ${name}`);
       throw error;
     }
   }
+
+  if (!TEST_VERBOSE) process.stdout.write("\n");
+  const skipped = registeredTests.length - selected.length;
+  console.log(`# ${passed} passed${skipped ? `, ${skipped} filtered out` : ""}`);
 }
 
 const app = loadAppForTests();
@@ -2457,8 +2489,8 @@ test("each refresh scope clears only its own caches, and only the app scopes unr
 });
 
 test("settings refresh listeners are removed before being re-added, so reopening Settings does not leak window listeners", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  const bindMatch = source.match(/function bindSettingsHandlers\(\) \{[\s\S]*?\n    \}/);
+  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+  const bindMatch = source.match(/function bindSettingsHandlers\(\) \{[\s\S]*?\n\}/);
   assert.ok(bindMatch, "bindSettingsHandlers must be defined");
   const fn = bindMatch[0];
 
@@ -2539,7 +2571,7 @@ test("loading overlay markup includes all eight step labels", () => {
 
 test("report submission includes the app version", () => {
   const html = app.reportFormHtml();
-  const source = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
 
   assert.ok(!html.includes("App version:"), "report form should not display the app version");
   assert.match(source, /appVersion:\s*state\.swVersion \|\| APP_VERSION/, "submitted report payload should include the live service worker version, falling back to APP_VERSION");
@@ -2826,7 +2858,7 @@ test("the background data sync revalidates conditionally and only rewrites entri
 });
 
 test("the app asks for a background data sync only after the map is up, never during boot", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
   const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
 
   const syncIdx = source.indexOf("requestBackgroundDataSync()");
@@ -3190,9 +3222,9 @@ test("startCalibrationViewportSync forces its zoom fit, so calibration's view is
   // if startCalibrationViewportSync's call to alignHeadingUpNavigationViewport ever loses
   // its force:true, the zoom-fit-deferred-until-quiet bug covered by the test above comes
   // straight back for calibration specifically, even though that direct test still passes.
-  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const appSource = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
   assert.match(
-    html,
+    appSource,
     // Generous window: this function carries a lot of explanatory comment (matching this
     // file's style), so the force:true call sits ~2000 chars past the function's own start.
     /function startCalibrationViewportSync[\s\S]{0,3000}alignHeadingUpNavigationViewport\(\{\s*force:\s*true\s*\}\)/,
@@ -4442,25 +4474,28 @@ test("detour slack is dropped once the routing graph resolves, including when th
   assert.ok(buildingScale < failedScale, "while the graph is still building the fit should keep its slack");
 });
 
-test("APP_VERSION in index.html stays in sync with APP_CACHE_NAME in sw.js", () => {
-  // These two are duplicated by design (index.html needs a fallback before caches.keys()
-  // resolves) and sw-bump.yml's "Sync APP_VERSION" step is supposed to keep them together --
-  // but that workflow is currently disabled (on.push.branches: [__disabled__]), which is how
-  // APP_VERSION sat at "v3" while sw.js climbed to v15. A stale fallback is user-visible: it
-  // is what the About screen and every submitted bug report show until the caches resolve.
+test("APP_VERSION in js/app.js stays in sync with APP_CACHE_NAME in sw.js", () => {
+  // These two are duplicated by design (the app needs a fallback before caches.keys()
+  // resolves) and the "Sync APP_VERSION" step in sw-bump.yml / sw-release.yml keeps them
+  // together. Both workflows sat disabled (on.push.branches: [__disabled__]) for a long
+  // while, which is how APP_VERSION sat at "v3" while sw.js climbed to v15. A stale
+  // fallback is user-visible: it is what the About screen and every submitted bug report
+  // show until the caches resolve, so this guard stays whether or not CI is doing its job.
   const root = path.join(__dirname, "..");
   const swSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  const htmlSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const appSource = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
 
-  const cacheMatch = swSource.match(/APP_CACHE_NAME = "forest-finds-app-(v\d+)"/);
-  const fallbackMatch = htmlSource.match(/const APP_VERSION = "(v\d+)"/);
+  // On a non-main branch sw-bump.yml rewrites this to forest-finds-app-<branch-slug>-vN;
+  // sw-release.yml strips the slug again on main. Only the version has to match.
+  const cacheMatch = swSource.match(/APP_CACHE_NAME = "forest-finds-app-(?:.*-)?(v\d+)"/);
+  const fallbackMatch = appSource.match(/const APP_VERSION = "(v\d+)"/);
 
-  assert.ok(cacheMatch, "sw.js should declare APP_CACHE_NAME as forest-finds-app-vN");
-  assert.ok(fallbackMatch, "index.html should declare APP_VERSION as vN");
+  assert.ok(cacheMatch, "sw.js should declare APP_CACHE_NAME as forest-finds-app[-<slug>]-vN");
+  assert.ok(fallbackMatch, "js/app.js should declare APP_VERSION as vN");
   assert.equal(
     fallbackMatch[1],
     cacheMatch[1],
-    `index.html APP_VERSION (${fallbackMatch[1]}) must match sw.js APP_CACHE_NAME (${cacheMatch[1]})`
+    `js/app.js APP_VERSION (${fallbackMatch[1]}) must match sw.js APP_CACHE_NAME (${cacheMatch[1]})`
   );
 });
 

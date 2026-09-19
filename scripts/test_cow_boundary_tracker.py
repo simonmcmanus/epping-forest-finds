@@ -20,13 +20,13 @@ PASTURE_B = {"id": 2, "geometry": {"type": "Polygon", "coordinates": [[
 
 
 class DefaultCowCenterMatchesAppTests(unittest.TestCase):
-    def test_matches_index_html_default_cow_center(self):
-        index_html = (ROOT / "index.html").read_text()
+    def test_matches_app_default_cow_center(self):
+        app_source = (ROOT / "js" / "app.js").read_text()
         m = re.search(
             r"DEFAULT_COW_CENTER\s*=\s*\{\s*longitude:\s*([-\d.]+)\s*,\s*latitude:\s*([-\d.]+)\s*\}",
-            index_html,
+            app_source,
         )
-        self.assertIsNotNone(m, "Could not find DEFAULT_COW_CENTER in index.html -- update the regex or the script")
+        self.assertIsNotNone(m, "Could not find DEFAULT_COW_CENTER in js/app.js -- update the regex or the script")
         self.assertAlmostEqual(float(m.group(1)), cbt.DEFAULT_COW_CENTER["longitude"], places=9)
         self.assertAlmostEqual(float(m.group(2)), cbt.DEFAULT_COW_CENTER["latitude"], places=9)
 

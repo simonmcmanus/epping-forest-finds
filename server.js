@@ -117,7 +117,7 @@ async function handleCowProxy(req, res, url) {
 //
 // Also prefixes CACHE_NAME with "dev-" (mirroring the branch prefix sw-bump.yml already
 // applies for preview builds) so the About screen's app-version display — and any bug
-// report submitted while testing locally, see appVersion in index.html — reads e.g.
+// report submitted while testing locally, see appVersion in js/app.js — reads e.g.
 // "dev-v274" instead of a bare version number that never changes between local edits.
 function injectDevFlag(source) {
   // Anchored on the IS_DEV declaration, not on APP_CACHE_NAME below it: sw.js reads

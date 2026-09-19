@@ -43,7 +43,7 @@ js/native.js               # the only client-side native entry point
 
 `native/` holds its own `package.json` so the root project keeps its "no client build step, no external JS dependencies" constraint (see [spec.md](spec.md) § Technical Constraints) — Capacitor's dependencies are a native build-time concern and must never become a requirement for running the web app from the folder.
 
-`native/scripts/sync-www.js` copies by **explicit allowlist**, not by copying the repo root. It ships `index.html`, `terms.html`, `js/`, `css/`, `assets/`, `tree-icon.svg`, and `data/` (minus the exclusions in [Data Bundling](#data-bundling)), and never ships `node_modules/`, `test/`, `scripts/`, `spec/`, `admin.html`, `js/admin.js`, `netlify/`, `server.js`, `reports/`, or the working `*.backup*` files. A blind directory copy would put the admin dashboard and the 1.1MB source zip inside a public app binary; the allowlist is a security boundary, not a size optimisation.
+`native/scripts/sync-www.js` copies by **explicit allowlist**, not by copying the repo root. It ships `index.html`, `terms.html`, `js/` (including `js/app.js`), `css/`, `assets/`, `tree-icon.svg`, and `data/` (minus the exclusions in [Data Bundling](#data-bundling)), and never ships `node_modules/`, `test/`, `scripts/`, `spec/`, `admin.html`, `js/admin.js`, `netlify/`, `server.js`, `reports/`, or the working `*.backup*` files. A blind directory copy would put the admin dashboard and the 1.1MB source zip inside a public app binary; the allowlist is a security boundary, not a size optimisation.
 
 The generated `ios/` and `android/` projects are committed because they carry hand-edited native configuration (entitlements, `Info.plist` strings, `AndroidManifest.xml`, the foreground service, signing config) that `npx cap add` cannot regenerate.
 
@@ -64,7 +64,7 @@ Native.data              // { resolve(path), checkForUpdates(), currentDataVersi
 Native.appVersion        // { native, data } — feeds the Settings "About" display
 ```
 
-Every accessor is safe to call on web and returns a no-op or a `null` capability rather than throwing. This is what keeps the change surface small: the rest of the client gains `if (Native.heading)`-shaped branches at a handful of call sites instead of platform checks scattered through `index.html`.
+Every accessor is safe to call on web and returns a no-op or a `null` capability rather than throwing. This is what keeps the change surface small: the rest of the client gains `if (Native.heading)`-shaped branches at a handful of call sites instead of platform checks scattered through `js/app.js`.
 
 `Native.isNative` is true when `window.Capacitor?.isNativePlatform()` is true **or** when `window.__FORCE_NATIVE_SHIM__` is set — see [Testing](#testing).
 
@@ -77,10 +77,10 @@ The full set of edits to shipped client code. Anything beyond this list is a sig
 3. **`js/nav.js:88-95`** — the existing `getRegistrations()` cleanup path must also be skipped on native.
 4. **`js/loader.js`** — every data URL passes through `Native.data.resolve(path)` before `loadJson`/`loadTreeChunks`. On web this is the identity function, so the web behaviour and its timeouts are bit-identical.
 5. **`js/tracker.js:7`** — `TRACK_URL` becomes `` `${Native.apiBase}/api/track` ``.
-6. **`index.html:1809`** — the `report-missing-data` function call gains the same `Native.apiBase` prefix.
+6. **`js/app.js`** — the `report-missing-data` function call gains the same `Native.apiBase` prefix.
 7. **Cow proxy fetch** — same prefix (it is the one endpoint that must stay network-live; see [spec.md](spec.md) § Offline, Caching, and Refresh).
 8. **`js/onboarding.js:155-165`** — the permission step branches: on native, request through `Native.location` and (where required) `Native.heading`, and skip the `DeviceOrientationEvent.requestPermission()` gesture gate entirely, which does not apply.
-9. **Heading subscription in `index.html` (~2977-3030)** — when `Native.heading` is available, subscribe to it instead of `deviceorientation` for the heading value. `beta` for tilt still comes from `deviceorientation`, which works normally in both WebViews.
+9. **Heading subscription in `js/app.js`** — when `Native.heading` is available, subscribe to it instead of `deviceorientation` for the heading value. `beta` for tilt still comes from `deviceorientation`, which works normally in both WebViews.
 10. **Settings "About"** — version display reads `Native.appVersion` on native instead of the service worker `CACHE_NAME`.
 11. **`css/base.css`** — safe-area insets and the status bar overlay; see [Native UX Polish](#native-ux-polish).
 

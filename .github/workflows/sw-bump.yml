@@ -2,7 +2,7 @@ name: Bump SW app cache version
 
 on:
   push:
-    branches: [__disabled__]
+    branches-ignore: [main]
 
 jobs:
   bump:
@@ -20,17 +20,17 @@ jobs:
         run: |
           SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr -s '-' | sed 's/^-//;s/-$//')
           SLUG="$SLUG" perl -i -pe \
-            'BEGIN{$s=$ENV{SLUG}} s/"forest-finds-app-.*?-v(\d+)"/"\"forest-finds-app-$s-v".($1+1)."\""/e' \
+            'BEGIN{$s=$ENV{SLUG}} s/"forest-finds-app.*?-v(\d+)"/"\"forest-finds-app-$s-v".($1+1)."\""/e' \
             sw.js
-      - name: Sync APP_VERSION in index.html
+      - name: Sync APP_VERSION in js/app.js
         run: |
           VERSION=$(perl -ne 'print $1 if /"forest-finds-app.*?-v(\d+)"/' sw.js)
-          perl -i -pe "s/const APP_VERSION = \"v\\d+\"/const APP_VERSION = \"v$VERSION\"/" index.html
+          perl -i -pe "s/const APP_VERSION = \"v\\d+\"/const APP_VERSION = \"v$VERSION\"/" js/app.js
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git diff --quiet sw.js index.html && echo "No change needed" && exit 0
-          git add sw.js index.html
+          git diff --quiet sw.js js/app.js && echo "No change needed" && exit 0
+          git add sw.js js/app.js
           git commit -m "chore: bump SW app cache version [skip ci]"
           git push

@@ -2,7 +2,7 @@ name: Normalise SW app cache version on main
 
 on:
   push:
-    branches: [__disabled__]
+    branches: [main]
 
 jobs:
   normalise:
@@ -18,15 +18,15 @@ jobs:
           perl -i -pe \
             's/"forest-finds-app.*?-v(\d+)"/"\"forest-finds-app-v".($1+1)."\""/e' \
             sw.js
-      - name: Sync APP_VERSION in index.html
+      - name: Sync APP_VERSION in js/app.js
         run: |
           VERSION=$(perl -ne 'print $1 if /"forest-finds-app.*?-v(\d+)"/' sw.js)
-          perl -i -pe "s/const APP_VERSION = \"v\\d+\"/const APP_VERSION = \"v$VERSION\"/" index.html
+          perl -i -pe "s/const APP_VERSION = \"v\\d+\"/const APP_VERSION = \"v$VERSION\"/" js/app.js
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git diff --quiet sw.js index.html && echo "Already clean" && exit 0
-          git add sw.js index.html
+          git diff --quiet sw.js js/app.js && echo "Already clean" && exit 0
+          git add sw.js js/app.js
           git commit -m "chore: normalise SW app cache version for release [skip ci]"
           git push
