@@ -327,6 +327,10 @@ globalThis.__forestFindsTest = {
   cacheVersionLabel,
   selectedNavigationTargetPoints,
   balancedNavigationAnchorY,
+  ingestLocationFix,
+  advanceLocationGlide,
+  LOCATION_GLIDE_MS,
+  LOCATION_SMOOTHING_SNAP_METRES,
   bestVisibleCanvasRect,
   ensureUserAndSelectionVisible,
   refitSelectionAfterRoutingGraphReady,
@@ -5629,6 +5633,231 @@ test("once the heading-up hold band is broken the ease runs all the way to the f
     `and land on the fit (${fit.toFixed(0)}), got ${settled.toFixed(0)}`
   );
   assert.equal(easing, false, "converging should drop the latch so the band guards the next move");
+});
+
+// ---------------------------------------------------------------------------------------
+// balancedNavigationAnchorY: one vertex a few metres ahead is not "the route goes both ways".
+//
+// Second half of the "JARRING ZOOM" report -- "lots of reframing". The anchor chooses
+// between two formulas that are nowhere near each other at the boundary, and the old
+// `ahead <= 0` guard put that choice on a hair: any vertex at all on the ahead side, however
+// close, switched the whole framing onto the balanced branch. Walking a route that runs
+// behind you, the last junction you have not yet reached is exactly such a vertex -- and
+// walking past it, or a 20m route re-solve dropping it, stepped the anchor 138px and the
+// map 97px in a single frame. Measured in the browser with the heading held still so
+// nothing else could move the camera.
+// ---------------------------------------------------------------------------------------
+
+// A destination due south with the walker facing north, on a real routed line: everything
+// to be framed is behind except one junction a few metres ahead.
+//
+// That near junction is not contrived. selectedRoutePoints runs the line from the walker's
+// live position through the graph nodes to the destination, so while you are walking up to
+// the next node it sits a handful of metres ahead of you. It is a rounding error against a
+// route kilometres long, but the old `ahead <= 0` guard only asked whether anything at all
+// was on the ahead side -- so walking past that one vertex, or a 20m route re-solve
+// dropping it, flipped the anchor between two formulas that are nowhere near each other.
+//
+// `metresAhead` of 0 removes it, which is what walking past it looks like to the fit. The
+// behind vertices stay either way, so the set is a real routed line in both cases rather
+// than collapsing to the two-point crow-flies fallback.
+function selectRouteBehindWalker(app, metresAhead = 4) {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  const destination = makePoint(app, -0.005, 0);
+  app.state.trees = [{ id: "behind-dest", commonName: "Behind destination", ...destination }];
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  const tail = [];
+  // ~4m north of the walker: one degree of latitude is ~111km.
+  if (metresAhead > 0) tail.push(makePoint(app, metresAhead / 111000, 0).point);
+  tail.push(makePoint(app, -0.002, 0).point);
+  tail.push(makePoint(app, -0.004, 0).point);
+  tail.push(destination.point);
+  app.state.selectedRouteCache = {
+    target: app.state.trees[0],
+    fromLatitude: 0,
+    fromLongitude: 0,
+    tail,
+    routed: true,
+  };
+  return destination;
+}
+
+test("a routed line that runs behind you anchors you at the top of the map, with the route below", () => {
+  selectRouteBehindWalker(app);
+  const rect = app.bestVisibleCanvasRect();
+  const fraction = app.headingUpAnchorFraction(true);
+  const top = rect.y + app.headingUpFitMarginPx(rect);
+
+  const anchored = app.balancedNavigationAnchorY(rect, fraction);
+  // Near the top of the rect -- the tight framing, with the whole route in the space below.
+  // Measured on the real route fixture in the browser, this is what fills 0.75+ of the
+  // binding axis where the bearing-mirrored plain anchor manages 0.61
+  // (12-selected-route.spec.js, "framed where the tilt camera draws it").
+  assert.ok(
+    anchored < rect.y + rect.height * 0.2,
+    `an all-behind route should put the walker near the top, got ${anchored.toFixed(0)} of ${rect.height.toFixed(0)}`
+  );
+  assert.ok(anchored >= top - 1e-9, "and never above the fit's own top margin, which would collapse the scale");
+});
+
+test("walking past the last route junction ahead of you does not reframe the map", () => {
+  selectRouteBehindWalker(app, 4);
+  const rect = app.bestVisibleCanvasRect();
+  const fraction = app.headingUpAnchorFraction(true);
+  const before = app.balancedNavigationAnchorY(rect, fraction);
+
+  // Now it is behind you -- which is what both walking past it and a 20m route re-solve
+  // dropping it look like to the fit.
+  selectRouteBehindWalker(app, 0);
+  const after = app.balancedNavigationAnchorY(rect, fraction);
+
+  // Not zero: that vertex is genuinely part of the route, so the split it contributes to
+  // moves by its own small share. What it must not do is step -- before this, losing it
+  // switched formulas outright, for 102px here and 138px measured in the browser.
+  assert.ok(
+    Math.abs(after - before) < rect.height * 0.01,
+    `losing the last vertex ahead should move the anchor by its own share, not a step (pre-fix: 102px here, 138px in the browser), moved ${Math.abs(after - before).toFixed(0)}px of ${rect.height.toFixed(0)}`
+  );
+});
+
+test("a route that genuinely loops both ways still gets the balanced anchor", () => {
+  // The case balancedNavigationAnchorY exists for must keep working: with a real share of
+  // the route on each side, the split sits well inside the rect rather than at either end.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  const destination = makePoint(app, 0.004, 0);
+  app.state.trees = [{ id: "loop-dest", commonName: "Loop destination", ...destination }];
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  app.state.selectedRouteCache = {
+    target: app.state.trees[0],
+    fromLatitude: 0,
+    fromLongitude: 0,
+    tail: [makePoint(app, -0.004, 0).point, makePoint(app, 0.002, 0).point, destination.point],
+    routed: true,
+  };
+  const rect = app.bestVisibleCanvasRect();
+  const balanced = app.balancedNavigationAnchorY(rect, app.headingUpAnchorFraction(true));
+  // Route reaches equally far each way, so the walker belongs in the middle.
+  assert.ok(
+    Math.abs(balanced - (rect.y + rect.height / 2)) < rect.height * 0.1,
+    `an evenly two-sided route should anchor near the middle, got ${balanced.toFixed(0)} of ${rect.height.toFixed(0)}`
+  );
+});
+
+test("a crow-flies fallback line has nothing to balance, so the plain bearing anchor stands", () => {
+  // Two points -- the walker and the destination, no routing graph yet. One of them IS the
+  // pivot, so there is no shape to split; headingUpAnchorFraction is the whole answer, and
+  // navigationFocusPoint's documented contract depends on it.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  const destination = makePoint(app, -0.005, 0);
+  app.state.trees = [{ id: "straight-dest", commonName: "Straight destination", ...destination }];
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  app.state.selectedRouteCache = {
+    target: app.state.trees[0],
+    fromLatitude: 0,
+    fromLongitude: 0,
+    tail: [destination.point],
+    routed: false,
+  };
+  const rect = app.bestVisibleCanvasRect();
+  const fraction = app.headingUpAnchorFraction(true);
+  assert.equal(app.selectedNavigationTargetPoints().length, 2, "fixture must be the two-point fallback");
+  assert.ok(
+    Math.abs(app.balancedNavigationAnchorY(rect, fraction) - (rect.y + rect.height * fraction)) < 1e-9,
+    "the two-point fallback should use headingUpAnchorFraction unchanged"
+  );
+});
+
+// ---------------------------------------------------------------------------------------
+// ingestLocationFix / advanceLocationGlide: the once-a-second GPS twitch.
+// ---------------------------------------------------------------------------------------
+
+function resetLocationSmoothing(app) {
+  app.state.rawUserLocation = null;
+  app.state.locationGlide = null;
+  app.state.locationSmoothedAt = null;
+}
+
+test("the first GPS fix is used as delivered, with no smoothing to ease in from", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  const fix = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  assert.equal(fix.latitude, 51.665);
+  assert.equal(fix.longitude, 0.045);
+  assert.equal(app.state.locationGlide, null, "nothing to glide from on the first fix");
+  assert.ok(app.state.rawUserLocation, "the raw fix is kept for analytics");
+});
+
+test("a later GPS fix is low-passed and glided rather than jumping the position", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  const before = { ...app.state.userLocation.point };
+
+  // A second fix ~12m away, one second later: wander, not a teleport.
+  const next = app.ingestLocationFix(51.66511, 0.04501, 10, 2000);
+  assert.deepEqual(
+    { x: next.point.x, y: next.point.y }, before,
+    "the position should not move on the fix itself -- the glide carries it"
+  );
+  const glide = app.state.locationGlide;
+  assert.ok(glide, "a glide should have been set up");
+  assert.equal(glide.durationMs, app.LOCATION_GLIDE_MS);
+
+  // The low-passed target sits short of the raw fix, which is the filtering doing its job.
+  const rawPoint = app.state.rawUserLocation.point;
+  const toRaw = Math.hypot(rawPoint.x - before.x, rawPoint.y - before.y);
+  const toTarget = Math.hypot(glide.to.x - before.x, glide.to.y - before.y);
+  assert.ok(toTarget > 0 && toTarget < toRaw, `target should fall between the old position and the raw fix, got ${toTarget} of ${toRaw}`);
+
+  // And the glide actually carries the position there over its duration.
+  app.state.userLocation = next;
+  app.advanceLocationGlide(2000 + app.LOCATION_GLIDE_MS / 2);
+  const midway = Math.hypot(app.state.userLocation.point.x - before.x, app.state.userLocation.point.y - before.y);
+  assert.ok(midway > 0 && midway < toTarget, `halfway through the glide the position should be partway there, got ${midway} of ${toTarget}`);
+
+  app.advanceLocationGlide(2000 + app.LOCATION_GLIDE_MS);
+  assert.equal(app.state.locationGlide, null, "the glide clears when it lands");
+  const landed = Math.hypot(app.state.userLocation.point.x - glide.to.x, app.state.userLocation.point.y - glide.to.y);
+  assert.ok(landed < 1e-6, "and lands exactly on the filtered target");
+});
+
+test("a large jump in position lands at once rather than crawling there", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  // Well past LOCATION_SMOOTHING_SNAP_METRES: a first fix after a gap, or coming out of a
+  // tunnel. Easing across that would read as the map sliding away on its own.
+  const jumped = app.ingestLocationFix(51.68, 0.06, 10, 2000);
+  assert.equal(app.state.locationGlide, null, "no glide for a real jump");
+  assert.equal(jumped.latitude, 51.68, "the position lands on the fix itself");
+});
+
+test("a poor-accuracy fix is leaned on harder than a good one", () => {
+  const targetFor = (accuracy) => {
+    resetData(app);
+    resetLocationSmoothing(app);
+    app.state.userLocation = null;
+    app.state.userLocation = app.ingestLocationFix(51.665, 0.045, accuracy, 1000);
+    const from = { ...app.state.userLocation.point };
+    app.ingestLocationFix(51.66511, 0.04501, accuracy, 2000);
+    const to = app.state.locationGlide.to;
+    return Math.hypot(to.x - from.x, to.y - from.y);
+  };
+  const tight = targetFor(4);
+  const loose = targetFor(25);
+  assert.ok(tight > loose, `a 4m fix should be followed further than a 25m one, got ${tight} vs ${loose}`);
 });
 
 test("a heading-up zoom-out eases faster than a zoom-in of the same proportion", () => {

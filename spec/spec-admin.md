@@ -123,6 +123,8 @@ Admin suppresses duplicate derived navigation-click events when a matching expli
 ### `POST /api/track`
 Receives a batch of events from the client. No authentication required.
 
+Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.userLocation`. The latter is low-passed and glided for the camera's benefit (see "Camera-facing GPS smoothing" in `spec-data-rendering.md`); the two differ by only a couple of metres, but a heat-map of real visits is built from the readings the device actually gave. `trackedLocation()` in `js/tracker.js` picks the raw fix and falls back to `state.userLocation` when there is none.
+
 **Request body:**
 ```json
 {

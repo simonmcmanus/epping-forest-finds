@@ -172,15 +172,26 @@ function trackLocation(lat, lng, heading) {
   });
 }
 
+// Analytics record where the walker actually was, not where the camera was told to look.
+// state.userLocation is smoothed and glided for the camera's benefit (ingestLocationFix in
+// js/app.js); state.rawUserLocation is the fix the browser delivered. They differ by only a
+// couple of metres, but a heat-map of real visits should be built from the real readings.
+function trackedLocation() {
+  if (typeof state === "undefined") return null;
+  return state.rawUserLocation || state.userLocation || null;
+}
+
 function startLocationTracking() {
   if (_trackerInterval) return;
-  if (typeof state !== "undefined" && state.userLocation) {
-    trackLocation(state.userLocation.latitude, state.userLocation.longitude,
+  const initial = trackedLocation();
+  if (initial) {
+    trackLocation(initial.latitude, initial.longitude,
       typeof state !== "undefined" ? state.compassHeading : null);
   }
   _trackerInterval = setInterval(() => {
-    if (typeof state !== "undefined" && state.userLocation) {
-      trackLocation(state.userLocation.latitude, state.userLocation.longitude, state.compassHeading);
+    const current = trackedLocation();
+    if (current) {
+      trackLocation(current.latitude, current.longitude, state.compassHeading);
     }
   }, 60_000);
 }

@@ -279,6 +279,9 @@ const state = {
   headingUpScaleEaseAt: null, // timestamp the heading-up scale ease last integrated (see resolveHeadingUpTargetScale)
   headingUpScaleEasing: false, // latch: the heading-up scale ease is mid-glide (see resolveHeadingUpTargetScale)
   lastLocationUpdateAt: null,
+  rawUserLocation: null, // the unfiltered GPS fix; state.userLocation is the smoothed one (see ingestLocationFix)
+  locationGlide: null, // in-flight glide of the smoothed position toward the latest fix
+  locationSmoothedAt: null, // timestamp the location low-pass last ran
   navigationHeadingUp: false,
   renderedNavigationHeading: null,
   headingUpEntryAnim: null,
@@ -558,11 +561,118 @@ async function boot() {
   }
 }
 
+// --- Camera-facing GPS smoothing -------------------------------------------------------
+//
+// watchPosition delivers a fix about once a second, and under tree cover consecutive fixes
+// wander several metres either side of where you actually are. state.userLocation.point is
+// the camera's anchor, the scale fit's origin and the 3D pivot all at once (see
+// cameraOriginPoint), so every one of those fixes used to move the whole map at once:
+// measured walking toward a destination ~80m away, the map lurched 15.8px on average and
+// 26.2px at worst on each fix, then sat perfectly still for the fifteen frames until the
+// next one. That once-a-second twitch is the rest of the "lots of reframing" report.
+//
+// Two things are wrong with a raw fix and they need different treatment:
+//
+//   - the wander itself, which is noise around the truth -> a low-pass filter, below,
+//     weighted by the accuracy the fix reports so a good fix is trusted more than a bad one;
+//   - the once-a-second delivery, which makes even a perfectly filtered position arrive as
+//     a step -> a glide, advanced every frame by advanceLocationGlide().
+//
+// Filtering alone would only make the steps smaller; gliding alone would follow every
+// wobble faithfully and smoothly. Both together is what makes the map move the way the
+// walker does.
+//
+// This lives in the two GPS ingestion paths deliberately, not in a getter: everything that
+// assigns state.userLocation directly -- the whole unit suite, and the e2e specs that place
+// the walker somewhere -- keeps working exactly as before, because no glide is ever created
+// for a position the browser did not deliver.
+const LOCATION_SMOOTHING_MIN_TAU_S = 0.3;
+const LOCATION_SMOOTHING_MAX_TAU_S = 2.5;
+// Reported accuracy in metres divided by this gives the filter's time constant, so a 5m fix
+// is followed almost as given (0.5s) while a 25m one is leaned on much harder (2.5s).
+const LOCATION_SMOOTHING_ACCURACY_DIVISOR = 10;
+// Past this, the fix is not wander. A first fix after a gap, coming out of a tunnel, or a
+// genuine teleport should land at once rather than crawl there over seconds.
+const LOCATION_SMOOTHING_SNAP_METRES = 30;
+// How long the glide takes to reach a new fix. A little under the ~1s fix interval, so the
+// position has settled by the time the next one arrives rather than permanently chasing.
+const LOCATION_GLIDE_MS = 850;
+
+// Turns one raw fix into the position the app should use, and sets up the glide toward it.
+// Returns the location object for the caller to assign to state.userLocation.
+function ingestLocationFix(latitude, longitude, accuracy, now = performance.now()) {
+  const rawPoint = projectLonLat(longitude, latitude);
+  const raw = { latitude, longitude, accuracy, point: rawPoint };
+  state.rawUserLocation = raw;
+
+  const previous = state.userLocation;
+  const previousTarget = state.locationGlide ? state.locationGlide.to : (previous && previous.point);
+  const lastAt = state.locationSmoothedAt;
+  const landRaw = () => {
+    state.locationGlide = null;
+    state.locationSmoothedAt = now;
+    return raw;
+  };
+  if (!previous || !previous.point || !previousTarget || !Number.isFinite(lastAt)) return landRaw();
+
+  const dt = (now - lastAt) / 1000;
+  if (!(dt > 0)) return previous;
+  state.locationSmoothedAt = now;
+  const movedMetres = distanceMetres(previous.latitude, previous.longitude, latitude, longitude);
+  if (!Number.isFinite(movedMetres) || movedMetres >= LOCATION_SMOOTHING_SNAP_METRES) return landRaw();
+
+  // Low-pass against the previous *target*, not the previous rendered position: filtering
+  // against a value that is itself mid-glide would fold the glide's own lag back into the
+  // filter and drag the position permanently behind the walker.
+  const tau = clamp(
+    (Number.isFinite(accuracy) ? accuracy : 10) / LOCATION_SMOOTHING_ACCURACY_DIVISOR,
+    LOCATION_SMOOTHING_MIN_TAU_S,
+    LOCATION_SMOOTHING_MAX_TAU_S
+  );
+  const alpha = 1 - Math.exp(-dt / tau);
+  const to = {
+    x: previousTarget.x + (rawPoint.x - previousTarget.x) * alpha,
+    y: previousTarget.y + (rawPoint.y - previousTarget.y) * alpha,
+  };
+  state.locationGlide = { from: { x: previous.point.x, y: previous.point.y }, to, startedAt: now, durationMs: LOCATION_GLIDE_MS };
+  return locationAtPoint(previous.point, accuracy);
+}
+
+// The location object for a projected point, with lat/lon kept consistent with it so
+// nothing downstream can read a position and a coordinate that disagree.
+function locationAtPoint(point, accuracy) {
+  const lonLat = unprojectPoint(point);
+  return { latitude: lonLat.latitude, longitude: lonLat.longitude, accuracy, point: { x: point.x, y: point.y } };
+}
+
+// Moves state.userLocation along the in-flight glide. Progress is a pure function of the
+// clock (the same shape nearbyOriginTransitionEasedProgress uses) rather than an
+// accumulator, so a dropped frame just means further along and a stale clock lands it --
+// neither can freeze the position or leave it somewhere the fit was not solved for.
+function advanceLocationGlide(now = performance.now()) {
+  const glide = state.locationGlide;
+  if (!glide || !state.userLocation) return false;
+  const progress = clamp((now - glide.startedAt) / glide.durationMs, 0, 1);
+  const eased = progress < 0.5
+    ? 4 * progress * progress * progress
+    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+  const point = {
+    x: glide.from.x + (glide.to.x - glide.from.x) * eased,
+    y: glide.from.y + (glide.to.y - glide.from.y) * eased,
+  };
+  if (progress >= 1) state.locationGlide = null;
+  const moved = Math.abs(point.x - state.userLocation.point.x) > 0 || Math.abs(point.y - state.userLocation.point.y) > 0;
+  if (!moved) return false;
+  state.userLocation = locationAtPoint(point, state.userLocation.accuracy);
+  state.userInMapArea = pointInsideBounds(point, state.bounds);
+  return true;
+}
+
 function applyLocationFix(position) {
   const { latitude, longitude, accuracy } = position.coords;
   const previousPoint = state.userLocation && state.userLocation.point;
-  const point = projectLonLat(longitude, latitude);
-  state.userLocation = { latitude, longitude, accuracy, point };
+  state.userLocation = ingestLocationFix(latitude, longitude, accuracy);
+  const point = state.userLocation.point;
   state.userInMapArea = pointInsideBounds(point, state.bounds);
   const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
   state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
@@ -3097,8 +3207,8 @@ function ensureLocationWatch() {
       state.lastLocationUpdateAt = performance.now();
       const { latitude, longitude, accuracy } = position.coords;
       const previousPoint = state.userLocation && state.userLocation.point;
-      const point = projectLonLat(longitude, latitude);
-      state.userLocation = { latitude, longitude, accuracy, point };
+      state.userLocation = ingestLocationFix(latitude, longitude, accuracy);
+      const point = state.userLocation.point;
       updateLocateButtonVisibility();
       state.userInMapArea = pointInsideBounds(point, state.bounds);
       const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
@@ -3770,7 +3880,12 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   const anchoredY = focusRect.y + focusRect.height * anchorFraction;
   if (!state.userLocation) return anchoredY;
   const points = selectedNavigationTargetPoints();
-  if (points.length < 2) return anchoredY;
+  // Exactly two points is selectedRoutePoints' crow-flies fallback -- the walker and the
+  // destination, nothing in between (no routing graph yet, or no walkable route found).
+  // One of those two IS the pivot this measures from, so there is no shape to balance and
+  // headingUpAnchorFraction's bearing-mirrored anchor is the whole answer. Only a real
+  // routed line, with junctions of its own, has an ahead/behind split worth taking.
+  if (points.length < 3) return anchoredY;
 
   const radians = toRadians(currentNavigationMapRotationDegrees());
   const cos = Math.cos(radians);
@@ -3785,13 +3900,39 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
     if (rotatedY < 0) ahead = Math.max(ahead, -rotatedY);
     else behind = Math.max(behind, rotatedY);
   }
-  if (ahead <= 0 || behind <= 0) return anchoredY;
+  // No "is there anything on both sides?" guard. There used to be one -- `ahead <= 0 ||
+  // behind <= 0` fell back to `anchoredY` -- and it was a cliff, because the two formulas
+  // are nowhere near each other at the boundary while the thing deciding between them is a
+  // single vertex.
+  //
+  // Walking a route that runs behind you, the last junction you have not yet reached sits a
+  // few metres ahead and is the only thing on that side. It contributes essentially nothing
+  // to the split, so the balanced branch returns almost exactly `top`. Walk past it -- or
+  // let a 20m route re-solve (SELECTED_ROUTE_RECOMPUTE_MIN_METRES) drop it -- and the guard
+  // fired instead and the anchor stepped straight to `anchoredY`. Measured in the browser
+  // with the heading held still so nothing else could move the camera: 138px of anchor in
+  // one frame, reframing the map by 97px and snapping the zoom 23%. That is the "lots of
+  // reframing" half of the jarring-zoom report.
+  //
+  // Letting the split run all the way to the ends of its own range removes the step without
+  // a threshold to tune, because the limits ARE the right answers: with nothing ahead it
+  // gives `top`, the walker at the top of the rect with the whole route below -- which is
+  // both continuous with the almost-nothing-ahead case and a tighter fit than `anchoredY`
+  // was (measured on the route fixture at beta 20, the route fills 0.75+ of the binding axis
+  // this way against 0.61 falling back). With nothing behind it gives the bottom of the
+  // rect, everything above, which is the same statement mirrored.
+  //
+  // The collapse the doc comment above describes is still avoided: every value this can
+  // return lies inside [top, top + usable], which is the rect inset by the fit's own margin
+  // on both sides, so maxScaleForHeadingUpPoints always has real room to divide by.
+  const span = ahead + behind;
+  if (!(span > 0)) return anchoredY;
 
   const margin = headingUpFitMarginPx(focusRect);
   const top = focusRect.y + margin;
   const usable = focusRect.height - margin * 2;
   if (!(usable > 0)) return anchoredY;
-  return top + usable * (ahead / (ahead + behind));
+  return top + usable * (ahead / span);
 }
 
 function navigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
@@ -4436,6 +4577,10 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
 }
 
 function prepareCanvasForDraw() {
+  // Before anything reads the position this frame: walk state.userLocation along the glide
+  // set up by the last GPS fix (ingestLocationFix), so the camera, the fit, the route head
+  // and the You marker all move together rather than stepping once a second.
+  if (advanceLocationGlide()) requestDraw();
   _overlapRectCache = undefined;
   _tiltProjectionCache = undefined;
   _nearbyRenderOriginCache = undefined;
