@@ -2877,7 +2877,8 @@ test("the app asks for a background data sync only after the map is up, never du
 });
 
 test("service worker uses a network-first strategy in local dev so edits show up without a CACHE_NAME bump", () => {
-  // CACHE_NAME is only ever bumped by CI (.github/workflows/sw-bump.yml and sw-release.yml),
+  // CACHE_NAME is only ever bumped by CI on main (.github/workflows/sw-release.yml for app
+  // code, data-bump.yml for data),
   // never locally, so the production cache-first strategy below would otherwise keep serving
   // stale JS/CSS/data while testing locally. self.__DEV__ (injected by server.js — see the
   // "local dev server flags sw.js" tests) must gate the cache-first branch and go to the
@@ -2929,11 +2930,11 @@ test("local dev server flags sw.js with self.__DEV__ without touching the produc
 });
 
 test("local dev server prefixes CACHE_NAME with dev- so the About screen and bug reports read as local, not a stuck release version", () => {
-  // Without this, the About screen's app-version display (index.html) and any bug report's
+  // Without this, the About screen's app-version display (js/app.js) and any bug report's
   // appVersion (both read the live CACHE_NAME via caches.keys() in setupPwa, js/nav.js) would
   // show whatever version number happened to be in sw.js on disk, unchanged across every local
-  // edit — since CACHE_NAME bumps are CI-only (see the network-first dev test above). Mirrors
-  // the branch-prefix convention .github/workflows/sw-bump.yml already uses for preview builds.
+  // edit — since CACHE_NAME bumps are CI-only, and now main-only (see the network-first dev
+  // test above). The "dev-" prefix is what makes a locally served version visibly local.
   const { _private } = require("../server.js");
   const original = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   const originalNameMatch = original.match(/const APP_CACHE_NAME = "forest-finds-([^"]+)"/);
@@ -4476,21 +4477,21 @@ test("detour slack is dropped once the routing graph resolves, including when th
 
 test("APP_VERSION in js/app.js stays in sync with APP_CACHE_NAME in sw.js", () => {
   // These two are duplicated by design (the app needs a fallback before caches.keys()
-  // resolves) and the "Sync APP_VERSION" step in sw-bump.yml / sw-release.yml keeps them
-  // together. Both workflows sat disabled (on.push.branches: [__disabled__]) for a long
-  // while, which is how APP_VERSION sat at "v3" while sw.js climbed to v15. A stale
-  // fallback is user-visible: it is what the About screen and every submitted bug report
-  // show until the caches resolve, so this guard stays whether or not CI is doing its job.
+  // resolves) and the "Sync APP_VERSION" step in sw-release.yml keeps them together. That
+  // workflow sat disabled (on.push.branches: [__disabled__]) for a long while, which is how
+  // APP_VERSION sat at "v3" while sw.js climbed to v15. A stale fallback is user-visible:
+  // it is what the About screen and every submitted bug report show until the caches
+  // resolve, so this guard stays whether or not CI is doing its job.
   const root = path.join(__dirname, "..");
   const swSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const appSource = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
 
-  // On a non-main branch sw-bump.yml rewrites this to forest-finds-app-<branch-slug>-vN;
-  // sw-release.yml strips the slug again on main. Only the version has to match.
-  const cacheMatch = swSource.match(/APP_CACHE_NAME = "forest-finds-app-(?:.*-)?(v\d+)"/);
+  // Only sw-release.yml writes this, only on main, always unslugged -- branch-level
+  // bumping was removed, so anything else here is a hand-edit that should be caught.
+  const cacheMatch = swSource.match(/APP_CACHE_NAME = "forest-finds-app-(v\d+)"/);
   const fallbackMatch = appSource.match(/const APP_VERSION = "(v\d+)"/);
 
-  assert.ok(cacheMatch, "sw.js should declare APP_CACHE_NAME as forest-finds-app[-<slug>]-vN");
+  assert.ok(cacheMatch, "sw.js should declare APP_CACHE_NAME as forest-finds-app-vN");
   assert.ok(fallbackMatch, "js/app.js should declare APP_VERSION as vN");
   assert.equal(
     fallbackMatch[1],

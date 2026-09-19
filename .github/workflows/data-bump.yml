@@ -1,10 +1,20 @@
 name: Bump data cache version
 
+# The data cache moves when map data lands on main -- the Monday ledger merge,
+# a regeneration script's output, or any other data/** change. Kept separate
+# from the app cache (sw-release.yml) so returning users re-download only what
+# actually changed. Both workflows write to sw.js on main, so they share a
+# concurrency group to serialise and rebase before pushing.
+
 on:
   push:
     paths:
       - 'data/**'
     branches: [main]
+
+concurrency:
+  group: main-cache-bump
+  cancel-in-progress: false
 
 jobs:
   bump-data:
@@ -14,6 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Increment DATA_CACHE_NAME version only
         run: |
@@ -27,4 +38,9 @@ jobs:
           git diff --quiet sw.js && echo "No change needed" && exit 0
           git add sw.js
           git commit -m "chore: bump data cache version [skip ci]"
+          for attempt in 1 2 3; do
+            git push && exit 0
+            echo "push rejected (attempt $attempt), rebasing on main"
+            git pull --rebase origin main
+          done
           git push
