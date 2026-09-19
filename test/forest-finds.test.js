@@ -5742,6 +5742,49 @@ test("orientationHeadingSource ranks a north-referenced reading above a bare rel
   assert.equal(app.orientationHeadingSource(null), app.HEADING_SOURCE_NONE);
 });
 
+test("an iPhone heading flagged invalid by webkitCompassAccuracy is not trusted", () => {
+  // Apple documents a negative webkitCompassAccuracy as "this heading is not valid". The
+  // number next to it is arbitrary, not merely imprecise, so it must not reach the map.
+  assert.equal(
+    app.orientationHeadingSource({ webkitCompassHeading: 210, webkitCompassAccuracy: -1 }),
+    app.HEADING_SOURCE_NONE
+  );
+  assert.equal(
+    app.orientationHeadingSource({ webkitCompassHeading: 210, webkitCompassAccuracy: 15 }),
+    app.HEADING_SOURCE_ABSOLUTE,
+    "a valid accuracy reading is the good case and must still be trusted"
+  );
+  assert.equal(
+    app.orientationHeadingSource({ webkitCompassHeading: 210, webkitCompassAccuracy: 0 }),
+    app.HEADING_SOURCE_ABSOLUTE,
+    "zero is a perfect reading, not a negative one"
+  );
+  assert.equal(
+    app.orientationHeadingSource({ webkitCompassHeading: 210 }),
+    app.HEADING_SOURCE_ABSOLUTE,
+    "no accuracy field at all (non-iOS, older iOS) is not evidence of a bad heading"
+  );
+});
+
+test("an invalid iPhone heading does not fall through to iOS's relative alpha", () => {
+  resetData(app);
+  resetHeadingSource(app);
+
+  // iOS alpha is measured from wherever the phone was when the sensor started, not from
+  // north, so it is no better than the invalid heading it would be standing in for.
+  app.onDeviceOrientation({ webkitCompassHeading: 210, webkitCompassAccuracy: -1, alpha: 90, beta: 20 });
+
+  assert.equal(app.state.compassHeadingSource, app.HEADING_SOURCE_NONE, "nothing usable arrived");
+  assert.equal(app.state.compassHeading, null);
+  assert.equal(app.state.compassLastEventAt, null, "an invalid heading is not a compass reading");
+  assert.ok(
+    Number.isFinite(app.state.orientationLastEventAt),
+    "the sensor is alive though -- this is what makes recoverStalledCompass ask for the figure-8 rather than thrash listeners"
+  );
+  assert.equal(app.state.tiltBetaTarget, 20, "beta is unaffected by a bad magnetometer and still drives tilt");
+  resetHeadingSource(app);
+});
+
 test("a device with only the relative orientation stream still gets a heading", () => {
   resetData(app);
   resetHeadingSource(app);

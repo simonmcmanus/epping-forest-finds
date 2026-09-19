@@ -3036,11 +3036,38 @@ function extractCompassHeading(event) {
 // and exposes the heading directly as webkitCompassHeading instead.
 function orientationHeadingSource(event) {
   if (!event) return HEADING_SOURCE_NONE;
-  if (Number.isFinite(event.webkitCompassHeading)) return HEADING_SOURCE_ABSOLUTE;
+  if (Number.isFinite(event.webkitCompassHeading)) {
+    return iosCompassHeadingIsValid(event) ? HEADING_SOURCE_ABSOLUTE : HEADING_SOURCE_NONE;
+  }
   if (!Number.isFinite(event.alpha)) return HEADING_SOURCE_NONE;
   return (event.absolute === true || event.type === "deviceorientationabsolute")
     ? HEADING_SOURCE_ABSOLUTE
     : HEADING_SOURCE_RELATIVE;
+}
+
+// iOS reports the magnetometer's confidence in webkitCompassAccuracy alongside every
+// heading, and Apple documents a NEGATIVE value as meaning the heading is not valid at all.
+// It is not "imprecise": the number sitting in webkitCompassHeading next to it is arbitrary.
+// Nothing read this, so an iPhone whose magnetometer had not settled -- near a car
+// dashboard, in a magnetic case, or in the first moments after the screen woke -- handed a
+// confident-looking but meaningless bearing straight to the heading, and the map rotated to
+// it. That is the same "completely wrong" the Android stream mixing caused, reached by a
+// different route, and it is why this shows up on iPhones too.
+//
+// Returning NONE rather than falling through to event.alpha is deliberate: iOS's alpha is
+// measured from wherever the device happened to be when the sensor started, not from north
+// -- that is the whole reason webkitCompassHeading exists -- so it is no better. With no
+// usable heading the event still records orientationLastEventAt, which is exactly what makes
+// recoverStalledCompass surface the "move your phone in a figure-8" banner: the sensor is
+// alive, its magnetometer wants calibrating, and physical movement is the only thing that
+// fixes it.
+//
+// A missing/undefined accuracy (any non-iOS browser, and older iOS) is not evidence of a bad
+// heading, so it is trusted as before.
+function iosCompassHeadingIsValid(event) {
+  const accuracy = event.webkitCompassAccuracy;
+  if (!Number.isFinite(accuracy)) return true;
+  return accuracy >= 0;
 }
 
 // Drops every heading derived from a source we have just improved on. In practice the two

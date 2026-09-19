@@ -77,6 +77,61 @@ test.describe("compass reliability", () => {
     ).toBeNull();
   });
 
+  test("an iPhone does not rotate the map to a bearing its own magnetometer calls invalid", async ({ page }) => {
+    // iOS hands over webkitCompassAccuracy with every reading, and a negative value is its
+    // documented way of saying the heading next to it is meaningless. Acting on one anyway is
+    // how the map ended up pointing somewhere arbitrary on an iPhone.
+    //
+    // The assertion deliberately hangs on compassLastEventAt rather than on whether a heading
+    // got trusted. Trusting one goes through the calibration gate, which needs four readings
+    // inside a 900ms window -- and how many of these synthetic events land inside one window
+    // depends on how fast the machine runs the dispatches. An earlier version of this test
+    // asserted only the heading and passed against the unfixed code whenever the gate happened
+    // not to fill. compassLastEventAt is written synchronously by the one line that accepts a
+    // reading, so it says "this bearing was taken seriously" with no timing in the answer.
+    const result = await page.evaluate(async () => {
+      const fire = (accuracy) => {
+        const event = new Event("deviceorientation");
+        // webkitCompassHeading/Accuracy are iOS-only and not in the standard init dict, so
+        // they go on the instance the way Safari itself exposes them.
+        event.webkitCompassHeading = 210;
+        event.webkitCompassAccuracy = accuracy;
+        event.alpha = 90;
+        event.beta = 20;
+        event.gamma = 0;
+        window.dispatchEvent(event);
+      };
+
+      for (let i = 0; i < 6; i += 1) {
+        fire(-1); // magnetometer not calibrated
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      const whileInvalid = {
+        accepted: state.compassLastEventAt !== null,
+        heading: state.compassHeading,
+        rotation: navigationMapRotationDegrees(),
+        tiltBeta: state.tiltBetaTarget,
+        sensorSeen: state.orientationLastEventAt !== null,
+      };
+
+      for (let i = 0; i < 6; i += 1) {
+        fire(15); // magnetometer settles
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return { whileInvalid, acceptedOnceValid: state.compassLastEventAt !== null };
+    });
+
+    expect(result.whileInvalid.accepted, "an invalid bearing must never be accepted as a compass reading").toBe(false);
+    expect(result.whileInvalid.heading, "so it can never become the heading").toBeNull();
+    expect(result.whileInvalid.rotation, "and the map stays north-up rather than rotating to nonsense").toBe(0);
+    expect(result.whileInvalid.tiltBeta, "a bad magnetometer says nothing about pitch, so tilt still tracks").toBe(20);
+    expect(
+      result.whileInvalid.sensorSeen,
+      "the sensor is still alive -- this is what makes the watchdog ask for a figure-8 instead of thrashing listeners"
+    ).toBe(true);
+    expect(result.acceptedOnceValid, "and a real bearing is taken as soon as the sensor settles").toBe(true);
+  });
+
   test("the map starts redrawing again after an animation frame is dropped", async ({ page }) => {
     // Every loop in the app parks its pending rAF handle on state as a duplicate-loop guard.
     // A frame that never runs -- dropped on an app switch iOS never announced, or a callback
