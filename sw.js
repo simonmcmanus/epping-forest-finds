@@ -7,7 +7,7 @@
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v30";
+const APP_CACHE_NAME = "forest-finds-app-v31";
 const DATA_CACHE_NAME = "forest-finds-data-v4";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
@@ -130,6 +130,7 @@ const DATA_CACHE_OPPORTUNISTIC = [
   "./data/icons/distance.png",
   "./data/icons/dry-cleaning.png",
   "./data/icons/education.png",
+  "./data/icons/favicon.png",
   "./data/icons/feedback.png",
   "./data/icons/film.png",
   "./data/icons/filter.png",
