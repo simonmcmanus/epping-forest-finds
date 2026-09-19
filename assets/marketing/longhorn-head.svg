@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="214 10 272 262" width="544" height="524" role="img" aria-label="Line drawing of an English Longhorn's head, horns and GPS tracking collar">
+  <g fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- neck -->
+    <path d="M 322 152 C 310 174, 300 204, 296 252"/>
+    <path d="M 378 152 C 390 174, 400 204, 404 252"/>
+
+    <!-- horns -->
+    <path d="M 336 76 C 304 64, 266 56, 240 40 C 234 36, 228 30, 224 22 C 229 33, 237 42, 245 49 C 272 70, 306 86, 324 96 Z"/>
+    <path d="M 364 76 C 396 64, 434 56, 460 40 C 466 36, 472 30, 476 22 C 471 33, 463 42, 455 49 C 428 70, 394 86, 376 96 Z"/>
+
+    <!-- ears -->
+    <path d="M 316 104 C 300 100, 284 106, 276 120 C 288 128, 306 124, 316 116 Z"/>
+    <path d="M 384 104 C 400 100, 416 106, 424 120 C 412 128, 394 124, 384 116 Z"/>
+
+    <!-- head -->
+    <path d="M 350 72 C 368 72, 382 80, 384 98 C 386 120, 382 138, 376 154 C 371 168, 366 176, 358 180 C 352 183, 348 183, 342 180 C 334 176, 329 168, 324 154 C 318 138, 314 120, 316 98 C 318 80, 332 72, 350 72 Z"/>
+
+    <!-- brow and muzzle -->
+    <path d="M 330 92 C 340 87, 360 87, 370 92" stroke-width="2.4"/>
+    <path d="M 330 158 C 342 165, 358 165, 370 158" stroke-width="2.4"/>
+
+    <!-- collar and GPS unit -->
+    <path d="M 300 200 C 320 228, 380 228, 400 200" stroke-width="7.5"/>
+    <rect x="336" y="222" width="28" height="22" rx="5"/>
+    <path d="M 343 233 L 357 233" stroke-width="2.6"/>
+  </g>
+
+  <g fill="currentColor">
+    <ellipse cx="331" cy="110" rx="5" ry="4.2"/>
+    <ellipse cx="369" cy="110" rx="5" ry="4.2"/>
+    <ellipse cx="342" cy="170" rx="3.2" ry="2.2"/>
+    <ellipse cx="358" cy="170" rx="3.2" ry="2.2"/>
+  </g>
+</svg>
