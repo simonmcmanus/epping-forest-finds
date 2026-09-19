@@ -32,6 +32,7 @@ const APP_SHELL = [
   "./js/nav.js",
   "./js/onboarding.js",
   "./js/tracker.js",
+  "./js/app.js",
 ];
 
 // DATA_SHELL: Essential data that loads with the app (install blocks until all succeed)

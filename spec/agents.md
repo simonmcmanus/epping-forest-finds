@@ -23,7 +23,8 @@ Before finishing any implementation task:
 - Update the spec or explicitly document why the change is implementation-only.
 
 ## Project Structure
-- `index.html` — boot and wiring only; no logic beyond this
+- `index.html` — markup only: head tags, DOM skeleton, and the `<script src>` list. No logic, no inline `<script>` body
+- `js/app.js` — application boot and wiring (state, boot sequence, settings/report/compass handlers). Loaded last, after every other `js/*.js`
 - `js/loader.js` — data fetching, parallel fetch, normalisation triggers
 - `js/routing.js` — walkable road/path graph builder and pathfinding for the selected-route line (pure, no state/DOM access)
 - `js/normalize.js` — data normalisation utilities
@@ -37,6 +38,7 @@ Before finishing any implementation task:
 - `data/` — offline GeoJSON/JSON datasets
 - `data/tracking/` — local NDJSON tracking storage (gitignored)
 - `scripts/` — data regeneration scripts (Python/Node)
+- `scripts/session-start.sh` — idempotent session bootstrap (installs deps, resolves `PLAYWRIGHT_CHROMIUM_EXECUTABLE`); registered as a SessionStart hook in `.claude/settings.json`
 - `admin.html` / `js/admin.js` / `css/admin.css` — password-protected analytics dashboard
 - `netlify/functions/track.js` — Netlify serverless tracking endpoint (POST events, GET admin data)
 - `netlify.toml` — Netlify build config and redirects (update when adding API routes)
@@ -44,15 +46,20 @@ Before finishing any implementation task:
 ## Technical Constraints
 - Vanilla HTML/CSS/JS only — no client build step, no external JS dependencies.
 - Mobile performance is a priority.
-- **Service worker cache version (`APP_CACHE_NAME` in `sw.js`) must be incremented with every client-side code or asset change.** Without a version bump, returning users will run stale cached code. Include the bump in the same commit as the change. `.github/workflows/sw-bump.yml` (non-`main` branches) and `sw-release.yml` (`main`) were written to automate this, but **both are currently disabled** (`branches: [__disabled__]`), so the bump is a manual edit until one of them is switched back on. One bump per commit is enough, not one per local edit.
+- **Cache versions in `sw.js` are bumped by CI on `main` only — never by hand, and never on a branch.** The two caches move independently so returning users re-download only what changed:
+  - `APP_CACHE_NAME` — `.github/workflows/sw-release.yml`, on a push to `main` touching `index.html`, `css/**`, `js/**`, `sw.js`, `manifest.webmanifest` or `tree-icon.svg` (the `APP_SHELL` contents). It also syncs `APP_VERSION` in `js/app.js`, the fallback the About screen and bug reports show before `caches.keys()` resolves.
+  - `DATA_CACHE_NAME` — `.github/workflows/data-bump.yml`, on a push to `main` touching `data/**`. That covers the Monday ledger merge and any regeneration script's output.
+  Both write `sw.js` on `main`, so they share the `main-cache-bump` concurrency group and rebase before pushing rather than racing. On a feature branch nothing is bumped: use the Settings screen's force-refresh buttons to pick up new code, and note that local dev is network-first regardless (see the next bullet).
 - **Local dev (`node server.js` / `npm run dev`) never depends on the `CACHE_NAME` bump above.** `server.js` injects `self.__DEV__ = true` into the `sw.js` response it serves (see `injectDevFlag()`), and `sw.js` uses that to fetch everything network-first instead of its production cache-first strategy. Don't try to "fix" stale local testing by bumping `CACHE_NAME` by hand — that's a CI concern; if local changes still don't show up, the dev-flag wiring in `server.js`/`sw.js` is what to check. `injectDevFlag()` also prefixes the served `CACHE_NAME` with `dev-` (e.g. `forest-finds-dev-v274`), so the Settings "About" version display and any bug-report `appVersion` are visibly local rather than a frozen release number.
 
 ## Testing
 
 ### Unit tests (functional behaviour)
-- Run: `node --test test/forest-finds.test.js`
+- Run: `npm run test:unit` (or `node test/forest-finds.test.js`).
 - **Must pass before any task is considered complete.** Run after every code change and fix failures before finishing.
 - Use BDD-style descriptions that mirror the spec wording.
+- A passing run prints one dot per test and a `# N passed` summary, not a line per test. `TEST_VERBOSE=1` restores the per-test names; a failure always prints in full regardless.
+- `TEST_FILTER=<text>` runs only the tests whose name contains that text, case-insensitively — useful while iterating on one area. **It is never a substitute for the full run:** all 251 tests share the single `app` instance built by `loadAppForTests()`, in registration order and with no per-test isolation, so a filtered subset starts from whatever state the skipped tests would have left. Finish on a full, unfiltered pass.
 
 ### BDD browser tests (user experience)
 - Run: `npm run test:e2e`
@@ -123,6 +130,6 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
 ## Code Quality
 - Separate concerns strictly per the project structure above.
 - Reuse existing CSS classes before adding new ones.
-- No logic in `index.html` beyond boot and wiring.
+- No logic in `index.html`: it is markup and `<script src>` tags only. Boot and wiring live in `js/app.js`.
 - UX quality bar: this should feel like a polished, professional product.
 - Optimise for token efficiency: short, precise edits over large rewrites.

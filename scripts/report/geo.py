@@ -20,7 +20,7 @@ BBOX_PADDING_FRACTION = 0.06
 
 
 def mercator_xy(lon, lat):
-    """Web Mercator, matching index.html's projectLonLat / js/admin.js."""
+    """Web Mercator, matching js/app.js's projectLonLat / js/admin.js."""
     clamped = max(-85.0, min(85.0, lat))
     rad = math.radians(clamped)
     return lon, -math.log(math.tan(math.pi / 4 + rad / 2)) * 180 / math.pi

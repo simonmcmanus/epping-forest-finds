@@ -1,32 +1,60 @@
-name: Normalise SW app cache version on main
+name: Bump SW app cache version on main
+
+# The app cache moves only when app code lands on main. Branches are never
+# bumped: during development the Settings screen's force-refresh buttons are
+# the way to get new code, and the local dev server is network-first anyway
+# (injectDevFlag in server.js), so a per-branch cache name bought nothing and
+# cost an automatic commit on every push.
+#
+# Data is versioned separately by data-bump.yml, so a data-only merge does not
+# invalidate the app shell and an app-only merge does not re-download the maps.
+# Both write to sw.js on main, so they share a concurrency group to serialise
+# and rebase before pushing.
 
 on:
   push:
-    branches: [__disabled__]
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'tree-icon.svg'
+      - 'css/**'
+      - 'js/**'
+      - 'sw.js'
+
+concurrency:
+  group: main-cache-bump
+  cancel-in-progress: false
 
 jobs:
-  normalise:
+  bump-app:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Strip branch prefix and increment APP_CACHE_NAME version
+      - name: Increment APP_CACHE_NAME version
         run: |
           perl -i -pe \
             's/"forest-finds-app.*?-v(\d+)"/"\"forest-finds-app-v".($1+1)."\""/e' \
             sw.js
-      - name: Sync APP_VERSION in index.html
+      - name: Sync APP_VERSION in js/app.js
         run: |
           VERSION=$(perl -ne 'print $1 if /"forest-finds-app.*?-v(\d+)"/' sw.js)
-          perl -i -pe "s/const APP_VERSION = \"v\\d+\"/const APP_VERSION = \"v$VERSION\"/" index.html
+          perl -i -pe "s/const APP_VERSION = \"v\\d+\"/const APP_VERSION = \"v$VERSION\"/" js/app.js
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git diff --quiet sw.js index.html && echo "Already clean" && exit 0
-          git add sw.js index.html
-          git commit -m "chore: normalise SW app cache version for release [skip ci]"
+          git diff --quiet sw.js js/app.js && echo "Already current" && exit 0
+          git add sw.js js/app.js
+          git commit -m "chore: bump SW app cache version [skip ci]"
+          for attempt in 1 2 3; do
+            git push && exit 0
+            echo "push rejected (attempt $attempt), rebasing on main"
+            git pull --rebase origin main
+          done
           git push
