@@ -44,5 +44,17 @@
     "additionalDirectories": [
       "/tmp"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/session-start.sh"
+          }
+        ]
+      }
+    ]
   }
 }
