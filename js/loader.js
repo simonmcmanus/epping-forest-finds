@@ -209,6 +209,11 @@ async function loadMapData() {
 
   state.layers = resolvedLayers;
 
+  // A handful of Veteran Tree Register records carry no survey position at all
+  // (location.wgs84.latitude/longitude both null). Number(null) is 0, so mapping them
+  // straight through put those trees on Null Island -- a real entry in state.trees that
+  // every nearest/within-radius scan then had to measure against. Drop them: a tree with no
+  // coordinate cannot be shown on the map or walked to, so it has nothing to contribute.
   state.trees = treeData.trees
     .filter((tree) => tree.location && tree.location.wgs84)
     .map((tree) => ({
@@ -216,7 +221,9 @@ async function loadMapData() {
       latitude: Number(tree.location.wgs84.latitude),
       longitude: Number(tree.location.wgs84.longitude),
       point: projectLonLat(Number(tree.location.wgs84.longitude), Number(tree.location.wgs84.latitude)),
-    }));
+    }))
+    .filter((tree) => Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)
+      && !(tree.latitude === 0 && tree.longitude === 0));
 
   state.namedTreeStoriesByName = buildNamedTreeStoryIndex(treeData.historicalNamedTreeEnrichment);
 

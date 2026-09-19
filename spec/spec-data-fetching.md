@@ -120,7 +120,37 @@ tree.longitude = Number(tree.location.wgs84.longitude)
 tree.point     = projectLonLat(longitude, latitude)
 ```
 
-Filter: Discard any tree missing `tree.location.wgs84`.
+Filter: Discard any tree missing `tree.location.wgs84`, **and any tree whose coordinates do not
+survive that conversion** — non-finite, or the `(0, 0)` that `Number(null)` produces. A handful of
+Veteran Tree Register records carry no survey position at all (`latitude` and `longitude` both
+`null`, gathered into `data/trees/chunk-lat0_lon0.json`); mapping them straight through put those
+trees on Null Island as real entries in `state.trees` that every nearest/within-radius scan then
+had to measure against. A tree with no coordinate cannot be shown on the map or walked to, so it
+has nothing to contribute.
+
+**Tree identity (`treeHashKey`, js/app.js).** Derived from `recordNumber` and nothing else — the
+one field the register guarantees unique (verified: 24,906 records, 24,906 distinct
+`recordNumber`s). It is what the `#tree=` deep link carries, what the Nearby list de-duplicates on
+(`overviewEntryKey` → `uniqueSortedOverviewEntries`) and what resolves a tapped list row back to a
+tree (`findTreeByHashKey`). It previously preferred `tree.id`, which is the string `"0"` on all
+6,504 untagged records, so every one of them hashed to the same key: the list collapsed them to a
+single row (hiding every untagged tree closer than the one that survived the de-dupe) and tapping
+that row opened whichever `"0"` tree happened to sit first in the dataset — a tree nowhere near the
+user. Reported as "Tree 0 is listed as the closest tree when it's nowhere nearby". The key is **prefixed** (`r20306`) so it cannot be confused with the old one: record numbers and
+tag numbers are separate numbering spaces that overlap (11383 is both a real tag and a real,
+different, record), so an unprefixed key would leave every link ambiguous about which scheme it
+was written in. `findTreeByHashKey` still accepts the old unprefixed id/tag-based keys for links
+shared before the change, but only once no record-number key has matched, and never for a key that
+was ambiguous under the old scheme (`"0"` matched 6,504 trees) — those resolve to nothing rather
+than to an arbitrary one of them. A tree with no `recordNumber` at all (never true of the real
+register, but possible for a future source) falls back to a positional key derived from its
+coordinates.
+
+**Tree display name (`treeDisplayName`/`treeTagLabel`, js/app.js).** `commonName`, else the tag
+number, else "Veteran tree". A tag of `"0"` (or `0`, or empty) is the register's placeholder for
+*untagged*, not a tag: it is treated as absent everywhere a tag is shown, so an untagged tree with
+no recorded species is not called "0" and carries no `· #0` chip in the Nearby list, the cluster
+detail rows or the tree detail table.
 
 ### Named Tree Stories
 

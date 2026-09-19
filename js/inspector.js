@@ -7,15 +7,6 @@ function handleMapClick(event) {
   if (!state.trees.length) return;
   const screen = canvasPoint(event);
 
-  // The off-ring "You" pointer (drawUserDirectionFromAnchor, js/renderer.js) is a control, not
-  // scenery: tapping it means "take me back to where I actually am". Tested before anything
-  // else, since it sits outside the walking radius, where a tap would otherwise just move the
-  // browse anchor onto the pointer's own position.
-  if (typeof hitUserDirectionPointer === "function" && hitUserDirectionPointer(screen)) {
-    clearNearbyAnchor();
-    return;
-  }
-
   // In overview mode, tapping a multi-item cluster expands it: zooms to separate
   // the items and shows a cluster detail list in the inspector.
   if (!state.selected) {
@@ -151,7 +142,7 @@ function showClusterDetail(cluster) {
     const lon = item.longitude ?? "";
 
     if (itemType === "tree") {
-      name = item.commonName || item.tagNumber || item.recordNumber || "Unknown tree";
+      name = treeDisplayName(item);
       key = treeHashKey(item);
       iconHtml = treeSpeciesIconHtml(item.commonName, item.latinName) || filterKindEmoji("trees") || "🌳";
     } else if (itemType === "cow") {
@@ -374,11 +365,11 @@ function findClusterHit(screen) {
 function showTreeDetails(tree, distance, label) {
   setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true });
   els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = tree.commonName || "Unknown tree";
+  els.inspectorTitle.textContent = treeDisplayName(tree);
   els.inspectorType.textContent = "Veteran tree";
   const estimatedAge = estimateTreeAgeFromGirth(tree);
   const primaryRows = [
-    ["Tag number", tree.tagNumber],
+    ["Tag number", treeTagLabel(tree)],
     ["Estimated age", estimatedAge],
     ["Common name", tree.commonName],
     ["Latin name", tree.latinName],

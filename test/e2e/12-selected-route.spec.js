@@ -24,11 +24,11 @@ test.describe("Selected route line follows the road/path network", () => {
     // Once the graph is ready, drawSelectedRoute's next frame should have populated the memoized
     // route cache for this selection (js/renderer.js's selectedRoutePoints).
     await page.waitForFunction(
-      () => Boolean(state.selectedRouteCache && state.selectedRouteCache.points && state.selectedRouteCache.points.length > 2)
+      () => Boolean(state.selectedRouteCache && state.selectedRouteCache.tail && state.selectedRouteCache.tail.length > 1)
     );
 
     const result = await page.evaluate(() => {
-      const points = state.selectedRouteCache.points;
+      const points = selectedRoutePoints(state.selected.item);
       const from = state.userLocation.point;
       const to = points[points.length - 1];
       let routeMetres = 0;
@@ -67,6 +67,78 @@ test.describe("Selected route line follows the road/path network", () => {
     expect(pillText).toContain(await page.evaluate((metres) => formatDistance(metres), result.routeMetres));
   });
 
+  test("draws nothing at all while the graph is still building, rather than a crow-flies line it is about to replace", async ({ page }) => {
+    // The straight line is a fallback for "we looked and there is no walkable route", not a
+    // placeholder for "we have not looked yet". Flashing it up and swapping it for a winding
+    // route a moment later reads as the app changing its mind -- and points the walker the
+    // wrong way in the meantime.
+    await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+
+    const whileBuilding = await page.evaluate(() => {
+      // Put the app back into the state it boots into: graph not built, selection made.
+      state.routingGraphReady = false;
+      state.routingGraph = null;
+      state.selectedRouteCache = null;
+      const moves = [];
+      const noop = () => {};
+      const probe = {
+        save: noop, restore: noop, beginPath: noop, closePath: noop,
+        moveTo(x, y) { moves.push({ x, y }); },
+        lineTo: noop, stroke: noop, fill: noop, setLineDash: noop,
+      };
+      drawSelectedRoute(probe);
+      return { moves: moves.length, isFallback: selectedRouteIsFallback(state.selected.item) };
+    });
+    expect(whileBuilding.isFallback, "there is no route yet, so anything drawn would be a fallback").toBe(true);
+    expect(whileBuilding.moves, "so nothing is drawn").toBe(0);
+
+    await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
+
+    const whenReady = await page.evaluate(() => {
+      const moves = [];
+      const noop = () => {};
+      const probe = {
+        save: noop, restore: noop, beginPath: noop, closePath: noop,
+        moveTo(x, y) { moves.push({ x, y }); },
+        lineTo: noop, stroke: noop, fill: noop, setLineDash: noop,
+      };
+      drawSelectedRoute(probe);
+      return { moves: moves.length, isFallback: selectedRouteIsFallback(state.selected.item) };
+    });
+    expect(whenReady.isFallback, "this destination is reachable on the network").toBe(false);
+    expect(whenReady.moves, "and the real route is drawn").toBe(1);
+  });
+
+  test("the drawn route starts where the walker is now, not where the journey began", async ({ page }) => {
+    await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
+    await page.waitForFunction(
+      () => Boolean(state.selectedRouteCache && state.selectedRouteCache.tail && state.selectedRouteCache.tail.length > 1)
+    );
+
+    const walked = await page.evaluate(() => {
+      const target = state.selected.item;
+      const startHead = selectedRoutePoints(target)[0];
+
+      // A few metres of walking -- under the threshold that re-runs the route search, which is
+      // exactly the case that used to leave the line trailing behind the walker.
+      const latitude = state.userLocation.latitude - 0.00005;
+      const longitude = state.userLocation.longitude;
+      state.userLocation = { latitude, longitude, accuracy: 10, point: projectLonLat(longitude, latitude) };
+
+      const movedHead = selectedRoutePoints(target)[0];
+      return {
+        headFollowedTheWalker: movedHead.x === state.userLocation.point.x && movedHead.y === state.userLocation.point.y,
+        headMoved: startHead.y !== movedHead.y,
+      };
+    });
+
+    expect(walked.headMoved, "the head of the line moved with the walker").toBe(true);
+    expect(walked.headFollowedTheWalker, "and sits exactly on their current position").toBe(true);
+  });
+
   test("re-fits the viewport once the routing graph is ready so the whole routed line stays on screen", async ({ page }) => {
     await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
@@ -78,7 +150,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // lands off-screen or behind the inspector.
     await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
     await page.waitForFunction(
-      () => Boolean(state.selectedRouteCache && state.selectedRouteCache.points && state.selectedRouteCache.points.length > 2)
+      () => Boolean(state.selectedRouteCache && state.selectedRouteCache.tail && state.selectedRouteCache.tail.length > 1)
     );
 
     // Poll rather than assert-once: the re-fit deliberately waits out any in-flight viewport
@@ -86,7 +158,7 @@ test.describe("Selected route line follows the road/path network", () => {
     const allPointsVisible = () => {
       if (state.viewportAnimationTo != null) return false;
       const rect = bestVisibleCanvasRect();
-      return state.selectedRouteCache.points.every((point) => {
+      return selectedRoutePoints(state.selected.item).every((point) => {
         const screen = worldToScreen(point);
         return screen.x >= rect.x
           && screen.x <= rect.x + rect.width
@@ -100,7 +172,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // Re-assert on a settled viewport so a transient pass mid-animation cannot green the test.
     const offScreenCount = await page.evaluate(() => {
       const rect = bestVisibleCanvasRect();
-      return state.selectedRouteCache.points.filter((point) => {
+      return selectedRoutePoints(state.selected.item).filter((point) => {
         const screen = worldToScreen(point);
         return screen.x < rect.x
           || screen.x > rect.x + rect.width

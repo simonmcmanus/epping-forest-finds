@@ -177,7 +177,6 @@ function drawOverlay() {
   }
   drawUser(ctx, toScreen, isTilted);
   drawNearbyAnchorMarker(ctx, toScreen);
-  drawUserDirectionFromAnchor(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
 }
 
@@ -207,151 +206,6 @@ function drawNearbyAnchorMarker(ctx, toScreen) {
   ctx.lineWidth = 1.5 * dpr;
   ctx.stroke();
   ctx.restore();
-}
-
-// Ink for the off-ring user pointer below. Deliberately off-black rather than the "You" dot's
-// own blue: at the size this thing has to be drawn, a saturated blue triangle plus its white
-// halo shouted over the map it sits on. Off-black reads as chrome -- a signpost pointing off
-// screen -- and still cannot be confused with the amber browse anchor (drawNearbyAnchorMarker).
-const USER_POINTER_INK = "#1b2420";
-
-// Tap target for the off-ring user pointer, in canvas px, published by the draw below and read
-// by handleMapClick (js/inspector.js). Null whenever the pointer is not on screen, so a stale
-// hit area can never survive the thing that drew it.
-let _userDirectionPointerHit = null;
-
-// True when a map tap lands on the off-ring user pointer. Tapping it means "take me back to
-// where I actually am", so handleMapClick clears the browse anchor rather than treating the tap
-// as open ground (which would just move the anchor to the pointer's own position).
-function hitUserDirectionPointer(screen) {
-  if (!_userDirectionPointerHit) return false;
-  const { x, y, radius } = _userDirectionPointerHit;
-  return Math.hypot(screen.x - x, screen.y - y) <= radius;
-}
-
-// While the Nearby view is browsing a spot away from the real GPS fix, the camera frames the
-// walking-radius ring around the browse anchor -- so the "You" dot is frequently off screen
-// altogether, and nothing on the map says which way the user actually is. This marks it: a
-// triangle lying on the ground at the ring's edge along the bearing from the anchor to the user,
-// pointing outward at them, labelled with how far away they are. Tapping it returns to the real
-// location. Skipped when the user is inside the ring, where their own dot is already on screen
-// saying the same thing...
-function drawUserDirectionFromAnchor(ctx, toScreen) {
-  _userDirectionPointerHit = null;
-  if (!state.nearbyAnchor || !state.userLocation) return;
-  if (typeof hasRealSelection === "function" && hasRealSelection()) return;
-  const anchor = nearbyRenderOriginPoint() || state.nearbyAnchor.point;
-  const user = state.userLocation.point;
-  const dx = user.x - anchor.x;
-  const dy = user.y - anchor.y;
-  const worldDistance = Math.hypot(dx, dy);
-  const radius = typeof walkingRadiusWorldUnits === "function" ? walkingRadiusWorldUnits() : 0;
-  if (radius <= 0 || worldDistance <= radius) return;
-
-  const project = toScreen || worldToScreen;
-  const dpr = pixelRatio();
-  // ...and skipped just as readily when the dot happens to be on screen anyway (the user has
-  // zoomed out past the ring, say). Two "You" labels a few centimetres apart, one of them on a
-  // marker whose whole job is to stand in for the other, is noise -- and the cone between the
-  // dot and the ring (nearbyUserCone) is already saying it more quietly. bestVisibleCanvasRect
-  // rather than the raw canvas: the inspector covers a large part of the map (the lower half on
-  // a phone, a side panel on desktop), and a dot behind it is not on screen in any sense the
-  // user cares about.
-  if (userDotVisibleOnMap(project)) return;
-  const along = { x: dx / worldDistance, y: dy / worldDistance };
-  // Perpendicular in world space, so the triangle's width foreshortens with the ground the same
-  // way its length does.
-  const across = { x: -along.y, y: along.x };
-
-  // Built from world points and projected corner by corner rather than drawn as a flat
-  // screen-space triangle at a projected position -- that is what makes it lie on the ground
-  // plane with the ring and the route line instead of floating above the map like a sticker.
-  // Sized as a fraction of the walking radius so it scales with whatever the ring is. Generous:
-  // at the ring edge on the far side of the perspective it is foreshortened to roughly half its
-  // flat size, so a subtle one reads as a speck in 3D.
-  const lengthWorld = radius * 0.24;
-  const halfWidthWorld = radius * 0.11;
-  const baseCentre = { x: anchor.x + along.x * radius, y: anchor.y + along.y * radius };
-  const tipWorld = {
-    x: baseCentre.x + along.x * lengthWorld,
-    y: baseCentre.y + along.y * lengthWorld,
-  };
-  // A plain triangle, not the notched arrow head this used to draw: the notch was invisible at
-  // the far end of the perspective and merely made the near end look busy, and a triangle is the
-  // calmer shape for something whose only job is "they are that way".
-  const corners = [
-    tipWorld,
-    { x: baseCentre.x + across.x * halfWidthWorld, y: baseCentre.y + across.y * halfWidthWorld },
-    { x: baseCentre.x - across.x * halfWidthWorld, y: baseCentre.y - across.y * halfWidthWorld },
-  ].map(project);
-  if (!corners.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) return;
-  const base = project(baseCentre);
-  const tip = corners[0];
-  if (!isNearCanvas(base, 60 * dpr)) return;
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(corners[0].x, corners[0].y);
-  for (let i = 1; i < corners.length; i += 1) ctx.lineTo(corners[i].x, corners[i].y);
-  ctx.closePath();
-  ctx.fillStyle = USER_POINTER_INK;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
-  ctx.lineWidth = 2 * dpr;
-  ctx.lineJoin = "round";
-  ctx.fill();
-  ctx.stroke();
-
-  // The label stays upright rather than being projected onto the ground with the triangle: text
-  // laid flat in perspective is the one part of this that would be unreadable, and pins are
-  // already billboarded the same way.
-  const anchorLonLat = unprojectPoint(anchor);
-  const metres = distanceMetres(
-    anchorLonLat.latitude, anchorLonLat.longitude,
-    state.userLocation.latitude, state.userLocation.longitude
-  );
-  const label = `You · ${formatDistance(metres)}`;
-  const labelOffset = 13 * dpr;
-  const span = Math.hypot(tip.x - base.x, tip.y - base.y);
-  const labelX = span > 0.001 ? tip.x + ((tip.x - base.x) / span) * labelOffset : tip.x;
-  const labelY = span > 0.001 ? tip.y + ((tip.y - base.y) / span) * labelOffset : tip.y - labelOffset;
-  ctx.font = `700 ${Math.round(13 * dpr)}px system-ui`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
-  ctx.lineWidth = 3.5 * dpr;
-  ctx.strokeText(label, labelX, labelY);
-  ctx.fillStyle = USER_POINTER_INK;
-  ctx.fillText(label, labelX, labelY);
-  ctx.restore();
-
-  // Covers the triangle and its label as one target, with a floor so it stays thumb-sized
-  // however far the perspective has shrunk the triangle itself.
-  const drawnSpan = Math.max(
-    Math.hypot(tip.x - base.x, tip.y - base.y),
-    Math.hypot(corners[1].x - corners[2].x, corners[1].y - corners[2].y)
-  );
-  _userDirectionPointerHit = {
-    x: (base.x + labelX) / 2,
-    y: (base.y + labelY) / 2,
-    radius: Math.max(26 * dpr, drawnSpan * 0.75 + labelOffset),
-  };
-}
-
-// Whether the "You" dot is drawn somewhere the user can actually see it this frame: inside the
-// part of the canvas the inspector isn't covering, and not so close to its edge that the dot is
-// half off. The inset is generous on purpose -- a dot skimming the boundary is exactly the case
-// where it helps to keep the off-ring pointer rather than swap between the two every frame.
-function userDotVisibleOnMap(project) {
-  if (!state.userLocation) return false;
-  const point = project(state.userLocation.point);
-  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
-  const rect = typeof bestVisibleCanvasRect === "function" ? bestVisibleCanvasRect() : null;
-  if (!rect) return false;
-  const inset = 48 * pixelRatio();
-  return point.x >= rect.x + inset
-    && point.x <= rect.x + rect.width - inset
-    && point.y >= rect.y + inset
-    && point.y <= rect.y + rect.height - inset;
 }
 
 // Flat-mode footprint/roof colour. 3D building extrusion (walls in tilt mode) was
@@ -944,20 +798,39 @@ function selectedRoutePoints(target) {
   const movedMetres = isSameTarget
     ? distanceMetres(cache.fromLatitude, cache.fromLongitude, state.userLocation.latitude, state.userLocation.longitude)
     : Infinity;
-  if (isSameTarget && movedMetres < SELECTED_ROUTE_RECOMPUTE_MIN_METRES) return cache.points;
+  // Only the *tail* of the route is memoized -- the junctions between here and the
+  // destination. The head is always the live user position, re-read on every call, so the
+  // line runs from where the walker is standing now rather than from wherever they were when
+  // Dijkstra last ran. Caching the whole point list (as this used to) left the route starting
+  // at the spot the journey began and trailing further behind the user with every step, which
+  // is what "the route does not update as I walk" was.
+  if (isSameTarget && movedMetres < SELECTED_ROUTE_RECOMPUTE_MIN_METRES) return [from, ...cache.tail];
 
   const routed = findRoutePoints(state.routingGraph, from, to, {
     toLatLon: unprojectPoint,
     distanceMetresFn: distanceMetres,
   });
-  const points = routed || straightLine;
+  // routed already starts at `from`; drop it so the head stays live between recomputes.
+  const tail = routed ? routed.slice(1) : [to];
   state.selectedRouteCache = {
     target,
     fromLatitude: state.userLocation.latitude,
     fromLongitude: state.userLocation.longitude,
-    points,
+    tail,
+    routed: Boolean(routed),
   };
-  return points;
+  return [from, ...tail];
+}
+
+// True when the line for `target` is the crows-flight fallback rather than a real road/path
+// route -- either because the routing graph is not built yet, or because it was built and no
+// walkable route could be found (destination off the network, or only reachable by a detour
+// longer than findRoutePoints will accept).
+function selectedRouteIsFallback(target) {
+  if (!state.routingGraphReady || !state.routingGraph) return true;
+  selectedRoutePoints(target);
+  const cache = state.selectedRouteCache;
+  return !(cache && cache.target === target && cache.routed);
 }
 
 // Returns the real path-following distance (metres) for the "walk to the selected target"
@@ -980,9 +853,15 @@ function selectedRouteMetres(target) {
   return metres;
 }
 
+// The straight line is a fallback, not a placeholder. While the routing graph is still
+// building there is no way to tell yet whether a real walking route exists, so nothing is
+// drawn -- a crow-flies line that flicks over to a winding route a second later reads as the
+// app changing its mind, and points the walker the wrong way in the meantime. Once the graph
+// is ready the fallback is meaningful ("we looked, there is no route") and does get drawn.
 function drawSelectedRoute(ctx) {
   const target = selectedCompassTarget();
   if (!state.userLocation || !target) return;
+  if (!state.routingGraphReady) return;
 
   const dpr = pixelRatio();
   const points = selectedRoutePoints(target).map(worldToScreen);
