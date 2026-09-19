@@ -704,6 +704,10 @@ function refreshNearbyRadiusView(options = {}) {
 function applyWalkingRadiusChange(minutes, options = {}) {
   if (state.walkingDistanceMinutes === minutes) return;
   state.walkingDistanceMinutes = minutes;
+  // Resizing the ring is the user taking the camera back: whatever out-of-radius match a
+  // just-added filter had the fit reaching for (outOfRadiusFitPoints, js/app.js), the ring they
+  // are now dragging is the thing they want framed.
+  state.outOfRadiusRevealFilters = [];
   refreshNearbyRadiusView(options);
 }
 
@@ -785,6 +789,9 @@ function syncSettingsWalkSlider() {
 function setNearbyAnchor(latitude, longitude, point) {
   startNearbyOriginTransition(nearbyRenderOriginPoint());
   state.nearbyAnchor = { latitude, longitude, point };
+  // Same reasoning as applyWalkingRadiusChange: moving the browse point is the user choosing
+  // what the camera should be looking at.
+  state.outOfRadiusRevealFilters = [];
   refreshNearbyRadiusView({ animate: false });
 }
 
@@ -792,6 +799,7 @@ function clearNearbyAnchor() {
   if (!state.nearbyAnchor) return;
   startNearbyOriginTransition(nearbyRenderOriginPoint());
   state.nearbyAnchor = null;
+  state.outOfRadiusRevealFilters = [];
   refreshNearbyRadiusView({ animate: false });
 }
 

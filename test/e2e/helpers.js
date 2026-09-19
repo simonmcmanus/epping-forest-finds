@@ -4,9 +4,14 @@ const cowFixture = require("./fixtures/cows.json");
 // A real tree from the dataset used across selection tests
 const FIXTURE_TREE = {
   tagNumber: "11383",
+  recordNumber: "17338",
   commonName: "English Oak",
   latinName: "Quercus robur",
-  hashKey: "11383",
+  // Trees are keyed by record number, prefixed so the key cannot be read as the old
+  // id/tag-based one (see "Tree identity" in spec/spec-data-fetching.md). Tag 11383 and
+  // record 11383 are two different real trees, which is exactly why the prefix exists.
+  hashKey: "r17338",
+  legacyHashKey: "11383",
 };
 
 /**

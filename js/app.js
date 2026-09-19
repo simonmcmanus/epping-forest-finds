@@ -189,6 +189,9 @@ const state = {
   cowRefreshTimerId: null,
   cowDetailTimerId: null,
   cowFetchInFlight: false,
+  // Filter keys just switched on that have nothing inside the walking radius, so the Nearby
+  // camera reaches their nearest match once -- see refreshOutOfRadiusReveal/outOfRadiusFitPoints.
+  outOfRadiusRevealFilters: [],
   overviewFilters: (() => {
     try {
       const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
@@ -1300,7 +1303,11 @@ function saveFilterState() {
 }
 
 function setOverviewFilters(nextFilters) {
+  const previousFilters = state.overviewFilters;
   state.overviewFilters = sanitizeOverviewFilters(nextFilters);
+  // Before the camera work below: a filter switched on with nothing inside the walking radius
+  // is what lets the fit reach its nearest match (outOfRadiusFitPoints).
+  refreshOutOfRadiusReveal(previousFilters);
   saveFilterState();
   updateFilterUi();
   if (isOverviewScreenActive() && !state.filterScreenOpen) {
@@ -2081,10 +2088,14 @@ function overviewItemsForActiveFilter() {
         selectedEntries.push(...entriesForFilter);
         filterTypesWithResults.add(filterKey);
       } else {
-        // No items within radius for this filter - add nearest 3 as fallback
+        // No items within radius for this filter - add nearest 3 as fallback.
+        // outOfRadiusFilterKey records *which* filter went unanswered: entry.kind is the item's
+        // own kind ("tree" for the "trees" filter), so it cannot be matched back to a filter key
+        // on its own, and the camera reveal below needs exactly that mapping.
         const fallbackEntries = nearestOverviewEntriesForFilter(filterKey, latitude, longitude, 3);
         for (const entry of fallbackEntries) {
           entry.outOfRadius = true;
+          entry.outOfRadiusFilterKey = filterKey;
           selectedEntries.push(entry);
         }
       }
@@ -3955,12 +3966,11 @@ function nearestSelectedFilterPoints() {
 // view zooms out past the ring far enough to show that each selected kind exists and which
 // way it lies -- see nearestSelectedFilterPoints.
 //
-// While the ring is centred on the real GPS fix (not a browsed spot), every screen also
-// reaches the one out-of-radius fallback match per filter that the list is already showing
-// (see outOfRadiusFitPoints). Without that, adding a filter whose nearest match is beyond the
-// ring -- Underground stations from inside the forest, say -- changed the list and left the
-// map framed on a ring with nothing new in it, so the station the list had just named was
-// nowhere to be seen.
+// Every screen also reaches the nearest match of a filter the user has *just switched on* that
+// turned out to have nothing inside the ring (see outOfRadiusFitPoints). Without that, adding a
+// filter whose nearest match is beyond the ring -- Underground stations from inside the forest,
+// say -- changed the list and left the map framed on a ring with nothing new in it, so the
+// station the list had just named was nowhere to be seen.
 function nearbyCameraFitPoints() {
   const ring = walkingRadiusCirclePoints();
   const reach = ring.concat(outOfRadiusFitPoints());
@@ -3986,31 +3996,53 @@ const NEARBY_OUT_OF_RADIUS_FIT_MAX_RATIO = 12;
 // and which way it lies. Reads the memoized scan, so this costs a walk of an array the list
 // has already built.
 function outOfRadiusFitPoints() {
-  // Not while browsing a tapped spot. That view is "show me what is around *there*", and the
-  // ring around the tapped spot is the whole of it -- hauling the camera off to the nearest
-  // match of some filter that happens to have nothing near that spot shrinks the ring the user
-  // is looking at and answers a question they did not ask. The reach exists for the filter they
-  // just added where they are actually standing.
+  // Only for filters the user has just turned on (state.outOfRadiusRevealFilters, set by
+  // setOverviewFilters). This is a response to an action, not a standing property of the
+  // camera: reaching for every unanswered filter all the time would mean a saved filter set
+  // with one far-off kind in it left the Nearby view permanently zoomed out, with the walking
+  // radius -- the thing the screen is about -- a quarter of its proper size on every boot.
+  if (!state.outOfRadiusRevealFilters.length) return [];
+  // Not while browsing a tapped spot either. That view is "show me what is around *there*",
+  // and the ring around the tapped spot is the whole of it.
   if (state.nearbyAnchor) return [];
   const origin = nearbyOrigin();
   if (!origin || !origin.point) return [];
-  if (state.overviewFilters.length === 0) return [];
   const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
   if (!(radiusMetres > 0)) return [];
   const maxMetres = radiusMetres * NEARBY_OUT_OF_RADIUS_FIT_MAX_RATIO;
-  const nearestByKind = new Map();
+  const revealing = new Set(state.outOfRadiusRevealFilters);
+  const nearestByFilter = new Map();
   for (const entry of overviewItemsForActiveFilter()) {
-    if (!entry.outOfRadius) continue;
+    if (!entry.outOfRadius || !revealing.has(entry.outOfRadiusFilterKey)) continue;
     if (!(entry.metres <= maxMetres)) continue;
-    const existing = nearestByKind.get(entry.kind);
-    if (!existing || entry.metres < existing.metres) nearestByKind.set(entry.kind, entry);
+    const existing = nearestByFilter.get(entry.outOfRadiusFilterKey);
+    if (!existing || entry.metres < existing.metres) nearestByFilter.set(entry.outOfRadiusFilterKey, entry);
   }
   const points = [];
-  for (const entry of nearestByKind.values()) {
+  for (const entry of nearestByFilter.values()) {
     const point = nearestFitPointForEntry(entry, origin.point);
     if (point) points.push(point);
   }
   return points;
+}
+
+// The filter keys whose nearest match the camera should currently reach past the ring for:
+// the ones just switched on that turned out to have nothing inside the walking radius at all.
+// Recomputed on every filter change, so switching one off (or switching anything on that *is*
+// in range) hands the camera straight back to the ring with nothing to reset.
+function refreshOutOfRadiusReveal(previousFilters) {
+  const previous = new Set(previousFilters || []);
+  const added = state.overviewFilters.filter((key) => !previous.has(key));
+  if (!added.length) {
+    state.outOfRadiusRevealFilters = [];
+    return;
+  }
+  const addedSet = new Set(added);
+  const unanswered = new Set();
+  for (const entry of overviewItemsForActiveFilter()) {
+    if (entry.outOfRadius && addedSet.has(entry.outOfRadiusFilterKey)) unanswered.add(entry.outOfRadiusFilterKey);
+  }
+  state.outOfRadiusRevealFilters = Array.from(unanswered);
 }
 
 function maxNearbyHeadingUpScale(focus, focusRect) {

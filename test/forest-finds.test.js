@@ -185,6 +185,8 @@ globalThis.__forestFindsTest = {
   findTreeByHashKey,
   treeDisplayName,
   releaseStrandedAnimationFrames,
+  setOverviewFilters,
+  applyWalkingRadiusChange,
   selectionCameraTransitionActive,
   headsUpSortedEntries,
   headsUpScore,
@@ -1142,7 +1144,7 @@ test("nearby heading-up viewport frames the walking-radius circle and ignores wh
   app.state.selected = null;
   app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
   app.state.trees.push({ id: "ahead-tree", recordNumber: 901, commonName: "Ahead tree", ...makePoint(app, 0.0012, 0) });
-  app.state.landmarks.push({ id: "behind-pub", name: "Behind Pub", category: "pub", ...makePoint(app, -0.0012, 0) });
+  app.state.landmarks.push({ id: "behind-pub", name: "Behind Pub", category: "pub", ...makePoint(app, -0.15, 0) });
 
   app.state.overviewFilters = ["trees", "pubs"];
   const changed = app.alignHeadingUpNavigationViewport();
@@ -1151,8 +1153,8 @@ test("nearby heading-up viewport frames the walking-radius circle and ignores wh
   assert.ok(changed, "viewport should refit onto the walking-radius circle");
 
   // Removing every highlighted item must not move the camera at all: the Nearby view's only
-  // positioning input is the radius circle, so neither the ahead tree nor the pub behind can
-  // pull the zoom in or out while both sit inside the ring.
+  // positioning input is the radius circle, so neither the ahead tree nor the far-behind pub
+  // can pull the zoom in or out.
   app.state.trees = [];
   app.state.landmarks = [];
   app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
@@ -1171,24 +1173,45 @@ test("a filter with nothing inside the radius pulls the nearby camera out far en
   app.state.selected = null;
   app.state.trees.push({ id: "near-tree", recordNumber: 902, commonName: "Near tree", ...makePoint(app, 0.0012, 0) });
 
+  app.state.landmarks.push({ id: "far-station", name: "Far Underground Station", category: "station", ...makePoint(app, 0.03, 0) });
+
   // Trees alone: everything the filter matches is inside the ring, so the ring is the fit.
-  app.state.overviewFilters = ["trees"];
+  app.setOverviewFilters(["trees"]);
+  app.stopViewportAnimation();
   app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
   app.alignHeadingUpNavigationViewport();
   const ringOnlyScale = app.state.viewport.scale;
 
-  // Add a filter whose only match is a long walk outside the ring. The Nearby list already
-  // falls back to showing it (overviewItemsForActiveFilter marks it outOfRadius), so the map
-  // has to reach it too -- otherwise the list names a station the map never shows.
-  app.state.landmarks.push({ id: "far-station", name: "Far Underground Station", category: "station", ...makePoint(app, 0.03, 0) });
-  app.state.overviewFilters = ["trees", "underground"];
+  // Switch on a filter whose only match is a long walk outside the ring. The Nearby list
+  // already falls back to showing it (overviewItemsForActiveFilter marks it outOfRadius), so
+  // the map has to reach it too -- otherwise the list names a station the map never shows.
+  app.setOverviewFilters(["trees", "underground"]);
+  app.stopViewportAnimation();
+  assert.deepEqual(Array.from(app.state.outOfRadiusRevealFilters), ["underground"], "the added filter is what the camera reaches for");
   app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
   app.alignHeadingUpNavigationViewport();
-
+  const revealedScale = app.state.viewport.scale;
   assert.ok(
-    app.state.viewport.scale < ringOnlyScale * 0.9,
-    "the camera zooms out past the ring to reach the out-of-radius match",
+    revealedScale < ringOnlyScale * 0.9,
+    `the camera zooms out past the ring to reach the out-of-radius match (${revealedScale} vs ${ringOnlyScale})`,
   );
+
+  // It is a response to that action, not a standing property of the camera. A saved filter set
+  // restored at boot -- same filters, no action -- must leave the ring framed as it always was,
+  // or every launch would open zoomed out around one far-off kind.
+  app.state.outOfRadiusRevealFilters = [];
+  app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
+  app.alignHeadingUpNavigationViewport();
+  assert.ok(
+    Math.abs(app.state.viewport.scale - ringOnlyScale) < ringOnlyScale * 0.001,
+    "with nothing just added, the fit is the ring again",
+  );
+
+  // Resizing the ring is the user taking the camera back.
+  app.state.outOfRadiusRevealFilters = ["underground"];
+  app.applyWalkingRadiusChange(6, { animate: false });
+  assert.equal(app.state.outOfRadiusRevealFilters.length, 0, "changing the radius hands the camera back to the ring");
+  app.state.walkingDistanceMinutes = 5;
 });
 
 test("nearby heading-up viewport shows the whole walking-radius circle, leaving the corners outside it", () => {
@@ -2240,10 +2263,14 @@ test("nearby and the filter screen both zoom out past the walking radius to reac
   const focus = app.nearbyNavigationFocusPoint();
 
   // Baseline: no filters at all, so nothing is out-of-radius and the ring is the whole fit.
-  app.state.overviewFilters = [];
+  app.setOverviewFilters([]);
+  app.stopViewportAnimation();
   const ringOnlyScale = app.maxNearbyHeadingUpScale(focus, focusRect);
 
-  app.state.overviewFilters = ["trees", "pubs"];
+  // setOverviewFilters, not a direct assignment: reaching past the ring is a response to the
+  // user switching a filter on (refreshOutOfRadiusReveal), not a standing camera property.
+  app.setOverviewFilters(["trees", "pubs"]);
+  app.stopViewportAnimation();
   const nearbyPoints = app.nearbyCameraFitPoints();
   const nearbyScale = app.maxNearbyHeadingUpScale(focus, focusRect);
 
