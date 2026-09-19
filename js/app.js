@@ -120,6 +120,28 @@ const SENSOR_WATCHDOG_INTERVAL_MS = 10000;
 // phone has been asleep. Re-registering listeners cannot fix that; physically moving the
 // phone can, so past this long we surface the existing "move your phone" prompt instead.
 const COMPASS_HEADINGLESS_PROMPT_MS = 2500;
+// Heading sources, worst to best. Chrome on Android fires BOTH `deviceorientationabsolute`
+// (alpha referenced to magnetic north) and `deviceorientation` (alpha referenced to an
+// arbitrary zero picked when the sensor started, and free to drift), and both land in
+// onDeviceOrientation. Feeding the two into one heading as if they meant the same thing made
+// compassHeadingTarget flip between a true bearing and an arbitrary one many times a second:
+// "sometimes a bit off, sometimes completely wrong". It also meant the calibration gate never
+// saw four readings agree within 6deg, so a cold start always fell through its 6s safety valve
+// and trusted whatever mix of the two streams it happened to be holding. Ranking the sources
+// and never letting a worse one overwrite a better one is what keeps the two apart. Ranked
+// rather than simply requiring absolute so that a browser which only ever fires the relative
+// event still gets a compass -- a drifting heading is worse than a true one but much better
+// than none, and it is dropped the moment a north-referenced reading arrives.
+// Declared up here with the other boot-time constants because `state` below reads
+// HEADING_SOURCE_NONE at module-eval time, and a const is in its temporal dead zone until
+// its own declaration has run.
+const HEADING_SOURCE_NONE = 0;
+const HEADING_SOURCE_RELATIVE = 1; // alpha with no north reference -- drifts, arbitrary zero
+const HEADING_SOURCE_ABSOLUTE = 2; // webkitCompassHeading, or alpha flagged absolute
+// How long a requested animation frame may stay pending before the foreground watchdog
+// treats the loop that asked for it as wedged. A frame runs within ~16ms; two seconds is
+// far past any plausible scheduling delay on a loaded phone.
+const ANIMATION_FRAME_WEDGED_MS = 2000;
 const STORED_COMPASS_PERMISSION = (() => {
   try {
     const stored = localStorage.getItem(COMPASS_PERMISSION_KEY) || "unknown";
@@ -242,10 +264,18 @@ const state = {
   animationFrame: null,
   overlayAnimationFrame: null,
   compassAnimationFrame: null,
+  // When each parked handle above was requested, cleared when its callback actually runs --
+  // see recoverWedgedAnimationFrames().
+  animationFrameRequestedAt: null,
+  overlayAnimationFrameRequestedAt: null,
+  compassAnimationFrameRequestedAt: null,
+  viewportAnimationFrameRequestedAt: null,
   compassAnimationTime: null,
   compassArrowAngle: null,
   compassLastEventAt: null,
   orientationLastEventAt: null,
+  // Best heading source seen so far this session -- see orientationHeadingSource().
+  compassHeadingSource: HEADING_SOURCE_NONE,
   headingUpScaleEaseAt: null, // timestamp the heading-up scale ease last integrated (see resolveHeadingUpTargetScale)
   lastLocationUpdateAt: null,
   navigationHeadingUp: false,
@@ -899,6 +929,7 @@ function stopViewportAnimation() {
     cancelAnimationFrame(state.viewportAnimationFrame);
   }
   state.viewportAnimationFrame = null;
+  state.viewportAnimationFrameRequestedAt = null;
   state.viewportAnimationFrom = null;
   state.viewportAnimationTo = null;
   state.viewportAnimationStartTime = null;
@@ -956,6 +987,7 @@ function animateViewportTo(targetViewport, durationMs) {
   state.viewportAnimationDuration = safeDuration;
 
   const tick = (timestamp) => {
+    state.viewportAnimationFrameRequestedAt = null;
     if (!state.viewportAnimationFrom || !state.viewportAnimationTo) {
       stopViewportAnimation();
       return;
@@ -987,9 +1019,11 @@ function animateViewportTo(targetViewport, durationMs) {
     }
 
     state.viewportAnimationFrame = requestAnimationFrame(tick);
+    state.viewportAnimationFrameRequestedAt = timestamp;
   };
 
   state.viewportAnimationFrame = requestAnimationFrame(tick);
+  state.viewportAnimationFrameRequestedAt = performance.now();
 }
 
 function bestVisibleCanvasRect({ assumeInspectorOpen = false } = {}) {
@@ -2546,16 +2580,55 @@ function recoverStalledCompass(now = performance.now()) {
 function releaseStrandedAnimationFrames() {
   if (state.animationFrame != null) cancelAnimationFrame(state.animationFrame);
   state.animationFrame = null;
+  state.animationFrameRequestedAt = null;
   if (state.overlayAnimationFrame != null) cancelAnimationFrame(state.overlayAnimationFrame);
   state.overlayAnimationFrame = null;
+  state.overlayAnimationFrameRequestedAt = null;
   if (state.compassAnimationFrame != null) cancelAnimationFrame(state.compassAnimationFrame);
   state.compassAnimationFrame = null;
+  state.compassAnimationFrameRequestedAt = null;
   // A timestamp from before the break would give the first frame back a dt measured in
   // minutes; the loop clamps it, but starting from null is the honest reset.
   state.compassAnimationTime = null;
   // Clears state.viewportAnimationTo as well as the frame handle, so a camera ease that was
   // interrupted by the app going away cannot keep the heading-up fit switched off.
   stopViewportAnimation();
+}
+
+// A parked rAF handle IS the duplicate-loop guard: while it is set, the loop refuses to start
+// again. That is correct only while the frame it names is really going to run. Two things break
+// that. Backgrounding, which releaseStrandedAnimationFrames above already handles -- but only on
+// visibilitychange/pageshow, and iOS routinely suspends and resumes a page without firing
+// either, which is why the sensor watchdog exists at all. And a callback that throws before it
+// re-arms: every one of these loops calls deep into fitting, overlay and draw code, and one
+// exception leaves the handle set for ever. Either way the guard silently becomes a "no loop at
+// all" lock -- requestDraw() never paints again, startCompassSmoothing() never eases heading or
+// tilt again, and a stranded viewportAnimationTo keeps selectionCameraTransitionActive() true so
+// alignHeadingUpNavigationViewport() bails on every call. That is the "the map just stops
+// moving, and the 3D tilt with it" report, and nothing short of a reload recovered from it.
+// So each loop now stamps when it asked for a frame and clears the stamp when that frame runs,
+// and a request still pending ANIMATION_FRAME_WEDGED_MS later is a wedge by definition.
+function animationFrameWedged(handle, requestedAt, now) {
+  return handle != null && requestedAt != null && (now - requestedAt) > ANIMATION_FRAME_WEDGED_MS;
+}
+
+function animationLoopsWedged(now = performance.now()) {
+  return animationFrameWedged(state.animationFrame, state.animationFrameRequestedAt, now)
+    || animationFrameWedged(state.overlayAnimationFrame, state.overlayAnimationFrameRequestedAt, now)
+    || animationFrameWedged(state.compassAnimationFrame, state.compassAnimationFrameRequestedAt, now)
+    || animationFrameWedged(state.viewportAnimationFrame, state.viewportAnimationFrameRequestedAt, now);
+}
+
+// Unlike handleForegroundResume, this is safe to run on the 10-second heartbeat: it only acts
+// once a frame request is provably overdue by two seconds, so a loop whose frames are actually
+// running is never touched and a legitimately in-flight camera animation is never cancelled.
+function recoverWedgedAnimationFrames(now = performance.now()) {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return false;
+  if (!animationLoopsWedged(now)) return false;
+  releaseStrandedAnimationFrames();
+  startCompassSmoothing();
+  requestDraw();
+  return true;
 }
 
 // Everything that needs doing when the page returns to the foreground. Hooked to
@@ -2612,6 +2685,7 @@ function setupVisibilityRecovery() {
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     restartStaleGpsWatch();
     recoverStalledCompass();
+    recoverWedgedAnimationFrames();
   }, SENSOR_WATCHDOG_INTERVAL_MS);
 }
 
@@ -2664,6 +2738,21 @@ function onDeviceOrientation(event) {
     // heading, so this cannot spin when there is nothing to smooth.
     if (Number.isFinite(state.compassHeading)) startCompassSmoothing();
   }
+  const source = orientationHeadingSource(event);
+  if (source === HEADING_SOURCE_NONE) return;
+  // A worse source than the one already feeding the compass: on Android that is the drifting
+  // relative stream still firing alongside the north-referenced one. Its beta was useful above;
+  // its heading is not. Note this deliberately leaves compassLastEventAt alone, so staleness is
+  // judged on the stream actually being used -- a relative stream still firing after the
+  // absolute one has died must not mask the death.
+  if (source < state.compassHeadingSource) return;
+  if (source > state.compassHeadingSource) {
+    // Upgraded to a better source. Everything the worse one produced was measured from a
+    // different zero, so averaging the two would be meaningless: throw it away and re-gate.
+    state.compassHeadingSource = source;
+    discardCompassHeadingFromWorseSource();
+  }
+
   const heading = extractCompassHeading(event);
   if (!Number.isFinite(heading)) return;
   state.compassLastEventAt = performance.now();
@@ -2849,6 +2938,7 @@ function startCompassSmoothing() {
   if (state.compassAnimationFrame != null) return;
 
   const tick = (timestamp) => {
+    state.compassAnimationFrameRequestedAt = null;
     _overlapRectCache = undefined;
     _tiltProjectionCache = undefined;
     _nearbyRenderOriginCache = undefined;
@@ -2919,9 +3009,11 @@ function startCompassSmoothing() {
     }
 
     state.compassAnimationFrame = requestAnimationFrame(tick);
+    state.compassAnimationFrameRequestedAt = timestamp;
   };
 
   state.compassAnimationFrame = requestAnimationFrame(tick);
+  state.compassAnimationFrameRequestedAt = performance.now();
 }
 
 function shortestCompassDelta(fromHeading, toHeading) {
@@ -2936,6 +3028,37 @@ function extractCompassHeading(event) {
   if (Number.isFinite(event.webkitCompassHeading)) return normalizeDegrees(event.webkitCompassHeading);
   if (Number.isFinite(event.alpha)) return normalizeDegrees(360 - event.alpha);
   return null;
+}
+
+// How trustworthy the heading this event carries is -- see the HEADING_SOURCE_* constants.
+// `absolute` is the standard flag saying alpha is referenced to the Earth, and
+// `deviceorientationabsolute` carries a north-referenced alpha by definition; iOS ships neither
+// and exposes the heading directly as webkitCompassHeading instead.
+function orientationHeadingSource(event) {
+  if (!event) return HEADING_SOURCE_NONE;
+  if (Number.isFinite(event.webkitCompassHeading)) return HEADING_SOURCE_ABSOLUTE;
+  if (!Number.isFinite(event.alpha)) return HEADING_SOURCE_NONE;
+  return (event.absolute === true || event.type === "deviceorientationabsolute")
+    ? HEADING_SOURCE_ABSOLUTE
+    : HEADING_SOURCE_RELATIVE;
+}
+
+// Drops every heading derived from a source we have just improved on. In practice the two
+// Android streams start within a frame or two of each other, so this usually only clears a
+// couple of buffered calibration samples -- but if a relative reading did get as far as being
+// trusted, keeping it would leave the map rotated to an arbitrary zero until the next stale
+// check 15s later. Sending it back through the calibration gate costs a moment north-up.
+function discardCompassHeadingFromWorseSource() {
+  const hadHeading = Number.isFinite(state.compassHeading);
+  state.compassHeading = null;
+  state.compassHeadingTarget = null;
+  state.nearbyListHeading = null;
+  state.renderedNavigationHeading = null;
+  state.headingUpEntryAnim = null;
+  resetCompassCalibration();
+  if (!hadHeading) return;
+  if (typeof updateCompassOverlay === "function") updateCompassOverlay();
+  requestDraw();
 }
 
 function ensureLocationWatch() {
@@ -5875,6 +5998,7 @@ function isNearCanvas(point, margin) {
 function requestDraw() {
   if (state.animationFrame) return;
   state.animationFrame = requestAnimationFrame(draw);
+  state.animationFrameRequestedAt = performance.now();
 }
 
 function postDraw() {
@@ -5885,8 +6009,10 @@ function requestOverlayDraw() {
   if (state.overlayAnimationFrame) return;
   state.overlayAnimationFrame = requestAnimationFrame(() => {
     state.overlayAnimationFrame = null;
+    state.overlayAnimationFrameRequestedAt = null;
     if (typeof drawOverlay === "function") drawOverlay();
   });
+  state.overlayAnimationFrameRequestedAt = performance.now();
 }
 
 function setStatus(_message) {
