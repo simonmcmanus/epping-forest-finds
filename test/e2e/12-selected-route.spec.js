@@ -431,7 +431,9 @@ test.describe("Selected route line follows the road/path network", () => {
           const here = unprojectPoint({ x, y });
           state.userLocation = ingestLocationFix(here.latitude, here.longitude, 10);
         }
-        advanceLocationGlide();
+        // Deliberately not calling advanceLocationGlide() here: the app drives it on its
+        // own animation frames (ensureLocationGlideLoop), and this measures that pipeline
+        // rather than a second one the test invents.
         state.compassLastEventAt = performance.now();
         alignHeadingUpNavigationViewport();
         await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));

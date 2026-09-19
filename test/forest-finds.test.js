@@ -329,7 +329,7 @@ globalThis.__forestFindsTest = {
   balancedNavigationAnchorY,
   ingestLocationFix,
   advanceLocationGlide,
-  LOCATION_GLIDE_MS,
+  LOCATION_GLIDE_EPSILON,
   LOCATION_SMOOTHING_SNAP_METRES,
   bestVisibleCanvasRect,
   ensureUserAndSelectionVisible,
@@ -5797,7 +5797,7 @@ test("the first GPS fix is used as delivered, with no smoothing to ease in from"
   assert.ok(app.state.rawUserLocation, "the raw fix is kept for analytics");
 });
 
-test("a later GPS fix is low-passed and glided rather than jumping the position", () => {
+test("a later GPS fix is eased toward rather than jumping the position", () => {
   resetData(app);
   resetLocationSmoothing(app);
   app.state.userLocation = null;
@@ -5808,28 +5808,55 @@ test("a later GPS fix is low-passed and glided rather than jumping the position"
   const next = app.ingestLocationFix(51.66511, 0.04501, 10, 2000);
   assert.deepEqual(
     { x: next.point.x, y: next.point.y }, before,
-    "the position should not move on the fix itself -- the glide carries it"
+    "the position should not move on the fix itself -- the per-frame ease carries it"
   );
   const glide = app.state.locationGlide;
-  assert.ok(glide, "a glide should have been set up");
-  assert.equal(glide.durationMs, app.LOCATION_GLIDE_MS);
+  assert.ok(glide, "an ease toward the new fix should be pending");
+  assert.deepEqual(glide.to, app.state.rawUserLocation.point, "and it heads for the raw fix");
 
-  // The low-passed target sits short of the raw fix, which is the filtering doing its job.
-  const rawPoint = app.state.rawUserLocation.point;
-  const toRaw = Math.hypot(rawPoint.x - before.x, rawPoint.y - before.y);
-  const toTarget = Math.hypot(glide.to.x - before.x, glide.to.y - before.y);
-  assert.ok(toTarget > 0 && toTarget < toRaw, `target should fall between the old position and the raw fix, got ${toTarget} of ${toRaw}`);
-
-  // And the glide actually carries the position there over its duration.
   app.state.userLocation = next;
-  app.advanceLocationGlide(2000 + app.LOCATION_GLIDE_MS / 2);
-  const midway = Math.hypot(app.state.userLocation.point.x - before.x, app.state.userLocation.point.y - before.y);
-  assert.ok(midway > 0 && midway < toTarget, `halfway through the glide the position should be partway there, got ${midway} of ${toTarget}`);
+  const total = Math.hypot(glide.to.x - before.x, glide.to.y - before.y);
 
-  app.advanceLocationGlide(2000 + app.LOCATION_GLIDE_MS);
-  assert.equal(app.state.locationGlide, null, "the glide clears when it lands");
-  const landed = Math.hypot(app.state.userLocation.point.x - glide.to.x, app.state.userLocation.point.y - glide.to.y);
-  assert.ok(landed < 1e-6, "and lands exactly on the filtered target");
+  app.advanceLocationGlide(2016);
+  const afterOneFrame = Math.hypot(app.state.userLocation.point.x - before.x, app.state.userLocation.point.y - before.y);
+  assert.ok(
+    afterOneFrame > 0 && afterOneFrame < total * 0.5,
+    `one frame should cover part of the distance, not all of it: ${afterOneFrame} of ${total}`
+  );
+
+  // Most of the way within about a second (tau is 1s at this accuracy), and all the way
+  // given a few more -- it must not rest short of the fix.
+  for (let t = 2032; t <= 3000; t += 16) app.advanceLocationGlide(t);
+  const afterASecond = Math.hypot(app.state.userLocation.point.x - before.x, app.state.userLocation.point.y - before.y);
+  assert.ok(afterASecond > total * 0.5, `a second of easing should cover most of the distance, got ${afterASecond} of ${total}`);
+
+  for (let t = 3016; t <= 12000; t += 16) app.advanceLocationGlide(t);
+  const remaining = Math.hypot(app.state.userLocation.point.x - glide.to.x, app.state.userLocation.point.y - glide.to.y);
+  assert.ok(remaining <= app.LOCATION_GLIDE_EPSILON, `the ease should converge on the fix, ${remaining} short`);
+});
+
+test("a position that stops updating still converges on the last fix, rather than resting short of it", () => {
+  // The failure this guards, caught in CI: a per-fix low-pass only recomputed its target
+  // when a fix arrived, so one fix followed by silence left the position permanently
+  // part-way there. The settings spec sets a position once and waits for
+  // state.userLocation to reach it -- it waited out the whole 60s test timeout.
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000); // poor accuracy: the most smoothing
+  app.state.userLocation = app.ingestLocationFix(51.6653, 0.0453, 25, 2000);
+  const destination = { ...app.state.rawUserLocation };
+
+  for (let t = 2016; t <= 12000; t += 16) app.advanceLocationGlide(t);
+
+  assert.ok(
+    Math.abs(app.state.userLocation.latitude - destination.latitude) < 0.000005,
+    `latitude should reach the fix, off by ${Math.abs(app.state.userLocation.latitude - destination.latitude)}`
+  );
+  assert.ok(
+    Math.abs(app.state.userLocation.longitude - destination.longitude) < 0.000005,
+    `longitude should reach the fix, off by ${Math.abs(app.state.userLocation.longitude - destination.longitude)}`
+  );
 });
 
 test("a large jump in position lands at once rather than crawling there", () => {
@@ -5845,19 +5872,23 @@ test("a large jump in position lands at once rather than crawling there", () => 
 });
 
 test("a poor-accuracy fix is leaned on harder than a good one", () => {
-  const targetFor = (accuracy) => {
+  const coveredIn = (accuracy, frames) => {
     resetData(app);
     resetLocationSmoothing(app);
     app.state.userLocation = null;
     app.state.userLocation = app.ingestLocationFix(51.665, 0.045, accuracy, 1000);
     const from = { ...app.state.userLocation.point };
-    app.ingestLocationFix(51.66511, 0.04501, accuracy, 2000);
+    app.state.userLocation = app.ingestLocationFix(51.66511, 0.04501, accuracy, 2000);
     const to = app.state.locationGlide.to;
-    return Math.hypot(to.x - from.x, to.y - from.y);
+    for (let i = 1; i <= frames; i += 1) app.advanceLocationGlide(2000 + i * 16);
+    const moved = Math.hypot(app.state.userLocation.point.x - from.x, app.state.userLocation.point.y - from.y);
+    return moved / Math.hypot(to.x - from.x, to.y - from.y);
   };
-  const tight = targetFor(4);
-  const loose = targetFor(25);
-  assert.ok(tight > loose, `a 4m fix should be followed further than a 25m one, got ${tight} vs ${loose}`);
+  // Same frames, same distance: the tight fix is followed further in that time. Both still
+  // arrive -- accuracy sets how hard the wander is damped on the way, not where it ends up.
+  const tight = coveredIn(4, 10);
+  const loose = coveredIn(25, 10);
+  assert.ok(tight > loose, `a 4m fix should be followed faster than a 25m one, covered ${tight.toFixed(2)} vs ${loose.toFixed(2)}`);
 });
 
 test("a heading-up zoom-out eases faster than a zoom-in of the same proportion", () => {

@@ -281,6 +281,7 @@ const state = {
   lastLocationUpdateAt: null,
   rawUserLocation: null, // the unfiltered GPS fix; state.userLocation is the smoothed one (see ingestLocationFix)
   locationGlide: null, // in-flight glide of the smoothed position toward the latest fix
+  locationGlideFrame: null, // rAF handle for the loop that advances it (see ensureLocationGlideLoop)
   locationSmoothedAt: null, // timestamp the location low-pass last ran
   navigationHeadingUp: false,
   renderedNavigationHeading: null,
@@ -575,12 +576,15 @@ async function boot() {
 //
 //   - the wander itself, which is noise around the truth -> a low-pass filter, below,
 //     weighted by the accuracy the fix reports so a good fix is trusted more than a bad one;
-//   - the once-a-second delivery, which makes even a perfectly filtered position arrive as
-//     a step -> a glide, advanced every frame by advanceLocationGlide().
+//   - the once-a-second delivery, which would make even a perfectly filtered position
+//     arrive as a step.
 //
-// Filtering alone would only make the steps smaller; gliding alone would follow every
-// wobble faithfully and smoothly. Both together is what makes the map move the way the
-// walker does.
+// One mechanism answers both: advanceLocationGlide() eases the position toward the newest
+// raw fix every frame, with a time constant taken from that fix's reported accuracy. While
+// fixes keep arriving each new one moves the target before the last has been reached, so
+// the wander averages out; when they stop, it converges on the fix rather than resting
+// short of it. Filtering per fix instead would only have made the steps smaller, and would
+// have left the position permanently behind the last thing the device told us.
 //
 // This lives in the two GPS ingestion paths deliberately, not in a getter: everything that
 // assigns state.userLocation directly -- the whole unit suite, and the e2e specs that place
@@ -594,48 +598,46 @@ const LOCATION_SMOOTHING_ACCURACY_DIVISOR = 10;
 // Past this, the fix is not wander. A first fix after a gap, coming out of a tunnel, or a
 // genuine teleport should land at once rather than crawl there over seconds.
 const LOCATION_SMOOTHING_SNAP_METRES = 30;
-// How long the glide takes to reach a new fix. A little under the ~1s fix interval, so the
-// position has settled by the time the next one arrives rather than permanently chasing.
-const LOCATION_GLIDE_MS = 850;
+// How close counts as arrived, in projected units -- comfortably sub-metre, so the ease
+// lands on the fix rather than crawling at it forever.
+const LOCATION_GLIDE_EPSILON = 1e-7;
 
-// Turns one raw fix into the position the app should use, and sets up the glide toward it.
-// Returns the location object for the caller to assign to state.userLocation.
+// Turns one raw fix into the position the app should use. The smoothing itself is done by
+// advanceLocationGlide() every frame; this only records where to head for.
 function ingestLocationFix(latitude, longitude, accuracy, now = performance.now()) {
   const rawPoint = projectLonLat(longitude, latitude);
   const raw = { latitude, longitude, accuracy, point: rawPoint };
   state.rawUserLocation = raw;
 
   const previous = state.userLocation;
-  const previousTarget = state.locationGlide ? state.locationGlide.to : (previous && previous.point);
-  const lastAt = state.locationSmoothedAt;
   const landRaw = () => {
     state.locationGlide = null;
     state.locationSmoothedAt = now;
     return raw;
   };
-  if (!previous || !previous.point || !previousTarget || !Number.isFinite(lastAt)) return landRaw();
-
-  const dt = (now - lastAt) / 1000;
-  if (!(dt > 0)) return previous;
-  state.locationSmoothedAt = now;
+  if (!previous || !previous.point) return landRaw();
   const movedMetres = distanceMetres(previous.latitude, previous.longitude, latitude, longitude);
+  // Not wander: a first fix after a gap, coming out of a tunnel, a genuine teleport. Easing
+  // across that reads as the map sliding away on its own.
   if (!Number.isFinite(movedMetres) || movedMetres >= LOCATION_SMOOTHING_SNAP_METRES) return landRaw();
 
-  // Low-pass against the previous *target*, not the previous rendered position: filtering
-  // against a value that is itself mid-glide would fold the glide's own lag back into the
-  // filter and drag the position permanently behind the walker.
-  const tau = clamp(
-    (Number.isFinite(accuracy) ? accuracy : 10) / LOCATION_SMOOTHING_ACCURACY_DIVISOR,
-    LOCATION_SMOOTHING_MIN_TAU_S,
-    LOCATION_SMOOTHING_MAX_TAU_S
-  );
-  const alpha = 1 - Math.exp(-dt / tau);
-  const to = {
-    x: previousTarget.x + (rawPoint.x - previousTarget.x) * alpha,
-    y: previousTarget.y + (rawPoint.y - previousTarget.y) * alpha,
+  state.locationGlide = {
+    to: rawPoint,
+    // The filter's time constant, from this fix's own reported accuracy: a 5m fix is
+    // followed almost as given, a 25m one is leaned on hard.
+    tau: clamp(
+      (Number.isFinite(accuracy) ? accuracy : 10) / LOCATION_SMOOTHING_ACCURACY_DIVISOR,
+      LOCATION_SMOOTHING_MIN_TAU_S,
+      LOCATION_SMOOTHING_MAX_TAU_S
+    ),
+    accuracy,
   };
-  state.locationGlide = { from: { x: previous.point.x, y: previous.point.y }, to, startedAt: now, durationMs: LOCATION_GLIDE_MS };
-  return locationAtPoint(previous.point, accuracy);
+  // Start the ease clock at this fix, so the first frame after it integrates ~one frame
+  // rather than the whole gap since the previous fix (which the staleness guard would then
+  // treat as a dead clock and land outright).
+  state.locationSmoothedAt = now;
+  ensureLocationGlideLoop();
+  return previous;
 }
 
 // The location object for a projected point, with lat/lon kept consistent with it so
@@ -645,26 +647,72 @@ function locationAtPoint(point, accuracy) {
   return { latitude: lonLat.latitude, longitude: lonLat.longitude, accuracy, point: { x: point.x, y: point.y } };
 }
 
-// Moves state.userLocation along the in-flight glide. Progress is a pure function of the
-// clock (the same shape nearbyOriginTransitionEasedProgress uses) rather than an
-// accumulator, so a dropped frame just means further along and a stale clock lands it --
-// neither can freeze the position or leave it somewhere the fit was not solved for.
+// Eases state.userLocation toward the latest fix, a frame at a time. Called from
+// prepareCanvasForDraw, and it requests the next frame itself while it still has ground to
+// cover, so the motion continues whether or not anything else is redrawing.
+//
+// One continuous filter rather than a per-fix low-pass feeding a fixed-length glide, which
+// is what this was first written as. That version only recomputed its target when a fix
+// arrived, so a single fix followed by silence left the position permanently short of the
+// last thing the device actually told us -- fine while watchPosition keeps firing, wrong
+// the moment it stops, and caught by the settings spec waiting for state.userLocation to
+// reach a position it had set once. Easing toward the newest raw fix on every frame instead
+// smooths exactly the same way while fixes keep arriving (each new one moves the target
+// before the last has been reached, so the wander averages out) and always converges on the
+// truth when they stop.
+// Drives advanceLocationGlide on its own animation frames for as long as a glide is
+// pending, rather than relying on the draw loop.
+//
+// prepareCanvasForDraw advances it too, so the position is always current at paint time,
+// but that cannot be the only driver: the map stops painting whenever a secondary screen
+// is open, and the position would then freeze part-way to the last fix until something
+// else happened to request a draw. Caught in CI by the settings spec, which opens Settings
+// and then waits for state.userLocation to reach a position it set -- it waited out the
+// whole 60s test timeout. A walker checking their settings must still be where they are
+// when they close the screen.
+function ensureLocationGlideLoop() {
+  if (state.locationGlideFrame != null) return;
+  if (typeof requestAnimationFrame !== "function") return;
+  const tick = () => {
+    state.locationGlideFrame = null;
+    if (!state.locationGlide) return;
+    if (advanceLocationGlide()) requestDraw();
+    if (state.locationGlide) {
+      state.locationGlideFrame = requestAnimationFrame(tick);
+    }
+  };
+  state.locationGlideFrame = requestAnimationFrame(tick);
+}
+
 function advanceLocationGlide(now = performance.now()) {
   const glide = state.locationGlide;
-  if (!glide || !state.userLocation) return false;
-  const progress = clamp((now - glide.startedAt) / glide.durationMs, 0, 1);
-  const eased = progress < 0.5
-    ? 4 * progress * progress * progress
-    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-  const point = {
-    x: glide.from.x + (glide.to.x - glide.from.x) * eased,
-    y: glide.from.y + (glide.to.y - glide.from.y) * eased,
-  };
-  if (progress >= 1) state.locationGlide = null;
-  const moved = Math.abs(point.x - state.userLocation.point.x) > 0 || Math.abs(point.y - state.userLocation.point.y) > 0;
-  if (!moved) return false;
-  state.userLocation = locationAtPoint(point, state.userLocation.accuracy);
-  state.userInMapArea = pointInsideBounds(point, state.bounds);
+  if (!glide || !state.userLocation || !state.userLocation.point) return false;
+  const from = state.userLocation.point;
+  const dx = glide.to.x - from.x;
+  const dy = glide.to.y - from.y;
+
+  const lastAt = state.locationSmoothedAt;
+  const gapMs = Number.isFinite(lastAt) ? (now - lastAt) : null;
+  state.locationSmoothedAt = now;
+  // A duplicate call within the same tick has no time to integrate, so it does nothing --
+  // it must not land, or two callers in one frame would skip the ease entirely.
+  if (gapMs != null && gapMs <= 0) return false;
+  // Arrived, or the clock is unusable (no previous timestamp, or a stale one from a
+  // backgrounded tab). Land it: the last fix is the best information there is, and stopping
+  // short of it is the failure this exists to avoid.
+  const arrived = Math.abs(dx) < LOCATION_GLIDE_EPSILON && Math.abs(dy) < LOCATION_GLIDE_EPSILON;
+  if (arrived || gapMs == null || gapMs > HEADING_UP_SCALE_EASE_STALE_MS) {
+    state.locationGlide = null;
+    if (arrived && from.x === glide.to.x && from.y === glide.to.y) return false;
+    state.userLocation = locationAtPoint(glide.to, glide.accuracy);
+    state.userInMapArea = pointInsideBounds(state.userLocation.point, state.bounds);
+    return true;
+  }
+
+  const dt = Math.min(gapMs, HEADING_UP_SCALE_EASE_MAX_DT * 1000) / 1000;
+  const alpha = 1 - Math.exp(-dt / glide.tau);
+  state.userLocation = locationAtPoint({ x: from.x + dx * alpha, y: from.y + dy * alpha }, glide.accuracy);
+  state.userInMapArea = pointInsideBounds(state.userLocation.point, state.bounds);
   return true;
 }
 
