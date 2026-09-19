@@ -177,10 +177,15 @@ test.describe("Wheel and trackpad input on the Nearby screen", () => {
     await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
 
-    const before = await page.evaluate(() => ({
-      minutes: state.walkingDistanceMinutes,
-      scale: state.viewport.scale,
-    }));
+    // The hash deep-link forces the inspector open and animates the camera to fit user + target
+    // (~520ms), so the scale here is still in transit. Read raw, before.scale can catch a
+    // mid-animation value well above where the camera settles -- CI caught 36386 against a
+    // settled 17470 -- and the wheel's zoom-in from the settled scale then never exceeds it.
+    // Same settling the sibling wheel tests above already use.
+    const before = {
+      minutes: await page.evaluate(() => state.walkingDistanceMinutes),
+      scale: await settledScale(page),
+    };
     const box = await page.locator("#mapCanvas").boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.wheel(0, -300);
