@@ -128,6 +128,15 @@ trees on Null Island as real entries in `state.trees` that every nearest/within-
 had to measure against. A tree with no coordinate cannot be shown on the map or walked to, so it
 has nothing to contribute.
 
+This also fixes `state.bounds`. `calculateBounds()` (js/app.js) spans every tree point, and
+Epping Forest sits at Mercator y ≈ −60.36 … −60.65 while lat 0 projects to y = 0 — so ten junk
+records stretched the world bounds to a vertical span of 60.65 instead of 0.29, **209× taller
+than the forest**. Everything derived from those bounds was off with it: `fitToBounds()` and the
+`state.fitScale`/`baseFitScale` it sets (used as the `minScale` floor in `fitToPoints`),
+`pointInsideBounds()` behind `state.userInMapArea` (true for anyone between the equator and the
+forest), and the background grid in `drawBase`. The mobile snapshot baselines for every screen
+that draws the map moved as a result, and were regenerated on CI.
+
 **Tree identity (`treeHashKey`, js/app.js).** Derived from `recordNumber` and nothing else — the
 one field the register guarantees unique (verified: 24,906 records, 24,906 distinct
 `recordNumber`s). It is what the `#tree=` deep link carries, what the Nearby list de-duplicates on
