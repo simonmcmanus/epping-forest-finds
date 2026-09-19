@@ -31,6 +31,16 @@
       "Bash(node --test test/forest-finds.test.js > /tmp/out.txt 2>&1; grep -n \"tests \\\\|pass \\\\|fail \\\\|not ok\" /tmp/out.txt | tail -20)",
       "Read(//tmp/**)"
     ],
+    "deny": [
+      "Read(data/**)",
+      "Read(assets/**)",
+      "Read(node_modules/**)",
+      "Read(playwright-report/**)",
+      "Read(test-results/**)",
+      "Read(package-lock.json)",
+      "Read(.local-certs/**)",
+      "Read(.env)"
+    ],
     "additionalDirectories": [
       "/tmp"
     ]

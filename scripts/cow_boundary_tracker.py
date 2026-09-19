@@ -12,7 +12,7 @@ Usage:
     python3 scripts/cow_boundary_tracker.py [--history PATH] [--out PATH] [--dry-run]
 
 Network: calls the same public Nofence endpoint the app's own
-netlify/functions/cows.js proxies (index.html's DEFAULT_COW_CENTER). The
+netlify/functions/cows.js proxies (js/app.js's DEFAULT_COW_CENTER). The
 comparison/description logic (detect_change, describe_location) takes plain
 Python data and has no network dependency -- see
 scripts/test_cow_boundary_tracker.py.
@@ -31,9 +31,9 @@ sys.path.insert(0, str(ROOT))
 from scripts.report.geo import haversine_metres, nearest_place  # noqa: E402
 from scripts.report.places import NAMED_PLACES  # noqa: E402
 
-# Must match index.html's DEFAULT_COW_CENTER -- the point the live app
+# Must match js/app.js's DEFAULT_COW_CENTER -- the point the live app
 # centres its own Nofence lookup on. Kept here rather than parsed out of
-# index.html because that file isn't meant to be machine-read by scripts;
+# js/app.js because that file isn't meant to be machine-read by scripts;
 # scripts/test_cow_boundary_tracker.py pins this exact value so a change to
 # the app's constant without updating this one fails loudly instead of
 # silently drifting.
