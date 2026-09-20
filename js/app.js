@@ -277,7 +277,12 @@ const state = {
   // Best heading source seen so far this session -- see orientationHeadingSource().
   compassHeadingSource: HEADING_SOURCE_NONE,
   headingUpScaleEaseAt: null, // timestamp the heading-up scale ease last integrated (see resolveHeadingUpTargetScale)
+  headingUpScaleEasing: false, // latch: the heading-up scale ease is mid-glide (see resolveHeadingUpTargetScale)
   lastLocationUpdateAt: null,
+  rawUserLocation: null, // the unfiltered GPS fix; state.userLocation is the smoothed one (see ingestLocationFix)
+  locationGlide: null, // in-flight glide of the smoothed position toward the latest fix
+  locationGlideFrame: null, // rAF handle for the loop that advances it (see ensureLocationGlideLoop)
+  locationSmoothedAt: null, // timestamp the location low-pass last ran
   navigationHeadingUp: false,
   renderedNavigationHeading: null,
   headingUpEntryAnim: null,
@@ -557,11 +562,165 @@ async function boot() {
   }
 }
 
+// --- Camera-facing GPS smoothing -------------------------------------------------------
+//
+// watchPosition delivers a fix about once a second, and under tree cover consecutive fixes
+// wander several metres either side of where you actually are. state.userLocation.point is
+// the camera's anchor, the scale fit's origin and the 3D pivot all at once (see
+// cameraOriginPoint), so every one of those fixes used to move the whole map at once:
+// measured walking toward a destination ~80m away, the map lurched 15.8px on average and
+// 26.2px at worst on each fix, then sat perfectly still for the fifteen frames until the
+// next one. That once-a-second twitch is the rest of the "lots of reframing" report.
+//
+// Two things are wrong with a raw fix and they need different treatment:
+//
+//   - the wander itself, which is noise around the truth -> a low-pass filter, below,
+//     weighted by the accuracy the fix reports so a good fix is trusted more than a bad one;
+//   - the once-a-second delivery, which would make even a perfectly filtered position
+//     arrive as a step.
+//
+// One mechanism answers both: advanceLocationGlide() eases the position toward the newest
+// raw fix every frame, with a time constant taken from that fix's reported accuracy. While
+// fixes keep arriving each new one moves the target before the last has been reached, so
+// the wander averages out; when they stop, it converges on the fix rather than resting
+// short of it. Filtering per fix instead would only have made the steps smaller, and would
+// have left the position permanently behind the last thing the device told us.
+//
+// This lives in the two GPS ingestion paths deliberately, not in a getter: everything that
+// assigns state.userLocation directly -- the whole unit suite, and the e2e specs that place
+// the walker somewhere -- keeps working exactly as before, because no glide is ever created
+// for a position the browser did not deliver.
+const LOCATION_SMOOTHING_MIN_TAU_S = 0.3;
+const LOCATION_SMOOTHING_MAX_TAU_S = 2.5;
+// Reported accuracy in metres divided by this gives the filter's time constant, so a 5m fix
+// is followed almost as given (0.5s) while a 25m one is leaned on much harder (2.5s).
+const LOCATION_SMOOTHING_ACCURACY_DIVISOR = 10;
+// Past this, the fix is not wander. A first fix after a gap, coming out of a tunnel, or a
+// genuine teleport should land at once rather than crawl there over seconds.
+const LOCATION_SMOOTHING_SNAP_METRES = 30;
+// How close counts as arrived, in projected units -- comfortably sub-metre, so the ease
+// lands on the fix rather than crawling at it forever.
+const LOCATION_GLIDE_EPSILON = 1e-7;
+
+// Turns one raw fix into the position the app should use. The smoothing itself is done by
+// advanceLocationGlide() every frame; this only records where to head for.
+function ingestLocationFix(latitude, longitude, accuracy, now = performance.now()) {
+  const rawPoint = projectLonLat(longitude, latitude);
+  const raw = { latitude, longitude, accuracy, point: rawPoint };
+  state.rawUserLocation = raw;
+
+  const previous = state.userLocation;
+  const landRaw = () => {
+    state.locationGlide = null;
+    state.locationSmoothedAt = now;
+    return raw;
+  };
+  if (!previous || !previous.point) return landRaw();
+  const movedMetres = distanceMetres(previous.latitude, previous.longitude, latitude, longitude);
+  // Not wander: a first fix after a gap, coming out of a tunnel, a genuine teleport. Easing
+  // across that reads as the map sliding away on its own.
+  if (!Number.isFinite(movedMetres) || movedMetres >= LOCATION_SMOOTHING_SNAP_METRES) return landRaw();
+
+  state.locationGlide = {
+    to: rawPoint,
+    // The filter's time constant, from this fix's own reported accuracy: a 5m fix is
+    // followed almost as given, a 25m one is leaned on hard.
+    tau: clamp(
+      (Number.isFinite(accuracy) ? accuracy : 10) / LOCATION_SMOOTHING_ACCURACY_DIVISOR,
+      LOCATION_SMOOTHING_MIN_TAU_S,
+      LOCATION_SMOOTHING_MAX_TAU_S
+    ),
+    accuracy,
+  };
+  // Start the ease clock at this fix, so the first frame after it integrates ~one frame
+  // rather than the whole gap since the previous fix (which the staleness guard would then
+  // treat as a dead clock and land outright).
+  state.locationSmoothedAt = now;
+  ensureLocationGlideLoop();
+  return previous;
+}
+
+// The location object for a projected point, with lat/lon kept consistent with it so
+// nothing downstream can read a position and a coordinate that disagree.
+function locationAtPoint(point, accuracy) {
+  const lonLat = unprojectPoint(point);
+  return { latitude: lonLat.latitude, longitude: lonLat.longitude, accuracy, point: { x: point.x, y: point.y } };
+}
+
+// Eases state.userLocation toward the latest fix, a frame at a time. Called from
+// prepareCanvasForDraw, and it requests the next frame itself while it still has ground to
+// cover, so the motion continues whether or not anything else is redrawing.
+//
+// One continuous filter rather than a per-fix low-pass feeding a fixed-length glide, which
+// is what this was first written as. That version only recomputed its target when a fix
+// arrived, so a single fix followed by silence left the position permanently short of the
+// last thing the device actually told us -- fine while watchPosition keeps firing, wrong
+// the moment it stops, and caught by the settings spec waiting for state.userLocation to
+// reach a position it had set once. Easing toward the newest raw fix on every frame instead
+// smooths exactly the same way while fixes keep arriving (each new one moves the target
+// before the last has been reached, so the wander averages out) and always converges on the
+// truth when they stop.
+// Drives advanceLocationGlide on its own animation frames for as long as a glide is
+// pending, rather than relying on the draw loop.
+//
+// prepareCanvasForDraw advances it too, so the position is always current at paint time,
+// but that cannot be the only driver: the map stops painting whenever a secondary screen
+// is open, and the position would then freeze part-way to the last fix until something
+// else happened to request a draw. Caught in CI by the settings spec, which opens Settings
+// and then waits for state.userLocation to reach a position it set -- it waited out the
+// whole 60s test timeout. A walker checking their settings must still be where they are
+// when they close the screen.
+function ensureLocationGlideLoop() {
+  if (state.locationGlideFrame != null) return;
+  if (typeof requestAnimationFrame !== "function") return;
+  const tick = () => {
+    state.locationGlideFrame = null;
+    if (!state.locationGlide) return;
+    if (advanceLocationGlide()) requestDraw();
+    if (state.locationGlide) {
+      state.locationGlideFrame = requestAnimationFrame(tick);
+    }
+  };
+  state.locationGlideFrame = requestAnimationFrame(tick);
+}
+
+function advanceLocationGlide(now = performance.now()) {
+  const glide = state.locationGlide;
+  if (!glide || !state.userLocation || !state.userLocation.point) return false;
+  const from = state.userLocation.point;
+  const dx = glide.to.x - from.x;
+  const dy = glide.to.y - from.y;
+
+  const lastAt = state.locationSmoothedAt;
+  const gapMs = Number.isFinite(lastAt) ? (now - lastAt) : null;
+  state.locationSmoothedAt = now;
+  // A duplicate call within the same tick has no time to integrate, so it does nothing --
+  // it must not land, or two callers in one frame would skip the ease entirely.
+  if (gapMs != null && gapMs <= 0) return false;
+  // Arrived, or the clock is unusable (no previous timestamp, or a stale one from a
+  // backgrounded tab). Land it: the last fix is the best information there is, and stopping
+  // short of it is the failure this exists to avoid.
+  const arrived = Math.abs(dx) < LOCATION_GLIDE_EPSILON && Math.abs(dy) < LOCATION_GLIDE_EPSILON;
+  if (arrived || gapMs == null || gapMs > HEADING_UP_SCALE_EASE_STALE_MS) {
+    state.locationGlide = null;
+    if (arrived && from.x === glide.to.x && from.y === glide.to.y) return false;
+    state.userLocation = locationAtPoint(glide.to, glide.accuracy);
+    state.userInMapArea = pointInsideBounds(state.userLocation.point, state.bounds);
+    return true;
+  }
+
+  const dt = Math.min(gapMs, HEADING_UP_SCALE_EASE_MAX_DT * 1000) / 1000;
+  const alpha = 1 - Math.exp(-dt / glide.tau);
+  state.userLocation = locationAtPoint({ x: from.x + dx * alpha, y: from.y + dy * alpha }, glide.accuracy);
+  state.userInMapArea = pointInsideBounds(state.userLocation.point, state.bounds);
+  return true;
+}
+
 function applyLocationFix(position) {
   const { latitude, longitude, accuracy } = position.coords;
   const previousPoint = state.userLocation && state.userLocation.point;
-  const point = projectLonLat(longitude, latitude);
-  state.userLocation = { latitude, longitude, accuracy, point };
+  state.userLocation = ingestLocationFix(latitude, longitude, accuracy);
+  const point = state.userLocation.point;
   state.userInMapArea = pointInsideBounds(point, state.bounds);
   const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
   state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
@@ -3096,8 +3255,8 @@ function ensureLocationWatch() {
       state.lastLocationUpdateAt = performance.now();
       const { latitude, longitude, accuracy } = position.coords;
       const previousPoint = state.userLocation && state.userLocation.point;
-      const point = projectLonLat(longitude, latitude);
-      state.userLocation = { latitude, longitude, accuracy, point };
+      state.userLocation = ingestLocationFix(latitude, longitude, accuracy);
+      const point = state.userLocation.point;
       updateLocateButtonVisibility();
       state.userInMapArea = pointInsideBounds(point, state.bounds);
       const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
@@ -3231,6 +3390,49 @@ const HEADING_UP_SCALE_EASE_MAX_DT = 0.05;
 // screen the ease genuinely did not run on for a while -- should be treated as stale and
 // restart the clock instead of integrating a jump.
 const HEADING_UP_SCALE_EASE_STALE_MS = 500;
+
+// How far the fit the camera *wants* may drift from the scale actually on screen before
+// the camera responds at all -- a hysteresis deadband, sized as a fraction of the current
+// scale.
+//
+// The fit is re-solved on every compass frame against a live heading, a live GPS fix and a
+// route whose head is the walker's current position, so the scale it asks for is never
+// still: every step and every degree of heading noise moves it a little. Chasing that
+// continuously is what made walking navigation read as the map breathing in and out. A
+// 2% settle tolerance (HEADING_UP_SCALE_SETTLE_RATIO, which exists for a different job --
+// absorbing sub-pixel noise between two otherwise identical fits) is nowhere near enough
+// to cover it.
+//
+// 13% is comfortably wider than the wander a normal walking pace produces, and still well
+// inside the room the fit leaves itself: with HEADING_UP_SCALE_BUFFER_RATIO holding the
+// camera 4% tighter than the true fit, the worst a full band of drift can do is put the
+// framed target about 8% past where a perfect fit would place it -- still inside
+// headingUpFitMarginPx, which is 10% of the rect plus 12dp. Anything genuinely off-screen
+// is caught by HEADING_UP_SCALE_SNAP_RATIO below rather than by this band.
+//
+// Once the band is broken the ease runs to completion rather than stopping the moment it
+// is back inside it -- otherwise the camera would glide a token amount, halt 13% short of
+// the fit, and sit there re-triggering. state.headingUpScaleEasing is that latch; it
+// clears when the ease converges, and on any snap or settle path.
+const HEADING_UP_SCALE_HOLD_RATIO = 0.13;
+
+// Overshoot past which a zoom-out is applied in one frame instead of eased. Below it the
+// target is merely encroaching on the fit margin and there is nothing to correct urgently;
+// at or above it the target has genuinely left the framed area and waiting out an ease
+// would leave the thing being navigated to off-screen.
+//
+// This is the asymmetry that caused the reported jumping. Zoom-*in* has always been eased,
+// but ANY zoom-out -- however slight -- used to fall straight through to the snap at the
+// bottom of resolveHeadingUpTargetScale. Walking with a live compass produces a steady
+// trickle of small zoom-out requests, so the camera sawtoothed: snap out hard, ease back
+// in over ~1s, snap out hard again. Easing both directions and reserving the snap for a
+// real overshoot is what turns that into one continuous motion.
+const HEADING_UP_SCALE_SNAP_RATIO = 1.25;
+// Rate (per second) a zoom-*out* ease integrates at. Faster than HEADING_UP_SCALE_EASE_RATE
+// because the two directions are not equally urgent: zooming out is recovering room the
+// target is running out of, zooming in is only tightening a frame that is already correct.
+// ~0.45s to converge against the zoom-in's ~1s.
+const HEADING_UP_SCALE_EASE_OUT_RATE = 9;
 
 function selectedNavigationHeadingUpActive() {
   return Boolean(
@@ -3726,7 +3928,12 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   const anchoredY = focusRect.y + focusRect.height * anchorFraction;
   if (!state.userLocation) return anchoredY;
   const points = selectedNavigationTargetPoints();
-  if (points.length < 2) return anchoredY;
+  // Exactly two points is selectedRoutePoints' crow-flies fallback -- the walker and the
+  // destination, nothing in between (no routing graph yet, or no walkable route found).
+  // One of those two IS the pivot this measures from, so there is no shape to balance and
+  // headingUpAnchorFraction's bearing-mirrored anchor is the whole answer. Only a real
+  // routed line, with junctions of its own, has an ahead/behind split worth taking.
+  if (points.length < 3) return anchoredY;
 
   const radians = toRadians(currentNavigationMapRotationDegrees());
   const cos = Math.cos(radians);
@@ -3741,13 +3948,39 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
     if (rotatedY < 0) ahead = Math.max(ahead, -rotatedY);
     else behind = Math.max(behind, rotatedY);
   }
-  if (ahead <= 0 || behind <= 0) return anchoredY;
+  // No "is there anything on both sides?" guard. There used to be one -- `ahead <= 0 ||
+  // behind <= 0` fell back to `anchoredY` -- and it was a cliff, because the two formulas
+  // are nowhere near each other at the boundary while the thing deciding between them is a
+  // single vertex.
+  //
+  // Walking a route that runs behind you, the last junction you have not yet reached sits a
+  // few metres ahead and is the only thing on that side. It contributes essentially nothing
+  // to the split, so the balanced branch returns almost exactly `top`. Walk past it -- or
+  // let a 20m route re-solve (SELECTED_ROUTE_RECOMPUTE_MIN_METRES) drop it -- and the guard
+  // fired instead and the anchor stepped straight to `anchoredY`. Measured in the browser
+  // with the heading held still so nothing else could move the camera: 138px of anchor in
+  // one frame, reframing the map by 97px and snapping the zoom 23%. That is the "lots of
+  // reframing" half of the jarring-zoom report.
+  //
+  // Letting the split run all the way to the ends of its own range removes the step without
+  // a threshold to tune, because the limits ARE the right answers: with nothing ahead it
+  // gives `top`, the walker at the top of the rect with the whole route below -- which is
+  // both continuous with the almost-nothing-ahead case and a tighter fit than `anchoredY`
+  // was (measured on the route fixture at beta 20, the route fills 0.75+ of the binding axis
+  // this way against 0.61 falling back). With nothing behind it gives the bottom of the
+  // rect, everything above, which is the same statement mirrored.
+  //
+  // The collapse the doc comment above describes is still avoided: every value this can
+  // return lies inside [top, top + usable], which is the rect inset by the fit's own margin
+  // on both sides, so maxScaleForHeadingUpPoints always has real room to divide by.
+  const span = ahead + behind;
+  if (!(span > 0)) return anchoredY;
 
   const margin = headingUpFitMarginPx(focusRect);
   const top = focusRect.y + margin;
   const usable = focusRect.height - margin * 2;
   if (!(usable > 0)) return anchoredY;
-  return top + usable * (ahead / (ahead + behind));
+  return top + usable * (ahead / span);
 }
 
 function navigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
@@ -3809,61 +4042,73 @@ function resolveHeadingUpTargetScale(maxScale, previousScale, force = false, now
   if (!Number.isFinite(previousScale) || previousScale <= 0) return nextScale;
   const settleTolerance = Math.max(HEADING_UP_SCALE_SETTLE_MIN, previousScale * HEADING_UP_SCALE_SETTLE_RATIO);
 
-  // A change where the target still fits (previousScale <= maxScale -- typically a
-  // zoom-in) needs no immediate correction: nothing is off-screen, and snapping the
-  // scale frame by frame against a live compass reads as the map fighting the rotation.
-  // If previousScale > maxScale the target has left the view and is corrected below at
-  // once. force=true bypasses this entirely, for explicit navigation (e.g. returning
-  // from the filter screen's wide survey view back to the nearby screen).
+  // While the compass is quiet, or a caller has explicitly asked for this fit, the camera
+  // goes straight there: nothing is fighting it, so there is no jitter to smooth over.
+  // force=true is explicit navigation (returning from the filter screen's wide survey view
+  // back to the nearby screen, committing a selection), where the whole point is that the
+  // requested framing takes effect.
   //
-  // This used to `return previousScale` outright, which deferred such a change for as
-  // long as the sensor stayed live -- and the sensor only counts as quiet after
-  // HEADING_UP_SENSOR_ACTIVE_MS without an event, while iOS deviceorientation fires
-  // continuously the whole time the phone is held. So outdoors it was never quiet, the
-  // smoothing loop's settle branch (the only other place a deferred zoom could land)
-  // never ran either, and a deferred zoom-in simply never happened -- while zoom-*out*
-  // corrections applied immediately, so the scale could only ever ratchet wider. That
-  // is the "why is it so zoomed out" report, and the reason several callers had to grow
-  // a force:true to get a fit to stick at all. Easing toward the target instead keeps
-  // the anti-fighting intent (no snap, and frame-to-frame sensor noise averages out
-  // rather than driving the zoom) while sustained changes -- a tilt, a settled new
-  // heading -- still converge, in about a second at HEADING_UP_SCALE_EASE_RATE.
-  if (!force && headingUpCompassSensorActive(now) && previousScale <= maxScale) {
-    if (Math.abs(previousScale - nextScale) <= settleTolerance) {
+  // The one case that still snaps with the sensor live is an urgent zoom-out: previousScale
+  // more than HEADING_UP_SCALE_SNAP_RATIO past what fits means the target has genuinely
+  // left the framed area, and easing that over half a second would leave the destination
+  // off-screen while it ran. Everything short of that is eased below.
+  const urgent = previousScale > maxScale * HEADING_UP_SCALE_SNAP_RATIO;
+  if (force || urgent || !headingUpCompassSensorActive(now)) {
+    state.headingUpScaleEaseAt = null;
+    state.headingUpScaleEasing = false;
+    if (Math.abs(previousScale - nextScale) <= settleTolerance) return previousScale;
+    return nextScale;
+  }
+
+  // Converged: stop, and drop the latch so the deadband below guards the next move.
+  if (Math.abs(previousScale - nextScale) <= settleTolerance) {
+    state.headingUpScaleEaseAt = null;
+    state.headingUpScaleEasing = false;
+    return previousScale;
+  }
+
+  // Hysteresis deadband (HEADING_UP_SCALE_HOLD_RATIO). The fit moves a little on every
+  // frame -- live heading, live GPS, a route re-headed at the walker's current position --
+  // and responding to all of it is what read as the map breathing. Hold the scale that is
+  // on screen until the fit has drifted a real amount away from it, then glide the whole
+  // way there. `headingUpScaleEasing` latches that glide so it is not cut short the moment
+  // it re-enters the band; holding does not freeze the frame, since
+  // alignHeadingUpNavigationViewport still re-derives tx/ty every frame.
+  if (!state.headingUpScaleEasing) {
+    if (Math.abs(nextScale - previousScale) <= previousScale * HEADING_UP_SCALE_HOLD_RATIO) {
       state.headingUpScaleEaseAt = null;
       return previousScale;
     }
-    const lastEaseAt = state.headingUpScaleEaseAt;
-    const gapMs = Number.isFinite(lastEaseAt) ? (now - lastEaseAt) : null;
-    // The first frame of an ease only starts the clock, and so does a gap past
-    // HEADING_UP_SCALE_EASE_STALE_MS -- a genuinely stale timestamp (a backgrounded tab, a
-    // screen the ease did not run on) would otherwise be integrated as one enormous dt and
-    // snap, which is exactly the jump the ease exists to avoid.
-    if (gapMs == null || gapMs > HEADING_UP_SCALE_EASE_STALE_MS) {
-      state.headingUpScaleEaseAt = now;
-      return previousScale;
-    }
-    if (!(gapMs > 0)) return previousScale; // clock has not advanced (duplicate call this tick)
-    // Ordinary frames (including an occasional slow one well short of the stale
-    // threshold -- see HEADING_UP_SCALE_EASE_STALE_MS) integrate a dt clamped to
-    // HEADING_UP_SCALE_EASE_MAX_DT, same as before, so a single frame still never steps
-    // more than that bounded amount. The difference is the clock now only advances by the
-    // clamped amount actually integrated (not all the way to `now`), carrying the
-    // remainder over onto the next frame instead of dropping it -- a fixed-step
-    // accumulator, so a stretch of moderately slow frames (heavy per-frame tilt-projection
-    // work while the phone is actively being re-tilted, well short of a background-tab
-    // gap) still converges, just a little slower, rather than freezing indefinitely
-    // because every individual frame's gap kept resetting the clock without ever
-    // integrating anything.
-    const dt = Math.min(gapMs, HEADING_UP_SCALE_EASE_MAX_DT * 1000) / 1000;
-    state.headingUpScaleEaseAt = lastEaseAt + dt * 1000;
-    const eased = previousScale + (nextScale - previousScale) * (1 - Math.exp(-HEADING_UP_SCALE_EASE_RATE * dt));
-    return Number.isFinite(eased) && eased > 0 ? eased : previousScale;
+    state.headingUpScaleEasing = true;
   }
 
-  state.headingUpScaleEaseAt = null;
-  if (Math.abs(previousScale - nextScale) <= settleTolerance) return previousScale;
-  return nextScale;
+  const lastEaseAt = state.headingUpScaleEaseAt;
+  const gapMs = Number.isFinite(lastEaseAt) ? (now - lastEaseAt) : null;
+  // The first frame of an ease only starts the clock, and so does a gap past
+  // HEADING_UP_SCALE_EASE_STALE_MS -- a genuinely stale timestamp (a backgrounded tab, a
+  // screen the ease did not run on) would otherwise be integrated as one enormous dt and
+  // snap, which is exactly the jump the ease exists to avoid.
+  if (gapMs == null || gapMs > HEADING_UP_SCALE_EASE_STALE_MS) {
+    state.headingUpScaleEaseAt = now;
+    return previousScale;
+  }
+  if (!(gapMs > 0)) return previousScale; // clock has not advanced (duplicate call this tick)
+  // Ordinary frames (including an occasional slow one well short of the stale
+  // threshold -- see HEADING_UP_SCALE_EASE_STALE_MS) integrate a dt clamped to
+  // HEADING_UP_SCALE_EASE_MAX_DT, so a single frame still never steps more than that
+  // bounded amount. The clock only advances by the clamped amount actually integrated (not
+  // all the way to `now`), carrying the remainder over onto the next frame instead of
+  // dropping it -- a fixed-step accumulator, so a stretch of moderately slow frames (heavy
+  // per-frame tilt-projection work while the phone is actively being re-tilted, well short
+  // of a background-tab gap) still converges, just a little slower, rather than freezing
+  // indefinitely because every individual frame's gap kept resetting the clock without
+  // ever integrating anything.
+  const dt = Math.min(gapMs, HEADING_UP_SCALE_EASE_MAX_DT * 1000) / 1000;
+  state.headingUpScaleEaseAt = lastEaseAt + dt * 1000;
+  // Zoom-out runs at the faster rate: see HEADING_UP_SCALE_EASE_OUT_RATE.
+  const rate = nextScale < previousScale ? HEADING_UP_SCALE_EASE_OUT_RATE : HEADING_UP_SCALE_EASE_RATE;
+  const eased = previousScale + (nextScale - previousScale) * (1 - Math.exp(-rate * dt));
+  return Number.isFinite(eased) && eased > 0 ? eased : previousScale;
 }
 
 // The tilt camera as the viewport fit needs it. For a point `m` canvas px from the pivot
@@ -4380,6 +4625,10 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
 }
 
 function prepareCanvasForDraw() {
+  // Before anything reads the position this frame: walk state.userLocation along the glide
+  // set up by the last GPS fix (ingestLocationFix), so the camera, the fit, the route head
+  // and the You marker all move together rather than stepping once a second.
+  if (advanceLocationGlide()) requestDraw();
   _overlapRectCache = undefined;
   _tiltProjectionCache = undefined;
   _nearbyRenderOriginCache = undefined;

@@ -268,4 +268,201 @@ test.describe("Selected route line follows the road/path network", () => {
       expect(fill).toBeLessThanOrEqual(1.001);
     }
   });
+
+  test("the zoom glides while walking a route instead of jumping in and out", async ({ page }) => {
+    // Field report ("JARRING ZOOM"): walking to a destination, the zoom jumped in and out.
+    // The heading-up fit is re-solved on every compass frame against a live heading, a live
+    // GPS fix and a route whose head is the walker's current position, so the scale it asks
+    // for is never still. Zoom-*in* was eased, but any zoom-out -- however slight -- was
+    // applied in a single frame, so the camera sawtoothed: snap out, ease back in, snap out.
+    // See resolveHeadingUpTargetScale in js/app.js.
+    await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
+
+    const result = await page.evaluate(async () => {
+      const FRAMES = 180;
+      const GPS_EVERY = 16;       // ~1 fix per second at 60fps, which is what watchPosition gives
+      const WARMUP_FRAMES = 16;   // let the boot framing settle before measuring the walk
+      const WALK_METRES_PER_FIX = 1.4;
+      const WANDER_METRES = 8;    // GPS wander under tree cover
+
+      const start = state.userLocation;
+      const target = state.selected.item.point;
+      const dx = target.x - start.point.x;
+      const dy = target.y - start.point.y;
+      const len = Math.hypot(dx, dy);
+      const origin = unprojectPoint(start.point);
+      const oneUnitEast = unprojectPoint({ x: start.point.x + 1, y: start.point.y });
+      const metresPerUnit = distanceMetres(origin.latitude, origin.longitude, oneUnitEast.latitude, oneUnitEast.longitude);
+
+      let seed = 1;
+      const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+
+      state.tiltBetaSmoothed = 40;
+      state.tiltBetaTarget = 40;
+
+      let walkedUnits = 0;
+      let worstCoverage = 0;
+      let measured = 0;
+      let snapFrames = 0;
+      let worstJumpPercent = 0;
+      let previousScale = null;
+
+      for (let frame = 0; frame < FRAMES; frame += 1) {
+        // A fix a second, advancing along the bearing to the destination and wandering
+        // either side of it the way a real one does.
+        if (frame % GPS_EVERY === 0) {
+          walkedUnits += WALK_METRES_PER_FIX / metresPerUnit;
+          const wander = WANDER_METRES / metresPerUnit;
+          const x = start.point.x + (dx / len) * walkedUnits + (rnd() - 0.5) * wander;
+          const y = start.point.y + (dy / len) * walkedUnits + (rnd() - 0.5) * wander;
+          const here = unprojectPoint({ x, y });
+          state.userLocation = { latitude: here.latitude, longitude: here.longitude, accuracy: 10, point: { x, y } };
+        }
+        // Body and hand swing while walking, which is the other half of what moves the fit.
+        const heading = (Math.sin(frame / 40) * 20 + 360) % 360;
+        state.compassHeading = heading;
+        state.compassHeadingTarget = heading;
+        state.renderedNavigationHeading = heading;
+        state.compassLastEventAt = performance.now();
+
+        const rect = bestVisibleCanvasRect();
+        const wanted = maxHeadingUpNavigationScale(navigationFocusPoint(rect), rect) * (1 - 0.04); // HEADING_UP_SCALE_BUFFER_RATIO
+        const before = state.viewport.scale;
+        alignHeadingUpNavigationViewport();
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+        const after = state.viewport.scale;
+
+        if (previousScale != null && frame >= WARMUP_FRAMES) {
+          worstJumpPercent = Math.max(worstJumpPercent, Math.abs(after - previousScale) / previousScale * 100);
+          // How much of the distance to the fit this one frame covered. Deliberately measured
+          // as a *fraction of the gap* rather than a percentage of the scale: an eased step is
+          // bounded by the ease rate and HEADING_UP_SCALE_EASE_MAX_DT however slow the frame
+          // was, so this reads the same on a loaded CI runner as on a dev box, while a snap
+          // covers the whole gap by definition.
+          const gap = Math.abs(wanted - before);
+          if (gap > before * 0.03) {
+            measured += 1;
+            const coverage = Math.abs(after - before) / gap;
+            worstCoverage = Math.max(worstCoverage, coverage);
+            if (coverage > 0.6) snapFrames += 1;
+          }
+        }
+        previousScale = after;
+      }
+
+      state.userLocation = start;
+      return { worstCoverage, measured, snapFrames, worstJumpPercent };
+    });
+
+    expect(result.measured, "sanity: the walk should have moved the fit enough to measure").toBeGreaterThan(20);
+    // The camera is allowed to move -- the route really is shortening underneath it, and
+    // turning really does change what has to be framed. What it may not do is arrive in one
+    // frame. A single eased step can cover at most 1-exp(-HEADING_UP_SCALE_EASE_OUT_RATE *
+    // HEADING_UP_SCALE_EASE_MAX_DT) = 36% of the gap no matter how slow the frame was; a snap
+    // covers 100%. Measured on this fixture: 1.00 with 4 snap frames before the fix, 0.14 with
+    // none after.
+    expect(result.snapFrames, "no frame may jump the zoom straight to the fit").toBe(0);
+    expect(result.worstCoverage).toBeLessThan(0.6);
+    // And the resulting motion is small enough not to read as a jump at all.
+    expect(result.worstJumpPercent, "worst single-frame zoom change").toBeLessThan(4);
+  });
+
+  test("the map does not twitch once a second as GPS fixes arrive", async ({ page }) => {
+    // Second half of the "JARRING ZOOM" report: "lots of reframing". watchPosition delivers
+    // about one fix a second and consecutive fixes wander several metres under tree cover,
+    // and state.userLocation.point is the camera anchor, the fit origin and the 3D pivot at
+    // once -- so the whole map used to lurch on each fix and then sit perfectly still until
+    // the next. Walking toward a destination ~80m away it moved 15.8px on average and 26.2px
+    // at worst on a fix frame, against 0.3px on the frames between. See ingestLocationFix
+    // and advanceLocationGlide in js/app.js.
+    //
+    // The heading is held still throughout, so every pixel measured here is the position
+    // moving the camera and nothing else.
+    await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
+
+    const result = await page.evaluate(async () => {
+      const FRAMES = 180;
+      const GPS_EVERY = 16;
+      const WANDER_METRES = 8;
+
+      // Start close in, where the camera is zoomed right down and a few metres of wander is
+      // a large share of the frame -- which is where this is actually felt.
+      const target = state.selected.item.point;
+      const away = state.userLocation.point;
+      const near = { x: target.x + (away.x - target.x) * 0.028, y: target.y + (away.y - target.y) * 0.028 };
+      const dx = target.x - near.x;
+      const dy = target.y - near.y;
+      const len = Math.hypot(dx, dy);
+      const o = unprojectPoint(near);
+      const oEast = unprojectPoint({ x: near.x + 1, y: near.y });
+      const metresPerUnit = distanceMetres(o.latitude, o.longitude, oEast.latitude, oEast.longitude);
+
+      let seed = 1;
+      const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+
+      state.tiltBetaSmoothed = 40;
+      state.tiltBetaTarget = 40;
+      state.compassHeading = 0;
+      state.compassHeadingTarget = 0;
+      state.renderedNavigationHeading = 0;
+      state.rawUserLocation = null;
+      state.locationGlide = null;
+      state.locationSmoothedAt = null;
+      state.userLocation = null;
+
+      // A fixed world landmark: how far it slides between frames IS the reframing.
+      const landmark = { x: near.x + dx * 0.5, y: near.y + dy * 0.5 };
+
+      let walked = 0;
+      let previous = null;
+      const onFixFrames = [];
+      const betweenFrames = [];
+
+      for (let frame = 0; frame < FRAMES; frame += 1) {
+        if (frame % GPS_EVERY === 0) {
+          walked += 1.4 / metresPerUnit;
+          const wander = WANDER_METRES / metresPerUnit;
+          const x = near.x + (dx / len) * walked + (rnd() - 0.5) * wander;
+          const y = near.y + (dy / len) * walked + (rnd() - 0.5) * wander;
+          const here = unprojectPoint({ x, y });
+          state.userLocation = ingestLocationFix(here.latitude, here.longitude, 10);
+        }
+        // Deliberately not calling advanceLocationGlide() here: the app drives it on its
+        // own animation frames (ensureLocationGlideLoop), and this measures that pipeline
+        // rather than a second one the test invents.
+        state.compassLastEventAt = performance.now();
+        alignHeadingUpNavigationViewport();
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+
+        const screen = worldToScreen(landmark);
+        if (previous && frame >= GPS_EVERY) {
+          const moved = Math.hypot(screen.x - previous.x, screen.y - previous.y);
+          (frame % GPS_EVERY === 0 ? onFixFrames : betweenFrames).push(moved);
+        }
+        previous = screen;
+      }
+
+      const worst = (a) => (a.length ? Math.max(...a) : 0);
+      const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+      return {
+        onFix: { worst: worst(onFixFrames), mean: mean(onFixFrames), samples: onFixFrames.length },
+        between: { worst: worst(betweenFrames), mean: mean(betweenFrames), samples: betweenFrames.length },
+      };
+    });
+
+    expect(result.onFix.samples, "sanity: the walk should have delivered fixes to measure").toBeGreaterThan(5);
+    // The camera may move -- the walker really is walking. What it may not do is do all its
+    // moving in the one frame a fix lands on. Measured on this fixture: 26.2px worst on a
+    // fix frame before, 3.5px after.
+    expect(result.onFix.worst, "no single fix may lurch the map").toBeLessThan(10);
+    // And the giveaway for a step rather than motion is the ratio: before the fix, a frame
+    // carrying a GPS update moved ~46x further than one between updates. Now the movement is
+    // spread evenly across every frame, so the two are comparable.
+    const ratio = result.onFix.mean / Math.max(result.between.mean, 0.01);
+    expect(ratio, "movement should be spread across frames, not concentrated on fix frames").toBeLessThan(5);
+  });
 });

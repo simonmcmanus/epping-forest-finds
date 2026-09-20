@@ -240,6 +240,9 @@ globalThis.__forestFindsTest = {
   HEADING_UP_SCALE_SETTLE_RATIO,
   HEADING_UP_SCALE_EASE_RATE,
   HEADING_UP_SCALE_EASE_MAX_DT,
+  HEADING_UP_SCALE_HOLD_RATIO,
+  HEADING_UP_SCALE_SNAP_RATIO,
+  HEADING_UP_SCALE_EASE_OUT_RATE,
   maxNearbyHeadingUpScale,
   nearbyFirstPersonFitZoom,
   NEARBY_TILT_FIT_ZOOM,
@@ -324,6 +327,10 @@ globalThis.__forestFindsTest = {
   cacheVersionLabel,
   selectedNavigationTargetPoints,
   balancedNavigationAnchorY,
+  ingestLocationFix,
+  advanceLocationGlide,
+  LOCATION_GLIDE_EPSILON,
+  LOCATION_SMOOTHING_SNAP_METRES,
   bestVisibleCanvasRect,
   ensureUserAndSelectionVisible,
   refitSelectionAfterRoutingGraphReady,
@@ -5520,6 +5527,412 @@ test("a sustained run of moderately slow (but not stale) frames still converges 
 
   const fill = (app.navigationFocusPoint().y - app.worldToScreen(destination.point).y) / fit.band;
   assert.ok(fill > 0.5, `destination should have moved meaningfully toward framed after converging, filled ${(fill * 100).toFixed(0)}%`);
+});
+
+// ---------------------------------------------------------------------------------------
+// resolveHeadingUpTargetScale: walking to a destination must not make the map breathe.
+//
+// Field report ("JARRING ZOOM"): walking a route, the zoom jumped in and out and the view
+// kept reframing. Two causes, both here.
+//
+//   A. Zoom-*in* was eased but ANY zoom-out, however slight, fell straight through to a
+//      one-frame snap. A live compass and a live GPS fix produce a steady trickle of small
+//      zoom-out requests, so the camera sawtoothed: snap out hard, ease back in over ~1s,
+//      snap out hard again.
+//   B. The only thing standing between the camera and the fit was the 2% settle tolerance,
+//      which exists to absorb sub-pixel noise between two identical fits and is far too
+//      tight to cover the wander a walking pace produces.
+//
+// The fix eases both directions (reserving the snap for a real overshoot,
+// HEADING_UP_SCALE_SNAP_RATIO) behind a hysteresis deadband (HEADING_UP_SCALE_HOLD_RATIO).
+// ---------------------------------------------------------------------------------------
+
+// Drives resolveHeadingUpTargetScale the way a real frame loop does -- each frame's result
+// fed back in as the next frame's previousScale, with the compass firing throughout, which
+// is the condition under which all of this smoothing applies.
+//
+// Fully transparent to the rest of the suite, which matters more here than usual: all of
+// these tests share one `app`, run in registration order, and have no per-test isolation
+// (see "Unit tests" in spec/agents.md), so every field this touches is inherited by
+// whatever runs next. Two ways that bit while this was being written --
+//
+//   - the synthetic clock below is not the app's `performance.now()`, so a leftover
+//     state.headingUpScaleEaseAt hands the next test an ease clock in its *future*: gapMs
+//     comes out negative, the `!(gapMs > 0)` guard fires every frame, and that test's ease
+//     silently freezes;
+//   - leaving state.compassLastEventAt at one of these timestamps (or at null) flips
+//     headingUpCompassSensorActive() for every later test, which is what decides whether
+//     the scale is smoothed at all.
+//
+// Both showed up as an unrelated nearby-slide test failing about one run in four. So save
+// and restore, and return the latch rather than leaving it set for tests to read.
+function easeScaleFrames(app, { maxScale, from, frames, frameMs = 16 }) {
+  const saved = {
+    compassLastEventAt: app.state.compassLastEventAt,
+    headingUpScaleEaseAt: app.state.headingUpScaleEaseAt,
+    headingUpScaleEasing: app.state.headingUpScaleEasing,
+  };
+  app.state.headingUpScaleEaseAt = null;
+  app.state.headingUpScaleEasing = false;
+  let scale = from;
+  let now = 100000;
+  for (let i = 0; i < frames; i++) {
+    app.state.compassLastEventAt = now;
+    scale = app.resolveHeadingUpTargetScale(maxScale, scale, false, now);
+    now += frameMs;
+  }
+  const easing = app.state.headingUpScaleEasing;
+  Object.assign(app.state, saved);
+  return { scale, easing };
+}
+
+test("a modest heading-up zoom-out eases instead of snapping, so walking does not sawtooth the zoom", () => {
+  const maxScale = 1000;
+  const fit = maxScale * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO);
+  // Past the hold band, but well short of HEADING_UP_SCALE_SNAP_RATIO: the target is
+  // encroaching on the fit margin, not off the screen.
+  const from = maxScale * 1.18;
+  assert.ok(from < maxScale * app.HEADING_UP_SCALE_SNAP_RATIO, "fixture must not be an urgent correction");
+
+  const { scale: afterOne } = easeScaleFrames(app, { maxScale, from, frames: 1 });
+  assert.equal(afterOne, from, "the first frame only starts the ease clock");
+
+  const { scale: afterFive } = easeScaleFrames(app, { maxScale, from, frames: 5 });
+  assert.ok(afterFive < from, "the zoom-out should be moving");
+  assert.ok(
+    afterFive > from - (from - fit) * 0.6,
+    `no snap: five frames should not cover most of the gap, went ${from.toFixed(0)} -> ${afterFive.toFixed(0)} of ${fit.toFixed(0)} (pre-fix: ${fit.toFixed(0)} on frame one)`
+  );
+
+  const { scale: settled } = easeScaleFrames(app, { maxScale, from, frames: 60 });
+  // "Converged" is the ease's own stopping condition: within settleTolerance, which is
+  // measured against the scale it has reached rather than the fit, so it lands just inside
+  // HEADING_UP_SCALE_SETTLE_RATIO of the target rather than exactly on it.
+  assert.ok(
+    Math.abs(settled - fit) <= settled * app.HEADING_UP_SCALE_SETTLE_RATIO + 1e-6,
+    `the zoom-out should still converge on the fit (${fit.toFixed(0)}), got ${settled.toFixed(0)}`
+  );
+});
+
+test("a heading-up target that has genuinely left the view is still corrected in one frame", () => {
+  const maxScale = 1000;
+  const fit = maxScale * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO);
+  const from = maxScale * (app.HEADING_UP_SCALE_SNAP_RATIO + 0.25);
+
+  const { scale: afterOne, easing } = easeScaleFrames(app, { maxScale, from, frames: 1 });
+  assert.ok(
+    Math.abs(afterOne - fit) < 1e-6,
+    `an overshoot past HEADING_UP_SCALE_SNAP_RATIO should snap, got ${afterOne.toFixed(0)} want ${fit.toFixed(0)}`
+  );
+  assert.equal(easing, false, "a snap should not leave the ease latched");
+});
+
+test("heading-up scale drift inside the hold band moves the camera not at all", () => {
+  const maxScale = 1000;
+  const fit = maxScale * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO);
+  // 8% away from the fit: outside HEADING_UP_SCALE_SETTLE_RATIO (2%), so it is specifically
+  // the deadband holding here and not the old settle tolerance, and inside
+  // HEADING_UP_SCALE_HOLD_RATIO (13%).
+  const from = fit * 1.08;
+  assert.ok(Math.abs(fit - from) > from * app.HEADING_UP_SCALE_SETTLE_RATIO, "fixture must clear the settle tolerance");
+  assert.ok(Math.abs(fit - from) < from * app.HEADING_UP_SCALE_HOLD_RATIO, "fixture must sit inside the hold band");
+
+  const { scale: after } = easeScaleFrames(app, { maxScale, from, frames: 120 }); // ~2s of frames
+  assert.equal(after, from, "a fit drifting inside the hold band should not move the camera at all");
+});
+
+test("once the heading-up hold band is broken the ease runs all the way to the fit, not just back to the band edge", () => {
+  const maxScale = 1000;
+  const fit = maxScale * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO);
+  const from = fit / 2;
+
+  const { scale: settled, easing } = easeScaleFrames(app, { maxScale, from, frames: 120 });
+  const bandEdge = fit * (1 - app.HEADING_UP_SCALE_HOLD_RATIO);
+  assert.ok(
+    settled > bandEdge,
+    `the latch should carry the ease past the band edge (${bandEdge.toFixed(0)}), stopped at ${settled.toFixed(0)}`
+  );
+  assert.ok(
+    Math.abs(settled - fit) <= settled * app.HEADING_UP_SCALE_SETTLE_RATIO + 1e-6,
+    `and land on the fit (${fit.toFixed(0)}), got ${settled.toFixed(0)}`
+  );
+  assert.equal(easing, false, "converging should drop the latch so the band guards the next move");
+});
+
+// ---------------------------------------------------------------------------------------
+// balancedNavigationAnchorY: one vertex a few metres ahead is not "the route goes both ways".
+//
+// Second half of the "JARRING ZOOM" report -- "lots of reframing". The anchor chooses
+// between two formulas that are nowhere near each other at the boundary, and the old
+// `ahead <= 0` guard put that choice on a hair: any vertex at all on the ahead side, however
+// close, switched the whole framing onto the balanced branch. Walking a route that runs
+// behind you, the last junction you have not yet reached is exactly such a vertex -- and
+// walking past it, or a 20m route re-solve dropping it, stepped the anchor 138px and the
+// map 97px in a single frame. Measured in the browser with the heading held still so
+// nothing else could move the camera.
+// ---------------------------------------------------------------------------------------
+
+// A destination due south with the walker facing north, on a real routed line: everything
+// to be framed is behind except one junction a few metres ahead.
+//
+// That near junction is not contrived. selectedRoutePoints runs the line from the walker's
+// live position through the graph nodes to the destination, so while you are walking up to
+// the next node it sits a handful of metres ahead of you. It is a rounding error against a
+// route kilometres long, but the old `ahead <= 0` guard only asked whether anything at all
+// was on the ahead side -- so walking past that one vertex, or a 20m route re-solve
+// dropping it, flipped the anchor between two formulas that are nowhere near each other.
+//
+// `metresAhead` of 0 removes it, which is what walking past it looks like to the fit. The
+// behind vertices stay either way, so the set is a real routed line in both cases rather
+// than collapsing to the two-point crow-flies fallback.
+function selectRouteBehindWalker(app, metresAhead = 4) {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  const destination = makePoint(app, -0.005, 0);
+  app.state.trees = [{ id: "behind-dest", commonName: "Behind destination", ...destination }];
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  const tail = [];
+  // ~4m north of the walker: one degree of latitude is ~111km.
+  if (metresAhead > 0) tail.push(makePoint(app, metresAhead / 111000, 0).point);
+  tail.push(makePoint(app, -0.002, 0).point);
+  tail.push(makePoint(app, -0.004, 0).point);
+  tail.push(destination.point);
+  app.state.selectedRouteCache = {
+    target: app.state.trees[0],
+    fromLatitude: 0,
+    fromLongitude: 0,
+    tail,
+    routed: true,
+  };
+  return destination;
+}
+
+test("a routed line that runs behind you anchors you at the top of the map, with the route below", () => {
+  selectRouteBehindWalker(app);
+  const rect = app.bestVisibleCanvasRect();
+  const fraction = app.headingUpAnchorFraction(true);
+  const top = rect.y + app.headingUpFitMarginPx(rect);
+
+  const anchored = app.balancedNavigationAnchorY(rect, fraction);
+  // Near the top of the rect -- the tight framing, with the whole route in the space below.
+  // Measured on the real route fixture in the browser, this is what fills 0.75+ of the
+  // binding axis where the bearing-mirrored plain anchor manages 0.61
+  // (12-selected-route.spec.js, "framed where the tilt camera draws it").
+  assert.ok(
+    anchored < rect.y + rect.height * 0.2,
+    `an all-behind route should put the walker near the top, got ${anchored.toFixed(0)} of ${rect.height.toFixed(0)}`
+  );
+  assert.ok(anchored >= top - 1e-9, "and never above the fit's own top margin, which would collapse the scale");
+});
+
+test("walking past the last route junction ahead of you does not reframe the map", () => {
+  selectRouteBehindWalker(app, 4);
+  const rect = app.bestVisibleCanvasRect();
+  const fraction = app.headingUpAnchorFraction(true);
+  const before = app.balancedNavigationAnchorY(rect, fraction);
+
+  // Now it is behind you -- which is what both walking past it and a 20m route re-solve
+  // dropping it look like to the fit.
+  selectRouteBehindWalker(app, 0);
+  const after = app.balancedNavigationAnchorY(rect, fraction);
+
+  // Not zero: that vertex is genuinely part of the route, so the split it contributes to
+  // moves by its own small share. What it must not do is step -- before this, losing it
+  // switched formulas outright, for 102px here and 138px measured in the browser.
+  assert.ok(
+    Math.abs(after - before) < rect.height * 0.01,
+    `losing the last vertex ahead should move the anchor by its own share, not a step (pre-fix: 102px here, 138px in the browser), moved ${Math.abs(after - before).toFixed(0)}px of ${rect.height.toFixed(0)}`
+  );
+});
+
+test("a route that genuinely loops both ways still gets the balanced anchor", () => {
+  // The case balancedNavigationAnchorY exists for must keep working: with a real share of
+  // the route on each side, the split sits well inside the rect rather than at either end.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  const destination = makePoint(app, 0.004, 0);
+  app.state.trees = [{ id: "loop-dest", commonName: "Loop destination", ...destination }];
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  app.state.selectedRouteCache = {
+    target: app.state.trees[0],
+    fromLatitude: 0,
+    fromLongitude: 0,
+    tail: [makePoint(app, -0.004, 0).point, makePoint(app, 0.002, 0).point, destination.point],
+    routed: true,
+  };
+  const rect = app.bestVisibleCanvasRect();
+  const balanced = app.balancedNavigationAnchorY(rect, app.headingUpAnchorFraction(true));
+  // Route reaches equally far each way, so the walker belongs in the middle.
+  assert.ok(
+    Math.abs(balanced - (rect.y + rect.height / 2)) < rect.height * 0.1,
+    `an evenly two-sided route should anchor near the middle, got ${balanced.toFixed(0)} of ${rect.height.toFixed(0)}`
+  );
+});
+
+test("a crow-flies fallback line has nothing to balance, so the plain bearing anchor stands", () => {
+  // Two points -- the walker and the destination, no routing graph yet. One of them IS the
+  // pivot, so there is no shape to split; headingUpAnchorFraction is the whole answer, and
+  // navigationFocusPoint's documented contract depends on it.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  const destination = makePoint(app, -0.005, 0);
+  app.state.trees = [{ id: "straight-dest", commonName: "Straight destination", ...destination }];
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+  app.state.selectedRouteCache = {
+    target: app.state.trees[0],
+    fromLatitude: 0,
+    fromLongitude: 0,
+    tail: [destination.point],
+    routed: false,
+  };
+  const rect = app.bestVisibleCanvasRect();
+  const fraction = app.headingUpAnchorFraction(true);
+  assert.equal(app.selectedNavigationTargetPoints().length, 2, "fixture must be the two-point fallback");
+  assert.ok(
+    Math.abs(app.balancedNavigationAnchorY(rect, fraction) - (rect.y + rect.height * fraction)) < 1e-9,
+    "the two-point fallback should use headingUpAnchorFraction unchanged"
+  );
+});
+
+// ---------------------------------------------------------------------------------------
+// ingestLocationFix / advanceLocationGlide: the once-a-second GPS twitch.
+// ---------------------------------------------------------------------------------------
+
+function resetLocationSmoothing(app) {
+  app.state.rawUserLocation = null;
+  app.state.locationGlide = null;
+  app.state.locationSmoothedAt = null;
+}
+
+test("the first GPS fix is used as delivered, with no smoothing to ease in from", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  const fix = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  assert.equal(fix.latitude, 51.665);
+  assert.equal(fix.longitude, 0.045);
+  assert.equal(app.state.locationGlide, null, "nothing to glide from on the first fix");
+  assert.ok(app.state.rawUserLocation, "the raw fix is kept for analytics");
+});
+
+test("a later GPS fix is eased toward rather than jumping the position", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  const before = { ...app.state.userLocation.point };
+
+  // A second fix ~12m away, one second later: wander, not a teleport.
+  const next = app.ingestLocationFix(51.66511, 0.04501, 10, 2000);
+  assert.deepEqual(
+    { x: next.point.x, y: next.point.y }, before,
+    "the position should not move on the fix itself -- the per-frame ease carries it"
+  );
+  const glide = app.state.locationGlide;
+  assert.ok(glide, "an ease toward the new fix should be pending");
+  assert.deepEqual(glide.to, app.state.rawUserLocation.point, "and it heads for the raw fix");
+
+  app.state.userLocation = next;
+  const total = Math.hypot(glide.to.x - before.x, glide.to.y - before.y);
+
+  app.advanceLocationGlide(2016);
+  const afterOneFrame = Math.hypot(app.state.userLocation.point.x - before.x, app.state.userLocation.point.y - before.y);
+  assert.ok(
+    afterOneFrame > 0 && afterOneFrame < total * 0.5,
+    `one frame should cover part of the distance, not all of it: ${afterOneFrame} of ${total}`
+  );
+
+  // Most of the way within about a second (tau is 1s at this accuracy), and all the way
+  // given a few more -- it must not rest short of the fix.
+  for (let t = 2032; t <= 3000; t += 16) app.advanceLocationGlide(t);
+  const afterASecond = Math.hypot(app.state.userLocation.point.x - before.x, app.state.userLocation.point.y - before.y);
+  assert.ok(afterASecond > total * 0.5, `a second of easing should cover most of the distance, got ${afterASecond} of ${total}`);
+
+  for (let t = 3016; t <= 12000; t += 16) app.advanceLocationGlide(t);
+  const remaining = Math.hypot(app.state.userLocation.point.x - glide.to.x, app.state.userLocation.point.y - glide.to.y);
+  assert.ok(remaining <= app.LOCATION_GLIDE_EPSILON, `the ease should converge on the fix, ${remaining} short`);
+});
+
+test("a position that stops updating still converges on the last fix, rather than resting short of it", () => {
+  // The failure this guards, caught in CI: a per-fix low-pass only recomputed its target
+  // when a fix arrived, so one fix followed by silence left the position permanently
+  // part-way there. The settings spec sets a position once and waits for
+  // state.userLocation to reach it -- it waited out the whole 60s test timeout.
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000); // poor accuracy: the most smoothing
+  app.state.userLocation = app.ingestLocationFix(51.6653, 0.0453, 25, 2000);
+  const destination = { ...app.state.rawUserLocation };
+
+  for (let t = 2016; t <= 12000; t += 16) app.advanceLocationGlide(t);
+
+  assert.ok(
+    Math.abs(app.state.userLocation.latitude - destination.latitude) < 0.000005,
+    `latitude should reach the fix, off by ${Math.abs(app.state.userLocation.latitude - destination.latitude)}`
+  );
+  assert.ok(
+    Math.abs(app.state.userLocation.longitude - destination.longitude) < 0.000005,
+    `longitude should reach the fix, off by ${Math.abs(app.state.userLocation.longitude - destination.longitude)}`
+  );
+});
+
+test("a large jump in position lands at once rather than crawling there", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  // Well past LOCATION_SMOOTHING_SNAP_METRES: a first fix after a gap, or coming out of a
+  // tunnel. Easing across that would read as the map sliding away on its own.
+  const jumped = app.ingestLocationFix(51.68, 0.06, 10, 2000);
+  assert.equal(app.state.locationGlide, null, "no glide for a real jump");
+  assert.equal(jumped.latitude, 51.68, "the position lands on the fix itself");
+});
+
+test("a poor-accuracy fix is leaned on harder than a good one", () => {
+  const coveredIn = (accuracy, frames) => {
+    resetData(app);
+    resetLocationSmoothing(app);
+    app.state.userLocation = null;
+    app.state.userLocation = app.ingestLocationFix(51.665, 0.045, accuracy, 1000);
+    const from = { ...app.state.userLocation.point };
+    app.state.userLocation = app.ingestLocationFix(51.66511, 0.04501, accuracy, 2000);
+    const to = app.state.locationGlide.to;
+    for (let i = 1; i <= frames; i += 1) app.advanceLocationGlide(2000 + i * 16);
+    const moved = Math.hypot(app.state.userLocation.point.x - from.x, app.state.userLocation.point.y - from.y);
+    return moved / Math.hypot(to.x - from.x, to.y - from.y);
+  };
+  // Same frames, same distance: the tight fix is followed further in that time. Both still
+  // arrive -- accuracy sets how hard the wander is damped on the way, not where it ends up.
+  const tight = coveredIn(4, 10);
+  const loose = coveredIn(25, 10);
+  assert.ok(tight > loose, `a 4m fix should be followed faster than a 25m one, covered ${tight.toFixed(2)} vs ${loose.toFixed(2)}`);
+});
+
+test("a heading-up zoom-out eases faster than a zoom-in of the same proportion", () => {
+  const maxScale = 1000;
+  const fit = maxScale * (1 - app.HEADING_UP_SCALE_BUFFER_RATIO);
+  const frames = 6;
+
+  const outFrom = fit * 1.3;
+  const { scale: outAfter } = easeScaleFrames(app, { maxScale, from: outFrom, frames });
+  const outCovered = (outFrom - outAfter) / (outFrom - fit);
+
+  const inFrom = fit / 1.3;
+  const { scale: inAfter } = easeScaleFrames(app, { maxScale, from: inFrom, frames });
+  const inCovered = (inAfter - inFrom) / (fit - inFrom);
+
+  assert.ok(outCovered > 0 && inCovered > 0, "both directions should be easing");
+  assert.ok(
+    outCovered > inCovered * 1.5,
+    `recovering room the target is running out of should be quicker than tightening an already-correct frame: out covered ${(outCovered * 100).toFixed(0)}%, in ${(inCovered * 100).toFixed(0)}%`
+  );
 });
 
 // --- Compass staleness recovery -------------------------------------------------
