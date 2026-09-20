@@ -2,7 +2,7 @@
 
 Owns the words and the public-facing surfaces of Epping Forest Finds: the
 positioning, the approved phrase bank, the marketing homepage at `/`, the
-mailing-list sign-up, the social sharing assets, and the hero illustration.
+mailing-list sign-up, the social sharing assets, and the hero image.
 
 This spec is the **single source of truth for product copy**. The meta tags in
 `app.html`, `manifest.webmanifest`'s `description`, the weekly ledger report
@@ -11,9 +11,9 @@ footers, the onboarding welcome step and (later) the app store listings in
 §3 rather than inventing their own wording. When a phrase changes here, those
 surfaces change with it.
 
-It does **not** own the alpha access gate — who may reach `/app`, how invite
-tokens work, or the edge function that enforces it. That belongs in
-`spec-alpha-access.md` (to be written). This spec only defines the *call to
+It does **not** own the alpha access gate — who may reach `/app`, how the
+shared secret link works, or the edge function that enforces it. That belongs
+in `spec-alpha-access.md` (to be written). This spec only defines the *call to
 action* that the gate's state selects between (§8).
 
 ## 1. Why the homepage exists
@@ -258,58 +258,45 @@ generated report links back to the homepage. This is what lifts both.
 
 `test/sitemap.test.js` updates alongside.
 
-## 7. The hero illustration
+## 7. The hero image
 
-A single English Longhorn, drawn from the foreground animal in the supplied
-photograph, rendered as line art in the app's existing illustration style.
+The hero image is supplied separately and is **not blocking**. The homepage is
+built with a placeholder slot so the page can ship, be reviewed and be tested
+before the final artwork exists.
 
-**Subject and composition**
+Subject: the forest's grazing cattle. A photograph of an English Longhorn, or a
+line-art treatment of one, with the GPS collar visible if the framing allows —
+the collar is the detail that makes the live-cattle feature possible and it
+tells the product's best story without a caption.
 
-- One animal only. The second cow and the background in the source photograph
-  are dropped.
-- Three-quarter view, body angled left-to-right, head turned toward the viewer.
-- The long horns — sweeping outward and upward, curving forward at the tips —
-  are the silhouette's defining feature and must stay unmistakable at small
-  sizes.
-- The mottled roan coat is suggested with a few interior contour lines, not
-  reproduced. Line art, not a traced photograph.
-- **Keep the GPS collar.** The dark collar with its tracking unit at the throat
-  is the exact thing that makes the live-cattle feature possible. It is a
-  detail worth a second look and it tells the product's best story without a
-  caption.
-- The ear tag may be simplified away.
+Requirements when the artwork arrives:
 
-**Style**
+- Behind or beside the hero text, never competing with it: the headline must
+  meet contrast requirements against whatever sits behind it.
+- Readable at 320px wide (single column, phone) and at full desktop hero width.
+- Served in a modern format at a sensible size. This page competes on mobile
+  local search, so the hero must not be the reason it loads slowly.
+- Not blocked behind JavaScript — it is part of the page, not an enhancement.
+- A 1200x630 crop of the same image serves as the social card (section 10), so
+  the composition needs to survive that aspect ratio with copy beside it.
+- Meaningful `alt` text describing the animal, not the file.
 
-The reference is the existing app iconography, in particular
-`data/icons/cow.png` — match its stroke weight, corner treatment and level of
-detail rather than introducing a new illustration style. Even, confident
-strokes; no gradients, no fills beyond flat brand colours, no drop shadows.
-
-**Technical**
-
-- SVG, drawn on a viewBox that crops close to the animal.
-- Strokes use `currentColor` where possible so the illustration inherits the
-  section's text colour.
-- Sized and positioned so it never competes with the headline for legibility:
-  reduced opacity and/or offset to one side, with the headline meeting contrast
-  requirements against whatever sits behind it.
-- Must render sensibly at 320px wide (single column, phone) and at full
-  desktop hero width.
-- The same artwork is reused for the social image (§10), so it must read at
-  1200×630 with copy beside it.
+Until it exists the slot renders the brand paper background with the hero copy
+over it. That is a shippable state, not a broken one.
 
 ## 8. The call to action
 
 The CTA is **one swappable element**, not a theme running through the copy.
 Launch must be a configuration change, not a rewrite.
 
-The alpha state (owned by `spec-alpha-access.md`) selects between:
+The alpha state (owned by `spec-alpha-access.md`) selects between two states.
+There is no third "waves" state: access is a shared secret link, so letting
+people in a batch at a time is a matter of who you mail the link to, not a mode
+the site runs in.
 
 | State | CTA | Supporting line |
 | --- | --- | --- |
-| `closed` | Join the alpha → sign-up form | "Epping Forest Finds is in a closed alpha. Leave your email and we'll send you an invite." |
-| `waves` | Join the alpha → sign-up form | "We're letting people in a few at a time. Leave your email and you'll get an invite in the next batch." |
+| `closed` | Join the alpha → sign-up form | "Epping Forest Finds is in a closed alpha. Leave your email and we'll send you the link." |
 | `open` | Open the map → `/app` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
@@ -369,8 +356,9 @@ afterwards. Required edits:
 - Name **EmailOctopus** as a processor.
 - Keep the existing anonymity claim intact for tracking data, and state
   explicitly that **mailing-list addresses are not linked to the anonymous
-  tracking identifier**. This remains true by construction: the invite cookie
-  is `Path=/app`, so the browser never sends it to `/api/track`.
+  tracking identifier**. This is true by construction: access is a single
+  shared secret, so the gate carries no per-person identity there would be
+  anything to link.
 
 ### 9.5 Abuse
 
