@@ -276,7 +276,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // for is never still. Zoom-*in* was eased, but any zoom-out -- however slight -- was
     // applied in a single frame, so the camera sawtoothed: snap out, ease back in, snap out.
     // See resolveHeadingUpTargetScale in js/app.js.
-    await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
 
@@ -380,7 +380,7 @@ test.describe("Selected route line follows the road/path network", () => {
     //
     // The heading is held still throughout, so every pixel measured here is the position
     // moving the camera and nothing else.
-    await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
 
