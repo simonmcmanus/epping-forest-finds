@@ -7,7 +7,7 @@
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v32";
+const APP_CACHE_NAME = "forest-finds-app-v33";
 const DATA_CACHE_NAME = "forest-finds-data-v4";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
@@ -435,6 +435,9 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
+
+  // Marketing ships independently: never read or write its assets in app caches.
+  if (requestUrl.pathname.startsWith("/assets/home/")) return;
 
   // Always bypass cache for API and admin requests
   if (

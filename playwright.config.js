@@ -7,6 +7,8 @@ const { defineConfig, devices } = require("@playwright/test");
 // changes nothing about the baseline the committed snapshots were generated
 // against. A mismatched Chromium build renders text slightly differently, so
 // treat toHaveScreenshot() failures under this var as environmental, not real.
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:8080";
+
 const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 const launchOptions = chromiumExecutablePath
   ? {
@@ -62,7 +64,7 @@ module.exports = defineConfig({
   snapshotPathTemplate: "test/e2e/__screenshots__/{arg}{-projectName}{-platform}{ext}",
 
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:8080",
+    baseURL,
     trace: "on-first-retry",
     // Suppress service-worker registration so tests always hit real routes
     serviceWorkers: "block",
@@ -77,17 +79,20 @@ module.exports = defineConfig({
       name: "mobile",
       use: { ...devices["Pixel 5"], launchOptions },
       // Only run specs that have mobile snapshots or mobile-specific behaviour.
+      // 18 covers the independent marketing homepage on phones as well.
       // 13 (3D tilt) is included because tilt is driven by device orientation and only
       // ever happens on a phone — the desktop profile would exercise it at a viewport
       // shape it never actually sees.
-      testMatch: ["**/0[12345]-*.spec.js", "**/09-*.spec.js", "**/13-*.spec.js"],
+      testMatch: ["**/0[12345]-*.spec.js", "**/09-*.spec.js", "**/13-*.spec.js", "**/18-*.spec.js"],
     },
   ],
 
   webServer: {
     command: "node server.js",
-    port: 8080,
-    reuseExistingServer: !process.env.CI,
+    url: baseURL,
+    env: { PORT: new URL(baseURL).port || "80" },
+    // Separate worktrees must never test an unrelated checkout's running server.
+    reuseExistingServer: false,
     timeout: 30_000,
   },
 });
