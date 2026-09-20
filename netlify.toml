@@ -7,6 +7,27 @@
 [functions]
   node_bundler = "esbuild"
 
+# Closed alpha gate. Only the app's HTML entry point is gated -- the loose
+# assets stay public so the service worker can fill its offline caches and so
+# crawlers can reach robots.txt, the sitemap and the homepage.
+# See spec/spec-alpha-access.md.
+[[edge_functions]]
+  function = "alpha-gate"
+  path = "/app"
+
+[[edge_functions]]
+  function = "alpha-gate"
+  path = "/app.html"
+
+# The pretty URL for the map. app.html stays at the root rather than moving to
+# /app/index.html: js/nav.js registers the service worker relatively, so a
+# directory move would collapse its scope to /app/ and the app would stop
+# working offline entirely.
+[[redirects]]
+  from = "/app"
+  to = "/app.html"
+  status = 200
+
 [[redirects]]
   from = "/api/cows"
   to = "/.netlify/functions/cows"
@@ -22,5 +43,11 @@
 [[redirects]]
   from = "/api/admin/tracks"
   to = "/.netlify/functions/track"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/subscribe"
+  to = "/.netlify/functions/subscribe"
   status = 200
   force = true

@@ -30,7 +30,7 @@ test.describe("Location and GPS — happy path", () => {
 
     test("distance info appears as an always-visible combined distance and walk chip after a GPS fix", async ({ page }) => {
       // Navigate to a tree via URL hash (tree search toggle is hidden on desktop viewports)
-      await page.goto("/#tree=11383");
+      await page.goto("/app#tree=11383");
       await page.waitForFunction(
         () => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; },
         { timeout: 30_000 }
@@ -97,12 +97,12 @@ test.describe("Location and GPS — happy path", () => {
     test("the map still opens when the location request never calls back", async ({ page }) => {
       // Deliberately sits through the whole BOOT_LOCATION_TIMEOUT_MS bound on top
       // of the normal data load, so it needs more room than the default wait.
-      await gotoAndWaitForMap(page, "/", { timeout: 45_000 });
+      await gotoAndWaitForMap(page, "/app", { timeout: 45_000 });
       await expect(page.locator("#mapCanvas")).toBeVisible();
     });
 
     test("and the gate offers a retry rather than leaving the reader stuck", async ({ page }) => {
-      await gotoAndWaitForMap(page, "/", { timeout: 45_000 });
+      await gotoAndWaitForMap(page, "/app", { timeout: 45_000 });
       await expect(page.locator("#locationGate")).toBeVisible();
       await expect(page.locator("#locationGateButton")).toBeEnabled();
     });

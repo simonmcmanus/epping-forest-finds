@@ -92,7 +92,7 @@ async function denyGeolocationUnlessGranted(page) {
  * a 420 ms timer. We must wait for el.hidden === true (not just CSS opacity 0)
  * because the transparent overlay still intercepts pointer events until then.
  */
-async function gotoAndWaitForMap(page, path = "/", { timeout = 30_000 } = {}) {
+async function gotoAndWaitForMap(page, path = "/app", { timeout = 30_000 } = {}) {
   await denyGeolocationUnlessGranted(page);
   await page.goto(path);
   await page.waitForFunction(
@@ -112,7 +112,7 @@ async function gotoAndWaitForMap(page, path = "/", { timeout = 30_000 } = {}) {
  * state.userLocation null so the overview empty-state assertion in 02-overview still
  * works.
  */
-async function setup(page, urlPath = "/") {
+async function setup(page, urlPath = "/app") {
   await skipOnboarding(page);
   await mockCowApi(page);
   await gotoAndWaitForMap(page, urlPath);

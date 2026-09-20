@@ -10,6 +10,8 @@ Update the relevant spec file(s) with every code change that adds, removes, or a
 - `spec/spec-native.md` — iOS/Android native wrapper (Capacitor shell, `js/native.js`, native heading/permissions, bundled data + delta updates, store requirements)
 - `spec/spec-weekly-report.md` — weekly Epping Forest Ledger report generator (`scripts/report/`)
 - `spec/spec-icons.md` — icon registry, icon rendering, generated icon asset requirements
+- `spec/spec-alpha-access.md` — closed alpha gate, `/` vs `/app` URL split, shared secret link, service-worker navigation scope
+- `spec/spec-marketing.md` — positioning, approved phrase bank, marketing homepage at `/`, mailing-list sign-up, social sharing assets
 - `spec/spec-issue-workflow.md` — GitHub issue clarification automation (`.github/workflows/issue-clarify.yml`)
 - `spec/glossary.md` — product terminology
 
@@ -23,7 +25,10 @@ Before finishing any implementation task:
 - Update the spec or explicitly document why the change is implementation-only.
 
 ## Project Structure
-- `index.html` — markup only: head tags, DOM skeleton, and the `<script src>` list. No logic, no inline `<script>` body
+- `index.html` — the public marketing homepage at `/`. Static content, its own `css/home.css`, no app code
+- `app.html` — the map application, served at `/app`. Markup only: head tags, DOM skeleton, and the `<script src>` list. No logic, no inline `<script>` body
+- `netlify/edge-functions/alpha-gate.js` — closed alpha gate on `/app` (see `spec/spec-alpha-access.md`)
+- `netlify/functions/subscribe.js` — mailing-list sign-up endpoint for the homepage
 - `js/app.js` — application boot and wiring (state, boot sequence, settings/report/compass handlers). Loaded last, after every other `js/*.js`
 - `js/loader.js` — data fetching, parallel fetch, normalisation triggers
 - `js/routing.js` — walkable road/path graph builder and pathfinding for the selected-route line (pure, no state/DOM access)
@@ -47,7 +52,7 @@ Before finishing any implementation task:
 - Vanilla HTML/CSS/JS only — no client build step, no external JS dependencies.
 - Mobile performance is a priority.
 - **Cache versions in `sw.js` are bumped by CI on `main` only — never by hand, and never on a branch.** The two caches move independently so returning users re-download only what changed:
-  - `APP_CACHE_NAME` — `.github/workflows/sw-release.yml`, on a push to `main` touching `index.html`, `css/**`, `js/**`, `sw.js`, `manifest.webmanifest` or `tree-icon.svg` (the `APP_SHELL` contents). It also syncs `APP_VERSION` in `js/app.js`, the fallback the About screen and bug reports show before `caches.keys()` resolves.
+  - `APP_CACHE_NAME` — `.github/workflows/sw-release.yml`, on a push to `main` touching `app.html`, `css/**`, `js/**`, `sw.js`, `manifest.webmanifest` or `tree-icon.svg` (the `APP_SHELL` contents). Note it watches `app.html`, not `index.html`: since the alpha URL split `index.html` is the marketing homepage and is deliberately not part of the app shell. It also syncs `APP_VERSION` in `js/app.js`, the fallback the About screen and bug reports show before `caches.keys()` resolves.
   - `DATA_CACHE_NAME` — `.github/workflows/data-bump.yml`, on a push to `main` touching `data/**`. That covers the Monday ledger merge and any regeneration script's output.
   Both write `sw.js` on `main`, so they share the `main-cache-bump` concurrency group and rebase before pushing rather than racing. On a feature branch nothing is bumped: use the Settings screen's force-refresh buttons to pick up new code, and note that local dev is network-first regardless (see the next bullet).
 - **Local dev (`node server.js` / `npm run dev`) never depends on the `CACHE_NAME` bump above.** `server.js` injects `self.__DEV__ = true` into the `sw.js` response it serves (see `injectDevFlag()`), and `sw.js` uses that to fetch everything network-first instead of its production cache-first strategy. Don't try to "fix" stale local testing by bumping `CACHE_NAME` by hand — that's a CI concern; if local changes still don't show up, the dev-flag wiring in `server.js`/`sw.js` is what to check. `injectDevFlag()` also prefixes the served `CACHE_NAME` with `dev-` (e.g. `forest-finds-dev-v274`), so the Settings "About" version display and any bug-report `appVersion` are visibly local rather than a frozen release number.
@@ -130,6 +135,6 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
 ## Code Quality
 - Separate concerns strictly per the project structure above.
 - Reuse existing CSS classes before adding new ones.
-- No logic in `index.html`: it is markup and `<script src>` tags only. Boot and wiring live in `js/app.js`.
+- No logic in `app.html`: it is markup and `<script src>` tags only. Boot and wiring live in `js/app.js`.
 - UX quality bar: this should feel like a polished, professional product.
 - Optimise for token efficiency: short, precise edits over large rewrites.

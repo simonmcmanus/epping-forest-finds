@@ -14,7 +14,7 @@
     "split:trees": "node scripts/split-veteran-trees.js",
     "netlify:dev": "npx netlify dev",
     "build": "node scripts/generate-reports-index.js && node scripts/generate-sitemap.js",
-    "test": "npm run test:unit && node --test --test-reporter=dot test/reports-index.test.js test/sitemap.test.js test/transport-departures.test.js && npm run test:py",
+    "test": "npm run test:unit && node --test --test-reporter=dot test/reports-index.test.js test/sitemap.test.js test/transport-departures.test.js test/home-counts.test.js test/subscribe.test.js && npm run test:py",
     "test:unit": "node test/forest-finds.test.js",
     "test:e2e": "npx playwright test",
     "test:e2e:update": "npx playwright test --update-snapshots",

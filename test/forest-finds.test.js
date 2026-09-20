@@ -70,7 +70,7 @@ function createElementStub(id = "") {
 }
 
 function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
-  // The app script lives in js/app.js; index.html only <script src>es it.
+  // The app script lives in js/app.js; app.html only <script src>es it.
   const appPath = path.join(__dirname, "..", "js", "app.js");
   const appSource = fs.readFileSync(appPath, "utf8");
   assert.ok(appSource.trim(), "js/app.js should contain the app script");
@@ -1331,7 +1331,7 @@ test("nearby filter updates trigger a heading-up refit that keeps the radius cir
 });
 
 test("nav controls use generated image assets instead of text glyphs", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
 
   assert.match(html, /id="inspectorBack"[\s\S]*<svg[\s\S]*polyline/);
   assert.match(html, /id="filterToggle"[\s\S]*data\/icons\/filter\.png/);
@@ -3120,7 +3120,7 @@ test("roundWalkingMinutes snaps a continuous pinch value to the nearest half-min
 });
 
 test("loading overlay markup includes all eight step labels", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
   for (const label of ["Veteran trees", "Places", "Paths", "Roads", "Water", "Forest", "cattle", "location"]) {
     assert.ok(html.includes(label), `loading overlay missing step label: "${label}"`);
   }
@@ -3342,27 +3342,27 @@ test("service worker APP_SHELL includes css/tracking.css so consent modal works 
   assert.ok(shellMatch[1].includes("./css/tracking.css"), "tracking.css must be in APP_SHELL — without it the consent modal has no positioning styles offline, making the location gate button appear unresponsive");
 });
 
-test("service worker APP_SHELL includes all CSS files referenced by index.html", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+test("service worker APP_SHELL includes all CSS files referenced by app.html", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   const shellMatch = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
   assert.ok(shellMatch, "APP_SHELL list exists");
 
   const cssRefs = [...html.matchAll(/href="(css\/[^"]+\.css)"/g)].map((m) => `./${m[1]}`);
-  assert.ok(cssRefs.length > 0, "index.html should reference CSS files");
+  assert.ok(cssRefs.length > 0, "app.html should reference CSS files");
   for (const cssFile of cssRefs) {
     assert.ok(shellMatch[1].includes(cssFile), `APP_SHELL missing ${cssFile} — page will be unstyled offline`);
   }
 });
 
-test("service worker APP_SHELL includes all JS files referenced by index.html", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+test("service worker APP_SHELL includes all JS files referenced by app.html", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   const shellMatch = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
   assert.ok(shellMatch, "APP_SHELL list exists");
 
   const jsRefs = [...html.matchAll(/src="(js\/[^"]+\.js)"/g)].map((m) => `./${m[1]}`);
-  assert.ok(jsRefs.length > 0, "index.html should reference JS files");
+  assert.ok(jsRefs.length > 0, "app.html should reference JS files");
   for (const jsFile of jsRefs) {
     assert.ok(shellMatch[1].includes(jsFile), `APP_SHELL missing ${jsFile} — app will not boot offline`);
   }
@@ -3374,14 +3374,38 @@ test("service worker passes API routes through without caching so offline failur
   assert.match(sw, /event\.respondWith\(fetch\(event\.request\)\)/, "API routes should be forwarded directly");
 });
 
-test("service worker falls back to cached index.html when navigating offline", () => {
+test("service worker falls back to cached app.html when navigating offline", () => {
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   assert.match(sw, /request\.mode === ["']navigate["']/, "navigate mode must be handled separately");
-  assert.match(sw, /caches\.match\(["']\.\/index\.html["']\)/, "navigate fallback should serve cached index.html");
+  assert.match(sw, /caches\.match\(["']\.\/app\.html["']\)/, "navigate fallback should serve cached app.html");
+});
+
+test("service worker answers app navigations only, so the homepage is not served from the app cache", () => {
+  // This handler used to answer EVERY navigation with the cached app shell. After the
+  // alpha URL split that would serve the app to anyone navigating to the marketing
+  // homepage at /, making the homepage invisible to every returning visitor.
+  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
+  assert.match(sw, /function isAppNavigation\(/, "an app-navigation predicate must exist");
+  assert.match(
+    sw,
+    /if \(!isAppNavigation\(requestUrl\.pathname\)\) return;/,
+    "the navigate branch must bail out for non-app navigations"
+  );
+});
+
+test("service worker app shell holds app.html and not the marketing homepage", () => {
+  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
+  const shell = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
+  assert.ok(shell, "APP_SHELL must be present");
+  assert.match(shell[1], /"\.\/app\.html"/, "APP_SHELL should precache app.html");
+  assert.ok(
+    !/"\.\/",/.test(shell[1]),
+    'APP_SHELL must not precache "./" -- it resolves to the marketing homepage'
+  );
 });
 
 test("service worker serves the cached shell for a return navigation and refreshes it in the background", () => {
-  // Network-first navigation meant every reload blocked on a ~290 KB index.html round trip
+  // Network-first navigation meant every reload blocked on a ~290 KB app.html round trip
   // before anything painted, however warm the cache. Staleness is bounded by the sw.js update
   // check the browser runs on each navigation, not by making the user wait.
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
@@ -3389,8 +3413,8 @@ test("service worker serves the cached shell for a return navigation and refresh
   assert.ok(navMatch, "the navigate branch must be present in the fetch handler");
   const branch = navMatch[0];
 
-  assert.match(branch, /caches\.match\("\.\/index\.html"\)\.then\(\(cached\) => \{/, "production navigation must consult the cache first");
-  assert.match(branch, /cache\.put\("\.\/index\.html", copy\)/, "the network copy must refresh the cached shell");
+  assert.match(branch, /caches\.match\("\.\/app\.html"\)\.then\(\(cached\) => \{/, "production navigation must consult the cache first");
+  assert.match(branch, /cache\.put\("\.\/app\.html", copy\)/, "the network copy must refresh the cached shell");
   assert.match(branch, /IS_DEV\s*\n\s*\? fromNetwork/, "local dev must stay network-first so edits show up");
 });
 

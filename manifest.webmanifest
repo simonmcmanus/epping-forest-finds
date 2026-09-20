@@ -2,7 +2,7 @@
   "name": "Epping Forest Finds",
   "short_name": "Epping Finds",
   "description": "Find nearby veteran trees, pubs, and landmarks in Epping Forest.",
-  "start_url": "./index.html",
+  "start_url": "/app",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

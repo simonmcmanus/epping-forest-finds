@@ -38,7 +38,11 @@ const STATIC_PAGES = [
   { loc: "/terms.html", changefreq: "yearly", priority: "0.2" },
 ];
 
-const DISALLOWED_PATHS = ["/admin.html", "/api/", "/.netlify/"];
+// /app is the map application. It is gated during the closed alpha and answers
+// crawlers with a redirect to the homepage, which is a soft-404 signal with
+// nothing to gain -- and the app has no indexable content in any case. The
+// homepage at / is the page that should rank. See spec/spec-alpha-access.md.
+const DISALLOWED_PATHS = ["/admin.html", "/app", "/api/", "/.netlify/"];
 
 function isoDate(ms) {
   return new Date(ms).toISOString().slice(0, 10);

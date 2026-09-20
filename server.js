@@ -235,6 +235,17 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Mirrors the /app -> /app.html rewrite in netlify.toml. The alpha gate is
+  // NOT mirrored: it is a Netlify edge function, so local dev and the e2e
+  // suite always reach the app. See spec/spec-alpha-access.md section 3.4.
+  if (url.pathname === "/app") {
+    const appFile = path.join(ROOT, "app.html");
+    if (!fs.existsSync(appFile)) { send(res, 404, "App not found"); return; }
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    fs.createReadStream(appFile).pipe(res);
+    return;
+  }
+
   if (url.pathname === "/admin") {
     const adminFile = path.join(ROOT, "admin.html");
     if (!fs.existsSync(adminFile)) { send(res, 404, "Admin not found"); return; }

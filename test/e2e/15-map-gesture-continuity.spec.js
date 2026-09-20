@@ -112,7 +112,7 @@ test.describe("Panning a selected location", () => {
   test("the map can be dragged, and the GPS follow leaves it where the user put it", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await gotoAndWaitForMap(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
