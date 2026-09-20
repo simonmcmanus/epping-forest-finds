@@ -172,14 +172,14 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await expect(page.locator("#inspector")).not.toHaveClass(/keyboard-avoiding/);
   });
 
-  test("landscape bottom-sheet layout: repositions above the simulated keyboard and keeps the textarea visible", async ({ browser }) => {
+  test("landscape bottom-sheet layout: repositions above the simulated keyboard and keeps the textarea visible", async ({ browser, baseURL }) => {
     // The landscape bottom-sheet layout additionally requires a coarse (touch) pointer —
     // see the `(orientation: landscape) and (pointer: coarse) and (max-height: 500px)` query
     // in css/map-ui.css — which needs a dedicated touch-enabled context. A manually created
     // context does not inherit the project's `use` config, so baseURL/serviceWorkers are
     // repeated here to match playwright.config.js.
     const context = await browser.newContext({
-      baseURL: "http://localhost:8080",
+      baseURL,
       serviceWorkers: "block",
       viewport: { width: 700, height: 380 },
       hasTouch: true,
