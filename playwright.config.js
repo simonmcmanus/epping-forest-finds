@@ -62,7 +62,7 @@ module.exports = defineConfig({
   snapshotPathTemplate: "test/e2e/__screenshots__/{arg}{-projectName}{-platform}{ext}",
 
   use: {
-    baseURL: "http://localhost:8080",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:8080",
     trace: "on-first-retry",
     // Suppress service-worker registration so tests always hit real routes
     serviceWorkers: "block",

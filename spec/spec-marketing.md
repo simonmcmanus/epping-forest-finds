@@ -207,8 +207,9 @@ Sections, in order:
   install the *marketing page* as a PWA instead of the app. The manifest stays
   on `app.html` only.
 - It must **not** register the service worker.
-- The hero illustration is inline SVG or a preloaded SVG file — not a photo,
-  and not a render blocked behind JS.
+- The hero is a preloaded, compressed local photograph — never a render blocked
+  behind JS. The display copy sits on an adjacent dark panel, so its contrast
+  does not depend on the image.
 
 Rationale: the page competes on mobile local search, where speed is a ranking
 and conversion factor, and it is the one page that must load fast on a bad
@@ -270,29 +271,26 @@ generated report links back to the homepage. This is what lifts both.
 
 ## 7. The hero image
 
-The hero image is supplied separately and is **not blocking**. The homepage is
-built with a placeholder slot so the page can ship, be reviewed and be tested
-before the final artwork exists.
+The supplied photograph of GPS-collared English Longhorns is used as the hero
+image and as a separately cropped social card. The collar is the detail that
+makes the live-cattle feature possible and tells the product's best story
+without a caption.
 
-Subject: the forest's grazing cattle. A photograph of an English Longhorn, or a
-line-art treatment of one, with the GPS collar visible if the framing allows —
-the collar is the detail that makes the live-cattle feature possible and it
-tells the product's best story without a caption.
+Requirements:
 
-Requirements when the artwork arrives:
-
-- Behind or beside the hero text, never competing with it: the headline must
-  meet contrast requirements against whatever sits behind it.
+- Beside the hero text, never competing with it: the headline sits on the
+  forest-green panel and meets contrast requirements independently of the
+  photograph.
 - Readable at 320px wide (single column, phone) and at full desktop hero width.
 - Served in a modern format at a sensible size. This page competes on mobile
   local search, so the hero must not be the reason it loads slowly.
 - Not blocked behind JavaScript — it is part of the page, not an enhancement.
-- A 1200x630 crop of the same image serves as the social card (section 10), so
+- A 1200×630 crop of the same image serves as the social card (section 10), so
   the composition needs to survive that aspect ratio with copy beside it.
 - Meaningful `alt` text describing the animal, not the file.
 
-Until it exists the slot renders the brand paper background with the hero copy
-over it. That is a shippable state, not a broken one.
+The 1600×1200 hero JPEG and 1200×630 social JPEG live in `assets/home/`. The
+hero is preloaded and neither image is blocked behind JavaScript.
 
 ## 8. The call to action
 
@@ -306,7 +304,7 @@ the site runs in.
 
 | State | CTA | Supporting line |
 | --- | --- | --- |
-| `closed` | Join the alpha → sign-up form | "Epping Forest Finds is in a closed alpha. Leave your email and we'll send you the link." |
+| `closed` | Get an alpha invite → sign-up form | "Epping Forest Finds is in a closed alpha. Leave your email and we'll send you the link." |
 | `open` | Open the map → `/app` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
@@ -383,16 +381,14 @@ at this volume, and it would sit on the one page that must load fastest.
 
 ## 10. Social sharing
 
-### 10.1 Current defect
+### 10.1 Social card
 
-`index.html` declares `twitter:card=summary_large_image` while `og:image`
-points at `data/icons/icon-512.png` — a 512×512 square app icon. Platforms
-expect 1200×630 for a large card, so every share today renders a cropped icon.
+`index.html` declares `twitter:card=summary_large_image` and points its Open
+Graph and Twitter image fields at the dedicated 1200×630 longhorn crop.
 
 ### 10.2 Requirement
 
-- A purpose-built **1200×630** image reusing the line-art longhorn (§7) with
-  the tagline, on the brand paper background.
+- A purpose-built **1200×630** crop of the supplied longhorn photograph (§7).
 - Absolute URL. `og:image:width`, `og:image:height` and `og:image:alt` set.
 - `twitter:image` set explicitly.
 - `og:title`, `og:description` from the phrase bank (§3.3, §3.5).
@@ -412,19 +408,21 @@ and because gated asset responses would poison the service worker's caches.
 
 ## 11. Colour and type
 
-From `css/base.css` `:root` — the homepage redeclares only what it uses:
+The homepage uses the Ledger's editorial palette and typography:
 
 | Token | Value | Use on the homepage |
 | --- | --- | --- |
-| `--paper` | `#eef2ea` | Page background |
-| `--ink` | `#17221e` | Body and headings |
-| `--muted` | `#5d6a62` | Secondary text, captions |
-| `--line` | `#d7ded8` | Rules, card borders, form fields |
-| `--tree` | `#2f6f4e` | Primary CTA, links |
-| `--forest` | `#4f8b62` | Illustration strokes, accents |
+| `--paper` | `#f4f4ec` | Page background |
+| `--ink` | `#181c11` | Body and headings |
+| `--muted` | `#52514e` | Secondary text, captions |
+| `--line` | `#ded9c6` | Rules, card borders, form fields |
+| `--tree` | `#2e6b44` | Primary CTA, links |
+| `--tree-deep` | `#1d4a2f` | Hero panel |
+| `--bark` | `#9c6b34` | Offline-step accent |
 
-Theme colour stays `#24382f`. Type is the existing Inter / system stack; no
-web font is loaded — the network cost is not justified on this page.
+Theme colour stays `#24382f`. `Fraunces` is used for display headings and
+`Public Sans` for body copy, loaded with `display=swap`; this deliberately
+matches the Ledger while preserving an immediate system-font fallback.
 
 No new colours. If the design appears to need one, the answer is a different
 weight or opacity of an existing token.

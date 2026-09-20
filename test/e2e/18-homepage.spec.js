@@ -29,6 +29,20 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
   });
 
+  test("uses the longhorn photograph as the accessible hero", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.locator(".hero-photo img")).toHaveAttribute(
+      "alt",
+      /GPS-collared English Longhorn cattle grazing in Epping Forest/i
+    );
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+      "content",
+      /assets\/home\/epping-longhorns-social\.jpg$/
+    );
+    await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute("content", "summary_large_image");
+  });
+
   test("does not load the app's code or offer the app as an installable page", async ({ page }) => {
     await page.goto("/");
 

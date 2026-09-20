@@ -4,28 +4,32 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#24382f">
-  <title>Epping Forest Finds — the offline map of Epping Forest</title>
+  <title>Epping Forest offline map | Trees, walks & cattle</title>
   <!-- The public front door. The map itself lives at /app. This page carries the
        copy from spec/spec-marketing.md; the counts are checked against the real
        datasets by test/home-counts.test.js, so they cannot drift. -->
-  <meta name="description" content="A free offline map of Epping Forest. Find veteran trees, pubs, cafés, car parks, toilets, paths and stations near you, see where the forest's grazing cattle are, and keep working with no phone signal.">
+  <meta name="description" content="Free offline map of Epping Forest: find 24,906 veteran trees, paths, pubs, car parks, toilets and grazing cattle—even with no phone signal.">
+  <meta name="geo.region" content="GB-ESS">
+  <meta name="geo.placename" content="Epping Forest, Essex">
   <link rel="canonical" href="https://www.eppingforestfinds.uk/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Epping Forest Finds">
   <meta property="og:locale" content="en_GB">
-  <meta property="og:title" content="Epping Forest Finds — the offline map of Epping Forest">
+  <meta property="og:title" content="Epping Forest Finds | The offline map of Epping Forest">
   <meta property="og:description" content="See where Epping Forest's longhorns are right now — on a map that works with no signal.">
   <meta property="og:url" content="https://www.eppingforestfinds.uk/">
-  <meta property="og:image" content="https://www.eppingforestfinds.uk/data/icons/icon-512.png">
-  <meta property="og:image:width" content="512">
-  <meta property="og:image:height" content="512">
-  <meta property="og:image:alt" content="The Epping Forest Finds app icon: an English oak leaf.">
-  <!-- summary, not summary_large_image: the only image available today is the
-       square app icon, and a large card would crop it. This upgrades to
-       summary_large_image when the 1200x630 hero image exists. -->
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:image" content="https://www.eppingforestfinds.uk/data/icons/icon-512.png">
+  <meta property="og:image" content="https://www.eppingforestfinds.uk/assets/home/epping-longhorns-social.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="GPS-collared English Longhorn cattle grazing in Epping Forest.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://www.eppingforestfinds.uk/assets/home/epping-longhorns-social.jpg">
+  <meta name="twitter:image:alt" content="GPS-collared English Longhorn cattle grazing in Epping Forest.">
   <link rel="icon" href="data/icons/favicon.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preload" href="assets/home/epping-longhorns.jpg" as="image" fetchpriority="high">
   <link rel="stylesheet" href="css/home.css">
   <script type="application/ld+json">
   {
@@ -43,6 +47,7 @@
         "applicationCategory": "TravelApplication",
         "operatingSystem": "Web browser, iOS, Android",
         "url": "https://www.eppingforestfinds.uk/app",
+        "areaServed": { "@type": "Place", "name": "Epping Forest, Essex" },
         "description": "A free offline map of Epping Forest: veteran trees, pubs and cafés, paths, car parks and the forest's grazing cattle — working with no phone signal.",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "GBP" }
       },
@@ -93,10 +98,8 @@
   <main>
 
     <section class="hero">
-      <!-- Hero image slot. Deliberately empty until the artwork exists — the
-           page ships and is testable without it. See spec-marketing.md §7. -->
-      <div class="hero-art" aria-hidden="true"></div>
       <div class="hero-copy">
+        <p class="eyebrow">Epping Forest, offline</p>
         <h1>The forest has no signal.<br>The map doesn't need one.</h1>
         <p class="hero-sub">
           A free, offline map of Epping Forest — <strong>24,906</strong> veteran trees,
@@ -106,16 +109,21 @@
         <!-- Alpha call to action. One swappable element: at launch this becomes
              a link to /app. Nothing else on the page changes. -->
         <div class="cta">
-          <a class="cta-btn" href="#signup">Join the alpha</a>
+          <a class="cta-btn" href="#signup">Get an alpha invite</a>
           <p class="cta-note">
             Epping Forest Finds is in a closed alpha. Leave your email and we'll send you the link.
           </p>
         </div>
       </div>
+      <figure class="hero-photo">
+        <img src="assets/home/epping-longhorns.jpg" width="1600" height="1200" fetchpriority="high" alt="GPS-collared English Longhorn cattle grazing in Epping Forest.">
+        <figcaption>Longhorn cattle in Epping Forest, tracked through their GPS collars.</figcaption>
+      </figure>
     </section>
 
     <section class="pillars">
       <article>
+        <img class="pillar-icon" src="data/icons/distance.png" width="48" height="48" alt="" aria-hidden="true">
         <h2>Works where your phone doesn't</h2>
         <p>
           Download the map once, over wi-fi or signal. After that it is on your device:
@@ -124,6 +132,7 @@
         </p>
       </article>
       <article>
+        <img class="pillar-icon" src="data/icons/trees/logo.png" width="48" height="48" alt="" aria-hidden="true">
         <h2>Every veteran tree in the register</h2>
         <p>
           All 24,906 trees from the Epping Forest Veteran Tree Register, each one placed
@@ -132,6 +141,7 @@
         </p>
       </article>
       <article>
+        <img class="pillar-icon" src="data/icons/cow.png" width="48" height="48" alt="" aria-hidden="true">
         <h2>Follow the longhorns</h2>
         <p>
           Epping Forest's grazing cattle wear GPS collars. The map shows you where the
@@ -195,10 +205,11 @@
     </section>
 
     <section class="signup" id="signup">
-      <h2>Join the alpha</h2>
+      <p class="eyebrow">Early access</p>
+      <h2>Get your alpha invitation</h2>
       <p class="signup-intro">
-        We're letting people in a batch at a time. Leave your email and we'll send you
-        the link when the next one goes out.
+        Help shape the map on your next walk. Leave your email and we'll send the private
+        link when the next set of invitations goes out.
       </p>
 
       <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
@@ -216,7 +227,7 @@
           <span>Email me an invite to the Epping Forest Finds alpha and occasional news about the app.</span>
         </label>
 
-        <button class="cta-btn" type="submit">Send me the link</button>
+        <button class="cta-btn" type="submit">Send my invitation</button>
         <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
         <p class="form-small">
           We'll only use your address for this. Unsubscribe from any message.
