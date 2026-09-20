@@ -117,7 +117,7 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
 - App title: `Forest Finds`.
 - Inspector supports overview mode and selected-detail mode.
 - Install button appears when `beforeinstallprompt` is available.
-- Tree number search is available from map UI.
+- Search is available from the inspector's main navigation (see "Search Screen").
 - Mobile layout keeps controls compact and avoids overflow.
 - On mobile, the modal navigation controls sit below the drag-to-resize bar with a clear gap so the resize handle remains visually distinct and easy to touch.
 
@@ -206,6 +206,7 @@ Marker rules:
 
 - Overview mode: nearest list + filter controls.
 - Filter screen mode: `state.filterScreenOpen = true`; stays open until the user explicitly navigates away. GPS updates, cow refreshes, locate-button taps, and empty canvas taps must not close it.
+- Search screen mode: `state.searchScreenOpen = true`; same rules as the Filter screen — it is a screen, not a selection, and nothing but an explicit navigation closes it.
 - Selected-detail mode: filter button hidden, filter panel closed (not relevant when viewing specific location).
 - Minimized mode: collapsed header only.
 - The inspector is always expanded after a map-tap selection, on both desktop and mobile, so the detail panel opens immediately. This also applies to a selection made via a hash/deep link (`applySelectionFromHash`) — including a `hashchange` to a new linked location while the inspector was already minimized, which forces it back open. It is only auto-minimized when selecting from the overview/nearby list (`focusOverviewItem`).
@@ -220,6 +221,7 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 | URL | Screen |
 | --- | --- |
 | `/app` | Nearby — the app's home screen |
+| `/app#search` | Search |
 | `/app#filters` | Filters |
 | `/app#settings` | Settings |
 | `/app#report` | Feedback / Report |
@@ -326,6 +328,35 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 - The nearby list shows only the nearest items and the walking-radius summary header.
 - The walking distance selector and app version are **not** shown in the nearby list.
 
+## Search Screen
+
+One search box over everything the map draws, reached from the magnifier in the inspector's
+main navigation (`#searchToggle`) or directly at `/app#search`. It replaced the tree-number-only
+search that used to float over the map on mobile: a tree tag is one of the things it finds, not
+the only one.
+
+- **What it searches:** veteran trees (species and tag number), places (shops, pubs, cafés,
+  stations, car parks, plaques, gates and every other landmark), roads, waymarked trails, water
+  features, railway lines, and the live cows by serial number. Roads and railway lines are only
+  in reach this way — the Nearby list does not carry them.
+- **Results are the Nearby list's own rows** (`.nearest-item`), with the same icon, name, walk
+  chip, type label and direction arrow, so a find looks the same whether it was searched for or
+  walked past. Choosing one opens exactly the screen a map tap or a deep link would, through the
+  same `SELECTION_ROUTES` table, and the map animates to it.
+- **Matching ignores case, accents and punctuation**, so "st marys" finds "St Mary's" and
+  "cafe" finds "Café". Each field is ranked on its own — exact, then prefix, then whole-word,
+  then substring — so a tree's tag can match exactly without its species name diluting it. A
+  multi-word query that no single field answers still matches when every word appears somewhere
+  in the entry. Equal matches are ordered by distance from the Nearby origin.
+- **A name the map repeats is not allowed to fill the list.** A street arrives from
+  OpenStreetMap as many separate ways, so a line feature (road, trail, water, railway) is listed
+  once — the nearest piece of it. Points are capped rather than collapsed: the eight bus stops
+  called "Forest Road" are three rows, leaving room for the street itself. At most 30 results.
+- **It works with no location fix**: matches are still listed, without distances or walk times.
+- Typing only re-renders the results list, never the field, so focus and the caret survive; the
+  results are re-rendered at most once per animation frame.
+- Opening Search shows the same map view as the Filter, Settings and Feedback screens.
+
 ## Settings Screen
 
 - Accessible via the generated settings icon button in the inspector header.
@@ -352,15 +383,15 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 
 ## Secondary Screen Map Consistency
 
-The Filter, Settings, and Feedback screens all display the same fixed map view in the background, so switching between them never changes what's shown:
+The Search, Filter, Settings, and Feedback screens all display the same fixed map view in the background, so switching between them never changes what's shown:
 
 - The camera zooms out past the walking radius far enough to reach the nearest match of every selected filter — even when each one is a long walk outside the radius — so the screen where you pick what to look for actually shows that it exists and which way it lies (survey mode — see `spec-data-rendering.md`). With no filters selected there is nothing extra to reach for and the view is the plain walking-radius framing.
-- The walking-radius ring is always visible on all three screens, and everything that removes or
+- The walking-radius ring is always visible on all four screens, and everything that removes or
   adjusts it works from them: the "Use my location" control that clears a browse anchor stays on
   screen, a tap on open ground moves the anchor (without dismissing the screen), and the
   two-finger pinch resizes the radius. The nearby list and map pins read from the same browse
   anchor the ring is drawn around.
-- The view keeps updating live with GPS movement and heading-up compass rotation — including full 3D tilt — while any of the three screens is open, exactly as on the nearby overview screen. "Identical view across the three screens" refers to pan/zoom framing only; the live tilt angle (driven by phone orientation) is not part of that invariant and can differ moment-to-moment like it does everywhere else tilt is active.
+- The view keeps updating live with GPS movement and heading-up compass rotation — including full 3D tilt — while any of the four screens is open, exactly as on the nearby overview screen. "Identical view across the four screens" refers to pan/zoom framing only; the live tilt angle (driven by phone orientation) is not part of that invariant and can differ moment-to-moment like it does everywhere else tilt is active.
 - Any change to the view (opening a screen, GPS movement, resize) animates smoothly rather than snapping.
 
 ## Compass and Direction Guidance
