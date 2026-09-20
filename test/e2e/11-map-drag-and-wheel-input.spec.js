@@ -35,7 +35,7 @@ test.describe("Map drag input while camera auto-repositions", () => {
   test("dragging while auto-repositioning to a selected target keeps the selection", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await gotoAndWaitForMap(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     // Desktop viewport (see playwright.config.js) keeps the inspector expanded after a
@@ -174,7 +174,7 @@ test.describe("Wheel and trackpad input on the Nearby screen", () => {
   test("with a location selected the wheel still zooms the map itself", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+    await gotoAndWaitForMap(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
 
     // The hash deep-link forces the inspector open and animates the camera to fit user + target

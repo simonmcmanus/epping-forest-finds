@@ -146,17 +146,24 @@ The counts in §3.4 are real values from the current checkout:
 | 1,596 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
-**These must be injected at build time, not typed into the homepage.**
-`spec.md` currently states approximately 500 food, 1,100 facilities and 520
-transport features — all three are now stale by a wide margin, which is
-precisely the drift a public page cannot afford. (Those `spec.md` figures
-should be corrected when the counts script lands.)
+**The homepage must never be able to quote a stale number.** `spec.md` states
+approximately 500 food, 1,100 facilities and 520 transport features — all three
+are now stale by a wide margin, which is precisely the drift a public page
+cannot afford. (Those `spec.md` figures should be corrected separately.)
 
-Implementation: a counts step in `npm run build`, alongside the existing
-`generate-reports-index.js` and `generate-sitemap.js`, emitting the figures and
-substituting them into the homepage. Counts are rendered with thousands
-separators. If the build step cannot read a dataset it fails the build rather
-than shipping a wrong or blank number.
+Implementation: the counts are written into the committed `index.html`, and
+`test/home-counts.test.js` holds them to the real datasets via
+`scripts/count-datasets.js`. A dataset that changes size fails the suite, and
+the copy is corrected in the same change.
+
+Counting at build time was the other option and was rejected: the homepage
+would then only exist after `npm run build`, which breaks running the site from
+a plain checkout — the project's stated constraint — and would leave the e2e
+suite with no page to load. A test gives the same guarantee without making the
+page a build artifact.
+
+Run `node scripts/count-datasets.js` to print the current values. Counts are
+rendered with thousands separators.
 
 ## 5. Homepage structure
 
@@ -179,8 +186,11 @@ Sections, in order:
    without signal; is it free; do I need an account; where does the tree data
    come from; how do you know where the cattle are; does it drain my battery;
    which area does it cover.
-6. **From the Ledger** — the latest two or three weekly reports, titles and
-   dates, linking into `/reports/` (§6.4).
+6. **From the Ledger** — a short description of the weekly report and a link
+   into `/reports/` (§6.4). It links to the index rather than listing
+   individual reports: generating a list would make the homepage a build
+   artifact, which §4 rejects for the same reason. The internal link is what
+   matters here, and the index carries it.
 7. **Sign-up** — the mailing-list form (§9). Repeats the CTA for anyone who
    scrolled past the hero.
 8. **Footer** — links to `/terms.html`, the GitHub issues page for feedback,
@@ -389,7 +399,7 @@ expect 1200×630 for a large card, so every share today renders a cropped icon.
 - `og:type: website`, `og:site_name`, `og:locale: en_GB` — as `index.html`
   already does correctly.
 
-### 10.3 Crawler access
+### 10.4 Crawler access
 
 The social image, the homepage, `robots.txt`, `sitemap.xml` and `/reports/*`
 must all be reachable **without the alpha gate**. Crawlers and link unfurlers
@@ -428,8 +438,11 @@ Per the project's completion checklist:
 - **E2E** — a spec covering: the homepage renders its copy with JavaScript
   disabled; the sign-up form shows the "check your inbox" state on success;
   the honeypot rejects silently; the CTA reflects the alpha state.
-- **Screenshot** — one `toHaveScreenshot()` baseline for the homepage, on the
-  `mobile` project only, per the snapshot rules in `spec/agents.md`.
+- **Screenshot** — **not yet taken.** A baseline captured before the hero image
+  lands would be replaced immediately, and per `spec/agents.md` a baseline must
+  come from a Linux CI runner rather than a developer sandbox. Add one via the
+  `Update Snapshots` action in the same change as the hero image, on the
+  `mobile` project only.
 - **Sitemap** — `test/sitemap.test.js` updated for the `/app` disallow.
 
 Note that `server.js` does not run Netlify edge functions, so the gate is

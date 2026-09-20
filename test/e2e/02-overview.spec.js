@@ -498,7 +498,7 @@ test.describe("Overview / Nearby screen", () => {
     });
 
     test("pinching is ignored while a real selection is open", async ({ page }) => {
-      await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+      await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
       await page.waitForFunction(
         (name) => document.getElementById("inspectorTitle")?.textContent?.includes(name),
         FIXTURE_TREE.commonName

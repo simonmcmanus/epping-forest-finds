@@ -82,3 +82,21 @@ test("generate writes both files into the site root", () => {
   assert.ok(fs.existsSync(path.join(dir, SITEMAP_FILE_NAME)));
   assert.ok(fs.existsSync(path.join(dir, ROBOTS_FILE_NAME)));
 });
+
+test("the gated app is kept out of the sitemap and disallowed to crawlers", () => {
+  // /app answers a crawler with a redirect to the homepage while the alpha is
+  // closed, which is a soft-404 signal with nothing to gain -- and the app has
+  // no indexable content in any case. See spec/spec-alpha-access.md section 6.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sitemap-app-"));
+  fs.mkdirSync(path.join(root, "reports"), { recursive: true });
+  fs.writeFileSync(path.join(root, "index.html"), "<!doctype html>");
+  fs.writeFileSync(path.join(root, "terms.html"), "<!doctype html>");
+
+  generate(root);
+
+  const sitemap = fs.readFileSync(path.join(root, "sitemap.xml"), "utf8");
+  const robots = fs.readFileSync(path.join(root, "robots.txt"), "utf8");
+
+  assert.ok(!sitemap.includes("/app"), "sitemap.xml must not advertise the gated app");
+  assert.match(robots, /^Disallow: \/app$/m, "robots.txt must disallow /app");
+});

@@ -10,19 +10,19 @@ test.describe("Onboarding", () => {
     });
 
     test("onboarding overlay is shown on first visit", async ({ page }) => {
-      await page.goto("/");
+      await page.goto("/app");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
     });
 
     test("the location/compass opt-in step is shown first", async ({ page }) => {
-      await page.goto("/");
+      await page.goto("/app");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       // The first step asks the user to enable location — look for the enable button or location text
       await expect(page.locator("#onboardingOverlay")).toContainText(/location|compass/i);
     });
 
     test("map data loads in the background while onboarding is visible", async ({ page }) => {
-      await page.goto("/");
+      await page.goto("/app");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       // Loading overlay may already be hidden (data loaded behind onboarding) — either state is valid,
       // but the loading overlay must not block onboarding visibility
@@ -32,7 +32,7 @@ test.describe("Onboarding", () => {
     });
 
     test("'Skip for now' advances past the location step without granting permission", async ({ page }) => {
-      await page.goto("/");
+      await page.goto("/app");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       const skipBtn = page.locator("#onboardingOverlay .onboarding-skip-btn, #onboardingOverlay [class*='skip']").first();
       await skipBtn.click();
@@ -49,7 +49,7 @@ test.describe("Onboarding", () => {
       await page.addInitScript(() => {
         localStorage.setItem("forest-finds-onboarding-v1", "done");
       });
-      await page.goto("/");
+      await page.goto("/app");
       // Onboarding overlay must remain hidden
       await expect(page.locator("#onboardingOverlay")).toBeHidden();
     });
@@ -59,7 +59,7 @@ test.describe("Onboarding", () => {
       await page.addInitScript(() => {
         localStorage.setItem("forest-finds-onboarding-v1", "done");
       });
-      await page.goto("/");
+      await page.goto("/app");
       await page.waitForFunction(
         () => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; },
         { timeout: 30_000 }

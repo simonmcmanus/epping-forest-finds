@@ -1,0 +1,373 @@
+/*
+ * Marketing homepage only. Deliberately standalone: this page must not load
+ * css/base.css or any other app stylesheet, because it competes on mobile
+ * local search and the app's styles are for a full-screen canvas it never
+ * renders. Tokens below are the same values as css/base.css :root, redeclared
+ * rather than imported -- see spec/spec-marketing.md section 11.
+ */
+
+:root {
+  --ink: #17221e;
+  --muted: #5d6a62;
+  --line: #d7ded8;
+  --paper: #eef2ea;
+  --tree: #2f6f4e;
+  --forest: #4f8b62;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+
+a {
+  color: var(--tree);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(47, 111, 78, 0.45);
+  outline-offset: 2px;
+}
+
+main,
+.site-head,
+.site-foot {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ---- header ---- */
+
+.site-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.brand-mark {
+  width: 28px;
+  height: 28px;
+}
+
+.head-link {
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.head-link:hover {
+  text-decoration: underline;
+}
+
+/* ---- hero ---- */
+
+.hero {
+  position: relative;
+  padding: 32px 0 48px;
+}
+
+/*
+ * Hero image slot. Empty until the artwork exists; the gradient keeps the
+ * section from looking broken in the meantime and disappears when a real
+ * image lands here. See spec/spec-marketing.md section 7.
+ */
+.hero-art {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(79, 139, 98, 0.16), rgba(79, 139, 98, 0) 62%);
+  pointer-events: none;
+}
+
+.hero-copy {
+  position: relative;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(1.9rem, 6.2vw, 2.9rem);
+  line-height: 1.16;
+  letter-spacing: -0.02em;
+}
+
+.hero-sub {
+  margin: 0 0 28px;
+  font-size: clamp(1.02rem, 2.6vw, 1.18rem);
+  color: var(--muted);
+  max-width: 34em;
+}
+
+.hero-sub strong {
+  color: var(--ink);
+}
+
+.cta-btn {
+  display: inline-block;
+  padding: 13px 24px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--tree);
+  color: #fff;
+  font: inherit;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cta-btn:hover {
+  background: #275f42;
+}
+
+.cta-note {
+  margin: 14px 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  max-width: 34em;
+}
+
+/* ---- sections ---- */
+
+section {
+  padding: 40px 0;
+  border-top: 1px solid var(--line);
+}
+
+.hero {
+  border-top: 0;
+}
+
+h2 {
+  margin: 0 0 14px;
+  font-size: 1.22rem;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0 0 14px;
+}
+
+.pillars article + article {
+  margin-top: 30px;
+}
+
+.pillars p {
+  color: var(--muted);
+  margin: 0;
+  max-width: 40em;
+}
+
+/* ---- counts ---- */
+
+.count-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 18px;
+}
+
+.count-grid li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.count-n {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.count-l {
+  font-size: 0.86rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.counts-note {
+  margin: 16px 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* ---- how it works ---- */
+
+.steps {
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--muted);
+}
+
+.steps li {
+  margin-bottom: 10px;
+}
+
+.steps strong {
+  color: var(--ink);
+}
+
+/* ---- faq ---- */
+
+.faq dt {
+  font-weight: 650;
+  margin-top: 20px;
+}
+
+.faq dt:first-of-type {
+  margin-top: 0;
+}
+
+.faq dd {
+  margin: 6px 0 0;
+  color: var(--muted);
+  max-width: 42em;
+}
+
+/* ---- ledger ---- */
+
+.ledger p {
+  color: var(--muted);
+  max-width: 40em;
+}
+
+.text-link {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+/* ---- sign-up ---- */
+
+.signup-intro {
+  color: var(--muted);
+  max-width: 40em;
+}
+
+.signup-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 28rem;
+}
+
+.field-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.field {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.consent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.consent input {
+  margin-top: 4px;
+  flex: 0 0 auto;
+}
+
+/* Honeypot: off-screen rather than display:none, which some bots skip. */
+.hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.form-msg {
+  margin: 0;
+  font-size: 0.92rem;
+  min-height: 1.4em;
+}
+
+.form-msg.is-error {
+  color: #a5391d;
+}
+
+.form-msg.is-ok {
+  color: var(--tree);
+  font-weight: 600;
+}
+
+.form-small {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+/* ---- footer ---- */
+
+.site-foot {
+  padding-top: 28px;
+  padding-bottom: 56px;
+  border-top: 1px solid var(--line);
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.site-foot p {
+  margin: 0 0 8px;
+}
+
+.attribution {
+  max-width: 44em;
+}
+
+@media (min-width: 640px) {
+  .pillars {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
+  }
+
+  .pillars article + article {
+    margin-top: 0;
+  }
+}

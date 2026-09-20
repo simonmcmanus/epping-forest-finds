@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#24382f">
+  <title>Epping Forest Finds — offline map of Epping Forest</title>
+  <!-- The map itself. The public front door is the marketing homepage at /
+       (index.html); this page is reached from there, and during the closed
+       alpha it sits behind the gate in netlify/edge-functions/alpha-gate.js.
+       Kept to head tags only: no filler copy on a page whose whole job is to
+       be a map. -->
+  <meta name="description" content="A free offline map of Epping Forest. Find veteran trees, pubs, cafés, car parks, toilets, paths and stations near you, see where the forest's grazing cattle are, and keep working with no phone signal.">
+  <link rel="canonical" href="https://www.eppingforestfinds.uk/app">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Epping Forest Finds">
+  <meta property="og:locale" content="en_GB">
+  <meta property="og:title" content="Epping Forest Finds — offline map of Epping Forest">
+  <meta property="og:description" content="A free offline map of Epping Forest: veteran trees, pubs and cafés, paths, car parks and the forest's grazing cattle — working with no phone signal.">
+  <meta property="og:url" content="https://www.eppingforestfinds.uk/app">
+  <meta property="og:image" content="https://www.eppingforestfinds.uk/data/icons/icon-512.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="data/icons/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="data/icons/apple-touch-icon.png">
+  <link rel="preload" href="data/icons/pin.png" as="image">
+  <link rel="preload" href="data/icons/trees/logo.png" as="image">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/filter.css">
+  <link rel="stylesheet" href="css/loading.css">
+  <link rel="stylesheet" href="css/inspector.css">
+  <link rel="stylesheet" href="css/map-ui.css">
+  <link rel="stylesheet" href="css/onboarding.css">
+  <link rel="stylesheet" href="css/tracking.css">
+</head>
+<body>
+  <div class="app">
+    <main class="map-stage">
+      <canvas id="mapCanvas" aria-label="Interactive map of veteran trees and local landmarks"></canvas>
+      <canvas id="overlayCanvas" aria-hidden="true"></canvas>
+
+      <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data">
+        <div class="loading-card">
+          <div class="loading-brand"><img class="loading-logo" src="data/icons/trees/logo.png" alt=""> Epping Forest Finds</div>
+          <p class="loading-intro">Preparing your offline map — this is a one-time download. Once ready, the map works anywhere in the forest, even without phone signal.</p>
+          <div class="loading-progress" role="progressbar" aria-label="Loading progress">
+            <div class="loading-progress-bar" id="loadingProgressBar"></div>
+          </div>
+          <ul id="loadingSteps" class="loading-steps">
+            <li class="loading-step pending" data-load-step="trees">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Veteran trees</span><span class="step-count" data-step-count="trees"></span>
+            </li>
+            <li class="loading-step pending" data-load-step="places">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Places &amp; landmarks</span><span class="step-count" data-step-count="places"></span>
+            </li>
+            <li class="loading-step pending" data-load-step="paths">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Paths &amp; trails</span><span class="step-count" data-step-count="paths"></span>
+            </li>
+            <li class="loading-step pending" data-load-step="roads">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Roads &amp; streets</span><span class="step-count" data-step-count="roads"></span>
+            </li>
+            <li class="loading-step pending" data-load-step="environment">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Water &amp; nature</span><span class="step-count" data-step-count="environment"></span>
+            </li>
+            <li class="loading-step pending" data-load-step="forest">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Forest boundaries</span><span class="step-count" data-step-count="forest"></span>
+            </li>
+            <li class="loading-step pending" data-load-step="cows">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Live cattle positions</span><span class="step-count" data-step-count="cows"></span>
+            </li>
+            <li class="loading-step pending" data-load-step="location">
+              <span class="step-icon" aria-hidden="true"></span><span class="step-label">Your location</span><span class="step-count" data-step-count="location"></span>
+            </li>
+          </ul>
+        </div>
+        <div id="sw-version" class="version" aria-hidden="true"></div>
+      </div>
+
+      <div id="locationGate" class="location-gate" aria-live="polite" hidden>
+        <div class="location-gate-card">
+          <div class="location-gate-icon" aria-hidden="true">
+            <img class="app-icon" src="data/icons/pin.png" alt="" loading="lazy" decoding="async">
+          </div>
+          <h2 id="locationGateTitle" class="location-gate-title">Allow location access</h2>
+          <p id="locationGateMessage" class="location-gate-text">Epping Forest Finds uses your location to show nearby trees and point you toward them with compass directions.</p>
+          <button id="locationGateButton" class="button" type="button">Enable location to continue</button>
+        </div>
+      </div>
+
+      <div id="distanceWarning" class="location-gate" aria-live="polite" hidden>
+        <div class="location-gate-card">
+          <div class="location-gate-icon" aria-hidden="true">🗺️</div>
+          <h2 class="location-gate-title">You're not near the forest yet</h2>
+          <p id="distanceWarningMessage" class="location-gate-text">You're more than 15 minutes' walk from Epping Forest. The map is fully loaded and ready to explore — all features will kick in when you visit.</p>
+          <button id="distanceWarningButton" class="button" type="button">Explore the map</button>
+        </div>
+      </div>
+
+      <div id="trackingConsentModal" class="tracking-consent-overlay" hidden>
+        <div class="tracking-consent-card">
+          <h2 class="tracking-consent-title">Privacy &amp; Location Data</h2>
+          <div class="tracking-consent-body">
+            <p>To enable your location we need your consent to collect anonymous usage data that helps improve the app:</p>
+            <ul>
+              <li><strong>GPS position</strong> — updated roughly once per minute while the app is open</li>
+              <li><strong>Direction &amp; navigation</strong> — which features you navigate toward</li>
+              <li><strong>Interactions</strong> — which trees, paths, and places you tap on</li>
+            </ul>
+            <p>You are identified only by a random anonymous ID — no name, email, or account is required. Your data will never be sold individually.</p>
+            <p>Anonymised data may be used in the future to show relevant suggestions or advertising. You can withdraw consent at any time via <em>Settings → Privacy</em>.</p>
+            <p><a href="/terms.html" target="_blank" rel="noopener">Read full Privacy Policy &amp; Terms</a></p>
+          </div>
+          <div class="tracking-consent-actions">
+            <button class="button tc-accept" type="button">I agree &amp; enable location</button>
+            <button class="onboarding-skip-btn tc-decline" type="button">No thanks, skip location</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="onboardingOverlay" class="onboarding-overlay" hidden>
+        <div class="onboarding-card">
+          <div class="onboarding-progress"></div>
+          <div class="onboarding-content"></div>
+          <div class="onboarding-actions"></div>
+        </div>
+      </div>
+
+
+      <div id="compassCalibrationBanner" class="compass-calibration-banner" role="status" aria-live="polite" hidden>
+        <div class="compass-calibration-banner-card">
+          <span class="compass-calibration-banner-icon" aria-hidden="true">🧭</span>
+          <p class="compass-calibration-banner-text">Move your phone in a figure-8 to help it find your direction</p>
+          <button id="compassCalibrationBannerDismiss" class="compass-calibration-banner-dismiss" type="button" aria-label="Dismiss">✕</button>
+        </div>
+      </div>
+
+      <div class="legend" aria-label="Map legend">
+        <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
+        <span style="color: #2f72b2;">💧 Hydrology</span>
+        <span style="color: #488241;">🌿 Nature designations</span>
+        <span style="color: #5aaf46;">🌻 Gardens &amp; parks</span>
+        <span style="color: #3a5c45;">🥾 Paths &amp; trails</span>
+        <span style="color: #9a6a2f;">🐄 Cows</span>
+        <span style="color: var(--place);">🍺 Pubs &amp; bars</span>
+        <span style="color: var(--place);">🍽️ Restaurants</span>
+        <span style="color: #8b4513;">☕ Cafés</span>
+        <span style="color: #dc143c;">🚆 Trains</span>
+        <span style="color: #ff8c00;">🚌 Buses</span>
+        <span style="color: #005ab4;">🅿️ Car parks</span>
+        <span style="color: var(--landmark);">📍 Locations</span>
+        <span style="color: #4e5d87;">🪧 Plaques</span>
+        <span style="color: #6d5c3a;">📜 History</span>
+        <span style="color: #6f4d8c;">✨ Legends</span>
+      </div>
+
+      <div class="bottom-search">
+        <button id="treeSearchToggle" class="button search-toggle" type="button" aria-label="Show tree search" aria-expanded="false">🔍</button>
+      </div>
+
+      <aside id="inspector" class="inspector" aria-live="polite">
+        <div id="inspectorDragHandle" class="inspector-drag-handle" aria-label="Drag to resize"></div>
+        <div class="inspector-actions">
+          <button id="nearbyToggle" class="close nearby-toggle" type="button" aria-label="Back to nearby"><img class="app-icon nav-icon" src="data/icons/nearby.png" alt="" loading="lazy" decoding="async"></button>
+          <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Show filters" aria-pressed="false"><img class="app-icon nav-icon" src="data/icons/filter.png" alt="" loading="lazy" decoding="async"><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
+          <button id="reportToggle" class="close report-toggle" type="button" aria-label="Report missing data or request a feature"><img class="app-icon nav-icon" src="data/icons/feedback.png" alt="" loading="lazy" decoding="async"></button>
+          <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings"><img class="app-icon nav-icon" src="data/icons/settings.png" alt="" loading="lazy" decoding="async"></button>
+        </div>
+        <div class="inspector-header">
+          <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back to nearest locations" hidden><svg class="app-icon nav-icon" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14 4 7 11 14 18"/></svg></button>
+        </div>
+        <!-- Lives in the inspector chrome rather than in the Nearby list's own HTML so the way
+             back from a browsed spot survives every screen that still draws the walking-radius
+             circle behind it (Nearby, Filters, Settings, Report) -- see updateNearbyAnchorBar. -->
+        <div id="nearbyAnchorBar" class="nearby-anchor-bar" role="status" hidden>
+          <span class="nearby-anchor-bar-text">Showing places near where you tapped</span>
+          <button class="walk-chip walk-chip-btn" type="button" data-action="reset-nearby-anchor">Use my location</button>
+        </div>
+        <div class="inspector-tools">
+          <div id="treeSearchPanel" class="search-panel" hidden>
+            <input id="treeSearchInput" class="search-number" type="search" inputmode="text" autocomplete="off" placeholder="Search tree number" aria-label="Search by tree number">
+            <button id="treeSearchButton" class="button search-button" type="button">Find</button>
+          </div>
+          <div class="search-shell">
+            <button id="locateButton" class="button" type="button" disabled hidden>Use my location</button>
+            <button id="installButton" class="button install" type="button">Install</button>
+          </div>
+        </div>
+        <div class="inspector-scroll">
+          <div class="inspector-screen">
+            <div class="inspector-title-section">
+              <span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>
+              <div class="inspector-title-copy">
+                <h2 id="inspectorTitle">Epping Forest Finds</h2>
+                <p id="inspectorType" class="type"></p>
+              </div>
+              <span id="compassArrow" class="title-compass-arrow" aria-label="Direction to selected location" hidden>↑</span>
+            </div>
+            <div id="inspectorBody" class="inspector-body">
+              <p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="js/categories.js"></script>
+  <script src="js/normalize.js"></script>
+  <script src="js/tracker.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/routing.js"></script>
+  <script src="js/loader.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/inspector.js"></script>
+  <script src="js/onboarding.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

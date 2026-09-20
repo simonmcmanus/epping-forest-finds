@@ -7,7 +7,7 @@ test.describe("URL hash navigation", () => {
     test("navigating to /#filters opens the filter screen on load", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
-      await gotoAndWaitForMap(page, "/#filters");
+      await gotoAndWaitForMap(page, "/app#filters");
       await expect(page).toHaveURL(/#filters$/);
       await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
     });
@@ -21,7 +21,7 @@ test.describe("URL hash navigation", () => {
     test("navigating with a tree hash selects that tree", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
-      await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+      await gotoAndWaitForMap(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
       await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     });
 
@@ -31,7 +31,7 @@ test.describe("URL hash navigation", () => {
       // to share the number.
       await skipOnboarding(page);
       await mockCowApi(page);
-      await gotoAndWaitForMap(page, `/#tree=${FIXTURE_TREE.legacyHashKey}`);
+      await gotoAndWaitForMap(page, `/app#tree=${FIXTURE_TREE.legacyHashKey}`);
       await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     });
 
@@ -60,10 +60,10 @@ test.describe("URL hash navigation", () => {
 
   test.describe("empty hash", () => {
     test("an empty hashchange triggers goToInitialView when filter screen is not open", async ({ page }) => {
-      await setup(page, `/#tree=${FIXTURE_TREE.hashKey}`);
+      await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
       await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
       // Manually clear hash to trigger hashchange
-      await page.evaluate(() => history.replaceState(null, "", "/"));
+      await page.evaluate(() => history.replaceState(null, "", "/app"));
       await page.evaluate(() => window.dispatchEvent(new HashChangeEvent("hashchange")));
       // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
       await page.waitForFunction(
@@ -76,7 +76,7 @@ test.describe("URL hash navigation", () => {
       await page.click("#filterToggle");
       await expect(page).toHaveURL(/#filters$/);
       // Clear hash while filter screen is open — it must stay open
-      await page.evaluate(() => history.replaceState(null, "", "/"));
+      await page.evaluate(() => history.replaceState(null, "", "/app"));
       await page.evaluate(() => window.dispatchEvent(new HashChangeEvent("hashchange")));
       // Filter screen should remain active
       await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);

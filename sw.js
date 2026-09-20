@@ -11,9 +11,11 @@ const APP_CACHE_NAME = "forest-finds-app-v31";
 const DATA_CACHE_NAME = "forest-finds-data-v4";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
+// "./" is deliberately absent: after the alpha URL split it resolves to the
+// marketing homepage, which must never be stored under the app's cache key nor
+// be able to satisfy an app navigation. See spec/spec-alpha-access.md.
 const APP_SHELL = [
-  "./",
-  "./index.html",
+  "./app.html",
   "./manifest.webmanifest",
   "./tree-icon.svg",
   "./css/base.css",
@@ -189,6 +191,13 @@ const DATA_CACHE_OPPORTUNISTIC = [
 ];
 
 // Helper: determine if a path is app code vs data
+// The map application's own navigable URLs. /app is the pretty URL (rewritten to
+// /app.html by netlify.toml and server.js); anything else -- the homepage, the
+// reports, the terms page -- is a network page the app cache must not answer for.
+function isAppNavigation(pathname) {
+  return pathname === "/app" || pathname === "/app.html" || pathname.endsWith("/app.html");
+}
+
 function isAppCodePath(pathname) {
   // App code: CSS, JS, HTML, SVG, manifest
   return (
@@ -197,8 +206,7 @@ function isAppCodePath(pathname) {
     pathname.endsWith(".html") ||
     pathname.endsWith(".svg") ||
     pathname.endsWith(".webmanifest") ||
-    pathname === "/" ||
-    pathname === ""
+    pathname === "/app"
   );
 }
 
@@ -447,30 +455,37 @@ self.addEventListener("fetch", (event) => {
 
   // Navigation requests (full page loads) — serve the cached shell straight away, then refresh
   // the cached copy behind the scenes. This used to be network-first, which meant every reload,
-  // however warm the cache, blocked on a ~290 KB index.html round trip before a single pixel
+  // however warm the cache, blocked on a ~290 KB app.html round trip before a single pixel
   // appeared; on a phone in the forest that is the difference between "instant" and "loading".
   // Staleness is still bounded: the browser re-checks sw.js on every navigation, and a release
   // bumps APP_CACHE_NAME, so a new worker installs, caches the new shell, and claims the page
   // (setupPwa in js/nav.js then surfaces the update). Locally the dev server is the source of
   // truth, so IS_DEV keeps navigation network-first there.
+  //
+  // Only the app's own routes are answered from the app shell. This handler used to answer
+  // EVERY navigation with the cached app, which after the alpha URL split would have served
+  // the app to anyone navigating to the marketing homepage at / -- making the homepage
+  // invisible to every returning visitor. See spec/spec-alpha-access.md.
   if (event.request.mode === "navigate") {
+    if (!isAppNavigation(requestUrl.pathname)) return;
+
     const fromNetwork = fetch(event.request).then((response) => {
       if (response && response.ok) {
         const copy = response.clone();
-        caches.open(APP_CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+        caches.open(APP_CACHE_NAME).then((cache) => cache.put("./app.html", copy));
       }
       return response;
     });
 
     event.respondWith(
       IS_DEV
-        ? fromNetwork.catch(() => caches.match("./index.html"))
-        : caches.match("./index.html").then((cached) => {
+        ? fromNetwork.catch(() => caches.match("./app.html"))
+        : caches.match("./app.html").then((cached) => {
             if (cached) {
               fromNetwork.catch(() => {});
               return cached;
             }
-            return fromNetwork.catch(() => caches.match("./index.html"));
+            return fromNetwork.catch(() => caches.match("./app.html"));
           })
     );
     return;
