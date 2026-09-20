@@ -8,7 +8,7 @@
   <!-- The public front door. The map itself lives at /app. This page carries the
        copy from spec/spec-marketing.md; the counts are checked against the real
        datasets by test/home-counts.test.js, so they cannot drift. -->
-  <meta name="description" content="Free offline map of Epping Forest: find 24,906 veteran trees, paths, pubs, car parks, toilets and grazing cattle—even with no phone signal.">
+  <meta name="description" content="Explore 24,906 veteran trees in Epping Forest. Find trees by tag number, navigate to them and discover their estimated ages with an offline map.">
   <meta name="geo.region" content="GB-ESS">
   <meta name="geo.placename" content="Epping Forest, Essex">
   <link rel="canonical" href="https://www.eppingforestfinds.uk/">
@@ -16,7 +16,7 @@
   <meta property="og:site_name" content="Epping Forest Finds">
   <meta property="og:locale" content="en_GB">
   <meta property="og:title" content="Epping Forest Finds | The offline map of Epping Forest">
-  <meta property="og:description" content="See where Epping Forest's longhorns are right now — on a map that works with no signal.">
+  <meta property="og:description" content="Find Epping Forest’s veteran trees by tag number, navigate to them and discover their estimated ages on an offline map.">
   <meta property="og:url" content="https://www.eppingforestfinds.uk/">
   <meta property="og:image" content="https://www.eppingforestfinds.uk/assets/home/epping-longhorns-social.jpg">
   <meta property="og:image:width" content="1200">
@@ -57,7 +57,7 @@
           {
             "@type": "Question",
             "name": "Does it really work without a phone signal?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Yes. The first time you open it, the map downloads to your device. After that it works with no network at all — the whole forest, every tree and path, held locally." }
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Once downloaded, the map, trees and paths work offline. Fresh cow locations need a connection; offline, the map shows their last saved positions." }
           },
           {
             "@type": "Question",
@@ -72,7 +72,7 @@
           {
             "@type": "Question",
             "name": "How do you know where the cattle are?",
-            "acceptedAnswer": { "@type": "Answer", "text": "The forest's grazing cattle wear GPS collars, and their positions are published through the Nofence open data API. The map reads that feed when it loads." }
+            "acceptedAnswer": { "@type": "Answer", "text": "The forest's grazing cattle wear GPS collars, and their positions are published through the Nofence open data API. The map reads that feed when it loads and periodically makes a network request to refresh it, because the cows move around. Offline, you see their last saved positions, which may be out of date." }
           },
           {
             "@type": "Question",
@@ -103,15 +103,16 @@
         <h1>The forest has no signal.<br>The map doesn't need one.</h1>
         <p class="hero-sub">
           A free, offline map of Epping Forest — <strong>24,906</strong> veteran trees,
-          every path, pub, car park and toilet, and the forest's grazing cattle,
-          live from their GPS collars.
+          ready to discover. Find a tree by its tag number, navigate to it and see its
+          estimated age. Paths, pubs, facilities and grazing cattle are on the map too.
         </p>
         <!-- Alpha call to action. One swappable element: at launch this becomes
              a link to /app. Nothing else on the page changes. -->
         <div class="cta">
-          <a class="cta-btn" href="#signup">Get an alpha invite</a>
+          <a class="cta-btn" href="#signup">Be first to hear</a>
           <p class="cta-note">
-            Epping Forest Finds is in a closed alpha. Leave your email and we'll send you the link.
+            Alpha invitations aren’t open yet. Sign up to be among the first to hear about
+            the release and receive major updates about the app.
           </p>
         </div>
       </div>
@@ -119,6 +120,17 @@
         <img src="assets/home/epping-longhorns.jpg" width="1600" height="1200" fetchpriority="high" alt="GPS-collared English Longhorn cattle grazing in Epping Forest.">
         <figcaption>Longhorn cattle in Epping Forest, tracked through their GPS collars.</figcaption>
       </figure>
+    </section>
+
+    <section class="how" id="find-trees" aria-labelledby="find-trees-heading">
+      <h2 id="find-trees-heading">Find the tree behind the tag</h2>
+      <p>Those numbered tags connect the trees around you to the Veteran Tree Register.
+        Look up a tree you’ve spotted, or choose a specific one to find on your next walk.</p>
+      <ol class="steps">
+        <li><strong>Search its tag number.</strong> Enter the number on the tree’s physical tag to find its record on the map.</li>
+        <li><strong>Navigate to that tree.</strong> Select it to see the way from your location, then check its tag number when you arrive.</li>
+        <li><strong>Discover its estimated age.</strong> We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday.</li>
+      </ol>
     </section>
 
     <section class="pillars">
@@ -136,17 +148,17 @@
         <h2>Every veteran tree in the register</h2>
         <p>
           All 24,906 trees from the Epping Forest Veteran Tree Register, each one placed
-          on the map with its species and record. Find the ancient pollards you have
-          walked past for years without knowing.
+          on the map with its species and record. Search by the number on a tree’s physical
+          tag to find that specific tree and explore its estimated age.
         </p>
       </article>
       <article>
         <img class="pillar-icon" src="assets/home/cow.png" width="48" height="48" alt="" aria-hidden="true">
         <h2>Follow the longhorns</h2>
         <p>
-          Epping Forest's grazing cattle wear GPS collars. The map shows you where the
-          herd actually is — useful if you want to see them, and just as useful if you
-          have a dog and would rather not.
+          Epping Forest's grazing cattle wear GPS collars. The map shows their latest
+          reported positions. Cows move around, so the app periodically makes a network
+          request for up-to-date locations. Offline, you’ll see the last saved positions.
         </p>
       </article>
     </section>
@@ -170,13 +182,14 @@
         <li><strong>It downloads</strong> the whole forest to your device — a one-time wait.</li>
         <li><strong>Walk out of range.</strong> The map, your position and your heading all keep working.</li>
       </ol>
+      <p class="counts-note">Fresh cow locations need a connection. The app periodically requests updates because the cows move around; offline positions may be out of date.</p>
     </section>
 
     <section class="faq">
       <h2>Questions</h2>
       <dl>
         <dt>Does it really work without a phone signal?</dt>
-        <dd>Yes. The first time you open it, the map downloads to your device. After that it works with no network at all — the whole forest, every tree and path, held locally.</dd>
+        <dd>Yes. Once downloaded, the map, trees and paths work offline. Fresh cow locations need a connection; offline, the map shows their last saved positions.</dd>
 
         <dt>Is it free?</dt>
         <dd>Yes, it is free to use and there is no account to create.</dd>
@@ -185,10 +198,10 @@
         <dd>The Epping Forest Veteran Tree Register. Paths, pubs, car parks and transport come from OpenStreetMap contributors.</dd>
 
         <dt>How do you know where the cattle are?</dt>
-        <dd>The forest's grazing cattle wear GPS collars, and their positions are published through the Nofence open data API. The map reads that feed when it loads.</dd>
+        <dd>The forest's grazing cattle wear GPS collars, and their positions are published through the Nofence open data API. The map reads that feed when it loads and periodically makes a network request to refresh it, because the cows move around. Offline, you see their last saved positions, which may be out of date.</dd>
 
         <dt>Does it drain my battery?</dt>
-        <dd>It draws only when something changes, and once the map is downloaded it makes no network requests. Keeping your screen on in the woods will always cost more than the map does.</dd>
+        <dd>The map limits redrawing to reduce battery use. Your screen and location services still use power, and the app periodically makes network requests to refresh cow locations.</dd>
 
         <dt>Which area does it cover?</dt>
         <dd>Epping Forest and a walking-distance band around its boundary, so the pub or station just outside the treeline is on the map too.</dd>
@@ -205,11 +218,11 @@
     </section>
 
     <section class="signup" id="signup">
-      <p class="eyebrow">Early access</p>
-      <h2>Get your alpha invitation</h2>
+      <p class="eyebrow">Release news &amp; major updates</p>
+      <h2>Be first to hear about the release</h2>
       <p class="signup-intro">
-        Help shape the map on your next walk. Leave your email and we'll send the private
-        link when the next set of invitations goes out.
+        Alpha invitations aren’t open yet. Leave your email to be among the first to hear
+        about the release and when invitations open. You’ll also receive major updates about the app.
       </p>
 
       <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
@@ -224,10 +237,10 @@
 
         <label class="consent">
           <input id="consent" name="consent" type="checkbox" required>
-          <span>Email me an invite to the Epping Forest Finds alpha and occasional news about the app.</span>
+          <span>Email me about the Epping Forest Finds release, alpha invitations and major updates about the app.</span>
         </label>
 
-        <button class="cta-btn" type="submit">Send my invitation</button>
+        <button class="cta-btn" type="submit">Keep me updated</button>
         <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
         <p class="form-small">
           We'll only use your address for this. Unsubscribe from any message.

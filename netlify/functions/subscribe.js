@@ -21,7 +21,7 @@ const LIST_ID = process.env.EMAILOCTOPUS_LIST_ID || "";
 // The exact wording the subscriber consented to, recorded alongside the
 // address so the consent record survives later copy changes.
 const CONSENT_WORDING =
-  "Email me an invite to the Epping Forest Finds alpha and occasional news about the app.";
+  "Email me about the Epping Forest Finds release, alpha invitations and major updates about the app.";
 
 // A form completed faster than a person can read it is a bot.
 const MIN_FILL_MS = 2000;

@@ -54,14 +54,14 @@ and none of them know where the veteran trees, the gates, or the cattle are.
 
 **What makes it different, in order of distinctiveness:**
 
-1. **Live grazing cattle.** Positions come from the herd's own GPS collars via
-   the Nofence open API. Nothing else has this.
-2. **24,906 veteran trees.** The complete Veteran Tree Register, mapped.
-3. **It works with no signal.** Downloaded once, then fully offline.
+1. **24,906 veteran trees.** The complete Veteran Tree Register, searchable by
+   physical tag number, with navigation to individual trees and estimated ages.
+2. **It works with no signal.** Downloaded map data remains available offline.
+3. **Grazing cattle positions.** GPS collar data from the Nofence open API is
+   refreshed periodically over the network; offline positions may be out of date.
 
-The cattle are the hook — they are surprising, specific, local and
-unduplicable. Lead with them in social copy. The offline capability is the
-*reason to keep it*, so lead with that in the hero.
+Lead feature and social copy with the trees and their tag numbers. Keep the
+hero's offline headline, with tree discovery in its supporting copy.
 
 ## 3. Phrase bank
 
@@ -74,15 +74,14 @@ independently; marketing changes do not automatically change those surfaces.
 
 ### 3.2 Hero sub-line
 
-> A free, offline map of Epping Forest — 24,906 veteran trees, every path, pub,
-> car park and toilet, and the forest's grazing cattle, live from their GPS
-> collars.
+> A free, offline map of Epping Forest — 24,906 veteran trees, ready to discover.
+> Find a tree by its tag number, navigate to it and see its estimated age.
+> Paths, pubs, facilities and grazing cattle are on the map too.
 
 ### 3.3 One-line description (meta description, manifest, store listings)
 
-> A free offline map of Epping Forest. Find veteran trees, pubs, cafés, car
-> parks, toilets, paths and stations near you, see where the forest's grazing
-> cattle are, and keep working with no phone signal.
+> Explore 24,906 veteran trees in Epping Forest. Find trees by tag number,
+> navigate to them and discover their estimated ages with an offline map.
 
 ### 3.4 Pillar headings and bodies
 
@@ -93,13 +92,13 @@ independently; marketing changes do not automatically change those surfaces.
 
 **Every veteran tree in the register**
 > All 24,906 trees from the Epping Forest Veteran Tree Register, each one
-> placed on the map with its species and record. Find the ancient pollards you
-> have walked past for years without knowing.
+> placed on the map with its species and record. Search by the number on a
+> tree’s physical tag to find that specific tree and explore its estimated age.
 
 **Follow the longhorns**
-> Epping Forest's grazing cattle wear GPS collars. The map shows you where the
-> herd actually is — useful if you want to see them, and just as useful if you
-> have a dog and would rather not.
+> Epping Forest's grazing cattle wear GPS collars. The map shows their latest
+> reported positions. Cows move around, so the app periodically makes a network
+> request for up-to-date locations. Offline, you’ll see the last saved positions.
 
 **Everything else you need out there**
 > 9,162 paths and bridleways. 689 pubs, cafés and shops. 1,596 car parks,
@@ -109,7 +108,7 @@ independently; marketing changes do not automatically change those surfaces.
 ### 3.5 Short forms
 
 - Tagline: **Epping Forest, offline.**
-- Social/sharing line: **See where Epping Forest's longhorns are right now — on a map that works with no signal.**
+- Social/sharing line: **Find Epping Forest’s veteran trees by tag number, navigate to them and discover their estimated ages on an offline map.**
 - Free/access line: **Free. No account needed. No signal needed.**
 
 ### 3.6 Banned phrases
@@ -120,7 +119,7 @@ Each of these contradicts something the project has already published:
 | --- | --- |
 | "No ads", "ad-free", "never any advertising" | `terms.html` §4 explicitly reserves the right to show sponsored or advertising content in future. |
 | "Never get lost", "always know where you are", any safety promise | `terms.html` §11 disclaims accuracy and completeness. Do not imply navigational safety. |
-| "Real-time" cattle, or any stated refresh interval | Positions are fetched from the Nofence open API when the map loads; no polling cadence is specified. Use "live" or "from their GPS collars". |
+| "Real-time" cattle or no network requests after download | Cattle move. Positions refresh periodically over the network; offline positions are the last saved ones and may be out of date. Repeat this caveat in the cattle pillar, offline section and FAQ, including its JSON-LD. |
 | "Anonymous" applied to mailing-list sign-ups | The mailing list is identifiable personal data. Only the *tracking* data is anonymous (see §9.4). |
 | Any hand-written feature count | Counts drift. They are generated — see §4. |
 
@@ -174,8 +173,12 @@ Sections, in order:
 
 1. **Hero** — the line-art longhorn (§7) as background, headline (§3.1),
    sub-line (§3.2), and the primary CTA element (§8).
-2. **The three pillars** — offline, veteran trees, cattle (§3.4), each with its
-   independent brand icon copy from `assets/home/`.
+2. **Find the tree behind the tag** — immediately after the hero, explain
+   searching physical tag numbers, navigating to a specific tree and checking
+   its tag on arrival. Ages are educated guesses from recorded girth and
+   species where data is available, not exact birthdays. The three pillars
+   follow: offline, veteran trees and cattle (§3.4), each with its independent
+   brand icon copy from `assets/home/`.
 3. **What's on the map** — the counts block (§3.4 fourth item, §4).
 4. **How it works offline** — three steps: open it once on signal, it
    downloads, it then works anywhere in the forest. This section exists to
@@ -312,15 +315,16 @@ the site runs in.
 
 | State | CTA | Supporting line |
 | --- | --- | --- |
-| `closed` | Get an alpha invite → sign-up form | "Epping Forest Finds is in a closed alpha. Leave your email and we'll send you the link." |
+| `closed` | Be first to hear → sign-up form | "Alpha invitations aren’t open yet. Sign up to be among the first to hear about the release and receive major updates about the app." |
 | `open` | Open the map → `/app` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
 links — is written to be true in all three states and does not change.
 
-The page must not imply immediate access while the gate is closed. Being
-straight that invites go out in batches costs nothing and avoids a bounce from
-someone who signed up expecting a map.
+The page must not imply immediate access or invitations already being sent.
+The signup heading is “Be first to hear about the release”, the submit button
+is “Keep me updated”, and the introduction repeats that invitations aren’t
+open yet and subscribers will also receive major updates.
 
 ## 9. Mailing list
 
@@ -355,8 +359,9 @@ which addresses are on the list is an enumeration oracle.
 - Record the consent timestamp **and the wording consented to**, so the record
   survives later copy changes.
 - Every message carries a working unsubscribe link from the first one.
-- Stated purpose: alpha invites and occasional news about the app. Nothing
-  else is sent to this list without fresh consent.
+- Consent wording in the form and server-side record must match exactly:
+  “Email me about the Epping Forest Finds release, alpha invitations and major
+  updates about the app.” Nothing else is sent to this list without fresh consent.
 
 ### 9.4 Privacy policy changes (blocking)
 
