@@ -209,13 +209,51 @@ Marker rules:
 - Selected-detail mode: filter button hidden, filter panel closed (not relevant when viewing specific location).
 - Minimized mode: collapsed header only.
 - The inspector is always expanded after a map-tap selection, on both desktop and mobile, so the detail panel opens immediately. This also applies to a selection made via a hash/deep link (`applySelectionFromHash`) — including a `hashchange` to a new linked location while the inspector was already minimized, which forces it back open. It is only auto-minimized when selecting from the overview/nearby list (`focusOverviewItem`).
-- Tapping the Nearby button always calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone.
+- Tapping the Nearby button always calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone. It is the one-tap way home; the header's back arrow steps back through the trail instead (see "URL hash / navigation state").
 - Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) plays a spring bounce animation (`.nav-reselect`) on the button instead of re-entering the screen. This gives tactile confirmation that the user is already on that screen.
 
 ### URL hash / navigation state
 
-- All hash changes use `history.replaceState` (never `pushState`) so no in-app history entries are created and browser back/swipe gestures take the user out of the app rather than undoing in-app navigation.
-- `hashchange` with an empty hash only triggers `goToInitialView()` when the filter screen is not open.
+The URL is the app's navigation state: every screen has one, and the URL is what puts the app
+on that screen. Implemented by the router in `js/app.js` (see the `--- Router ---` block there).
+
+| URL | Screen |
+| --- | --- |
+| `/app` | Nearby — the app's home screen |
+| `/app#filters` | Filters |
+| `/app#settings` | Settings |
+| `/app#report` | Feedback / Report |
+| `/app#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway` |
+
+- **A screen change pushes a history entry** (`setHashFromSelection` → `history.pushState`), so
+  browser back, the phone's back gesture and the inspector's own back arrow all retrace the same
+  trail: Nearby → Filters → a tree comes back out one screen at a time. Until this existed the
+  app only ever used `replaceState`, so back left the site from wherever the user had got to.
+- **The inspector back arrow (`#inspectorBack`) goes back one step, not straight to Nearby**
+  (`navigateBack`), so it and the device back button agree. The Nearby nav button remains the
+  one-tap way home. With nothing of this app's own behind the current screen — a link opened in
+  a fresh tab, where `history.state` carries depth 0 — it returns to Nearby rather than leaving
+  the site.
+- **`popstate` and `hashchange` both apply whatever the URL now says** (`applyRouteFromUrl`).
+  A history traversal fires `popstate` (and `hashchange` too when the fragment differs), while a
+  fragment edited by hand fires `hashchange` alone; applying a route the app is already on is a
+  no-op, so being called twice for one change costs nothing. Clearing the hash therefore returns
+  to Nearby from any screen, the Filter screen included — the URL is what says which screen is
+  open, so there is no longer a `secondaryScreenActive()` exception.
+- **Screen changes made by the URL do not write history entries.** `applyRoute` and the boot
+  sequence both suppress URL writes (`routeApplyDepth`, `routerBooting`), so replaying a route
+  never buries the entry behind it, and the launch URL survives the Nearby screen being built
+  behind the loading overlay.
+- **Every selectable thing has a URL**, listed in `SELECTION_ROUTES`. Trees and places were the
+  only two before the router, so selecting a cow, a street or a trail used to rewrite the address
+  bar to the Nearby screen's URL while that thing was on screen.
+- **An expanded map group (cluster) is the one screen with no URL of its own** — it is a set of
+  pins at one spot, not something a link can re-derive. It pushes an entry carrying the URL of
+  the screen it opened on top of, and `urlMatchesCurrentScreen` never counts an open group as
+  matching a URL, so going back applies that URL and closes the group.
+- **A URL naming something the dataset does not have** (a stale share link) falls back to Nearby
+  and corrects the entry in place with `replaceState`, rather than leaving the app on a screen
+  its URL does not describe.
 - `#report` opens the Feedback / Report screen directly. `#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
 
 ### Camera behavior

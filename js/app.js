@@ -377,18 +377,311 @@ const els = {
   inspectorActions: document.querySelector(".inspector-actions"),
 };
 
+// --- Router ---------------------------------------------------------------------------
+//
+// Every screen the app can be on has a URL, and the URL is what puts it there. A screen
+// change pushes a history entry, so the browser's back button, the phone's back gesture and
+// the inspector's own back arrow all retrace the same trail -- Nearby -> Filters -> a tree
+// comes back out a step at a time. Until this existed the app wrote the hash with
+// replaceState only, so back left the site from wherever the user had got to, Settings and
+// Report had no URL at all, and selecting anything that was not a tree or a place (a cow, a
+// street, a trail) quietly rewrote the address bar to the Nearby screen's URL.
+//
+// One canonical string -- the hash payload, without the "#" -- names a screen:
+//
+//   ""                 Nearby (the app's home screen)
+//   "filters"          Filters      "settings"  Settings      "report"  Feedback/Report
+//   "tree=<key>"       a selected tree; likewise place, cow, path, water, road, railway
+//
+// currentScreenRoute() writes it from state, applyRoute() reads it back into state, and the
+// two must agree: urlMatchesCurrentScreen() is what decides that an arriving URL is already
+// on screen and needs no work.
+//
+// This sits above boot() deliberately: boot()'s first statement is initRouter(), and the
+// module-scope bindings here have to be evaluated by the time it runs.
+
+const ROUTE_FILTERS = "filters";
+const ROUTE_SETTINGS = "settings";
+const ROUTE_REPORT = "report";
+
+// How deep inside the app's own history the current entry sits, carried in history.state.
+// 0 means "this is where the user arrived", so there is nothing behind it to go back to and
+// the in-app back arrow must return to Nearby itself rather than leaving the site.
+const NAV_DEPTH_KEY = "forestNavDepth";
+
+// Every selectable thing, with the URL parameter that names it, the key it is written as and
+// how it is resolved and shown again. Trees and places were the only two with a URL before
+// the router; the rest are here so that a screen change can never leave the URL describing a
+// screen the user is no longer on.
+const SELECTION_ROUTES = [
+  {
+    type: "tree",
+    param: "tree",
+    toKey: (item) => treeHashKey(item),
+    find: (key) => findTreeByHashKey(key),
+    show: (item) => showTreeDetails(item, distanceFromUser(item), "Tree link"),
+  },
+  {
+    type: "landmark",
+    param: "place",
+    toKey: (item) => placeHashKey(item),
+    find: (key) => findPlaceByHashKey(key),
+    show: (item) => showLandmarkDetails(item, distanceFromUser(item)),
+  },
+  {
+    type: "cow",
+    param: "cow",
+    toKey: (item) => cowKey(item),
+    find: (key) => findCowByKey(key),
+    show: (item) => showCowDetails(item, distanceFromUser(item)),
+  },
+  {
+    type: "path",
+    param: "path",
+    toKey: (item) => pathHashKey(item),
+    find: (key) => findPathByHashKey(key),
+    show: (item) => showPathDetails(item, distanceFromUserToPath(item)),
+  },
+  {
+    type: "water",
+    param: "water",
+    toKey: (item) => waterHashKey(item),
+    find: (key) => findWaterByHashKey(key),
+    show: (item) => showWaterDetails(item, distanceFromUser(item)),
+  },
+  {
+    type: "road",
+    param: "road",
+    toKey: (item) => roadHashKey(item),
+    find: (key) => findRoadByHashKey(key),
+    show: (item) => showRoadDetails(item, distanceFromUserToRoad(item)),
+  },
+  {
+    type: "railway",
+    param: "railway",
+    toKey: (item) => railwayHashKey(item),
+    find: (key) => findRailwayByHashKey(key),
+    show: (item) => showRailwayDetails(item),
+  },
+];
+
+// Screen changes made while one of these is set are the URL's own doing, not the user's, so
+// they must not write a history entry: routeApplyDepth covers applyRoute(), routerBooting
+// covers the boot sequence, which puts the app on the screen the launch URL asked for.
+let routeApplyDepth = 0;
+let routerBooting = true;
+
+function routerBootFinished() {
+  routerBooting = false;
+}
+
+// Normalises the landing entry so navDepth() has something to count from. history.state
+// survives a reload, so an entry pushed before the reload keeps the depth it had.
+function initRouter() {
+  if (navDepthOf(history.state) !== null) return;
+  history.replaceState(
+    { [NAV_DEPTH_KEY]: 0 },
+    "",
+    `${window.location.pathname}${window.location.search}${window.location.hash}`
+  );
+}
+
+function navDepthOf(entry) {
+  const depth = entry && entry[NAV_DEPTH_KEY];
+  return Number.isFinite(depth) ? depth : null;
+}
+
+function navDepth() {
+  return navDepthOf(history.state) ?? 0;
+}
+
+// True when there is a screen of this app's own behind the current one. False after a deep
+// link or a fresh load, where going back would leave the site entirely.
+function canGoBackInApp() {
+  return navDepth() > 0;
+}
+
+// The inspector's back arrow. It retraces the trail rather than always jumping to Nearby, so
+// it and the device back button agree; the Nearby nav button is still the one-tap way home.
+function navigateBack() {
+  if (canGoBackInApp()) {
+    history.back();
+    return;
+  }
+  goToInitialView();
+}
+
+function routeParam(name, value) {
+  const params = new URLSearchParams();
+  params.set(name, value);
+  return params.toString();
+}
+
+// "tree=r17338" -> "tree". Lets "report" and "report=<text>" be recognised as one screen.
+function routeName(raw) {
+  const value = String(raw || "");
+  const separator = value.indexOf("=");
+  return separator === -1 ? value : value.slice(0, separator);
+}
+
+// The canonical route for whatever is on screen right now.
+function currentScreenRoute() {
+  if (state.filterScreenOpen) return ROUTE_FILTERS;
+  const selection = state.selected;
+  if (!selection || !selection.type) return "";
+  if (selection.type === "settings") return ROUTE_SETTINGS;
+  if (selection.type === "report") return ROUTE_REPORT;
+  if (!selection.item) return "";
+  const route = SELECTION_ROUTES.find((entry) => entry.type === selection.type);
+  if (!route) return "";
+  const key = route.toKey(selection.item);
+  return key ? routeParam(route.param, key) : "";
+}
+
+function urlMatchesCurrentScreen(raw) {
+  // An expanded cluster is a group of pins at one spot on the map, not something a link can
+  // re-derive, so it has no URL of its own and never counts as matching one. That is what
+  // makes any route arriving from the URL apply -- and so closes the group on back.
+  if (state.clusterExpanded) return false;
+  const current = currentScreenRoute();
+  if (raw === current) return true;
+  // #report=<text> is the Report screen carrying a pre-fill, not a different screen.
+  return current === ROUTE_REPORT && routeName(raw) === ROUTE_REPORT;
+}
+
+function syncHashFromSelection(options) {
+  setHashFromSelection(currentScreenRoute(), options);
+}
+
+// Writes `value` into the URL as a new history entry. `force` pushes even when the URL is
+// unchanged, for the cluster group screen, which has no URL of its own but is still a screen
+// the back button has to be able to leave.
+function setHashFromSelection(value, { force = false } = {}) {
+  if (routeApplyDepth > 0 || routerBooting) return;
+  const nextHash = value ? `#${value}` : "";
+  if (!force && window.location.hash === nextHash) return;
+  const url = `${window.location.pathname}${window.location.search}${nextHash}`;
+  history.pushState({ [NAV_DEPTH_KEY]: navDepth() + 1 }, "", url);
+}
+
+// Corrects the current entry's URL without adding one, keeping the entry's depth.
+function replaceHashInPlace(value) {
+  const nextHash = value ? (value.startsWith("#") ? value : `#${value}`) : "";
+  const url = `${window.location.pathname}${window.location.search}${nextHash}`;
+  history.replaceState(history.state, "", url);
+}
+
+// The back/forward buttons, the device back gesture, and a hash the user edited by hand.
+// Both events reach here: pushState fires neither, a traversal fires popstate (and hashchange
+// too, when the fragment differs), and a hand-edited fragment fires hashchange alone.
+// Re-applying a route the app is already on is the same as doing nothing, so the shared
+// entry point simply checks first.
+function applyRouteFromUrl() {
+  const raw = window.location.hash.replace(/^#/, "").trim();
+  if (urlMatchesCurrentScreen(raw)) return true;
+  return applyRoute(raw, false);
+}
+
+// Applies the route named in the URL at load time. Unlike applyRouteFromUrl this leaves an
+// empty hash alone: at boot the Nearby screen has already been built behind the loading
+// overlay, and there is nothing to navigate away from.
+function applySelectionFromHash(announceMissing = true) {
+  const raw = window.location.hash.replace(/^#/, "").trim();
+  if (!raw) return false;
+  return applyRoute(raw, announceMissing);
+}
+
+// Puts the app on the screen `raw` names. Nothing in here writes the URL -- the URL is where
+// `raw` came from.
+function applyRoute(raw, announceMissing = false) {
+  routeApplyDepth += 1;
+  try {
+    return applyRouteToScreen(raw, announceMissing);
+  } finally {
+    routeApplyDepth -= 1;
+  }
+}
+
+function applyRouteToScreen(raw, announceMissing) {
+  const value = String(raw || "").replace(/^#/, "").trim();
+
+  // Whatever the route turns out to be, arriving at one is navigating away from an expanded
+  // map group -- the one screen with no URL of its own (see urlMatchesCurrentScreen).
+  state.clusterZoomed = false;
+  state.clusterExpanded = null;
+
+  if (!value) {
+    goToInitialView(false);
+    return true;
+  }
+  if (value === ROUTE_FILTERS) {
+    openFiltersScreen();
+    return true;
+  }
+  if (value === ROUTE_SETTINGS) {
+    openSettings();
+    return true;
+  }
+
+  const params = new URLSearchParams(value);
+
+  // #report opens the report-a-problem form. The weekly reports link here so a reader who
+  // spots a mistake lands straight on the form, and #report=<text> pre-fills it with which
+  // report they were reading.
+  if (params.has(ROUTE_REPORT)) {
+    openReportModal();
+    const prefill = params.get(ROUTE_REPORT);
+    const detailsInput = document.getElementById("reportDetails");
+    if (prefill && detailsInput && !detailsInput.value) {
+      detailsInput.value = `${prefill}: `;
+    }
+    return true;
+  }
+
+  for (const route of SELECTION_ROUTES) {
+    if (!params.has(route.param)) continue;
+    const item = route.find(params.get(route.param));
+    if (item) {
+      showRoutedSelection(route, item);
+      return true;
+    }
+    break;
+  }
+
+  if (announceMissing) setStatus("Linked location was not found in this dataset.");
+  // The URL names something this dataset has no answer for (a stale share link, an item
+  // dropped by a data update). Leaving it in the address bar would leave the app on a screen
+  // its URL does not describe -- and so make the next back press unpredictable -- so fall
+  // back to Nearby and correct the entry in place rather than pushing another one.
+  goToInitialView(false);
+  replaceHashInPlace("");
+  return false;
+}
+
+function showRoutedSelection(route, item) {
+  state.selected = { type: route.type, item };
+  route.show(item);
+  // Deep-linked selections behave like a map-tap selection: the inspector opens expanded
+  // immediately on both mobile and desktop (spec.md "Inspector modes"). Force it open (not
+  // just skip minimizing) so arriving at a new linked location while the inspector was
+  // already minimized doesn't stay collapsed.
+  setInspectorMinimized(false);
+  startCompassNavigation();
+  if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true });
+  else if (item.point) fitToPoints([item.point], false, { animate: true });
+  requestDraw();
+}
+
 boot();
 
 async function boot() {
+  initRouter();
   initTracker();
   setupPwa();
   setupUiZoomLock();
   setupInteractions();
   resizeCanvas();
   draw();
-
-  // Capture URL hash before any selectOverview() call clears it via syncHashFromSelection()
-  const startHash = window.location.hash;
 
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();
@@ -486,13 +779,7 @@ async function boot() {
         // Brief pause so the user sees the completed step list.
         await new Promise((resolve) => setTimeout(resolve, 320));
 
-        // selectOverview() above clears the hash via syncHashFromSelection(); restore it
-        // so applySelectionFromHash() can honour deep-link URLs like /#tree=11383.
-        if (startHash && !window.location.hash) {
-          history.replaceState(null, "", location.pathname + location.search + startHash);
-        }
-
-        // Apply any URL hash selection after the wait so it overrides the overview snap.
+        // Apply the launch URL's own screen after the wait so it overrides the overview snap.
         applySelectionFromHash();
 
         // Fade overlay and animate camera to final position simultaneously.
@@ -522,9 +809,6 @@ async function boot() {
         await new Promise((resolve) => setTimeout(resolve, 300));
         selectOverview();
         draw();
-        if (startHash && !window.location.hash) {
-          history.replaceState(null, "", location.pathname + location.search + startHash);
-        }
         applySelectionFromHash();
         triggerMapRevealZoom();
         triggerInspectorEntry();
@@ -536,9 +820,6 @@ async function boot() {
       setStatus("Offline map data loaded.");
       selectOverview();
       draw();
-      if (startHash && !window.location.hash) {
-        history.replaceState(null, "", location.pathname + location.search + startHash);
-      }
       applySelectionFromHash();
       triggerMapRevealZoom();
       triggerInspectorEntry();
@@ -559,6 +840,11 @@ async function boot() {
       els.inspectorBody.innerHTML = `<p class="empty">Could not fully load map data. Try a hard refresh. If running locally, make sure the server is started from this folder.</p>`;
     }
     setStatus("Could not load local map data. Start a local server from this folder and refresh.");
+  } finally {
+    // Boot is over: from here a screen change is the user navigating, and writes a history
+    // entry. Until now every one of them was the launch URL being honoured (see
+    // routerBooting), which must not bury the entry the user arrived on.
+    routerBootFinished();
   }
 }
 
@@ -1649,6 +1935,7 @@ function openSettings() {
   bindSettingsHandlers();
   setInspectorMinimized(false);
   updateCompassOverlay();
+  syncHashFromSelection();
   requestDraw();
   if (state.userLocation) {
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
@@ -1776,6 +2063,7 @@ function openReportModal() {
   updateReportLocationLabel();
   setInspectorMinimized(false);
   updateCompassOverlay();
+  syncHashFromSelection();
   requestDraw();
   if (state.userLocation) {
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
@@ -5130,106 +5418,6 @@ function ensureOverviewTargetsVisible(options = {}) {
   }
 }
 
-function syncHashFromSelection() {
-  const selection = state.selected;
-
-  // Filter screen has a special hash
-  if (state.filterScreenOpen) {
-    setHashFromSelection("filters");
-    return;
-  }
-
-  if (!selection || !selection.item) {
-    setHashFromSelection("");
-    return;
-  }
-  if (selection.type === "tree") {
-    const params = new URLSearchParams();
-    params.set("tree", treeHashKey(selection.item));
-    setHashFromSelection(params.toString());
-    return;
-  }
-  if (selection.type === "landmark") {
-    const params = new URLSearchParams();
-    params.set("place", placeHashKey(selection.item));
-    setHashFromSelection(params.toString());
-    return;
-  }
-  setHashFromSelection("");
-}
-
-function setHashFromSelection(value) {
-  const nextHash = value ? `#${value}` : "";
-  if (window.location.hash === nextHash) return;
-  const url = `${window.location.pathname}${window.location.search}${nextHash}`;
-  history.replaceState(null, "", url);
-}
-
-function applySelectionFromHash(announceMissing = true) {
-  const raw = window.location.hash.replace(/^#/, "").trim();
-  if (!raw) return false;
-
-  // Handle special screens
-  if (raw === "filters") {
-    openFiltersScreen();
-    return true;
-  }
-
-  const params = new URLSearchParams(raw);
-
-  // #report opens the report-a-problem form. The weekly reports link here
-  // so a reader who spots a mistake lands straight on the form, and
-  // #report=<text> pre-fills it with which report they were reading.
-  if (params.has("report")) {
-    openReportModal();
-    const prefill = params.get("report");
-    const detailsInput = document.getElementById("reportDetails");
-    if (prefill && detailsInput && !detailsInput.value) {
-      detailsInput.value = `${prefill}: `;
-    }
-    return true;
-  }
-
-  const treeKey = params.get("tree");
-  const placeKey = params.get("place");
-
-  if (treeKey) {
-    const tree = findTreeByHashKey(treeKey);
-    if (tree) {
-      state.selected = { type: "tree", item: tree };
-      showTreeDetails(tree, distanceFromUser(tree), "Tree link");
-      // Deep-linked selections behave like a map-tap selection: the inspector opens
-      // expanded immediately on both mobile and desktop (spec.md "Inspector modes").
-      // Force it open (not just skip minimizing) so a hashchange to a new linked
-      // location while the inspector was already minimized doesn't stay collapsed.
-      setInspectorMinimized(false);
-      startCompassNavigation();
-      if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true });
-      else fitToPoints([tree.point], false, { animate: true });
-      requestDraw();
-      return true;
-    }
-  }
-
-  if (placeKey) {
-    const place = findPlaceByHashKey(placeKey);
-    if (place) {
-      state.selected = { type: "landmark", item: place };
-      showLandmarkDetails(place, distanceFromUser(place));
-      // See the matching comment in the treeKey branch above.
-      setInspectorMinimized(false);
-      startCompassNavigation();
-      if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true });
-      else fitToPoints([place.point], false, { animate: true });
-      requestDraw();
-      return true;
-    }
-  }
-
-  if (announceMissing) setStatus("Linked location was not found in this dataset.");
-  return false;
-}
-
 // The identity of a tree, used for the #tree= deep link, for the Nearby list's own
 // de-duplication (overviewEntryKey/uniqueSortedOverviewEntries) and for resolving a tapped
 // list row back to a tree (findTreeByHashKey). recordNumber first, and only recordNumber:
@@ -5826,6 +6014,20 @@ function findPathByHashKey(key) {
 
 function findWaterByHashKey(key) {
   return state.waterFeatures.find((w) => waterHashKey(w) === key) || null;
+}
+
+// roadHashKey / railwayHashKey → js/normalize.js
+
+function findRoadByHashKey(key) {
+  return state.roads.find((road) => roadHashKey(road) === key) || null;
+}
+
+function findRailwayByHashKey(key) {
+  return state.environmentFeatures.find((feature) => (
+    feature.properties
+    && feature.properties.featureType === "railway"
+    && railwayHashKey(feature) === key
+  )) || null;
 }
 
 function nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres) {

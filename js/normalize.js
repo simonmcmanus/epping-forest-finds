@@ -85,6 +85,27 @@ function pathHashKey(path) {
   ].join(":");
 }
 
+// Roads and railways are tap-only selections, but every screen the app can be on needs a URL
+// for the router (see "Router" in js/app.js) -- without one, tapping a street rewrote the
+// address bar to the Nearby screen's URL while a street was on screen. Roads carry no id, so
+// they are keyed exactly the way paths are: what they are called plus where they are.
+function roadHashKey(road) {
+  if (!road) return "";
+  if (road.key) return road.key;
+  return [
+    road.name || road.ref || road.roadType || "road",
+    road.bbox ? road.bbox.minX.toFixed(2) : "0",
+    road.bbox ? road.bbox.minY.toFixed(2) : "0",
+    road.bbox ? road.bbox.maxX.toFixed(2) : "0",
+    road.bbox ? road.bbox.maxY.toFixed(2) : "0",
+  ].join(":");
+}
+
+// Railways are raw environment features, which do carry an OSM id ("way/30804").
+function railwayHashKey(railway) {
+  return (railway && railway.properties && railway.properties.id) || "";
+}
+
 function isWaymarkedTrail(path) {
   return Boolean(path) && path.pathType === "waymarked_trail";
 }

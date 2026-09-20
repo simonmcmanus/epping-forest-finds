@@ -186,6 +186,13 @@ function showClusterDetail(cluster) {
   transitionInspectorBody(`<ul class="nearest-list">${itemsHtml}</ul>`, "forward", () => {
     updateOverviewDirectionArrows();
   });
+
+  // A group of pins at one spot on the map is not something a link can re-derive, so this
+  // screen has no URL of its own -- but it is still a screen, and back has to leave it. It
+  // pushes an entry carrying the URL of the screen it sits on top of; urlMatchesCurrentScreen
+  // (js/app.js) never counts an open group as matching a URL, so going back applies that URL
+  // and closes the group.
+  setHashFromSelection(currentScreenRoute(), { force: true });
 }
 
 function trackSelectionClick(itemType, item, source) {
@@ -894,6 +901,7 @@ function focusOverviewItem(type, key) {
     if (!water) return;
     const metres = distanceFromUser(water);
     state.selected = { type: "water", item: water };
+    syncHashFromSelection();
     showWaterDetails(water, metres);
     setInspectorMinimized(true);
     startCompassNavigation();

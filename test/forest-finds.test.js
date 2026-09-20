@@ -43,6 +43,7 @@ function createElementStub(id = "") {
     querySelectorAll() { return []; },
     closest() { return null; },
     focus() {},
+    scrollIntoView() {},
     getBoundingClientRect() {
       return { left: 0, top: 0, right: this.clientWidth, bottom: this.clientHeight, width: this.clientWidth, height: this.clientHeight };
     },
@@ -108,37 +109,76 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     removeEventListener() {},
   };
 
+  // Window listeners are recorded rather than dropped so the history stub below can deliver a
+  // popstate the way a browser does, and the router's own back/forward handling can be tested
+  // end to end. windowStub.dispatchEvent(type) fires them by hand.
+  const windowListeners = new Map();
+
   const window = {
     location: { hostname: "localhost", hash: "", pathname: "/", search: "" },
     devicePixelRatio: 1,
     innerWidth: 1000,
     innerHeight: 800,
     localStorage,
-    addEventListener() {},
-    removeEventListener() {},
+    addEventListener(type, handler) {
+      if (typeof handler !== "function") return;
+      if (!windowListeners.has(type)) windowListeners.set(type, new Set());
+      windowListeners.get(type).add(handler);
+    },
+    removeEventListener(type, handler) {
+      const handlers = windowListeners.get(type);
+      if (handlers) handlers.delete(handler);
+    },
+    dispatchEvent(type) {
+      for (const handler of windowListeners.get(type) || []) handler({ type });
+    },
     matchMedia() { return { matches: false, addEventListener() {}, removeEventListener() {} }; },
   };
   window.window = window;
   window.localStorage = localStorage;
+
+  const applyUrlToLocation = (url) => {
+    if (typeof url !== "string") return;
+    const hashIndex = url.indexOf("#");
+    window.location.hash = hashIndex >= 0 ? url.substring(hashIndex) : "";
+  };
+
+  const history = {
+    entries: [{ state: null, url: "/" }],
+    index: 0,
+    get length() { return this.entries.length; },
+    get state() { return this.entries[this.index].state; },
+    pushState(state, title, url) {
+      // Anything ahead of the current entry is discarded, exactly as a browser does.
+      this.entries.length = this.index + 1;
+      this.entries.push({ state, url });
+      this.index = this.entries.length - 1;
+      applyUrlToLocation(url);
+    },
+    replaceState(state, title, url) {
+      this.entries[this.index] = { state, url: url ?? this.entries[this.index].url };
+      applyUrlToLocation(url);
+    },
+    go(delta) {
+      const next = this.index + delta;
+      if (next < 0 || next >= this.entries.length || delta === 0) return;
+      this.index = next;
+      applyUrlToLocation(this.entries[next].url);
+      window.dispatchEvent("popstate");
+    },
+    back() { this.go(-1); },
+    forward() { this.go(1); },
+  };
 
   const context = {
     console,
     document,
     window,
     navigator: { geolocation: null, userAgent: "node-test" },
-    history: {
-      replaceState(state, title, url) {
-        // Parse the URL and update window.location to match browser behavior
-        if (url) {
-          const hashIndex = url.indexOf('#');
-          if (hashIndex >= 0) {
-            window.location.hash = url.substring(hashIndex);
-          } else {
-            window.location.hash = "";
-          }
-        }
-      }
-    },
+    // A real session-history stack: the router pushes an entry per screen change and relies on
+    // history.state carrying the depth, and on back() delivering a popstate, so a stub that
+    // only rewrote the hash could not exercise any of it.
+    history,
     fetch: async () => { throw new Error("fetch should not run in tests"); },
     setTimeout,
     clearTimeout,
@@ -337,9 +377,26 @@ globalThis.__forestFindsTest = {
   settingsFormHtml,
   reportFormHtml,
   openFiltersScreen,
+  openSettings,
+  openReportModal,
   goToInitialView,
   applySelectionFromHash,
+  applyRouteFromUrl,
   syncHashFromSelection,
+  setHashFromSelection,
+  currentScreenRoute,
+  urlMatchesCurrentScreen,
+  routerBootFinished,
+  initRouter,
+  navDepth,
+  canGoBackInApp,
+  navigateBack,
+  setupSearchAndNavHandlers,
+  setupInspectorHandlers,
+  roadHashKey,
+  railwayHashKey,
+  findRoadByHashKey,
+  findRailwayByHashKey,
   ONBOARDING_STEPS,
   compassStepMarkup,
   compassPermissionRequiresRequest,
@@ -370,6 +427,7 @@ globalThis.__forestFindsTest = {
   COMPASS_HEADINGLESS_PROMPT_MS,
   SENSOR_WATCHDOG_INTERVAL_MS,
   location: window.location,
+  history,
   windowStub: window,
   documentStub: document,
 };
@@ -388,6 +446,12 @@ globalThis.__forestFindsTest = {
 
   vm.runInContext(script, context, { filename: "js/app.js" });
   const api = context.__forestFindsTest;
+
+  // boot() is stripped from the source these tests run, so do the two things it does to the
+  // router: give the landing entry a depth, and declare boot over -- until then the router
+  // deliberately suppresses every URL write, so nothing would ever reach the history stub.
+  api.initRouter();
+  api.routerBootFinished();
 
   // The default element stub reports the full 1000x800 stage for every element, which made
   // els.inspector overlap the ENTIRE canvas. bestVisibleCanvasRect() then had no uncovered
@@ -3331,6 +3395,159 @@ test("hash-selecting a new tree re-expands the inspector even if it was left min
     false,
     "inspector must be forced back open, not left minimized from before the new link was loaded"
   );
+});
+
+// --- Router: the URL is the navigation state ---
+//
+// Every screen has a URL and every screen change writes a history entry, so back retraces the
+// trail (spec.md "URL hash / navigation state"). Before this the app only ever replaceState'd,
+// so back left the site from wherever the user had got to.
+
+// Puts the session history back to a single landing entry, the way a fresh page load leaves it.
+function resetRouter(app, hash = "") {
+  app.location.hash = hash;
+  app.history.entries = [{ state: null, url: `/${hash}` }];
+  app.history.index = 0;
+  app.initRouter();
+}
+
+test("opening a screen adds a history entry rather than replacing the one behind it", () => {
+  resetData(app);
+  resetRouter(app);
+  const before = app.history.length;
+  app.openFiltersScreen();
+  app.openSettings();
+  assert.equal(app.history.length, before + 2, "Filters and Settings each added an entry");
+  assert.ok(app.location.hash.includes("settings"), `Settings is in the URL, got ${app.location.hash}`);
+});
+
+test("Settings and Report each have a URL of their own that opens them again", () => {
+  resetData(app);
+  resetRouter(app, "#settings");
+  assert.equal(app.applySelectionFromHash(false), true, "#settings is a route");
+  assert.equal(app.state.selected?.type, "settings", "and it opens the Settings screen");
+
+  resetData(app);
+  resetRouter(app, "#report");
+  assert.equal(app.applySelectionFromHash(false), true, "#report is a route");
+  assert.equal(app.state.selected?.type, "report", "and it opens the Report screen");
+});
+
+test("going back returns to the screen the trail came from, a step at a time", () => {
+  resetData(app);
+  resetRouter(app);
+  app.setupSearchAndNavHandlers(); // registers the popstate handler the browser fires
+  app.openFiltersScreen();
+  app.openSettings();
+
+  app.history.back();
+  assert.equal(app.state.filterScreenOpen, true, "back from Settings lands on Filters");
+
+  app.history.back();
+  assert.equal(app.state.filterScreenOpen, false, "and back again lands on Nearby");
+  assert.equal(app.location.hash, "", "with the Nearby URL restored");
+});
+
+test("going back does not itself write a history entry", () => {
+  resetData(app);
+  resetRouter(app);
+  app.setupSearchAndNavHandlers();
+  app.openFiltersScreen();
+  app.openSettings();
+  const length = app.history.length;
+  app.history.back();
+  assert.equal(app.history.length, length, "applying a route from the URL must not bury the entry behind it");
+});
+
+test("the inspector back arrow steps back through the trail when a screen sits behind the current one", () => {
+  resetData(app);
+  resetRouter(app);
+  app.setupSearchAndNavHandlers();
+  app.openFiltersScreen();
+  app.openSettings();
+  assert.equal(app.canGoBackInApp(), true, "two screens deep, there is something to go back to");
+  app.navigateBack();
+  assert.equal(app.state.filterScreenOpen, true, "the arrow goes back one step, not straight to Nearby");
+});
+
+test("the inspector back arrow returns to Nearby when the app was opened straight onto a screen", () => {
+  resetData(app);
+  resetRouter(app, "#filters");
+  app.applySelectionFromHash(false);
+  assert.equal(app.state.filterScreenOpen, true, "the link opened Filters");
+  assert.equal(app.canGoBackInApp(), false, "a link opened in a fresh tab has nothing of this app's behind it");
+  app.navigateBack();
+  assert.equal(app.state.filterScreenOpen, false, "so the arrow returns to Nearby rather than leaving the site");
+});
+
+test("selecting something other than a tree or a place names it in the URL instead of clearing it", () => {
+  resetData(app);
+  resetRouter(app);
+  const cow = { serialNo: 4242, ...makePoint(app, 51.65, 0.05) };
+  app.state.cows = [cow];
+  app.state.selected = { type: "cow", item: cow };
+  app.syncHashFromSelection();
+  assert.ok(app.location.hash.includes("cow"), `the cow is in the URL, got ${app.location.hash}`);
+
+  app.state.selected = null;
+  assert.equal(app.applySelectionFromHash(false), true, "and the URL opens it again");
+  assert.equal(app.state.selected?.item?.serialNo, 4242, "resolving to the same cow");
+  // showCowDetails starts a 30s "position updated" ticker; nothing else here would stop it.
+  if (app.state.cowDetailTimerId != null) {
+    clearInterval(app.state.cowDetailTimerId);
+    app.state.cowDetailTimerId = null;
+  }
+});
+
+test("a tapped street or railway line gets a URL too, so the address bar never describes a screen the user has left", () => {
+  resetData(app);
+  resetRouter(app);
+  const road = {
+    name: "Whitehall Road",
+    roadType: "residential",
+    segments: [[{ x: 0, y: 0 }, { x: 1, y: 1 }]],
+    bbox: { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+  };
+  app.state.roads = [road];
+  app.state.selected = { type: "road", item: road };
+  app.syncHashFromSelection();
+  assert.ok(app.location.hash.startsWith("#road="), `the street is in the URL, got ${app.location.hash}`);
+  assert.equal(app.findRoadByHashKey(app.roadHashKey(road)), road, "and the key resolves back to the same street");
+
+  const railway = { properties: { id: "way/30804", featureType: "railway", name: "Chingford Branch" } };
+  app.state.environmentFeatures = [railway];
+  app.state.selected = { type: "railway", item: railway };
+  app.syncHashFromSelection();
+  assert.ok(app.location.hash.startsWith("#railway="), `the line is in the URL, got ${app.location.hash}`);
+  assert.equal(app.findRailwayByHashKey("way/30804"), railway, "and the key resolves back to the same line");
+});
+
+test("an expanded map group is a screen back can leave, though it has no URL of its own", () => {
+  resetData(app);
+  resetRouter(app);
+  app.setupSearchAndNavHandlers();
+  app.openFiltersScreen();
+  const entries = app.history.length;
+
+  // What showClusterDetail does: it takes over the inspector, and pushes an entry carrying the
+  // URL of the screen it opened on top of.
+  app.state.filterScreenOpen = false;
+  app.state.clusterExpanded = { itemType: "tree", items: [] };
+  app.setHashFromSelection(app.currentScreenRoute(), { force: true });
+
+  assert.equal(app.history.length, entries + 1, "the group pushes an entry even with no URL of its own");
+  assert.equal(app.urlMatchesCurrentScreen(""), false, "an open group never counts as already matching a URL...");
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "...so going back closes it");
+});
+
+test("a link naming something this dataset does not have falls back to Nearby and corrects the URL", () => {
+  resetData(app);
+  resetRouter(app, "#tree=r999999");
+  const applied = app.applySelectionFromHash(false);
+  assert.equal(applied, false, "nothing was opened");
+  assert.equal(app.location.hash, "", "the dead URL is cleared rather than left describing a screen that never opened");
+  assert.equal(app.history.length, 1, "and corrected in place rather than pushing another entry");
 });
 
 // --- Offline support ---
