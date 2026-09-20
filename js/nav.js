@@ -464,8 +464,12 @@ function setupInspectorHandlers() {
     });
   }
 
+  // Retraces the trail rather than always jumping to Nearby, so the header arrow, the
+  // browser back button and the phone's back gesture all do the same thing (see the Router
+  // section in js/app.js). With nothing of this app's own behind the current screen -- a
+  // deep link opened in a fresh tab -- it still returns to Nearby rather than leaving.
   els.inspectorBack.addEventListener("click", () => {
-    goToInitialView();
+    navigateBack();
   });
 
   els.inspector.addEventListener("click", (event) => {
@@ -634,12 +638,16 @@ function setupSearchAndNavHandlers() {
     els.treeSearchToggle.setAttribute("aria-expanded", "false");
   });
 
+  // Back, forward, the device back gesture, and a fragment edited by hand all land here: the
+  // URL is the app's navigation state, so whatever it now says is what gets shown. A
+  // traversal fires popstate (plus hashchange when the fragment differs) and a hand-edited
+  // fragment fires hashchange alone; applyRouteFromUrl no-ops when the app is already on the
+  // screen the URL names, so being called twice for one change costs nothing.
+  window.addEventListener("popstate", () => {
+    applyRouteFromUrl();
+  });
   window.addEventListener("hashchange", () => {
-    if (!window.location.hash) {
-      if (!secondaryScreenActive()) goToInitialView(false);
-      return;
-    }
-    applySelectionFromHash(false);
+    applyRouteFromUrl();
   });
 
   if (els.nearbyAnchorBar) {
@@ -1438,7 +1446,7 @@ function goToInitialView(updateHash = true) {
     refitOverview();
   }
   updateCompassOverlay();
-  if (updateHash) setHashFromSelection();
+  if (updateHash) setHashFromSelection("");
   requestDraw();
 }
 

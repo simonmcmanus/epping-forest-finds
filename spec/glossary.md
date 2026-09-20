@@ -129,7 +129,10 @@ The background script (`sw.js`) that pre-caches the app shell and offline datase
 A flag `server.js` inserts into the `sw.js` response it serves (via `injectDevFlag()`), never present in the file on disk or in the production build Netlify serves untouched. `sw.js` reads it into `IS_DEV` and, when true, fetches everything from the network first (cache as an offline-only fallback) instead of the production cache-first strategy — this is what makes local testing reflect the latest files on every refresh. `injectDevFlag()` also prefixes both `APP_CACHE_NAME` and `DATA_CACHE_NAME` with `dev-` (e.g. `forest-finds-app-dev-v1`), mirroring the branch prefix `sw-bump.yml` applies for preview builds, so the About screen's app-version display and any bug report's `appVersion` read as local rather than a stuck release number.
 
 **Hash / deep link**
-The URL fragment (`#...`) that encodes the current selection. Uses `history.replaceState` so no in-app history entries are created.
+The URL fragment (`#...`) that names the screen the app is on — a selection, or Filters / Settings / Report. It is navigation state, not a label: the router (`js/app.js`) pushes a history entry per screen change and applies whatever the URL says on `popstate` / `hashchange`, so back and forward retrace the trail and a shared link opens the screen it names. See spec.md § "URL hash / navigation state".
+
+**Route**
+The canonical hash payload for a screen, without the leading `#`: `""` (Nearby), `"filters"`, `"settings"`, `"report"`, or `"<kind>=<key>"` for a selection. `currentScreenRoute()` writes one from state and `applyRoute()` reads one back into state.
 
 ---
 
