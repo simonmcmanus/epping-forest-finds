@@ -96,7 +96,19 @@ Netlify environment variable and documented in `.env.example`.
   change, no URL change.
 
 Secrets should be memorable rather than random — they are mailed out, read
-aloud and retyped.
+aloud and retyped — but they **must not be a word that appears anywhere in the
+site's own content**.
+
+`netlify.toml` sets `publish = "."`, so the whole repository is the published
+output, and Netlify's secrets scanning fails the build whenever an environment
+variable's value is found in it. An on-brand secret is therefore exactly the
+wrong instinct: "longhorn" is a pillar heading and an `og:description` on the
+homepage, so setting it as the secret breaks every deploy. The first attempt at
+this shipped `ALPHA_SECRETS=longhorn` in `.env.example` and did precisely that.
+
+A short phrase with no relation to the marketing copy satisfies both: readable
+over the phone, and absent from the published files. The same rule applies in
+reverse — once a secret is live, it must not become site copy.
 
 ### 3.2 Behaviour
 
