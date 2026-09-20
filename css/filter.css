@@ -7,7 +7,8 @@
   font-weight: 900;
 }
 
-.nearby-toggle {
+.nearby-toggle,
+.search-screen-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -15,6 +16,7 @@
 
 /* Active page state: currently viewing this screen */
 .nearby-toggle.screen-active,
+.search-screen-toggle.screen-active,
 .filter-toggle.screen-active,
 .report-toggle.screen-active,
 .settings-toggle.screen-active {

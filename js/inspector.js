@@ -496,29 +496,38 @@ function distanceToSegment(px, py, x1, y1, x2, y2) {
   return Math.hypot(px - nearestX, py - nearestY);
 }
 
-function showRoadDetails(road, distance) {
-  const roadEmoji = road.roadType === "motorway" ? "🛣️"
-    : road.roadType === "trunk" || road.roadType === "primary" ? "🛤️"
+// Shared with the search results list (js/app.js), so a street reads the same in a result
+// row as it does on its own screen.
+function roadEmoji(road) {
+  const roadType = road && road.roadType;
+  return roadType === "motorway" ? "🛣️"
+    : roadType === "trunk" || roadType === "primary" ? "🛤️"
     : "🚙";
+}
 
-  setInspectorSelectionChrome({ emoji: roadEmoji, showBack: true });
+function roadTypeLabel(road) {
+  const roadType = road && road.roadType;
+  return roadType === "motorway" ? "Motorway"
+    : roadType === "trunk" ? "Trunk Road"
+    : roadType === "primary" ? "Primary Road"
+    : roadType === "secondary" ? "Secondary Road"
+    : roadType === "tertiary" ? "Tertiary Road"
+    : roadType === "residential" ? "Residential Road"
+    : roadType === "service" ? "Service Road"
+    : "Road";
+}
+
+function showRoadDetails(road, distance) {
+  setInspectorSelectionChrome({ emoji: roadEmoji(road), showBack: true });
   els.inspectorTools.hidden = true;
 
-  const roadTypeLabel = road.roadType === "motorway" ? "Motorway"
-    : road.roadType === "trunk" ? "Trunk Road"
-    : road.roadType === "primary" ? "Primary Road"
-    : road.roadType === "secondary" ? "Secondary Road"
-    : road.roadType === "tertiary" ? "Tertiary Road"
-    : road.roadType === "residential" ? "Residential Road"
-    : road.roadType === "service" ? "Service Road"
-    : "Road";
-
+  const typeLabel = roadTypeLabel(road);
   const displayName = road.name || road.ref || "Unnamed road";
   els.inspectorTitle.textContent = displayName;
-  els.inspectorType.textContent = roadTypeLabel;
+  els.inspectorType.textContent = typeLabel;
 
   const rows = [
-    ["Road type", roadTypeLabel],
+    ["Road type", typeLabel],
     ["Name", road.name],
     ["Reference", road.ref],
     ["Highway tag", road.highway],
@@ -596,7 +605,7 @@ function showWaterDetails(water, distance) {
 let _overviewListKey;
 
 function selectOverview(animate = false) {
-  if (state.filterScreenOpen) return;
+  if (state.filterScreenOpen || state.searchScreenOpen) return;
   if (state.clusterExpanded) return;
   [els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
     if (el) el.classList.remove("screen-active", "active");
@@ -685,7 +694,7 @@ function animateNearestItemReorder(previousPositions) {
 }
 
 function isOverviewScreenActive() {
-  return !state.selected && !state.filterScreenOpen;
+  return !state.selected && !state.filterScreenOpen && !state.searchScreenOpen;
 }
 
 // --- Screen transition ---
@@ -792,6 +801,10 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
     els.inspectorTitleEmoji.textContent = emoji || "";
   }
   if (els.nearbyToggle) els.nearbyToggle.classList.remove("screen-active");
+  // Every screen entry point routes through here, so this is where Search stands down;
+  // openSearchScreen sets the flag again straight after its own call.
+  state.searchScreenOpen = false;
+  if (els.searchToggle) els.searchToggle.classList.remove("screen-active");
   if (showBack) {
     state.filterScreenOpen = false;
     if (els.filterToggle) els.filterToggle.classList.remove("screen-active");

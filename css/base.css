@@ -64,42 +64,6 @@ a:focus-visible {
   gap: 8px;
 }
 
-.search-toggle {
-  min-width: 42px;
-  width: 42px;
-  padding: 0;
-  font-size: 1.1rem;
-  background: #fff;
-  color: var(--ink);
-  border: 1px solid var(--line);
-  box-shadow: none;
-}
-
-.bottom-search {
-  position: absolute;
-  left: 50%;
-  bottom: 14px;
-  transform: translateX(-50%);
-  z-index: 2;
-}
-
-.bottom-search .search-toggle {
-  width: auto;
-  min-width: 46px;
-  padding: 0 12px;
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.search-panel {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.search-panel[hidden] {
-  display: none;
-}
-
 .search-number {
   min-height: 42px;
   width: clamp(150px, 18vw, 220px);
@@ -134,10 +98,6 @@ a:focus-visible {
   display: none;
   background: #f3d36b;
   color: #1f271f;
-}
-
-.search-button {
-  background: var(--selected);
 }
 
 .icon {

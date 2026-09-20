@@ -7,7 +7,7 @@ The panel that sits above the map. Called "modal" in user-facing language and "i
 The map canvas in the background, visible in the area not covered by the inspector.
 
 **Navigation buttons**
-The icon buttons at the top right of the inspector (Nearby, Filters, Settings, Feedback).
+The icon buttons at the top right of the inspector (Nearby, Search, Filters, Settings, Feedback).
 
 ---
 
@@ -18,6 +18,9 @@ The default inspector state: shows the nearest items list and filter controls. "
 
 **Selected-detail mode**
 Inspector state when a specific tree, landmark, cow, path, street, or railway is selected. Shows full item detail and hides the filter panel.
+
+**Search screen**
+Inspector state when the search magnifier is open (`state.searchScreenOpen = true`). A query field over the whole dataset — trees by species or tag, places, roads, trails, water, railway lines and cows — listing matches as Nearby-style rows that open the location when chosen (`openSearchScreen()`, `searchMapFeatures()`, `openSearchResult()`). One of the four secondary screens; shares `secondaryScreenActive()` navigation behaviour with Filter, Settings and Feedback.
 
 **Filter screen / Filters screen**
 Inspector state when the filter toggle panel is open (`state.filterScreenOpen = true`). Shows filter group chips. GPS updates, cow refreshes, and back-button presses do not close it — only explicit navigation away does.
@@ -32,7 +35,7 @@ When a user has selected a location and is being shown directions to it. A route
 Inspector state after tapping a multi-item cluster pin (`state.clusterExpanded` set, `state.selected` null). Shows a back button, an item-count title (e.g. "4 Trees"), and a nearest-item list of the cluster's members. While it is open the map shows only that group's items — every other highlighted location is hidden. Tapping a member opens full selected-detail via `focusOverviewItem`; tapping back returns to nearby mode, and tapping open map ground returns to nearby mode focused on the tapped spot.
 
 **Feedback / Report screen**
-One of the three secondary screens (alongside Filter and Settings). "Feedback" is the user-facing nav button label; "report" is the code term (`state.selected?.type === "report"`, `openReportModal()`, the Report form). Shares `secondaryScreenActive()` navigation behaviour with Filter and Settings.
+One of the four secondary screens (alongside Search, Filter and Settings). "Feedback" is the user-facing nav button label; "report" is the code term (`state.selected?.type === "report"`, `openReportModal()`, the Report form). Shares `secondaryScreenActive()` navigation behaviour with Search, Filter and Settings.
 
 ---
 

@@ -237,6 +237,19 @@ A single field maple leaf with five compact lobes
 
 tree-ash
 A single ash compound leaf with paired leaflets
+## Inline UI glyphs
+
+Two navigation glyphs are drawn as inline SVG rather than shipped as registry
+assets: the inspector's back arrow (`#inspectorBack` in `app.html`) and the
+search magnifier, which appears both as the main-navigation button
+(`#searchToggle` in `app.html`) and as the Search screen's title icon
+(`searchIconHtml()` in `js/app.js` — `app.html` carries its own copy because
+that file holds no logic). Both take `class="app-icon nav-icon"` so they size
+and sit exactly like the PNG nav icons around them, and both stroke in
+`currentColor` so the `screen-active` state recolours them for free. The
+`ui-search` prompt above is unused and stays listed only so the set is
+complete if the glyph is ever drawn as an asset.
+
 ## Generated app icon assets
 
 `scripts/generate-app-icon.py` composites `trees/oak.png` — the English oak
