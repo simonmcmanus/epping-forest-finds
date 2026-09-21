@@ -353,6 +353,8 @@ globalThis.__forestFindsTest = {
   selectedCompassTarget,
   showRoadDetails,
   landmarkEmoji,
+  landmarkIconSlug,
+  iconPath,
   appIconHtml,
   treeSpeciesIconHtml,
   placeTitle,
@@ -696,6 +698,30 @@ test("ICON_PATHS is the single registry for all icon slugs", () => {
   }
   for (const slug of ["tree-ash", "tree-common-beech", "tree-holly", "tree-hornbeam", "tree-english-oak", "tree-wild-service"]) {
     assert.ok(slug in icons, `missing tree species icon slug: ${slug}`);
+  }
+});
+
+test("a hall, library or arts centre draws as a pin rather than falling back to an emoji", () => {
+  // These became something the map can carry when the weekly run learned to
+  // add them. Without a rule here each one would draw as a bare emoji glyph,
+  // which is the silent fallback `node scripts/icon-audit.js` exists to count.
+  const { landmarkIconSlug, iconPath } = app;
+  const expected = {
+    public_hall: "landmark-museum",
+    community_centre: "landmark-museum",
+    townhall: "landmark-museum",
+    social_centre: "landmark-museum",
+    events_venue: "landmark-museum",
+    library: "literature",
+    arts_centre: "art",
+    theatre: "theatre",
+    cinema: "film",
+  };
+
+  for (const [category, slug] of Object.entries(expected)) {
+    const place = { category, categoryTags: [category] };
+    assert.equal(landmarkIconSlug(place), slug, `${category} should use the ${slug} icon`);
+    assert.ok(iconPath(slug), `${slug} must be a real icon in the registry`);
   }
 });
 

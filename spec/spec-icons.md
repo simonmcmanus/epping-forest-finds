@@ -237,6 +237,17 @@ A single field maple leaf with five compact lobes
 
 tree-ash
 A single ash compound leaf with paired leaflets
+## Community venues reuse existing icons
+
+A village hall, library, arts centre, theatre or cinema became something the
+map can carry when the weekly run learned to add them (see
+`spec-weekly-report.md`). `landmarkIconSlug` maps them onto icons the set
+already has rather than waiting on new artwork: theatre → `theatre`, cinema →
+`film`, arts centre → `art`, library → `literature`, and a hall, town hall,
+social club or events venue → `landmark-museum`, whose classical building
+reads as civic. Without those lines each one would draw as a bare emoji, which
+is what the audit below exists to count.
+
 ## Auditing what the map actually draws
 
 `js/renderer.js` picks a pin by working down a fixed order — the food and
