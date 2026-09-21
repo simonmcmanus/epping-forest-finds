@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-09-20T18:00:01.705243Z",
+  "generatedAt": "2026-09-21T07:52:30.157960Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -4705,39 +4705,6 @@
         "phone": null,
         "address": "194 High Road, Loughton IG10 1DN",
         "distanceToForestBoundaryMetres": 464.6,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "node/6606335918",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0550685,
-          51.6475763
-        ]
-      },
-      "properties": {
-        "id": "node/6606335918",
-        "osmType": "node",
-        "osmId": 6606335918,
-        "name": "Pak Choi",
-        "category": "restaurant",
-        "categoryLabel": "Restaurant",
-        "amenity": "restaurant",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": "https://pakchoirestaurant.com/",
-        "phone": "+44 20 8508 2436",
-        "address": "202 High Road, Loughton IG10 1ET",
-        "distanceToForestBoundaryMetres": 466.3,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
@@ -22591,6 +22558,108 @@
         "phone": null,
         "address": "Chingford Mount Road London E4 9AA",
         "distanceToForestBoundaryMetres": 620.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/wimpy",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0541369,
+          51.6466732
+        ]
+      },
+      "properties": {
+        "id": "manual/wimpy",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Wimpy",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://locations.wimpy.uk.com/england/essex/loughton/168a-high-road.html",
+        "phone": null,
+        "address": "168A High Road, Loughton, Essex, IG10 1DN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 172.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/chapter21",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0552024,
+          51.6477071
+        ]
+      },
+      "properties": {
+        "id": "manual/chapter21",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Chapter21",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "206 High Road, Loughton, Essex, IG10 1DZ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 308.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/fable-stores",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0550685,
+          51.6475763
+        ]
+      },
+      "properties": {
+        "id": "manual/fable-stores",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Fable Stores",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://fablestores.co.uk/",
+        "phone": null,
+        "address": "202-204 High Road, Loughton, Essex, IG10 1ET",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 291.4,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
