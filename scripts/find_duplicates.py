@@ -2,19 +2,23 @@
 """
 Finds the same place mapped twice.
 
-scripts/apply_weekly_changeset.py refuses to add a place whose name already
-exists, which stops the obvious duplicate. It does not stop the likely one: a
-weekly run adding "The Bell Inn" beside an existing "The Bell" on the same
-corner, or "Costa Coffee" beside "Costa". Nothing matched those, so nothing
-blocked them -- and now that the run adds places automatically every week,
-that is a slow leak rather than a hypothetical.
+scripts/apply_weekly_changeset.py now refuses an addition that matches a
+mapped place by either name key within a short walk, which stops most of this
+at the door. This is the sweep behind that door: for the pairs already in the
+datasets from before the check existed, and for anything a future source adds
+by a route the check does not cover.
 
-This sweeps the datasets for pairs that are almost certainly one place: near
-each other, and the same name once the punctuation and the words describing
-a trade are stripped out (see scripts/place_matching.py). It reports; it never
-deletes. Two genuinely different shops can share a name and a corner -- a
-chain with a kiosk inside a supermarket, say -- so the call belongs to a
-person, and the pair is printed with enough detail to make it.
+A pair is a candidate when the two are near each other and look like one
+place -- the same name once punctuation and the words describing a trade are
+stripped out ("The Bell Inn" / "The Bell"), or the same name once spacing and
+ampersands are closed up ("CHAPTER 21" / "Chapter21"). See
+scripts/place_matching.py; both keys are needed, and bucketing under only the
+first is how a real near-duplicate got past this sweep and was caught by a
+person instead.
+
+It reports; it never deletes. Two genuinely different shops can share a name
+and a corner -- a chain with a kiosk inside a supermarket, say -- so the call
+belongs to a person, and the pair is printed with enough detail to make it.
 
 Usage:
     python3 scripts/find_duplicates.py [--root DIR] [--radius METRES] [--json]
@@ -29,7 +33,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts.place_matching import feature_lonlat, metres_between, name_key  # noqa: E402
+from scripts.place_matching import (  # noqa: E402
+    compact_name, feature_lonlat, metres_between, name_key, names_look_like_one_place,
+)
 
 # Tighter than the radius used to decide whether a source is describing a
 # place we already have. That question tolerates a point nudged across a
@@ -62,16 +68,20 @@ def find_duplicates(features_by_dataset, radius_m=DUPLICATE_RADIUS_M):
     Grouped by comparison key first so this stays cheap: only places that
     could be the same are ever measured against each other.
     """
+    # Bucketed under both keys, because they catch different mistakes: one a
+    # name described differently ("Bell Inn" / "The Bell"), the other a name
+    # typed differently ("CHAPTER 21" / "Chapter21"). Bucketing under only the
+    # first missed the second entirely -- which is how a real near-duplicate
+    # got past this sweep and was caught by a person instead.
     grouped = {}
     for dataset, features in features_by_dataset.items():
         for feature in features:
             props = feature.get("properties") or {}
-            key = name_key(props.get("name"))
-            if not key:
-                continue
-            grouped.setdefault(key, []).append((dataset, feature))
+            for key in {name_key(props.get("name")), compact_name(props.get("name"))}:
+                if key:
+                    grouped.setdefault(key, []).append((dataset, feature))
 
-    pairs = []
+    pairs, seen = [], set()
     for members in grouped.values():
         if len(members) < 2:
             continue
@@ -84,6 +94,19 @@ def find_duplicates(features_by_dataset, radius_m=DUPLICATE_RADIUS_M):
                 gap = metres_between(here, there)
                 if gap > radius_m:
                     continue
+                if not names_look_like_one_place(
+                    (feature.get("properties") or {}).get("name"),
+                    (other.get("properties") or {}).get("name"),
+                ):
+                    continue
+                # A pair can land in both buckets; report it once.
+                identity = tuple(sorted((
+                    str(feature.get("id") or id(feature)),
+                    str(other.get("id") or id(other)),
+                )))
+                if identity in seen:
+                    continue
+                seen.add(identity)
                 pairs.append({
                     "metresApart": round(gap, 1),
                     "places": [_describe(feature, dataset), _describe(other, other_dataset)],

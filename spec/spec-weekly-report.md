@@ -60,6 +60,14 @@ only counts as the same business within a few hundred metres. Matching on name
 alone across the whole search area meant a new branch of a chain was treated as
 one the map already had.
 
+It compares two keys, because sources get a name wrong in two different ways.
+`name_key()` strips punctuation and the words that describe a trade rather
+than name a business, so "The Bell Public House" and "The Bell" agree.
+`compact_name()` closes up spacing and writes out an ampersand, so "CHAPTER
+21" and "Chapter21", or "Bobo & Wild" and "Bobo and Wild", agree.
+`names_look_like_one_place()` accepts either, and `same_premises()` adds the
+distance bound.
+
 **Every candidate is scope-checked before it reaches the watchlist**
 (`scripts/forest_boundary.py`). The sources are queried over a box about 22km
 by 12km, taking in Leytonstone, Walthamstow and most of Epping Forest
@@ -147,10 +155,18 @@ before the week's changes gives the movement, which the PR quotes. Without
 it a slow regression looks exactly like a quiet week — which is how four of
 seven datasets sat untouched from May to September without anyone noticing.
 
-**Duplicates.** `apply_weekly_changeset.py` blocks an exact name clash, so
-the duplicates that get through are the near-misses: "Bell Inn" beside "The
-Bell" on the same corner. `scripts/find_duplicates.py` sweeps for those by
-name key and proximity. It reports and never deletes: two genuinely different
+**Duplicates.** `apply_weekly_changeset.py` refuses an addition that matches
+a mapped place on either name key within a short walk (`same_premises()`), and
+checks against what earlier entries in the same changeset just added, so two
+sources describing one new place produce one pin. It used to compare exact
+lowercased names across the whole map, which was wrong in both directions: it
+blocked a genuinely new branch of a chain, and it let "CHAPTER 21" onto the
+map 24 metres from the mapped "Chapter21" — caught by a person reading the
+week's summary, not by the check.
+
+`scripts/find_duplicates.py` sweeps the datasets for what is already there
+from before that check, bucketing under both keys and measuring only the pairs
+that could be one place. It reports and never deletes: two genuinely different
 shops can share a name and a corner, so the call is a person's.
 
 **Places a person reported.** `data/business-watch.json`'s `reportedMissing`

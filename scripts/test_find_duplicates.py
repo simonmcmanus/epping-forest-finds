@@ -25,10 +25,29 @@ class FindTests(unittest.TestCase):
         self.assertEqual(len(pairs), 1)
 
     def test_a_name_differing_only_by_trade_words_still_matches(self):
-        # The leak this exists to catch: apply_weekly_changeset.py blocks an
-        # exact name clash, so the duplicates that get through are the ones
-        # spelled slightly differently.
+        # Pairs like this predate the check in apply_weekly_changeset.py,
+        # which only ever compared exact lowercased names, so the ones already
+        # in the datasets are the ones spelled slightly differently.
         pairs = self.find([place("The Bell", 0.05, 51.65), place("Bell Inn", 0.0501, 51.6501)])
+        self.assertEqual(len(pairs), 1)
+
+    def test_a_name_typed_differently_still_matches(self):
+        # The pair this sweep missed until it bucketed under both keys:
+        # name_key() splits on whitespace, so "chapter 21" and "chapter21"
+        # are two different keys and the pair was never measured.
+        pairs = self.find([place("CHAPTER 21", 0.05, 51.65), place("Chapter21", 0.0502, 51.65)])
+        self.assertEqual(len(pairs), 1)
+
+    def test_an_ampersand_written_out_still_matches(self):
+        pairs = self.find([place("Bobo & Wild", 0.05, 51.65), place("Bobo and Wild", 0.0501, 51.6501)])
+        self.assertEqual(len(pairs), 1)
+
+    def test_a_pair_matching_on_both_keys_is_reported_once(self):
+        # It lands in two buckets; it is still one duplicate.
+        pairs = self.find([
+            place("The Bell", 0.05, 51.65, feature_id="node/1"),
+            place("The Bell", 0.0501, 51.6501, feature_id="node/2"),
+        ])
         self.assertEqual(len(pairs), 1)
 
     def test_two_branches_of_a_chain_apart_are_not_duplicates(self):

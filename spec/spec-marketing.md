@@ -102,7 +102,7 @@ independently; marketing changes do not automatically change those surfaces.
 > have a dog and would rather not.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 773 pubs, cafés and shops. 1,596 car parks,
+> 9,162 paths and bridleways. 771 pubs, cafés and shops. 1,596 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -141,7 +141,7 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 773 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 771 food & drink | feature count, `data/local-landmarks-food.geojson` |
 | 1,596 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 

@@ -19358,7 +19358,7 @@
         "heritage": null,
         "website": null,
         "phone": null,
-        "address": null,
+        "address": "5 The Avenue, Chingford, London, E4 9LB",
         "distanceToForestBoundaryMetres": 466.1,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
@@ -22103,7 +22103,7 @@
         "heritage": null,
         "website": null,
         "phone": null,
-        "address": null,
+        "address": "39 High Street, Wanstead, E11 2AA",
         "distanceToForestBoundaryMetres": 321.2,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
@@ -23187,40 +23187,6 @@
     },
     {
       "type": "Feature",
-      "id": "manual/avenue-food-wine",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0001735,
-          51.6088739
-        ]
-      },
-      "properties": {
-        "id": "manual/avenue-food-wine",
-        "osmType": "manual",
-        "osmId": null,
-        "name": "Avenue Food & Wine",
-        "category": "convenience",
-        "categoryLabel": "Convenience Store",
-        "amenity": null,
-        "shop": "convenience",
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": "5 The Avenue, Chingford, London, E4 9LB",
-        "openingHours": null,
-        "distanceToForestBoundaryMetres": 391.0,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
       "id": "manual/azra-kitchen",
       "geometry": {
         "type": "Point",
@@ -24066,40 +24032,6 @@
         "address": "460 Hoe Street, Walthamstow, London, E17 9AH",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 425.1,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "manual/bobo-and-wild",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0243,
-          51.579701
-        ]
-      },
-      "properties": {
-        "id": "manual/bobo-and-wild",
-        "osmType": "manual",
-        "osmId": null,
-        "name": "Bobo and Wild",
-        "category": "restaurant",
-        "categoryLabel": "Restaurant",
-        "amenity": "restaurant",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": "39 High Street, Wanstead, E11 2AA",
-        "openingHours": null,
-        "distanceToForestBoundaryMetres": 23.5,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
