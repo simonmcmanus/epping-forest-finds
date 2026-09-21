@@ -28,6 +28,7 @@
  * what the app would actually draw.
  */
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
@@ -128,6 +129,46 @@ function listIconFiles(root, dir = ICON_DIR) {
   );
 }
 
+/**
+ * Not everything reaches an icon through js/categories.js. The service
+ * worker precaches by path, the HTML pages link a favicon and an Apple touch
+ * icon, and the app-icon generator reads a source leaf. Reporting those as
+ * unused would be wrong and would get the whole list ignored, so the search
+ * covers the files that can name one.
+ */
+const REFERENCE_FILES = [
+  "sw.js", "manifest.webmanifest", "index.html", "app.html", "admin.html", "terms.html",
+];
+const REFERENCE_DIRS = ["css", "js", "scripts"];
+
+function collectReferenceText(root) {
+  const parts = [];
+  for (const file of REFERENCE_FILES) {
+    const full = path.join(root, file);
+    if (fs.existsSync(full)) parts.push({ where: file, text: fs.readFileSync(full, "utf8") });
+  }
+  for (const dir of REFERENCE_DIRS) {
+    const full = path.join(root, dir);
+    if (!fs.existsSync(full)) continue;
+    for (const entry of fs.readdirSync(full, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      parts.push({ where: path.join(dir, entry.name), text: fs.readFileSync(path.join(full, entry.name), "utf8") });
+    }
+  }
+  return parts;
+}
+
+/**
+ * Matched on the path from `icons/` down, not on the bare file name: a bare
+ * name is a substring of longer ones, so dry-cleaning.png would look used
+ * wherever landmark-dry-cleaning.png is named, and oak.png wherever
+ * trees/oak.png is.
+ */
+function referencesTo(file, referenceText) {
+  const needle = file.slice(file.indexOf(ICON_DIR.split("/").pop() + "/"));
+  return referenceText.filter(({ text }) => text.includes(needle)).map(({ where }) => where);
+}
+
 function audit(root = APP_ROOT) {
   const rules = loadAppRules();
   const places = loadPlaces(rules, root);
@@ -159,8 +200,26 @@ function audit(root = APP_ROOT) {
     .filter(([, file]) => !fs.existsSync(path.join(root, file)))
     .map(([slug, file]) => ({ slug, file }));
 
-  const referenced = new Set(iconPaths.map(([, file]) => file));
-  const unreferencedFiles = listIconFiles(root).filter((file) => !referenced.has(file));
+  const inRegistry = new Set(iconPaths.map(([, file]) => file));
+  const referenceText = collectReferenceText(root);
+  const outsideRegistry = [];
+  const unusedFiles = [];
+  for (const file of listIconFiles(root)) {
+    if (inRegistry.has(file)) continue;
+    const used = referencesTo(file, referenceText).filter((where) => where !== "scripts/icon-audit.js");
+    (used.length ? outsideRegistry : unusedFiles).push({ file, usedBy: used });
+  }
+
+  // Byte-identical files under two names: the map ships both, and a change to
+  // the artwork has to be made twice or they drift apart.
+  const duplicates = [];
+  const byHash = new Map();
+  for (const file of listIconFiles(root)) {
+    const hash = crypto.createHash("sha1").update(fs.readFileSync(path.join(root, file))).digest("hex");
+    const seen = byHash.get(hash);
+    if (seen) duplicates.push({ file, sameAs: seen });
+    else byHash.set(hash, file);
+  }
 
   return {
     generatedAt: new Date().toISOString().slice(0, 10),
@@ -171,7 +230,9 @@ function audit(root = APP_ROOT) {
       .sort((a, b) => b.count - a.count),
     unreachableFilters,
     missingFiles,
-    unreferencedFiles,
+    outsideRegistry,
+    unusedFiles,
+    duplicates,
   };
 }
 
@@ -196,8 +257,18 @@ function report(result) {
   lines.push("", "Icons named in the registry with no file behind them:");
   lines.push(...(result.missingFiles.length ? result.missingFiles.map((f) => `  ${f.slug} -> ${f.file}`) : ["  none"]));
 
-  lines.push("", "Icon files nothing in the registry refers to:");
-  lines.push(...(result.unreferencedFiles.length ? result.unreferencedFiles.map((f) => `  ${f}`) : ["  none"]));
+  lines.push("", "Icon files used outside the registry (expected: the service worker, the pages, the icon generator):");
+  lines.push(...(result.outsideRegistry.length
+    ? result.outsideRegistry.map((f) => `  ${f.file.padEnd(38)} ${f.usedBy.join(", ")}`)
+    : ["  none"]));
+
+  lines.push("", "Icon files nothing refers to at all:");
+  lines.push(...(result.unusedFiles.length ? result.unusedFiles.map((f) => `  ${f.file}`) : ["  none"]));
+
+  lines.push("", "Icon files that are byte-identical to another:");
+  lines.push(...(result.duplicates.length
+    ? result.duplicates.map((d) => `  ${d.file.padEnd(38)} same as ${d.sameAs}`)
+    : ["  none"]));
 
   return lines.join("\n");
 }

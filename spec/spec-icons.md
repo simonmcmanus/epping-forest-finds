@@ -246,13 +246,17 @@ plain emoji glyph in a badge. That fallback is silent: nothing errors, a pin
 appears, and only a person looking at the map notices the artwork is not the
 product's own.
 
-`node scripts/icon-audit.js` names every place that falls through, grouped by
-category with examples, by loading the app's real rules from `js/categories.js`
-the way `scripts/report/map-inventory.js` does. It also reports three ways the
-icon set and the rules drift apart: filter keys `matchesPlaceFilter` can never
-return true for (their icon is unreachable and the places they were meant to
-cover fall through), registry entries with no file behind them, and icon files
-nothing refers to. `--json` gives the same result as data.
+`node scripts/icon-audit.js` (or `npm run audit:icons`) names every place that
+falls through, grouped by category with examples, by loading the app's real
+rules from `js/categories.js` the way `scripts/report/map-inventory.js` does.
+It also reports the ways the icon set and the rules drift apart: filter keys
+`matchesPlaceFilter` can never return true for (their icon is unreachable and
+the places they were meant to cover fall through to the emoji), registry
+entries with no file behind them, files reached from outside the registry (the
+service worker's precache list, a page's `<link>`, the manifest — legitimate,
+and listed so they are not mistaken for dead), files nothing refers to at all,
+and files that are byte-identical to another under a different name. `--json`
+gives the same result as data.
 
 The resolution order in `icon-audit.js` restates `drawLandmarks()` rather than
 calling it, because the real function needs a canvas and live app state. If the
