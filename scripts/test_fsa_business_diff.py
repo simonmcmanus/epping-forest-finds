@@ -122,6 +122,41 @@ class CategoryTests(unittest.TestCase):
         self.assertEqual(fsa.category_for({"BusinessType": "Something new"}), fsa.DEFAULT_CATEGORY)
 
 
+class AmbiguousCategoryTests(unittest.TestCase):
+    """The register's one catch-all type covers restaurants, cafes and
+    canteens alike -- 283 of one real sample of 679 arrived under it. The name
+    usually knows better."""
+
+    def category(self, name):
+        return fsa.category_for({"BusinessType": "Restaurant/Cafe/Canteen", "BusinessName": name})
+
+    def test_a_coffee_shop_is_read_as_a_cafe(self):
+        for name in ("Costa Coffee", "The Tea Room", "Bean Cafe", "Espresso Bar"):
+            self.assertEqual(self.category(name), "cafe", name)
+
+    def test_a_kitchen_or_a_grill_is_read_as_a_restaurant(self):
+        for name in ("Dickens Grill", "Nonna Pizzeria", "Loughton Kitchen", "Spice Village"):
+            self.assertEqual(self.category(name), "restaurant", name)
+
+    def test_a_wine_bar_is_read_as_a_bar(self):
+        self.assertEqual(self.category("The Wine Bar"), "bar")
+
+    def test_a_juice_bar_is_not_a_drinking_bar(self):
+        # "Zest Salad & Juice Bar" is real, and is not somewhere to drink.
+        for name in ("Zest Salad & Juice Bar", "Fresh Juice Bar", "Sushi Bar"):
+            self.assertNotEqual(self.category(name), "bar", name)
+
+    def test_a_name_that_says_nothing_falls_back(self):
+        self.assertEqual(self.category("Marco's"), fsa.DEFAULT_CATEGORY)
+
+    def test_a_type_the_register_is_sure_about_is_not_second_guessed(self):
+        # Only the catch-all type gets this treatment.
+        self.assertEqual(
+            fsa.category_for({"BusinessType": "Pub/bar/nightclub", "BusinessName": "The Coffee House"}),
+            "pub",
+        )
+
+
 class DiffTests(unittest.TestCase):
     def dataset(self, features):
         return {"type": "FeatureCollection", "features": features}

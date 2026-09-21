@@ -92,8 +92,13 @@ MAX_AUTO_REMOVALS = 12
 # Over the cap the run takes the longest-waiting and leaves the rest queued,
 # rather than holding everything back as a removal overflow does. An addition
 # that is wrong is one extra pin; the risk is the size of the batch, not the
-# direction, so a steady trickle drains the queue while staying readable.
-MAX_AUTO_ADDITIONS = 15
+# direction, so a bounded batch drains the queue while staying reviewable.
+#
+# Set to clear a first-reading backlog in a couple of months rather than a
+# year, now that these places are wanted on the map: a normal week finds a
+# handful and never comes near the cap, so this only ever binds on a backlog.
+# A deliberate bulk import raises it for one run with --max-additions.
+MAX_AUTO_ADDITIONS = 100
 
 
 def empty_ledger():

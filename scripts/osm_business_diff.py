@@ -525,6 +525,11 @@ def main():
                         help="Where to record which places this run confirmed are still there")
     parser.add_argument("--today", default=None, help="Date to record this run under (defaults to today)")
     parser.add_argument("--no-record", action="store_true", help="Report only; leave the watchlist untouched")
+    parser.add_argument(
+        "--max-additions", type=int, default=business_watch.MAX_AUTO_ADDITIONS,
+        help="How many places one run may add. Raise it for a deliberate bulk import of a "
+             "backlog; the default is what an unattended weekly run should do.",
+    )
     args = parser.parse_args()
 
     today = args.today or datetime.now(timezone.utc).date().isoformat()
@@ -575,7 +580,8 @@ def main():
         # not trustworthy: whatever runs next expects the file to be there,
         # and "there is nothing to apply" is an answer. A missing file would
         # read as a crash.
-        changeset, notes = business_watch.build_changeset(ledger) if plausible else ({"add": [], "remove": []}, [])
+        changeset, notes = (business_watch.build_changeset(ledger, max_additions=args.max_additions)
+                            if plausible else ({"add": [], "remove": []}, []))
         Path(args.changeset).write_text(json.dumps(changeset, indent=2) + "\n")
         result.setdefault("notes", []).extend(notes)
         print(

@@ -112,6 +112,33 @@ CATEGORY_BY_BUSINESS_TYPE = (
 
 DEFAULT_CATEGORY = "restaurant"
 
+# The register files restaurants, cafes and canteens under one type and cannot
+# tell them apart, so 283 of one real sample of 679 arrived as "restaurant"
+# regardless of what they are. The name usually knows: 29 of those said cafe,
+# 9 said coffee, 11 said grill, 9 said pizza. Reading it is not certain, but
+# it is far better than calling a coffee shop a restaurant because the
+# council's form has one box for both.
+#
+# Checked in order, and only for that ambiguous type -- a business the
+# register files as a pub or a supermarket is not second-guessed.
+NAME_CATEGORY_HINTS = (
+    ("cafe", ("cafe", "café", "coffee", "espresso", "tea room", "tearoom",
+              "tea rooms", "patisserie", "bakes", "creperie")),
+    ("restaurant", ("restaurant", "grill", "kitchen", "pizza", "pizzeria", "spice",
+                    "curry", "tandoori", "chinese", "thai", "sushi", "kebab",
+                    "burger", "chicken", "steak", "diner", "brasserie", "bistro",
+                    "noodle", "wok", "tapas", "buffet")),
+    ("bar", ("bar", "lounge", "tavern", "wine")),
+)
+
+# "Juice Bar" and "Salad Bar" are not bars. Without this a health-food counter
+# is put on the map as somewhere to drink.
+NOT_A_DRINKING_BAR = ("juice bar", "salad bar", "sushi bar", "oyster bar",
+                      "snack bar", "coffee bar", "milk bar", "noodle bar")
+
+# The one type the hints apply to.
+AMBIGUOUS_BUSINESS_TYPE = "restaurant/cafe/canteen"
+
 # The register holds the name a business registered under, which is often the
 # company rather than the sign over the door: "Lidl Great Britain Limited"
 # belongs on the map as "Lidl". Stripped from the end only, so a name that
@@ -181,8 +208,26 @@ def is_mappable(establishment):
     return any(word in business_type for word in MAPPABLE_BUSINESS_TYPES)
 
 
+def refine_category_from_name(name):
+    """A better guess than "restaurant" for the register's one catch-all type,
+    or None when the name says nothing."""
+    lowered = (name or "").lower()
+    for category, words in NAME_CATEGORY_HINTS:
+        for word in words:
+            if word not in lowered:
+                continue
+            if category == "bar" and any(phrase in lowered for phrase in NOT_A_DRINKING_BAR):
+                continue
+            return category
+    return None
+
+
 def category_for(establishment):
     business_type = (establishment.get("BusinessType") or "").lower()
+    if AMBIGUOUS_BUSINESS_TYPE in business_type:
+        hinted = refine_category_from_name(establishment.get("BusinessName"))
+        if hinted:
+            return hinted
     for word, category in CATEGORY_BY_BUSINESS_TYPE:
         if word in business_type:
             return category
