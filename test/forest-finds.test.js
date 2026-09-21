@@ -3984,8 +3984,8 @@ test("the app asks for a background data sync only after the map is up, never du
 });
 
 test("service worker uses a network-first strategy in local dev so edits show up without a CACHE_NAME bump", () => {
-  // CACHE_NAME is only ever bumped by CI on main (.github/workflows/sw-release.yml for app
-  // code, data-bump.yml for data),
+  // CACHE_NAME is only ever bumped by CI, on the pull request that changes the files it
+  // watches (.github/workflows/sw-release.yml for app code, data-bump.yml for data),
   // never locally, so the production cache-first strategy below would otherwise keep serving
   // stale JS/CSS/data while testing locally. self.__DEV__ (injected by server.js — see the
   // "local dev server flags sw.js" tests) must gate the cache-first branch and go to the
@@ -5622,8 +5622,9 @@ test("APP_VERSION in js/app.js stays in sync with APP_CACHE_NAME in sw.js", () =
   const swSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const appSource = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
 
-  // Only sw-release.yml writes this, only on main, always unslugged -- branch-level
-  // bumping was removed, so anything else here is a hand-edit that should be caught.
+  // Only sw-release.yml writes this, always unslugged. It sets the version to one past
+  // the base branch on the pull request itself, so anything else here is a hand-edit
+  // that should be caught.
   const cacheMatch = swSource.match(/APP_CACHE_NAME = "forest-finds-app-(v\d+)"/);
   const fallbackMatch = appSource.match(/const APP_VERSION = "(v\d+)"/);
 
