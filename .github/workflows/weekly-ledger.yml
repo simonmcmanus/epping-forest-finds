@@ -26,6 +26,19 @@ name: Weekly Epping Forest Ledger
 #   Contents: Read and write     (push the weekly-data-report/* branch)
 #   Pull requests: Read and write (open and edit the PR)
 #   Workflows: Read and write     (only if a run ever touches .github/workflows)
+#   Issues: Read                  (read what people reported from inside the
+#                                  app -- scripts/user_reports.py. Not
+#                                  strictly required while this repository is
+#                                  public, since public issues read without a
+#                                  token at all; worth granting anyway,
+#                                  because unauthenticated requests are rate
+#                                  limited per IP and a runner's IP is shared,
+#                                  and because it becomes mandatory the day
+#                                  the repository goes private. A token that
+#                                  cannot see issues now gets a loud 403
+#                                  rather than an empty list. Write is NOT
+#                                  needed: the PR body says `Closes #<n>` and
+#                                  merging does the rest.)
 # Fine-grained PATs expire -- if this job starts failing to push or open PRs,
 # check the token's expiry date first. Claude itself still authenticates with
 # claude_code_oauth_token; the PAT only covers git/gh operations.
@@ -81,6 +94,15 @@ jobs:
           # `gh pr create` runs as the PAT for the same reason as the checkout
           # above: a PR opened by GITHUB_TOKEN gets no CI checks.
           GH_TOKEN: ${{ secrets.WEEKLY_LEDGER_PAT }}
+          # Passed as an environment variable rather than written into the
+          # prompt below, and that is load-bearing rather than tidiness. A
+          # `with:` value containing ${{ }} is parsed by Actions as a template
+          # expression, and an expression may not exceed 21,000 characters.
+          # The prompt is longer than that, so a single ${{ }} anywhere inside
+          # it makes the whole workflow file invalid -- which is exactly what
+          # happened. Keep the prompt free of ${{ }}; add anything it needs
+          # here and refer to it as a shell variable.
+          RUN_NUMBER: ${{ github.run_number }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.WEEKLY_LEDGER_PAT }}
@@ -124,17 +146,57 @@ jobs:
 
             Tooling already in this repo:
             - scripts/apply_weekly_changeset.py -- applies a changeset JSON
-              ({"add":[...], "remove":[...]}) to the food dataset. Read its
+              ({"add":[...], "remove":[...]}) to the map data. Read its
               docstring: on this runner data/local-landmarks.geojson (the
               master file) does not exist -- it's gitignored, local-only --
-              so this script automatically edits
-              data/local-landmarks-food.geojson directly instead. That is
-              expected; do not try to reconstruct or fetch the master file.
-            - scripts/osm_business_diff.py -- queries OpenStreetMap directly
-              and diffs it against data/local-landmarks-food.geojson, so you
-              don't have to guess which of 680+ points might have changed.
-              Run it plain (python3 scripts/osm_business_diff.py) and read
-              its JSON output.
+              so this script automatically edits the split files directly
+              instead (food categories to data/local-landmarks-food.geojson,
+              halls/libraries/arts centres to
+              data/local-landmarks-misc.geojson). That is expected; do not
+              try to reconstruct or fetch the master file.
+            - scripts/osm_business_diff.py -- the main change detector. It
+              queries OpenStreetMap and reports four things: places that are
+              new to it, places of ours it no longer lists, places it marks
+              closed outright (disused/vacant tags), and places of ours that
+              now trade under a different name or type. That last one is the
+              case a news search never finds and the old check could not see
+              at all: a unit changes hands and the map point is edited in
+              place, so nothing looks missing and nothing looks new.
+            - scripts/fsa_business_diff.py -- cross-checks the same food data
+              against the councils' food-hygiene register, which lists
+              businesses that are actually trading whether or not anyone has
+              mapped them. Openings only; it never proposes a removal. It is
+              best-effort: if the register is unreachable it exits 2, which
+              is not a reason to stop the run.
+            - scripts/user_reports.py -- reads what people have reported from
+              inside the app. Those become GitHub issues labelled
+              `user-report`, carrying the reporter's own words and, when they
+              had granted location, the exact spot they were standing on.
+              That is the best evidence this project has -- a person in front
+              of the thing -- and for a long time nothing read them. Treat a
+              report as outranking anything the other tooling infers.
+            - scripts/data_quality.py -- says how good the data actually is:
+              how many places a source has confirmed recently, how many have
+              never been confirmed at all, how thin the useful fields are.
+              Run it before and after the week's changes; the difference is
+              the week's real result and it belongs in the pull request.
+            - scripts/find_duplicates.py -- sweeps for the same place mapped
+              twice under slightly different names. Reports only; deciding
+              which of a pair to keep is a person's call.
+            - scripts/verification.py + data/verification.json -- remembers
+              when each place was last confirmed to still be there. Written
+              automatically by the OpenStreetMap check; commit it.
+            - scripts/business_watch.py + data/business-watch.json -- the
+              memory that makes the above worth running. It records what each
+              source said each week and only lets a signal become a real
+              change once it has repeated enough times to stop looking like
+              a source lagging behind. This is what turns "worth checking"
+              into an applied diff instead of a sentence nobody acts on.
+            - scripts/sync-homepage-counts.js -- rewrites the dataset sizes
+              quoted on the marketing homepage. Any change to the food data
+              changes one of those numbers and test/home-counts.test.js holds
+              the page to them, so skipping this puts a red test on your own
+              pull request.
             - scripts/cow_boundary_tracker.py -- checks whether the forest's
               grazing cattle have moved to a different paddock since last
               run, and if so, builds a plain-English description of roughly
@@ -161,18 +223,17 @@ jobs:
             2. Research this week's changes:
                a. Business closures/openings: web-search news for each
                   settlement. Check each candidate against
-                  data/local-landmarks-food.geojson by name before treating
-                  it as a real gap.
-               b. FSA cross-check (food category only, best-effort): the UK
-                  Food Standards Agency Food Hygiene Rating Scheme API at
-                  https://api.ratings.food.gov.uk needs no API key but
-                  requires the header `x-api-version: 2`. Use curl (you have
-                  network access on this runner). Check
-                  https://api.ratings.food.gov.uk/Help yourself for the
-                  current Establishments search parameters -- these were
-                  not reliably confirmed as of when this workflow was
-                  written. If it doesn't work, say so in the report rather
-                  than fabricating results; don't let it block anything else.
+                  data/local-landmarks-food.geojson (and, for a hall,
+                  library or arts centre, data/local-landmarks-misc.geojson)
+                  by name before treating it as a real gap.
+               b. The councils' food-hygiene register: this is now
+                  scripts/fsa_business_diff.py's job rather than something to
+                  hand-roll with curl -- see step 2g, which runs it. It is
+                  the source that knows about a cafe that opened last month
+                  and nobody has mapped yet, because a food business has to
+                  register with its council before it can trade. Best-effort:
+                  if it is unreachable, note that in the pull request body
+                  (not the report) and carry on.
                c. Road closures & roadworks -- highways AND utilities, not
                   highways alone (a past run missed real, ongoing utility
                   diversions entirely, see below):
@@ -209,15 +270,97 @@ jobs:
                   you; there's no map formula to copy by hand any more.
                f. Follow up on anything the previous report flagged as
                   "possible" instead of re-flagging it fresh.
-               g. Small independent business turnover (the gap general news
-                  search misses): run python3 scripts/osm_business_diff.py.
-                  Its "new_candidates" are OSM points not on the map yet
-                  (possible openings/gaps worth a look); its
-                  "missing_candidates" are map points OSM no longer lists
-                  (possibly closed -- OSM can simply be out of date, so treat
-                  this as "worth checking", never as confirmed on its own).
-                  Cross-check anything promising the same way you would a
-                  news search result before treating it as confident.
+               g. Business turnover -- the gap a general news search misses
+                  entirely, and the one that let places that closed years ago
+                  stay on the map. THIS STEP IS NOT OPTIONAL AND ITS OUTPUT
+                  IS NOT ADVISORY. Run, in this order:
+
+                    python3 scripts/data_quality.py --json > /tmp/quality-before.json
+                    python3 scripts/user_reports.py --out /tmp/reports.json || true
+                    python3 scripts/fsa_business_diff.py --out /tmp/fsa-diff.json || true
+                    python3 scripts/osm_business_diff.py \
+                      --out /tmp/osm-diff.json \
+                      --changeset /tmp/auto-changeset.json
+                    python3 scripts/find_duplicates.py
+
+                  That order matters: all three write to the same watchlist,
+                  and the OpenStreetMap one is what turns the whole watchlist
+                  into the changeset. Run them the other way round and
+                  anything the register or a person found waits an extra week
+                  for no reason.
+
+                  What people reported comes FIRST for a reason. Somebody
+                  stood in front of the thing and told us. That outranks
+                  anything the rest of this infers, so work those before you
+                  work anything else, and say what happened to each of them.
+
+                  (the `|| true` is only for the food-hygiene register, which
+                  is allowed to be unreachable; a failure from the
+                  OpenStreetMap check is not routine and belongs in the pull
+                  request body.)
+
+                  Between them they write /tmp/auto-changeset.json: the
+                  changes that have now repeated often enough to act on. That
+                  file is a finished decision, not a suggestion -- step 3
+                  applies it as it stands. They also update
+                  data/business-watch.json, which must be committed with the
+                  rest of the change or next week starts from nothing again
+                  and the same thing gets re-noticed forever.
+
+                  Then read /tmp/osm-diff.json and account for EVERY entry in
+                  its four lists in the pull request body -- applied, still
+                  being watched (say how many more weeks), or deliberately
+                  set aside (say why). A candidate that is simply not
+                  mentioned is the failure this step exists to prevent: the
+                  check has been reporting real closures for a long time and
+                  nothing ever acted on them.
+
+                  Where a finding is worth a reader knowing about -- a place
+                  that has opened, one that has closed -- write it up in the
+                  report as well, in step 6.
+
+                  If you are confident about something the tooling has not
+                  reached confidence on yet (your own research confirms it,
+                  or it is plainly stated in a source), add it to the
+                  changeset in step 3 by hand. The watchlist is there to stop
+                  the run guessing, not to stop it acting on what it knows.
+
+                  If a candidate is wrong and will keep coming back, park it:
+                  set "dismissed": true and a "dismissedReason" on its entry
+                  in data/business-watch.json. That is the only way to stop a
+                  false positive being re-proposed every single week.
+
+                  Then work data/business-watch.json's "reportedMissing"
+                  list. These are places a person has told us are missing
+                  from the map -- some typed into the app's report screen
+                  (those carry an "issue" number and often the position the
+                  reporter was standing on), some written in by hand. Either
+                  way somebody has been there, which is better evidence than
+                  anything the tooling produces on its own.
+
+                  For each one: find its real coordinates (use the reporter's
+                  position when there is one; otherwise search for its
+                  address and look that up -- never invent a position), add
+                  it to this week's changeset with the right category, and
+                  delete it from the list in the same commit. Where the entry
+                  has an "issue" number, say `Closes #<number>` in the pull
+                  request body, so merging tells the person who reported it
+                  that their report landed. That is what keeps people
+                  reporting.
+
+                  If you genuinely cannot place one, leave it on the list and
+                  say in the pull request body what you tried. An entry that
+                  sits there untouched run after run with no explanation is
+                  the same failure as ignoring a candidate.
+
+                  Finally, read /tmp/osm-diff.json's "enrich_candidates":
+                  fields a source has that our record leaves blank (an
+                  address, a website, opening hours). Copy them into the
+                  changeset's "enrich" list. These are not changes of fact,
+                  so they need none of the patience a closure does -- and
+                  blanks are the norm outside the food data, where the
+                  transport dataset carries twelve addresses across 1,106
+                  places. Filling one never overwrites a value already there.
                h. The forest's grazing cattle: run
                   python3 scripts/cow_boundary_tracker.py. It compares this
                   run's Nofence grazing boundary against last run's and
@@ -226,27 +369,46 @@ jobs:
                   where; use its output directly as report-data.json's
                   "grazing" field either way (moved or not).
 
-            3. Build a changeset for every business finding you're
-               reasonably confident about (name, category, coordinates) --
-               from your own research or from scripts/osm_business_diff.py's
-               candidates:
+            3. Build this week's changeset. START FROM
+               /tmp/auto-changeset.json as written by step 2g -- do not
+               rebuild it from scratch and do not drop entries from it. Then
+               add anything your own research confirmed that the watchlist
+               has not reached on its own:
                {"add": [{"name":..., "category":..., "lon":..., "lat":...,
-               "address":..., "website":...}], "remove": [{"name":...,
-               "reason":...}]}. Valid categories are in
-               apply_weekly_changeset.py's VALID_FOOD_CATEGORIES. Anything
-               you're not confident about still belongs in report-data.json
-               as a finding -- just say plainly in its "body" text that it
-               needs checking (e.g. "not confirmed yet, worth a look"),
-               rather than leaving it out or guessing.
+               "address":..., "website":...}], "remove": [{"id":...,
+               "name":..., "reason":...}]}. Valid categories are in
+               apply_weekly_changeset.py's VALID_FOOD_CATEGORIES and
+               VALID_VENUE_CATEGORIES (the second covers halls, libraries and
+               arts centres, which go to a different file automatically).
+
+               Prefer "id" over "name" on a removal when you have one -- two
+               branches of the same chain share a name, and a name-only
+               removal takes out whichever it finds first.
+
+               Anything you're not confident about still belongs in
+               report-data.json as a finding -- just say plainly in its
+               "body" text that it needs checking (e.g. "not confirmed yet,
+               worth a look"), rather than leaving it out or guessing.
 
             4. If the changeset is non-empty:
                a. Create a branch:
-                  git checkout -b weekly-data-report/<date>-${{ github.run_number }}
+                  git checkout -b weekly-data-report/<date>-$RUN_NUMBER
                   (the run-number suffix keeps this collision-free from any
                   branch a same-day re-run of this workflow already pushed --
                   see HOUSEKEEPING above)
-               b. Run: python3 scripts/apply_weekly_changeset.py <changeset.json>
-                  and confirm it reports success. This is the script's own
+               b. Run, in this order:
+
+                    python3 scripts/apply_weekly_changeset.py <changeset.json>
+                    node scripts/sync-homepage-counts.js
+
+                  and confirm both report success. The second is not
+                  optional: the homepage quotes how many food places the map
+                  has, and a test holds the page to the real number, so a
+                  data change without it arrives with a failing test on it.
+                  Check apply_weekly_changeset.py's "skipped" list -- an
+                  entry there did NOT get applied, and saying in the report
+                  or the pull request that it did would be false. This is
+                  the script's own
                   lightweight self-check, not a substitute for the real test
                   suites -- do NOT run node --test or npx playwright
                   yourself, and do NOT background either of them "to check
@@ -257,33 +419,72 @@ jobs:
                   test suites run as normal CI checks on the PR instead
                   (step e below) -- that's Simon's and CI's job to wait on,
                   not yours.
-               c. git add the changed data file(s), the new report, and
+               c. git add the changed data file(s), index.html and
+                  spec/spec-marketing.md if sync-homepage-counts.js touched
+                  them, data/business-watch.json and data/verification.json
+                  (always -- they are this run's memory, and leaving them out
+                  is what makes next week start from nothing), the new
+                  report, and
                   data/cow-grazing-history.json if cow_boundary_tracker.py
                   updated it (see step 6), commit
                   (git config user.name "Epping Forest Ledger (weekly report)",
                   user.email "weekly-report@local", scoped to this checkout
                   only), and git push -u origin
-                  weekly-data-report/<date>-${{ github.run_number }}.
+                  weekly-data-report/<date>-$RUN_NUMBER.
                d. Open a PR: gh pr create --title "..." --body "..." listing
-                  exactly what was added/removed and why. Keep the body
-                  SHORT -- a few lines plus the list of data changes. This is
-                  also the only place any technical note about the run belongs
-                  (a source that was unreachable, an unusual thing the tooling
-                  did, the state of the food-hygiene cross-check): none of that
-                  goes in the report itself.
-               e. Do NOT start CI yourself -- there is nothing to start.
+                  exactly what was added/removed and why. Keep it tight -- a
+                  few lines, then two short lists:
+
+                    Applied this week: each change, with what it was based on.
+                    Reported by people: each open report, what you did about
+                    it, and `Closes #<number>` where it is now fixed.
+                    Still watching: each candidate not yet acted on, with how
+                    many more weeks it needs, or why it was set aside.
+                    Data quality: run
+                    `python3 scripts/data_quality.py --compare /tmp/quality-before.json`
+                    after applying the changeset and paste the first two
+                    lines. That is the week's real result -- whether the map
+                    got better, not just whether something moved.
+
+                  The second list is what makes the first trustworthy, and it
+                  is how a reviewer sees a real closure sitting one week short
+                  rather than finding out months later that nothing ever
+                  happened. Every candidate from step 2g belongs in one list
+                  or the other.
+
+                  This is also the only place any technical note about the run
+                  belongs (a source that was unreachable, an unusual thing the
+                  tooling did, the state of the food-hygiene cross-check):
+                  none of that goes in the report itself.
+               e. IF THE OVERVIEW SNAPSHOT FAILS, do not assume the data
+                  caused it, and never regenerate the baseline to make it go
+                  away. test/e2e/02-overview.spec.js compares the Nearby
+                  screen against a committed image, and that comparison has
+                  been seen to fail on one run and pass on the next two with
+                  identical data and an identical baseline -- a ~7% stable
+                  difference that was not reproducible. Something in the
+                  screen's content settles differently under load.
+
+                  So: a data change near Loughton High Road CAN legitimately
+                  change what the map draws, and a re-run tells the two
+                  apart. Say in the pull request body that the snapshot
+                  failed, that a re-run is the first thing to try, and that
+                  the baseline should only be regenerated (via the "Update
+                  Snapshots" workflow, on a Linux runner, never here) once a
+                  re-run has shown the difference is real and repeatable.
+               f. Do NOT start CI yourself -- there is nothing to start.
                   This job pushes and opens PRs as a real user credential
                   (WEEKLY_LEDGER_PAT), so ci.yml's normal pull_request
                   event fires the instant the PR opens: unit and e2e are
                   already queued before you finish. Never run `gh workflow
                   run ci.yml`; a duplicate dispatch just puts a second,
                   confusing copy of every check on the PR.
-               f. Add a report preview link to the PR body (see REPORT
+               g. Add a report preview link to the PR body (see REPORT
                   PREVIEW LINK below) -- do this for every PR this workflow
                   opens, this one included. Also mention in the PR body that
                   CI starts automatically and that Simon should wait for
                   those checks to go green before merging.
-               g. Do NOT merge the PR. Auto-merge is temporarily
+               h. Do NOT merge the PR. Auto-merge is temporarily
                   disabled while this workflow is being tested -- leave it
                   open for Simon to review and merge by hand once CI passes.
                   Say so plainly in the PR body and in your final summary.
@@ -292,6 +493,11 @@ jobs:
                small standalone report-only PR described in step 6 (CI
                attaches to that PR automatically too, same as step 4e), and
                it still needs the REPORT PREVIEW LINK below.
+
+               data/business-watch.json still gets committed on that PR. It
+               will have changed even in a week with nothing to apply --
+               that is a week of patience banked towards next time, and
+               throwing it away is what kept resetting the count to zero.
 
             REPORT PREVIEW LINK: this site's Netlify Deploy Previews are
             always reachable at a fixed, predictable address --
@@ -360,4 +566,4 @@ jobs:
           # below -- auto-merge is disabled while Simon tests this workflow.
           # Add it back (and flip the prompt language above) once he is happy.
           claude_args: |
-            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*)"
+            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(node:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*)"

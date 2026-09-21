@@ -237,6 +237,43 @@ A single field maple leaf with five compact lobes
 
 tree-ash
 A single ash compound leaf with paired leaflets
+## Community venues reuse existing icons
+
+A village hall, library, arts centre, theatre or cinema became something the
+map can carry when the weekly run learned to add them (see
+`spec-weekly-report.md`). `landmarkIconSlug` maps them onto icons the set
+already has rather than waiting on new artwork: theatre → `theatre`, cinema →
+`film`, arts centre → `art`, library → `literature`, and a hall, town hall,
+social club or events venue → `landmark-museum`, whose classical building
+reads as civic. Without those lines each one would draw as a bare emoji, which
+is what the audit below exists to count.
+
+## Auditing what the map actually draws
+
+`js/renderer.js` picks a pin by working down a fixed order — the food and
+transport special cases, then `PLACE_FILTER_PRIORITY` via `matchesPlaceFilter`,
+then `landmarkIconSlug` — and when nothing matches it falls back to drawing a
+plain emoji glyph in a badge. That fallback is silent: nothing errors, a pin
+appears, and only a person looking at the map notices the artwork is not the
+product's own.
+
+`node scripts/icon-audit.js` (or `npm run audit:icons`) names every place that
+falls through, grouped by category with examples, by loading the app's real
+rules from `js/categories.js` the way `scripts/report/map-inventory.js` does.
+It also reports the ways the icon set and the rules drift apart: filter keys
+`matchesPlaceFilter` can never return true for (their icon is unreachable and
+the places they were meant to cover fall through to the emoji), registry
+entries with no file behind them, files reached from outside the registry (the
+service worker's precache list, a page's `<link>`, the manifest — legitimate,
+and listed so they are not mistaken for dead), files nothing refers to at all,
+and files that are byte-identical to another under a different name. `--json`
+gives the same result as data.
+
+The resolution order in `icon-audit.js` restates `drawLandmarks()` rather than
+calling it, because the real function needs a canvas and live app state. If the
+renderer's order changes, the audit has to change with it or it stops
+describing the real map.
+
 ## Inline UI glyphs
 
 Two navigation glyphs are drawn as inline SVG rather than shipped as registry

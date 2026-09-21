@@ -63,6 +63,53 @@ test("the homepage's headline counts match the datasets they describe", () => {
   }
 });
 
+/**
+ * The test above says when the page is wrong. It took a person reading the
+ * failure and editing the copy to make it right again -- which the weekly
+ * data run, which changes the food count unattended, could not do. Every data
+ * change it proposed therefore arrived with this suite already red.
+ * scripts/sync-homepage-counts.js closes that loop, so it has to actually
+ * correct a stale page rather than merely notice one.
+ */
+test("the count sync corrects a homepage that has drifted", () => {
+  const { updateHomepage } = require("../scripts/sync-homepage-counts.js");
+  const counts = readCounts(ROOT);
+  const stale = readHomepage().replace(
+    /(<span class="count-n">)[\d,]+(<\/span><span class="count-l">pubs)/,
+    "$1123$2"
+  );
+
+  assert.notStrictEqual(stale, readHomepage(), "the fixture should actually be stale");
+  const fixed = updateHomepage(stale, counts);
+  assert.ok(
+    fixed.includes(`<span class="count-n">${formatCount(counts.food)}</span><span class="count-l">pubs`),
+    "sync-homepage-counts.js should put the real food count back"
+  );
+  assert.ok(!fixed.includes(">123<"), "the stale number should be gone");
+});
+
+test("the count sync corrects the marketing spec too", () => {
+  const { updateMarketingSpec } = require("../scripts/sync-homepage-counts.js");
+  const counts = readCounts(ROOT);
+  const specPath = path.join(ROOT, "spec", "spec-marketing.md");
+  const stale = fs.readFileSync(specPath, "utf8").replace(/[\d,]+( pubs, cafés and shops)/, "123$1");
+
+  const fixed = updateMarketingSpec(stale, counts);
+  assert.ok(
+    fixed.includes(`${formatCount(counts.food)} pubs, cafés and shops`),
+    "spec-marketing.md §3.4 should be brought back in line with the data"
+  );
+});
+
+test("every quoted count already matches -- sync is a no-op on a clean tree", () => {
+  // If this fails, either the committed copy has drifted (run
+  // `node scripts/sync-homepage-counts.js`) or the sync script's anchors no
+  // longer find the numbers, which would make it silently stop working.
+  const { sync } = require("../scripts/sync-homepage-counts.js");
+  const { stale } = sync({ check: true });
+  assert.deepStrictEqual(stale, [], `these files quote a stale count: ${stale.join(", ")}`);
+});
+
 test("the homepage does not quote a stale tree count", () => {
   const html = readHomepageText();
   const { trees } = readCounts(ROOT);

@@ -374,6 +374,8 @@ globalThis.__forestFindsTest = {
   selectedCompassTarget,
   showRoadDetails,
   landmarkEmoji,
+  landmarkIconSlug,
+  iconPath,
   appIconHtml,
   treeSpeciesIconHtml,
   placeTitle,
@@ -719,6 +721,30 @@ test("ICON_PATHS is the single registry for all icon slugs", () => {
   }
   for (const slug of ["tree-ash", "tree-common-beech", "tree-holly", "tree-hornbeam", "tree-english-oak", "tree-wild-service"]) {
     assert.ok(slug in icons, `missing tree species icon slug: ${slug}`);
+  }
+});
+
+test("a hall, library or arts centre draws as a pin rather than falling back to an emoji", () => {
+  // These became something the map can carry when the weekly run learned to
+  // add them. Without a rule here each one would draw as a bare emoji glyph,
+  // which is the silent fallback `node scripts/icon-audit.js` exists to count.
+  const { landmarkIconSlug, iconPath } = app;
+  const expected = {
+    public_hall: "landmark-museum",
+    community_centre: "landmark-museum",
+    townhall: "landmark-museum",
+    social_centre: "landmark-museum",
+    events_venue: "landmark-museum",
+    library: "literature",
+    arts_centre: "art",
+    theatre: "theatre",
+    cinema: "film",
+  };
+
+  for (const [category, slug] of Object.entries(expected)) {
+    const place = { category, categoryTags: [category] };
+    assert.equal(landmarkIconSlug(place), slug, `${category} should use the ${slug} icon`);
+    assert.ok(iconPath(slug), `${slug} must be a real icon in the registry`);
   }
 });
 
@@ -3958,8 +3984,8 @@ test("the app asks for a background data sync only after the map is up, never du
 });
 
 test("service worker uses a network-first strategy in local dev so edits show up without a CACHE_NAME bump", () => {
-  // CACHE_NAME is only ever bumped by CI on main (.github/workflows/sw-release.yml for app
-  // code, data-bump.yml for data),
+  // CACHE_NAME is only ever bumped by CI, on the pull request that changes the files it
+  // watches (.github/workflows/sw-release.yml for app code, data-bump.yml for data),
   // never locally, so the production cache-first strategy below would otherwise keep serving
   // stale JS/CSS/data while testing locally. self.__DEV__ (injected by server.js — see the
   // "local dev server flags sw.js" tests) must gate the cache-first branch and go to the
@@ -5596,8 +5622,9 @@ test("APP_VERSION in js/app.js stays in sync with APP_CACHE_NAME in sw.js", () =
   const swSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const appSource = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
 
-  // Only sw-release.yml writes this, only on main, always unslugged -- branch-level
-  // bumping was removed, so anything else here is a hand-edit that should be caught.
+  // Only sw-release.yml writes this, always unslugged. It sets the version to one past
+  // the base branch on the pull request itself, so anything else here is a hand-edit
+  // that should be caught.
   const cacheMatch = swSource.match(/APP_CACHE_NAME = "forest-finds-app-(v\d+)"/);
   const fallbackMatch = appSource.match(/const APP_VERSION = "(v\d+)"/);
 

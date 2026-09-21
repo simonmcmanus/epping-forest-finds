@@ -1,19 +1,30 @@
-name: Bump SW app cache version on main
+name: Bump SW app cache version on the pull request
 
-# The app cache moves only when app code lands on main. Branches are never
-# bumped: during development the Settings screen's force-refresh buttons are
-# the way to get new code, and the local dev server is network-first anyway
-# (injectDevFlag in server.js), so a per-branch cache name bought nothing and
-# cost an automatic commit on every push.
+# The app cache has to move whenever app code lands on main, or a returning
+# user keeps being served the shell they already have and never sees the
+# change. This used to run after the merge and push the bump straight to
+# main -- which stopped working the moment main became a protected branch:
+#
+#   remote: error: GH006: Protected branch update failed for refs/heads/main.
+#   remote: - Changes must be made through a pull request.
+#
+# It failed that way on every merge from 19 September onwards, on a `push`
+# event nobody watches, so the cache silently stopped being versioned while
+# everything looked fine.
+#
+# So the bump now happens on the pull request instead, and rides in with the
+# merge. Nothing pushes to main, there is no protection to bypass, and the
+# version lands in the same commit range as the code it belongs to.
 #
 # Data is versioned separately by data-bump.yml, so a data-only merge does not
 # invalidate the app shell and an app-only merge does not re-download the maps.
-# Both write to sw.js on main, so they share a concurrency group to serialise
-# and rebase before pushing.
+# Both edit sw.js on the same branch, so they share a per-pull-request
+# concurrency group rather than racing each other.
 
 on:
-  push:
+  pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'app.html'
       - 'manifest.webmanifest'
@@ -23,38 +34,61 @@ on:
       - 'sw.js'
 
 concurrency:
-  group: main-cache-bump
+  group: cache-bump-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
   bump-app:
     runs-on: ubuntu-latest
+    # A pull request from a fork gets a read-only token and its branch is not
+    # ours to write to. Skipped rather than failed: there is nothing wrong,
+    # and whoever merges it can bump by hand.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: main
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Increment APP_CACHE_NAME version
+
+      - name: Set APP_CACHE_NAME to one past the base branch
         run: |
-          perl -i -pe \
-            's/"forest-finds-app.*?-v(\d+)"/"\"forest-finds-app-v".($1+1)."\""/e' \
-            sw.js
-      - name: Sync APP_VERSION in js/app.js
+          set -euo pipefail
+          git fetch --quiet origin "${{ github.base_ref }}"
+          # Set, rather than increment. Running this twice on one pull request
+          # must not bump twice: the version means "one past what main has",
+          # so it is the same answer however many times it is worked out.
+          BASE=$(git show "origin/${{ github.base_ref }}:sw.js" \
+            | perl -ne 'print $1 if /"forest-finds-app.*?-v(\d+)"/')
+          if [ -z "$BASE" ]; then
+            echo "::error::Could not read APP_CACHE_NAME from ${{ github.base_ref }}'s sw.js"
+            exit 1
+          fi
+          NEXT=$((BASE + 1))
+          perl -i -pe "s/\"forest-finds-app.*?-v\d+\"/\"forest-finds-app-v$NEXT\"/" sw.js
+          perl -i -pe "s/const APP_VERSION = \"v\d+\"/const APP_VERSION = \"v$NEXT\"/" js/app.js
+          echo "base v$BASE -> this pull request v$NEXT"
+
+      - name: Commit to the pull request branch
         run: |
-          VERSION=$(perl -ne 'print $1 if /"forest-finds-app.*?-v(\d+)"/' sw.js)
-          perl -i -pe "s/const APP_VERSION = \"v\\d+\"/const APP_VERSION = \"v$VERSION\"/" js/app.js
-      - name: Commit and push
-        run: |
+          set -euo pipefail
+          if git diff --quiet sw.js js/app.js; then
+            echo "Already at one past ${{ github.base_ref }} -- nothing to do."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git diff --quiet sw.js js/app.js && echo "Already current" && exit 0
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add sw.js js/app.js
           git commit -m "chore: bump SW app cache version [skip ci]"
+          # Pushed with GITHUB_TOKEN, so GitHub fires no further events for it
+          # and this cannot re-trigger itself. The cost is that CI does not
+          # re-run on the bump commit; it only ever changes a version string,
+          # and ci.yml already commits snapshot baselines the same way.
           for attempt in 1 2 3; do
-            git push && exit 0
-            echo "push rejected (attempt $attempt), rebasing on main"
-            git pull --rebase origin main
+            git push origin "HEAD:${{ github.head_ref }}" && exit 0
+            echo "push rejected (attempt $attempt), rebasing on the branch"
+            git pull --rebase origin "${{ github.head_ref }}"
           done
-          git push
+          git push origin "HEAD:${{ github.head_ref }}"
