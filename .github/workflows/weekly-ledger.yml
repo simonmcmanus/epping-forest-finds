@@ -456,20 +456,22 @@ jobs:
                   belongs (a source that was unreachable, an unusual thing the
                   tooling did, the state of the food-hygiene cross-check):
                   none of that goes in the report itself.
-               e. EXPECT THE OVERVIEW SNAPSHOT TO FAIL, and say so in the
-                  pull request body. Adding or removing a place near
-                  Loughton High Road changes what the map draws, and
-                  test/e2e/02-overview.spec.js compares the Nearby screen
-                  against a committed image. A data change that puts a new
-                  pin on screen makes that image out of date, which is not a
-                  regression -- it is the change working.
+               e. IF THE OVERVIEW SNAPSHOT FAILS, do not assume the data
+                  caused it, and never regenerate the baseline to make it go
+                  away. test/e2e/02-overview.spec.js compares the Nearby
+                  screen against a committed image, and that comparison has
+                  been seen to fail on one run and pass on the next two with
+                  identical data and an identical baseline -- a ~7% stable
+                  difference that was not reproducible. Something in the
+                  screen's content settles differently under load.
 
-                  Do NOT try to regenerate it here (this job must not run
-                  Playwright, and a baseline made anywhere but a Linux runner
-                  is wrong). Write in the pull request body, in plain terms,
-                  that whoever reviews it should run the "Update Snapshots"
-                  workflow against this branch before merging, and that CI
-                  will stay red until they do.
+                  So: a data change near Loughton High Road CAN legitimately
+                  change what the map draws, and a re-run tells the two
+                  apart. Say in the pull request body that the snapshot
+                  failed, that a re-run is the first thing to try, and that
+                  the baseline should only be regenerated (via the "Update
+                  Snapshots" workflow, on a Linux runner, never here) once a
+                  re-run has shown the difference is real and repeatable.
                f. Do NOT start CI yourself -- there is nothing to start.
                   This job pushes and opens PRs as a real user credential
                   (WEEKLY_LEDGER_PAT), so ci.yml's normal pull_request
