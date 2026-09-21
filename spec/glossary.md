@@ -7,7 +7,7 @@ The panel that sits above the map. Called "modal" in user-facing language and "i
 The map canvas in the background, visible in the area not covered by the inspector.
 
 **Navigation buttons**
-The icon buttons at the top right of the inspector (Nearby, Search, Filters, Settings, Feedback).
+The icon buttons at the top right of the inspector, in left-to-right order: Nearby, Filters, Search, Feedback, Settings.
 
 ---
 
