@@ -115,7 +115,7 @@ MISC_FILE = DATA / "local-landmarks-misc.geojson"
 PROPERTY_KEYS = [
     "id", "osmType", "osmId", "name", "category", "categoryLabel", "amenity", "shop",
     "highway", "tourism", "historic", "railway", "barrier", "entrance", "heritage",
-    "website", "phone", "address", "distanceToForestBoundaryMetres",
+    "website", "phone", "address", "openingHours", "distanceToForestBoundaryMetres",
     "distanceLimitFromForestBoundaryMetres",
 ]
 
@@ -201,6 +201,7 @@ def build_feature(entry, segments, ref_lat_rad):
         "website": entry.get("website"),
         "phone": entry.get("phone"),
         "address": entry.get("address"),
+        "openingHours": entry.get("openingHours"),
         "distanceToForestBoundaryMetres": round(dist, 1),
         "distanceLimitFromForestBoundaryMetres": round(MAX_DISTANCE_FROM_BOUNDARY_METRES, 1),
     })
@@ -215,7 +216,7 @@ def build_feature(entry, segments, ref_lat_rad):
 def apply_changeset(master, changeset, segments, ref_lat_rad):
     """Mutates master['features'] in place. Returns a log dict."""
     features = master["features"]
-    log = {"added": [], "removed": [], "skipped": []}
+    log = {"added": [], "removed": [], "enriched": [], "skipped": []}
 
     for entry in changeset.get("remove", []):
         target_name = entry.get("name")
@@ -226,6 +227,24 @@ def apply_changeset(master, changeset, segments, ref_lat_rad):
         for m in matches:
             features.remove(m)
         log["removed"].append({"id": entry.get("id") or target_name, "name": target_name, "reason": entry.get("reason")})
+
+    for entry in changeset.get("enrich", []):
+        matches = [f for f in features if _matches(f, entry)]
+        if not matches:
+            log["skipped"].append({"op": "enrich", "entry": entry, "reason": "no match found in dataset"})
+            continue
+        filled = {}
+        for feature in matches:
+            props = feature["properties"]
+            for field, value in (entry.get("fields") or {}).items():
+                # Only ever fills a blank. A value already on the map may have
+                # been put there by somebody who went and looked, and the
+                # source may simply be older, or wrong.
+                if value and not props.get(field):
+                    props[field] = value
+                    filled[field] = value
+        if filled:
+            log["enriched"].append({"id": entry.get("id") or entry.get("name"), "name": entry.get("name"), "fields": filled})
 
     existing_names_lower = {(f["properties"].get("name") or "").lower() for f in features}
     for entry in changeset.get("add", []):
@@ -287,11 +306,12 @@ def split_changeset_by_file(changeset, datasets):
     """Routes each entry to the file it belongs in. Removals whose target is
     in none of them are left on the food file, so apply_changeset() reports
     them as skipped in the usual way rather than dropping them silently."""
-    per_file = {path: {"add": [], "remove": []} for path in datasets}
+    per_file = {path: {"add": [], "remove": [], "enrich": []} for path in datasets}
     for entry in changeset.get("add", []):
         per_file[file_for_category(entry.get("category"))]["add"].append(entry)
-    for entry in changeset.get("remove", []):
-        per_file[file_holding(entry, datasets) or FOOD_FILE]["remove"].append(entry)
+    for op in ("remove", "enrich"):
+        for entry in changeset.get(op, []):
+            per_file[file_holding(entry, datasets) or FOOD_FILE][op].append(entry)
     return per_file
 
 
@@ -301,7 +321,7 @@ def main():
         sys.exit(1)
 
     raw = json.loads(Path(sys.argv[1]).read_text())
-    changeset = {"add": raw.get("add") or [], "remove": raw.get("remove") or []}
+    changeset = {k: raw.get(k) or [] for k in ("add", "remove", "enrich")}
     forest_geojson = json.loads(FOREST_BOUNDARY_FILE.read_text())
     segments, ref_lat_rad = load_boundary_segments(forest_geojson)
 
@@ -317,11 +337,11 @@ def main():
         }
         per_file = split_changeset_by_file(changeset, datasets)
 
-    log = {"added": [], "removed": [], "skipped": []}
+    log = {"added": [], "removed": [], "enriched": [], "skipped": []}
     written = []
     for path, dataset in datasets.items():
         part = per_file[path]
-        if not part["add"] and not part["remove"]:
+        if not any(part.get(op) for op in ("add", "remove", "enrich")):
             continue
         file_log = apply_changeset(dataset, part, segments, ref_lat_rad)
         for key in log:

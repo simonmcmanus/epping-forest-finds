@@ -69,7 +69,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts import business_watch  # noqa: E402
+from scripts import business_watch, verification  # noqa: E402
 from scripts.place_matching import (  # noqa: E402
     NAME_MATCH_RADIUS_M, feature_lonlat, normalize_name, same_place,
 )
@@ -102,10 +102,36 @@ VENUE_CATEGORIES = {
     "townhall": "townhall", "library": "library", "social_centre": "social_centre",
 }
 
+# What a walker needs that is not a business at all: where the bus goes from,
+# where the car park and the toilets are. These datasets were generated once
+# and never looked at again -- four months by the time anyone checked -- and
+# they go stale in ways that matter: a stop gets suspended, a car park closes,
+# a toilet block shuts for the winter.
+TRANSPORT_CATEGORIES = {
+    "bus_station": "bus_station", "taxi": "taxi", "train_station": "train_station",
+}
+FACILITY_CATEGORIES = {
+    "parking": "parking", "toilets": "toilets", "drinking_water": "drinking_water",
+    "bicycle_parking": "bicycle_parking", "bench": "bench",
+}
+
 SCOPES = {
     "food": {"amenity": AMENITY_CATEGORIES, "shop": SHOP_CATEGORIES},
     "venue": {"amenity": VENUE_CATEGORIES},
-    "all": {"amenity": {**AMENITY_CATEGORIES, **VENUE_CATEGORIES}, "shop": SHOP_CATEGORIES},
+    "transport": {"amenity": TRANSPORT_CATEGORIES},
+    "facilities": {"amenity": FACILITY_CATEGORIES},
+    "all": {
+        "amenity": {**AMENITY_CATEGORIES, **VENUE_CATEGORIES},
+        "shop": SHOP_CATEGORIES,
+    },
+    # Deliberately separate from "all". A bus stop has no name to match on and
+    # there are thousands of them, so sweeping them in alongside the shops
+    # would swamp a week's real findings and put the removal cap under
+    # constant pressure. Ask for them on purpose.
+    "everything": {
+        "amenity": {**AMENITY_CATEGORIES, **VENUE_CATEGORIES, **TRANSPORT_CATEGORIES, **FACILITY_CATEGORIES},
+        "shop": SHOP_CATEGORIES,
+    },
 }
 
 # How OpenStreetMap says "this closed". A mapper who bothers to leave one of
@@ -113,6 +139,12 @@ SCOPES = {
 # there is -- stronger than a point merely being absent.
 CLOSED_TAG_PREFIXES = ("disused", "was", "closed", "abandoned", "demolished", "removed")
 VACANT_VALUES = {"vacant", "disused", "closed"}
+
+# Fields worth copying from the source when our own record has a blank.
+# Never used to overwrite something already there -- a value on the map may
+# have been put there by a person who checked, and the source may simply be
+# older or wrong.
+ENRICHABLE_FIELDS = ("address", "website", "phone", "openingHours")
 
 SOURCE = "osm"
 
@@ -235,6 +267,9 @@ def normalize_overpass_elements(elements, scope="all"):
             "address": address,
             "website": tags.get("website") or tags.get("contact:website"),
             "phone": tags.get("phone") or tags.get("contact:phone"),
+            # "Is it open right now" is the thing somebody standing outside in
+            # the rain actually wants, and the map has never carried it.
+            "openingHours": tags.get("opening_hours"),
         })
     return out
 
@@ -293,7 +328,7 @@ def diff_pois(osm_pois, dataset_geojson, radius_m=NAME_MATCH_RADIUS_M):
         if name:
             dataset_by_name.setdefault(name, []).append(feature)
 
-    new_candidates, changed_candidates, closed_candidates = [], [], []
+    new_candidates, changed_candidates, closed_candidates, enrich_candidates = [], [], [], []
     seen_osm_keys = set()
 
     for poi in osm_pois:
@@ -312,6 +347,24 @@ def diff_pois(osm_pois, dataset_geojson, radius_m=NAME_MATCH_RADIUS_M):
                 })
                 continue
             seen_osm_keys.add(key)
+
+            # Fields the source has and we do not. Filling a blank is not a
+            # change of fact, so it needs none of the patience a closure does
+            # -- and blanks are the norm outside the food data, where the
+            # transport dataset carries twelve addresses across 1,106 places.
+            missing_fields = {
+                field: poi.get(field)
+                for field in ENRICHABLE_FIELDS
+                if poi.get(field) and not props.get(field)
+            }
+            if missing_fields:
+                enrich_candidates.append({
+                    "id": known.get("id") or props.get("id"),
+                    "osmType": key[0], "osmId": key[1],
+                    "name": props.get("name"),
+                    "fields": missing_fields,
+                })
+
             renamed = normalize_name(poi.get("name")) != normalize_name(props.get("name"))
             recategorised = bool(poi.get("category")) and poi.get("category") != props.get("category")
             if renamed or recategorised:
@@ -356,6 +409,12 @@ def diff_pois(osm_pois, dataset_geojson, radius_m=NAME_MATCH_RADIUS_M):
         "missing_candidates": missing_candidates,
         "closed_candidates": closed_candidates,
         "changed_candidates": changed_candidates,
+        "enrich_candidates": enrich_candidates,
+        # Everything the source still lists, which is a confirmation that the
+        # place is there -- free, as a side effect of the diff, and previously
+        # thrown away. scripts/verification.py keeps them so "how stale is
+        # this map?" stops being a question only a walk can answer.
+        "verified": sorted(f"{t}/{i}" for t, i in seen_osm_keys),
     }
 
 
@@ -408,6 +467,8 @@ def main():
     parser.add_argument("--scope", default="all", choices=sorted(SCOPES))
     parser.add_argument("--ledger", default=str(business_watch.DEFAULT_LEDGER_PATH))
     parser.add_argument("--changeset", default=None, help="Write the confident changes here, ready for apply_weekly_changeset.py")
+    parser.add_argument("--verification", default=str(verification.DEFAULT_PATH),
+                        help="Where to record which places this run confirmed are still there")
     parser.add_argument("--today", default=None, help="Date to record this run under (defaults to today)")
     parser.add_argument("--no-record", action="store_true", help="Report only; leave the watchlist untouched")
     args = parser.parse_args()
@@ -443,8 +504,13 @@ def main():
         ]
     elif not args.no_record:
         business_watch.record_run(ledger, observations_from_diff(result), today, sources={SOURCE})
+        business_watch.link_agreements(ledger)
         ledger.setdefault("sources", {})[SOURCE] = {"population": len(osm_pois), "checkedAt": today}
         business_watch.save_ledger(ledger, args.ledger)
+
+        record = verification.load(args.verification)
+        verification.record_confirmations(record, result["verified"], SOURCE, today)
+        verification.save(record, args.verification)
 
     result["confident"] = business_watch.confident_entries(ledger) if plausible else {}
     result["pending"] = business_watch.pending_entries(ledger)

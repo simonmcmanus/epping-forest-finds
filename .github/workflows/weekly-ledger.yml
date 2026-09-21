@@ -26,6 +26,15 @@ name: Weekly Epping Forest Ledger
 #   Contents: Read and write     (push the weekly-data-report/* branch)
 #   Pull requests: Read and write (open and edit the PR)
 #   Workflows: Read and write     (only if a run ever touches .github/workflows)
+#   Issues: Read                  (read what people reported from inside the
+#                                  app -- scripts/user_reports.py. WITHOUT
+#                                  THIS the run simply finds no reports and
+#                                  carries on, which looks exactly like a
+#                                  quiet week and is the failure this was
+#                                  added to end. If the weekly PR stops
+#                                  mentioning reports, check this first.
+#                                  Write is NOT needed: the PR body says
+#                                  `Closes #<n>` and merging does the rest.)
 # Fine-grained PATs expire -- if this job starts failing to push or open PRs,
 # check the token's expiry date first. Claude itself still authenticates with
 # claude_code_oauth_token; the PAT only covers git/gh operations.
@@ -146,6 +155,24 @@ jobs:
               mapped them. Openings only; it never proposes a removal. It is
               best-effort: if the register is unreachable it exits 2, which
               is not a reason to stop the run.
+            - scripts/user_reports.py -- reads what people have reported from
+              inside the app. Those become GitHub issues labelled
+              `user-report`, carrying the reporter's own words and, when they
+              had granted location, the exact spot they were standing on.
+              That is the best evidence this project has -- a person in front
+              of the thing -- and for a long time nothing read them. Treat a
+              report as outranking anything the other tooling infers.
+            - scripts/data_quality.py -- says how good the data actually is:
+              how many places a source has confirmed recently, how many have
+              never been confirmed at all, how thin the useful fields are.
+              Run it before and after the week's changes; the difference is
+              the week's real result and it belongs in the pull request.
+            - scripts/find_duplicates.py -- sweeps for the same place mapped
+              twice under slightly different names. Reports only; deciding
+              which of a pair to keep is a person's call.
+            - scripts/verification.py + data/verification.json -- remembers
+              when each place was last confirmed to still be there. Written
+              automatically by the OpenStreetMap check; commit it.
             - scripts/business_watch.py + data/business-watch.json -- the
               memory that makes the above worth running. It records what each
               source said each week and only lets a signal become a real
@@ -235,16 +262,24 @@ jobs:
                   stay on the map. THIS STEP IS NOT OPTIONAL AND ITS OUTPUT
                   IS NOT ADVISORY. Run, in this order:
 
+                    python3 scripts/data_quality.py --json > /tmp/quality-before.json
+                    python3 scripts/user_reports.py --out /tmp/reports.json || true
                     python3 scripts/fsa_business_diff.py --out /tmp/fsa-diff.json || true
                     python3 scripts/osm_business_diff.py \
                       --out /tmp/osm-diff.json \
                       --changeset /tmp/auto-changeset.json
+                    python3 scripts/find_duplicates.py
 
-                  That order matters: both write to the same watchlist, and
-                  the second one is the one that turns the whole watchlist
+                  That order matters: all three write to the same watchlist,
+                  and the OpenStreetMap one is what turns the whole watchlist
                   into the changeset. Run them the other way round and
-                  anything the register found waits an extra week for no
-                  reason.
+                  anything the register or a person found waits an extra week
+                  for no reason.
+
+                  What people reported comes FIRST for a reason. Somebody
+                  stood in front of the thing and told us. That outranks
+                  anything the rest of this infers, so work those before you
+                  work anything else, and say what happened to each of them.
 
                   (the `|| true` is only for the food-hygiene register, which
                   is allowed to be unreachable; a failure from the
@@ -282,18 +317,37 @@ jobs:
                   in data/business-watch.json. That is the only way to stop a
                   false positive being re-proposed every single week.
 
-                  Finally, work data/business-watch.json's "reportedMissing"
+                  Then work data/business-watch.json's "reportedMissing"
                   list. These are places a person has told us are missing
-                  from the map, which is better evidence than anything the
-                  tooling produces on its own -- somebody has been there.
-                  For each one: find its real coordinates (search the web for
-                  its address, then look the address up; never invent a
-                  position), add it to this week's changeset with the right
-                  category, and delete it from the list in the same commit.
+                  from the map -- some typed into the app's report screen
+                  (those carry an "issue" number and often the position the
+                  reporter was standing on), some written in by hand. Either
+                  way somebody has been there, which is better evidence than
+                  anything the tooling produces on its own.
+
+                  For each one: find its real coordinates (use the reporter's
+                  position when there is one; otherwise search for its
+                  address and look that up -- never invent a position), add
+                  it to this week's changeset with the right category, and
+                  delete it from the list in the same commit. Where the entry
+                  has an "issue" number, say `Closes #<number>` in the pull
+                  request body, so merging tells the person who reported it
+                  that their report landed. That is what keeps people
+                  reporting.
+
                   If you genuinely cannot place one, leave it on the list and
                   say in the pull request body what you tried. An entry that
                   sits there untouched run after run with no explanation is
                   the same failure as ignoring a candidate.
+
+                  Finally, read /tmp/osm-diff.json's "enrich_candidates":
+                  fields a source has that our record leaves blank (an
+                  address, a website, opening hours). Copy them into the
+                  changeset's "enrich" list. These are not changes of fact,
+                  so they need none of the patience a closure does -- and
+                  blanks are the norm outside the food data, where the
+                  transport dataset carries twelve addresses across 1,106
+                  places. Filling one never overwrites a value already there.
                h. The forest's grazing cattle: run
                   python3 scripts/cow_boundary_tracker.py. It compares this
                   run's Nofence grazing boundary against last run's and
@@ -354,9 +408,10 @@ jobs:
                   not yours.
                c. git add the changed data file(s), index.html and
                   spec/spec-marketing.md if sync-homepage-counts.js touched
-                  them, data/business-watch.json (always -- it is this run's
-                  memory, and leaving it out is what makes next week start
-                  from nothing), the new report, and
+                  them, data/business-watch.json and data/verification.json
+                  (always -- they are this run's memory, and leaving them out
+                  is what makes next week start from nothing), the new
+                  report, and
                   data/cow-grazing-history.json if cow_boundary_tracker.py
                   updated it (see step 6), commit
                   (git config user.name "Epping Forest Ledger (weekly report)",
@@ -368,8 +423,15 @@ jobs:
                   few lines, then two short lists:
 
                     Applied this week: each change, with what it was based on.
+                    Reported by people: each open report, what you did about
+                    it, and `Closes #<number>` where it is now fixed.
                     Still watching: each candidate not yet acted on, with how
                     many more weeks it needs, or why it was set aside.
+                    Data quality: run
+                    `python3 scripts/data_quality.py --compare /tmp/quality-before.json`
+                    after applying the changeset and paste the first two
+                    lines. That is the week's real result -- whether the map
+                    got better, not just whether something moved.
 
                   The second list is what makes the first trustworthy, and it
                   is how a reviewer sees a real closure sitting one week short

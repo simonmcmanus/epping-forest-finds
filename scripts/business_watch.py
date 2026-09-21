@@ -94,10 +94,22 @@ def is_dismissed(entry):
 def is_confident(entry, thresholds=None):
     if is_dismissed(entry):
         return False
+    # An entry another source's entry already speaks for must not produce a
+    # second copy of the same place. See link_agreements().
+    if entry.get("supersededBy"):
+        return False
     thresholds = thresholds or CONFIDENT_AFTER_RUNS
     needed = thresholds.get(entry.get("signal"))
     if needed is None:
         return False
+    # Two sources that have never heard of each other describing the same new
+    # place is better evidence than one source repeating itself, so it does
+    # not have to wait out the patience the single-source case needs.
+    # Agreement only means anything for an opening: "absent" is the one thing
+    # sources are unreliable about in the same direction, since neither knows
+    # about a place nobody has recorded.
+    if entry.get("signal") == "new" and entry.get("agreedWith"):
+        return True
     return int(entry.get("runs", 0)) >= needed
 
 
@@ -162,6 +174,65 @@ def record_run(ledger, observations, today, thresholds=None, sources=None):
     ledger["version"] = LEDGER_VERSION
     ledger["updatedAt"] = today
     ledger["entries"] = entries
+    return ledger
+
+
+def link_agreements(ledger, radius_m=None):
+    """Finds entries from different sources that describe the same new place,
+    and links them.
+
+    Two things come out of this. The obvious one is confidence: OpenStreetMap
+    and a council's register both saying a cafe has opened, independently, is
+    stronger than either saying it twice. The less obvious one matters more --
+    without this, both entries produce an addition and the map grows two pins
+    for one cafe. One entry is chosen to speak for the place and the rest are
+    marked as spoken for.
+
+    The survivor is the one carrying an OpenStreetMap id where there is one,
+    because that id is how every later run recognises the place again; an
+    entry added without one can only ever be matched by name.
+    """
+    from scripts.place_matching import NAME_MATCH_RADIUS_M, metres_between, name_key
+
+    radius_m = NAME_MATCH_RADIUS_M if radius_m is None else radius_m
+    openings = [
+        (key, entry) for key, entry in ledger.get("entries", {}).items()
+        if entry.get("signal") == "new" and not is_dismissed(entry)
+    ]
+
+    for key, entry in openings:
+        entry.pop("agreedWith", None)
+        entry.pop("supersededBy", None)
+
+    groups = {}
+    for key, entry in openings:
+        detail = entry.get("detail") or {}
+        groups.setdefault(name_key(detail.get("name")), []).append((key, entry))
+
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        for index, (key, entry) in enumerate(members):
+            detail = entry.get("detail") or {}
+            for other_key, other in members[index + 1:]:
+                other_detail = other.get("detail") or {}
+                if other.get("source") == entry.get("source"):
+                    continue
+                if None in (detail.get("lon"), detail.get("lat"), other_detail.get("lon"), other_detail.get("lat")):
+                    continue
+                if metres_between((detail["lon"], detail["lat"]), (other_detail["lon"], other_detail["lat"])) > radius_m:
+                    continue
+                keeper, spoken_for = (key, other_key)
+                if not (entry.get("detail") or {}).get("osmId") and (other.get("detail") or {}).get("osmId"):
+                    keeper, spoken_for = (other_key, key)
+                entries = ledger["entries"]
+                entries[keeper].setdefault("agreedWith", [])
+                if spoken_for not in entries[keeper]["agreedWith"]:
+                    entries[keeper]["agreedWith"].append(spoken_for)
+                entries[spoken_for]["supersededBy"] = keeper
+
+    for entry in ledger.get("entries", {}).values():
+        entry["confident"] = is_confident(entry)
     return ledger
 
 

@@ -14,6 +14,8 @@
     "split:trees": "node scripts/split-veteran-trees.js",
     "audit:icons": "node scripts/icon-audit.js",
     "sync:counts": "node scripts/sync-homepage-counts.js",
+    "audit:quality": "python3 scripts/data_quality.py",
+    "audit:duplicates": "python3 scripts/find_duplicates.py",
     "netlify:dev": "npx netlify dev",
     "build": "node scripts/generate-reports-index.js && node scripts/generate-sitemap.js",
     "test": "npm run test:unit && node --test --test-reporter=dot test/reports-index.test.js test/sitemap.test.js test/transport-departures.test.js test/home-counts.test.js test/home-boundaries.test.js test/subscribe.test.js && npm run test:py",

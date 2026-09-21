@@ -18,8 +18,21 @@ enough to act on: a restaurant that closed in 2024 and a pub that closed in
 2023 were both still drawn on the map two years later. The detection now has
 memory and an outcome.
 
-**The sources.** Two, deliberately unalike, so neither's blind spot is the
+**The sources.** Three, deliberately unalike, so no one blind spot is the
 system's:
+
+- `scripts/user_reports.py` — **what people report from inside the app**, and
+  the best evidence this project has. The report screen already posts to
+  `netlify/functions/report-missing-data.js`, which opens a GitHub issue
+  labelled `user-report` carrying the reporter's own words and, when they had
+  granted location, the GPS fix they were standing on. A person in front of
+  the thing outranks anything the other two infer, so the weekly run works
+  these first. They are never applied automatically — a report is free text,
+  not a name, a category and a position — but the run must resolve each one
+  and say what it did. A fixed report's PR body says `Closes #<number>`, so
+  merging tells the reporter their report landed; that is what keeps people
+  reporting. Requires `Issues: Read` on the workflow's token; without it the
+  run finds nothing and a quiet week looks identical to a broken one.
 
 - `scripts/osm_business_diff.py` — OpenStreetMap. Reports four things: places
   new to it, our places it no longer lists, our places it marks closed
@@ -64,6 +77,43 @@ Guard rails, because this runs unattended:
   it is how the closures confirmed on foot in September 2026 are kept from
   being re-added by a source that has not caught up.
 
+**Agreement beats repetition.** Two sources that have never heard of each
+other describing the same new place is stronger evidence than one source
+saying it twice, so an opening both agree on is confident immediately
+(`link_agreements`). Agreement is only read for openings: sources are
+unreliable in the *same* direction about absence — neither knows about a
+place nobody recorded — so it never shortens the wait on a closure. Linking
+also stops the same café arriving as two pins, one from each source.
+
+**Confirmations, and what is stale.** Every run sees, as a free side effect
+of diffing, which of our places a source still lists.
+`scripts/verification.py` keeps those in `data/verification.json`, one
+compact line per place, so "how stale is the map?" stops being a question
+only a walk can answer. It is a separate file rather than a field on every
+feature deliberately: stamping the GeoJSON would rewrite hundreds of features
+weekly and bury the week's three real changes in a diff nobody can read.
+Anything unconfirmed for more than `STALE_AFTER_DAYS` — or never confirmed at
+all — counts as stale.
+
+**Filling blanks.** `enrich_candidates` are fields a source has that our
+record leaves blank: an address, a website, opening hours. They are not
+changes of fact, so they need none of the patience a closure does, and
+`apply_weekly_changeset.py` only ever fills a blank — a value already on the
+map may have been put there by somebody who went and looked.
+
+**Measuring it.** `scripts/data_quality.py` reports, per dataset, how many
+places exist, how many a source has confirmed recently, how many never have
+been, and how thin the useful fields are. `--compare` against a run saved
+before the week's changes gives the movement, which the PR quotes. Without
+it a slow regression looks exactly like a quiet week — which is how four of
+seven datasets sat untouched from May to September without anyone noticing.
+
+**Duplicates.** `apply_weekly_changeset.py` blocks an exact name clash, so
+the duplicates that get through are the near-misses: "Bell Inn" beside "The
+Bell" on the same corner. `scripts/find_duplicates.py` sweeps for those by
+name key and proximity. It reports and never deletes: two genuinely different
+shops can share a name and a corner, so the call is a person's.
+
 **Places a person reported.** `data/business-watch.json`'s `reportedMissing`
 list is for gaps somebody spotted by walking past them — better evidence than
 anything the tooling produces on its own, and previously with nowhere to live
@@ -93,16 +143,21 @@ applying a changeset. See `spec-marketing.md` §4.
 
 Business detection (see "Keeping the map's businesses current" above):
 
+- `scripts/user_reports.py` — what people reported from inside the app
 - `scripts/osm_business_diff.py` — OpenStreetMap change detection
 - `scripts/fsa_business_diff.py` — food-hygiene register cross-check
 - `scripts/business_watch.py` — the week-to-week ledger and escalation rules
+- `scripts/verification.py` — when each place was last confirmed
+- `scripts/data_quality.py` — how good the data is, and which way it moved
+- `scripts/find_duplicates.py` — the same place mapped twice
 - `scripts/place_matching.py` — shared name/proximity matching
 - `scripts/apply_weekly_changeset.py` — applies a changeset to the map data
 - `scripts/sync-homepage-counts.js` — keeps the homepage's quoted counts true
 - `data/business-watch.json` — the committed watchlist
-- `scripts/test_osm_business_diff.py`, `test_fsa_business_diff.py`,
-  `test_business_watch.py`, `test_place_matching.py`,
-  `test_apply_weekly_changeset.py` — unit tests
+- `data/verification.json` — the committed confirmation record
+- `scripts/test_*.py` for each of the above — unit tests
+
+Handy while working: `npm run audit:quality` and `npm run audit:duplicates`.
 
 ## Who the report is for
 

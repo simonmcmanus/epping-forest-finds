@@ -168,6 +168,89 @@ class ChangesetTests(unittest.TestCase):
         self.assertEqual(changeset["remove"], [])
 
 
+class AgreementTests(unittest.TestCase):
+    """Two sources that have never heard of each other describing the same new
+    place. Before this, that produced two pins for one cafe and still made
+    both wait out the full patience."""
+
+    def ledger_with_both_sources(self, name_a="Chapter 21", name_b="Chapter 21",
+                                 pos_a=(0.0565, 51.6486), pos_b=(0.0566, 51.6487)):
+        ledger = bw.empty_ledger()
+        ledger["entries"]["node/5"] = {
+            "signal": "new", "source": "osm", "runs": 1,
+            "detail": {"name": name_a, "lon": pos_a[0], "lat": pos_a[1], "category": "cafe",
+                       "osmType": "node", "osmId": 5},
+        }
+        ledger["entries"]["fsa/99"] = {
+            "signal": "new", "source": "fsa", "runs": 1,
+            "detail": {"name": name_b, "lon": pos_b[0], "lat": pos_b[1], "category": "cafe"},
+        }
+        return ledger
+
+    def test_agreement_makes_an_opening_confident_without_waiting(self):
+        ledger = bw.link_agreements(self.ledger_with_both_sources())
+        self.assertTrue(ledger["entries"]["node/5"]["confident"])
+
+    def test_only_one_of_the_two_becomes_an_addition(self):
+        ledger = bw.link_agreements(self.ledger_with_both_sources())
+        changeset, _ = bw.build_changeset(ledger)
+        self.assertEqual(len(changeset["add"]), 1, "one cafe should produce one pin")
+
+    def test_the_entry_carrying_the_map_id_is_the_one_that_survives(self):
+        # That id is how every later run recognises the place again.
+        ledger = bw.link_agreements(self.ledger_with_both_sources())
+        changeset, _ = bw.build_changeset(ledger)
+        self.assertEqual(changeset["add"][0]["osmId"], 5)
+
+    def test_the_same_name_far_apart_is_not_agreement(self):
+        ledger = self.ledger_with_both_sources(pos_b=(0.112, 51.700))
+        bw.link_agreements(ledger)
+        self.assertNotIn("agreedWith", ledger["entries"]["node/5"])
+        self.assertFalse(ledger["entries"]["node/5"]["confident"])
+
+    def test_different_places_are_not_agreement(self):
+        ledger = self.ledger_with_both_sources(name_b="Somewhere Else")
+        bw.link_agreements(ledger)
+        self.assertNotIn("agreedWith", ledger["entries"]["node/5"])
+
+    def test_one_source_saying_it_twice_is_not_agreement(self):
+        ledger = bw.empty_ledger()
+        for key in ("node/5", "node/6"):
+            ledger["entries"][key] = {
+                "signal": "new", "source": "osm", "runs": 1,
+                "detail": {"name": "Chapter 21", "lon": 0.0565, "lat": 51.6486},
+            }
+        bw.link_agreements(ledger)
+        self.assertNotIn("agreedWith", ledger["entries"]["node/5"])
+
+    def test_agreement_does_not_shortcut_a_closure(self):
+        # Sources are unreliable in the same direction about absence -- neither
+        # knows about a place nobody recorded -- so agreement means nothing there.
+        ledger = bw.empty_ledger()
+        ledger["entries"]["node/5"] = {
+            "signal": "missing", "source": "osm", "runs": 1,
+            "detail": {"name": "The Bell", "lon": 0.05, "lat": 51.65},
+        }
+        ledger["entries"]["fsa/9"] = {
+            "signal": "missing", "source": "fsa", "runs": 1,
+            "detail": {"name": "The Bell", "lon": 0.05, "lat": 51.65},
+        }
+        bw.link_agreements(ledger)
+        self.assertFalse(ledger["entries"]["node/5"]["confident"])
+
+    def test_relinking_does_not_accumulate_stale_links(self):
+        ledger = self.ledger_with_both_sources()
+        bw.link_agreements(ledger)
+        bw.link_agreements(ledger)
+        self.assertEqual(ledger["entries"]["node/5"]["agreedWith"], ["fsa/99"])
+
+    def test_a_dismissed_entry_is_never_linked(self):
+        ledger = self.ledger_with_both_sources()
+        ledger["entries"]["node/5"]["dismissed"] = True
+        bw.link_agreements(ledger)
+        self.assertNotIn("supersededBy", ledger["entries"]["fsa/99"])
+
+
 class PendingTests(unittest.TestCase):
     def test_pending_says_how_many_more_runs_are_needed(self):
         ledger = bw.record_run(bw.empty_ledger(), [observation("node/1", "missing")], "2026-01-05")
