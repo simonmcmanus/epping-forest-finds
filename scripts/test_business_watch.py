@@ -161,6 +161,54 @@ class ChangesetTests(unittest.TestCase):
         self.assertEqual(len(notes), 1)
         self.assertIn("by hand", notes[0])
 
+    def test_a_huge_batch_of_additions_is_spread_over_several_runs(self):
+        # The first run to read the food-hygiene register banked 679 openings
+        # at once, all of them due to turn confident on the same day. That
+        # would have arrived as a pull request proposing 679 additions.
+        ledger = bw.empty_ledger()
+        for n in range(bw.MAX_AUTO_ADDITIONS + 20):
+            ledger["entries"][f"fsa/{n}"] = {
+                "signal": "new", "source": "fsa", "runs": 9, "firstSeen": "2026-09-21",
+                "detail": {"name": f"Place {n}", "category": "cafe", "lon": 0.05, "lat": 51.65},
+            }
+        changeset, notes = bw.build_changeset(ledger)
+        self.assertEqual(len(changeset["add"]), bw.MAX_AUTO_ADDITIONS)
+        self.assertEqual(len(notes), 1)
+        self.assertIn("queued for later runs", notes[0])
+
+    def test_the_longest_waiting_additions_go_first(self):
+        # A stable order, so nothing sits at the back of the queue forever.
+        ledger = bw.empty_ledger()
+        for n, first_seen in enumerate(("2026-09-21", "2026-08-01", "2026-09-14")):
+            ledger["entries"][f"fsa/{n}"] = {
+                "signal": "new", "source": "fsa", "runs": 9, "firstSeen": first_seen,
+                "detail": {"name": f"Place {n}", "category": "cafe", "lon": 0.05, "lat": 51.65},
+            }
+        changeset, _ = bw.build_changeset(ledger, max_additions=1)
+        self.assertEqual(changeset["add"][0]["name"], "Place 1")
+
+    def test_the_queue_marker_never_reaches_the_changeset(self):
+        # apply_weekly_changeset.py would carry an unknown key straight into
+        # the map data.
+        ledger = bw.empty_ledger()
+        ledger["entries"]["fsa/1"] = {
+            "signal": "new", "source": "fsa", "runs": 9, "firstSeen": "2026-09-21",
+            "detail": {"name": "A Cafe", "category": "cafe", "lon": 0.05, "lat": 51.65},
+        }
+        for max_additions in (1, 50):
+            changeset, _ = bw.build_changeset(ledger, max_additions=max_additions)
+            self.assertNotIn("_firstSeen", changeset["add"][0])
+
+    def test_a_normal_week_is_not_capped_or_reordered(self):
+        ledger = bw.empty_ledger()
+        ledger["entries"]["fsa/1"] = {
+            "signal": "new", "source": "fsa", "runs": 9, "firstSeen": "2026-09-21",
+            "detail": {"name": "A Cafe", "category": "cafe", "lon": 0.05, "lat": 51.65},
+        }
+        changeset, notes = bw.build_changeset(ledger)
+        self.assertEqual(len(changeset["add"]), 1)
+        self.assertEqual(notes, [])
+
     def test_a_dismissed_entry_is_left_out_of_the_changeset(self):
         ledger = self.confident("node/1", "closed", id="node/1", name="Gone Cafe")
         ledger["entries"]["node/1"]["dismissed"] = True

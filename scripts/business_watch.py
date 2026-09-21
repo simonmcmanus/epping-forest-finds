@@ -50,6 +50,23 @@ CONFIDENT_AFTER_RUNS = {
     "changed": 2,
 }
 
+# Patience guards against a source changing its mind. That is a real risk with
+# OpenStreetMap, which anybody can edit and somebody may revert -- but it is
+# not a risk with a statutory register. A food business has to register with
+# its council before it may trade, and the council does not un-register it a
+# week later because the entry was a mistake. Making the register wait two
+# weeks to repeat itself adds no information at all; it only delays the map.
+#
+# The register's real weaknesses are different in kind, and waiting does
+# nothing about any of them: it holds registered company names rather than the
+# name over the door, it lists concessions inside other premises as separate
+# businesses, and it files restaurants, cafes and canteens under one type. All
+# three are handled where they belong, by cleaning the record in
+# fsa_business_diff.py, not by sitting on it.
+CONFIDENT_AFTER_RUNS_BY_SOURCE = {
+    "fsa": {"new": 1},
+}
+
 SIGNALS = tuple(CONFIDENT_AFTER_RUNS)
 
 # Signals that take something off the map, as opposed to putting something on
@@ -63,6 +80,25 @@ REMOVAL_SIGNALS = ("closed", "missing")
 # closures. Well above a plausible real week (a busy week is a handful) and
 # well below the damage a bad query could do.
 MAX_AUTO_REMOVALS = 12
+
+# The most places a single unattended run may add. Removals were capped from
+# the start; additions were not, and the first run to reach the food-hygiene
+# register banked 679 of them in one go -- every one legitimately near the
+# forest, every one due to turn confident on the same day a week later. That
+# would have arrived as a pull request proposing 679 additions: unreviewable,
+# and quite capable of doubling the food dataset overnight on a source that
+# cannot tell a cafe from a restaurant.
+#
+# Over the cap the run takes the longest-waiting and leaves the rest queued,
+# rather than holding everything back as a removal overflow does. An addition
+# that is wrong is one extra pin; the risk is the size of the batch, not the
+# direction, so a bounded batch drains the queue while staying reviewable.
+#
+# Set to clear a first-reading backlog in a couple of months rather than a
+# year, now that these places are wanted on the map: a normal week finds a
+# handful and never comes near the cap, so this only ever binds on a backlog.
+# A deliberate bulk import raises it for one run with --max-additions.
+MAX_AUTO_ADDITIONS = 100
 
 
 def empty_ledger():
@@ -99,7 +135,9 @@ def is_confident(entry, thresholds=None):
     if entry.get("supersededBy"):
         return False
     thresholds = thresholds or CONFIDENT_AFTER_RUNS
-    needed = thresholds.get(entry.get("signal"))
+    signal = entry.get("signal")
+    by_source = CONFIDENT_AFTER_RUNS_BY_SOURCE.get(entry.get("source")) or {}
+    needed = by_source.get(signal, thresholds.get(signal))
     if needed is None:
         return False
     # Two sources that have never heard of each other describing the same new
@@ -108,7 +146,7 @@ def is_confident(entry, thresholds=None):
     # Agreement only means anything for an opening: "absent" is the one thing
     # sources are unreliable about in the same direction, since neither knows
     # about a place nobody has recorded.
-    if entry.get("signal") == "new" and entry.get("agreedWith"):
+    if signal == "new" and entry.get("agreedWith"):
         return True
     return int(entry.get("runs", 0)) >= needed
 
@@ -270,7 +308,8 @@ def pending_entries(ledger, thresholds=None):
     return out
 
 
-def build_changeset(ledger, thresholds=None, max_removals=MAX_AUTO_REMOVALS):
+def build_changeset(ledger, thresholds=None, max_removals=MAX_AUTO_REMOVALS,
+                    max_additions=MAX_AUTO_ADDITIONS):
     """Turns the confident half of the ledger into an apply_weekly_changeset.py
     changeset. Returns (changeset, notes) -- `notes` explains anything held
     back, and belongs in the pull request body.
@@ -295,7 +334,7 @@ def build_changeset(ledger, thresholds=None, max_removals=MAX_AUTO_REMOVALS):
                 "reason": detail.get("reason") or f"{signal} in {entry.get('source')} data for {entry.get('runs')} weekly checks running",
             })
         elif signal == "new":
-            add.append(_addition(detail))
+            add.append({**_addition(detail), "_firstSeen": entry.get("firstSeen")})
         elif signal == "changed":
             if detail.get("previousName"):
                 remove.append({
@@ -303,7 +342,7 @@ def build_changeset(ledger, thresholds=None, max_removals=MAX_AUTO_REMOVALS):
                     "name": detail.get("previousName"),
                     "reason": detail.get("reason") or f"now trading as {detail.get('name')}",
                 })
-            add.append(_addition(detail))
+            add.append({**_addition(detail), "_firstSeen": entry.get("firstSeen")})
 
     if len(remove) > max_removals:
         notes.append(
@@ -313,6 +352,22 @@ def build_changeset(ledger, thresholds=None, max_removals=MAX_AUTO_REMOVALS):
             "closed. Needs a look by hand."
         )
         remove = []
+
+    if len(add) > max_additions:
+        waiting = len(add) - max_additions
+        # Longest-waiting first, so the queue drains in a stable order and
+        # nothing can sit at the back of it forever.
+        add.sort(key=lambda entry: (entry.pop("_firstSeen", "") or "", entry.get("name") or ""))
+        add = add[:max_additions]
+        notes.append(
+            f"{max_additions} of {max_additions + waiting} confident additions were applied, "
+            f"longest-waiting first; {waiting} are queued for later runs. A batch that size "
+            "arrives when a source is read for the first time, and it is too much to review "
+            "at once -- they are not lost, just spread out."
+        )
+    else:
+        for entry in add:
+            entry.pop("_firstSeen", None)
 
     return {"add": add, "remove": remove}, notes
 

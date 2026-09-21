@@ -64,6 +64,47 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(fsa.normalize_establishments([establishment(BusinessName="  ")]), [])
 
 
+class CleaningTests(unittest.TestCase):
+    """What the register holds is not always what belongs on a map. These are
+    the four failure modes a real sample of 679 candidates showed."""
+
+    def test_a_registered_company_name_becomes_the_name_over_the_door(self):
+        self.assertEqual(fsa.clean_name("Lidl Great Britain Limited"), "Lidl")
+        self.assertEqual(fsa.clean_name("Costa Coffee Ltd."), "Costa Coffee")
+        self.assertEqual(fsa.clean_name("Greggs PLC"), "Greggs")
+
+    def test_an_ordinary_name_is_left_alone(self):
+        for name in ("The Bell Inn", "Woodstock Foods", "Zest Salad & Juice Bar", "M&S Simply Food"):
+            self.assertEqual(fsa.clean_name(name), name)
+
+    def test_a_name_that_is_only_a_suffix_is_kept_rather_than_emptied(self):
+        self.assertEqual(fsa.clean_name("Ltd"), "Ltd")
+
+    def test_a_concession_inside_another_shop_is_not_a_second_pin(self):
+        # "Sushi Gourmet, J Sainsbury PLC, Old Station Road" -- real, and the
+        # map already has the Sainsbury's.
+        self.assertTrue(fsa.is_concession({
+            "BusinessName": "Sushi Gourmet",
+            "AddressLine1": "J Sainsbury PLC", "AddressLine2": "Old Station Road",
+        }))
+
+    def test_the_host_shop_itself_is_not_treated_as_its_own_concession(self):
+        self.assertFalse(fsa.is_concession({
+            "BusinessName": "Sainsburys",
+            "AddressLine1": "J Sainsbury PLC", "AddressLine2": "Old Station Road",
+        }))
+
+    def test_a_members_club_is_not_a_pub(self):
+        # A cricket club with a bar is not somewhere a walker drops in.
+        self.assertTrue(fsa.is_members_club({"BusinessName": "Loughton Cricket Club"}))
+        self.assertFalse(fsa.is_members_club({"BusinessName": "The Cricketers"}))
+
+    def test_neither_reaches_the_candidate_list(self):
+        concession = establishment(BusinessName="Sushi Gourmet", AddressLine1="J Sainsbury PLC")
+        club = establishment(BusinessName="Loughton Cricket Club")
+        self.assertEqual(fsa.normalize_establishments([concession, club]), [])
+
+
 class CategoryTests(unittest.TestCase):
     def test_the_registers_business_types_map_onto_the_maps_categories(self):
         cases = {
@@ -79,6 +120,41 @@ class CategoryTests(unittest.TestCase):
 
     def test_an_unfamiliar_type_falls_back_rather_than_failing(self):
         self.assertEqual(fsa.category_for({"BusinessType": "Something new"}), fsa.DEFAULT_CATEGORY)
+
+
+class AmbiguousCategoryTests(unittest.TestCase):
+    """The register's one catch-all type covers restaurants, cafes and
+    canteens alike -- 283 of one real sample of 679 arrived under it. The name
+    usually knows better."""
+
+    def category(self, name):
+        return fsa.category_for({"BusinessType": "Restaurant/Cafe/Canteen", "BusinessName": name})
+
+    def test_a_coffee_shop_is_read_as_a_cafe(self):
+        for name in ("Costa Coffee", "The Tea Room", "Bean Cafe", "Espresso Bar"):
+            self.assertEqual(self.category(name), "cafe", name)
+
+    def test_a_kitchen_or_a_grill_is_read_as_a_restaurant(self):
+        for name in ("Dickens Grill", "Nonna Pizzeria", "Loughton Kitchen", "Spice Village"):
+            self.assertEqual(self.category(name), "restaurant", name)
+
+    def test_a_wine_bar_is_read_as_a_bar(self):
+        self.assertEqual(self.category("The Wine Bar"), "bar")
+
+    def test_a_juice_bar_is_not_a_drinking_bar(self):
+        # "Zest Salad & Juice Bar" is real, and is not somewhere to drink.
+        for name in ("Zest Salad & Juice Bar", "Fresh Juice Bar", "Sushi Bar"):
+            self.assertNotEqual(self.category(name), "bar", name)
+
+    def test_a_name_that_says_nothing_falls_back(self):
+        self.assertEqual(self.category("Marco's"), fsa.DEFAULT_CATEGORY)
+
+    def test_a_type_the_register_is_sure_about_is_not_second_guessed(self):
+        # Only the catch-all type gets this treatment.
+        self.assertEqual(
+            fsa.category_for({"BusinessType": "Pub/bar/nightclub", "BusinessName": "The Coffee House"}),
+            "pub",
+        )
 
 
 class DiffTests(unittest.TestCase):

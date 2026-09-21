@@ -456,19 +456,35 @@ jobs:
                   belongs (a source that was unreachable, an unusual thing the
                   tooling did, the state of the food-hygiene cross-check):
                   none of that goes in the report itself.
-               e. Do NOT start CI yourself -- there is nothing to start.
+               e. IF THE OVERVIEW SNAPSHOT FAILS, do not assume the data
+                  caused it, and never regenerate the baseline to make it go
+                  away. test/e2e/02-overview.spec.js compares the Nearby
+                  screen against a committed image, and that comparison has
+                  been seen to fail on one run and pass on the next two with
+                  identical data and an identical baseline -- a ~7% stable
+                  difference that was not reproducible. Something in the
+                  screen's content settles differently under load.
+
+                  So: a data change near Loughton High Road CAN legitimately
+                  change what the map draws, and a re-run tells the two
+                  apart. Say in the pull request body that the snapshot
+                  failed, that a re-run is the first thing to try, and that
+                  the baseline should only be regenerated (via the "Update
+                  Snapshots" workflow, on a Linux runner, never here) once a
+                  re-run has shown the difference is real and repeatable.
+               f. Do NOT start CI yourself -- there is nothing to start.
                   This job pushes and opens PRs as a real user credential
                   (WEEKLY_LEDGER_PAT), so ci.yml's normal pull_request
                   event fires the instant the PR opens: unit and e2e are
                   already queued before you finish. Never run `gh workflow
                   run ci.yml`; a duplicate dispatch just puts a second,
                   confusing copy of every check on the PR.
-               f. Add a report preview link to the PR body (see REPORT
+               g. Add a report preview link to the PR body (see REPORT
                   PREVIEW LINK below) -- do this for every PR this workflow
                   opens, this one included. Also mention in the PR body that
                   CI starts automatically and that Simon should wait for
                   those checks to go green before merging.
-               g. Do NOT merge the PR. Auto-merge is temporarily
+               h. Do NOT merge the PR. Auto-merge is temporarily
                   disabled while this workflow is being tested -- leave it
                   open for Simon to review and merge by hand once CI passes.
                   Say so plainly in the PR body and in your final summary.

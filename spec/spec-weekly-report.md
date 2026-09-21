@@ -79,7 +79,19 @@ faster, and a whole candidate list in seconds rather than minutes.
 record what each source said each week. A signal escalates to *confident* only
 once it has repeated: three runs for "absent from a source", two for an
 opening or a change of hands, and one for a stated closure, which needs no
-patience. Confident entries are written out as a changeset that
+patience.
+
+Patience guards against a source changing its mind, so it is set per source.
+OpenStreetMap can be edited by anybody and reverted by anybody, and earns the
+wait. A statutory register does not: a food business must register before it
+may trade, and the council does not un-register it a week later because the
+entry was a mistake — so `CONFIDENT_AFTER_RUNS_BY_SOURCE` lets the
+food-hygiene register propose an opening on first sight. Its real weaknesses
+are different in kind and waiting fixes none of them, so they are handled by
+cleaning the record instead: registered company names are trimmed to the name
+over the door (`Lidl Great Britain Limited` → `Lidl`), concessions trading
+inside another business's premises are dropped rather than becoming a second
+pin on a shop the map already has, and members' clubs are not listed as pubs. Confident entries are written out as a changeset that
 `scripts/apply_weekly_changeset.py` applies mechanically, so the week's run
 produces a reviewable diff rather than a paragraph.
 
@@ -89,6 +101,14 @@ Guard rails, because this runs unattended:
   as a bad query and escalates nothing.
 - No single run may remove more than `MAX_AUTO_REMOVALS` places; over that,
   every removal is held back for a person.
+- No single run may add more than `MAX_AUTO_ADDITIONS`. Over the cap it takes
+  the longest-waiting and leaves the rest queued, rather than holding
+  everything back as a removal overflow does — an addition that is wrong is
+  one extra pin, so the risk is the size of the batch, not the direction. The
+  first run to read the food-hygiene register banked 679 openings at once, all
+  of them due to turn confident on the same day; unchecked, that would have
+  arrived as a pull request proposing 679 additions on a source that cannot
+  tell a cafe from a restaurant.
 - A signal that stops appearing is forgotten rather than banked, so an
   intermittent source can never accumulate its way to confidence.
 - Setting `"dismissed": true` on an entry by hand parks it permanently. This

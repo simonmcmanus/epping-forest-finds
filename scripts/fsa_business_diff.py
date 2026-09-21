@@ -112,6 +112,61 @@ CATEGORY_BY_BUSINESS_TYPE = (
 
 DEFAULT_CATEGORY = "restaurant"
 
+# The register files restaurants, cafes and canteens under one type and cannot
+# tell them apart, so 283 of one real sample of 679 arrived as "restaurant"
+# regardless of what they are. The name usually knows: 29 of those said cafe,
+# 9 said coffee, 11 said grill, 9 said pizza. Reading it is not certain, but
+# it is far better than calling a coffee shop a restaurant because the
+# council's form has one box for both.
+#
+# Checked in order, and only for that ambiguous type -- a business the
+# register files as a pub or a supermarket is not second-guessed.
+NAME_CATEGORY_HINTS = (
+    ("cafe", ("cafe", "café", "coffee", "espresso", "tea room", "tearoom",
+              "tea rooms", "patisserie", "bakes", "creperie")),
+    ("restaurant", ("restaurant", "grill", "kitchen", "pizza", "pizzeria", "spice",
+                    "curry", "tandoori", "chinese", "thai", "sushi", "kebab",
+                    "burger", "chicken", "steak", "diner", "brasserie", "bistro",
+                    "noodle", "wok", "tapas", "buffet")),
+    ("bar", ("bar", "lounge", "tavern", "wine")),
+)
+
+# "Juice Bar" and "Salad Bar" are not bars. Without this a health-food counter
+# is put on the map as somewhere to drink.
+NOT_A_DRINKING_BAR = ("juice bar", "salad bar", "sushi bar", "oyster bar",
+                      "snack bar", "coffee bar", "milk bar", "noodle bar")
+
+# The one type the hints apply to.
+AMBIGUOUS_BUSINESS_TYPE = "restaurant/cafe/canteen"
+
+# The register holds the name a business registered under, which is often the
+# company rather than the sign over the door: "Lidl Great Britain Limited"
+# belongs on the map as "Lidl". Stripped from the end only, so a name that
+# genuinely contains one of these words keeps it.
+# Held without trailing punctuation; the trimming below strips that first, so
+# "Ltd." and "Ltd" are the same entry.
+COMPANY_SUFFIXES = (
+    "limited", "ltd", "plc", "llp", "uk", "gb",
+    "great britain", "england", "holdings", "group",
+)
+
+# A concession trades inside somebody else's premises -- a sushi counter in a
+# supermarket, a coffee bar in a garden centre. The register lists it as its
+# own business; the map would gain a second pin on a shop it already has. The
+# giveaway is the host's name sitting in the address, which is how the
+# register records them.
+HOST_PREMISES_MARKERS = (
+    "sainsbury", "tesco", "asda", "morrison", "waitrose", "aldi", "lidl",
+    "marks and spencer", "m&s", "garden centre", "retail park", "service station",
+    "petrol", "hospital", "golf club", "leisure centre", "hotel",
+)
+
+# Members' clubs register as licensed premises and land in the pub bucket. A
+# cricket club with a bar is not somewhere a walker can drop in for a pint,
+# and putting it on the map as a pub misleads.
+MEMBERS_CLUB_MARKERS = ("cricket club", "football club", "rugby club", "bowls club",
+                        "social club", "working men", "british legion", "golf club")
+
 
 def _get_json(url):
     request = urllib.request.Request(url, headers=API_HEADERS)
@@ -153,12 +208,66 @@ def is_mappable(establishment):
     return any(word in business_type for word in MAPPABLE_BUSINESS_TYPES)
 
 
+def refine_category_from_name(name):
+    """A better guess than "restaurant" for the register's one catch-all type,
+    or None when the name says nothing."""
+    lowered = (name or "").lower()
+    for category, words in NAME_CATEGORY_HINTS:
+        for word in words:
+            if word not in lowered:
+                continue
+            if category == "bar" and any(phrase in lowered for phrase in NOT_A_DRINKING_BAR):
+                continue
+            return category
+    return None
+
+
 def category_for(establishment):
     business_type = (establishment.get("BusinessType") or "").lower()
+    if AMBIGUOUS_BUSINESS_TYPE in business_type:
+        hinted = refine_category_from_name(establishment.get("BusinessName"))
+        if hinted:
+            return hinted
     for word, category in CATEGORY_BY_BUSINESS_TYPE:
         if word in business_type:
             return category
     return DEFAULT_CATEGORY
+
+
+def clean_name(name):
+    """The name over the door, as far as the register allows.
+
+    Trailing punctuation is trimmed before each comparison, so "Ltd." and
+    "Ltd" are one case, and the slice is taken from the trimmed text -- doing
+    otherwise turns "Costa Coffee Ltd." into "Costa Coffee L".
+    """
+    original = " ".join((name or "").split())
+    cleaned = original
+    while cleaned:
+        trimmed = cleaned.rstrip(" .,-")
+        lowered = trimmed.lower()
+        for suffix in COMPANY_SUFFIXES:
+            if lowered.endswith(" " + suffix):
+                cleaned = trimmed[: len(trimmed) - len(suffix)].rstrip(" .,-")
+                break
+        else:
+            return trimmed or original
+    return original
+
+
+def is_concession(establishment):
+    """Trading inside somebody else's premises, so the map already has a pin
+    there and does not want a second one."""
+    address = " ".join(
+        str(establishment.get(f"AddressLine{n}") or "") for n in (1, 2, 3, 4)
+    ).lower()
+    name = (establishment.get("BusinessName") or "").lower()
+    return any(marker in address and marker not in name for marker in HOST_PREMISES_MARKERS)
+
+
+def is_members_club(establishment):
+    name = (establishment.get("BusinessName") or "").lower()
+    return any(marker in name for marker in MEMBERS_CLUB_MARKERS)
 
 
 def _address_of(establishment):
@@ -207,13 +316,15 @@ def normalize_establishments(establishments, scope=None):
     for establishment in establishments:
         if not is_mappable(establishment):
             continue
+        if is_concession(establishment) or is_members_club(establishment):
+            continue
         coordinates = _coordinates_of(establishment)
         if coordinates is None:
             continue
         lon, lat = coordinates
         if not forest_boundary.within_walk(lon, lat, scope):
             continue
-        name = (establishment.get("BusinessName") or "").strip()
+        name = clean_name(establishment.get("BusinessName"))
         if not name:
             continue
         out.append({
