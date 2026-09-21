@@ -1,46 +1,73 @@
-name: Bump data cache version
+name: Bump data cache version on the pull request
 
-# The data cache moves when map data lands on main -- the Monday ledger merge,
-# a regeneration script's output, or any other data/** change. Kept separate
+# The data cache moves when map data changes -- the Monday ledger merge, a
+# regeneration script's output, or any other data/** change. Kept separate
 # from the app cache (sw-release.yml) so returning users re-download only what
-# actually changed. Both workflows write to sw.js on main, so they share a
-# concurrency group to serialise and rebase before pushing.
+# actually changed.
+#
+# Like sw-release.yml, this used to push the bump to main after the merge and
+# stopped working when main became protected ("Changes must be made through a
+# pull request"). It now bumps on the pull request and rides in with the
+# merge. See sw-release.yml's header for the full account.
+#
+# Both workflows edit sw.js on the same branch, so they share a per-pull-request
+# concurrency group rather than racing each other.
 
 on:
-  push:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'data/**'
-    branches: [main]
 
 concurrency:
-  group: main-cache-bump
+  group: cache-bump-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
   bump-data:
     runs-on: ubuntu-latest
+    # A fork's branch is not ours to write to, and its token is read-only.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: main
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Increment DATA_CACHE_NAME version only
+
+      - name: Set DATA_CACHE_NAME to one past the base branch
         run: |
-          perl -i -pe \
-            's/"forest-finds-data-v(\d+)"/"\"forest-finds-data-v".($1+1)."\""/e' \
-            sw.js
-      - name: Commit and push
+          set -euo pipefail
+          git fetch --quiet origin "${{ github.base_ref }}"
+          # Set rather than increment, so running twice on one pull request
+          # lands on the same version -- see sw-release.yml.
+          BASE=$(git show "origin/${{ github.base_ref }}:sw.js" \
+            | perl -ne 'print $1 if /"forest-finds-data-v(\d+)"/')
+          if [ -z "$BASE" ]; then
+            echo "::error::Could not read DATA_CACHE_NAME from ${{ github.base_ref }}'s sw.js"
+            exit 1
+          fi
+          NEXT=$((BASE + 1))
+          perl -i -pe "s/\"forest-finds-data-v\d+\"/\"forest-finds-data-v$NEXT\"/" sw.js
+          echo "base v$BASE -> this pull request v$NEXT"
+
+      - name: Commit to the pull request branch
         run: |
+          set -euo pipefail
+          if git diff --quiet sw.js; then
+            echo "Already at one past ${{ github.base_ref }} -- nothing to do."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git diff --quiet sw.js && echo "No change needed" && exit 0
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add sw.js
           git commit -m "chore: bump data cache version [skip ci]"
           for attempt in 1 2 3; do
-            git push && exit 0
-            echo "push rejected (attempt $attempt), rebasing on main"
-            git pull --rebase origin main
+            git push origin "HEAD:${{ github.head_ref }}" && exit 0
+            echo "push rejected (attempt $attempt), rebasing on the branch"
+            git pull --rebase origin "${{ github.head_ref }}"
           done
-          git push
+          git push origin "HEAD:${{ github.head_ref }}"
