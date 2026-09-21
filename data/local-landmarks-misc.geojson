@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-09-21T07:52:30.246834Z",
+  "generatedAt": "2026-09-21T09:41:50.728125Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -85,7 +85,8 @@
         "phone": "+44 20 8532 9654",
         "address": "11 Mulberry Way, London E18 1EB",
         "distanceToForestBoundaryMetres": 463.2,
-        "distanceLimitFromForestBoundaryMetres": 466.7
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "openingHours": "Su-Sa 06:00-21:00"
       }
     },
     {
@@ -910,7 +911,8 @@
         "phone": null,
         "address": "719 High Road Leytonstone, London E11 4RD",
         "distanceToForestBoundaryMetres": 461.9,
-        "distanceLimitFromForestBoundaryMetres": 466.7
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "openingHours": "Tu-Su 11:00-20:00"
       }
     },
     {
@@ -1080,39 +1082,6 @@
     },
     {
       "type": "Feature",
-      "id": "way/875455403",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0537446,
-          51.5531725
-        ]
-      },
-      "properties": {
-        "id": "way/875455403",
-        "osmType": "way",
-        "osmId": 875455403,
-        "name": "Old Manor Park Library",
-        "category": "building",
-        "categoryLabel": "Building",
-        "amenity": null,
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": "building",
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": "2",
-        "website": null,
-        "phone": null,
-        "address": "Romford Road, London",
-        "distanceToForestBoundaryMetres": 216.0,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
       "id": "way/875455404",
       "geometry": {
         "type": "Point",
@@ -1174,39 +1143,6 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 340.0,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "way/875469842",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0474516,
-          51.5503954
-        ]
-      },
-      "properties": {
-        "id": "way/875469842",
-        "osmType": "way",
-        "osmId": 875469842,
-        "name": "Earl Of Essex Public House",
-        "category": "building",
-        "categoryLabel": "Building",
-        "amenity": null,
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": "building",
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": "2",
-        "website": null,
-        "phone": null,
-        "address": null,
-        "distanceToForestBoundaryMetres": 295.5,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
