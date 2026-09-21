@@ -1730,6 +1730,8 @@ test("the categories that used to draw as a bare emoji now have artwork of their
     const place = { category, categoryTags: [category] };
     assert.equal(landmarkIconSlug(place), slug, `${category} should use the ${slug} icon`);
     assert.ok(iconPath(slug), `${slug} must be a real icon in the registry`);
+    // What the map actually draws, tag rules and filter buckets together.
+    assert.equal(app.placeIconSlug(place), slug, `${category} should still draw ${slug} once the filters have had their say`);
   }
 });
 
@@ -1769,6 +1771,17 @@ test("a broad history bucket never takes a pin from a place with artwork of its 
   assert.equal(placeIconSlug(dig), "landmark-archaeological");
   assert.equal(placeIconSlug(museum), "landmark-museum");
   assert.equal(placeIconSlug(folkloreOnly), "historic", "with nothing more specific, the bucket does apply");
+
+  // `monuments` is the same shape of problem: it is labelled "monuments and
+  // memorials" and covers both, so held back it lets each keep its own pin.
+  const memorial = { category: "memorial", categoryTags: ["memorial"] };
+  const stone = { category: "boundary_stone", categoryTags: ["boundary_stone"] };
+  const unnamedMonument = { category: "monument", folkloreCategory: "monument", categoryTags: [] };
+
+  assert.ok(matchesPlaceFilter(memorial, "monuments"), "a memorial is still under the Monuments chip");
+  assert.equal(placeIconSlug(memorial), "landmark-memorial");
+  assert.equal(placeIconSlug(stone), "landmark-monument");
+  assert.equal(placeIconSlug(unnamedMonument), "landmark-monument");
 });
 
 test("a blue plaque draws as a plaque rather than whatever topic it is also tagged with", () => {

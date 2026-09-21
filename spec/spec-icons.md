@@ -302,6 +302,10 @@ so a plaque drew whatever topic it also happened to carry (Jacob Epstein's drew
 an artist's palette). `blue_plaques` now leads the history block and
 `isPlaqueCategory` covers every plaque, so the "Plaques" chip finds all 65.
 
+The `plaques` bronze plate is drawn but not currently reached: every plaque in
+the dataset is a blue one, and `blue_plaques` wins ahead of it. It is the
+right pin for the first green or black plaque the weekly ledger adds.
+
 `node scripts/icon-audit.js` (or `npm run audit:icons`) names every place that
 falls through, grouped by category with examples, by loading the app's real
 rules from `js/categories.js` the way `scripts/report/map-inventory.js` does.

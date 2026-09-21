@@ -15,7 +15,11 @@ test.describe("Map pins", () => {
     const resolved = await page.evaluate(() => {
       const memorial = state.landmarks.find((place) => place.category === "memorial");
       if (!memorial) return null;
-      return { name: memorial.name, slug: landmarkIconSlug(memorial), path: iconPath(landmarkIconSlug(memorial)) };
+      // placeIconSlug, not landmarkIconSlug: the filter buckets get a say
+      // first, and the "monuments and memorials" bucket was quietly handing
+      // all 49 war memorials the standing-stone monument pin instead.
+      const slug = placeIconSlug(memorial);
+      return { name: memorial.name, slug, path: iconPath(slug) };
     });
 
     expect(resolved, "the dataset should carry memorials").not.toBeNull();

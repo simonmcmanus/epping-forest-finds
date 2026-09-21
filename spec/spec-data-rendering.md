@@ -309,9 +309,12 @@ The table is in resolution order, and `placeIconSlug` (js/categories.js) is
 the single definition of it, shared by the renderer, `landmarkClusterKey`,
 `scripts/icon-audit.js` and the tests. It sweeps `PLACE_FILTER_PRIORITY`,
 then the tag rules in `landmarkIconSlug`, then
-`PLACE_FILTER_FALLBACK_PRIORITY` — which holds `historic` alone, because it
-matches anything with a historic flavour and would otherwise hand an
-archaeological site or a museum the generic scroll instead of its own pin.
+`PLACE_FILTER_FALLBACK_PRIORITY`. That last list holds the keys that are
+buckets rather than kinds of place: `historic`, which matches anything with a
+historic flavour and would otherwise hand an archaeological site or a museum
+the generic scroll, and `monuments`, which is labelled "monuments and
+memorials" and would give all 49 war memorials the standing-stone monument.
+Held back, each place keeps its own pin and the chips still cover everything.
 
 `crown` (royal), `celebrities`, `science`, `politics` and `social-history`
 are in the registry but no filter key that reaches them is in

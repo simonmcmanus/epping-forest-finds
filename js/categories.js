@@ -96,18 +96,20 @@ const PLACE_FILTER_KEYS = new Set(
 const PLACE_FILTER_PRIORITY = [
   "pubs", "restaurants", "cafes", "shops",
   "bus", "underground", "national_rail", "parking",
-  "blue_plaques", "plaques", "monuments", "ww2",
+  "blue_plaques", "plaques", "ww2",
   "churches", "education", "medicine", "campsites",
   "legends", "literature", "film_tv", "art",
 ];
 
-// `historic` matches anything with a historic flavour at all, which is what
-// the filter chip wants and far too broad to choose artwork with: swept with
-// the rest it hands an archaeological site or a museum the generic scroll
-// instead of its own amphora or portico. So it is held back until
-// landmarkIconSlug has had its say. Anything else that is a bucket rather
-// than a kind of place belongs here too.
-const PLACE_FILTER_FALLBACK_PRIORITY = ["historic"];
+// Buckets, not kinds of place: each covers several things the icon set draws
+// differently, so swept with the rest they would flatten the distinction.
+// `historic` matches anything with a historic flavour at all and would hand
+// an archaeological site or a museum the generic scroll instead of its own
+// amphora or portico; `monuments` is labelled "monuments and memorials" and
+// would give all 49 war memorials the standing-stone monument. Both are held
+// back until landmarkIconSlug has had its say, and still catch anything the
+// tags do not name.
+const PLACE_FILTER_FALLBACK_PRIORITY = ["monuments", "historic"];
 
 // How a place gets its pin: the specific filters, then the tag rules, then
 // the broad buckets. The renderer, scripts/icon-audit.js and the tests all
