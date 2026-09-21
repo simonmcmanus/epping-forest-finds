@@ -75,7 +75,28 @@ from scripts.place_matching import (  # noqa: E402
 )
 from scripts.report.geo import SEARCH_BBOX  # noqa: E402
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# Overpass rejected every request from this job with HTTP 406 on two runs
+# running, which read as an outage and was not one: the requests went out with
+# urllib's default "Python-urllib/3.11" and no Accept header. Overpass's usage
+# policy asks for a User-Agent that identifies the caller, and its front end
+# turns away clients that do not send one. A descriptive one is not politeness
+# here, it is the difference between the check working and the map having no
+# closure detection at all.
+OVERPASS_USER_AGENT = (
+    "epping-forest-finds-weekly/1.0 "
+    "(+https://github.com/simonmcmanus/epping-forest-finds; weekly map data check)"
+)
+
+# Tried in order. The main endpoint is busy and rate limits hard; the mirrors
+# run the same software over the same data. One source being briefly
+# unreachable should not cost a week of closure detection, which is what it
+# cost twice already.
+OVERPASS_ENDPOINTS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+)
+OVERPASS_URL = OVERPASS_ENDPOINTS[0]
 OVERPASS_TIMEOUT_S = 90
 
 # Mirrors the amenity/shop tag patterns in data/local-landmarks.overpassql's
@@ -274,18 +295,40 @@ def normalize_overpass_elements(elements, scope="all"):
     return out
 
 
-def fetch_overpass_pois(bbox=SEARCH_BBOX, timeout=OVERPASS_TIMEOUT_S, scope="all"):
-    """Network call. Returns the normalized POI list (see normalize_overpass_elements)."""
-    query = build_overpass_query(bbox, timeout, scope)
+def overpass_headers():
+    return {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "User-Agent": OVERPASS_USER_AGENT,
+    }
+
+
+def fetch_from(endpoint, query, timeout=OVERPASS_TIMEOUT_S):
+    """One request to one endpoint. Separated so the fallback below reads as
+    the policy it is, and so a test can drive it without a network."""
     body = urllib.parse.urlencode({"data": query}).encode("utf-8")
-    req = urllib.request.Request(
-        OVERPASS_URL,
-        data=body,
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-    )
-    with urllib.request.urlopen(req, timeout=timeout + 15) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
-    return normalize_overpass_elements(payload.get("elements", []), scope)
+    request = urllib.request.Request(endpoint, data=body, headers=overpass_headers())
+    with urllib.request.urlopen(request, timeout=timeout + 15) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def fetch_overpass_pois(bbox=SEARCH_BBOX, timeout=OVERPASS_TIMEOUT_S, scope="all",
+                        endpoints=OVERPASS_ENDPOINTS, fetch=None):
+    """Network call. Returns the normalized POI list, trying each endpoint in
+    turn. Raises the last failure only when every one of them has failed --
+    losing this check costs the week its closure detection entirely."""
+    fetch = fetch or fetch_from
+    query = build_overpass_query(bbox, timeout, scope)
+    failures = []
+    for endpoint in endpoints:
+        try:
+            payload = fetch(endpoint, query, timeout)
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            failures.append(f"{endpoint}: {exc}")
+            print(f"Overpass endpoint {endpoint} failed ({exc}); trying the next.", file=sys.stderr)
+            continue
+        return normalize_overpass_elements(payload.get("elements", []), scope)
+    raise urllib.error.URLError("every Overpass endpoint failed -- " + "; ".join(failures))
 
 
 # Kept under its original name: the weekly workflow and the report tooling

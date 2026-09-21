@@ -112,6 +112,34 @@ CATEGORY_BY_BUSINESS_TYPE = (
 
 DEFAULT_CATEGORY = "restaurant"
 
+# The register holds the name a business registered under, which is often the
+# company rather than the sign over the door: "Lidl Great Britain Limited"
+# belongs on the map as "Lidl". Stripped from the end only, so a name that
+# genuinely contains one of these words keeps it.
+# Held without trailing punctuation; the trimming below strips that first, so
+# "Ltd." and "Ltd" are the same entry.
+COMPANY_SUFFIXES = (
+    "limited", "ltd", "plc", "llp", "uk", "gb",
+    "great britain", "england", "holdings", "group",
+)
+
+# A concession trades inside somebody else's premises -- a sushi counter in a
+# supermarket, a coffee bar in a garden centre. The register lists it as its
+# own business; the map would gain a second pin on a shop it already has. The
+# giveaway is the host's name sitting in the address, which is how the
+# register records them.
+HOST_PREMISES_MARKERS = (
+    "sainsbury", "tesco", "asda", "morrison", "waitrose", "aldi", "lidl",
+    "marks and spencer", "m&s", "garden centre", "retail park", "service station",
+    "petrol", "hospital", "golf club", "leisure centre", "hotel",
+)
+
+# Members' clubs register as licensed premises and land in the pub bucket. A
+# cricket club with a bar is not somewhere a walker can drop in for a pint,
+# and putting it on the map as a pub misleads.
+MEMBERS_CLUB_MARKERS = ("cricket club", "football club", "rugby club", "bowls club",
+                        "social club", "working men", "british legion", "golf club")
+
 
 def _get_json(url):
     request = urllib.request.Request(url, headers=API_HEADERS)
@@ -161,6 +189,42 @@ def category_for(establishment):
     return DEFAULT_CATEGORY
 
 
+def clean_name(name):
+    """The name over the door, as far as the register allows.
+
+    Trailing punctuation is trimmed before each comparison, so "Ltd." and
+    "Ltd" are one case, and the slice is taken from the trimmed text -- doing
+    otherwise turns "Costa Coffee Ltd." into "Costa Coffee L".
+    """
+    original = " ".join((name or "").split())
+    cleaned = original
+    while cleaned:
+        trimmed = cleaned.rstrip(" .,-")
+        lowered = trimmed.lower()
+        for suffix in COMPANY_SUFFIXES:
+            if lowered.endswith(" " + suffix):
+                cleaned = trimmed[: len(trimmed) - len(suffix)].rstrip(" .,-")
+                break
+        else:
+            return trimmed or original
+    return original
+
+
+def is_concession(establishment):
+    """Trading inside somebody else's premises, so the map already has a pin
+    there and does not want a second one."""
+    address = " ".join(
+        str(establishment.get(f"AddressLine{n}") or "") for n in (1, 2, 3, 4)
+    ).lower()
+    name = (establishment.get("BusinessName") or "").lower()
+    return any(marker in address and marker not in name for marker in HOST_PREMISES_MARKERS)
+
+
+def is_members_club(establishment):
+    name = (establishment.get("BusinessName") or "").lower()
+    return any(marker in name for marker in MEMBERS_CLUB_MARKERS)
+
+
 def _address_of(establishment):
     parts = [establishment.get(f"AddressLine{n}") for n in (1, 2, 3, 4)]
     parts.append(establishment.get("PostCode"))
@@ -207,13 +271,15 @@ def normalize_establishments(establishments, scope=None):
     for establishment in establishments:
         if not is_mappable(establishment):
             continue
+        if is_concession(establishment) or is_members_club(establishment):
+            continue
         coordinates = _coordinates_of(establishment)
         if coordinates is None:
             continue
         lon, lat = coordinates
         if not forest_boundary.within_walk(lon, lat, scope):
             continue
-        name = (establishment.get("BusinessName") or "").strip()
+        name = clean_name(establishment.get("BusinessName"))
         if not name:
             continue
         out.append({

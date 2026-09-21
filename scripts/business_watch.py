@@ -50,6 +50,23 @@ CONFIDENT_AFTER_RUNS = {
     "changed": 2,
 }
 
+# Patience guards against a source changing its mind. That is a real risk with
+# OpenStreetMap, which anybody can edit and somebody may revert -- but it is
+# not a risk with a statutory register. A food business has to register with
+# its council before it may trade, and the council does not un-register it a
+# week later because the entry was a mistake. Making the register wait two
+# weeks to repeat itself adds no information at all; it only delays the map.
+#
+# The register's real weaknesses are different in kind, and waiting does
+# nothing about any of them: it holds registered company names rather than the
+# name over the door, it lists concessions inside other premises as separate
+# businesses, and it files restaurants, cafes and canteens under one type. All
+# three are handled where they belong, by cleaning the record in
+# fsa_business_diff.py, not by sitting on it.
+CONFIDENT_AFTER_RUNS_BY_SOURCE = {
+    "fsa": {"new": 1},
+}
+
 SIGNALS = tuple(CONFIDENT_AFTER_RUNS)
 
 # Signals that take something off the map, as opposed to putting something on
@@ -113,7 +130,9 @@ def is_confident(entry, thresholds=None):
     if entry.get("supersededBy"):
         return False
     thresholds = thresholds or CONFIDENT_AFTER_RUNS
-    needed = thresholds.get(entry.get("signal"))
+    signal = entry.get("signal")
+    by_source = CONFIDENT_AFTER_RUNS_BY_SOURCE.get(entry.get("source")) or {}
+    needed = by_source.get(signal, thresholds.get(signal))
     if needed is None:
         return False
     # Two sources that have never heard of each other describing the same new
@@ -122,7 +141,7 @@ def is_confident(entry, thresholds=None):
     # Agreement only means anything for an opening: "absent" is the one thing
     # sources are unreliable about in the same direction, since neither knows
     # about a place nobody has recorded.
-    if entry.get("signal") == "new" and entry.get("agreedWith"):
+    if signal == "new" and entry.get("agreedWith"):
         return True
     return int(entry.get("runs", 0)) >= needed
 

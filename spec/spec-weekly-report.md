@@ -79,7 +79,19 @@ faster, and a whole candidate list in seconds rather than minutes.
 record what each source said each week. A signal escalates to *confident* only
 once it has repeated: three runs for "absent from a source", two for an
 opening or a change of hands, and one for a stated closure, which needs no
-patience. Confident entries are written out as a changeset that
+patience.
+
+Patience guards against a source changing its mind, so it is set per source.
+OpenStreetMap can be edited by anybody and reverted by anybody, and earns the
+wait. A statutory register does not: a food business must register before it
+may trade, and the council does not un-register it a week later because the
+entry was a mistake — so `CONFIDENT_AFTER_RUNS_BY_SOURCE` lets the
+food-hygiene register propose an opening on first sight. Its real weaknesses
+are different in kind and waiting fixes none of them, so they are handled by
+cleaning the record instead: registered company names are trimmed to the name
+over the door (`Lidl Great Britain Limited` → `Lidl`), concessions trading
+inside another business's premises are dropped rather than becoming a second
+pin on a shop the map already has, and members' clubs are not listed as pubs. Confident entries are written out as a changeset that
 `scripts/apply_weekly_changeset.py` applies mechanically, so the week's run
 produces a reviewable diff rather than a paragraph.
 

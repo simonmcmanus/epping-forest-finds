@@ -64,6 +64,47 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(fsa.normalize_establishments([establishment(BusinessName="  ")]), [])
 
 
+class CleaningTests(unittest.TestCase):
+    """What the register holds is not always what belongs on a map. These are
+    the four failure modes a real sample of 679 candidates showed."""
+
+    def test_a_registered_company_name_becomes_the_name_over_the_door(self):
+        self.assertEqual(fsa.clean_name("Lidl Great Britain Limited"), "Lidl")
+        self.assertEqual(fsa.clean_name("Costa Coffee Ltd."), "Costa Coffee")
+        self.assertEqual(fsa.clean_name("Greggs PLC"), "Greggs")
+
+    def test_an_ordinary_name_is_left_alone(self):
+        for name in ("The Bell Inn", "Woodstock Foods", "Zest Salad & Juice Bar", "M&S Simply Food"):
+            self.assertEqual(fsa.clean_name(name), name)
+
+    def test_a_name_that_is_only_a_suffix_is_kept_rather_than_emptied(self):
+        self.assertEqual(fsa.clean_name("Ltd"), "Ltd")
+
+    def test_a_concession_inside_another_shop_is_not_a_second_pin(self):
+        # "Sushi Gourmet, J Sainsbury PLC, Old Station Road" -- real, and the
+        # map already has the Sainsbury's.
+        self.assertTrue(fsa.is_concession({
+            "BusinessName": "Sushi Gourmet",
+            "AddressLine1": "J Sainsbury PLC", "AddressLine2": "Old Station Road",
+        }))
+
+    def test_the_host_shop_itself_is_not_treated_as_its_own_concession(self):
+        self.assertFalse(fsa.is_concession({
+            "BusinessName": "Sainsburys",
+            "AddressLine1": "J Sainsbury PLC", "AddressLine2": "Old Station Road",
+        }))
+
+    def test_a_members_club_is_not_a_pub(self):
+        # A cricket club with a bar is not somewhere a walker drops in.
+        self.assertTrue(fsa.is_members_club({"BusinessName": "Loughton Cricket Club"}))
+        self.assertFalse(fsa.is_members_club({"BusinessName": "The Cricketers"}))
+
+    def test_neither_reaches_the_candidate_list(self):
+        concession = establishment(BusinessName="Sushi Gourmet", AddressLine1="J Sainsbury PLC")
+        club = establishment(BusinessName="Loughton Cricket Club")
+        self.assertEqual(fsa.normalize_establishments([concession, club]), [])
+
+
 class CategoryTests(unittest.TestCase):
     def test_the_registers_business_types_map_onto_the_maps_categories(self):
         cases = {
