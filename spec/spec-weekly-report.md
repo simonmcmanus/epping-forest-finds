@@ -89,6 +89,14 @@ Guard rails, because this runs unattended:
   as a bad query and escalates nothing.
 - No single run may remove more than `MAX_AUTO_REMOVALS` places; over that,
   every removal is held back for a person.
+- No single run may add more than `MAX_AUTO_ADDITIONS`. Over the cap it takes
+  the longest-waiting and leaves the rest queued, rather than holding
+  everything back as a removal overflow does — an addition that is wrong is
+  one extra pin, so the risk is the size of the batch, not the direction. The
+  first run to read the food-hygiene register banked 679 openings at once, all
+  of them due to turn confident on the same day; unchecked, that would have
+  arrived as a pull request proposing 679 additions on a source that cannot
+  tell a cafe from a restaurant.
 - A signal that stops appearing is forgotten rather than banked, so an
   intermittent source can never accumulate its way to confidence.
 - Setting `"dismissed": true` on an entry by hand parks it permanently. This

@@ -64,6 +64,20 @@ REMOVAL_SIGNALS = ("closed", "missing")
 # well below the damage a bad query could do.
 MAX_AUTO_REMOVALS = 12
 
+# The most places a single unattended run may add. Removals were capped from
+# the start; additions were not, and the first run to reach the food-hygiene
+# register banked 679 of them in one go -- every one legitimately near the
+# forest, every one due to turn confident on the same day a week later. That
+# would have arrived as a pull request proposing 679 additions: unreviewable,
+# and quite capable of doubling the food dataset overnight on a source that
+# cannot tell a cafe from a restaurant.
+#
+# Over the cap the run takes the longest-waiting and leaves the rest queued,
+# rather than holding everything back as a removal overflow does. An addition
+# that is wrong is one extra pin; the risk is the size of the batch, not the
+# direction, so a steady trickle drains the queue while staying readable.
+MAX_AUTO_ADDITIONS = 15
+
 
 def empty_ledger():
     return {"version": LEDGER_VERSION, "updatedAt": None, "entries": {}}
@@ -270,7 +284,8 @@ def pending_entries(ledger, thresholds=None):
     return out
 
 
-def build_changeset(ledger, thresholds=None, max_removals=MAX_AUTO_REMOVALS):
+def build_changeset(ledger, thresholds=None, max_removals=MAX_AUTO_REMOVALS,
+                    max_additions=MAX_AUTO_ADDITIONS):
     """Turns the confident half of the ledger into an apply_weekly_changeset.py
     changeset. Returns (changeset, notes) -- `notes` explains anything held
     back, and belongs in the pull request body.
@@ -295,7 +310,7 @@ def build_changeset(ledger, thresholds=None, max_removals=MAX_AUTO_REMOVALS):
                 "reason": detail.get("reason") or f"{signal} in {entry.get('source')} data for {entry.get('runs')} weekly checks running",
             })
         elif signal == "new":
-            add.append(_addition(detail))
+            add.append({**_addition(detail), "_firstSeen": entry.get("firstSeen")})
         elif signal == "changed":
             if detail.get("previousName"):
                 remove.append({
@@ -303,7 +318,7 @@ def build_changeset(ledger, thresholds=None, max_removals=MAX_AUTO_REMOVALS):
                     "name": detail.get("previousName"),
                     "reason": detail.get("reason") or f"now trading as {detail.get('name')}",
                 })
-            add.append(_addition(detail))
+            add.append({**_addition(detail), "_firstSeen": entry.get("firstSeen")})
 
     if len(remove) > max_removals:
         notes.append(
@@ -313,6 +328,22 @@ def build_changeset(ledger, thresholds=None, max_removals=MAX_AUTO_REMOVALS):
             "closed. Needs a look by hand."
         )
         remove = []
+
+    if len(add) > max_additions:
+        waiting = len(add) - max_additions
+        # Longest-waiting first, so the queue drains in a stable order and
+        # nothing can sit at the back of it forever.
+        add.sort(key=lambda entry: (entry.pop("_firstSeen", "") or "", entry.get("name") or ""))
+        add = add[:max_additions]
+        notes.append(
+            f"{max_additions} of {max_additions + waiting} confident additions were applied, "
+            f"longest-waiting first; {waiting} are queued for later runs. A batch that size "
+            "arrives when a source is read for the first time, and it is too much to review "
+            "at once -- they are not lost, just spread out."
+        )
+    else:
+        for entry in add:
+            entry.pop("_firstSeen", None)
 
     return {"add": add, "remove": remove}, notes
 
