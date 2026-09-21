@@ -90,6 +90,15 @@ jobs:
           # `gh pr create` runs as the PAT for the same reason as the checkout
           # above: a PR opened by GITHUB_TOKEN gets no CI checks.
           GH_TOKEN: ${{ secrets.WEEKLY_LEDGER_PAT }}
+          # Passed as an environment variable rather than written into the
+          # prompt below, and that is load-bearing rather than tidiness. A
+          # `with:` value containing ${{ }} is parsed by Actions as a template
+          # expression, and an expression may not exceed 21,000 characters.
+          # The prompt is longer than that, so a single ${{ }} anywhere inside
+          # it makes the whole workflow file invalid -- which is exactly what
+          # happened. Keep the prompt free of ${{ }}; add anything it needs
+          # here and refer to it as a shell variable.
+          RUN_NUMBER: ${{ github.run_number }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.WEEKLY_LEDGER_PAT }}
@@ -379,7 +388,7 @@ jobs:
 
             4. If the changeset is non-empty:
                a. Create a branch:
-                  git checkout -b weekly-data-report/<date>-${{ github.run_number }}
+                  git checkout -b weekly-data-report/<date>-$RUN_NUMBER
                   (the run-number suffix keeps this collision-free from any
                   branch a same-day re-run of this workflow already pushed --
                   see HOUSEKEEPING above)
@@ -417,7 +426,7 @@ jobs:
                   (git config user.name "Epping Forest Ledger (weekly report)",
                   user.email "weekly-report@local", scoped to this checkout
                   only), and git push -u origin
-                  weekly-data-report/<date>-${{ github.run_number }}.
+                  weekly-data-report/<date>-$RUN_NUMBER.
                d. Open a PR: gh pr create --title "..." --body "..." listing
                   exactly what was added/removed and why. Keep it tight -- a
                   few lines, then two short lists:
