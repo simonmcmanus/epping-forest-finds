@@ -96,6 +96,14 @@ const PLACE_FILTER_PRIORITY = [
   "legends", "literature", "film_tv", "art",
 ];
 
+// The filter a place is listed under, highest-priority first. Shared by the Nearby/search
+// list icons (landmarkEmoji, js/app.js) and the type label search results show, so a place
+// reads the same way wherever it is listed.
+function placePrimaryFilterKey(place) {
+  if (!place) return null;
+  return PLACE_FILTER_PRIORITY.find((filterKey) => matchesPlaceFilter(place, filterKey)) || null;
+}
+
 // Single source of truth for all icon paths. To add an icon: drop the file
 // in data/icons/ (or data/icons/trees/) and add one line here.
 const ICON_PATHS = {

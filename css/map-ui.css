@@ -163,8 +163,7 @@
 
 @media (min-width: 761px) {
   .toolbar,
-  .legend,
-  .bottom-search {
+  .legend {
     display: none;
   }
 }
@@ -173,18 +172,6 @@
    This overrides that and keeps the portrait bottom-sheet layout on any touch device
    with a small height (phones in landscape: ~360–430 px; tablets: 768 px+). */
 @media (orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
-  .bottom-search {
-    display: block;
-    left: auto;
-    right: 10px;
-    transform: none;
-    bottom: 10px;
-  }
-
-  .search-toggle { flex: 0 0 auto; }
-  .search-panel { flex: 1 1 auto; }
-  .search-number { flex: 1 1 auto; width: 100%; }
-
   .inspector {
     top: auto;
     left: 10px;
@@ -213,26 +200,6 @@
   }
 
   .search-shell {
-    width: 100%;
-  }
-
-  .bottom-search {
-    left: auto;
-    right: 10px;
-    transform: none;
-    bottom: 10px;
-  }
-
-  .search-toggle {
-    flex: 0 0 auto;
-  }
-
-  .search-panel {
-    flex: 1 1 auto;
-  }
-
-  .search-number {
-    flex: 1 1 auto;
     width: 100%;
   }
 

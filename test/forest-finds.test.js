@@ -221,6 +221,26 @@ globalThis.__forestFindsTest = {
   formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
+  normalizeSearchText,
+  searchQueryTokens,
+  searchFieldRank,
+  searchEntryRank,
+  searchIndexEntry,
+  searchMapFeatures,
+  searchResultsHtml,
+  searchResultName,
+  searchResultTypeLabel,
+  searchResultKey,
+  openSearchScreen,
+  openSearchResult,
+  setSearchQuery,
+  SEARCH_RESULT_LIMIT,
+  SEARCH_MIN_QUERY_LENGTH,
+  SEARCH_RANK_EXACT,
+  SEARCH_RANK_PREFIX,
+  SEARCH_RANK_WORD,
+  SEARCH_RANK_SUBSTRING,
+  SEARCH_RANK_TOKENS,
   treeHashKey,
   findTreeByHashKey,
   treeDisplayName,
@@ -308,6 +328,7 @@ globalThis.__forestFindsTest = {
   tiltActive,
   tiltAllowedForCurrentScreen,
   isOverviewScreenActive,
+  secondaryScreenActive,
   tiltRotateXDeg,
   tiltRenderStale,
   TILT_RENDER_STALE_DEG,
@@ -507,6 +528,8 @@ function resetData(app) {
   app.state.transportLookupCache = new Map();
   app.state.transportLookupRequests = new Map();
   app.state.filterScreenOpen = false;
+  app.state.searchScreenOpen = false;
+  app.state.searchQuery = "";
   app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
   // Realistic "whole forest fit" scale -- not read by the heading-up zoom ceiling itself
   // any more (that's the walking radius now, see maxNearbyHeadingUpScale), but still used
@@ -2811,6 +2834,236 @@ test("nearby bus stop names include stop direction context when known", () => {
   const html = app.overviewNearestHtml();
 
   assert.match(html, /Near bus stop — towards Walthamstow Central/);
+});
+
+// --- Map search ---
+
+function resetSearchData(app) {
+  resetData(app);
+  app.state.waterFeatures = [];
+  app.state.environmentFeatures = [];
+  app.state.searchScreenOpen = false;
+  app.state.searchQuery = "";
+}
+
+function addSearchFixtures(app) {
+  app.state.trees.push(
+    { id: "oak-near", commonName: "English Oak", latinName: "Quercus robur", tagNumber: "1234", ...makePoint(app, 0.001, 0) },
+    { id: "oak-far", commonName: "English Oak", latinName: "Quercus robur", tagNumber: "9876", ...makePoint(app, 0.02, 0) }
+  );
+  app.state.landmarks.push(
+    { id: "shop-1", name: "Forest Village Stores", category: "shop", categoryTags: ["shop"], ...makePoint(app, 0.002, 0) },
+    { id: "pub-1", name: "The Royal Forest", category: "pub", categoryTags: ["pub"], ...makePoint(app, 0.003, 0) }
+  );
+  // One road, three OSM ways -- exactly how a long street arrives from OpenStreetMap.
+  app.state.roads.push(
+    { name: "Epping New Road", roadType: "primary", segments: [[app.projectLonLat(0, 0.004), app.projectLonLat(0.01, 0.004)]] },
+    { name: "Epping New Road", roadType: "primary", segments: [[app.projectLonLat(0, 0.05), app.projectLonLat(0.01, 0.05)]] },
+    { name: "Epping New Road", roadType: "primary", segments: [[app.projectLonLat(0, 0.06), app.projectLonLat(0.01, 0.06)]] }
+  );
+}
+
+test("search normalises punctuation and case out of a half-remembered name", () => {
+  assert.equal(app.normalizeSearchText("St Mary's Church"), "st marys church");
+  assert.equal(app.normalizeSearchText("  EF-1234  "), "ef 1234");
+  assert.equal(app.normalizeSearchText(null), "");
+  assert.equal(app.searchQueryTokens("epping new road").join("|"), "epping|new|road");
+});
+
+test("search ranks an exact name above a prefix, a word, and a bare substring", () => {
+  assert.equal(app.searchFieldRank("forest road", "forest road"), app.SEARCH_RANK_EXACT);
+  assert.equal(app.searchFieldRank("forest road north", "forest"), app.SEARCH_RANK_PREFIX);
+  assert.equal(app.searchFieldRank("high forest road", "forest"), app.SEARCH_RANK_WORD);
+  assert.equal(app.searchFieldRank("deforestation lane", "forest"), app.SEARCH_RANK_SUBSTRING);
+  assert.equal(app.searchFieldRank("forest road", "cow"), null);
+});
+
+test("a tree tag matches exactly even though the species name shares the entry", () => {
+  const entry = app.searchIndexEntry("tree", {}, ["English Oak", "1234"]);
+
+  assert.equal(app.searchEntryRank(entry, "1234", ["1234"]), app.SEARCH_RANK_EXACT);
+  assert.equal(app.searchEntryRank(entry, "english", ["english"]), app.SEARCH_RANK_PREFIX);
+  assert.equal(app.searchEntryRank(entry, "5555", ["5555"]), null);
+});
+
+test("a multi-word query no single field answers still matches when every word is present", () => {
+  const entry = app.searchIndexEntry("tree", {}, ["English Oak", "1234"]);
+
+  assert.equal(app.searchEntryRank(entry, "oak 1234", ["oak", "1234"]), app.SEARCH_RANK_TOKENS);
+  assert.equal(app.searchEntryRank(entry, "oak 9999", ["oak", "9999"]), null);
+});
+
+test("search finds a shop, a road and a tree tag, the three things the map is searched for", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+
+  const shop = app.searchMapFeatures("village stores");
+  assert.equal(shop[0].type, "landmark");
+  assert.equal(app.searchResultName("landmark", shop[0].item), "Forest Village Stores");
+
+  const road = app.searchMapFeatures("epping new road");
+  assert.equal(road[0].type, "road");
+  assert.equal(app.searchResultName("road", road[0].item), "Epping New Road");
+
+  const tree = app.searchMapFeatures("1234");
+  assert.equal(tree[0].type, "tree");
+  assert.equal(tree[0].item.id, "oak-near");
+});
+
+test("a street split across many OSM ways is one result, the nearest piece of it", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+
+  const results = app.searchMapFeatures("epping new road");
+
+  assert.equal(results.length, 1, "three ways named the same street list once");
+  assert.ok(results[0].metres < 1000, "and it is the piece closest to the user");
+});
+
+test("one name repeated across the map is allowed a few rows, not the whole list", () => {
+  resetSearchData(app);
+  app.state.userLocation = null;
+  // Eight bus stops share the name of the street they stand on, which is the real shape of
+  // "Forest Road" in the dataset.
+  for (let index = 0; index < 8; index += 1) {
+    app.state.landmarks.push({
+      id: `stop-${index}`,
+      name: "Repeated Road",
+      category: "bus_stop",
+      categoryTags: ["bus_stop"],
+      ...makePoint(app, 0.001 * (index + 1), 0),
+    });
+  }
+  app.state.roads.push({ name: "Repeated Road", roadType: "residential", segments: [[app.projectLonLat(0, 0.002), app.projectLonLat(0.01, 0.002)]] });
+
+  const results = app.searchMapFeatures("repeated road");
+
+  assert.equal(results.filter((result) => result.type === "landmark").length, 3, "the repeated stop is capped");
+  assert.equal(results.filter((result) => result.type === "road").length, 1, "and the street itself is still listed");
+});
+
+test("equally good matches are ordered by how far away they are", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+
+  const results = app.searchMapFeatures("english oak");
+
+  assert.equal(results.length, 2);
+  assert.equal(results[0].item.id, "oak-near");
+  assert.equal(results[1].item.id, "oak-far");
+});
+
+test("search results carry the same walk chip and type label the nearby list uses", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  app.state.searchQuery = "royal forest";
+
+  const html = app.searchResultsHtml("royal forest");
+
+  assert.match(html, /class="nearest-item"/, "results reuse the nearby list row");
+  assert.match(html, /data-search-type="landmark"/);
+  assert.match(html, /The Royal Forest/);
+  assert.match(html, /walk-chip/, "with the distance and walk time");
+  assert.match(html, /Pubs &amp; bars/, "and the filter label the place is listed under");
+});
+
+test("search says what to type before it has enough to go on", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+
+  assert.match(app.searchResultsHtml(""), /Search for a tree tag/);
+  assert.match(app.searchResultsHtml("a"), /at least 2 characters/);
+  assert.match(app.searchResultsHtml("zzzznothing"), /Nothing on the map matches/);
+});
+
+test("search works with no location fix, listing matches without distances", () => {
+  resetSearchData(app);
+  app.state.userLocation = null;
+  addSearchFixtures(app);
+
+  const results = app.searchMapFeatures("royal forest");
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].metres, null, "no origin means no distance to report");
+  assert.doesNotMatch(app.searchResultsHtml("royal forest"), /walk-chip/);
+});
+
+test("the search index picks up data that arrived after the last search", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  assert.equal(app.searchMapFeatures("hollow pond").length, 0);
+
+  app.state.waterFeatures.push({ id: "water-1", name: "Hollow Pond", featureType: "hydrology_area", ...makePoint(app, 0.004, 0) });
+
+  const results = app.searchMapFeatures("hollow pond");
+  assert.equal(results.length, 1);
+  assert.equal(app.searchResultTypeLabel("water", results[0].item), "Pond / lake");
+});
+
+test("opening Search is a screen of its own, and leaving it hands the map back to Nearby", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+
+  app.openSearchScreen();
+
+  assert.equal(app.state.searchScreenOpen, true);
+  assert.equal(app.state.selected, null, "Search is not a selection");
+  assert.equal(app.isOverviewScreenActive(), false, "so map taps do not move the nearby anchor");
+  assert.equal(app.secondaryScreenActive(), true, "and the map keeps the nearby framing behind it");
+  assert.equal(app.els.inspectorTitle.textContent, "Search");
+  assert.ok(app.location.hash === "search" || app.location.hash === "#search", "the screen has a URL, so back leaves it");
+
+  app.goToInitialView();
+  assert.equal(app.state.searchScreenOpen, false);
+  assert.equal(app.isOverviewScreenActive(), true);
+});
+
+test("choosing a search result opens the location the same way a map tap does", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  app.openSearchScreen();
+
+  const [result] = app.searchMapFeatures("village stores");
+  app.openSearchResult(result.type, result.key);
+
+  assert.equal(app.state.searchScreenOpen, false, "the search screen stands down");
+  assert.equal(app.state.selected.type, "landmark");
+  assert.equal(app.state.selected.item.id, "shop-1");
+  assert.match(app.location.hash, /place=/, "and the selection is linkable like any other");
+});
+
+test("a road can be navigated to from search, which the nearby list cannot offer", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  app.openSearchScreen();
+
+  const [result] = app.searchMapFeatures("epping new road");
+  app.openSearchResult(result.type, result.key);
+
+  assert.equal(app.state.selected.type, "road");
+  assert.equal(app.state.selected.item.name, "Epping New Road");
+  assert.ok(Number.isFinite(app.state.selected.item.latitude), "the road gained an anchor to steer to");
+  assert.match(app.location.hash, /road=/);
+});
+
+test("typing re-renders only the results, leaving the field alone", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+
+  app.setSearchQuery("royal forest");
+
+  assert.equal(app.state.searchQuery, "royal forest");
+  assert.match(app.searchResultsHtml(app.state.searchQuery), /The Royal Forest/);
 });
 
 test("bus stop titles keep explicit directional wording", () => {

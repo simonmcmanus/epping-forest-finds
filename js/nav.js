@@ -93,13 +93,14 @@ function nearbyOrigin() {
   return state.nearbyAnchor || state.userLocation;
 }
 
-// Filter, Settings, and Report screens all show the map in the background and must
+// Search, Filter, Settings, and Report screens all show the map in the background and must
 // present the same fixed "zoomed out to show all highlighted locations" view (see
 // nearbyCameraFitPoints/ensureOverviewTargetsVisible in index.html and
 // drawWalkingRadius/buildNearbyIconLookup in renderer.js).
 function secondaryScreenActive() {
   return Boolean(
     state.filterScreenOpen
+    || state.searchScreenOpen
     || state.selected?.type === "settings"
     || state.selected?.type === "report"
   );
@@ -609,33 +610,37 @@ function setupFilterPanelHandlers() {
 }
 
 function setupSearchAndNavHandlers() {
-  els.treeSearchToggle.addEventListener("click", () => {
-    const isOpen = !els.treeSearchPanel.hidden;
-    els.treeSearchPanel.hidden = isOpen;
-    els.treeSearchToggle.setAttribute("aria-expanded", String(!isOpen));
-    if (!isOpen) {
-      setInspectorMinimized(false);
-      els.treeSearchInput.focus();
-    }
+  if (els.searchToggle) {
+    els.searchToggle.addEventListener("click", () => {
+      if (els.searchToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+        pulseNavButton(els.searchToggle);
+        const input = document.getElementById("mapSearchInput");
+        if (input) input.focus();
+        return;
+      }
+      openSearchScreen();
+    });
+  }
+
+  // The field and the results list are both inside #inspectorBody, which is replaced whole on
+  // every screen change -- so both are bound by delegation rather than to the elements
+  // themselves. Typing only re-renders the results (renderSearchResults, js/app.js).
+  els.inspectorBody.addEventListener("input", (event) => {
+    const input = event.target.closest("#mapSearchInput");
+    if (!input) return;
+    setSearchQuery(input.value);
   });
 
-  els.treeSearchButton.addEventListener("click", () => {
-    searchTreeByNumber();
-  });
-
-  els.treeSearchInput.addEventListener("keydown", (event) => {
+  els.inspectorBody.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
+    const input = event.target.closest("#mapSearchInput");
+    if (!input) return;
+    // Enter on a phone dismisses the keyboard and commits the first result, which is the
+    // one the list is already sorted to put under the user's thumb.
     event.preventDefault();
-    searchTreeByNumber();
-  });
-
-  document.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    if (els.treeSearchPanel.hidden) return;
-    if (target.closest("#treeSearchPanel") || target.closest("#treeSearchToggle")) return;
-    els.treeSearchPanel.hidden = true;
-    els.treeSearchToggle.setAttribute("aria-expanded", "false");
+    input.blur();
+    const first = els.inspectorBody.querySelector("[data-search-type][data-search-key]");
+    if (first) openSearchResult(first.dataset.searchType, first.dataset.searchKey);
   });
 
   // Back, forward, the device back gesture, and a fragment edited by hand all land here: the
@@ -657,6 +662,18 @@ function setupSearchAndNavHandlers() {
   }
 
   els.inspectorBody.addEventListener("click", (event) => {
+    const searchClear = event.target.closest("#mapSearchClear");
+    if (searchClear) {
+      const input = document.getElementById("mapSearchInput");
+      if (input) { input.value = ""; input.focus(); }
+      setSearchQuery("");
+      return;
+    }
+    const searchResult = event.target.closest("[data-search-type][data-search-key]");
+    if (searchResult) {
+      openSearchResult(searchResult.dataset.searchType, searchResult.dataset.searchKey);
+      return;
+    }
     const shareBtn = event.target.closest("[data-action='share-location']");
     if (shareBtn) { shareCurrentLocation(); return; }
     const resetAnchorBtn = event.target.closest("[data-action='reset-nearby-anchor']");
@@ -1429,6 +1446,7 @@ function goToInitialView(updateHash = true) {
   state.clusterZoomed = false;
   state.clusterExpanded = null;
   state.filterScreenOpen = false;
+  state.searchScreenOpen = false;
   selectOverview(true);
   setInspectorMinimized(false);
   const refitOverview = () => {
@@ -1459,7 +1477,6 @@ function updateLocateButtonVisibility() {
 function syncInspectorToolsVisibility() {
   if (!els.inspectorTools || els.inspectorTools.hidden) return;
   const hasContent = !els.locateButton.hidden
-    || !els.treeSearchPanel.hidden
     || (els.installButton && getComputedStyle(els.installButton).display !== "none");
   els.inspectorTools.classList.toggle("tools-empty", !hasContent);
 }
