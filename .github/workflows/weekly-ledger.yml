@@ -27,14 +27,18 @@ name: Weekly Epping Forest Ledger
 #   Pull requests: Read and write (open and edit the PR)
 #   Workflows: Read and write     (only if a run ever touches .github/workflows)
 #   Issues: Read                  (read what people reported from inside the
-#                                  app -- scripts/user_reports.py. WITHOUT
-#                                  THIS the run simply finds no reports and
-#                                  carries on, which looks exactly like a
-#                                  quiet week and is the failure this was
-#                                  added to end. If the weekly PR stops
-#                                  mentioning reports, check this first.
-#                                  Write is NOT needed: the PR body says
-#                                  `Closes #<n>` and merging does the rest.)
+#                                  app -- scripts/user_reports.py. Not
+#                                  strictly required while this repository is
+#                                  public, since public issues read without a
+#                                  token at all; worth granting anyway,
+#                                  because unauthenticated requests are rate
+#                                  limited per IP and a runner's IP is shared,
+#                                  and because it becomes mandatory the day
+#                                  the repository goes private. A token that
+#                                  cannot see issues now gets a loud 403
+#                                  rather than an empty list. Write is NOT
+#                                  needed: the PR body says `Closes #<n>` and
+#                                  merging does the rest.)
 # Fine-grained PATs expire -- if this job starts failing to push or open PRs,
 # check the token's expiry date first. Claude itself still authenticates with
 # claude_code_oauth_token; the PAT only covers git/gh operations.

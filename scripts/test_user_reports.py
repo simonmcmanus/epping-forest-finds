@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Unit tests for scripts/user_reports.py. Run: python3 scripts/test_user_reports.py"""
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -88,6 +89,42 @@ class ParseTests(unittest.TestCase):
     def test_a_multi_line_report_keeps_all_of_it(self):
         body = "## Report\nWildwood has closed.\nLoaded has closed too.\n\n## Metadata\n- Type: missing-data\n"
         self.assertEqual(ur.parse_report(issue(body=body))["note"], "Wildwood has closed.\nLoaded has closed too.")
+
+
+class AuthenticationTests(unittest.TestCase):
+    """A zero must never be able to mean "could not look". That is the one
+    failure that passes for a quiet week, because no reports and no permission
+    produce the same empty list everywhere downstream."""
+
+    def setUp(self):
+        self.saved = {k: os.environ.get(k) for k in ("GITHUB_TOKEN", "GH_TOKEN")}
+        for key in self.saved:
+            os.environ.pop(key, None)
+
+    def tearDown(self):
+        for key, value in self.saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def test_a_run_without_a_token_says_so(self):
+        self.assertFalse(ur.is_authenticated())
+
+    def test_either_token_name_counts(self):
+        for key in ("GITHUB_TOKEN", "GH_TOKEN"):
+            os.environ[key] = "x"
+            self.assertTrue(ur.is_authenticated())
+            del os.environ[key]
+
+    def test_a_token_is_sent_as_a_bearer_when_there_is_one(self):
+        os.environ["GH_TOKEN"] = "secret"
+        self.assertEqual(ur._auth_headers()["Authorization"], "Bearer secret")
+
+    def test_no_authorization_header_is_sent_without_a_token(self):
+        # The repository is public, so this still works -- it just reads
+        # against the shared unauthenticated rate limit.
+        self.assertNotIn("Authorization", ur._auth_headers())
 
 
 class MergeTests(unittest.TestCase):

@@ -31,8 +31,12 @@ system's:
   not a name, a category and a position — but the run must resolve each one
   and say what it did. A fixed report's PR body says `Closes #<number>`, so
   merging tells the reporter their report landed; that is what keeps people
-  reporting. Requires `Issues: Read` on the workflow's token; without it the
-  run finds nothing and a quiet week looks identical to a broken one.
+  reporting. While the repository is public its issues read without a token at
+  all, so `Issues: Read` is not strictly required — but grant it anyway:
+  unauthenticated requests are rate limited per IP, a runner's IP is shared,
+  and it becomes mandatory the day the repository goes private. A token that
+  cannot see issues gets a loud 403 rather than an empty list, because
+  "not allowed to look" must never pass for "nothing to report".
 
 - `scripts/osm_business_diff.py` — OpenStreetMap. Reports four things: places
   new to it, our places it no longer lists, our places it marks closed
@@ -55,6 +59,21 @@ Name matching is proximity-scoped (`scripts/place_matching.py`): the same name
 only counts as the same business within a few hundred metres. Matching on name
 alone across the whole search area meant a new branch of a chain was treated as
 one the map already had.
+
+**Every candidate is scope-checked before it reaches the watchlist**
+(`scripts/forest_boundary.py`). The sources are queried over a box about 22km
+by 12km, taking in Leytonstone, Walthamstow and most of Epping Forest
+district; the map itself only carries what is within eight minutes' walk of
+the forest boundary, which is why the food dataset holds 684 places and not
+many thousands. The first run to reach the food-hygiene register found 2,949
+"new" places out of 3,204, nearly all of them miles from any tree — every one
+would have been banked, grown confident over two weeks, then been rejected
+one at a time by `apply_weekly_changeset.py`, after burying the week's real
+findings. Only additions are checked: anything already on the map passed this
+test when it was added, and re-judging it could have the run propose removing
+places it put there itself. Measuring one point against all 74,579 boundary
+segments takes 0.07s, so the segments are grid-indexed — same answer, 20×
+faster, and a whole candidate list in seconds rather than minutes.
 
 **The memory.** `scripts/business_watch.py` and `data/business-watch.json`
 record what each source said each week. A signal escalates to *confident* only
