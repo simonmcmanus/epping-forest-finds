@@ -69,7 +69,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts import business_watch, verification  # noqa: E402
+from scripts import business_watch, forest_boundary, verification  # noqa: E402
 from scripts.place_matching import (  # noqa: E402
     NAME_MATCH_RADIUS_M, feature_lonlat, normalize_name, same_place,
 )
@@ -301,8 +301,15 @@ def _dataset_key(feature):
     return None
 
 
-def diff_pois(osm_pois, dataset_geojson, radius_m=NAME_MATCH_RADIUS_M):
+def diff_pois(osm_pois, dataset_geojson, radius_m=NAME_MATCH_RADIUS_M, in_scope=None):
     """Pure diff: no network. Returns the four candidate lists.
+
+    `in_scope(lon, lat)` decides whether a place is near enough to the forest
+    for this map to carry it. Without one, everything the query returned is a
+    candidate -- and the query's box is 22km by 12km, far wider than the
+    eight minutes' walk from the boundary the map actually keeps to, so the
+    unfiltered list is mostly inner London. main() always passes the real
+    check; it is a parameter so the diff itself stays pure.
 
     - new_candidates: in OpenStreetMap, not on our map by id or by name-and-place.
     - missing_candidates: our points, sourced from OpenStreetMap, that this
@@ -384,6 +391,10 @@ def diff_pois(osm_pois, dataset_geojson, radius_m=NAME_MATCH_RADIUS_M):
             continue
         candidates = dataset_by_name.get(normalize_name(poi.get("name")), ())
         if any(same_place(poi, feature, radius_m) for feature in candidates):
+            continue
+        # Only additions are scope-checked. Everything else here is already on
+        # the map, so it passed this test when it was added.
+        if in_scope is not None and not in_scope(poi.get("lon"), poi.get("lat")):
             continue
         new_candidates.append(poi)
 
@@ -486,7 +497,8 @@ def main():
         print(f"Overpass query failed ({exc}) -- skipping the OSM cross-check this run.", file=sys.stderr)
         sys.exit(2)
 
-    result = diff_pois(osm_pois, dataset)
+    scope = forest_boundary.load_index()
+    result = diff_pois(osm_pois, dataset, in_scope=lambda lon, lat: forest_boundary.within_walk(lon, lat, scope))
     result["checked_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     result["osm_poi_count"] = len(osm_pois)
     result["dataset_count"] = len(dataset.get("features", []))

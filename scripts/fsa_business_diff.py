@@ -53,8 +53,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from scripts import business_watch  # noqa: E402
-from scripts.place_matching import name_key, same_place, within_bbox  # noqa: E402
-from scripts.report.geo import SEARCH_BBOX  # noqa: E402
+from scripts import forest_boundary  # noqa: E402
+from scripts.place_matching import name_key, same_place  # noqa: E402
 
 API_BASE = "https://api.ratings.food.gov.uk"
 API_HEADERS = {"x-api-version": "2", "accept": "application/json"}
@@ -179,10 +179,30 @@ def _coordinates_of(establishment):
         return None
 
 
-def normalize_establishments(establishments, bbox=SEARCH_BBOX):
+_SCOPE = None
+
+
+def _scope_index():
+    """Loaded once and kept: the boundary is 3MB of geometry and every
+    candidate is measured against it."""
+    global _SCOPE
+    if _SCOPE is None:
+        _SCOPE = forest_boundary.load_index()
+    return _SCOPE
+
+
+def normalize_establishments(establishments, scope=None):
     """Turns the register's records into the flat shape diff_establishments()
-    expects, dropping everything outside the map's area, without a position,
-    or of a kind the map does not show."""
+    expects, dropping everything without a position, of a kind the map does
+    not show, or too far from the forest for the map to carry.
+
+    That last rule is the one that matters here. The register covers whole
+    council areas -- the first run to reach it found 3,204 food businesses,
+    of which 2,949 were not on the map, nearly all of them miles from any
+    tree. Filtering by the search box alone would have banked every one of
+    them on the watchlist. The map's rule is eight minutes' walk from the
+    forest boundary, and so is this."""
+    scope = scope or _scope_index()
     out = []
     for establishment in establishments:
         if not is_mappable(establishment):
@@ -191,7 +211,7 @@ def normalize_establishments(establishments, bbox=SEARCH_BBOX):
         if coordinates is None:
             continue
         lon, lat = coordinates
-        if not within_bbox(lon, lat, bbox):
+        if not forest_boundary.within_walk(lon, lat, scope):
             continue
         name = (establishment.get("BusinessName") or "").strip()
         if not name:

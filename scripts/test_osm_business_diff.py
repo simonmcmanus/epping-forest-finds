@@ -263,6 +263,33 @@ class VenueScopeTests(unittest.TestCase):
         self.assertEqual(obd.normalize_overpass_elements(elements, scope="food"), [])
 
 
+class ScopeTests(unittest.TestCase):
+    """The Overpass box is 22km by 12km; the map keeps to eight minutes' walk
+    of the forest. Without this filter every pub in Leytonstone is a candidate."""
+
+    def poi(self, lon, lat):
+        return [{"osmType": "node", "osmId": 1, "name": "New Cafe", "category": "cafe",
+                 "status": "open", "lon": lon, "lat": lat}]
+
+    def test_a_place_out_of_scope_is_not_proposed(self):
+        result = obd.diff_pois(self.poi(0.0075, 51.5683), {"features": []},
+                               in_scope=lambda lon, lat: False)
+        self.assertEqual(result["new_candidates"], [])
+
+    def test_a_place_in_scope_is_proposed(self):
+        result = obd.diff_pois(self.poi(0.0565, 51.6486), {"features": []},
+                               in_scope=lambda lon, lat: True)
+        self.assertEqual(len(result["new_candidates"]), 1)
+
+    def test_scope_never_affects_places_already_on_the_map(self):
+        # They passed this test when they were added; re-judging them could
+        # have the run propose removing places it put there itself.
+        dataset = {"features": [{"id": "node/1", "properties": {
+            "osmType": "node", "osmId": 1, "name": "Old Cafe", "category": "cafe"}}]}
+        result = obd.diff_pois([], dataset, in_scope=lambda lon, lat: False)
+        self.assertEqual(len(result["missing_candidates"]), 1)
+
+
 class ObservationTests(unittest.TestCase):
     def test_every_candidate_list_becomes_a_watchlist_observation(self):
         diff = {

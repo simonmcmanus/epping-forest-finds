@@ -50,6 +50,16 @@ class NormalizeTests(unittest.TestCase):
         far = establishment(geocode={"longitude": "-1.5", "latitude": "53.8"})
         self.assertEqual(fsa.normalize_establishments([far]), [])
 
+    def test_a_business_in_the_register_but_far_from_the_forest_is_dropped(self):
+        # The register covers whole councils. The first run to reach it found
+        # 2,949 of 3,204 "new", nearly all of them miles from any tree --
+        # which would have buried the week's real findings on the watchlist.
+        leytonstone = establishment(geocode={"longitude": "0.0075", "latitude": "51.5683"})
+        self.assertEqual(fsa.normalize_establishments([leytonstone]), [])
+
+    def test_a_business_beside_the_forest_is_kept(self):
+        self.assertEqual(len(fsa.normalize_establishments([establishment()])), 1)
+
     def test_a_business_with_no_name_is_dropped(self):
         self.assertEqual(fsa.normalize_establishments([establishment(BusinessName="  ")]), [])
 
