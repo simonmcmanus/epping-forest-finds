@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Viewpoint: a spotting telescope on its tripod. -->
+  <g stroke="#284830" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M122 150 74 216"/>
+    <path d="M134 150 182 216"/>
+    <path d="M128 150v58"/>
+  </g>
+  <g transform="rotate(-32 128 116)" stroke="#284830" stroke-width="13" stroke-linejoin="round">
+    <rect x="40" y="84" width="176" height="60" rx="28" fill="#f8f0d0"/>
+    <path d="M68 84a28 28 0 0 0-28 28v4a28 28 0 0 0 28 28z" fill="#80a068"/>
+    <path d="M158 84v60" fill="none"/>
+  </g>
+</svg>

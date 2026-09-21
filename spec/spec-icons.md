@@ -59,10 +59,10 @@ filter-social-history
 A woven basket
 
 filter-plaques
-A commemorative plaque
+A bronze wall plaque with an engraved inscription and corner fixings
 
 filter-blue-plaques
-A circular heritage plaque
+A circular blue heritage roundel with a lettered face
 
 filter-celebrity
 A five-point star
@@ -131,7 +131,7 @@ landmark-parking
 A parked car
 
 landmark-bicycle-parking
-A bicycle
+A bicycle with the P badge the car-park icon carries
 
 landmark-bench
 A park bench
@@ -146,7 +146,7 @@ landmark-information
 An information board
 
 landmark-memorial
-A memorial candle
+A stone memorial cross on a stepped plinth, with a remembrance poppy
 
 landmark-monument
 A standing stone
@@ -161,16 +161,16 @@ landmark-campsite
 A camping tent
 
 landmark-picnic
-A picnic basket
+A picnic table, plank top over a bench
 
 landmark-viewpoint
-A telescope
+A spotting telescope on a tripod
 
 landmark-taxi
 A taxi cab
 
 landmark-telephone
-A telephone handset
+A K6 telephone box
 
 landmark-events-venue
 An admission ticket
@@ -237,6 +237,30 @@ A single field maple leaf with five compact lobes
 
 tree-ash
 A single ash compound leaf with paired leaflets
+## Drawing an icon
+
+`data/icons/src/*.svg` is the editable original for every icon added since the
+set was first drawn; the PNGs beside them in `data/icons/` are build output.
+`npm run gen:icons` (`scripts/generate-map-icons.js`) rasterises the sources to
+256x256 through headless Chromium, and takes a name fragment to do one at a
+time. `data/icons/src/_palette.md` holds the house palette, sampled from the
+original set: deep forest `#284830` for every outline, cream `#f8f0d0`, sage
+`#80a068`, warm tan `#c0a068`, stone `#c0c0b0`, heritage blue `#3e67c4` and
+poppy red `#b23a2e`.
+
+**Every drawing sits inside a circle of radius 128 on the 256 viewBox**, and
+the generator fails rather than writing a PNG that does not. The renderer
+paints artwork at 1.75x the pin head's radius (`drawPngMapIcon`), so content
+past `1/1.75` of its own half-width reaches outside the white pointer, which is
+what made the old full-width plaque rectangle sit wrong among the others. The
+icons the set shipped with are not held to this and a few of them do spill
+slightly — `restaurant`, `shop`, `landmark-drinking-water`,
+`landmark-information`, `landmark-dry-cleaning` and `beer`.
+
+Two shapes read at the 35 CSS pixels a pin actually occupies; four do not.
+The memorial went through a wreath-and-cross version that closed into a dark
+blob at map size before settling on cross, plinth and poppy.
+
 ## Community venues reuse existing icons
 
 A village hall, library, arts centre, theatre or cinema became something the
@@ -252,10 +276,31 @@ is what the audit below exists to count.
 
 `js/renderer.js` picks a pin by working down a fixed order — the food and
 transport special cases, then `PLACE_FILTER_PRIORITY` via `matchesPlaceFilter`,
-then `landmarkIconSlug` — and when nothing matches it falls back to drawing a
-plain emoji glyph in a badge. That fallback is silent: nothing errors, a pin
-appears, and only a person looking at the map notices the artwork is not the
-product's own.
+then `landmarkIconSlug` — and when nothing matches it falls back to an emoji
+glyph. That fallback is silent: nothing errors, a pin appears, and only a
+person looking at the map notices the artwork is not the product's own.
+
+It used to be silent *and* conspicuous. The glyph was painted straight onto
+the map with no pointer behind it, so 609 of 6,048 places — memorials as a
+candle, plaques as a red pushpin, every bicycle parking stand as a bicycle —
+floated at a different visual weight from every other marker. Two things fixed
+that: `drawEmojiMapPin` now draws the same white pointer and puts the glyph
+inside it, so a place without artwork is still the same kind of marker; and
+the categories that were falling through got artwork of their own, taking the
+count from 609 to 7. The seven left are OSM `building=yes` records with no
+type at all, and draw as a plain dot in the pointer.
+
+The fall-through had a second cause worth remembering: `PLACE_FILTER_PRIORITY`
+listed the subfilter keys `FILTER_GROUPS` uses (`historic`, `monuments`,
+`churches`, `campsites`) while `matchesPlaceFilter` switched on a different
+vocabulary and had no `case` for any of them. They could never match, so those
+four chips hid every place they were meant to show and their icons were
+unreachable — which is how memorials ended up on the emoji path. Plaques got
+there another way: every plaque in the data is a blue plaque, `blue_plaques`
+was not in the priority list at all, and `isPlaqueCategory` excluded blue ones,
+so a plaque drew whatever topic it also happened to carry (Jacob Epstein's drew
+an artist's palette). `blue_plaques` now leads the history block and
+`isPlaqueCategory` covers every plaque, so the "Plaques" chip finds all 65.
 
 `node scripts/icon-audit.js` (or `npm run audit:icons`) names every place that
 falls through, grouped by category with examples, by loading the app's real

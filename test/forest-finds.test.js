@@ -377,6 +377,13 @@ globalThis.__forestFindsTest = {
   landmarkIconSlug,
   iconPath,
   appIconHtml,
+  matchesPlaceFilter,
+  placePrimaryFilterKey,
+  placeIconSlug,
+  filterKindIconSlug,
+  PLACE_FILTER_KEYS,
+  PLACE_FILTER_PRIORITY,
+  PLACE_FILTER_FALLBACK_PRIORITY,
   treeSpeciesIconHtml,
   placeTitle,
   ICON_PATHS,
@@ -1698,9 +1705,87 @@ test("landmark emoji falls back to useful type icons before location pointer", (
   assert.match(app.landmarkEmoji({ category: "bench", categoryTags: ["bench"] }), /landmark-bench\.png/);
   assert.match(app.landmarkEmoji({ category: "toilets", categoryTags: ["toilets"] }), /landmark-toilets\.png/);
   assert.match(app.landmarkEmoji({ category: "gate", categoryTags: ["gate"] }), /gate\.png/);
-  assert.equal(app.landmarkEmoji({ category: "chemist", categoryTags: ["chemist"] }), "⚕️");
+  assert.match(app.landmarkEmoji({ category: "chemist", categoryTags: ["chemist"] }), /medicine\.png/);
   assert.equal(app.landmarkEmoji({ category: "yes", categoryTags: ["yes", "cafe"] }), "☕");
   assert.equal(app.landmarkEmoji({ category: "something_unclear", categoryTags: ["something_unclear"] }), "📍");
+});
+
+test("the categories that used to draw as a bare emoji now have artwork of their own", () => {
+  // These were 609 of 6,048 places -- memorials as a candle glyph, plaques as
+  // a red pushpin -- painted straight onto the map with no pointer behind
+  // them, which is what made them read as a different kind of marker.
+  // `npm run audit:icons` is the standing count.
+  const { landmarkIconSlug, iconPath } = app;
+  const expected = {
+    memorial: "landmark-memorial",
+    bicycle_parking: "landmark-bicycle-parking",
+    picnic_site: "landmark-picnic",
+    viewpoint: "landmark-viewpoint",
+    telephone: "landmark-telephone",
+    alcohol: "shop",
+    chemist: "medicine",
+  };
+
+  for (const [category, slug] of Object.entries(expected)) {
+    const place = { category, categoryTags: [category] };
+    assert.equal(landmarkIconSlug(place), slug, `${category} should use the ${slug} icon`);
+    assert.ok(iconPath(slug), `${slug} must be a real icon in the registry`);
+  }
+});
+
+test("the subfilter keys FILTER_GROUPS offers all classify something", () => {
+  // matchesPlaceFilter switched on a different vocabulary from the one the
+  // filter chips use, so "Historic sites", "Monuments", "Churches" and
+  // "Campsites" matched nothing: they hid every place they were meant to show
+  // and their icons could never be reached.
+  const { matchesPlaceFilter, PLACE_FILTER_KEYS } = app;
+  const samples = [
+    { category: "memorial", categoryTags: ["memorial"] },
+    { category: "monument", categoryTags: ["monument"] },
+    { category: "place_of_worship", categoryTags: ["place_of_worship"] },
+    { category: "camp_site", categoryTags: ["camp_site"] },
+    { category: "plaque", folkloreCategory: "plaque", folkloreTopics: ["blue_plaque"], categoryTags: ["plaque", "blue_plaque"] },
+  ];
+
+  for (const key of ["historic", "monuments", "churches", "campsites", "plaques"]) {
+    assert.ok(PLACE_FILTER_KEYS.has(key), `${key} should be one of the filter chips`);
+    assert.ok(
+      samples.some((place) => matchesPlaceFilter(place, key)),
+      `no place can ever match the ${key} filter`
+    );
+  }
+});
+
+test("a broad history bucket never takes a pin from a place with artwork of its own", () => {
+  // `historic` matches anything with a historic flavour at all. Swept with
+  // the rest of the filters it handed an archaeological site the generic
+  // scroll, so it is held back until landmarkIconSlug has had its say.
+  const { placeIconSlug, matchesPlaceFilter } = app;
+  const dig = { category: "archaeological_site", categoryTags: ["archaeological_site"] };
+  const museum = { category: "museum", categoryTags: ["museum"] };
+  const folkloreOnly = { category: "history", folkloreCategory: "history", categoryTags: [] };
+
+  assert.ok(matchesPlaceFilter(dig, "historic"), "a dig is still a historic site for the filter chip");
+  assert.equal(placeIconSlug(dig), "landmark-archaeological");
+  assert.equal(placeIconSlug(museum), "landmark-museum");
+  assert.equal(placeIconSlug(folkloreOnly), "historic", "with nothing more specific, the bucket does apply");
+});
+
+test("a blue plaque draws as a plaque rather than whatever topic it is also tagged with", () => {
+  // Jacob Epstein's blue plaque is tagged `art`, and with the plaque keys
+  // missing from the priority list it drew an artist's palette on the map.
+  const { placePrimaryFilterKey, filterKindIconSlug } = app;
+  const epstein = {
+    name: "Blue Plaque: Sir Jacob Epstein",
+    category: "plaque",
+    folkloreCategory: "plaque",
+    folkloreTopics: ["blue_plaque"],
+    categoryTags: ["blue_plaque", "plaque", "heritage_plaque", "art"],
+  };
+
+  assert.equal(placePrimaryFilterKey(epstein), "blue_plaques");
+  assert.equal(filterKindIconSlug(placePrimaryFilterKey(epstein)), "blue-plaques");
+  assert.equal(app.placeIconSlug(epstein), "blue-plaques");
 });
 
 test("overview GPS updates keep the user centered even before a compass heading arrives", () => {

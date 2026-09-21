@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Picnic site: the standard picnic table, table plank over a bench plank. -->
+  <g stroke="#284830" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M88 116 54 202"/>
+    <path d="M168 116 202 202"/>
+    <rect x="32" y="150" width="192" height="22" rx="8" fill="#80a068"/>
+    <rect x="44" y="92" width="168" height="26" rx="9" fill="#c0a068"/>
+  </g>
+</svg>

@@ -33,18 +33,19 @@ function getMapImage(src) {
   return mapImageCache.get(src);
 }
 
-function drawPngMapIcon(ctx, src, x, y, size) {
-  if (!src) return false;
-  const img = getMapImage(src);
-  if (!img.complete || !img.naturalWidth) return false;
-
+// The white pointer every map pin sits in: a circular head with a wedge
+// drawn down to the place's own point. Returns the head's centre and radius
+// so the caller can put artwork or a glyph inside it.
+//
+// Artwork is drawn at 1.75x the head radius, so anything reaching past
+// 1/1.75 of its own half-width pokes out of the pointer. The generator
+// (scripts/generate-map-icons.js) holds new icons to that.
+function drawMapPinShape(ctx, x, y, size) {
   const R = size * 0.4;
   const pH = R * 0.6;
   const cx = x;
   const cy = y - R - pH;
   const halfAngle = Math.PI / 5;
-
-  ctx.save();
 
   ctx.beginPath();
   ctx.arc(cx, cy, R, Math.PI / 2 + halfAngle, Math.PI / 2 - halfAngle, false);
@@ -56,9 +57,65 @@ function drawPngMapIcon(ctx, src, x, y, size) {
   ctx.lineWidth = Math.max(1, size * 0.055);
   ctx.stroke();
 
+  return { cx, cy, R };
+}
+
+function drawPngMapIcon(ctx, src, x, y, size) {
+  if (!src) return false;
+  const img = getMapImage(src);
+  if (!img.complete || !img.naturalWidth) return false;
+
+  ctx.save();
+  const { cx, cy, R } = drawMapPinShape(ctx, x, y, size);
   const iconSize = R * 1.75;
   ctx.drawImage(img, cx - iconSize / 2, cy - iconSize / 2, iconSize, iconSize);
+  ctx.restore();
+  return true;
+}
 
+// The fallback for a place with no artwork of its own. It gets the same
+// pointer with the emoji glyph where the icon would go, so every marker on
+// the map reads as one pin family rather than a glyph floating on its own.
+function drawEmojiMapPin(ctx, emoji, x, y, size) {
+  // landmarkEmoji() returns an <img> for the categories that do have artwork;
+  // those never reach here, but a glyph is the only thing that can be drawn.
+  const glyph = typeof emoji === "string" && emoji && !emoji.startsWith("<") ? emoji : "📍";
+
+  if (typeof visibleCanvasRect === "function") {
+    const canvasRect = visibleCanvasRect();
+    const margin = size + 10;
+    if (x < canvasRect.x - margin || x > canvasRect.x + canvasRect.width + margin ||
+        y < canvasRect.y - margin || y > canvasRect.y + canvasRect.height + margin) {
+      return false;
+    }
+  }
+
+  ctx.save();
+  const { cx, cy, R } = drawMapPinShape(ctx, x, y, size);
+
+  // The generic glyph is itself a map pin, and a pin inside a pin reads as a
+  // mistake. A place the data says nothing about gets a plain dot instead.
+  if (glyph === "📍") {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 0.42, 0, Math.PI * 2);
+    ctx.fillStyle = "#76702f";
+    ctx.fill();
+    ctx.restore();
+    return true;
+  }
+
+  ctx.font = `${R * 1.15}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#111";
+  try {
+    ctx.fillText(glyph, cx, cy);
+  } catch (e) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 0.42, 0, Math.PI * 2);
+    ctx.fillStyle = "#ccc";
+    ctx.fill();
+  }
   ctx.restore();
   return true;
 }
@@ -1081,10 +1138,9 @@ function landmarkClusterKey(place) {
   if (isCafeCategory(place)) return "cafe";
   if (isShopCategory(place)) return "shop";
   if (isTransportCategory(place)) return `transport_${getTransportType(place) || "bus"}`;
-  for (const filterKey of PLACE_FILTER_PRIORITY) {
-    if (matchesPlaceFilter(place, filterKey)) return filterKindIconSlug(filterKey) || filterKey;
-  }
-  return landmarkIconSlug(place) || "pin";
+  // Cluster by the pin a place would draw, so two things that look the same
+  // group together and two that do not never share one pin.
+  return placeIconSlug(place) || "pin";
 }
 
 function buildLandmarkClusters(landmarkSet, toScreen) {
@@ -1212,65 +1268,6 @@ function drawNationalRailLogo(ctx, x, y, sizePx) {
   const path = new Path2D("M0 12C0 5.373 5.372 0 12 0c6.627 0 11.999 5.373 11.999 12 0 6.628-5.372 12-11.999 12-6.628 0-12-5.372-12-12Zm6.195-5.842 6.076 2.794H2.835v1.884h9.499l-4.616 2.246H2.835v1.868h4.883l5.778 2.795h4.333l-6.092-2.795h9.469v-1.868h-9.453l4.616-2.246h4.837V8.952h-4.868l-5.777-2.794H6.195");
   ctx.fill(path);
 
-  ctx.restore();
-}
-
-function drawMapEmoji(ctx, emoji, x, y, sizePx, options = {}) {
-  const {
-    backgroundColor = null,
-    borderColor = null,
-    borderWidth = 0,
-    paddingPx = 0,
-    yOffsetPx = 0,
-  } = options;
-
-  // Clamp font size to reasonable range
-  const clampedSize = Math.max(8, Math.min(sizePx, 128));
-
-  // Check if emoji is within reasonable distance of visible canvas
-  if (typeof visibleCanvasRect === "function") {
-    const canvasRect = visibleCanvasRect();
-    const margin = clampedSize + (paddingPx || 0) + 10;
-    if (x < canvasRect.x - margin || x > canvasRect.x + canvasRect.width + margin ||
-        y < canvasRect.y - margin || y > canvasRect.y + canvasRect.height + margin) {
-      return;  // Off-screen, skip rendering
-    }
-  }
-
-  ctx.save();
-  if (backgroundColor || borderColor) {
-    const radius = Math.max((clampedSize * 0.65) + paddingPx, clampedSize * 0.65);
-    if (backgroundColor) {
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = backgroundColor;
-      ctx.fill();
-    }
-    if (borderColor) {
-      const lineWidth = borderWidth || Math.max(2, clampedSize * 0.08);
-      const strokeRadius = radius + (lineWidth * 0.5);
-      ctx.beginPath();
-      ctx.arc(x, y, strokeRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = borderColor;
-      ctx.lineWidth = lineWidth;
-      ctx.stroke();
-    }
-  }
-  ctx.font = `${clampedSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = "#111";
-  ctx.shadowColor = "rgba(255, 255, 255, 0.75)";
-  ctx.shadowBlur = Math.max(1, clampedSize * 0.16);
-  try {
-    ctx.fillText(emoji, x, y + yOffsetPx);
-  } catch (e) {
-    // Fallback: draw a simple circle if emoji fails
-    ctx.beginPath();
-    ctx.arc(x, y, clampedSize / 2, 0, Math.PI * 2);
-    ctx.fillStyle = "#ccc";
-    ctx.fill();
-  }
   ctx.restore();
 }
 
@@ -1412,12 +1409,6 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
   const mapScale = mapEmojiScale();
   const uScale = MAP_ICON_SCALE_UNSELECTED;
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * uScale;
-  const emojiBadge = {
-    backgroundColor: null,
-    borderColor: null,
-    borderWidth: 2 * dpr * mapScale * uScale,
-    paddingPx: 5.6 * dpr * mapScale * uScale,
-  };
   const clusters = landmarkClusters || buildLandmarkClusters(nearbyIconLookup.landmark, resolvedToScreen);
 
   const reveal = nearbyRevealOpacity();
@@ -1454,18 +1445,11 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
         drawnAsPng = drawPngMapIcon(ctx, iconPath("bus"), screenPt.x, screenPt.y, iconSize);
       }
     } else {
-      let iconSlug = null;
-      for (const filterKey of PLACE_FILTER_PRIORITY) {
-        if (matchesPlaceFilter(place, filterKey)) {
-          iconSlug = filterKindIconSlug(filterKey);
-          break;
-        }
-      }
-      if (!iconSlug) iconSlug = landmarkIconSlug(place);
-      if (iconSlug && iconPath(iconSlug)) {
+      const iconSlug = placeIconSlug(place);
+      if (iconSlug) {
         drawnAsPng = drawPngMapIcon(ctx, iconPath(iconSlug), screenPt.x, screenPt.y, iconSize);
       } else {
-        drawMapEmoji(ctx, landmarkEmoji(place), screenPt.x, screenPt.y, 22 * dpr * mapScale * uScale, emojiBadge);
+        drawnAsPng = drawEmojiMapPin(ctx, landmarkEmoji(place), screenPt.x, screenPt.y, iconSize);
       }
     }
 
@@ -1696,11 +1680,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
   const mapScale = mapEmojiScale();
   const uScale = MAP_ICON_SCALE_UNSELECTED;
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * uScale;
-  const emojiBadge = {
-    backgroundColor: null, borderColor: null,
-    borderWidth: 2 * dpr * mapScale * uScale,
-    paddingPx: 5.6 * dpr * mapScale * uScale,
-  };
 
   const reveal = nearbyRevealOpacity();
   const calls = [];
@@ -1733,13 +1712,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const isShop = isShopCategory(place);
     const isTransport = isTransportCategory(place);
     const transportType = isTransport ? getTransportType(place) : null;
-    let iconSlug = null;
-    if (!isPub && !isCafe && !isShop && !isTransport) {
-      for (const filterKey of PLACE_FILTER_PRIORITY) {
-        if (matchesPlaceFilter(place, filterKey)) { iconSlug = filterKindIconSlug(filterKey); break; }
-      }
-      if (!iconSlug) iconSlug = landmarkIconSlug(place);
-    }
+    const iconSlug = (!isPub && !isCafe && !isShop && !isTransport) ? placeIconSlug(place) : null;
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = reveal * (isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity);
       let drawnAsPng = false;
@@ -1760,11 +1733,10 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
         } else {
           drawnAsPng = drawPngMapIcon(c, iconPath("bus"), screenPt.x, screenPt.y, scaledIconSize);
         }
-      } else if (iconSlug && iconPath(iconSlug)) {
+      } else if (iconSlug) {
         drawnAsPng = drawPngMapIcon(c, iconPath(iconSlug), screenPt.x, screenPt.y, scaledIconSize);
       } else {
-        const scaledBadge = { ...emojiBadge, borderWidth: emojiBadge.borderWidth * pinScale, paddingPx: emojiBadge.paddingPx * pinScale };
-        drawMapEmoji(c, landmarkEmoji(place), screenPt.x, screenPt.y, 22 * dpr * mapScale * uScale * pinScale, scaledBadge);
+        drawnAsPng = drawEmojiMapPin(c, landmarkEmoji(place), screenPt.x, screenPt.y, scaledIconSize);
       }
       if (drawnAsPng && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, scaledIconSize, dpr);
     }});
@@ -1875,8 +1847,6 @@ function drawSelectedOverlay(ctx, toScreen) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
   const selectedScale = selectedIconScale();
-  const selectedEmojiPadding = 2.94 * dpr * mapScale * MAP_ICON_SCALE;
-  const selectedEmojiYOffset = 1.1 * dpr * mapScale * MAP_ICON_SCALE;
 
   if (state.selected.type === "tree") {
     const point = toScreen(state.selected.item.point);
@@ -1898,17 +1868,9 @@ function drawSelectedOverlay(ctx, toScreen) {
   } else if (state.selected.type === "landmark") {
     const selectedPlace = state.selected.item;
 
-    // Check for PNG icon first
-    let iconSlug = null;
-    for (const filterKey of PLACE_FILTER_PRIORITY) {
-      if (matchesPlaceFilter(selectedPlace, filterKey)) {
-        iconSlug = filterKindIconSlug(filterKey);
-        break;
-      }
-    }
-    if (!iconSlug) iconSlug = landmarkIconSlug(selectedPlace);
+    const iconSlug = placeIconSlug(selectedPlace);
 
-    if (iconSlug && iconPath(iconSlug)) {
+    if (iconSlug) {
       // Generic landmark with PNG icon
       drawPngMapIcon(ctx, iconPath(iconSlug), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     } else if (isPubCategory(selectedPlace)) {
@@ -1929,24 +1891,9 @@ function drawSelectedOverlay(ctx, toScreen) {
         drawPngMapIcon(ctx, iconPath("bus"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       }
     } else {
-      // Fall back to emoji rendering
-      const emoji = landmarkEmoji(selectedPlace);
-      if (emoji === "📍") {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, 7.6 * dpr * MAP_ICON_SCALE * selectedScale, 0, Math.PI * 2);
-        ctx.fillStyle = "#76702f";
-        ctx.fill();
-        ctx.restore();
-      } else {
-        drawMapEmoji(ctx, emoji, point.x, point.y, 24 * dpr * mapScale * MAP_ICON_SCALE * selectedScale, {
-          backgroundColor: null,
-          borderColor: null,
-          borderWidth: 2.5 * dpr * mapScale * MAP_ICON_SCALE,
-          paddingPx: selectedEmojiPadding,
-          yOffsetPx: selectedEmojiYOffset,
-        });
-      }
+      // No artwork for this one: the same pointer, with the glyph inside it.
+      drawEmojiMapPin(ctx, landmarkEmoji(selectedPlace), point.x, point.y,
+        MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     }
   }
 }
