@@ -102,7 +102,7 @@ independently; marketing changes do not automatically change those surfaces.
 > have a dog and would rather not.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 689 pubs, cafés and shops. 1,596 car parks,
+> 9,162 paths and bridleways. 684 pubs, cafés and shops. 1,596 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -141,7 +141,7 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 689 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 684 food & drink | feature count, `data/local-landmarks-food.geojson` |
 | 1,596 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
@@ -154,6 +154,18 @@ Implementation: the counts are written into the committed `index.html`, and
 `test/home-counts.test.js` holds them to the real datasets via
 `scripts/count-datasets.js`. A dataset that changes size fails the suite, and
 the copy is corrected in the same change.
+
+Correcting it is `scripts/sync-homepage-counts.js`'s job, not a hand edit. It
+rewrites the figures in `index.html` and in §3.4 and §4 of this document from
+the current data, anchored on the words around each number rather than on line
+positions. `--check` reports drift without changing anything and exits
+non-zero.
+
+It exists because the test alone left a person in the loop, and the weekly
+ledger run (`spec-weekly-report.md`) changes the food dataset unattended: every
+data change it proposed therefore arrived with this suite already red, and a
+pull request that always fails is one nobody merges. Run it after anything
+that adds or removes features from a quoted dataset.
 
 Counting at build time was the other option and was rejected: the homepage
 would then only exist after `npm run build`, which breaks running the site from

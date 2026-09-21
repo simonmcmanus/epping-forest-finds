@@ -157,5 +157,120 @@ class TestApplyChangeset(unittest.TestCase):
         self.assertEqual(changeset, changeset_copy)
 
 
+class EnrichTests(unittest.TestCase):
+    """Filling in blanks. The transport dataset carries twelve addresses
+    across 1,106 places, so a pin is often all there is -- and a pin with no
+    address is much less use standing on a high street, and much harder to
+    match against any other source."""
+
+    def setUp(self):
+        self.segments, self.ref_lat_rad = awc.load_boundary_segments(SQUARE_BOUNDARY)
+
+    def apply(self, feature, fields):
+        master = make_master([feature])
+        changeset = {"enrich": [{"id": feature["id"], "name": feature["properties"]["name"], "fields": fields}]}
+        log = awc.apply_changeset(master, changeset, self.segments, self.ref_lat_rad)
+        return master["features"][0]["properties"], log
+
+    def test_a_blank_field_is_filled(self):
+        feature = make_existing_feature("A Cafe")
+        feature["properties"]["address"] = None
+        props, log = self.apply(feature, {"address": "1 High Road"})
+        self.assertEqual(props["address"], "1 High Road")
+        self.assertEqual(len(log["enriched"]), 1)
+
+    def test_a_value_already_there_is_never_overwritten(self):
+        # It may have been put there by somebody who went and looked, and the
+        # source may simply be older, or wrong.
+        feature = make_existing_feature("A Cafe")
+        feature["properties"]["address"] = "Checked on foot, 2 High Road"
+        props, log = self.apply(feature, {"address": "1 High Road"})
+        self.assertEqual(props["address"], "Checked on foot, 2 High Road")
+        self.assertEqual(log["enriched"], [])
+
+    def test_opening_hours_can_be_filled_in(self):
+        feature = make_existing_feature("A Cafe")
+        props, _ = self.apply(feature, {"openingHours": "Mo-Su 09:00-17:00"})
+        self.assertEqual(props["openingHours"], "Mo-Su 09:00-17:00")
+
+    def test_an_empty_value_does_not_blank_anything(self):
+        feature = make_existing_feature("A Cafe")
+        feature["properties"]["address"] = "1 High Road"
+        props, _ = self.apply(feature, {"address": None, "website": ""})
+        self.assertEqual(props["address"], "1 High Road")
+
+    def test_enriching_something_not_on_the_map_is_reported_not_ignored(self):
+        master = make_master([make_existing_feature("A Cafe")])
+        changeset = {"enrich": [{"name": "Nowhere", "fields": {"address": "x"}}]}
+        log = awc.apply_changeset(master, changeset, self.segments, self.ref_lat_rad)
+        self.assertEqual(log["enriched"], [])
+        self.assertEqual(len(log["skipped"]), 1)
+
+    def test_enrichment_does_not_change_how_many_places_there_are(self):
+        master = make_master([make_existing_feature("A Cafe")])
+        changeset = {"enrich": [{"name": "A Cafe", "fields": {"address": "1 High Road"}}]}
+        awc.apply_changeset(master, changeset, self.segments, self.ref_lat_rad)
+        self.assertEqual(len(master["features"]), 1)
+
+
+class VenueCategoryTests(unittest.TestCase):
+    """A hall, library or arts centre is not food, so it was not something a
+    weekly change could ever add -- the run only knew how to touch the food
+    file."""
+
+    def setUp(self):
+        self.segments, self.ref_lat_rad = awc.load_boundary_segments(SQUARE_BOUNDARY)
+
+    def test_a_public_hall_is_a_category_that_can_be_added(self):
+        master = make_master()
+        changeset = {"add": [{"name": "Lopping Hall", "category": "public_hall", "lon": 0.057, "lat": 51.650}]}
+        log = awc.apply_changeset(master, changeset, self.segments, self.ref_lat_rad)
+        self.assertEqual(len(log["added"]), 1)
+        self.assertEqual(master["features"][0]["properties"]["categoryLabel"], "Public Hall")
+        self.assertEqual(master["features"][0]["properties"]["amenity"], "public_hall")
+
+    def test_an_unknown_category_is_still_refused(self):
+        master = make_master()
+        changeset = {"add": [{"name": "Somewhere", "category": "nightclub", "lon": 0.057, "lat": 51.650}]}
+        with self.assertRaises(ValueError):
+            awc.apply_changeset(master, changeset, self.segments, self.ref_lat_rad)
+
+
+class FileRoutingTests(unittest.TestCase):
+    """With no master file to re-split from (the unattended path), each entry
+    has to be written to the split file it belongs in."""
+
+    def test_food_and_venues_go_to_different_files(self):
+        self.assertEqual(awc.file_for_category("cafe"), awc.FOOD_FILE)
+        self.assertEqual(awc.file_for_category("public_hall"), awc.MISC_FILE)
+
+    def test_a_removal_is_routed_to_whichever_file_holds_it(self):
+        datasets = {
+            awc.FOOD_FILE: {"features": [make_existing_feature("A Cafe")]},
+            awc.MISC_FILE: {"features": [make_existing_feature("Lopping Hall")]},
+        }
+        self.assertEqual(awc.file_holding({"name": "Lopping Hall"}, datasets), awc.MISC_FILE)
+        self.assertEqual(awc.file_holding({"name": "A Cafe"}, datasets), awc.FOOD_FILE)
+
+    def test_a_removal_matching_nothing_is_left_to_be_reported_as_skipped(self):
+        # It must not vanish quietly: a removal that matched nowhere is a
+        # finding somebody should look at.
+        datasets = {awc.FOOD_FILE: {"features": []}, awc.MISC_FILE: {"features": []}}
+        self.assertIsNone(awc.file_holding({"name": "Nowhere"}, datasets))
+        routed = awc.split_changeset_by_file({"remove": [{"name": "Nowhere"}]}, datasets)
+        self.assertEqual(len(routed[awc.FOOD_FILE]["remove"]), 1)
+
+    def test_additions_are_split_by_category(self):
+        datasets = {awc.FOOD_FILE: {"features": []}, awc.MISC_FILE: {"features": []}}
+        routed = awc.split_changeset_by_file({
+            "add": [
+                {"name": "A Cafe", "category": "cafe"},
+                {"name": "Lopping Hall", "category": "public_hall"},
+            ],
+        }, datasets)
+        self.assertEqual([e["name"] for e in routed[awc.FOOD_FILE]["add"]], ["A Cafe"])
+        self.assertEqual([e["name"] for e in routed[awc.MISC_FILE]["add"]], ["Lopping Hall"])
+
+
 if __name__ == "__main__":
     unittest.main()

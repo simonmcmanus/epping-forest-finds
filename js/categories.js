@@ -385,6 +385,16 @@ function landmarkIconSlug(place) {
   if (check(["camp_site", "caravan_site"])) return "landmark-campsite";
   if (check(["dry_cleaning"])) return "landmark-dry-cleaning";
   if (check(["taxi"])) return "landmark-taxi";
+  // The places a town uses that are not food: a village hall, a library, an
+  // arts centre. They only became something the map can carry when the weekly
+  // run learned to add them, and without a line here each one would draw as a
+  // bare emoji instead of a pin. Mapped onto icons the set already has rather
+  // than waiting on new artwork.
+  if (check(["theatre"])) return "theatre";
+  if (check(["cinema"])) return "film";
+  if (check(["arts_centre"])) return "art";
+  if (check(["library"])) return "literature";
+  if (check(["community_centre", "public_hall", "townhall", "social_centre", "events_venue"])) return "landmark-museum";
   return null;
 }
 

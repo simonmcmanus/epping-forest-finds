@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-09-14T05:46:48.490114Z",
+  "generatedAt": "2026-09-20T18:00:01.705243Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -4545,72 +4545,6 @@
     },
     {
       "type": "Feature",
-      "id": "node/6604378366",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.056709,
-          51.6486863
-        ]
-      },
-      "properties": {
-        "id": "node/6604378366",
-        "osmType": "node",
-        "osmId": 6604378366,
-        "name": "Wildwood",
-        "category": "restaurant",
-        "categoryLabel": "Restaurant",
-        "amenity": "restaurant",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": null,
-        "distanceToForestBoundaryMetres": 372.0,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "node/6604378370",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0564251,
-          51.6483697
-        ]
-      },
-      "properties": {
-        "id": "node/6604378370",
-        "osmType": "node",
-        "osmId": 6604378370,
-        "name": "Organico",
-        "category": "cafe",
-        "categoryLabel": "Caf\u00e9",
-        "amenity": "cafe",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": "261 High Road, Loughton IG10 1AH",
-        "distanceToForestBoundaryMetres": 409.0,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
       "id": "node/6604378372",
       "geometry": {
         "type": "Point",
@@ -5332,72 +5266,6 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 65.0,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "node/7168896391",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0548385,
-          51.6473555
-        ]
-      },
-      "properties": {
-        "id": "node/7168896391",
-        "osmType": "node",
-        "osmId": 7168896391,
-        "name": "Green\u2019s Steakhouse",
-        "category": "restaurant",
-        "categoryLabel": "Restaurant",
-        "amenity": "restaurant",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": null,
-        "distanceToForestBoundaryMetres": 465.1,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "node/7181510767",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0567544,
-          51.6487302
-        ]
-      },
-      "properties": {
-        "id": "node/7181510767",
-        "osmType": "node",
-        "osmId": 7181510767,
-        "name": "Loaded",
-        "category": "restaurant",
-        "categoryLabel": "Restaurant",
-        "amenity": "restaurant",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": null,
-        "distanceToForestBoundaryMetres": 366.8,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
@@ -10282,39 +10150,6 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 456.9,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "way/105606092",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0553606,
-          51.6473065
-        ]
-      },
-      "properties": {
-        "id": "way/105606092",
-        "osmType": "way",
-        "osmId": 105606092,
-        "name": "The Last Post",
-        "category": "pub",
-        "categoryLabel": "Pub",
-        "amenity": "pub",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": null,
-        "distanceToForestBoundaryMetres": 466.0,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
