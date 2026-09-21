@@ -17,6 +17,8 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("h1")).toContainText("The forest has no signal");
     await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
     await expect(page.locator("#signupForm")).toBeVisible();
+    await expect(page.locator("#find-trees")).toContainText("Search its tag number.");
+    await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
 
     await context.close();
   });
@@ -27,6 +29,43 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Every veteran tree in the register/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
+  });
+
+  test("explains finding a specific tree by its tag and treating its age as an estimate", async ({ page }) => {
+    await page.goto("/");
+    const trees = page.locator("#find-trees");
+    await expect(trees.getByRole("heading", { name: "Find the tree behind the tag" })).toBeVisible();
+    await expect(trees).toContainText("Search its tag number.");
+    await expect(trees).toContainText("Navigate to that tree.");
+    await expect(trees).toContainText("recorded girth and species");
+    await expect(trees).toContainText("not an exact birthday");
+  });
+
+  test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Be first to hear", exact: true }).click();
+    await expect(page.locator(".cta-note")).toContainText("Alpha invitations aren’t open yet");
+    await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
+    await expect(page.locator(".signup-intro")).toContainText("major updates");
+    await expect(page.getByRole("button", { name: "Keep me updated" })).toBeVisible();
+    await expect(page.locator(".consent")).toContainText("release, alpha invitations and major updates");
+    await expect(page.locator("#consent")).not.toBeChecked();
+  });
+
+  test("explains periodic network requests and stale offline cow positions in copy and search data", async ({ page }) => {
+    await page.goto("/");
+    const cattle = page.locator(".pillars article").filter({ hasText: "Follow the longhorns" });
+    await expect(cattle).toContainText("periodically makes a network request");
+    await expect(cattle).toContainText("last saved positions");
+    await expect(page.locator(".how").filter({ hasText: "How it works offline" })).toContainText("offline positions may be out of date");
+    const faqs = await page.locator('script[type="application/ld+json"]').textContent();
+    const questions = JSON.parse(faqs)["@graph"].find(item => item["@type"] === "FAQPage").mainEntity;
+    for (const name of ["Does it really work without a phone signal?", "How do you know where the cattle are?"]) {
+      const question = questions.find(item => item.name === name);
+      await expect(page.locator(".faq dd").filter({ hasText: question.acceptedAnswer.text })).toBeVisible();
+      expect(question.acceptedAnswer.text).toContain("last saved positions");
+    }
+    await expect(page.locator(".faq")).not.toContainText("makes no network requests");
   });
 
   test("uses the longhorn photograph as the accessible hero", async ({ page }) => {

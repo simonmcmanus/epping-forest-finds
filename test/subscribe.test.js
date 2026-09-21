@@ -53,6 +53,8 @@ test("a missing or unparseable render stamp does not block a real person", () =>
 });
 
 test("the consent wording is recorded so it survives later copy changes", () => {
-  assert.match(subscribe.CONSENT_WORDING, /invite/i);
-  assert.ok(subscribe.CONSENT_WORDING.length > 20);
+  assert.match(subscribe.CONSENT_WORDING, /alpha invitations/i);
+  assert.match(subscribe.CONSENT_WORDING, /release.*major updates/);
+  const html = require("node:fs").readFileSync(require("node:path").join(__dirname, "../index.html"), "utf8");
+  assert.ok(html.includes(`<span>${subscribe.CONSENT_WORDING}</span>`));
 });
