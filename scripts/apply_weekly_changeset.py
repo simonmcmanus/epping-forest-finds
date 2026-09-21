@@ -60,6 +60,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from scripts.place_matching import same_premises  # noqa: E402
 DATA = ROOT / "data"
 MASTER_FILE = DATA / "local-landmarks.geojson"
 FOREST_BOUNDARY_FILE = DATA / "epping-forest-land.geojson"
@@ -246,11 +249,22 @@ def apply_changeset(master, changeset, segments, ref_lat_rad):
         if filled:
             log["enriched"].append({"id": entry.get("id") or entry.get("name"), "name": entry.get("name"), "fields": filled})
 
-    existing_names_lower = {(f["properties"].get("name") or "").lower() for f in features}
     for entry in changeset.get("add", []):
-        name_lower = entry["name"].lower()
-        if name_lower in existing_names_lower:
-            log["skipped"].append({"op": "add", "entry": entry, "reason": "a feature with this name already exists - possible duplicate"})
+        # Matched on the name as typed AND as described, within a short walk
+        # -- not on an exact lowercased string, which is all this used to do.
+        # A run adding a hundred places a week meets both kinds of near-miss:
+        # "CHAPTER 21" arrived beside the mapped "Chapter21" 24 metres away
+        # and only a person spotted it. Distance-scoped rather than global, so
+        # a genuinely new branch of a chain across town is still addable --
+        # that was the other half of the same bug.
+        duplicate = next((f for f in features if same_premises(entry, f)), None)
+        if duplicate is not None:
+            log["skipped"].append({
+                "op": "add", "entry": entry,
+                "reason": "already on the map as "
+                          f"{(duplicate['properties'].get('name') or '?')!r} "
+                          f"({duplicate.get('id') or duplicate['properties'].get('id')}) - possible duplicate",
+            })
             continue
         feature = build_feature(entry, segments, ref_lat_rad)
         dist = feature["properties"]["distanceToForestBoundaryMetres"]
@@ -262,7 +276,6 @@ def apply_changeset(master, changeset, segments, ref_lat_rad):
             })
             continue
         features.append(feature)
-        existing_names_lower.add(name_lower)
         log["added"].append({"id": feature["id"], "name": feature["properties"]["name"], "category": feature["properties"]["category"]})
 
     return log

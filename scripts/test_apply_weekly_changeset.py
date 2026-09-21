@@ -117,6 +117,45 @@ class TestApplyChangeset(unittest.TestCase):
         self.assertEqual(len(log["skipped"]), 1)
         self.assertIn("duplicate", log["skipped"][0]["reason"])
 
+    def test_add_skips_a_name_typed_differently_on_the_same_corner(self):
+        # Real, and the reason the check is not an exact string compare:
+        # "CHAPTER 21" arrived 24 metres from the mapped "Chapter21" and only
+        # a person reading the week's summary spotted it.
+        master = make_master([make_existing_feature("Chapter21", lon=0.0570, lat=51.6520)])
+        changeset = {"add": [{"name": "CHAPTER 21", "category": "restaurant", "lon": 0.0572, "lat": 51.6520}]}
+        log = awc.apply_changeset(master, changeset, self.segments, self.ref_lat_rad)
+        self.assertEqual(len(master["features"]), 1)  # unchanged
+        self.assertEqual(log["added"], [])
+        self.assertIn("Chapter21", log["skipped"][0]["reason"])
+
+    def test_add_skips_a_name_described_differently_on_the_same_corner(self):
+        master = make_master([make_existing_feature("The Bell", lon=0.0570, lat=51.6520)])
+        changeset = {"add": [{"name": "The Bell Public House", "category": "pub", "lon": 0.0571, "lat": 51.6521}]}
+        log = awc.apply_changeset(master, changeset, self.segments, self.ref_lat_rad)
+        self.assertEqual(log["added"], [])
+        self.assertEqual(len(log["skipped"]), 1)
+
+    def test_add_allows_a_new_branch_of_a_chain_elsewhere(self):
+        # The other half of the same bug: matching on the name alone, anywhere
+        # on the map, kept a genuinely new branch off it forever.
+        master = make_master([make_existing_feature("Costa", lon=0.0510, lat=51.6460, category="cafe")])
+        changeset = {"add": [{"name": "Costa", "category": "cafe", "lon": 0.0640, "lat": 51.6540}]}
+        log = awc.apply_changeset(master, changeset, self.segments, self.ref_lat_rad)
+        self.assertEqual(len(log["added"]), 1)
+        self.assertEqual(log["skipped"], [])
+
+    def test_add_skips_a_duplicate_of_something_added_in_the_same_run(self):
+        # Two sources describing one new place in one week -- the register's
+        # spelling and OpenStreetMap's.
+        master = make_master()
+        changeset = {"add": [
+            {"name": "Bobo & Wild", "category": "cafe", "lon": 0.057, "lat": 51.652},
+            {"name": "Bobo and Wild", "category": "cafe", "lon": 0.0571, "lat": 51.6521},
+        ]}
+        log = awc.apply_changeset(master, changeset, self.segments, self.ref_lat_rad)
+        self.assertEqual(len(log["added"]), 1)
+        self.assertEqual(len(log["skipped"]), 1)
+
     def test_add_skips_point_far_outside_forest(self):
         master = make_master()
         # ~50km east - nowhere near the square boundary.

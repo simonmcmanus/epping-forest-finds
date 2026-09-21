@@ -49,6 +49,29 @@ def name_key(name):
     return " ".join(kept or words)
 
 
+def compact_name(name):
+    """A key that survives spacing and ampersands: "CHAPTER 21" and
+    "Chapter21" both become "chapter21", "Bobo & Wild" and "Bobo and Wild"
+    both become "boboandwild".
+
+    name_key() cannot do this. It splits on whitespace to drop the words that
+    describe a trade, so a space is meaningful to it and "chapter 21" stays
+    two tokens. Both keys are needed: this one catches a name typed
+    differently, that one catches a name described differently.
+    """
+    lowered = normalize_name(name).replace("&", " and ")
+    return re.sub(r"[^a-z0-9]", "", lowered)
+
+
+def names_look_like_one_place(a, b):
+    """Either kind of match. A weekly run adding a hundred places a week meets
+    both: "CHAPTER 21" beside the mapped "Chapter21" (spacing), and "Bell Inn"
+    beside "The Bell" (wording)."""
+    if not (normalize_name(a) and normalize_name(b)):
+        return False
+    return name_key(a) == name_key(b) or compact_name(a) == compact_name(b)
+
+
 def metres_between(a, b):
     """Equirectangular approximation. Over the few hundred metres this is ever
     asked about it is indistinguishable from the real thing, and it keeps the
@@ -68,6 +91,23 @@ def feature_lonlat(feature):
     if geometry.get("type") == "Point" and coords and len(coords) >= 2:
         return float(coords[0]), float(coords[1])
     return None
+
+
+def same_premises(record, feature, radius_m=NAME_MATCH_RADIUS_M):
+    """Is this record the same place as one the map already has -- allowing
+    for a name typed or described differently, and only within `radius_m`?
+
+    Used before adding, where the question is "have we got this already?"
+    rather than "which source record matches which pin". Without coordinates
+    on both sides the name has to carry it alone.
+    """
+    existing = (feature.get("properties") or {}).get("name")
+    if not names_look_like_one_place(record.get("name"), existing):
+        return False
+    here = feature_lonlat(feature)
+    if here is None or record.get("lon") is None or record.get("lat") is None:
+        return True
+    return metres_between((record["lon"], record["lat"]), here) <= radius_m
 
 
 def same_place(record, feature, radius_m=NAME_MATCH_RADIUS_M, fuzzy=False):
