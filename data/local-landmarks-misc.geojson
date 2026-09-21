@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-06-08T20:43:14.611464Z",
+  "generatedAt": "2026-09-21T07:52:30.246834Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -1900,6 +1900,40 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 268.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/lopping-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0535959,
+          51.6454784
+        ]
+      },
+      "properties": {
+        "id": "manual/lopping-hall",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Lopping Hall",
+        "category": "public_hall",
+        "categoryLabel": "Public Hall",
+        "amenity": "public_hall",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.loppinghall.org.uk/",
+        "phone": null,
+        "address": "189 High Road, Loughton, Essex, IG10 4LF",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 51.3,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
