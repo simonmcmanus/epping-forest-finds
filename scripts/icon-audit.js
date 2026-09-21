@@ -139,7 +139,7 @@ function listIconFiles(root, dir = ICON_DIR) {
 const REFERENCE_FILES = [
   "sw.js", "manifest.webmanifest", "index.html", "app.html", "admin.html", "terms.html",
 ];
-const REFERENCE_DIRS = ["css", "js", "scripts"];
+const REFERENCE_DIRS = ["css", "js", "scripts", "assets/home"];
 
 function collectReferenceText(root) {
   const parts = [];

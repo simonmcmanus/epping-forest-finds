@@ -24,8 +24,19 @@ Before finishing any implementation task:
 - Map changed files to the relevant `spec/` document.
 - Update the spec or explicitly document why the change is implementation-only.
 
+## Marketing and app ownership
+
+- **ChatGPT owns marketing:** `index.html`, `assets/home/**`, `netlify/functions/subscribe.js`, `scripts/count-datasets.js`, `scripts/generate-sitemap.js`, `spec/spec-marketing.md`, `test/home-*.test.js`, `test/subscribe.test.js`, `test/sitemap.test.js`, and `test/e2e/18-homepage.spec.js`.
+- **Claude owns the app:** `app.html`, `js/**`, `css/**`, `data/**`, `sw.js`, `manifest.webmanifest`, native wrappers, and app specs/tests. Marketing must not import app CSS/JS or reference app icons at runtime; small brand assets are independent copies in `assets/home/`.
+- Marketing copy changes do not require edits to app metadata, onboarding or the manifest. Propose cross-surface wording changes to the app owner, who applies them in a separate app change.
+- Shared integration files (`netlify.toml`, `server.js`, `package*.json`, `playwright.config.js`, `.github/**`, and these instructions) require coordination when both agents are active. Reports and terms are separate surfaces: coordinate changes with their current owner rather than changing their generators as part of a homepage edit.
+- For simultaneous browser tests, choose separate local ports with `PLAYWRIGHT_BASE_URL=http://localhost:8081 npm run test:e2e` (and a different port for the other worktree). Playwright starts that worktree's server and refuses to reuse an existing server, so it cannot silently test the other agent's checkout.
+- Each agent uses its own branch and worktree based on current `origin/main`. Do not edit or push the other agent's branch. Keep routine marketing changes within marketing-owned files, and routine app changes within app-owned files.
+- `/`, `/app`, `/reports/`, `/terms.html`, and `/api/subscribe` are the integration contract. Dataset counts are a read-only marketing dependency: when data changes, coordinate the homepage count update with ChatGPT; do not silently rewrite marketing copy.
+- `assets/home/**` is outside the app cache and the app-release workflow's watched paths. After this boundary change, marketing-only edits need no app cache/version edit; app changes retain the cache-release rules below.
+
 ## Project Structure
-- `index.html` — the public marketing homepage at `/`. Static content, its own `css/home.css`, no app code
+- `index.html` — the public marketing homepage at `/`. Static content, its own `assets/home/` styles, scripts and images, no app code
 - `app.html` — the map application, served at `/app`. Markup only: head tags, DOM skeleton, and the `<script src>` list. No logic, no inline `<script>` body
 - `netlify/edge-functions/alpha-gate.js` — closed alpha gate on `/app` (see `spec/spec-alpha-access.md`)
 - `netlify/functions/subscribe.js` — mailing-list sign-up endpoint for the homepage

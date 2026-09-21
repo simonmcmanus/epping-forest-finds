@@ -58,6 +58,24 @@ test.describe("the marketing homepage", () => {
     expect(manifest).toBe(0);
   });
 
+  test("loads its own assets without fetching app code, icons or data", async ({ page }) => {
+    const requests = [];
+    page.on("request", request => requests.push(new URL(request.url()).pathname));
+    await page.goto("/");
+
+    const localAssets = await page.locator('script[src], link[rel="stylesheet"], link[rel="icon"], img').evaluateAll(
+      elements => elements.map(el => el.src || el.href)
+        .filter(url => new URL(url).origin === location.origin)
+    );
+    expect(localAssets.length).toBeGreaterThan(0);
+    for (const url of localAssets) {
+      expect(new URL(url).pathname).toMatch(/^\/assets\/home\//);
+    }
+    await expect(page.locator(".hero-photo img")).toBeVisible();
+    await expect.poll(() => page.locator("img").evaluateAll(images => images.every(img => img.complete && img.naturalWidth > 0))).toBe(true);
+    expect(requests.filter(path => /^\/(js|css|data)\//.test(path))).toEqual([]);
+  });
+
   test("points search engines at itself and links onward to the app and the ledger", async ({ page }) => {
     await page.goto("/");
 

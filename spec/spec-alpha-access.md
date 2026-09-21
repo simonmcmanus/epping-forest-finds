@@ -75,6 +75,9 @@ directory would collapse that scope to `/app/` and the app would stop working
 offline entirely — which is the product.
 
 `/app` is therefore a URL, produced by a rewrite, not a folder.
+The root-scoped service worker must bypass all `/assets/home/` requests before
+its cache handling, so returning app users receive independently deployed
+marketing assets without an app release.
 
 `manifest.webmanifest`'s `start_url` moves to `/app` so an installed app opens
 the map rather than the marketing homepage. `scope` stays at the root, which is

@@ -32,10 +32,6 @@ test.describe("URL navigation", () => {
   });
 
   test.describe("hash #tree=<key>", () => {
-    // #treeSearchToggle is hidden at desktop widths (display:none at ≥761px).
-    // Use mobile viewport so tree search is accessible for the history test.
-    test.use({ viewport: { width: 390, height: 844 } });
-
     test("navigating with a tree hash selects that tree", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
@@ -57,21 +53,20 @@ test.describe("URL navigation", () => {
       await setup(page);
       const historyBefore = await page.evaluate(() => window.history.length);
 
-      // Select tree via search.
-      // #inspectorBody overlaps .bottom-search on mobile; dispatch click via JS to bypass hitTest.
-      await page.evaluate(() =>
-        document.getElementById("treeSearchToggle").dispatchEvent(
-          new MouseEvent("click", { bubbles: true, cancelable: true })
-        )
-      );
-      // After toggle, #treeSearchInput and #treeSearchButton are in inspector-tools (not covered)
-      await page.fill("#treeSearchInput", FIXTURE_TREE.tagNumber);
-      await page.click("#treeSearchButton");
+      // Select the tree from the search screen. Search is a screen in its own right, so the
+      // trail is Nearby → Search → tree and back retraces it one screen at a time.
+      await page.click("#searchToggle");
+      await expect(page).toHaveURL(/#search$/);
+      await page.fill("#mapSearchInput", FIXTURE_TREE.tagNumber);
+      await page.locator("#mapSearchResults .nearest-item").first().click();
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
 
-      // The screen change is a navigation, so back has somewhere to go.
+      // Each screen change is a navigation, so back has somewhere to go.
       const historyAfter = await page.evaluate(() => window.history.length);
-      expect(historyAfter).toBe(historyBefore + 1);
+      expect(historyAfter).toBe(historyBefore + 2);
+
+      await page.goBack();
+      await expect(page).toHaveURL(/#search$/);
 
       await page.goBack();
       await page.waitForFunction(

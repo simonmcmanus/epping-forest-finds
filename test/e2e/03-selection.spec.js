@@ -80,38 +80,17 @@ test.describe("Selection and Inspector", () => {
     });
   });
 
-  test.describe("tree search panel", () => {
-    // #treeSearchToggle lives in .bottom-search which is display:none at min-width 761px.
-    // Override to a mobile viewport so the toggle is visible.
-    test.use({ viewport: { width: 390, height: 844 } });
-
+  test.describe("tree search", () => {
+    // The search screen itself is covered by 19-search.spec.js; this is the selection it
+    // produces, alongside the other ways a tree gets selected.
     test.beforeEach(async ({ page }) => {
       await setup(page);
     });
 
-    test("tree search toggle reveals the search input", async ({ page }) => {
-      await expect(page.locator("#treeSearchPanel")).toBeHidden();
-      // #inspectorBody overlaps .bottom-search on mobile (same z-index, inspector is later in DOM).
-      // Playwright force:true still clicks at coordinates so #inspectorBody intercepts.
-      // Dispatch the click event directly to the toggle via JS to bypass the visual hitTest.
-      await page.evaluate(() =>
-        document.getElementById("treeSearchToggle").dispatchEvent(
-          new MouseEvent("click", { bubbles: true, cancelable: true })
-        )
-      );
-      await expect(page.locator("#treeSearchPanel")).toBeVisible();
-    });
-
     test("searching by tree number selects the correct tree", async ({ page }) => {
-      // Open the panel via JS dispatch (see comment in toggle test above)
-      await page.evaluate(() =>
-        document.getElementById("treeSearchToggle").dispatchEvent(
-          new MouseEvent("click", { bubbles: true, cancelable: true })
-        )
-      );
-      // After toggle, #treeSearchPanel is inside inspector-tools (top of inspector, not covered)
-      await page.fill("#treeSearchInput", FIXTURE_TREE.tagNumber);
-      await page.click("#treeSearchButton");
+      await page.click("#searchToggle");
+      await page.fill("#mapSearchInput", FIXTURE_TREE.tagNumber);
+      await page.locator("#mapSearchResults .nearest-item").first().click();
       // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
       await page.waitForFunction(
         (name) => document.getElementById("inspectorTitle")?.textContent?.includes(name),

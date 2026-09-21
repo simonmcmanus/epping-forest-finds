@@ -4,12 +4,11 @@ Owns the words and the public-facing surfaces of Epping Forest Finds: the
 positioning, the approved phrase bank, the marketing homepage at `/`, the
 mailing-list sign-up, the social sharing assets, and the hero image.
 
-This spec is the **single source of truth for product copy**. The meta tags in
-`app.html`, `manifest.webmanifest`'s `description`, the weekly ledger report
-footers, the onboarding welcome step and (later) the app store listings in
-[spec-native.md](spec-native.md) all quote from the phrase bank in
-§3 rather than inventing their own wording. When a phrase changes here, those
-surfaces change with it.
+ChatGPT owns this spec and the marketing surfaces. Claude owns app copy,
+metadata, onboarding and the manifest. The phrase bank is a reference for
+consistent wording, not a shared runtime dependency: changing marketing copy
+does not require editing app files. Cross-surface wording changes are handed
+to the app owner for a separate change. See `spec/agents.md` for file ownership.
 
 It does **not** own the alpha access gate — who may reach `/app`, how the
 shared secret link works, or the edge function that enforces it. That belongs
@@ -66,8 +65,8 @@ unduplicable. Lead with them in social copy. The offline capability is the
 
 ## 3. Phrase bank
 
-These are the approved phrases. Other surfaces quote them; they are not
-rewritten per-surface.
+These are the approved marketing phrases. Other surface owners may adopt them
+independently; marketing changes do not automatically change those surfaces.
 
 ### 3.1 Hero headline
 
@@ -188,7 +187,7 @@ Sections, in order:
 1. **Hero** — the line-art longhorn (§7) as background, headline (§3.1),
    sub-line (§3.2), and the primary CTA element (§8).
 2. **The three pillars** — offline, veteran trees, cattle (§3.4), each with its
-   matching app icon from `data/icons/`.
+   independent brand icon copy from `assets/home/`.
 3. **What's on the map** — the counts block (§3.4 fourth item, §4).
 4. **How it works offline** — three steps: open it once on signal, it
    downloads, it then works anywhere in the forest. This section exists to
@@ -210,6 +209,15 @@ Sections, in order:
    address `mcmanus.simon@gmail.com`.
 
 ### 5.1 Page weight and assets
+
+- Homepage CSS, JavaScript and images live together in `assets/home/`.
+  `index.html` references only that directory for local runtime assets. Brand
+  icons are independent copies, so app icon changes cannot change the homepage.
+- The root-scoped app service worker passes `assets/home/` requests directly
+  to the browser without reading or writing app/data caches, including for
+  returning app users. Marketing releases therefore need no app cache bump.
+- Dataset counts remain a read-only checked dependency. Data changes that alter
+  counts require a coordinated marketing update, not imports of app code.
 
 - The homepage must **not** load `css/base.css` or any other app stylesheet.
   It gets its own small stylesheet that redeclares only the brand tokens it
@@ -445,6 +453,12 @@ Per the project's completion checklist:
 
 - **Unit** — email validation, the consent record shape, and the build-time
   counts step (including that it fails rather than emitting a blank count).
+- **Boundary checks** — `test/home-boundaries.test.js` verifies that marketing
+  assets bypass app caches and the app entry point does not import marketing
+  assets. Homepage browser tests verify local assets load only from
+  `assets/home/`, with no requests for app code or data, on desktop and mobile.
+  Parallel worktrees select different local ports via `PLAYWRIGHT_BASE_URL`;
+  each test run starts its own server and refuses an already occupied port.
 - **E2E** — a spec covering: the homepage renders its copy with JavaScript
   disabled; the sign-up form shows the "check your inbox" state on success;
   the honeypot rejects silently; the CTA reflects the alpha state.

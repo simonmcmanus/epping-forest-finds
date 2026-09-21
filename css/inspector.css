@@ -283,7 +283,8 @@ button.filter-toggle {
   padding: 0 8px;
 }
 
-button.report-toggle {
+button.report-toggle,
+button.search-screen-toggle {
   width: calc(36px * var(--icon-scale));
   min-width: calc(36px * var(--icon-scale));
   padding: 0;
@@ -324,6 +325,48 @@ button.settings-toggle.active {
   border-color: var(--tree);
   color: #fff;
   box-shadow: 0 10px 20px rgba(20, 36, 28, 0.2);
+}
+
+/* Search screen. The query field is rendered once when the screen opens and only
+   #mapSearchResults is re-rendered per keystroke, so the input keeps focus and the caret
+   while results change underneath it (openSearchScreen/renderSearchResults, js/app.js). */
+.search-screen {
+  display: grid;
+  gap: 10px;
+}
+
+.search-field {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.search-field .search-number {
+  width: 100%;
+  padding-right: 40px;
+}
+
+.search-clear {
+  position: absolute;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: background 120ms ease;
+}
+
+.search-clear:hover {
+  background: #eef2ed;
+}
+
+.search-results .nearest-list {
+  margin-top: 0;
 }
 
 .settings-form {
