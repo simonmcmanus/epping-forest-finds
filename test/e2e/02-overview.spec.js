@@ -101,6 +101,11 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#reportToggle")).toBeVisible();
   });
 
+  test("nav buttons read left to right: nearby, filters, search, feedback, settings", async ({ page }) => {
+    const ids = await page.locator(".inspector-actions button").evaluateAll((els) => els.map((el) => el.id));
+    expect(ids).toEqual(["nearbyToggle", "filterToggle", "searchToggle", "reportToggle", "settingsToggle"]);
+  });
+
   test("snapshot: overview state", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.waitForTimeout(400);
