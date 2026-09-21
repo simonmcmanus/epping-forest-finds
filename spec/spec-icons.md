@@ -237,6 +237,28 @@ A single field maple leaf with five compact lobes
 
 tree-ash
 A single ash compound leaf with paired leaflets
+## Auditing what the map actually draws
+
+`js/renderer.js` picks a pin by working down a fixed order — the food and
+transport special cases, then `PLACE_FILTER_PRIORITY` via `matchesPlaceFilter`,
+then `landmarkIconSlug` — and when nothing matches it falls back to drawing a
+plain emoji glyph in a badge. That fallback is silent: nothing errors, a pin
+appears, and only a person looking at the map notices the artwork is not the
+product's own.
+
+`node scripts/icon-audit.js` names every place that falls through, grouped by
+category with examples, by loading the app's real rules from `js/categories.js`
+the way `scripts/report/map-inventory.js` does. It also reports three ways the
+icon set and the rules drift apart: filter keys `matchesPlaceFilter` can never
+return true for (their icon is unreachable and the places they were meant to
+cover fall through), registry entries with no file behind them, and icon files
+nothing refers to. `--json` gives the same result as data.
+
+The resolution order in `icon-audit.js` restates `drawLandmarks()` rather than
+calling it, because the real function needs a canvas and live app state. If the
+renderer's order changes, the audit has to change with it or it stops
+describing the real map.
+
 ## Generated app icon assets
 
 `scripts/generate-app-icon.py` composites `trees/oak.png` — the English oak

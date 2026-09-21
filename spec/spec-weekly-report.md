@@ -6,6 +6,80 @@ generator owns the design, layout, SVG map and every number on the page; the
 research and the written findings come from the weekly workflow
 (`.github/workflows/weekly-ledger.yml`).
 
+## Keeping the map's businesses current
+
+The report is only half the weekly job. The other half is noticing that the
+high street has changed and putting that on the map, by pull request, without
+anyone asking.
+
+That half used to consist of a list of candidates and an instruction to
+"cross-check anything promising", which meant nothing was ever confident
+enough to act on: a restaurant that closed in 2024 and a pub that closed in
+2023 were both still drawn on the map two years later. The detection now has
+memory and an outcome.
+
+**The sources.** Two, deliberately unalike, so neither's blind spot is the
+system's:
+
+- `scripts/osm_business_diff.py` — OpenStreetMap. Reports four things: places
+  new to it, our places it no longer lists, our places it marks closed
+  outright (`disused:`/`was:`/vacant tags — a mapper stating a fact rather
+  than a silence), and our places now trading under a different name or type.
+  That last signal is the one that matters most and the one nothing used to
+  catch: when a unit changes hands the map element is *edited in place*, so
+  the site looks neither missing nor new. Covers food, shops, and community
+  venues (halls, libraries, arts centres), which were previously out of scope
+  entirely.
+- `scripts/fsa_business_diff.py` — the councils' food-hygiene register.
+  Openings only, never removals: the register holds the name a business
+  registered under rather than the name over the door, so "absent from the
+  register" is far more often a naming difference than a closure, and that
+  mistake would repeat weekly and so clear any patience threshold. It knows
+  about places that are trading but unmapped, because registering precedes
+  trading.
+
+Name matching is proximity-scoped (`scripts/place_matching.py`): the same name
+only counts as the same business within a few hundred metres. Matching on name
+alone across the whole search area meant a new branch of a chain was treated as
+one the map already had.
+
+**The memory.** `scripts/business_watch.py` and `data/business-watch.json`
+record what each source said each week. A signal escalates to *confident* only
+once it has repeated: three runs for "absent from a source", two for an
+opening or a change of hands, and one for a stated closure, which needs no
+patience. Confident entries are written out as a changeset that
+`scripts/apply_weekly_changeset.py` applies mechanically, so the week's run
+produces a reviewable diff rather than a paragraph.
+
+Guard rails, because this runs unattended:
+
+- A run whose source population has collapsed against last week's is treated
+  as a bad query and escalates nothing.
+- No single run may remove more than `MAX_AUTO_REMOVALS` places; over that,
+  every removal is held back for a person.
+- A signal that stops appearing is forgotten rather than banked, so an
+  intermittent source can never accumulate its way to confidence.
+- Setting `"dismissed": true` on an entry by hand parks it permanently. This
+  is the only way to stop a false positive being re-proposed every week, and
+  it is how the closures confirmed on foot in September 2026 are kept from
+  being re-added by a source that has not caught up.
+
+**Places a person reported.** `data/business-watch.json`'s `reportedMissing`
+list is for gaps somebody spotted by walking past them — better evidence than
+anything the tooling produces on its own, and previously with nowhere to live
+between the message and the next run. Each entry is a standing instruction:
+the weekly run looks the place up, adds it, and deletes the entry in the same
+commit, or says in the pull request why it could not. It carries no run count
+and is never escalated or cleared automatically.
+
+**Homepage counts.** The marketing homepage quotes how many food places the
+map has, and `test/home-counts.test.js` holds the page to the real data. A
+weekly data change therefore breaks that test unless the copy moves with it —
+which is why every proposed data change arrived with a red suite on it.
+`scripts/sync-homepage-counts.js` rewrites those figures in `index.html` and
+`spec-marketing.md` from the datasets; the weekly run calls it straight after
+applying a changeset. See `spec-marketing.md` §4.
+
 ## Files
 
 - `scripts/report/render_report.py` — entry point; renders the page
@@ -16,6 +90,19 @@ research and the written findings come from the weekly workflow
 - `scripts/report/jargon_guard.py` — refuses to write a report containing developer jargon
 - `scripts/report/map-inventory.js` — counts everything on the map (see below)
 - `scripts/test_render_report.py` — unit tests
+
+Business detection (see "Keeping the map's businesses current" above):
+
+- `scripts/osm_business_diff.py` — OpenStreetMap change detection
+- `scripts/fsa_business_diff.py` — food-hygiene register cross-check
+- `scripts/business_watch.py` — the week-to-week ledger and escalation rules
+- `scripts/place_matching.py` — shared name/proximity matching
+- `scripts/apply_weekly_changeset.py` — applies a changeset to the map data
+- `scripts/sync-homepage-counts.js` — keeps the homepage's quoted counts true
+- `data/business-watch.json` — the committed watchlist
+- `scripts/test_osm_business_diff.py`, `test_fsa_business_diff.py`,
+  `test_business_watch.py`, `test_place_matching.py`,
+  `test_apply_weekly_changeset.py` — unit tests
 
 ## Who the report is for
 

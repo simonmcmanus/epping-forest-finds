@@ -1,0 +1,103 @@
+{
+  "entries": {
+    "node/6604378366": {
+      "confident": false,
+      "detail": {
+        "name": "Wildwood"
+      },
+      "dismissed": true,
+      "dismissedReason": "Loughton branch closed in 2024; the Epping branch is a separate point and stays. Removed from the map by hand; parked so an automatic check cannot put it back.",
+      "firstSeen": "2026-09-20",
+      "lastSeen": "2026-09-20",
+      "name": "Wildwood",
+      "runs": 1,
+      "signal": "closed",
+      "source": "manual"
+    },
+    "node/6604378370": {
+      "confident": false,
+      "detail": {
+        "name": "Organico"
+      },
+      "dismissed": true,
+      "dismissedReason": "Closed. Checked on the ground at 261 High Road, Loughton, September 2026. Removed from the map by hand; parked so an automatic check cannot put it back.",
+      "firstSeen": "2026-09-20",
+      "lastSeen": "2026-09-20",
+      "name": "Organico",
+      "runs": 1,
+      "signal": "closed",
+      "source": "manual"
+    },
+    "node/7168896391": {
+      "confident": false,
+      "detail": {
+        "name": "Green\u2019s Steakhouse"
+      },
+      "dismissed": true,
+      "dismissedReason": "Closed. Checked on the ground in Loughton, September 2026. Removed from the map by hand; parked so an automatic check cannot put it back.",
+      "firstSeen": "2026-09-20",
+      "lastSeen": "2026-09-20",
+      "name": "Green\u2019s Steakhouse",
+      "runs": 1,
+      "signal": "closed",
+      "source": "manual"
+    },
+    "node/7181510767": {
+      "confident": false,
+      "detail": {
+        "name": "Loaded"
+      },
+      "dismissed": true,
+      "dismissedReason": "Closed. Checked on the ground in Loughton, September 2026. Removed from the map by hand; parked so an automatic check cannot put it back.",
+      "firstSeen": "2026-09-20",
+      "lastSeen": "2026-09-20",
+      "name": "Loaded",
+      "runs": 1,
+      "signal": "closed",
+      "source": "manual"
+    },
+    "way/105606092": {
+      "confident": false,
+      "detail": {
+        "name": "The Last Post"
+      },
+      "dismissed": true,
+      "dismissedReason": "Closed. Wetherspoon disposed of the pub in May 2023. Removed from the map by hand; parked so an automatic check cannot put it back.",
+      "firstSeen": "2026-09-20",
+      "lastSeen": "2026-09-20",
+      "name": "The Last Post",
+      "runs": 1,
+      "signal": "closed",
+      "source": "manual"
+    }
+  },
+  "note": "The weekly business watchlist. Entries are written by the weekly run (scripts/osm_business_diff.py, scripts/fsa_business_diff.py) and escalate to confident once a signal has repeated -- see scripts/business_watch.py. Set \"dismissed\": true on an entry by hand to park it: the run will leave it alone and never propose it again.",
+  "reportedMissing": [
+    {
+      "name": "Wimpy",
+      "note": "Reported missing from the map by someone walking Loughton High Road.",
+      "reportedOn": "2026-09-20",
+      "settlement": "Loughton"
+    },
+    {
+      "name": "Lopping Hall",
+      "note": "Loughton's own public hall. Community venues were outside the map's source query until Sep 2026, so it was never there to miss. Category: public_hall.",
+      "reportedOn": "2026-09-20",
+      "settlement": "Loughton"
+    },
+    {
+      "name": "Chapter 21",
+      "note": "Cafe at 206 High Road, Loughton IG10 1DZ; registered with Epping Forest District Council. Address from the food-hygiene register; coordinates still to be looked up.",
+      "reportedOn": "2026-09-20",
+      "settlement": "Loughton"
+    },
+    {
+      "name": "Fable",
+      "note": "Reported missing from the map by someone walking Loughton. Address and coordinates still to be looked up.",
+      "reportedOn": "2026-09-20",
+      "settlement": "Loughton"
+    }
+  ],
+  "updatedAt": "2026-09-20",
+  "version": 1
+}
