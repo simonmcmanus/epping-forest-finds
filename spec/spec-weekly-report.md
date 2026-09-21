@@ -31,8 +31,12 @@ system's:
   not a name, a category and a position — but the run must resolve each one
   and say what it did. A fixed report's PR body says `Closes #<number>`, so
   merging tells the reporter their report landed; that is what keeps people
-  reporting. Requires `Issues: Read` on the workflow's token; without it the
-  run finds nothing and a quiet week looks identical to a broken one.
+  reporting. While the repository is public its issues read without a token at
+  all, so `Issues: Read` is not strictly required — but grant it anyway:
+  unauthenticated requests are rate limited per IP, a runner's IP is shared,
+  and it becomes mandatory the day the repository goes private. A token that
+  cannot see issues gets a loud 403 rather than an empty list, because
+  "not allowed to look" must never pass for "nothing to report".
 
 - `scripts/osm_business_diff.py` — OpenStreetMap. Reports four things: places
   new to it, our places it no longer lists, our places it marks closed

@@ -27,9 +27,13 @@ Usage:
     python3 scripts/user_reports.py [--ledger PATH] [--out PATH]
                                     [--repo owner/name] [--no-record]
 
-Network: the GitHub REST API, authenticated with GITHUB_TOKEN or GH_TOKEN
-(the weekly workflow already has one). Parsing takes plain Python data and
-has no network dependency -- see scripts/test_user_reports.py.
+Network: the GitHub REST API. This repository is public, so its issues read
+without a token at all; GITHUB_TOKEN or GH_TOKEN is used when present, and is
+worth having anyway because unauthenticated requests are rate limited per IP
+and an Actions runner's IP is shared. A token that cannot see issues gets a
+403 rather than an empty list, and that is reported loudly -- "not allowed to
+look" must never pass for "nothing to report". Parsing takes plain Python
+data and has no network dependency -- see scripts/test_user_reports.py.
 """
 import argparse
 import json
@@ -70,6 +74,10 @@ def _auth_headers():
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
+
+
+def is_authenticated():
+    return bool(os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN"))
 
 
 def fetch_open_reports(repo=DEFAULT_REPO, timeout=REQUEST_TIMEOUT_S):
@@ -143,6 +151,22 @@ def main():
 
     try:
         issues = fetch_open_reports(args.repo)
+    except urllib.error.HTTPError as exc:
+        # Told apart from a network failure on purpose. A token that cannot
+        # see issues is the one failure that could otherwise pass for a quiet
+        # week, because "no reports" and "not allowed to look" produce the
+        # same empty list everywhere downstream.
+        if exc.code in (401, 403, 404):
+            print(
+                f"The reports could not be read: GitHub answered {exc.code}. The token this "
+                "run has cannot see this repository's issues -- it needs Issues: Read. Until "
+                "that is fixed this check finds nothing, which is NOT the same as there being "
+                "nothing, and the pull request must say so rather than reporting a quiet week.",
+                file=sys.stderr,
+            )
+        else:
+            print(f"Could not read the reports people have sent (HTTP {exc.code}).", file=sys.stderr)
+        sys.exit(2)
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         print(
             f"Could not read the reports people have sent ({exc}). Everything else in this "
@@ -155,6 +179,11 @@ def main():
     reports = [parse_report(i) for i in issues if is_map_data_report(i)]
     result = {
         "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        # Recorded so a zero is never ambiguous. This repository is public, so
+        # its issues read fine without a token -- but unauthenticated requests
+        # are rate limited per IP, which on a shared Actions runner is a real
+        # way to get an empty list that means nothing of the sort.
+        "authenticated": is_authenticated(),
         "open_reports": reports,
         "with_location": sum(1 for r in reports if r.get("lat") is not None),
     }
