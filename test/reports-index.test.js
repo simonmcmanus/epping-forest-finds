@@ -10,8 +10,6 @@ const http = require("node:http");
 const {
   listReportFiles,
   buildIndexHtml,
-  formatBytes,
-  labelForFile,
   titleForFile,
   escapeHtml,
   generate,
@@ -84,26 +82,6 @@ test("listReportFiles breaks ties on identical mtimes by filename so ordering is
   assert.deepEqual(files.map((f) => f.name), ["a-report.html", "b-report.html"]);
 });
 
-test("formatBytes renders human-readable sizes", () => {
-  assert.equal(formatBytes(0), "0 B");
-  assert.equal(formatBytes(500), "500 B");
-  assert.equal(formatBytes(1024), "1.0 KB");
-  assert.equal(formatBytes(1536), "1.5 KB");
-  assert.equal(formatBytes(5 * 1024 * 1024), "5.0 MB");
-});
-
-test("formatBytes handles invalid input without throwing", () => {
-  assert.equal(formatBytes(NaN), "—");
-  assert.equal(formatBytes(-5), "—");
-});
-
-test("labelForFile maps known extensions and falls back sensibly", () => {
-  assert.equal(labelForFile("ledger.html"), "HTML");
-  assert.equal(labelForFile("data-report.md"), "Markdown");
-  assert.equal(labelForFile("summary.pdf"), "PDF");
-  assert.equal(labelForFile("no-extension"), "FILE");
-});
-
 test("escapeHtml neutralizes markup so a report filename can never inject HTML", () => {
   assert.equal(
     escapeHtml(`<img src=x onerror=alert(1)>&"'`),
@@ -111,14 +89,37 @@ test("escapeHtml neutralizes markup so a report filename can never inject HTML",
   );
 });
 
-test("buildIndexHtml renders a link, type, and name for every file", () => {
+test("buildIndexHtml renders a link and the week it covers for every file", () => {
   const html = buildIndexHtml([
     { name: "epping-forest-ledger-2026-09-03.html", size: 2048, mtimeMs: Date.parse("2026-09-03") },
   ]);
   assert.match(html, /href="\.\/epping-forest-ledger-2026-09-03\.html"/);
-  assert.match(html, /epping-forest-ledger-2026-09-03\.html/);
-  assert.match(html, />HTML</);
+  assert.match(html, /class="report-name">3 September 2026</);
   assert.doesNotMatch(html, /<ul class="report-list"><\/ul>/);
+});
+
+test("the newest edition is listed first, by the week in its name rather than its file time", () => {
+  // A fresh checkout stamps every file with the same mtime.
+  const sameTime = Date.parse("2026-09-22T10:00:00Z");
+  const html = buildIndexHtml([
+    { name: "epping-forest-ledger-2026-09-03.html", size: 1, mtimeMs: sameTime },
+    { name: "epping-forest-ledger-2026-09-21.html", size: 1, mtimeMs: sameTime },
+    { name: "epping-forest-ledger-2026-09-14.html", size: 1, mtimeMs: sameTime },
+  ]);
+  const order = [...html.matchAll(/class="report-name">([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(order, ["21 September 2026", "14 September 2026", "3 September 2026"]);
+  assert.equal((html.match(/class="report-latest"/g) || []).length, 1);
+  assert.ok(html.indexOf("report-latest") < html.indexOf("14 September 2026"));
+});
+
+test("the listing wears the homepage's look: brand header, green hero and card list", () => {
+  const html = buildIndexHtml([{ name: "epping-forest-ledger-2026-09-14.html", size: 1, mtimeMs: 0 }]);
+  assert.match(html, /<a class="brand" href="\/">/);
+  assert.match(html, /src="\/assets\/home\/map-icons\/oak\.png"/);
+  assert.match(html, /src="\/assets\/home\/ledger\.svg"/);
+  assert.match(html, /--tree-deep: #1d4a2f/);
+  assert.doesNotMatch(html, /\/(js|css)\//, "never loads the app's code or styles");
+  assert.match(html, /href="\/#signup"/);
 });
 
 test("buildIndexHtml escapes filenames so an untrusted/odd name cannot break the page", () => {

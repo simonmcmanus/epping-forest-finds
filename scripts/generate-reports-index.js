@@ -62,25 +62,6 @@ function listReportFiles(reportsDir) {
     .sort((a, b) => b.mtimeMs - a.mtimeMs || a.name.localeCompare(b.name));
 }
 
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes) || bytes < 0) return "—";
-  if (bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const value = bytes / 1024 ** exponent;
-  const precision = exponent === 0 ? 0 : 1;
-  return `${value.toFixed(precision)} ${units[exponent]}`;
-}
-
-function formatDate(mtimeMs) {
-  return new Date(mtimeMs).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -88,16 +69,6 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function labelForFile(name) {
-  const ext = path.extname(name).toLowerCase();
-  if (ext === ".html" || ext === ".htm") return "HTML";
-  if (ext === ".md") return "Markdown";
-  if (ext === ".pdf") return "PDF";
-  if (ext === ".csv") return "CSV";
-  if (ext === ".json") return "JSON";
-  return ext ? ext.slice(1).toUpperCase() : "FILE";
 }
 
 /**
@@ -119,31 +90,60 @@ function titleForFile(name) {
   })}`;
 }
 
-function renderRow(file) {
+/** The week a ledger covers, from its file name; null for anything else. */
+function ledgerWeek(name) {
+  const match = /^epping-forest-ledger-(\d{4})-(\d{2})-(\d{2})\.html?$/i.exec(name);
+  if (!match) return null;
+  const when = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(when) ? null : when;
+}
+
+/**
+ * Newest edition first. A fresh checkout gives every file the same mtime, so
+ * a ledger is ordered by the week in its name; anything else falls back to
+ * its mtime.
+ */
+function sortForListing(files) {
+  const key = (file) => ledgerWeek(file.name) ?? file.mtimeMs;
+  return [...files].sort((a, b) => key(b) - key(a) || a.name.localeCompare(b.name));
+}
+
+function renderRow(file, index) {
+  const week = ledgerWeek(file.name);
+  const title = week === null
+    ? escapeHtml(titleForFile(file.name))
+    : escapeHtml(new Date(week).toLocaleDateString("en-GB", {
+      day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
+    }));
+  const label = week === null ? "Report" : "Epping Forest Ledger";
+  const latest = index === 0 ? `<span class="report-latest">Latest</span>` : "";
   return `
       <li class="report-row">
-        <a class="report-link" href="./${encodeURIComponent(file.name)}">
-          <span class="report-name">${escapeHtml(titleForFile(file.name))}</span>
-          <span class="report-meta">
-            <span class="report-type">${escapeHtml(labelForFile(file.name))}</span>
-            <span class="report-date">${escapeHtml(formatDate(file.mtimeMs))}</span>
-            <span class="report-size">${escapeHtml(formatBytes(file.size))}</span>
+        <a class="report-link" href="./${encodeURIComponent(file.name)}" aria-label="${escapeHtml(titleForFile(file.name))}">
+          <span class="report-text">
+            <span class="report-label">${label}${latest}</span>
+            <span class="report-name">${title}</span>
           </span>
+          <span class="report-arrow" aria-hidden="true">→</span>
         </a>
       </li>`;
 }
 
 function buildIndexHtml(files) {
   const body = files.length
-    ? `<ul class="report-list">${files.map(renderRow).join("\n")}\n    </ul>`
+    ? `<ul class="report-list">${sortForListing(files).map(renderRow).join("\n")}\n    </ul>`
     : `<p class="empty-state">No reports have been published yet.</p>`;
 
+  // Styled to match the homepage (assets/home/home.css): same palette, type,
+  // cards and header, inlined so this page loads nothing from the homepage or
+  // the app except two small brand images.
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Epping Forest Ledger — weekly Epping Forest news</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#24382f">
 <meta name="description" content="${escapeHtml(INDEX_DESCRIPTION)}">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <link rel="canonical" href="${SITE_ORIGIN}/reports/">
@@ -156,76 +156,90 @@ function buildIndexHtml(files) {
 <meta property="og:image" content="${SITE_ORIGIN}/data/icons/icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340;0,9..144,480;0,9..144,600;0,9..144,720;1,9..144,480;1,9..144,600&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#f4f4ec;
-    --surface:#ffffff;
-    --ink:#181c11;
-    --ink-soft:#52514e;
-    --muted:#898781;
-    --line:#ded9c6;
-    --forest:#2e6b44;
-    --forest-deep:#1d4a2f;
-    --shadow: 0 1px 2px rgba(24,28,17,0.06), 0 8px 24px -12px rgba(24,28,17,0.18);
+  :root {
+    --ink: #181c11; --muted: #52514e; --line: #ded9c6; --line-strong: #c9c3ac;
+    --paper: #f4f4ec; --surface: #fff; --surface-alt: #eaeedd;
+    --tree: #2e6b44; --tree-deep: #1d4a2f;
+    --shadow: 0 1px 2px rgba(24, 28, 17, .06), 0 16px 36px -20px rgba(24, 28, 17, .35);
+    font-family: "Public Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --bg:#0e120b; --surface:#171b11; --ink:#edeee2; --ink-soft:#c3c2b3;
-      --muted:#8f8d80; --line:#2c3121; --forest:#6fc98a; --forest-deep:#4fa96c;
-      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.6);
-    }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); line-height: 1.6; -webkit-text-size-adjust: 100%; }
+  a { color: var(--tree-deep); }
+  a:focus-visible { outline: 3px solid rgba(46, 107, 68, .45); outline-offset: 3px; }
+  main, .site-head, .site-foot { max-width: 1040px; margin: 0 auto; padding-right: 24px; padding-left: 24px; }
+  .site-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 22px; padding-bottom: 22px; }
+  .brand { display: inline-flex; align-items: center; gap: 12px; color: var(--ink); font-weight: 700; text-decoration: none; }
+  .brand img { width: 44px; height: 44px; }
+  .brand span, .head-link { white-space: nowrap; }
+  .brand span { font-size: 1.08rem; }
+  .head-link { font-size: .92rem; font-weight: 700; text-decoration: none; }
+  .head-link:hover { text-decoration: underline; }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; letter-spacing: -.028em; line-height: 1.1; text-wrap: balance; }
+  .hero { overflow: hidden; padding: clamp(30px, 5vw, 48px) clamp(22px, 5vw, 42px); border-radius: 18px; background: var(--tree-deep); color: var(--paper); box-shadow: var(--shadow); }
+  .eyebrow { display: flex; gap: 12px; align-items: center; margin: 0 0 14px; color: #c9dfc9; font-family: "Fraunces", Georgia, serif; font-size: .98rem; font-style: italic; font-weight: 500; letter-spacing: .05em; }
+  .eyebrow img { flex: 0 0 34px; width: 34px; height: 34px; padding: 6px; border-radius: 50%; background: var(--paper); }
+  h1 { margin: 0 0 14px; font-size: clamp(2.2rem, 7vw, 3.4rem); letter-spacing: -.04em; line-height: 1.02; }
+  .subtitle { max-width: 40em; margin: 0; color: #dfe8dc; font-size: 1.02rem; }
+  .editions { padding: 44px 0 8px; }
+  h2 { margin: 0 0 16px; font-size: clamp(1.55rem, 4vw, 2.15rem); }
+  .report-list { margin: 0; padding: 0; overflow: hidden; list-style: none; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+  .report-row + .report-row { border-top: 1px solid var(--line); }
+  .report-link { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; color: inherit; text-decoration: none; transition: background-color .2s ease; }
+  .report-link:hover, .report-link:focus-visible { background: var(--surface-alt); }
+  .report-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .report-label { display: flex; gap: 10px; align-items: center; color: var(--tree); font-family: "Fraunces", Georgia, serif; font-size: .9rem; font-style: italic; }
+  .report-latest { padding: 1px 9px; border-radius: 999px; background: var(--tree-deep); color: #fff; font-family: "Public Sans", sans-serif; font-size: .72rem; font-style: normal; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .report-name { font-family: "Fraunces", Georgia, serif; font-size: 1.3rem; font-weight: 600; letter-spacing: -.02em; line-height: 1.25; word-break: break-word; }
+  .report-arrow { flex: 0 0 auto; color: var(--tree); font-size: 1.3rem; font-weight: 700; transition: transform .2s ease; }
+  .report-link:hover .report-arrow { transform: translateX(4px); }
+  .empty-state { padding: 20px 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--muted); }
+  .note { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; justify-content: space-between; margin: 28px 0 52px; padding: clamp(22px, 4vw, 32px); border: 1px solid var(--line-strong); border-left: 5px solid var(--tree); border-radius: 14px; background: var(--surface-alt); }
+  .note p { max-width: 42em; margin: 0; color: var(--muted); font-size: .94rem; }
+  .app-cta { display: inline-block; padding: 13px 22px; border-radius: 9px; background: var(--tree); color: #fff; font-weight: 700; text-decoration: none; transition: background-color .2s ease, transform .2s ease; }
+  .app-cta:hover { background: var(--tree-deep); transform: translateY(-1px); }
+  .site-foot { border-top: 1px solid var(--line-strong); padding-top: 28px; padding-bottom: 56px; color: var(--muted); font-size: .86rem; }
+  .site-foot p { margin: 0 0 8px; }
+  @media (max-width: 420px) {
+    main, .site-head, .site-foot { padding-right: 18px; padding-left: 18px; }
+    .brand img { width: 36px; height: 36px; }.brand span { font-size: 1rem; }
+    .report-link { padding: 18px; }.report-name { font-size: 1.15rem; }
+    .app-cta { width: 100%; padding: 13px 16px; font-size: .92rem; text-align: center; white-space: nowrap; }
   }
-  :root[data-theme="dark"]{
-    --bg:#0e120b; --surface:#171b11; --ink:#edeee2; --ink-soft:#c3c2b3;
-    --muted:#8f8d80; --line:#2c3121; --forest:#6fc98a; --forest-deep:#4fa96c;
-    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.6);
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0; min-height:100vh; background:var(--bg); color:var(--ink);
-    font-family:"Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    line-height:1.5;
-  }
-  main{ max-width:720px; margin:0 auto; padding:56px 24px 80px; }
-  h1{ font-family:"Fraunces", Georgia, serif; font-weight:600; font-size:2rem; margin:0 0 8px; }
-  .subtitle{ color:var(--ink-soft); margin:0 0 32px; }
-  .report-list{
-    list-style:none; margin:0; padding:0; border:1px solid var(--line);
-    border-radius:12px; overflow:hidden; background:var(--surface); box-shadow:var(--shadow);
-  }
-  .report-row + .report-row{ border-top:1px solid var(--line); }
-  .report-link{
-    display:flex; align-items:center; justify-content:space-between; gap:16px;
-    padding:16px 20px; text-decoration:none; color:inherit;
-  }
-  .report-link:hover, .report-link:focus-visible{ background:var(--bg); }
-  .report-name{ font-weight:600; word-break:break-word; }
-  .report-meta{
-    display:flex; align-items:center; gap:12px; flex-shrink:0;
-    font-family:"JetBrains Mono", ui-monospace, monospace; font-size:0.8rem; color:var(--muted);
-  }
-  .report-type{ color:var(--forest-deep); font-weight:600; }
-  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .report-type{ color:var(--forest); } }
-  :root[data-theme="dark"] .report-type{ color:var(--forest); }
-  .empty-state{ color:var(--muted); }
-  footer{ margin-top:32px; color:var(--muted); font-size:0.85rem; }
-  .app-cta{
-    display:inline-flex; margin-top:28px; padding:12px 22px; border-radius:999px;
-    background:var(--forest-deep); color:#f4f4ec; font-weight:600; text-decoration:none;
-  }
-  .app-cta:hover, .app-cta:focus-visible{ text-decoration:underline; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
+<header class="site-head">
+  <a class="brand" href="/">
+    <img src="/assets/home/map-icons/oak.png" alt="" width="44" height="44">
+    <span>Epping Forest Finds</span>
+  </a>
+  <a class="head-link" href="/#signup">Get updates</a>
+</header>
 <main>
-  <h1>Epping Forest Ledger</h1>
-  <p class="subtitle">${escapeHtml(INDEX_DESCRIPTION)}</p>
-  ${body}
-  <a class="app-cta" href="${SITE_ORIGIN}/">Open the Epping Forest map →</a>
-  <footer>Written automatically each week — it can get things wrong, so please check
-  anything important. Every report has a link for telling us about a mistake.</footer>
+  <section class="hero">
+    <p class="eyebrow"><img src="/assets/home/ledger.svg" alt="" width="34" height="34">Field notes · Published weekly</p>
+    <h1>Epping Forest Ledger</h1>
+    <p class="subtitle">${escapeHtml(INDEX_DESCRIPTION)}</p>
+  </section>
+  <section class="editions" aria-labelledby="editions-heading">
+    <h2 id="editions-heading">Every edition</h2>
+    ${body}
+  </section>
+  <aside class="note">
+    <p>Written automatically each week — it can get things wrong, so please check
+    anything important. Every report has a link for telling us about a mistake.</p>
+    <a class="app-cta" href="${SITE_ORIGIN}/">Open the Epping Forest map →</a>
+  </aside>
 </main>
+<footer class="site-foot">
+  <p>Built by Simon McManus. Report a problem on
+  <a href="https://github.com/simonmcmanus/epping-forest-finds/issues">GitHub</a>.</p>
+  <p><a href="/terms.html">Privacy &amp; terms</a></p>
+</footer>
 </body>
 </html>
 `;
@@ -241,11 +255,10 @@ function generate(reportsDir) {
 module.exports = {
   listReportFiles,
   titleForFile,
+  ledgerWeek,
+  sortForListing,
   isPublishable,
   buildIndexHtml,
-  formatBytes,
-  formatDate,
-  labelForFile,
   escapeHtml,
   generate,
   REPORTS_DIR_NAME,
