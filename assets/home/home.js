@@ -1,10 +1,62 @@
 /*
- * Marketing homepage only. Progressive enhancement for the sign-up form: the
- * page's copy and the form itself work with JavaScript disabled, and this
- * upgrades the submit to an async call so the visitor stays on the page.
- *
- * Nothing else on the homepage needs script. See spec/spec-marketing.md §5.
+ * Marketing homepage only. Progressive enhancement: the page's copy and the
+ * sign-up form work with JavaScript disabled. This adds a quiet scroll reveal
+ * and upgrades the sign-up submit to an async call so the visitor stays on the
+ * page. See spec/spec-marketing.md §5.
  */
+
+// Scroll reveal: blocks fade up gently as they enter the viewport. Skipped for
+// reduced-motion visitors and browsers without IntersectionObserver, so nothing
+// is ever hidden that cannot be shown.
+(function () {
+  "use strict";
+
+  if (!("IntersectionObserver" in window)) return;
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  var targets = document.querySelectorAll([
+    "main > section:not(.hero) > h2",
+    ".section-intro", ".counts-intro", ".tag-intro > p",
+    ".app-shot img", ".app-shot figcaption", ".tag-feature img", ".pillars article",
+    ".map-inventory", ".signup", ".steps li", ".offline-note",
+    ".faq-list", ".ledger"
+  ].join(","));
+
+  function settle(el) {
+    el.classList.remove("reveal", "is-in");
+    el.style.transitionDelay = "";
+  }
+
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting) return;
+      var el = entry.target;
+      observer.unobserve(el);
+      el.classList.add("is-in");
+      // Once in place, drop the reveal classes so hover styles take over.
+      el.addEventListener("transitionend", function done(event) {
+        if (event.target !== el || event.propertyName !== "transform") return;
+        el.removeEventListener("transitionend", done);
+        settle(el);
+      });
+    });
+  }, { rootMargin: "0px 0px -8% 0px" });
+
+  Array.prototype.forEach.call(targets, function (el) {
+    // Siblings in a row arrive one after another, capped so nothing lags.
+    // A screenshot's phone and caption move as two objects: the caption
+    // trails its phone, so they read as separate pieces.
+    var shot = el.closest(".app-shot");
+    var item = shot || el;
+    var index = Array.prototype.indexOf.call(item.parentNode.children, item);
+    var siblings = item.parentNode.querySelectorAll(":scope > " + item.tagName).length;
+    var delay = siblings > 1 ? Math.min(index, 3) * 90 : 0;
+    if (shot && el.tagName === "FIGCAPTION") delay += 160;
+    if (delay) el.style.transitionDelay = delay + "ms";
+    el.classList.add("reveal");
+    observer.observe(el);
+  });
+})();
 
 (function () {
   "use strict";

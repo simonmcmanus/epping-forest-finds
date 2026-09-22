@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" role="img" aria-labelledby="title desc">
-  <title id="title">Search screen placeholder</title><desc id="desc">A temporary mock-up of searching for tree 27400.</desc>
-  <rect width="390" height="844" fill="#eaeedd"/><rect x="20" y="20" width="350" height="804" rx="34" fill="#f4f4ec" stroke="#1d4a2f" stroke-width="4"/>
-  <rect x="42" y="58" width="306" height="72" rx="18" fill="#1d4a2f"/><text x="66" y="103" fill="#fff" font-family="system-ui,sans-serif" font-size="26" font-weight="700">Search</text>
-  <rect x="42" y="158" width="306" height="58" rx="12" fill="#fff" stroke="#c9c3ac" stroke-width="2"/><text x="64" y="196" fill="#181c11" font-family="ui-monospace,monospace" font-size="25" font-weight="700">27400</text>
-  <rect x="42" y="242" width="306" height="148" rx="16" fill="#fff" stroke="#ded9c6" stroke-width="2"/><circle cx="82" cy="292" r="20" fill="#2e6b44"/><text x="118" y="289" fill="#181c11" font-family="system-ui,sans-serif" font-size="20" font-weight="700">Tree 27400</text><text x="118" y="321" fill="#52514e" font-family="system-ui,sans-serif" font-size="16">Veteran tree</text>
-  <text x="195" y="742" text-anchor="middle" fill="#2e6b44" font-family="system-ui,sans-serif" font-size="18" font-weight="700">SCREENSHOT PLACEHOLDER</text>
-</svg>
