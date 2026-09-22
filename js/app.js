@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v34"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v35"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -4631,14 +4631,31 @@ function nearestFitPointForEntry(entry, originPoint) {
   return entry.item.point || null;
 }
 
-function nearestSelectedFilterPoints() {
-  if (!state.userLocation) return [];
+// The entries behind those points. Split out from nearestSelectedFilterPoints below because
+// the Filter/Settings/Report map now *highlights* the same items it zooms out to reach
+// (buildFullNearbyIconLookup, js/renderer.js) -- framing a match the map then drew nothing for
+// left the zoom-out looking like it had reached for empty ground.
+// nearbyOrigin(), not the raw GPS fix: those screens draw the ring around the browse anchor and
+// scan the matches inside it from there (overviewItemsForActiveFilter), so the reach past the
+// ring has to start from the same place or it measures "nearest" from somewhere else entirely.
+function nearestSelectedFilterEntries() {
+  const origin = nearbyOrigin();
+  if (!origin) return [];
   if (state.overviewFilters.length === 0) return [];
-  const { latitude, longitude, point: originPoint } = state.userLocation;
-  const points = [];
+  const entries = [];
   for (const filterKey of getActivePointFilterKeys()) {
-    const entry = nearestOverviewEntryForFilter(filterKey, latitude, longitude);
-    const point = nearestFitPointForEntry(entry, originPoint);
+    const entry = nearestOverviewEntryForFilter(filterKey, origin.latitude, origin.longitude);
+    if (entry && entry.item) entries.push(entry);
+  }
+  return entries;
+}
+
+function nearestSelectedFilterPoints() {
+  const origin = nearbyOrigin();
+  if (!origin || !origin.point) return [];
+  const points = [];
+  for (const entry of nearestSelectedFilterEntries()) {
+    const point = nearestFitPointForEntry(entry, origin.point);
     if (point) points.push(point);
   }
   return points;
