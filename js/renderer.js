@@ -1290,13 +1290,15 @@ function selectedIconScale(minScale = 1.05, maxScale = 1.17, cycleMs = 1200) {
 // same way, on the same inputs.
 let _nearbyIconLookupCache = null;
 
-function nearbyIconLookupCacheKey(inFilterScreen) {
-  if (inFilterScreen) {
-    return `filter|${state.userLocation.latitude}|${state.userLocation.longitude}|${state.cowLastUpdatedAt}`;
-  }
+function nearbyIconLookupCacheKey(reachesPastRing) {
   const origin = typeof nearbyOrigin === "function" ? nearbyOrigin() : state.userLocation;
   if (!origin) return "none";
-  return `overview|${origin.latitude}|${origin.longitude}|${state.walkingDistanceMinutes}|${state.overviewFilters.join(",")}|${state.showAllOutsideRadius}|${state.cowLastUpdatedAt}`;
+  // The radius is part of the key on every screen now, Filters/Settings/Report included: their
+  // highlighted set is the in-radius one, so a ring resized from any of them has to invalidate
+  // this. The old filter-screen key named neither the radius nor the active filters, which is
+  // exactly why resizing the ring from those screens left the same pins on the map.
+  const scope = reachesPastRing ? "reach" : "ring";
+  return `${scope}|${origin.latitude}|${origin.longitude}|${state.walkingDistanceMinutes}|${state.overviewFilters.join(",")}|${state.showAllOutsideRadius}|${state.cowLastUpdatedAt}`;
 }
 
 // Mirrors overviewItemsDatasetsUnchanged in index.html: a key built from primitives alone
@@ -1354,9 +1356,36 @@ function buildNearbyIconLookup() {
   return result;
 }
 
+// The Filter/Settings/Report camera reaches past the ring for the nearest match of each
+// selected filter (nearestSelectedFilterPoints, js/app.js), so those screens highlight the same
+// items -- otherwise the zoom-out framed a match the map drew nothing for. Only the ones
+// genuinely outside the ring are added here: anything inside it is the in-radius pass's to draw
+// (and to leave out, where the tree budget already dropped it), and adding it back would mark an
+// in-radius find as out-of-radius and dim it.
+function addNearestSelectedFilterReach(lookup) {
+  // With the radius filter toggled off there is no ring to reach past: the in-radius pass has
+  // already drawn the unlimited set, and marking anything out-of-radius here would dim a pin on
+  // the one screen state that is explicitly ignoring the radius.
+  if (state.showAllOutsideRadius) return;
+  const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+  for (const entry of nearestSelectedFilterEntries()) {
+    if (!(entry.metres > radiusMetres)) continue;
+    const set = lookup[entry.type];
+    if (!set || set.has(entry.item)) continue;
+    if ((entry.type === "path" || entry.type === "water") && !entry.item.point) continue;
+    set.add(entry.item);
+    lookup.outOfRadius.add(entry.item);
+  }
+}
+
 function buildFullNearbyIconLookup() {
-  const inFilterScreen = Boolean(secondaryScreenActive() && state.userLocation);
-  const cacheKey = nearbyIconLookupCacheKey(inFilterScreen);
+  // Every screen highlights the same thing: the matches inside the walking radius, scanned from
+  // nearbyOrigin(). Filters/Settings/Report used to build their own unlimited, radius-blind set
+  // instead, so resizing the ring from any of them (their pinch/wheel/slider all do) changed the
+  // circle on the map and nothing inside it. They now differ only in reaching past the ring for
+  // the nearest match of each selected filter, which is what their camera fit frames.
+  const reachesPastRing = Boolean(secondaryScreenActive() && state.userLocation);
+  const cacheKey = nearbyIconLookupCacheKey(reachesPastRing);
   if (_nearbyIconLookupCache && _nearbyIconLookupCache.key === cacheKey && nearbyIconLookupDatasetsUnchanged(_nearbyIconLookupCache)) {
     return _nearbyIconLookupCache.result;
   }
@@ -1367,12 +1396,9 @@ function buildFullNearbyIconLookup() {
   const water = new Set();
   const outOfRadius = new Set();
   const treeCandidates = [];
-  const items = inFilterScreen
-    ? overviewItemsUnlimited(state.userLocation.latitude, state.userLocation.longitude)
-    : overviewItemsForActiveFilter();
-  for (const entry of items) {
+  for (const entry of overviewItemsForActiveFilter()) {
     if (!entry || !entry.item) continue;
-    if (!inFilterScreen && entry.outOfRadius) {
+    if (entry.outOfRadius) {
       outOfRadius.add(entry.item);
       if (!state.showAllOutsideRadius) continue;
     }
@@ -1384,6 +1410,7 @@ function buildFullNearbyIconLookup() {
   }
   const tree = new Set(sampleSpread(treeCandidates, MAX_MAP_TREES));
   const result = { tree, landmark, cow, path, water, outOfRadius };
+  if (reachesPastRing) addNearestSelectedFilterReach(result);
   _nearbyIconLookupCache = {
     key: cacheKey,
     result,

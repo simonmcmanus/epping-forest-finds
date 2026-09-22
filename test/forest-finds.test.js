@@ -199,6 +199,10 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
 globalThis.__forestFindsTest = {
   state,
   els,
+  // The sandbox's own clock object, so a test can freeze what the app reads from
+  // performance.now() -- see withFrozenAppClock. Exported as the object, not as now(),
+  // because the app looks the method up on it at every call.
+  performance,
   formatDistance,
   projectLonLat,
   unprojectPoint,
@@ -520,6 +524,15 @@ function makePoint(app, latitude, longitude) {
     longitude,
     point: app.projectLonLat(longitude, latitude),
   };
+}
+
+// Puts the app back on the plain Nearby screen. Used by tests that walk the same assertion
+// across every screen that draws the walking-radius ring behind it (Filters, Settings, Report,
+// Search), which differ only in which one of these four flags is set.
+function resetSecondaryScreens(app) {
+  app.state.selected = null;
+  app.state.filterScreenOpen = false;
+  app.state.searchScreenOpen = false;
 }
 
 function resetData(app) {
@@ -2614,6 +2627,98 @@ test("the filter screen with nothing selected frames the walking radius, the sam
   // sandbox's own Array prototype, which deepStrictEqual treats as a mismatch.
   assert.equal(app.nearestSelectedFilterPoints().length, 0, "no selected filters means nothing extra to reach for");
   assert.deepEqual(app.nearbyCameraFitPoints(), app.walkingRadiusCirclePoints());
+});
+
+test("resizing the walking radius from a screen other than Nearby re-derives which locations the map highlights", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 10; // ~833m radius
+  // Two pubs: one a short walk away, one just past a 5-minute (~417m) ring but inside a
+  // 10-minute one.
+  const nearPub = { id: "near-pub", name: "Near Pub", category: "pub", ...makePoint(app, 0.001, 0) };
+  const midPub = { id: "mid-pub", name: "Mid Pub", category: "pub", ...makePoint(app, 0.006, 0) };
+  app.state.landmarks.push(nearPub, midPub);
+  app.setOverviewFilters(["pubs"]);
+
+  for (const openScreen of [
+    () => { app.state.filterScreenOpen = true; },
+    () => { app.state.selected = { type: "settings", item: null }; },
+    () => { app.state.selected = { type: "report", item: null }; },
+    () => { app.state.searchScreenOpen = true; },
+  ]) {
+    resetSecondaryScreens(app);
+    openScreen();
+
+    const wide = app.buildNearbyIconLookup();
+    assert.equal(wide.landmark.has(midPub), true, "the 10-minute ring holds both pubs");
+
+    app.applyWalkingRadiusChange(5, { animate: false });
+    const tight = app.buildNearbyIconLookup();
+    assert.equal(tight.landmark.has(nearPub), true, "the near pub is still inside the tightened ring");
+    assert.equal(
+      tight.landmark.has(midPub),
+      false,
+      "shrinking the radius from a secondary screen drops what it no longer covers",
+    );
+
+    app.applyWalkingRadiusChange(10, { animate: false });
+    assert.equal(
+      app.buildNearbyIconLookup().landmark.has(midPub),
+      true,
+      "and growing it back brings the newly in-range pub straight back",
+    );
+  }
+  resetSecondaryScreens(app);
+});
+
+test("a screen other than Nearby also highlights the nearest match it zooms out past the ring to reach", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 5; // ~417m radius
+  const farPub = { id: "far-pub", name: "Far Pub", category: "pub", ...makePoint(app, 0.02, 0) };
+  app.state.landmarks.push(farPub);
+  app.setOverviewFilters(["pubs"]);
+
+  const nearby = app.buildNearbyIconLookup();
+  assert.equal(nearby.landmark.has(farPub), false, "the Nearby screen draws the ring's contents only");
+
+  app.state.filterScreenOpen = true;
+  const filters = app.buildNearbyIconLookup();
+  app.state.filterScreenOpen = false;
+
+  const fitPoints = app.nearestSelectedFilterPoints();
+  assert.ok(
+    fitPoints.some((p) => p.x === farPub.point.x && p.y === farPub.point.y),
+    "sanity: the camera reaches past the ring for it",
+  );
+  assert.equal(filters.landmark.has(farPub), true, "so the map highlights it rather than framing empty ground");
+  assert.equal(filters.outOfRadius.has(farPub), true, "drawn dimmed, because it is still outside the ring");
+});
+
+test("the nearest match a secondary screen reaches for is measured from the browsed spot, like the ring is", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 5;
+  const northPub = { id: "north-pub", name: "North Pub", category: "pub", ...makePoint(app, 0.02, 0) };
+  const southPub = { id: "south-pub", name: "South Pub", category: "pub", ...makePoint(app, -0.05, 0) };
+  app.state.landmarks.push(northPub, southPub);
+  app.setOverviewFilters(["pubs"]);
+  app.state.filterScreenOpen = true;
+
+  assert.equal(
+    app.buildNearbyIconLookup().landmark.has(northPub),
+    true,
+    "from the GPS fix the northern pub is the nearest match",
+  );
+
+  // Browsing a spot beyond the southern pub: the ring moves there, so "nearest" must too.
+  app.state.nearbyAnchor = makePoint(app, -0.08, 0);
+  const browsed = app.buildNearbyIconLookup();
+  assert.equal(browsed.landmark.has(southPub), true, "the reach follows the browse anchor");
+  assert.equal(browsed.landmark.has(northPub), false, "and stops reaching for the one that is no longer nearest");
+
+  app.state.nearbyAnchor = null;
+  app.state.filterScreenOpen = false;
 });
 
 test("maxNearbyHeadingUpScale delegates to the shared heading-up scale helper", () => {
@@ -7165,23 +7270,65 @@ test("in 3D, browsing another spot keeps the whole walking radius inside the ava
   assert.equal(browsing.inside, browsing.total, "every point of the ring must be in the map area while browsing");
 });
 
+// Runs fn with the app's performance.now() frozen at the value it has right now, so a helper
+// that walks an animation frame by frame measures the frames it asked for rather than those
+// plus however long the walk itself took. Frozen at the *current* value, never advanced past
+// it: the app stamps timestamps into state from this clock, and one left in the real clock's
+// future hands a later test a negative frame gap (see easeScaleFrames' comment above for what
+// that does to the suite).
+function withFrozenAppClock(app, fn) {
+  const clock = app.performance;
+  const realNow = clock.now;
+  const frozen = realNow.call(clock);
+  clock.now = () => frozen;
+  try {
+    return fn();
+  } finally {
+    clock.now = realNow;
+  }
+}
+
 // Walks a browse-origin slide frame by frame the way the app does and returns the largest
 // single-frame zoom step, as a ratio >= 1. An eased zoom moves by a few percent per frame; a
 // camera that re-solves into a different framing mid-slide shows up here as a step of several
 // times, which is what a jump looks like on screen.
+//
+// The frozen clock is what makes the walk measure the slide rather than the machine. Each
+// iteration used to shift startedAt back by one frame's worth while the real clock kept
+// running underneath, so a frame's *effective* step was 16.67ms plus however long that
+// iteration took -- a few milliseconds on an idle box, tens of milliseconds on a loaded one.
+// The steepest part of the ease steps ~1.12x at true 60fps spacing, so stretching the spacing
+// half as much again pushed it past the 1.2x bound and failed the assertion: this test went
+// red roughly one run in five whenever the machine was busy, always on load rather than on
+// anything the app did.
+//
+// The compass is silenced for the same reason. With a live sensor timestamp
+// resolveHeadingUpTargetScale eases the scale on its own clock on top of the slide's, and
+// whether one is live here depends on what the previous test happened to leave behind --
+// while the easing this test is about is the slide's blend (maxNearbyHeadingUpScale), which
+// applies straight to the viewport when the sensor is quiet.
 function worstSlideZoomStep(app) {
   const transition = app.state.nearbyOriginTransition;
-  const { startedAt, durationMs } = transition;
+  const { durationMs } = transition;
   const frames = Math.round(durationMs / 16.67); // one 60fps frame
+  const savedCompassLastEventAt = app.state.compassLastEventAt;
+  app.state.compassLastEventAt = null;
   let previous = app.state.viewport.scale;
   let worst = 1;
-  for (let frame = 0; frame <= frames; frame++) {
-    transition.startedAt = startedAt - (durationMs * frame) / frames;
-    app.prepareCanvasForDraw();
-    app.stopViewportAnimation();
-    const scale = app.state.viewport.scale;
-    worst = Math.max(worst, scale / previous, previous / scale);
-    previous = scale;
+  try {
+    withFrozenAppClock(app, () => {
+      const now = app.performance.now();
+      for (let frame = 0; frame <= frames; frame++) {
+        transition.startedAt = now - (durationMs * frame) / frames;
+        app.prepareCanvasForDraw();
+        app.stopViewportAnimation();
+        const scale = app.state.viewport.scale;
+        worst = Math.max(worst, scale / previous, previous / scale);
+        previous = scale;
+      }
+    });
+  } finally {
+    app.state.compassLastEventAt = savedCompassLastEventAt;
   }
   return worst;
 }
