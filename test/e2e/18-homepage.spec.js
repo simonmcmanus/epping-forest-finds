@@ -128,19 +128,21 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("#consent")).not.toBeChecked();
   });
 
-  test("highlights signup and the Ledger before the practical questions", async ({ page }) => {
+  test("highlights signup before the practical questions and ends on the Ledger", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates once the site launches");
     await expect(page.locator(".consent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
-    await expect(page.locator(".signup + .offline-how + .ledger + .faq")).toHaveCount(1);
-    await expect(page.locator(".signup-head .signup-icon")).toHaveAttribute("src", "assets/home/mail.svg");
-    const iconBesideHeading = await page.locator(".signup-head").evaluate(head => {
-      const icon = head.querySelector(".signup-icon").getBoundingClientRect();
+    await expect(page.locator(".signup + .offline-how + .faq + .ledger")).toHaveCount(1);
+    await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.svg");
+    await expect(page.locator(".ledger .card-icon")).toHaveAttribute("src", "assets/home/ledger.svg");
+    const iconsBesideHeadings = await page.locator(".card-head").evaluateAll(heads => heads.map(head => {
+      const icon = head.querySelector(".card-icon").getBoundingClientRect();
       const heading = head.querySelector("h2").getBoundingClientRect();
       return icon.right <= heading.left && icon.bottom > heading.top;
-    });
-    expect(iconBesideHeading).toBe(true);
-    await expect(page.locator("main > section:last-child")).toHaveClass("faq");
+    }));
+    expect(iconsBesideHeadings).toEqual([true, true]);
+    await expect(page.locator(".ledger").getByRole("link", { name: "Read the Ledger →" })).toHaveCSS("background-color", "rgb(46, 107, 68)");
+    await expect(page.locator("main > section:last-child")).toHaveClass("ledger");
     await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
     await expect(page.locator(".site-foot")).not.toContainText("Map data ©");
     await expect(page.locator(".offline-note")).toContainText("A note on the moving herd");

@@ -242,14 +242,17 @@ Sections, in order:
    the badge to the left. A separate note, tinted with a green left accent and
    the cow icon, explains that fresh cattle locations require a connection and
    saved positions may be stale.
-8. **From the Ledger** — an inset editorial card with generous responsive padding,
-   a green left border, weekly field-notes eyebrow and a link to `/reports/` (§6.4).
-   The index carries individual reports; the homepage remains static.
-9. **FAQ** — immediately before the footer, with `FAQPage` JSON-LD (§6.3).
+8. **FAQ** — after the offline section, with `FAQPage` JSON-LD (§6.3).
    Covers signal, cost/account, tree data, cattle positions and coverage.
    No battery-use question. All answers stay visible (no accordion) in one
    white rounded card, each question-and-answer pair divided by a hairline;
    on wide screens the question sits in a left column beside its answer.
+9. **From the Ledger** — the last section before the footer, after the FAQ: an
+   inset editorial card matching the sign-up card's layout: responsive padding, a green left border and shadow, a 52px newspaper
+   icon (`assets/home/ledger.svg`, same style as the envelope) beside the weekly
+   field-notes eyebrow and heading, and a solid green "Read the Ledger →"
+   button linking to `/reports/` (§6.4).
+   The index carries individual reports; the homepage remains static.
 10. **Footer** — builder credit, `/terms.html`, GitHub feedback and contact address
    `mcmanus.simon@gmail.com`. No separate dataset-attribution paragraph; source
    explanations remain in the FAQ.
