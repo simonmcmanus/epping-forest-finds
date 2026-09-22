@@ -47,9 +47,11 @@ p { margin: 0 0 14px; }
 
 section { padding: 52px 0; border-top: 1px solid var(--line); }
 .hero { padding: 0; border-top: 0; }
-.pillars article + article { margin-top: 30px; }
-.pillar-icon { display: block; width: 44px; height: 44px; margin: 0 0 16px; object-fit: contain; }
-.pillars h2 { font-family: "Public Sans", ui-sans-serif, sans-serif; font-size: 1.05rem; letter-spacing: -.015em; }
+.pillars article { padding: 28px 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+.pillars article + article { margin-top: 24px; }
+.pillars article p { margin-bottom: 0; }
+.pillar-icon { display: block; width: 80px; height: 80px; margin: 0 auto 22px; object-fit: contain; }
+.pillars h2 { text-align: center; font-family: "Public Sans", ui-sans-serif, sans-serif; font-size: 1.05rem; letter-spacing: -.015em; }
 .pillars p, .signup-intro, .ledger p, .faq dd { max-width: 42em; color: var(--muted); }
 
 .counts-intro { margin: -4px 0 24px; color: var(--muted); font-size: 1rem; }

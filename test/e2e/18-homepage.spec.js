@@ -29,6 +29,17 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Every veteran tree in the register/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
+    await expect(page.locator(".hero + .pillars + #find-trees")).toHaveCount(1);
+    for (const card of await page.locator(".pillars article").all()) {
+      await expect(card).toHaveCSS("border-radius", "14px");
+      await expect(card).not.toHaveCSS("box-shadow", "none");
+      const centred = await card.evaluate(el => {
+        const cardRect = el.getBoundingClientRect();
+        const iconRect = el.querySelector("img").getBoundingClientRect();
+        return iconRect.width === 80 && Math.abs(iconRect.x + iconRect.width / 2 - cardRect.x - cardRect.width / 2) < 1;
+      });
+      expect(centred).toBe(true);
+    }
   });
 
   test("groups the map inventory like the app filters and uses the oak-leaf brand mark", async ({ page }) => {
