@@ -7,7 +7,7 @@
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v40";
+const APP_CACHE_NAME = "forest-finds-app-v41";
 const DATA_CACHE_NAME = "forest-finds-data-v9";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
