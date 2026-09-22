@@ -216,6 +216,48 @@
       </div>
     </section>
 
+    <section class="ledger">
+      <p class="eyebrow">Field notes · Published weekly</p>
+      <h2>The Epping Forest Ledger</h2>
+      <p>
+        A weekly write-up of what has changed in the forest — new records, the cattle,
+        the seasons, and what the data shows.
+      </p>
+      <a class="text-link" href="/reports/">Read the Ledger →</a>
+    </section>
+
+    <section class="signup" id="signup">
+      <p class="eyebrow">Stay in the loop</p>
+      <h2>Be first to hear about the release</h2>
+      <p class="signup-intro">
+        Alpha invitations aren’t open yet. Leave your email to be among the first to hear
+        about the release and when invitations open. You’ll also receive major updates about the app and weekly Epping Forest Ledger updates once the site launches.
+      </p>
+
+      <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
+        <label class="field-label" for="email">Email address</label>
+        <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+
+        <!-- Honeypot: hidden from people, irresistible to bots. -->
+        <div class="hp" aria-hidden="true">
+          <label for="website">Website</label>
+          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+        </div>
+
+        <label class="consent">
+          <input id="consent" name="consent" type="checkbox" required>
+          <span>Email me about the Epping Forest Finds release, alpha invitations and major updates about the app, plus weekly Epping Forest Ledger updates once the site launches.</span>
+        </label>
+
+        <button class="cta-btn" type="submit">Keep me updated</button>
+        <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
+        <p class="form-small">
+          We'll only use your address for this. Unsubscribe from any message.
+          See the <a href="/terms.html">privacy notice</a>.
+        </p>
+      </form>
+    </section>
+
     <section class="how">
       <h2>How it works offline</h2>
       <ol class="steps">
@@ -223,7 +265,10 @@
         <li><strong>It downloads</strong> the whole forest to your device — a one-time wait.</li>
         <li><strong>Walk out of range.</strong> The map, your position and your heading all keep working.</li>
       </ol>
-      <p class="counts-note">Fresh cow locations need a connection. The app periodically requests updates because the cows move around; offline positions may be out of date.</p>
+      <aside class="offline-note" aria-label="Cattle locations offline">
+        <strong>A note on the moving herd</strong>
+        <p>Fresh cow locations need a connection. The app checks for updates periodically; offline positions may be out of date.</p>
+      </aside>
     </section>
 
     <section class="faq">
@@ -241,53 +286,9 @@
         <dt>How do you know where the cattle are?</dt>
         <dd>The forest's grazing cattle wear GPS collars, and their positions are published through the Nofence open data API. The map reads that feed when it loads and periodically makes a network request to refresh it, because the cows move around. Offline, you see their last saved positions, which may be out of date.</dd>
 
-        <dt>Does it drain my battery?</dt>
-        <dd>The map limits redrawing to reduce battery use. Your screen and location services still use power, and the app periodically makes network requests to refresh cow locations.</dd>
-
         <dt>Which area does it cover?</dt>
         <dd>Epping Forest and a walking-distance band around its boundary, so the pub or station just outside the treeline is on the map too.</dd>
       </dl>
-    </section>
-
-    <section class="ledger">
-      <h2>The Epping Forest Ledger</h2>
-      <p>
-        A weekly write-up of what has changed in the forest — new records, the cattle,
-        the seasons, and what the data shows.
-      </p>
-      <a class="text-link" href="/reports/">Read the Ledger →</a>
-    </section>
-
-    <section class="signup" id="signup">
-      <p class="eyebrow">Release news &amp; major updates</p>
-      <h2>Be first to hear about the release</h2>
-      <p class="signup-intro">
-        Alpha invitations aren’t open yet. Leave your email to be among the first to hear
-        about the release and when invitations open. You’ll also receive major updates about the app.
-      </p>
-
-      <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
-        <label class="field-label" for="email">Email address</label>
-        <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
-
-        <!-- Honeypot: hidden from people, irresistible to bots. -->
-        <div class="hp" aria-hidden="true">
-          <label for="website">Website</label>
-          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
-        </div>
-
-        <label class="consent">
-          <input id="consent" name="consent" type="checkbox" required>
-          <span>Email me about the Epping Forest Finds release, alpha invitations and major updates about the app.</span>
-        </label>
-
-        <button class="cta-btn" type="submit">Keep me updated</button>
-        <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
-        <p class="form-small">
-          We'll only use your address for this. Unsubscribe from any message.
-          See the <a href="/terms.html">privacy notice</a>.
-        </p>
-      </form>
     </section>
 
   </main>
@@ -297,10 +298,6 @@
       Built by Simon McManus. Report a problem on
       <a href="https://github.com/simonmcmanus/epping-forest-finds/issues">GitHub</a>
       or email <a href="mailto:mcmanus.simon@gmail.com">mcmanus.simon@gmail.com</a>.
-    </p>
-    <p class="attribution">
-      Map data © OpenStreetMap contributors. Veteran tree records from the
-      Epping Forest Veteran Tree Register. Cattle positions via the Nofence open API.
     </p>
     <p><a href="/terms.html">Privacy &amp; terms</a></p>
   </footer>

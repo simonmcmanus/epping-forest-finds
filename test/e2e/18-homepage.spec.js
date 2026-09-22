@@ -78,6 +78,21 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("#consent")).not.toBeChecked();
   });
 
+  test("highlights signup and the Ledger before the practical questions", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates once the site launches");
+    await expect(page.locator(".consent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
+    await expect(page.locator(".ledger + .signup + .how + .faq")).toHaveCount(1);
+    await expect(page.locator("main > section:last-child")).toHaveClass("faq");
+    await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
+    await expect(page.locator(".site-foot")).not.toContainText("Map data ©");
+    await expect(page.locator(".offline-note")).toContainText("A note on the moving herd");
+    await expect(page.locator(".signup")).toHaveCSS("border-top-color", "rgb(243, 211, 107)");
+    const ledger = page.locator(".ledger");
+    expect(await ledger.evaluate(el => parseFloat(getComputedStyle(el).paddingLeft))).toBeGreaterThanOrEqual(24);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+
   test("explains periodic network requests and stale offline cow positions in copy and search data", async ({ page }) => {
     await page.goto("/");
     const cattle = page.locator(".pillars article").filter({ hasText: "Follow the longhorns" });
