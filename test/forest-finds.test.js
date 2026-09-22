@@ -199,6 +199,10 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
 globalThis.__forestFindsTest = {
   state,
   els,
+  // The sandbox's own clock object, so a test can freeze what the app reads from
+  // performance.now() -- see withFrozenAppClock. Exported as the object, not as now(),
+  // because the app looks the method up on it at every call.
+  performance,
   formatDistance,
   projectLonLat,
   unprojectPoint,
@@ -7234,23 +7238,65 @@ test("in 3D, browsing another spot keeps the whole walking radius inside the ava
   assert.equal(browsing.inside, browsing.total, "every point of the ring must be in the map area while browsing");
 });
 
+// Runs fn with the app's performance.now() frozen at the value it has right now, so a helper
+// that walks an animation frame by frame measures the frames it asked for rather than those
+// plus however long the walk itself took. Frozen at the *current* value, never advanced past
+// it: the app stamps timestamps into state from this clock, and one left in the real clock's
+// future hands a later test a negative frame gap (see easeScaleFrames' comment above for what
+// that does to the suite).
+function withFrozenAppClock(app, fn) {
+  const clock = app.performance;
+  const realNow = clock.now;
+  const frozen = realNow.call(clock);
+  clock.now = () => frozen;
+  try {
+    return fn();
+  } finally {
+    clock.now = realNow;
+  }
+}
+
 // Walks a browse-origin slide frame by frame the way the app does and returns the largest
 // single-frame zoom step, as a ratio >= 1. An eased zoom moves by a few percent per frame; a
 // camera that re-solves into a different framing mid-slide shows up here as a step of several
 // times, which is what a jump looks like on screen.
+//
+// The frozen clock is what makes the walk measure the slide rather than the machine. Each
+// iteration used to shift startedAt back by one frame's worth while the real clock kept
+// running underneath, so a frame's *effective* step was 16.67ms plus however long that
+// iteration took -- a few milliseconds on an idle box, tens of milliseconds on a loaded one.
+// The steepest part of the ease steps ~1.12x at true 60fps spacing, so stretching the spacing
+// half as much again pushed it past the 1.2x bound and failed the assertion: this test went
+// red roughly one run in five whenever the machine was busy, always on load rather than on
+// anything the app did.
+//
+// The compass is silenced for the same reason. With a live sensor timestamp
+// resolveHeadingUpTargetScale eases the scale on its own clock on top of the slide's, and
+// whether one is live here depends on what the previous test happened to leave behind --
+// while the easing this test is about is the slide's blend (maxNearbyHeadingUpScale), which
+// applies straight to the viewport when the sensor is quiet.
 function worstSlideZoomStep(app) {
   const transition = app.state.nearbyOriginTransition;
-  const { startedAt, durationMs } = transition;
+  const { durationMs } = transition;
   const frames = Math.round(durationMs / 16.67); // one 60fps frame
+  const savedCompassLastEventAt = app.state.compassLastEventAt;
+  app.state.compassLastEventAt = null;
   let previous = app.state.viewport.scale;
   let worst = 1;
-  for (let frame = 0; frame <= frames; frame++) {
-    transition.startedAt = startedAt - (durationMs * frame) / frames;
-    app.prepareCanvasForDraw();
-    app.stopViewportAnimation();
-    const scale = app.state.viewport.scale;
-    worst = Math.max(worst, scale / previous, previous / scale);
-    previous = scale;
+  try {
+    withFrozenAppClock(app, () => {
+      const now = app.performance.now();
+      for (let frame = 0; frame <= frames; frame++) {
+        transition.startedAt = now - (durationMs * frame) / frames;
+        app.prepareCanvasForDraw();
+        app.stopViewportAnimation();
+        const scale = app.state.viewport.scale;
+        worst = Math.max(worst, scale / previous, previous / scale);
+        previous = scale;
+      }
+    });
+  } finally {
+    app.state.compassLastEventAt = savedCompassLastEventAt;
   }
   return worst;
 }
