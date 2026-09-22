@@ -72,6 +72,9 @@ independently; marketing changes do not automatically change those surfaces.
 
 > **Your guide to Epping Forest. No Signal Necessary.**
 
+"No Signal Necessary." sits on its own line, set smaller than "Your guide to
+Epping Forest." so the first line leads.
+
 ### 3.2 Hero sub-line
 
 > A free, offline map of Epping Forest — 24,906 veteran trees, ready to discover.
@@ -187,7 +190,8 @@ Sections, in order:
 
 1. **Hero** — the line-art longhorn (§7) as background, headline (§3.1),
    sub-line (§3.2), and the primary CTA element (§8). The photo caption uses
-   white text on an opaque dark-green backing for contrast across the image.
+   white text on an opaque dark-green backing for contrast across the image,
+   running flush to the photo's left, right and bottom edges with no inset.
 2. **Find the tree behind the tag** — directly after the hero, explain
    searching physical tag numbers, navigating to a specific tree and checking
    its tag on arrival, with three app screenshots: searching its number,
@@ -196,8 +200,9 @@ Sections, in order:
    points in a separate list. On wide screens, keep the three cards in one
    row. Load these supporting images lazily. The navigation caption explains
    that routes try to favour scenic forest paths and alleyways, without
-   guaranteeing them. Placeholder screenshot assets may stand in until final
-   captures are available. Ages are educated guesses from recorded girth and
+   guaranteeing them. The screenshots are interim real captures from the app
+   (`app-search.jpg`, `app-nearby-route.jpg`, `app-tree-age.jpg`), scaled to
+   600px wide, until final marketing captures replace them. Ages are educated guesses from recorded girth and
    species where data is available, not exact birthdays.
 3. **Example tag** — its own section between the tag guide and the feature
    cards: a photograph of a real numbered metal tag (27400), cropped to a

@@ -78,6 +78,8 @@ test.describe("the marketing homepage", () => {
       "3. Discover its estimated age. We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday."
     ]);
     await expect(trees.locator(".app-shot img")).toHaveCount(3);
+    const shots = await trees.locator(".app-shot img").evaluateAll(images => images.map(img => img.getAttribute("src")));
+    expect(shots).toEqual(["assets/home/app-search.jpg", "assets/home/app-nearby-route.jpg", "assets/home/app-tree-age.jpg"]);
     await expect(trees.locator(".steps")).toHaveCount(0);
   });
 
@@ -158,8 +160,19 @@ test.describe("the marketing homepage", () => {
       "alt",
       /GPS-collared English Longhorn cattle grazing in Epping Forest/i
     );
+    const [headline, tagline] = await page.locator("h1").evaluate(h1 => [
+      parseFloat(getComputedStyle(h1).fontSize),
+      parseFloat(getComputedStyle(h1.querySelector(".h1-tagline")).fontSize)
+    ]);
+    expect(tagline).toBeLessThan(headline);
     await expect(page.locator(".hero-photo figcaption")).toHaveCSS("background-color", "rgb(29, 74, 47)");
     await expect(page.locator(".hero-photo figcaption")).toHaveCSS("color", "rgb(255, 255, 255)");
+    const captionFlush = await page.locator(".hero-photo").evaluate(figure => {
+      const photo = figure.querySelector("img").getBoundingClientRect();
+      const caption = figure.querySelector("figcaption").getBoundingClientRect();
+      return [caption.left - photo.left, photo.right - caption.right, photo.bottom - caption.bottom].every(gap => Math.abs(gap) < 1);
+    });
+    expect(captionFlush).toBe(true);
     await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
       "content",
       /assets\/home\/epping-longhorns-social\.jpg$/
