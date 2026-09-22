@@ -326,11 +326,12 @@ The public homepage uses this same card format and grouping.
 Rules:
 
 - The breakdown must add up to the headline total. A place matching more than one
-  subfilter is counted once, under the first match in `PLACE_FILTER_PRIORITY` —
-  the same order the map uses to pick a pin's icon.
+  subfilter is counted once, under the filter chip the app lists it under
+  (`placeLabelFilterKey`): the specific filters, then the `monuments`/`historic`
+  fallback tier, with `blue_plaques` counted as Plaques.
 - Counts come from `scripts/report/map-inventory.js`, which loads
   `js/categories.js` and `js/normalize.js` and classifies places with the app's own
-  `matchesPlaceFilter`. The report must never re-implement classification in
+  `placeLabelFilterKey`. The report must never re-implement classification in
   Python: the numbers would drift from what the app actually shows, which is the
   problem this section exists to solve.
 - Trees are counted from `data/trees/index.json`'s `recordCount`; ponds and streams

@@ -8164,6 +8164,20 @@ test("the map inventory's breakdown adds up to the total it reports", () => {
   );
 });
 
+test("the map inventory counts historic sites, plaques and monuments the map draws", () => {
+  // These three sit outside PLACE_FILTER_PRIORITY -- historic and monuments
+  // in the fallback tier, plaques behind the chipless blue_plaques key -- and
+  // an inventory that only walked that list reported all three as zero while
+  // the map showed dozens of each.
+  const { buildInventory } = require("../scripts/report/map-inventory.js");
+  const history = buildInventory().groups.find((group) => group.key === "history");
+
+  for (const key of ["historic", "plaques", "monuments"]) {
+    const subfilter = history.subfilters.find((item) => item.key === key);
+    assert.ok(subfilter.count > 0, `${key} should be counted, not reported as zero`);
+  }
+});
+
 test("the map inventory counts far more than the food places alone", () => {
   // The bug this section fixes: the report's only count used to be the
   // food/drink/shop dataset, presented as if it were everything on the map.

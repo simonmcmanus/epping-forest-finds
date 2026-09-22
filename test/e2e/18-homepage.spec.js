@@ -7,6 +7,8 @@
  */
 
 const { test, expect } = require("@playwright/test");
+const { buildInventory } = require("../../scripts/report/map-inventory.js");
+const { formatCount } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
   test("explains what the app is without needing JavaScript", async ({ browser }) => {
@@ -53,7 +55,10 @@ test.describe("the marketing homepage", () => {
     expect(headerOnOneLine).toBe(true);
     await expect(page.locator(".hero-eyebrow .hero-leaf")).toHaveAttribute("src", "assets/home/map-icons/oak.png");
     await expect(page.locator(".hero-eyebrow")).toHaveText("Epping Forest, offline");
-    await expect(page.locator(".inventory-total")).toContainText("31,000");
+    // Counts come from the data, as the sync script writes them, so a data
+    // change does not need this spec edited by hand.
+    const inventory = buildInventory();
+    await expect(page.locator(".inventory-total")).toContainText(formatCount(inventory.total));
     const totalIcon = page.locator(".inventory-total img");
     await expect(totalIcon).toHaveAttribute("src", "assets/home/map-icons/all-finds.png");
     const iconLeftOfTotal = await page.locator(".inventory-total").evaluate(total => {
@@ -62,9 +67,9 @@ test.describe("the marketing homepage", () => {
       return icon.width === 44 && icon.right <= count.left && icon.bottom > count.top && icon.top < count.bottom;
     });
     expect(iconLeftOfTotal).toBe(true);
-    await expect(page.locator(".inventory-group h3")).toContainText([
-      "Nature25,017", "Food771", "Transport1,864", "History12", "Locations30", "Stories42"
-    ]);
+    await expect(page.locator(".inventory-group h3")).toContainText(
+      inventory.groups.map(group => `${group.label}${formatCount(group.count)}`)
+    );
     await expect(page.locator(".inventory-group h3 img")).toHaveCount(6);
     await expect(page.locator(".inventory-group dt img")).toHaveCount(22);
     const iconAlignment = await page.locator(".inventory-group").evaluateAll(groups => groups.map(group => {
@@ -76,7 +81,7 @@ test.describe("the marketing homepage", () => {
     }));
     expect(iconAlignment.every(Boolean)).toBe(true);
     await expect(page.locator(".inventory-always")).toContainText("Gates, benches & other facilities");
-    await expect(page.locator(".inventory-always")).toContainText("3,264");
+    await expect(page.locator(".inventory-always")).toContainText(formatCount(inventory.alwaysShown.count));
   });
 
   test("explains finding a specific tree by its tag and treating its age as an estimate", async ({ page }) => {
