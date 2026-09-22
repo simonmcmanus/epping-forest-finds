@@ -70,7 +70,7 @@ independently; marketing changes do not automatically change those surfaces.
 
 ### 3.1 Hero headline
 
-> **The forest has no signal. The map doesn't need one.**
+> **Your guide to Epping Forest. No Signal Necessary.**
 
 ### 3.2 Hero sub-line
 
@@ -186,8 +186,13 @@ permitted only to enhance the sign-up form (inline validation, async submit).
 Sections, in order:
 
 1. **Hero** — the line-art longhorn (§7) as background, headline (§3.1),
-   sub-line (§3.2), and the primary CTA element (§8).
-2. **Find the tree behind the tag** — immediately after the hero, explain
+   sub-line (§3.2), and the primary CTA element (§8). The photo caption uses
+   white text on an opaque dark-green backing for contrast across the image.
+2. **Three feature cards** — directly after the hero: offline, veteran trees
+   and cattle (§3.4). White cards have rounded borders, shadows and 80px centred
+   independent brand icons from `assets/home/`, with centred headings. Use three
+   equal columns on wide screens and stack them on mobile.
+3. **Find the tree behind the tag** — after the feature cards, explain
    searching physical tag numbers, navigating to a specific tree and checking
    its tag on arrival. Show a labelled photograph of a real numbered metal tag
    alongside three app screenshots: searching its number, following its route
@@ -195,38 +200,38 @@ Sections, in order:
    explanation rather than repeating the same three points in a separate list.
    On wide screens, keep all four cards in one row
    rather than stacking a screenshot beneath the shorter tag photograph. Load
-   these supporting images lazily. Placeholder screenshot assets may stand in
+   these supporting images lazily. The navigation caption explains that routes
+   try to favour scenic forest paths and alleyways, without guaranteeing them. Placeholder screenshot assets may stand in
    until final captures are available. Ages are
    educated guesses from recorded girth and species where data is available,
-   not exact birthdays. The three pillars follow: offline, veteran trees and
-   cattle (§3.4), each with its independent brand icon copy from `assets/home/`.
-3. **What's on the map** — one neutral inventory card, matching the Ledger's
+   not exact birthdays.
+4. **What's on the map** — one neutral inventory card, matching the Ledger's
    categorisation: a headline total, the six app filter groups (Nature, Food,
    Transport, History, Locations and Stories), every subfilter and count, then
    a full-width row for always-shown facilities. Each group heading uses an
    independent homepage copy of the corresponding app category icon, with a
    smaller app icon beside every subcategory. Parent icons are deliberately
-   larger so the group hierarchy remains clear. The
+   larger so the group hierarchy remains clear. Both icon sizes sit centred
+   in the same 38px column, with aligned category and subcategory labels. The
    header brand mark is the transparent oak leaf from the app icon, without
    the app icon's yellow background.
-4. **How it works offline** — three steps: open it once on signal, it
-   downloads, it then works anywhere in the forest. This section exists to
-   answer the "how can a map work with no signal?" objection, which is the
-   main reason people will not believe the headline.
-5. **FAQ** — marked up as `FAQPage` JSON-LD (§6.3). At minimum: does it work
-   without signal; is it free; do I need an account; where does the tree data
-   come from; how do you know where the cattle are; does it drain my battery;
-   which area does it cover.
-6. **From the Ledger** — a short description of the weekly report and a link
-   into `/reports/` (§6.4). It links to the index rather than listing
-   individual reports: generating a list would make the homepage a build
-   artifact, which §4 rejects for the same reason. The internal link is what
-   matters here, and the index carries it.
-7. **Sign-up** — the mailing-list form (§9). Repeats the CTA for anyone who
-   scrolled past the hero.
-8. **Footer** — links to `/terms.html`, the GitHub issues page for feedback,
-   OpenStreetMap and Veteran Tree Register attribution, and the contact
-   address `mcmanus.simon@gmail.com`.
+5. **From the Ledger** — an inset editorial card with generous responsive padding,
+   a green left border, weekly field-notes eyebrow and a link to `/reports/` (§6.4).
+   The index carries individual reports; the homepage remains static.
+6. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
+   left border accent using the app icon's gold (`#f3d36b`), matching the
+   Ledger card's accent placement. Introduction, consent and supporting text
+   use the full card content width; only the email field has a narrower cap. Both introduction and
+   consent include weekly Epping Forest Ledger updates once the site launches.
+7. **How it works offline** — three steps: open it once on signal, it downloads,
+   it then works anywhere in the forest. A separate padded note explains that
+   fresh cattle locations require a connection and saved positions may be stale.
+8. **FAQ** — immediately before the footer, with `FAQPage` JSON-LD (§6.3).
+   Covers signal, cost/account, tree data, cattle positions and coverage.
+   No battery-use question.
+9. **Footer** — builder credit, `/terms.html`, GitHub feedback and contact address
+   `mcmanus.simon@gmail.com`. No separate dataset-attribution paragraph; source
+   explanations remain in the FAQ.
 
 ### 5.1 Page weight and assets
 
@@ -353,7 +358,8 @@ links — is written to be true in all three states and does not change.
 The page must not imply immediate access or invitations already being sent.
 The signup heading is “Be first to hear about the release”, the submit button
 is “Keep me updated”, and the introduction repeats that invitations aren’t
-open yet and subscribers will also receive major updates.
+open yet and subscribers will also receive major updates and weekly Ledger updates
+once the site launches. The consent label states the same mailing scope.
 
 ## 9. Mailing list
 
@@ -397,7 +403,7 @@ which addresses are on the list is an enumeration oracle.
 - Every message carries a working unsubscribe link from the first one.
 - Consent wording in the form and server-side record must match exactly:
   “Email me about the Epping Forest Finds release, alpha invitations and major
-  updates about the app.” Nothing else is sent to this list without fresh consent.
+  updates about the app, plus weekly Epping Forest Ledger updates once the site launches.” Nothing else is sent to this list without fresh consent.
 
 ### 9.4 Privacy policy changes (blocking)
 

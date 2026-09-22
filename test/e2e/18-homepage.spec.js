@@ -14,7 +14,7 @@ test.describe("the marketing homepage", () => {
     const page = await context.newPage();
     await page.goto("/");
 
-    await expect(page.locator("h1")).toContainText("The forest has no signal");
+    await expect(page.locator("h1")).toHaveText("Your guide to Epping Forest.No Signal Necessary.");
     await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
     await expect(page.locator("#signupForm")).toBeVisible();
     await expect(page.locator("#find-trees")).toContainText("Search its tag number.");
@@ -29,6 +29,17 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Every veteran tree in the register/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
+    await expect(page.locator(".hero + .pillars + #find-trees")).toHaveCount(1);
+    for (const card of await page.locator(".pillars article").all()) {
+      await expect(card).toHaveCSS("border-radius", "14px");
+      await expect(card).not.toHaveCSS("box-shadow", "none");
+      const centred = await card.evaluate(el => {
+        const cardRect = el.getBoundingClientRect();
+        const iconRect = el.querySelector("img").getBoundingClientRect();
+        return iconRect.width === 80 && Math.abs(iconRect.x + iconRect.width / 2 - cardRect.x - cardRect.width / 2) < 1;
+      });
+      expect(centred).toBe(true);
+    }
   });
 
   test("groups the map inventory like the app filters and uses the oak-leaf brand mark", async ({ page }) => {
@@ -41,6 +52,14 @@ test.describe("the marketing homepage", () => {
     ]);
     await expect(page.locator(".inventory-group h3 img")).toHaveCount(6);
     await expect(page.locator(".inventory-group dt img")).toHaveCount(22);
+    const iconAlignment = await page.locator(".inventory-group").evaluateAll(groups => groups.map(group => {
+      const parent = group.querySelector("h3 img").getBoundingClientRect();
+      return [...group.querySelectorAll("dt img")].every(icon => {
+        const child = icon.getBoundingClientRect();
+        return Math.abs(parent.x + parent.width / 2 - child.x - child.width / 2) < 1;
+      });
+    }));
+    expect(iconAlignment.every(Boolean)).toBe(true);
     await expect(page.locator(".inventory-always")).toContainText("Gates, benches & other facilities");
     await expect(page.locator(".inventory-always")).toContainText("3,264");
   });
@@ -60,7 +79,7 @@ test.describe("the marketing homepage", () => {
     await expect(trees.locator(".tag-story figcaption")).toHaveText([
       "The tag you spot: 27400",
       "1. Search its tag number. Enter the number on the tree’s physical tag to find its record on the map.",
-      "2. Navigate to that tree. Select it to see the way from your location, then check its tag number when you arrive.",
+      "2. Navigate to that tree. Select it for a route from your location. We try to find a more scenic way through forest paths and alleyways. Check its tag number when you arrive.",
       "3. Discover its estimated age. We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday."
     ]);
     await expect(trees.locator(".app-shot img")).toHaveCount(3);
@@ -76,6 +95,29 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("button", { name: "Keep me updated" })).toBeVisible();
     await expect(page.locator(".consent")).toContainText("release, alpha invitations and major updates");
     await expect(page.locator("#consent")).not.toBeChecked();
+  });
+
+  test("highlights signup and the Ledger before the practical questions", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates once the site launches");
+    await expect(page.locator(".consent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
+    await expect(page.locator(".ledger + .signup + .how + .faq")).toHaveCount(1);
+    await expect(page.locator("main > section:last-child")).toHaveClass("faq");
+    await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
+    await expect(page.locator(".site-foot")).not.toContainText("Map data ©");
+    await expect(page.locator(".offline-note")).toContainText("A note on the moving herd");
+    await expect(page.locator(".signup")).toHaveCSS("border-left-color", "rgb(243, 211, 107)");
+    await expect(page.locator(".signup")).toHaveCSS("border-top-width", "1px");
+    const signupWidths = await page.locator(".signup").evaluate(el => {
+      const style = getComputedStyle(el);
+      const available = el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      return [".signup-intro", ".signup-form"].map(selector =>
+        Math.abs(el.querySelector(selector).getBoundingClientRect().width - available));
+    });
+    expect(signupWidths.every(difference => difference < 1)).toBe(true);
+    const ledger = page.locator(".ledger");
+    expect(await ledger.evaluate(el => parseFloat(getComputedStyle(el).paddingLeft))).toBeGreaterThanOrEqual(24);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 
   test("explains periodic network requests and stale offline cow positions in copy and search data", async ({ page }) => {
@@ -101,6 +143,8 @@ test.describe("the marketing homepage", () => {
       "alt",
       /GPS-collared English Longhorn cattle grazing in Epping Forest/i
     );
+    await expect(page.locator(".hero-photo figcaption")).toHaveCSS("background-color", "rgb(29, 74, 47)");
+    await expect(page.locator(".hero-photo figcaption")).toHaveCSS("color", "rgb(255, 255, 255)");
     await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
       "content",
       /assets\/home\/epping-longhorns-social\.jpg$/
