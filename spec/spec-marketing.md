@@ -365,8 +365,15 @@ which addresses are on the list is an enumeration oracle.
 
 ### 9.3 Consent and compliance
 
-- Double opt-in. The success state says **"Check your inbox"**, never
-  "You're in".
+- Double opt-in. A new contact receives a confirmation message, but EmailOctopus
+  does not resend one when an existing contact produces a `409`. The shared
+  success state therefore says **"Confirmation is needed — check your inbox.
+  The email might be in your spam folder"**. It does not reveal whether the
+  address is already on the list.
+- After a successful response, the email and consent controls remain visible
+  but disabled, and the disabled submit button reads **"Request received"**.
+  This makes the completed state unmistakable; reloading restores the form if
+  the visitor needs to correct an address.
 - The consent checkbox is unbundled and never pre-ticked.
 - Record the consent timestamp **and the wording consented to**, so the record
   survives later copy changes.
@@ -398,8 +405,14 @@ afterwards. Required edits:
 A public POST endpoint will be abused. Mitigations, in preference order:
 
 - Hidden honeypot field, rejected silently if filled.
-- Submission-timing check — a form completed implausibly fast is a bot.
+- Submission speed is not treated as a bot signal: browser autofill can produce
+  a legitimate immediate submission.
 - Per-IP rate limiting in the function.
+
+The function logs privacy-safe processing stages with the Netlify invocation
+ID, including validation failures, honeypot acceptance, configuration presence
+and the EmailOctopus response status. It never logs the submitted address or
+API key.
 
 No third-party captcha. The script weight and the privacy cost are not worth it
 at this volume, and it would sit on the one page that must load fastest.

@@ -1205,8 +1205,7 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
 
-    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(t => nearbyIconLookup.outOfRadius.has(t));
-    ctx.globalAlpha = (isOutOfRadius ? 0.4 : 1) * reveal;
+    ctx.globalAlpha = reveal;
 
     const repr = items[0];
     const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
@@ -1360,12 +1359,10 @@ function buildNearbyIconLookup() {
 // selected filter (nearestSelectedFilterPoints, js/app.js), so those screens highlight the same
 // items -- otherwise the zoom-out framed a match the map drew nothing for. Only the ones
 // genuinely outside the ring are added here: anything inside it is the in-radius pass's to draw
-// (and to leave out, where the tree budget already dropped it), and adding it back would mark an
-// in-radius find as out-of-radius and dim it.
+// (and to leave out, where the tree budget already dropped it).
 function addNearestSelectedFilterReach(lookup) {
   // With the radius filter toggled off there is no ring to reach past: the in-radius pass has
-  // already drawn the unlimited set, and marking anything out-of-radius here would dim a pin on
-  // the one screen state that is explicitly ignoring the radius.
+  // already drawn the unlimited set, so every nearest match is on the map already.
   if (state.showAllOutsideRadius) return;
   const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
   for (const entry of nearestSelectedFilterEntries()) {
@@ -1394,6 +1391,12 @@ function buildFullNearbyIconLookup() {
   const cow = new Set();
   const path = new Set();
   const water = new Set();
+  // Which of the highlighted items sit outside the walking radius. Nothing in the draw path
+  // reads this any more: out-of-radius pins used to be drawn at 0.4 opacity, and the dim is
+  // gone -- the walking-radius wash already darkens everything beyond the ring, so a pin out
+  // there is visibly outside it without being faded as well, and fading the pin only made the
+  // one thing the user is trying to read the hardest thing on that part of the map. Kept as
+  // the lookup's record of the distinction, which the specs assert against.
   const outOfRadius = new Set();
   const treeCandidates = [];
   for (const entry of overviewItemsForActiveFilter()) {
@@ -1445,9 +1448,8 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
     if (!isNearCanvas(screenPt, LANDMARK_CULL_MARGIN_PX * dpr)) continue;
 
     const place = items[0];
-    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
     const baseOpacity = markerOpacityFor("landmark", place);
-    ctx.globalAlpha = (isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity) * reveal;
+    ctx.globalAlpha = baseOpacity * reveal;
 
     const isPub = isPubCategory(place);
     const isCafe = isCafeCategory(place);
@@ -1500,8 +1502,7 @@ function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
   for (const cluster of clusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
-    ctx.globalAlpha = (isOutOfRadius ? 0.4 : 1) * reveal;
+    ctx.globalAlpha = reveal;
     const drawn = drawPngMapIcon(ctx, iconPath("waymarked"), screenPt.x, screenPt.y, iconSize);
     if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
   }
@@ -1523,8 +1524,7 @@ function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
   for (const cluster of clusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(w => nearbyIconLookup.outOfRadius.has(w));
-    ctx.globalAlpha = (isOutOfRadius ? 0.4 : 1) * reveal;
+    ctx.globalAlpha = reveal;
     const drawn = drawPngMapIcon(ctx, iconPath("ponds"), screenPt.x, screenPt.y, iconSize);
     if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
   }
@@ -1546,9 +1546,8 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
   for (const cluster of clusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(c => nearbyIconLookup.outOfRadius.has(c));
     const baseOpacity = markerOpacityFor("cow", items[0]);
-    ctx.globalAlpha = (isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity) * reveal;
+    ctx.globalAlpha = baseOpacity * reveal;
     const drawn = drawPngMapIcon(ctx, iconPath("cow"), screenPt.x, screenPt.y, iconSize);
     if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
   }
@@ -1716,11 +1715,10 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
-    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(t => nearbyIconLookup.outOfRadius.has(t));
     const repr = items[0];
     const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * (isOutOfRadius ? 0.4 : 1);
+      c.globalAlpha = reveal;
       const drawn = drawPngMapIcon(c, src, screenPt.x, screenPt.y, iconSize * pinScale);
       if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
@@ -1732,7 +1730,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     if (!isNearCanvas(screenPt, 16 * dpr * uScale)) continue;
     const pinScale = tiltPinScale(worldPt);
     const place = items[0];
-    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
     const baseOpacity = markerOpacityFor("landmark", place);
     const isPub = isPubCategory(place);
     const isCafe = isCafeCategory(place);
@@ -1741,7 +1738,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const transportType = isTransport ? getTransportType(place) : null;
     const iconSlug = (!isPub && !isCafe && !isShop && !isTransport) ? placeIconSlug(place) : null;
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * (isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity);
+      c.globalAlpha = reveal * baseOpacity;
       let drawnAsPng = false;
       const scaledIconSize = iconSize * pinScale;
       if (isPub) {
@@ -1774,10 +1771,9 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
-    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(c => nearbyIconLookup.outOfRadius.has(c));
     const baseOpacity = markerOpacityFor("cow", items[0]);
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * (isOutOfRadius ? Math.min(baseOpacity, 0.4) : baseOpacity);
+      c.globalAlpha = reveal * baseOpacity;
       const drawn = drawPngMapIcon(c, iconPath("cow"), screenPt.x, screenPt.y, iconSize * pinScale);
       if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
@@ -1788,9 +1784,8 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
-    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(p => nearbyIconLookup.outOfRadius.has(p));
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * (isOutOfRadius ? 0.4 : 1);
+      c.globalAlpha = reveal;
       const drawn = drawPngMapIcon(c, iconPath("waymarked"), screenPt.x, screenPt.y, iconSize * pinScale);
       if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
@@ -1801,9 +1796,8 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
-    const isOutOfRadius = nearbyIconLookup.outOfRadius && items.every(w => nearbyIconLookup.outOfRadius.has(w));
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * (isOutOfRadius ? 0.4 : 1);
+      c.globalAlpha = reveal;
       const drawn = drawPngMapIcon(c, iconPath("ponds"), screenPt.x, screenPt.y, iconSize * pinScale);
       if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
@@ -1830,10 +1824,7 @@ function drawUser(ctx, toScreen, isTilted) {
   // Validate projection produced valid coordinates
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
 
-  // Sync opacity with landmark/pin opacity when out of walking radius
-  const nearbyIconLookup = buildNearbyIconLookup();
-  const isOutOfRadius = nearbyIconLookup.outOfRadius && nearbyIconLookup.outOfRadius.has(state.userLocation);
-  ctx.globalAlpha = isOutOfRadius ? 0.4 : 1;
+  ctx.globalAlpha = 1;
   
   // In tilt mode, apply tiltPinScale if available.
   // Note: unlike landmarks/pins, the user location marker should always be visible

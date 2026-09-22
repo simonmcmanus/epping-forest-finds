@@ -165,6 +165,59 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
     ).toBe(true);
   });
 
+  // Out-of-radius pins used to be drawn at 0.4 opacity. The walking-radius wash already darkens
+  // everything beyond the ring, so a pin out there is visibly outside it — fading it as well only
+  // made the thing the user is trying to read the hardest thing on that part of the map.
+  test("a highlighted location outside the walking radius is drawn at full strength, not faded", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      state.overviewFilters = ["pubs", "ponds_streams", "underground"];
+      openFiltersScreen();
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      stopViewportAnimation();
+      ensureOverviewTargetsVisible({ force: true });
+      stopViewportAnimation();
+
+      const lookup = buildNearbyIconLookup();
+      const outside = [...lookup.landmark].filter((place) => lookup.outOfRadius.has(place));
+
+      // A real 2d context, so every call drawLandmarks makes behaves normally; only the
+      // globalAlpha setter is shadowed, which is where the dim used to be applied.
+      const probe = document.createElement("canvas");
+      probe.width = els.canvas.width;
+      probe.height = els.canvas.height;
+      const ctx = probe.getContext("2d");
+      const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(ctx), "globalAlpha");
+      const alphas = [];
+      Object.defineProperty(ctx, "globalAlpha", {
+        configurable: true,
+        get() { return descriptor.get.call(ctx); },
+        set(value) { alphas.push(value); descriptor.set.call(ctx, value); },
+      });
+
+      drawLandmarks(ctx, lookup, worldToScreen);
+
+      return {
+        outsideCount: outside.length,
+        highlightedCount: lookup.landmark.size,
+        reveal: nearbyRevealOpacity(),
+        alphas,
+      };
+    });
+
+    expect(result.reveal, "no slide is running, so nothing is legitimately mid-fade").toBe(1);
+    expect(
+      result.outsideCount,
+      "fixture sanity: the filter screen is highlighting at least one match beyond the ring",
+    ).toBeGreaterThan(0);
+    expect(result.alphas.length, "drawLandmarks set an opacity for the pins it drew").toBeGreaterThan(0);
+    // Every highlighted landmark matches an active place filter, so markerOpacityFor gives them
+    // all a base opacity of 1 — anything below it here could only be the out-of-radius dim.
+    expect(
+      Math.min(...result.alphas),
+      "no landmark pin is faded for being outside the ring",
+    ).toBe(1);
+  });
+
   test("walking radius circle is drawn on all three secondary screens", async ({ page }) => {
     for (const toggleId of ["#filterToggle", "#settingsToggle", "#reportToggle"]) {
       await page.click(toggleId);

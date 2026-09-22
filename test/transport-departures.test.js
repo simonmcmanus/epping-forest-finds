@@ -39,5 +39,27 @@ test("bus stop direction keeps valid directional indicators", () => {
   assert.equal(_private.busStopDirection({ indicator: "Stop F northbound" }, []), "Stop F northbound");
   assert.equal(_private.busStopDirection({ indicator: "Stop G towards Chingford" }, []), "Stop G towards Chingford");
   assert.equal(_private.busStopDirection({ indicator: "Stop H via Woodford" }, []), "Stop H via Woodford");
-  assert.equal(_private.busStopDirection({ indicator: "N" }, []), "N");
+});
+
+test("bus stop direction ignores compass bearings", () => {
+  assert.equal(_private.busStopDirection({ indicator: "N" }, []), null);
+  assert.equal(_private.busStopDirection({ indicator: "SSW" }, []), null);
+  assert.equal(_private.busStopDirection({ bearing: "225" }, []), null);
+  assert.equal(
+    _private.busStopDirection({ additionalProperties: [{ key: "CompassPoint", value: "NE" }] }, []),
+    null
+  );
+  assert.equal(
+    _private.busStopDirection({ additionalProperties: [{ key: "Direction", value: "north-east" }] }, []),
+    null
+  );
+  assert.equal(_private.normalizeDirectionText("180°"), null);
+});
+
+test("bus stop direction keeps destinations that merely look compass-like", () => {
+  assert.equal(
+    _private.busStopDirection({ additionalProperties: [{ key: "Towards", value: "New Barnet" }] }, []),
+    "New Barnet"
+  );
+  assert.equal(_private.normalizeDirectionText("Northumberland Park"), "Northumberland Park");
 });

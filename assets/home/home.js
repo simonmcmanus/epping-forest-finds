@@ -18,10 +18,6 @@
   var honeypot = document.getElementById("website");
   var submitButton = form.querySelector("button[type=submit]");
 
-  // Stamped when the page renders so the endpoint can reject a form completed
-  // faster than a person could read it.
-  var renderedAt = Date.now();
-
   function say(text, kind) {
     if (!message) return;
     message.textContent = text;
@@ -53,7 +49,6 @@
         email: email,
         consent: true,
         website: honeypot ? honeypot.value : "",
-        renderedAt: renderedAt,
       }),
     })
       .then(function (response) {
@@ -67,10 +62,21 @@
           if (submitButton) submitButton.disabled = false;
           return;
         }
-        // Double opt-in: the address is not on the list until they confirm,
-        // so the wording is "check your inbox", never "you're in".
+        // This wording also covers an existing contact. EmailOctopus returns
+        // 409 without resending double opt-in, and distinguishing that case
+        // would reveal whether an address is already on the list.
         form.reset();
-        say("Check your inbox — we've sent you a confirmation email.", "ok");
+        if (emailField) emailField.disabled = true;
+        if (consentField) consentField.disabled = true;
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = "Request received";
+        }
+        form.classList.add("is-complete");
+        say(
+          "Thanks. Confirmation is needed — check your inbox. The email might be in your spam folder.",
+          "ok"
+        );
       })
       .catch(function () {
         say("Couldn't reach the server. Please try again.", "error");

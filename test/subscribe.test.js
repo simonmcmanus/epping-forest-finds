@@ -30,26 +30,38 @@ test("obvious rubbish is rejected before a network call is made", () => {
 });
 
 test("a filled honeypot field marks the submission automated", () => {
-  assert.strictEqual(subscribe.looksAutomated({ honeypot: "http://spam.example" }), true);
+  assert.strictEqual(subscribe.looksAutomated({ website: "http://spam.example" }), true);
 });
 
-test("a form submitted faster than a person could read it is automated", () => {
-  const now = 1_000_000;
-  assert.strictEqual(
-    subscribe.looksAutomated({ renderedAt: now - 100 }, now),
-    true,
-    "a submission 100ms after render is a bot"
-  );
-  assert.strictEqual(
-    subscribe.looksAutomated({ renderedAt: now - subscribe.MIN_FILL_MS - 1 }, now),
-    false,
-    "a submission after the minimum fill time is a person"
-  );
+test("a fast submission is not rejected because browser autofill can be immediate", () => {
+  assert.strictEqual(subscribe.looksAutomated({ renderedAt: Date.now() }), false);
 });
 
-test("a missing or unparseable render stamp does not block a real person", () => {
-  assert.strictEqual(subscribe.looksAutomated({}), false);
-  assert.strictEqual(subscribe.looksAutomated({ renderedAt: "nonsense" }), false);
+test("a silently accepted honeypot submission is visible in privacy-safe function logs", async () => {
+  const messages = [];
+  const originalInfo = console.info;
+  console.info = (message) => messages.push(message);
+
+  try {
+    const result = await subscribe.handler(
+      {
+        httpMethod: "POST",
+        body: JSON.stringify({
+          email: "walker@example.com",
+          consent: true,
+          website: "filled-by-autofill",
+        }),
+      },
+      { awsRequestId: "test-request" }
+    );
+
+    assert.strictEqual(result.statusCode, 200);
+    assert.ok(messages.some((message) => message.includes("[test-request]")));
+    assert.ok(messages.some((message) => message.includes("honeypot")));
+    assert.ok(messages.every((message) => !message.includes("walker@example.com")));
+  } finally {
+    console.info = originalInfo;
+  }
 });
 
 test("the consent wording is recorded so it survives later copy changes", () => {
