@@ -2692,7 +2692,7 @@ test("a screen other than Nearby also highlights the nearest match it zooms out 
     "sanity: the camera reaches past the ring for it",
   );
   assert.equal(filters.landmark.has(farPub), true, "so the map highlights it rather than framing empty ground");
-  assert.equal(filters.outOfRadius.has(farPub), true, "drawn dimmed, because it is still outside the ring");
+  assert.equal(filters.outOfRadius.has(farPub), true, "and records that it is outside the ring, though it is drawn at full strength");
 });
 
 test("the nearest match a secondary screen reaches for is measured from the browsed spot, like the ring is", () => {
