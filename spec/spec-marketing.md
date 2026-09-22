@@ -254,12 +254,14 @@ Sections, in order:
    use the full card content width; only the email-and-button row has a narrower cap. Both introduction and
    consent include weekly Epping Forest Ledger updates once the site launches.
 7. **How it works offline** — a one-line intro, then three steps: open it once
-   on signal, it downloads, it then works anywhere in the forest. Each step is
-   a white shadowed card with a round dark-green number badge, a bold title and
-   a short line beneath; three columns on wide screens, stacked on mobile with
-   the badge to the left. A separate note, tinted with a green left accent and
-   the cow icon, explains that fresh cattle locations require a connection and
-   saved positions may be stale.
+   on signal, it downloads, it then works anywhere in the forest. The steps and
+   the cattle note share one white shadowed card (like the map inventory), so
+   there are no floating boxes. Each step has a round dark-green number badge
+   with its bold title beside it and a short line beneath; the steps are split
+   by thin rules — three columns on wide screens, stacked on mobile — with a
+   small circled arrow on each rule showing the sequence. The card's footer is a
+   green-tinted strip with the cow icon explaining that fresh cattle locations
+   require a connection and saved positions may be stale.
 8. **FAQ** — after the offline section, with `FAQPage` JSON-LD (§6.3).
    Covers signal, cost/account, tree data, cattle positions and coverage.
    No battery-use question. All answers stay visible (no accordion) in one

@@ -183,20 +183,31 @@ test.describe("the marketing homepage", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 
-  test("presents the offline steps as numbered cards and the questions as one divided card", async ({ page }) => {
+  test("presents the offline steps as one divided card and the questions as one divided card", async ({ page }) => {
     await page.goto("/");
-    const steps = page.locator(".offline-how .steps li");
+    const panel = page.locator(".offline-how .offline-panel");
+    await expect(panel).toHaveCSS("border-radius", "14px");
+    await expect(panel).not.toHaveCSS("box-shadow", "none");
+    const steps = panel.locator(".steps li");
     await expect(steps).toHaveCount(3);
     await expect(steps.locator("strong")).toHaveText(["Open it once", "It downloads", "Walk out of range"]);
     for (const step of await steps.all()) {
-      await expect(step).toHaveCSS("border-radius", "14px");
-      await expect(step).not.toHaveCSS("box-shadow", "none");
+      await expect(step).toHaveCSS("box-shadow", "none");
       const badge = await step.evaluate(el => {
         const style = getComputedStyle(el, "::before");
         return { background: style.backgroundColor, radius: style.borderRadius, width: style.width };
       });
       expect(badge).toEqual({ background: "rgb(29, 74, 47)", radius: "50%", width: "38px" });
     }
+    // Each step's title sits beside its badge, not on a row of its own.
+    const titleBesideBadge = await steps.evaluateAll(items => items.map(el => {
+      const title = el.querySelector("strong").getBoundingClientRect();
+      const badge = el.getBoundingClientRect();
+      return title.top - badge.top < 40;
+    }));
+    expect(titleBesideBadge).toEqual([true, true, true]);
+    await expect(steps.nth(1)).toHaveCSS(await page.evaluate(() => innerWidth >= 640) ? "border-left-style" : "border-top-style", "solid");
+    await expect(panel.locator(".offline-note")).toHaveCount(1);
     await expect(page.locator(".offline-note img")).toHaveAttribute("src", "assets/home/cow.png");
 
     const faq = page.locator(".faq-list");
