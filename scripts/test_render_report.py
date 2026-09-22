@@ -211,6 +211,17 @@ class RenderInventorySectionTests(unittest.TestCase):
         for label in ("Food", "Nature", "Pubs &amp; bars", "Cafés", "Trees"):
             self.assertIn(label, html)
 
+    def test_uses_the_apps_category_icons_for_groups_and_facilities(self):
+        html = rr.render_inventory_section(SAMPLE_INVENTORY)
+        self.assertEqual(html.count('class="inventory-icon"'), 3)
+        self.assertEqual(html.count('class="inventory-subicon"'), 3)
+        self.assertIn("/data/icons/food.png", html)
+        self.assertIn("/data/icons/nature.png", html)
+        self.assertIn("/data/icons/gate.png", html)
+        self.assertIn("/data/icons/beer.png", html)
+        self.assertIn("/data/icons/cafe.png", html)
+        self.assertIn("/data/icons/tree.png", html)
+
     def test_counts_the_always_shown_features_that_have_no_filter(self):
         html = rr.render_inventory_section(SAMPLE_INVENTORY)
         self.assertIn("Gates, benches &amp; other facilities", html)
@@ -320,14 +331,20 @@ class CowIconTests(unittest.TestCase):
 
 class AppPromoTests(unittest.TestCase):
     def test_promo_sells_the_app_rather_than_just_linking_to_it(self):
-        html = rr.render_app_promo("https://www.eppingforestfinds.uk/", {"total": 1130})
+        html = rr.render_app_promo("https://www.eppingforestfinds.uk/app", {"total": 1130})
         self.assertIn("Works with no signal", html)
         self.assertIn("1,130", html)
-        self.assertIn("https://www.eppingforestfinds.uk/", html)
+        self.assertIn('href="https://www.eppingforestfinds.uk/app"', html)
 
     def test_promo_copes_without_an_inventory_total(self):
-        html = rr.render_app_promo("https://www.eppingforestfinds.uk/", None)
+        html = rr.render_app_promo("https://www.eppingforestfinds.uk/app", None)
         self.assertIn("Everything in this report is on it", html)
+
+    def test_report_defaults_to_the_app_route(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = make_repo_root(Path(tmp), ["Pub"])
+            html = rr.render_report(BASE_REPORT_DATA, root)
+            self.assertIn('class="app-link" href="https://www.eppingforestfinds.uk/app"', html)
 
     def test_promo_sits_after_the_weeks_news_not_in_the_masthead(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -339,13 +356,13 @@ class AppPromoTests(unittest.TestCase):
 
 class AiNoteTests(unittest.TestCase):
     def test_says_plainly_that_it_was_written_by_ai_and_may_be_wrong(self):
-        html = rr.render_ai_note("https://www.eppingforestfinds.uk/", "Monday, 15 September 2026")
+        html = rr.render_ai_note("https://www.eppingforestfinds.uk/app", "Monday, 15 September 2026")
         self.assertIn("automatically by AI", html)
         self.assertIn("can get things wrong", html)
 
     def test_links_into_the_apps_own_report_screen_naming_this_report(self):
-        html = rr.render_ai_note("https://www.eppingforestfinds.uk/", "Monday, 15 September 2026")
-        self.assertIn("https://www.eppingforestfinds.uk/#report=", html)
+        html = rr.render_ai_note("https://www.eppingforestfinds.uk/app", "Monday, 15 September 2026")
+        self.assertIn("https://www.eppingforestfinds.uk/app#report=", html)
         self.assertIn("Monday%2C%2015%20September%202026", html)
 
     def test_is_the_last_thing_on_the_page(self):

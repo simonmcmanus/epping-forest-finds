@@ -28,9 +28,8 @@ function readHomepage() {
 }
 
 /**
- * The counts are marked up (`<strong>24,906</strong> veteran trees`, or a
- * number span beside a label span), so the assertions read the page as a
- * visitor sees it rather than as markup.
+ * Strip the markup when checking headline marketing claims; the structured
+ * inventory assertions below inspect its group and subfilter markup directly.
  */
 function readHomepageText() {
   return readHomepage()
@@ -49,18 +48,26 @@ test("every dataset the homepage quotes can still be read", () => {
   }
 });
 
-test("the homepage's headline counts match the datasets they describe", () => {
+test("the homepage's veteran-tree headline matches the dataset it describes", () => {
   const html = readHomepageText();
   const counts = readCounts(ROOT);
+  assert.ok(html.includes(`${formatCount(counts.trees)} veteran trees`));
+});
 
-  for (const [name, value] of Object.entries(counts)) {
-    const formatted = formatCount(value);
-    assert.ok(
-      html.includes(formatted),
-      `index.html should quote ${formatted} for ${name} but does not. ` +
-        `The dataset has changed size -- update the homepage copy (and spec-marketing.md section 4) to match.`
-    );
+test("the grouped homepage inventory matches the app's map inventory", () => {
+  const html = readHomepage();
+  const inventory = require("../scripts/report/map-inventory.js").buildInventory(ROOT);
+  assert.match(html, new RegExp(`inventory-total[\\s\\S]*?<strong>${formatCount(inventory.total)}</strong>`));
+  for (const group of inventory.groups) {
+    const block = html.match(new RegExp(`data-inventory-group="${group.key}"([\\s\\S]*?)</section>`));
+    assert.ok(block, `the homepage should show the ${group.label} group`);
+    assert.ok(block[1].includes(`<strong>${formatCount(group.count)}</strong>`));
+    for (const subfilter of group.subfilters) {
+      const label = subfilter.label.replace(/&/g, "&amp;").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      assert.match(block[1], new RegExp(`<dt><img[^>]*>${label}</dt><dd>${formatCount(subfilter.count)}</dd>`));
+    }
   }
+  assert.match(html, new RegExp(`data-inventory-always[\\s\\S]*?<strong>${formatCount(inventory.alwaysShown.count)}</strong>`));
 });
 
 /**
@@ -74,16 +81,18 @@ test("the homepage's headline counts match the datasets they describe", () => {
 test("the count sync corrects a homepage that has drifted", () => {
   const { updateHomepage } = require("../scripts/sync-homepage-counts.js");
   const counts = readCounts(ROOT);
+  const inventory = require("../scripts/report/map-inventory.js").buildInventory(ROOT);
   const stale = readHomepage().replace(
-    /(<span class="count-n">)[\d,]+(<\/span><span class="count-l">pubs)/,
+    /(<dt><img[^>]*>Shops<\/dt><dd>)[\d,]+(<\/dd>)/,
     "$1123$2"
   );
 
   assert.notStrictEqual(stale, readHomepage(), "the fixture should actually be stale");
-  const fixed = updateHomepage(stale, counts);
+  const fixed = updateHomepage(stale, counts, inventory);
+  const shops = inventory.groups.find(group => group.key === "food").subfilters.find(item => item.key === "shops");
   assert.ok(
-    fixed.includes(`<span class="count-n">${formatCount(counts.food)}</span><span class="count-l">pubs`),
-    "sync-homepage-counts.js should put the real food count back"
+    new RegExp(`<dt><img[^>]*>Shops</dt><dd>${formatCount(shops.count)}</dd>`).test(fixed),
+    "sync-homepage-counts.js should put the real shop count back"
   );
   assert.ok(!fixed.includes(">123<"), "the stale number should be gone");
 });

@@ -28,9 +28,9 @@ are added by the renderer itself -- never write either by hand.
   // Optional. Defaults to the 8 coverage settlements (see places.py).
   "coverage_area": ["Loughton", "Chingford", "..."],
 
-  // Optional. Overrides the default app address (https://www.eppingforestfinds.uk/).
+  // Optional. Overrides the default app address (https://www.eppingforestfinds.uk/app).
   // Also decides where the "report a mistake" link at the foot of the page points.
-  "app_link": "https://www.eppingforestfinds.uk/",
+  "app_link": "https://www.eppingforestfinds.uk/app",
 
   // Optional. Overrides the default "About this report" paragraph. A
   // reader-facing note about coverage, not a status report on the tooling --

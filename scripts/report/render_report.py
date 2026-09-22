@@ -33,7 +33,7 @@ else:
     from .text_utils import oxford_comma_join, pluralize_label
 
 SITE_BASE = "https://www.eppingforestfinds.uk"
-DEFAULT_APP_LINK = SITE_BASE + "/"
+DEFAULT_APP_LINK = SITE_BASE + "/app"
 SOCIAL_IMAGE_URL = SITE_BASE + "/data/icons/icon-512.png"
 
 # The cattle on the report's map are drawn with the app's own cow icon, shrunk
@@ -45,6 +45,38 @@ COW_ICON_SIZE_PX = 64
 # Used only when the icon isn't there to read (the report's own tests render
 # against a stand-in folder holding just the map data).
 COW_ICON_FALLBACK_URL = SITE_BASE + "/data/icons/cow.png"
+INVENTORY_ICON_SOURCES = {
+    "nature": Path("data") / "icons" / "nature.png",
+    "food": Path("data") / "icons" / "food.png",
+    "transport": Path("data") / "icons" / "bus.png",
+    "history": Path("data") / "icons" / "history.png",
+    "locations": Path("data") / "icons" / "pin.png",
+    "stories": Path("data") / "icons" / "legends.png",
+    "always": Path("data") / "icons" / "gate.png",
+    "trees": Path("data") / "icons" / "tree.png",
+    "ponds_streams": Path("data") / "icons" / "ponds.png",
+    "pubs": Path("data") / "icons" / "beer.png",
+    "restaurants": Path("data") / "icons" / "restaurant.png",
+    "cafes": Path("data") / "icons" / "cafe.png",
+    "shops": Path("data") / "icons" / "shop.png",
+    "bus": Path("data") / "icons" / "bus.png",
+    "underground": Path("data") / "icons" / "underground.png",
+    "national_rail": Path("data") / "icons" / "national-rail.png",
+    "parking": Path("data") / "icons" / "landmark-parking.png",
+    "historic": Path("data") / "icons" / "historic.png",
+    "plaques": Path("data") / "icons" / "plaques.png",
+    "monuments": Path("data") / "icons" / "landmark-monument.png",
+    "ww2": Path("data") / "icons" / "historic.png",
+    "churches": Path("data") / "icons" / "church.png",
+    "education": Path("data") / "icons" / "education.png",
+    "medicine": Path("data") / "icons" / "medicine.png",
+    "campsites": Path("data") / "icons" / "campsite.png",
+    "legends": Path("data") / "icons" / "legends.png",
+    "literature": Path("data") / "icons" / "literature.png",
+    "film_tv": Path("data") / "icons" / "film.png",
+    "art": Path("data") / "icons" / "art.png",
+}
+INVENTORY_ICON_SIZE_PX = 64
 DEFAULT_ABOUT_NOTE = (
     "This report is put together each week from council and City of London updates, "
     "local news, an open map of shops and small businesses (OpenStreetMap), and the "
@@ -206,7 +238,17 @@ def render_stat_strip(findings, food_total, grazing):
     return f'<div class="{strip_class}">{"".join(cells)}</div>'
 
 
-def render_inventory_section(inventory):
+def inventory_icon_uri(repo_root, key):
+    source = INVENTORY_ICON_SOURCES.get(key)
+    if source is None:
+        return ""
+    icon = Path(repo_root) / source if repo_root else None
+    if icon and icon.exists():
+        return png_icon.icon_data_uri(icon, INVENTORY_ICON_SIZE_PX)
+    return f'{SITE_BASE}/{source.as_posix()}'
+
+
+def render_inventory_section(inventory, repo_root=None):
     """The running "what's on the map" total and its breakdown.
 
     Every number here comes from the map data itself, so the breakdown always
@@ -221,22 +263,30 @@ def render_inventory_section(inventory):
 
     group_blocks = []
     for group in inventory.get("groups", []):
-        rows = "".join(
-            f'<li><span>{escape(sub["label"])}</span><span class="c">{fmt(sub["count"])}</span></li>'
-            for sub in group.get("subfilters", [])
-        )
+        icon = inventory_icon_uri(repo_root, group.get("key"))
+        icon_html = f'<img class="inventory-icon" src="{icon}" alt="">' if icon else ""
+        rows = ""
+        for sub in group.get("subfilters", []):
+            sub_icon = inventory_icon_uri(repo_root, sub.get("key"))
+            sub_icon_html = f'<img class="inventory-subicon" src="{sub_icon}" alt="">' if sub_icon else ""
+            rows += (
+                f'<li><span>{sub_icon_html}{escape(sub["label"])}</span>'
+                f'<span class="c">{fmt(sub["count"])}</span></li>'
+            )
         group_blocks.append(
             '<div class="inventory-group">'
-            f'<div class="grp"><span>{escape(group["label"])}</span>'
+            f'<div class="grp"><span>{icon_html}{escape(group["label"])}</span>'
             f'<span class="c">{fmt(group["count"])}</span></div>'
             f'<ul>{rows}</ul></div>'
         )
 
     always = inventory.get("alwaysShown") or {}
     if always.get("count"):
+        icon = inventory_icon_uri(repo_root, "always")
+        icon_html = f'<img class="inventory-icon" src="{icon}" alt="">' if icon else ""
         group_blocks.append(
             '<div class="inventory-group full">'
-            f'<div class="grp"><span>{escape(always["label"])}</span>'
+            f'<div class="grp"><span>{icon_html}{escape(always["label"])}</span>'
             f'<span class="c">{fmt(always["count"])}</span></div>'
             '<ul><li><span>Always shown, whatever you have filtered</span></li></ul>'
             '</div>'
@@ -460,7 +510,7 @@ def render_ai_note(app_link, date_display):
     straight into the app's own report-a-problem screen, pre-filled so we know
     which week it came from."""
     subject = f"Mistake in the Epping Forest Ledger for {date_display}" if date_display else "Mistake in the Epping Forest Ledger"
-    deep_link = f"{app_link.rstrip('/')}/#report={quote(subject, safe='')}"
+    deep_link = f"{app_link.rstrip('/')}#report={quote(subject, safe='')}"
     return (
         '<aside class="ai-note">'
         '<h4>Written by AI — please tell us if it is wrong</h4>'
@@ -598,7 +648,7 @@ def render_report(report_data, repo_root):
     app_link = report_data.get("app_link") or DEFAULT_APP_LINK
 
     stat_strip = render_stat_strip(findings, food_stats["total"], grazing)
-    inventory_section = render_inventory_section(inventory)
+    inventory_section = render_inventory_section(inventory, repo_root)
     map_section = render_map_section(forest_geojson, findings, cow_icon)
     business_section = render_business_section(findings)
     road_section = render_category_section("road", "road", findings)

@@ -31,6 +31,20 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
   });
 
+  test("groups the map inventory like the app filters and uses the oak-leaf brand mark", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.locator(".brand-mark")).toHaveAttribute("src", "assets/home/map-icons/oak.png");
+    await expect(page.locator(".inventory-total")).toContainText("31,000");
+    await expect(page.locator(".inventory-group h3")).toContainText([
+      "Nature25,017", "Food771", "Transport1,864", "History12", "Locations30", "Stories42"
+    ]);
+    await expect(page.locator(".inventory-group h3 img")).toHaveCount(6);
+    await expect(page.locator(".inventory-group dt img")).toHaveCount(22);
+    await expect(page.locator(".inventory-always")).toContainText("Gates, benches & other facilities");
+    await expect(page.locator(".inventory-always")).toContainText("3,264");
+  });
+
   test("explains finding a specific tree by its tag and treating its age as an estimate", async ({ page }) => {
     await page.goto("/");
     const trees = page.locator("#find-trees");
@@ -39,6 +53,18 @@ test.describe("the marketing homepage", () => {
     await expect(trees).toContainText("Navigate to that tree.");
     await expect(trees).toContainText("recorded girth and species");
     await expect(trees).toContainText("not an exact birthday");
+    await expect(trees.locator(".tag-photo img")).toHaveAttribute(
+      "alt",
+      /metal tree tag stamped with the number 27400/i
+    );
+    await expect(trees.locator(".tag-story figcaption")).toHaveText([
+      "The tag you spot: 27400",
+      "1. Search its tag number. Enter the number on the tree’s physical tag to find its record on the map.",
+      "2. Navigate to that tree. Select it to see the way from your location, then check its tag number when you arrive.",
+      "3. Discover its estimated age. We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday."
+    ]);
+    await expect(trees.locator(".app-shot img")).toHaveCount(3);
+    await expect(trees.locator(".steps")).toHaveCount(0);
   });
 
   test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {

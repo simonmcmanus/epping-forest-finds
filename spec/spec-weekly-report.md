@@ -231,9 +231,11 @@ committed under `reports/` and are never listed by the index or the sitemap.
 
 ## Address
 
-The site's official address is `https://www.eppingforestfinds.uk`. Every link
-the report generates — the app link, the "report a mistake" link, canonical
-and link-preview addresses — is built from `SITE_BASE` in `render_report.py`.
+The site's official address is `https://www.eppingforestfinds.uk`. The app
+advert and its "report a mistake" deep link default to
+`https://www.eppingforestfinds.uk/app`; canonical and link-preview addresses
+remain under their public report URLs. These addresses are built from
+`SITE_BASE` in `render_report.py`.
 
 ## Sections that are always there
 
@@ -301,7 +303,11 @@ A running inventory of everything the app can draw: a headline total, then a
 breakdown by the app's own high-level filter groups (Nature, Food, Transport,
 History, Locations, Stories) with each group's subfilter counts underneath, and a
 final full-width row for features that are always shown and have no filter of their
-own (gates, benches, toilets and similar).
+own (gates, benches, toilets and similar). Each group heading and subcategory
+carries the same icon used by the app; group icons are larger to make the
+hierarchy clear. Those icons are resized and embedded in the report HTML so the
+inventory keeps its meaning when the report is saved or forwarded.
+The public homepage uses this same card format and grouping.
 
 Rules:
 

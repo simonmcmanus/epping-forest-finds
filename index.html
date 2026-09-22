@@ -89,7 +89,7 @@
 
   <header class="site-head">
     <a class="brand" href="/">
-      <img class="brand-mark" src="assets/home/logo.png" alt="" width="28" height="28">
+      <img class="brand-mark" src="assets/home/map-icons/oak.png" alt="" width="28" height="28">
       <span>Epping Forest Finds</span>
     </a>
     <a class="head-link" href="/reports/">The Ledger</a>
@@ -124,13 +124,28 @@
 
     <section class="how" id="find-trees" aria-labelledby="find-trees-heading">
       <h2 id="find-trees-heading">Find the tree behind the tag</h2>
-      <p>Those numbered tags connect the trees around you to the Veteran Tree Register.
-        Look up a tree you’ve spotted, or choose a specific one to find on your next walk.</p>
-      <ol class="steps">
-        <li><strong>Search its tag number.</strong> Enter the number on the tree’s physical tag to find its record on the map.</li>
-        <li><strong>Navigate to that tree.</strong> Select it to see the way from your location, then check its tag number when you arrive.</li>
-        <li><strong>Discover its estimated age.</strong> We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday.</li>
-      </ol>
+      <div class="tag-intro">
+        <p>Those numbered tags connect the trees around you to the Veteran Tree Register.
+          Look up a tree you’ve spotted, or choose a specific one to find on your next walk.</p>
+        <div class="tag-story">
+          <figure class="tag-photo">
+            <img src="assets/home/tree-tag-example.jpg" width="1200" height="813" loading="lazy" decoding="async" alt="A weathered metal tree tag stamped with the number 27400 and code TS3, fixed to tree bark.">
+            <figcaption>The tag you spot: <strong>27400</strong></figcaption>
+          </figure>
+          <figure class="app-shot app-shot-search">
+            <img src="assets/home/app-search-placeholder.svg" width="390" height="844" loading="lazy" alt="Placeholder for an app screenshot showing a search for tree tag 27400.">
+            <figcaption><strong>1. Search its tag number.</strong> Enter the number on the tree’s physical tag to find its record on the map.</figcaption>
+          </figure>
+          <figure class="app-shot app-shot-route">
+            <img src="assets/home/app-route-placeholder.svg" width="390" height="844" loading="lazy" alt="Placeholder for an app screenshot showing a route to tree 27400.">
+            <figcaption><strong>2. Navigate to that tree.</strong> Select it to see the way from your location, then check its tag number when you arrive.</figcaption>
+          </figure>
+          <figure class="app-shot app-shot-age">
+            <img src="assets/home/app-age-placeholder.svg" width="390" height="844" loading="lazy" alt="Placeholder for an app screenshot showing the estimated age of tree 27400.">
+            <figcaption><strong>3. Discover its estimated age.</strong> We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday.</figcaption>
+          </figure>
+        </div>
+      </div>
     </section>
 
     <section class="pillars">
@@ -165,14 +180,40 @@
 
     <section class="counts">
       <h2>What's on the map</h2>
-      <ul class="count-grid">
-        <li><span class="count-n">24,906</span><span class="count-l">veteran trees</span></li>
-        <li><span class="count-n">9,162</span><span class="count-l">paths &amp; bridleways</span></li>
-        <li><span class="count-n">1,596</span><span class="count-l">car parks, toilets, benches &amp; gates</span></li>
-        <li><span class="count-n">1,106</span><span class="count-l">bus stops &amp; stations</span></li>
-        <li><span class="count-n">771</span><span class="count-l">pubs, cafés &amp; shops</span></li>
-      </ul>
-      <p class="counts-note">All within walking distance of the forest.</p>
+      <p class="counts-intro">Everything the app can show you, counted and grouped exactly the way the app's own filters group it.</p>
+      <div class="map-inventory">
+        <div class="inventory-total"><strong>31,000</strong><span>things you can find on the map today</span></div>
+        <div class="inventory-groups">
+          <section class="inventory-group" data-inventory-group="nature">
+            <h3><span><img src="assets/home/map-icons/nature.png" alt="">Nature</span><strong>25,017</strong></h3>
+            <dl><div><dt><img src="assets/home/map-icons/tree.png" alt="">Trees</dt><dd>24,906</dd></div><div><dt><img src="assets/home/map-icons/ponds.png" alt="">Ponds &amp; streams</dt><dd>111</dd></div></dl>
+          </section>
+          <section class="inventory-group" data-inventory-group="food">
+            <h3><span><img src="assets/home/map-icons/food.png" alt="">Food</span><strong>771</strong></h3>
+            <dl><div><dt><img src="assets/home/map-icons/beer.png" alt="">Pubs &amp; bars</dt><dd>98</dd></div><div><dt><img src="assets/home/map-icons/restaurant.png" alt="">Restaurants</dt><dd>259</dd></div><div><dt><img src="assets/home/map-icons/cafe.png" alt="">Cafés</dt><dd>168</dd></div><div><dt><img src="assets/home/map-icons/shop.png" alt="">Shops</dt><dd>246</dd></div></dl>
+          </section>
+          <section class="inventory-group" data-inventory-group="transport">
+            <h3><span><img src="assets/home/map-icons/bus.png" alt="">Transport</span><strong>1,864</strong></h3>
+            <dl><div><dt><img src="assets/home/map-icons/bus.png" alt="">Bus stops</dt><dd>1,069</dd></div><div><dt><img src="assets/home/map-icons/underground.png" alt="">Underground</dt><dd>14</dd></div><div><dt><img src="assets/home/map-icons/national-rail.png" alt="">National Rail</dt><dd>14</dd></div><div><dt><img src="assets/home/map-icons/parking.png" alt="">Car parks</dt><dd>767</dd></div></dl>
+          </section>
+          <section class="inventory-group" data-inventory-group="history">
+            <h3><span><img src="assets/home/map-icons/history.png" alt="">History</span><strong>12</strong></h3>
+            <dl><div><dt><img src="assets/home/map-icons/historic.png" alt="">Historic sites</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/plaques.png" alt="">Plaques</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/monument.png" alt="">Monuments</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/historic.png" alt="">WWII sites</dt><dd>12</dd></div></dl>
+          </section>
+          <section class="inventory-group" data-inventory-group="locations">
+            <h3><span><img src="assets/home/map-icons/pin.png" alt="">Locations</span><strong>30</strong></h3>
+            <dl><div><dt><img src="assets/home/map-icons/church.png" alt="">Churches</dt><dd>11</dd></div><div><dt><img src="assets/home/map-icons/education.png" alt="">Education</dt><dd>2</dd></div><div><dt><img src="assets/home/map-icons/medicine.png" alt="">Medical sites</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/campsite.png" alt="">Campsites</dt><dd>17</dd></div></dl>
+          </section>
+          <section class="inventory-group" data-inventory-group="stories">
+            <h3><span><img src="assets/home/map-icons/legends.png" alt="">Stories</span><strong>42</strong></h3>
+            <dl><div><dt><img src="assets/home/map-icons/legends.png" alt="">Legends</dt><dd>33</dd></div><div><dt><img src="assets/home/map-icons/literature.png" alt="">Literature</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/film.png" alt="">Film &amp; TV</dt><dd>8</dd></div><div><dt><img src="assets/home/map-icons/art.png" alt="">Art</dt><dd>1</dd></div></dl>
+          </section>
+        </div>
+        <div class="inventory-always" data-inventory-always>
+          <div><img src="assets/home/map-icons/gate.png" alt=""><span><strong>Gates, benches &amp; other facilities</strong><small>Always shown, whatever you have filtered</small></span></div>
+          <strong>3,264</strong>
+        </div>
+      </div>
     </section>
 
     <section class="how">

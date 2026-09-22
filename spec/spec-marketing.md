@@ -149,15 +149,17 @@ approximately 500 food, 1,100 facilities and 520 transport features — all thre
 are now stale by a wide margin, which is precisely the drift a public page
 cannot afford. (Those `spec.md` figures should be corrected separately.)
 
-Implementation: the counts are written into the committed `index.html`, and
-`test/home-counts.test.js` holds them to the real datasets via
-`scripts/count-datasets.js`. A dataset that changes size fails the suite, and
-the copy is corrected in the same change.
+Implementation: the counts are written into the committed `index.html`.
+`test/home-counts.test.js` holds the grouped inventory to
+`scripts/report/map-inventory.js`, the same classifier that supplies the
+Ledger, and holds the headline tree claim to `scripts/count-datasets.js`. A
+dataset or classification change fails the suite, and the copy is corrected
+in the same change.
 
 Correcting it is `scripts/sync-homepage-counts.js`'s job, not a hand edit. It
-rewrites the figures in `index.html` and in §3.4 and §4 of this document from
-the current data, anchored on the words around each number rather than on line
-positions. `--check` reports drift without changing anything and exits
+rewrites the inventory total, group totals and subfilter rows in `index.html`,
+as well as the headline figures in §3.4 and §4 of this document, from the
+current data. `--check` reports drift without changing anything and exits
 non-zero.
 
 It exists because the test alone left a person in the loop, and the weekly
@@ -187,11 +189,26 @@ Sections, in order:
    sub-line (§3.2), and the primary CTA element (§8).
 2. **Find the tree behind the tag** — immediately after the hero, explain
    searching physical tag numbers, navigating to a specific tree and checking
-   its tag on arrival. Ages are educated guesses from recorded girth and
-   species where data is available, not exact birthdays. The three pillars
-   follow: offline, veteran trees and cattle (§3.4), each with its independent
-   brand icon copy from `assets/home/`.
-3. **What's on the map** — the counts block (§3.4 fourth item, §4).
+   its tag on arrival. Show a labelled photograph of a real numbered metal tag
+   alongside three app screenshots: searching its number, following its route
+   and viewing its estimated age. Use each screenshot caption for the matching
+   explanation rather than repeating the same three points in a separate list.
+   On wide screens, keep all four cards in one row
+   rather than stacking a screenshot beneath the shorter tag photograph. Load
+   these supporting images lazily. Placeholder screenshot assets may stand in
+   until final captures are available. Ages are
+   educated guesses from recorded girth and species where data is available,
+   not exact birthdays. The three pillars follow: offline, veteran trees and
+   cattle (§3.4), each with its independent brand icon copy from `assets/home/`.
+3. **What's on the map** — one neutral inventory card, matching the Ledger's
+   categorisation: a headline total, the six app filter groups (Nature, Food,
+   Transport, History, Locations and Stories), every subfilter and count, then
+   a full-width row for always-shown facilities. Each group heading uses an
+   independent homepage copy of the corresponding app category icon, with a
+   smaller app icon beside every subcategory. Parent icons are deliberately
+   larger so the group hierarchy remains clear. The
+   header brand mark is the transparent oak leaf from the app icon, without
+   the app icon's yellow background.
 4. **How it works offline** — three steps: open it once on signal, it
    downloads, it then works anywhere in the forest. This section exists to
    answer the "how can a map work with no signal?" objection, which is the
