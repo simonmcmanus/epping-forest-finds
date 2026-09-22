@@ -59,7 +59,10 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .inventory-group { padding: 20px; border-top: 1px solid var(--line); }
 .inventory-group h3 { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin: 0 0 13px; font-size: 1rem; }
 .inventory-group h3 span { display: flex; gap: 9px; align-items: center; }
-.inventory-group h3 img, .inventory-always img { width: 30px; height: 30px; object-fit: contain; }
+.inventory-group h3 img { width: 38px; height: 38px; object-fit: contain; }
+.inventory-group dt { display: flex; gap: 8px; align-items: center; }
+.inventory-group dt img { width: 23px; height: 23px; object-fit: contain; }
+.inventory-always img { width: 38px; height: 38px; object-fit: contain; }
 .inventory-group h3 > strong, .inventory-group dd, .inventory-always > strong { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; }
 .inventory-group dl { display: grid; gap: 5px; margin: 0; color: var(--muted); }
 .inventory-group dl div { display: flex; justify-content: space-between; gap: 16px; }

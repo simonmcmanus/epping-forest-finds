@@ -70,7 +70,7 @@ function updateHomepage(html, counts, inventory = buildInventory(ROOT)) {
     for (const subfilter of group.subfilters) {
       const label = escapeRegExp(subfilter.label).replace(/&/, "&amp;");
       out = out.replace(
-        new RegExp(`(<dt>${label}</dt><dd>)[\\d,]+(</dd>)`),
+        new RegExp(`(<dt>(?:<img[^>]*>)?${label}</dt><dd>)[\\d,]+(</dd>)`),
         `$1${formatCount(subfilter.count)}$2`
       );
     }

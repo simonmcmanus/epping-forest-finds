@@ -204,7 +204,9 @@ Sections, in order:
    categorisation: a headline total, the six app filter groups (Nature, Food,
    Transport, History, Locations and Stories), every subfilter and count, then
    a full-width row for always-shown facilities. Each group heading uses an
-   independent homepage copy of the corresponding app category icon. The
+   independent homepage copy of the corresponding app category icon, with a
+   smaller app icon beside every subcategory. Parent icons are deliberately
+   larger so the group hierarchy remains clear. The
    header brand mark is the transparent oak leaf from the app icon, without
    the app icon's yellow background.
 4. **How it works offline** — three steps: open it once on signal, it

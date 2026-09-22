@@ -447,7 +447,7 @@ REPORT_CSS = """
     margin-bottom:8px;
   }
   .inventory-group .grp > span:first-child{display:flex; align-items:center; gap:9px;}
-  .inventory-icon{width:30px; height:30px; object-fit:contain; flex:0 0 auto;}
+  .inventory-icon{width:38px; height:38px; object-fit:contain; flex:0 0 auto;}
   .inventory-group .grp .c{
     font-family:"JetBrains Mono", monospace;
     font-variant-numeric: tabular-nums;
@@ -461,6 +461,8 @@ REPORT_CSS = """
     color:var(--ink-soft);
     padding:2px 0;
   }
+  .inventory-group li > span:first-child{display:flex; align-items:center; gap:8px;}
+  .inventory-subicon{width:23px; height:23px; object-fit:contain; flex:0 0 auto;}
   .inventory-group li .c{
     font-family:"JetBrains Mono", monospace;
     font-variant-numeric: tabular-nums;

@@ -53,6 +53,28 @@ INVENTORY_ICON_SOURCES = {
     "locations": Path("data") / "icons" / "pin.png",
     "stories": Path("data") / "icons" / "legends.png",
     "always": Path("data") / "icons" / "gate.png",
+    "trees": Path("data") / "icons" / "tree.png",
+    "ponds_streams": Path("data") / "icons" / "ponds.png",
+    "pubs": Path("data") / "icons" / "beer.png",
+    "restaurants": Path("data") / "icons" / "restaurant.png",
+    "cafes": Path("data") / "icons" / "cafe.png",
+    "shops": Path("data") / "icons" / "shop.png",
+    "bus": Path("data") / "icons" / "bus.png",
+    "underground": Path("data") / "icons" / "underground.png",
+    "national_rail": Path("data") / "icons" / "national-rail.png",
+    "parking": Path("data") / "icons" / "landmark-parking.png",
+    "historic": Path("data") / "icons" / "historic.png",
+    "plaques": Path("data") / "icons" / "plaques.png",
+    "monuments": Path("data") / "icons" / "landmark-monument.png",
+    "ww2": Path("data") / "icons" / "historic.png",
+    "churches": Path("data") / "icons" / "church.png",
+    "education": Path("data") / "icons" / "education.png",
+    "medicine": Path("data") / "icons" / "medicine.png",
+    "campsites": Path("data") / "icons" / "campsite.png",
+    "legends": Path("data") / "icons" / "legends.png",
+    "literature": Path("data") / "icons" / "literature.png",
+    "film_tv": Path("data") / "icons" / "film.png",
+    "art": Path("data") / "icons" / "art.png",
 }
 INVENTORY_ICON_SIZE_PX = 64
 DEFAULT_ABOUT_NOTE = (
@@ -243,10 +265,14 @@ def render_inventory_section(inventory, repo_root=None):
     for group in inventory.get("groups", []):
         icon = inventory_icon_uri(repo_root, group.get("key"))
         icon_html = f'<img class="inventory-icon" src="{icon}" alt="">' if icon else ""
-        rows = "".join(
-            f'<li><span>{escape(sub["label"])}</span><span class="c">{fmt(sub["count"])}</span></li>'
-            for sub in group.get("subfilters", [])
-        )
+        rows = ""
+        for sub in group.get("subfilters", []):
+            sub_icon = inventory_icon_uri(repo_root, sub.get("key"))
+            sub_icon_html = f'<img class="inventory-subicon" src="{sub_icon}" alt="">' if sub_icon else ""
+            rows += (
+                f'<li><span>{sub_icon_html}{escape(sub["label"])}</span>'
+                f'<span class="c">{fmt(sub["count"])}</span></li>'
+            )
         group_blocks.append(
             '<div class="inventory-group">'
             f'<div class="grp"><span>{icon_html}{escape(group["label"])}</span>'

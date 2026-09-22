@@ -303,9 +303,10 @@ A running inventory of everything the app can draw: a headline total, then a
 breakdown by the app's own high-level filter groups (Nature, Food, Transport,
 History, Locations, Stories) with each group's subfilter counts underneath, and a
 final full-width row for features that are always shown and have no filter of their
-own (gates, benches, toilets and similar). Each group heading carries the same
-category icon used by the app. Those icons are resized and embedded in the report
-HTML so the inventory keeps its meaning when the report is saved or forwarded.
+own (gates, benches, toilets and similar). Each group heading and subcategory
+carries the same icon used by the app; group icons are larger to make the
+hierarchy clear. Those icons are resized and embedded in the report HTML so the
+inventory keeps its meaning when the report is saved or forwarded.
 The public homepage uses this same card format and grouping.
 
 Rules:

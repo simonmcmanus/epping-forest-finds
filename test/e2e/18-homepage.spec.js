@@ -40,6 +40,7 @@ test.describe("the marketing homepage", () => {
       "Nature25,017", "Food771", "Transport1,864", "History12", "Locations30", "Stories42"
     ]);
     await expect(page.locator(".inventory-group h3 img")).toHaveCount(6);
+    await expect(page.locator(".inventory-group dt img")).toHaveCount(22);
     await expect(page.locator(".inventory-always")).toContainText("Gates, benches & other facilities");
     await expect(page.locator(".inventory-always")).toContainText("3,264");
   });
