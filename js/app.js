@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v38"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v39"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
