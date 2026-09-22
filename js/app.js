@@ -2265,38 +2265,18 @@ async function submitReportForm() {
   }
 }
 
+// The filter chip an overview entry is listed under. It names the entry's
+// *type label*; the icon beside it comes from placeIconSlug, never from here.
+//
+// This used to restate the whole classification order itself, with a fourth
+// vocabulary of its own, and returned "landmark" for anything the filter
+// predicates did not claim. filterKindEmoji("landmark") is a bare pushpin
+// glyph, which then won over landmarkEmoji() in the list -- so every gate,
+// bench, toilet, bicycle stand, viewpoint, information board and picnic site
+// was listed as a plain pin while the map drew its artwork beside it, and a
+// memorial, museum or dig was listed under the generic castle.
 function resolvePlaceKind(place) {
-  if (isPubCategory(place)) return "pubs";
-  if (isRestaurantCategory(place)) return "restaurants";
-  if (isCafeCategory(place)) return "cafes";
-  if (isShopCategory(place)) return "shops";
-  if (isParkingCategory(place)) return "parking";
-  if (isBusCategory(place)) return "bus";
-  if (isUndergroundCategory(place)) return "underground";
-  if (isNationalRailCategory(place)) return "national_rail";
-  if (isWw2Category(place)) return "ww2";
-  if (isRoyalCategory(place)) return "royal";
-  if (isSocialHistoryCategory(place)) return "social_history";
-  if (isPlaqueCategory(place)) return "plaques";
-  if (isBluePlaqueCategory(place)) return "blue_plaques";
-  if (isHistoryCategory(place)
-    && !isRoyalCategory(place)
-    && !isWw2Category(place)
-    && !isSocialHistoryCategory(place)
-    && !isPlaqueCategory(place)
-    && !isBluePlaqueCategory(place)) return "history_general";
-  if (isCelebrityAssociationCategory(place)) return "celebrity_association";
-  if (isScienceCategory(place)) return "science";
-  if (isEducationCategory(place)) return "education";
-  if (isMedicineCategory(place)) return "medicine";
-  if (isLiteratureCategory(place)) return "literature";
-  if (isTheatreCategory(place)) return "theatre";
-  if (isPoliticsCategory(place)) return "politics";
-  if (isArtCategory(place)) return "art";
-  if (isChurchCategory(place)) return "church";
-  if (isLegendCategory(place)) return "legends";
-  if (isFilmTvCategory(place)) return "film_tv";
-  return "landmark";
+  return placeLabelFilterKey(place) || "landmark";
 }
 
 function outOfRadiusCountForGroup(groupKey) {
@@ -2789,9 +2769,14 @@ function overviewNearestHtml() {
       : entry.type === "water"
         ? entry.item.name
       : placeTitle(entry.item);
+    // A place takes its icon from landmarkEmoji (placeIconSlug), the same
+    // resolver the map pin uses, so the two always agree. Only the types with
+    // no per-place artwork -- cows, trails, water -- are drawn from the kind.
     const emoji = entry.type === "tree"
       ? (treeSpeciesIconHtml(entry.item.commonName, entry.item.latinName) || filterKindEmoji(entry.kind))
-      : (filterKindEmoji(entry.kind) || landmarkEmoji(entry.item));
+      : entry.type === "landmark"
+        ? landmarkEmoji(entry.item)
+        : (filterKindEmoji(entry.kind) || landmarkEmoji(entry.item));
     const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
     const walkChip = walkInfoHtml(entry.metres);
     const typeLabel = filterMeta(entry.kind)?.label || (entry.type === "tree" ? "Tree" : entry.type === "cow" ? "Cow" : entry.type === "path" ? "Trail" : entry.type === "water" ? "Water" : "Place");
@@ -6032,7 +6017,7 @@ function searchResultName(type, item) {
 function searchResultTypeLabel(type, item) {
   switch (type) {
     case "tree": return "Tree";
-    case "landmark": return filterMeta(placePrimaryFilterKey(item))?.label || item.categoryLabel || "Place";
+    case "landmark": return filterMeta(placeLabelFilterKey(item))?.label || item.categoryLabel || "Place";
     case "cow": return "Cow";
     case "path": return filterMeta("waymarked_trails")?.label || "Trail";
     case "road": return roadTypeLabel(item);

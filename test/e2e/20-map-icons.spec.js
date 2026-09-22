@@ -96,6 +96,47 @@ test.describe("Map pins", () => {
     expect(drawn).toContain("fillText");
   });
 
+  test("every place in the Nearby list shows the pin the map draws for it", async ({ page }) => {
+    // The list built its icon from the entry's `kind`, which came from a
+    // fourth restatement of the classification order. It answered "landmark"
+    // for anything the filter predicates did not claim, and
+    // filterKindEmoji("landmark") is a bare pushpin glyph -- so 2,180 gates,
+    // every bench, toilet, bicycle stand, viewpoint, information board and
+    // picnic site was listed as a plain pin with its own artwork drawn on the
+    // map right beside it, and memorials, museums and digs were listed under
+    // the generic castle.
+    const mismatched = await page.evaluate(() => {
+      const out = [];
+      for (const place of state.landmarks) {
+        const slug = placeIconSlug(place);
+        if (!slug) continue;
+        const listed = landmarkEmoji(place);
+        const src = /src="([^"]+)"/.exec(listed);
+        if (!src || src[1] !== iconPath(slug)) {
+          out.push({ name: place.name || place.category, slug, listed: src ? src[1] : listed });
+        }
+      }
+      return out.slice(0, 10);
+    });
+
+    expect(mismatched).toEqual([]);
+  });
+
+  test("a place the map has artwork for is never listed as a bare glyph", async ({ page }) => {
+    const glyphs = await page.evaluate(() => {
+      const counts = {};
+      for (const place of state.landmarks) {
+        if (!placeIconSlug(place)) continue;
+        if (landmarkEmoji(place).includes("<img")) continue;
+        const key = place.category || place.folkloreCategory || "(none)";
+        counts[key] = (counts[key] || 0) + 1;
+      }
+      return counts;
+    });
+
+    expect(glyphs).toEqual({});
+  });
+
   test("the history and location filter chips all match real places", async ({ page }) => {
     // These four switched on a vocabulary matchesPlaceFilter did not handle,
     // so they matched nothing: the chips hid every place they were meant to
