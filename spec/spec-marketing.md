@@ -195,7 +195,8 @@ Sections, in order:
    explanation rather than repeating the same three points in a separate list.
    On wide screens, keep all four cards in one row
    rather than stacking a screenshot beneath the shorter tag photograph. Load
-   these supporting images lazily. Placeholder screenshot assets may stand in
+   these supporting images lazily. The navigation caption explains that routes
+   try to favour scenic forest paths and alleyways, without guaranteeing them. Placeholder screenshot assets may stand in
    until final captures are available. Ages are
    educated guesses from recorded girth and species where data is available,
    not exact birthdays. The three pillars follow: offline, veteran trees and
