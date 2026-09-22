@@ -23,9 +23,6 @@ const LIST_ID = process.env.EMAILOCTOPUS_LIST_ID || "";
 const CONSENT_WORDING =
   "Email me about the Epping Forest Finds release, alpha invitations and major updates about the app.";
 
-// A form completed faster than a person can read it is a bot.
-const MIN_FILL_MS = 2000;
-
 /**
  * Deliberately permissive: one @, something either side, a dot in the domain.
  * Stricter patterns reject real addresses, and EmailOctopus validates properly
@@ -43,11 +40,8 @@ function isPlausibleEmail(value) {
  * Bot checks that cost nothing and need no third-party script on the one page
  * that has to load fastest. Returns true when the submission looks automated.
  */
-function looksAutomated({ honeypot, renderedAt }, now = Date.now()) {
-  if (honeypot) return true;
-  const rendered = Number(renderedAt);
-  if (!Number.isFinite(rendered) || rendered <= 0) return false;
-  return now - rendered < MIN_FILL_MS;
+function looksAutomated({ honeypot }) {
+  return Boolean(honeypot);
 }
 
 function response(statusCode, body) {
@@ -123,4 +117,3 @@ exports.handler = async (event) => {
 exports.isPlausibleEmail = isPlausibleEmail;
 exports.looksAutomated = looksAutomated;
 exports.CONSENT_WORDING = CONSENT_WORDING;
-exports.MIN_FILL_MS = MIN_FILL_MS;

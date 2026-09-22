@@ -398,7 +398,8 @@ afterwards. Required edits:
 A public POST endpoint will be abused. Mitigations, in preference order:
 
 - Hidden honeypot field, rejected silently if filled.
-- Submission-timing check — a form completed implausibly fast is a bot.
+- Submission speed is not treated as a bot signal: browser autofill can produce
+  a legitimate immediate submission.
 - Per-IP rate limiting in the function.
 
 No third-party captcha. The script weight and the privacy cost are not worth it

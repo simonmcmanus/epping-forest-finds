@@ -18,10 +18,6 @@
   var honeypot = document.getElementById("website");
   var submitButton = form.querySelector("button[type=submit]");
 
-  // Stamped when the page renders so the endpoint can reject a form completed
-  // faster than a person could read it.
-  var renderedAt = Date.now();
-
   function say(text, kind) {
     if (!message) return;
     message.textContent = text;
@@ -53,7 +49,6 @@
         email: email,
         consent: true,
         website: honeypot ? honeypot.value : "",
-        renderedAt: renderedAt,
       }),
     })
       .then(function (response) {
