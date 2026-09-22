@@ -83,9 +83,12 @@ Before finishing any implementation task:
 - `TEST_FILTER=<text>` runs only the tests whose name contains that text, case-insensitively — useful while iterating on one area. **It is never a substitute for the full run:** all 312 tests share the single `app` instance built by `loadAppForTests()`, in registration order and with no per-test isolation, so a filtered subset starts from whatever state the skipped tests would have left. Finish on a full, unfiltered pass.
 
 ### BDD browser tests (user experience)
-- Run: `npm run test:e2e`
+- Run one spec: `npx playwright test test/e2e/<file> --project=<desktop|mobile>`, narrowed
+  further with `-g "<test name>"`. That is the local command. `npm run test:e2e` runs the whole
+  suite, which is the PR's CI job's work — see "CI is the verdict" below before running it here.
 - Located in `test/e2e/` — one file per user journey, using Playwright.
-- **Both suites must pass before a task is considered complete.**
+- **Both suites must pass before a task is considered complete** — the unit suite locally, the
+  e2e suite on the PR.
 - Every new user-facing behaviour or spec change needs a matching BDD test in `test/e2e/`.
 - If a behaviour change is implementation-only with no user-visible effect, state this explicitly.
 - Snapshots live in the flat `test/e2e/__screenshots__/` directory (per `snapshotPathTemplate` in `playwright.config.js`, keyed only on the `toHaveScreenshot()` name so a real visual diff stays a reviewable update instead of a delete+create pair). Regenerate with `npm run test:e2e:update` locally, or trigger the `Update Snapshots` GitHub Action for a Linux-matching baseline, when intentional visual changes are made.
@@ -98,20 +101,32 @@ Before finishing any implementation task:
 - **Specs say *what* they wait for; `playwright.config.js` says how long.** `expect.timeout` is 20s under CI and 5s elsewhere, so don't pass `{ timeout: N }` to an `expect()` assertion. An assertion's timeout bounds how long the UI may take to get somewhere — it is not a behaviour under test, and a genuinely broken UI still fails on the 60s test timeout. Roughly a hundred hard-coded few-second bounds were what turned a slow runner into a red suite; they are gone, and new ones should not appear. A deliberately long bound for something genuinely slow (the boot-location tests in `09-location`) is fine and stays explicit.
 - `toHaveScreenshot()` allows `maxDiffPixelRatio: 0.001`. Even comparing against baselines CI generated itself on the same runner image, canvas antialiasing and font hinting came back ~28 pixels apart on a ~334k-pixel screenshot under load. 0.1% is ten times the headroom that noise needs and still catches any diff big enough to see. The `toHaveScreenshot()` stability timeout is 15s under CI (5s elsewhere) for the same reason.
 
-### CI is the verdict, not your local run
+### CI is the verdict, and the PR is how you get it
 
-**A local `npm run test:e2e` is a pre-filter. The CI `E2E tests` job on your own branch is the
-result.** The two disagree badly and routinely: this suite has repeatedly run 3-4 failures in a
-dev sandbox and 20-25 on a GitHub runner, because the runner has 2 vCPUs for 4 workers and the
-whole job takes ~27 minutes, so timing-sensitive specs (`beforeEach` waits, animation frames,
-paint counts) fail there and nowhere else. Two consecutive PRs were handed over as done on the
-strength of a green-ish local run while their CI job was red the whole time.
+**Open the PR as soon as the work is pushed, and let its `E2E tests` job be the one full run of
+the suite.** CI only fires on `pull_request` (plus a push to `main` and a manual dispatch), so a
+branch pushed without a PR gets no checks at all — and reaching for `workflow_dispatch` to fix
+that just means two runs of the same suite on the same SHA. Open the PR instead.
+
+**Do not run the full `npm run test:e2e` locally as well.** It is ~10-27 minutes that CI is
+already going to spend, and it does not settle anything: the two disagree badly and routinely.
+This suite has run 3-4 failures in a dev sandbox and 20-25 on a GitHub runner, because the
+runner has 2 vCPUs and timing-sensitive specs (`beforeEach` waits, animation frames, paint
+counts) fail there and nowhere else. A sandbox is just as capable of inventing a failure that
+CI does not have: a full local run once reported `12-selected-route`'s "does not twitch once a
+second" lurching 568px, purely because something else on the box was saturating the CPU at the
+time; it passed on CI and on a re-run.
+
+**Run the specs your change actually touches, and nothing else.** A single spec or a `-g`
+filter is seconds, and it is what proves a new test is real — write the test, confirm it fails
+against the unfixed code, confirm it passes against the fix. That is worth doing every time;
+the full sweep is not.
 
 So, before a PR is done — every time, no exceptions:
 
-1. **Push, then read the CI run for your head SHA.** `actions_list` → `list_workflow_runs`
-   filtered to your branch, then `list_workflow_jobs`, then `get_job_logs` on the `E2E tests`
-   job. Read the `N failed / N passed` line and the failure list under it.
+1. **Push, open the PR, then read the CI run for your head SHA.** `actions_list` →
+   `list_workflow_runs` filtered to your branch, then `list_workflow_jobs`, then `get_job_logs`
+   on the `E2E tests` job. Read the `N failed / N passed` line and the failure list under it.
 2. **The job must be green.** Not "green apart from the environmental ones" — green.
 3. **Never call a failure pre-existing on the basis of a local run.** Establish it CI-to-CI:
    pull the CI failure list for your merge-base commit (the run on `main` for the SHA you
@@ -122,7 +137,8 @@ So, before a PR is done — every time, no exceptions:
    which tests and why they are not yours, with the merge-base run that proves it.
 
 If a wait is unavoidable, wait: the e2e job takes ~27 minutes. Reporting a task finished before
-its CI run exists is reporting a guess.
+its CI run exists is reporting a guess. Two consecutive PRs were once handed over as done on the
+strength of a green-ish local run while their CI job was red the whole time.
 
 ### If the suite is already red when you arrive
 
@@ -142,12 +158,16 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
 
 ### Completion checklist for every task
 1. `node --test test/forest-finds.test.js` passes.
-2. `npm run test:e2e` passes locally (or snapshots are regenerated intentionally). For anything
-   timing-sensitive, run it the way CI will: `CI=1 taskset -c 0,1 npx playwright test --project=<name>`.
+2. The e2e specs your change touches pass locally — that spec file, or a `-g` filter within it,
+   not the whole suite. A new test is confirmed to fail against the unfixed code first. Chasing
+   a failure CI has and you do not? `CI=1 taskset -c 0,1 npx playwright test --project=<name>`
+   reproduces the runner's 2 vCPUs.
 3. Relevant `spec/` file is updated, or reason documented.
 4. Create a commit with a good concise description summarising the change.
-5. Push, wait for CI, and confirm the `E2E tests` job is **green on your branch** — per "CI is
-   the verdict" above. The task is not finished until it is, and the report says what CI said.
+5. Push and open the PR, then confirm its `E2E tests` job is **green on your branch** — per "CI
+   is the verdict" above. That PR run is the full sweep; do not also run the suite locally or
+   dispatch CI by hand. The task is not finished until the job is green, and the report says
+   what CI said.
 
 ## Code Quality
 - Separate concerns strictly per the project structure above.
