@@ -104,7 +104,8 @@ test.describe("the marketing homepage", () => {
       const tucked = await figure.evaluate(el => {
         const phone = el.querySelector("img").getBoundingClientRect();
         const caption = el.querySelector("figcaption").getBoundingClientRect();
-        return caption.top < phone.bottom && caption.bottom > phone.bottom;
+        return caption.top < phone.bottom && caption.bottom > phone.bottom
+          && Math.abs(caption.width - phone.width) < 1 && Math.abs(caption.left - phone.left) < 1;
       });
       expect(tucked).toBe(true);
     }
@@ -212,6 +213,20 @@ test.describe("the marketing homepage", () => {
     await faq.scrollIntoViewIfNeeded();
     await expect(faq).toHaveCSS("opacity", "1");
     await expect(faq).not.toHaveClass(/\breveal\b/);
+
+    // A screenshot's caption trails its phone, so the two read as separate objects.
+    const shot = page.locator(".app-shot").last();
+    const [phoneDelay, captionDelay] = await shot.evaluate(fig =>
+      [fig.querySelector("img"), fig.querySelector("figcaption")].map(el => parseFloat(el.style.transitionDelay) || 0));
+    expect(captionDelay - phoneDelay).toBe(160);
+    await shot.scrollIntoViewIfNeeded();
+    await expect(shot.locator(".reveal")).toHaveCount(0);
+    if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) {
+      await shot.hover();
+      const lift = el => new DOMMatrix(getComputedStyle(el).transform).m42;
+      await expect.poll(() => shot.locator("img").evaluate(lift)).toBe(-6);
+      await expect.poll(() => shot.locator("figcaption").evaluate(lift)).toBe(-1);
+    }
 
     const card = page.locator(".pillars article").first();
     await card.scrollIntoViewIfNeeded();

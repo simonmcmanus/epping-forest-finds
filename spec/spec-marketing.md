@@ -214,8 +214,11 @@ Sections, in order:
    (`app-search.jpg`, `app-nearby-route.jpg`, `app-tree-age.jpg`), scaled to
    600px wide, until final marketing captures replace them. Each is framed as a
    phone with a 4px dark-green rounded border and no card around it; its white
-   caption card tucks behind the bottom of the phone, and the three caption
-   cards stretch to a common height on wide screens. Ages are educated guesses from recorded girth and
+   caption card, exactly the phone's width, tucks behind the bottom of the
+   phone, and the three caption cards stretch to a common height on wide
+   screens. Phone and caption move as two objects: on reveal the phone rises
+   further (28px against 10px) and its caption trails by 160ms; on hover the
+   phone lifts 6px with a deeper shadow while the caption moves 1px. Ages are educated guesses from recorded girth and
    species where data is available, not exact birthdays.
 3. **Example tag** — its own section between the tag guide and the feature
    cards: a photograph of a real numbered metal tag (27400), cropped to a

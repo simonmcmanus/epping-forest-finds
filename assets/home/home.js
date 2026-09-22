@@ -17,7 +17,7 @@
   var targets = document.querySelectorAll([
     "main > section:not(.hero) > h2",
     ".section-intro", ".counts-intro", ".tag-intro > p",
-    ".app-shot", ".tag-feature img", ".pillars article",
+    ".app-shot img", ".app-shot figcaption", ".tag-feature img", ".pillars article",
     ".map-inventory", ".signup", ".steps li", ".offline-note",
     ".faq-list", ".ledger"
   ].join(","));
@@ -44,9 +44,15 @@
 
   Array.prototype.forEach.call(targets, function (el) {
     // Siblings in a row arrive one after another, capped so nothing lags.
-    var index = Array.prototype.indexOf.call(el.parentNode.children, el);
-    var siblings = el.parentNode.querySelectorAll(":scope > " + el.tagName).length;
-    if (siblings > 1) el.style.transitionDelay = Math.min(index, 3) * 90 + "ms";
+    // A screenshot's phone and caption move as two objects: the caption
+    // trails its phone, so they read as separate pieces.
+    var shot = el.closest(".app-shot");
+    var item = shot || el;
+    var index = Array.prototype.indexOf.call(item.parentNode.children, item);
+    var siblings = item.parentNode.querySelectorAll(":scope > " + item.tagName).length;
+    var delay = siblings > 1 ? Math.min(index, 3) * 90 : 0;
+    if (shot && el.tagName === "FIGCAPTION") delay += 160;
+    if (delay) el.style.transitionDelay = delay + "ms";
     el.classList.add("reveal");
     observer.observe(el);
   });
