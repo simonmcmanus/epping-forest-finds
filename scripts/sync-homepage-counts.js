@@ -30,6 +30,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { readCounts, formatCount, FEATURE_FILES, TREE_INDEX } = require("./count-datasets.js");
+const { buildInventory } = require("./report/map-inventory.js");
 
 const ROOT = path.join(__dirname, "..");
 const HOMEPAGE = path.join(ROOT, "index.html");
@@ -39,50 +40,48 @@ const MARKETING_SPEC = path.join(ROOT, "spec", "spec-marketing.md");
  * Where each figure appears, in the words around it rather than by line
  * number, so the copy can be rewritten without breaking this.
  *
- * - `label`: the homepage's own label beside the number, in its count grid.
  * - `prose`: the noun phrase following the number in spec-marketing.md §3.4.
  * - `source`: the dataset path, which anchors the §4 source table row.
  */
 const FIGURES = {
-  trees: { label: "veteran trees", prose: "veteran trees", source: TREE_INDEX },
-  paths: { label: "paths &amp; bridleways", prose: "paths and bridleways", source: FEATURE_FILES.paths },
+  trees: { prose: "veteran trees", source: TREE_INDEX },
+  paths: { prose: "paths and bridleways", source: FEATURE_FILES.paths },
   facilities: {
-    label: "car parks, toilets, benches &amp; gates",
     prose: "car parks,\n> benches, toilets and gates",
     source: FEATURE_FILES.facilities,
   },
-  transport: { label: "bus stops &amp; stations", prose: "bus stops and stations", source: FEATURE_FILES.transport },
-  food: { label: "pubs, cafés &amp; shops", prose: "pubs, cafés and shops", source: FEATURE_FILES.food },
+  transport: { prose: "bus stops and stations", source: FEATURE_FILES.transport },
+  food: { prose: "pubs, cafés and shops", source: FEATURE_FILES.food },
 };
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** The number currently sitting beside a label in the homepage's count grid. */
-function quotedOnHomepage(html, label) {
-  const match = html.match(
-    new RegExp(`<span class="count-n">([\\d,]+)</span><span class="count-l">${escapeRegExp(label)}</span>`)
-  );
-  return match ? match[1] : null;
-}
-
-function updateHomepage(html, counts) {
+function updateHomepage(html, counts, inventory = buildInventory(ROOT)) {
   let out = html;
-  for (const [name, figure] of Object.entries(FIGURES)) {
-    const wanted = formatCount(counts[name]);
-    const current = quotedOnHomepage(out, figure.label);
-    out = out.replace(
-      new RegExp(`(<span class="count-n">)[\\d,]+(</span><span class="count-l">${escapeRegExp(figure.label)}</span>)`),
-      `$1${wanted}$2`
-    );
-    // The tree count is also quoted in the page description and the hero copy,
-    // where it reads as a sentence rather than a grid cell. Those say the same
-    // thing about the same dataset, so they move together.
-    if (name === "trees" && current && current !== wanted) {
-      out = out.split(current).join(wanted);
+  out = out.replace(
+    /(class="inventory-total"><strong>)[\d,]+(<\/strong>)/,
+    `$1${formatCount(inventory.total)}$2`
+  );
+  for (const group of inventory.groups) {
+    const groupPattern = new RegExp(`(data-inventory-group="${group.key}"[\\s\\S]*?<h3>[\\s\\S]*?<strong>)[\\d,]+(</strong>)`);
+    out = out.replace(groupPattern, `$1${formatCount(group.count)}$2`);
+    for (const subfilter of group.subfilters) {
+      const label = escapeRegExp(subfilter.label).replace(/&/, "&amp;");
+      out = out.replace(
+        new RegExp(`(<dt>${label}</dt><dd>)[\\d,]+(</dd>)`),
+        `$1${formatCount(subfilter.count)}$2`
+      );
     }
   }
+  out = out.replace(
+    /(data-inventory-always[\s\S]*?<strong>)[\d,]+(<\/strong>)/,
+    `$1${formatCount(inventory.alwaysShown.count)}$2`
+  );
+  const treeCount = inventory.groups.find(group => group.key === "nature")
+    ?.subfilters.find(subfilter => subfilter.key === "trees")?.count || counts.trees;
+  out = out.replace(/[\d,]+(?= veteran trees)/g, formatCount(treeCount));
   return out;
 }
 
@@ -104,8 +103,9 @@ function updateMarketingSpec(markdown, counts) {
 
 function sync({ check = false, root = ROOT } = {}) {
   const counts = readCounts(root);
+  const inventory = buildInventory(root);
   const files = [
-    { path: root === ROOT ? HOMEPAGE : path.join(root, "index.html"), update: updateHomepage },
+    { path: root === ROOT ? HOMEPAGE : path.join(root, "index.html"), update: (text) => updateHomepage(text, counts, inventory) },
     { path: root === ROOT ? MARKETING_SPEC : path.join(root, "spec", "spec-marketing.md"), update: updateMarketingSpec },
   ];
 

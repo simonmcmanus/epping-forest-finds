@@ -440,12 +440,14 @@ REPORT_CSS = """
   .inventory-group.full{grid-column:1 / -1;}
   .inventory-group .grp{
     display:flex;
-    align-items:baseline;
+    align-items:center;
     justify-content:space-between;
     gap:10px;
     font-weight:600;
     margin-bottom:8px;
   }
+  .inventory-group .grp > span:first-child{display:flex; align-items:center; gap:9px;}
+  .inventory-icon{width:30px; height:30px; object-fit:contain; flex:0 0 auto;}
   .inventory-group .grp .c{
     font-family:"JetBrains Mono", monospace;
     font-variant-numeric: tabular-nums;

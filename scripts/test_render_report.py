@@ -211,6 +211,13 @@ class RenderInventorySectionTests(unittest.TestCase):
         for label in ("Food", "Nature", "Pubs &amp; bars", "Cafés", "Trees"):
             self.assertIn(label, html)
 
+    def test_uses_the_apps_category_icons_for_groups_and_facilities(self):
+        html = rr.render_inventory_section(SAMPLE_INVENTORY)
+        self.assertEqual(html.count('class="inventory-icon"'), 3)
+        self.assertIn("/data/icons/food.png", html)
+        self.assertIn("/data/icons/nature.png", html)
+        self.assertIn("/data/icons/gate.png", html)
+
     def test_counts_the_always_shown_features_that_have_no_filter(self):
         html = rr.render_inventory_section(SAMPLE_INVENTORY)
         self.assertIn("Gates, benches &amp; other facilities", html)

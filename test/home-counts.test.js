@@ -28,9 +28,8 @@ function readHomepage() {
 }
 
 /**
- * The counts are marked up (`<strong>24,906</strong> veteran trees`, or a
- * number span beside a label span), so the assertions read the page as a
- * visitor sees it rather than as markup.
+ * Strip the markup when checking headline marketing claims; the structured
+ * inventory assertions below inspect its group and subfilter markup directly.
  */
 function readHomepageText() {
   return readHomepage()
@@ -49,58 +48,25 @@ test("every dataset the homepage quotes can still be read", () => {
   }
 });
 
-test("the homepage's headline counts match the datasets they describe", () => {
+test("the homepage's veteran-tree headline matches the dataset it describes", () => {
   const html = readHomepageText();
   const counts = readCounts(ROOT);
-
-  for (const [name, value] of Object.entries(counts)) {
-    const formatted = formatCount(value);
-    assert.ok(
-      html.includes(formatted),
-      `index.html should quote ${formatted} for ${name} but does not. ` +
-        `The dataset has changed size -- update the homepage copy (and spec-marketing.md section 4) to match.`
-    );
-  }
+  assert.ok(html.includes(`${formatCount(counts.trees)} veteran trees`));
 });
 
-test("the detailed map key counts match the features behind the app legend", () => {
+test("the grouped homepage inventory matches the app's map inventory", () => {
   const html = readHomepage();
   const inventory = require("../scripts/report/map-inventory.js").buildInventory(ROOT);
-  const environment = JSON.parse(
-    fs.readFileSync(path.join(ROOT, "data", "local-environment.geojson"), "utf8")
-  );
-  const environmentCounts = environment.features.reduce((counts, feature) => {
-    const key = feature.properties && feature.properties.featureType;
-    counts[key] = (counts[key] || 0) + 1;
-    return counts;
-  }, {});
-  const subfilters = Object.fromEntries(
-    inventory.groups.flatMap(group => group.subfilters.map(item => [item.key, item.count]))
-  );
-  const groups = Object.fromEntries(inventory.groups.map(group => [group.key, group.count]));
-  const expected = {
-    trees: subfilters.trees,
-    hydrology: (environmentCounts.hydrology_line || 0) + (environmentCounts.hydrology_area || 0),
-    "nature-designations": environmentCounts.nature_designation || 0,
-    "gardens-parks": environmentCounts.garden || 0,
-    paths: readCounts(ROOT).paths,
-    pubs: subfilters.pubs,
-    restaurants: subfilters.restaurants,
-    cafes: subfilters.cafes,
-    trains: subfilters.underground + subfilters.national_rail,
-    buses: subfilters.bus,
-    parking: subfilters.parking,
-    locations: groups.locations,
-    plaques: subfilters.plaques,
-    history: groups.history,
-    legends: subfilters.legends,
-  };
-
-  for (const [key, count] of Object.entries(expected)) {
-    const item = html.match(new RegExp(`data-map-key="${key}"[\\s\\S]*?<strong>([\\d,]+)</strong>`));
-    assert.ok(item, `the homepage should show a count for ${key}`);
-    assert.strictEqual(item[1], formatCount(count), `${key} should match the map dataset`);
+  assert.match(html, new RegExp(`inventory-total[\\s\\S]*?<strong>${formatCount(inventory.total)}</strong>`));
+  for (const group of inventory.groups) {
+    const block = html.match(new RegExp(`data-inventory-group="${group.key}"([\\s\\S]*?)</section>`));
+    assert.ok(block, `the homepage should show the ${group.label} group`);
+    assert.ok(block[1].includes(`<strong>${formatCount(group.count)}</strong>`));
+    for (const subfilter of group.subfilters) {
+      assert.ok(block[1].includes(`<dt>${subfilter.label.replace(/&/g, "&amp;")}</dt><dd>${formatCount(subfilter.count)}</dd>`));
+    }
   }
+  assert.match(html, new RegExp(`data-inventory-always[\\s\\S]*?<strong>${formatCount(inventory.alwaysShown.count)}</strong>`));
 });
 
 /**
@@ -114,16 +80,18 @@ test("the detailed map key counts match the features behind the app legend", () 
 test("the count sync corrects a homepage that has drifted", () => {
   const { updateHomepage } = require("../scripts/sync-homepage-counts.js");
   const counts = readCounts(ROOT);
+  const inventory = require("../scripts/report/map-inventory.js").buildInventory(ROOT);
   const stale = readHomepage().replace(
-    /(<span class="count-n">)[\d,]+(<\/span><span class="count-l">pubs)/,
+    /(<dt>Shops<\/dt><dd>)[\d,]+(<\/dd>)/,
     "$1123$2"
   );
 
   assert.notStrictEqual(stale, readHomepage(), "the fixture should actually be stale");
-  const fixed = updateHomepage(stale, counts);
+  const fixed = updateHomepage(stale, counts, inventory);
+  const shops = inventory.groups.find(group => group.key === "food").subfilters.find(item => item.key === "shops");
   assert.ok(
-    fixed.includes(`<span class="count-n">${formatCount(counts.food)}</span><span class="count-l">pubs`),
-    "sync-homepage-counts.js should put the real food count back"
+    fixed.includes(`<dt>Shops</dt><dd>${formatCount(shops.count)}</dd>`),
+    "sync-homepage-counts.js should put the real shop count back"
   );
   assert.ok(!fixed.includes(">123<"), "the stale number should be gone");
 });

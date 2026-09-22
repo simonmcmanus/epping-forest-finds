@@ -31,17 +31,17 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
   });
 
-  test("matches the app legend's detailed map key and uses the oak-leaf brand mark", async ({ page }) => {
+  test("groups the map inventory like the app filters and uses the oak-leaf brand mark", async ({ page }) => {
     await page.goto("/");
 
     await expect(page.locator(".brand-mark")).toHaveAttribute("src", "assets/home/map-icons/oak.png");
-    await expect(page.locator(".map-key li")).toHaveText([
-      "24,906Trees", "1,519Hydrology features", "16Nature designations", "3,904Gardens & parks",
-      "9,162Paths & trails", "LiveCow locations", "98Pubs & bars", "259Restaurants",
-      "168Cafés", "28Train stations", "1,069Bus stops", "767Car parks", "30Locations",
-      "0Plaques", "12History sites", "33Legends"
+    await expect(page.locator(".inventory-total")).toContainText("31,000");
+    await expect(page.locator(".inventory-group h3")).toContainText([
+      "Nature25,017", "Food771", "Transport1,864", "History12", "Locations30", "Stories42"
     ]);
-    await expect(page.locator(".map-key img")).toHaveCount(16);
+    await expect(page.locator(".inventory-group h3 img")).toHaveCount(6);
+    await expect(page.locator(".inventory-always")).toContainText("Gates, benches & other facilities");
+    await expect(page.locator(".inventory-always")).toContainText("3,264");
   });
 
   test("explains finding a specific tree by its tag and treating its age as an estimate", async ({ page }) => {

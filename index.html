@@ -180,32 +180,40 @@
 
     <section class="counts">
       <h2>What's on the map</h2>
-      <ul class="count-grid">
-        <li><span class="count-n">24,906</span><span class="count-l">veteran trees</span></li>
-        <li><span class="count-n">9,162</span><span class="count-l">paths &amp; bridleways</span></li>
-        <li><span class="count-n">1,596</span><span class="count-l">car parks, toilets, benches &amp; gates</span></li>
-        <li><span class="count-n">1,106</span><span class="count-l">bus stops &amp; stations</span></li>
-        <li><span class="count-n">771</span><span class="count-l">pubs, cafés &amp; shops</span></li>
-      </ul>
-      <ul class="map-key" aria-label="Map features">
-        <li data-map-key="trees" style="--feature-color: #2e6b44"><img src="assets/home/map-icons/oak.png" alt=""><span><strong>24,906</strong>Trees</span></li>
-        <li data-map-key="hydrology" style="--feature-color: #2f72b2"><img src="assets/home/map-icons/ponds.png" alt=""><span><strong>1,519</strong>Hydrology features</span></li>
-        <li data-map-key="nature-designations" style="--feature-color: #488241"><img src="assets/home/map-icons/nature.png" alt=""><span><strong>16</strong>Nature designations</span></li>
-        <li data-map-key="gardens-parks" style="--feature-color: #5aaf46"><img src="assets/home/map-icons/nature.png" alt=""><span><strong>3,904</strong>Gardens &amp; parks</span></li>
-        <li data-map-key="paths" style="--feature-color: #3a5c45"><img src="assets/home/map-icons/walking.png" alt=""><span><strong>9,162</strong>Paths &amp; trails</span></li>
-        <li data-map-key="cows" style="--feature-color: #9a6a2f"><img src="assets/home/map-icons/cow.png" alt=""><span><strong>Live</strong>Cow locations</span></li>
-        <li data-map-key="pubs" style="--feature-color: #7b3f24"><img src="assets/home/map-icons/beer.png" alt=""><span><strong>98</strong>Pubs &amp; bars</span></li>
-        <li data-map-key="restaurants" style="--feature-color: #7b3f24"><img src="assets/home/map-icons/restaurant.png" alt=""><span><strong>259</strong>Restaurants</span></li>
-        <li data-map-key="cafes" style="--feature-color: #8b4513"><img src="assets/home/map-icons/cafe.png" alt=""><span><strong>168</strong>Cafés</span></li>
-        <li data-map-key="trains" style="--feature-color: #dc143c"><img src="assets/home/map-icons/national-rail.png" alt=""><span><strong>28</strong>Train stations</span></li>
-        <li data-map-key="buses" style="--feature-color: #d66f00"><img src="assets/home/map-icons/bus.png" alt=""><span><strong>1,069</strong>Bus stops</span></li>
-        <li data-map-key="parking" style="--feature-color: #005ab4"><img src="assets/home/map-icons/parking.png" alt=""><span><strong>767</strong>Car parks</span></li>
-        <li data-map-key="locations" style="--feature-color: #a04747"><img src="assets/home/map-icons/pin.png" alt=""><span><strong>30</strong>Locations</span></li>
-        <li data-map-key="plaques" style="--feature-color: #4e5d87"><img src="assets/home/map-icons/plaques.png" alt=""><span><strong>0</strong>Plaques</span></li>
-        <li data-map-key="history" style="--feature-color: #6d5c3a"><img src="assets/home/map-icons/history.png" alt=""><span><strong>12</strong>History sites</span></li>
-        <li data-map-key="legends" style="--feature-color: #6f4d8c"><img src="assets/home/map-icons/legends.png" alt=""><span><strong>33</strong>Legends</span></li>
-      </ul>
-      <p class="counts-note">Counts reflect the current offline map. Cow locations are live and change as the herd moves.</p>
+      <p class="counts-intro">Everything the app can show you, counted and grouped exactly the way the app's own filters group it.</p>
+      <div class="map-inventory">
+        <div class="inventory-total"><strong>31,000</strong><span>things you can find on the map today</span></div>
+        <div class="inventory-groups">
+          <section class="inventory-group" data-inventory-group="nature">
+            <h3><span><img src="assets/home/map-icons/nature.png" alt="">Nature</span><strong>25,017</strong></h3>
+            <dl><div><dt>Trees</dt><dd>24,906</dd></div><div><dt>Ponds &amp; streams</dt><dd>111</dd></div></dl>
+          </section>
+          <section class="inventory-group" data-inventory-group="food">
+            <h3><span><img src="assets/home/map-icons/food.png" alt="">Food</span><strong>771</strong></h3>
+            <dl><div><dt>Pubs &amp; bars</dt><dd>98</dd></div><div><dt>Restaurants</dt><dd>259</dd></div><div><dt>Cafés</dt><dd>168</dd></div><div><dt>Shops</dt><dd>246</dd></div></dl>
+          </section>
+          <section class="inventory-group" data-inventory-group="transport">
+            <h3><span><img src="assets/home/map-icons/bus.png" alt="">Transport</span><strong>1,864</strong></h3>
+            <dl><div><dt>Bus stops</dt><dd>1,069</dd></div><div><dt>Underground</dt><dd>14</dd></div><div><dt>National Rail</dt><dd>14</dd></div><div><dt>Car parks</dt><dd>767</dd></div></dl>
+          </section>
+          <section class="inventory-group" data-inventory-group="history">
+            <h3><span><img src="assets/home/map-icons/history.png" alt="">History</span><strong>12</strong></h3>
+            <dl><div><dt>Historic sites</dt><dd>0</dd></div><div><dt>Plaques</dt><dd>0</dd></div><div><dt>Monuments</dt><dd>0</dd></div><div><dt>WWII sites</dt><dd>12</dd></div></dl>
+          </section>
+          <section class="inventory-group" data-inventory-group="locations">
+            <h3><span><img src="assets/home/map-icons/pin.png" alt="">Locations</span><strong>30</strong></h3>
+            <dl><div><dt>Churches</dt><dd>11</dd></div><div><dt>Education</dt><dd>2</dd></div><div><dt>Medical sites</dt><dd>0</dd></div><div><dt>Campsites</dt><dd>17</dd></div></dl>
+          </section>
+          <section class="inventory-group" data-inventory-group="stories">
+            <h3><span><img src="assets/home/map-icons/legends.png" alt="">Stories</span><strong>42</strong></h3>
+            <dl><div><dt>Legends</dt><dd>33</dd></div><div><dt>Literature</dt><dd>0</dd></div><div><dt>Film &amp; TV</dt><dd>8</dd></div><div><dt>Art</dt><dd>1</dd></div></dl>
+          </section>
+        </div>
+        <div class="inventory-always" data-inventory-always>
+          <div><img src="assets/home/map-icons/gate.png" alt=""><span><strong>Gates, benches &amp; other facilities</strong><small>Always shown, whatever you have filtered</small></span></div>
+          <strong>3,264</strong>
+        </div>
+      </div>
     </section>
 
     <section class="how">
