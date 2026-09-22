@@ -70,7 +70,7 @@ independently; marketing changes do not automatically change those surfaces.
 
 ### 3.1 Hero headline
 
-> **The forest has no signal. The map doesn't need one.**
+> **Your guide to Epping Forest. No Signal Necessary.**
 
 ### 3.2 Hero sub-line
 
@@ -186,7 +186,8 @@ permitted only to enhance the sign-up form (inline validation, async submit).
 Sections, in order:
 
 1. **Hero** — the line-art longhorn (§7) as background, headline (§3.1),
-   sub-line (§3.2), and the primary CTA element (§8).
+   sub-line (§3.2), and the primary CTA element (§8). The photo caption uses
+   white text on an opaque dark-green backing for contrast across the image.
 2. **Three feature cards** — directly after the hero: offline, veteran trees
    and cattle (§3.4). White cards have rounded borders, shadows and 80px centred
    independent brand icons from `assets/home/`, with centred headings. Use three

@@ -14,7 +14,7 @@ test.describe("the marketing homepage", () => {
     const page = await context.newPage();
     await page.goto("/");
 
-    await expect(page.locator("h1")).toContainText("The forest has no signal");
+    await expect(page.locator("h1")).toHaveText("Your guide to Epping Forest.No Signal Necessary.");
     await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
     await expect(page.locator("#signupForm")).toBeVisible();
     await expect(page.locator("#find-trees")).toContainText("Search its tag number.");
@@ -143,6 +143,8 @@ test.describe("the marketing homepage", () => {
       "alt",
       /GPS-collared English Longhorn cattle grazing in Epping Forest/i
     );
+    await expect(page.locator(".hero-photo figcaption")).toHaveCSS("background-color", "rgb(29, 74, 47)");
+    await expect(page.locator(".hero-photo figcaption")).toHaveCSS("color", "rgb(255, 255, 255)");
     await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
       "content",
       /assets\/home\/epping-longhorns-social\.jpg$/
