@@ -187,10 +187,11 @@ Sections, in order:
    sub-line (§3.2), and the primary CTA element (§8).
 2. **Find the tree behind the tag** — immediately after the hero, explain
    searching physical tag numbers, navigating to a specific tree and checking
-   its tag on arrival. Ages are educated guesses from recorded girth and
-   species where data is available, not exact birthdays. The three pillars
-   follow: offline, veteran trees and cattle (§3.4), each with its independent
-   brand icon copy from `assets/home/`.
+   its tag on arrival. Show a labelled photograph of a real numbered metal tag
+   so visitors know what to look for; load this supporting image lazily. Ages
+   are educated guesses from recorded girth and species where data is available,
+   not exact birthdays. The three pillars follow: offline, veteran trees and
+   cattle (§3.4), each with its independent brand icon copy from `assets/home/`.
 3. **What's on the map** — the counts block (§3.4 fourth item, §4).
 4. **How it works offline** — three steps: open it once on signal, it
    downloads, it then works anywhere in the forest. This section exists to

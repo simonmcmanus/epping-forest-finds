@@ -39,6 +39,11 @@ test.describe("the marketing homepage", () => {
     await expect(trees).toContainText("Navigate to that tree.");
     await expect(trees).toContainText("recorded girth and species");
     await expect(trees).toContainText("not an exact birthday");
+    await expect(trees.locator(".tag-photo img")).toHaveAttribute(
+      "alt",
+      /metal tree tag stamped with the number 27400/i
+    );
+    await expect(trees.locator(".tag-photo figcaption")).toContainText("A numbered tag on a tree");
   });
 
   test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
