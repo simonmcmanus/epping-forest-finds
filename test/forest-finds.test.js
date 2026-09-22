@@ -299,6 +299,7 @@ globalThis.__forestFindsTest = {
   headingUpFitMarginPx,
   headingUpFitTiltCamera,
   resolveHeadingUpTargetScale,
+  resolveHeadingUpAnchorFraction,
   TILT_FIT_MIN_PERSPECTIVE_SCALE,
   HEADING_UP_SCALE_BUFFER_RATIO,
   HEADING_UP_SCALE_SETTLE_RATIO,
@@ -307,6 +308,8 @@ globalThis.__forestFindsTest = {
   HEADING_UP_SCALE_HOLD_RATIO,
   HEADING_UP_SCALE_SNAP_RATIO,
   HEADING_UP_SCALE_EASE_OUT_RATE,
+  HEADING_UP_ANCHOR_HOLD_RATIO,
+  HEADING_UP_POSITION_PX_THRESHOLD,
   maxNearbyHeadingUpScale,
   nearbyFirstPersonFitZoom,
   NEARBY_TILT_FIT_ZOOM,
@@ -6572,6 +6575,173 @@ test("a crow-flies fallback line has nothing to balance, so the plain bearing an
   assert.ok(
     Math.abs(app.balancedNavigationAnchorY(rect, fraction) - (rect.y + rect.height * fraction)) < 1e-9,
     "the two-point fallback should use headingUpAnchorFraction unchanged"
+  );
+});
+
+// ---------------------------------------------------------------------------------------
+// resolveHeadingUpAnchorFraction: rotating on the spot must not bob the user's own screen
+// position.
+//
+// Field report: "When a location is selected it seems to move the user's position up and
+// down a lot when rotating round, even when it's not helping at all with navigation."
+// headingUpAnchorFraction/balancedNavigationAnchorY place the user marker at a vertical
+// anchor that depends on the destination/route's bearing (or ahead/behind split) relative to
+// the *live, rotating* heading -- so simply turning on the spot, with neither the walker nor
+// the destination moving an inch, continuously slides that anchor up and down the screen.
+// Unlike the scale fit (resolveHeadingUpTargetScale), this had no hysteresis at all: it was
+// recomputed and applied fresh on every compass frame. The fix mirrors the scale one exactly,
+// held/eased as a fraction of the focus rect's own height rather than an absolute canvas y --
+// the rect can itself shift between calls (a resize, the inspector opening, the canvas's own
+// heading-up overscan sizing in for the first time) for reasons that have nothing to do with
+// the compass, and holding a stale *absolute* position across that shift places it
+// nonsensically inside the new rect (measured as a ~5.5x scale collapse between two calls in
+// the same frame, when an absolute-pixel version of this was tried first).
+// ---------------------------------------------------------------------------------------
+
+// Mirrors easeScaleFrames: drives resolveHeadingUpAnchorFraction the way a real frame loop
+// does, saving/restoring every field it touches so it stays transparent to the rest of this
+// shared, order-dependent suite (see easeScaleFrames's own comment for why that matters).
+function easeAnchorFrames(app, { targetFraction, focusRect, targetKey, from, frames, frameMs = 16 }) {
+  const saved = {
+    compassLastEventAt: app.state.compassLastEventAt,
+    headingUpAnchorFractionSmoothed: app.state.headingUpAnchorFractionSmoothed,
+    headingUpAnchorEaseAt: app.state.headingUpAnchorEaseAt,
+    headingUpAnchorEasing: app.state.headingUpAnchorEasing,
+    headingUpAnchorTargetFor: app.state.headingUpAnchorTargetFor,
+  };
+  app.state.headingUpAnchorFractionSmoothed = from;
+  app.state.headingUpAnchorTargetFor = targetKey;
+  app.state.headingUpAnchorEaseAt = null;
+  app.state.headingUpAnchorEasing = false;
+  let fraction = from;
+  let now = 100000;
+  for (let i = 0; i < frames; i++) {
+    app.state.compassLastEventAt = now;
+    fraction = app.resolveHeadingUpAnchorFraction(targetFraction, focusRect, targetKey, false, now);
+    now += frameMs;
+  }
+  const easing = app.state.headingUpAnchorEasing;
+  Object.assign(app.state, saved);
+  return { fraction, easing };
+}
+
+test("heading-up anchor drift inside the hold band moves the user's screen position not at all", () => {
+  const rect = { x: 0, y: 0, width: 1000, height: 800 };
+  const from = 0.4;
+  // Outside HEADING_UP_POSITION_PX_THRESHOLD/height, inside HEADING_UP_ANCHOR_HOLD_RATIO.
+  const targetFraction = from + app.HEADING_UP_ANCHOR_HOLD_RATIO * 0.6;
+
+  const { fraction: after } = easeAnchorFrames(app, { targetFraction, focusRect: rect, targetKey: "t", from, frames: 120 });
+  assert.equal(after, from, "an anchor target drifting inside the hold band should not move the camera at all");
+});
+
+test("once the heading-up anchor hold band is broken it eases toward the target instead of snapping", () => {
+  const rect = { x: 0, y: 0, width: 1000, height: 800 };
+  const from = 0.4;
+  const targetFraction = from + 0.4; // well past the hold band
+
+  const { fraction: afterOne } = easeAnchorFrames(app, { targetFraction, focusRect: rect, targetKey: "t", from, frames: 1 });
+  assert.equal(afterOne, from, "the first frame only starts the ease clock");
+
+  const { fraction: afterFew } = easeAnchorFrames(app, { targetFraction, focusRect: rect, targetKey: "t", from, frames: 3 });
+  assert.ok(afterFew > from, "the ease should be moving toward the target");
+  assert.ok(
+    afterFew < from + (targetFraction - from) * 0.5,
+    `no snap: three frames should not cover half the gap, went ${from} -> ${afterFew.toFixed(3)} of ${targetFraction}`
+  );
+
+  const { fraction: settled, easing } = easeAnchorFrames(app, { targetFraction, focusRect: rect, targetKey: "t", from, frames: 120 });
+  assert.ok(
+    Math.abs(settled - targetFraction) * rect.height <= app.HEADING_UP_POSITION_PX_THRESHOLD,
+    `after ~2s the anchor should have converged on the target (${targetFraction}), got ${settled.toFixed(3)}`
+  );
+  assert.equal(easing, false, "converging should drop the latch so the band guards the next move");
+});
+
+test("a different navigation target snaps the heading-up anchor immediately, with no ease from the old one's position", () => {
+  const rect = { x: 0, y: 0, width: 1000, height: 800 };
+  const saved = {
+    compassLastEventAt: app.state.compassLastEventAt,
+    headingUpAnchorFractionSmoothed: app.state.headingUpAnchorFractionSmoothed,
+    headingUpAnchorEaseAt: app.state.headingUpAnchorEaseAt,
+    headingUpAnchorEasing: app.state.headingUpAnchorEasing,
+    headingUpAnchorTargetFor: app.state.headingUpAnchorTargetFor,
+  };
+  // Seed the anchor as if it had settled on target "a" far from where "b" wants it.
+  app.state.headingUpAnchorFractionSmoothed = 0.2;
+  app.state.headingUpAnchorTargetFor = "a";
+  app.state.compassLastEventAt = Date.now(); // sensor "live" -- would normally hold/ease
+  const result = app.resolveHeadingUpAnchorFraction(0.75, rect, "b", false, Date.now());
+  Object.assign(app.state, saved);
+
+  assert.equal(result, 0.75, "a fresh selection's anchor should take effect immediately, not ease from the previous one's");
+});
+
+test("the heading-up anchor is not eased when the compass is quiet or the caller forces it", () => {
+  const rect = { x: 0, y: 0, width: 1000, height: 800 };
+  const from = 0.4;
+  const targetFraction = from + 0.3;
+
+  const savedA = {
+    headingUpAnchorFractionSmoothed: app.state.headingUpAnchorFractionSmoothed,
+    headingUpAnchorTargetFor: app.state.headingUpAnchorTargetFor,
+    compassLastEventAt: app.state.compassLastEventAt,
+  };
+  app.state.headingUpAnchorFractionSmoothed = from;
+  app.state.headingUpAnchorTargetFor = "t";
+  app.state.compassLastEventAt = null; // sensor quiet
+  const quiet = app.resolveHeadingUpAnchorFraction(targetFraction, rect, "t", false, Date.now());
+  Object.assign(app.state, savedA);
+  assert.equal(quiet, targetFraction, "with the compass quiet, the anchor should resolve immediately");
+
+  const savedB = {
+    headingUpAnchorFractionSmoothed: app.state.headingUpAnchorFractionSmoothed,
+    headingUpAnchorTargetFor: app.state.headingUpAnchorTargetFor,
+    compassLastEventAt: app.state.compassLastEventAt,
+  };
+  app.state.headingUpAnchorFractionSmoothed = from;
+  app.state.headingUpAnchorTargetFor = "t";
+  app.state.compassLastEventAt = Date.now(); // sensor live
+  const forced = app.resolveHeadingUpAnchorFraction(targetFraction, rect, "t", true, Date.now());
+  Object.assign(app.state, savedB);
+  assert.equal(forced, targetFraction, "an app-driven (forced) framing should resolve immediately even with the compass live");
+});
+
+test("rotating on the spot with a location selected does not bob the user's own screen position", () => {
+  // The route runs north-south of the walker (selectRouteBehindWalker), so as the simulated
+  // heading sweeps a full circle, every point on it trades places between "ahead" and
+  // "behind" -- exactly the live, rotating-heading condition the anchor now has to damp
+  // rather than track frame-for-frame.
+  selectRouteBehindWalker(app, 4);
+  app.state.tiltBetaSmoothed = 0;
+  app.state.tiltBetaTarget = 0;
+  app.resizeCanvas();
+
+  const frameHeading = (heading, frameMs = 16) => {
+    const now = Date.now();
+    app.state.compassHeading = heading;
+    app.state.compassHeadingTarget = heading;
+    app.state.renderedNavigationHeading = heading;
+    app.state.compassLastEventAt = now;
+    app.state.headingUpAnchorEaseAt = now - frameMs;
+    app.state.headingUpScaleEaseAt = now - frameMs;
+    app.alignHeadingUpNavigationViewport();
+  };
+
+  frameHeading(0); // seed the anchor uncontested before measuring steps
+  const rect = app.bestVisibleCanvasRect();
+  let worstStepPx = 0;
+  let previousY = app.worldToScreen(app.state.userLocation.point).y;
+  for (let heading = 3; heading <= 360; heading += 3) {
+    frameHeading(heading);
+    const y = app.worldToScreen(app.state.userLocation.point).y;
+    worstStepPx = Math.max(worstStepPx, Math.abs(y - previousY));
+    previousY = y;
+  }
+
+  assert.ok(
+    worstStepPx < rect.height * 0.05,
+    `a single ~3deg heading step should not visibly relocate the user while stationary, worst step moved ${worstStepPx.toFixed(1)}px of ${rect.height.toFixed(0)}`
   );
 });
 

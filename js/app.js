@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v39"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v40"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -284,6 +284,10 @@ const state = {
   compassHeadingSource: HEADING_SOURCE_NONE,
   headingUpScaleEaseAt: null, // timestamp the heading-up scale ease last integrated (see resolveHeadingUpTargetScale)
   headingUpScaleEasing: false, // latch: the heading-up scale ease is mid-glide (see resolveHeadingUpTargetScale)
+  headingUpAnchorFractionSmoothed: null, // the heading-up navigation anchor actually on screen, as a fraction of the focus rect's height -- see resolveHeadingUpAnchorFraction
+  headingUpAnchorEaseAt: null, // timestamp the heading-up anchor ease last integrated (see resolveHeadingUpAnchorFraction)
+  headingUpAnchorEasing: false, // latch: the heading-up anchor ease is mid-glide (see resolveHeadingUpAnchorFraction)
+  headingUpAnchorTargetFor: null, // the selectedCompassTarget() headingUpAnchorFractionSmoothed was last resolved for
   lastLocationUpdateAt: null,
   rawUserLocation: null, // the unfiltered GPS fix; state.userLocation is the smoothed one (see ingestLocationFix)
   locationGlide: null, // in-flight glide of the smoothed position toward the latest fix
@@ -3717,6 +3721,23 @@ const HEADING_UP_SCALE_SNAP_RATIO = 1.25;
 // ~0.45s to converge against the zoom-in's ~1s.
 const HEADING_UP_SCALE_EASE_OUT_RATE = 9;
 
+// Same hysteresis as the scale fit above, applied to the balanced navigation anchor
+// (balancedNavigationAnchorY/headingUpAnchorFraction) instead of the scale -- see
+// resolveHeadingUpAnchorFraction. Both mirror the vertical anchor toward whichever side of the
+// screen the destination/route actually needs, using the bearing (or ahead/behind split)
+// relative to the *live, rotating* heading -- so simply turning on the spot, with neither
+// the walker nor the destination moving an inch, swaps points between "ahead" and "behind"
+// and slides the anchor -- and with it the user's own marker -- up and down the screen.
+// Reported as the user's position bobbing while rotating, "even when it's not helping at
+// all with navigation".
+//
+// Safe to hold inside a deadband exactly like the scale is: maxHeadingUpNavigationScale
+// always re-solves the scale against whatever anchor is actually in use (it takes `focus`
+// as an argument rather than recomputing it), so the destination never runs off-screen
+// while the anchor itself sits still -- there is no separate "urgent" snap to add here, the
+// existing scale fit already is one.
+const HEADING_UP_ANCHOR_HOLD_RATIO = 0.12; // deadband, as a fraction of the focus rect's height
+
 function selectedNavigationHeadingUpActive() {
   return Boolean(
     state.userLocation
@@ -4276,6 +4297,22 @@ function navigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
   };
 }
 
+// The screen y navigationFocusPoint() would place the user at, damped so it does not track
+// every live-heading-driven wobble of balancedNavigationAnchorY/headingUpAnchorFraction --
+// see resolveHeadingUpAnchorFraction. Deliberately NOT folded into navigationFocusPoint
+// itself: maxHeadingUpNavigationScale/maxNearbyHeadingUpScale must keep fitting against the
+// instantaneous anchor exactly as before (smoothing that input regressed the walking
+// zoom-glide tests -- a scale fit chasing a *lagging* anchor swung further, and more often
+// urgently, than one chasing the live anchor directly). Only where the anchor is actually
+// used to *place the camera* -- here -- does the lag matter for the reported bug: the
+// destination's on-screen position, still solved by the fresh fit above, is unaffected.
+function dampedHeadingUpFocusY(rawFocus, focusRect, force) {
+  if (!selectedNavigationHeadingUpActive() || !(focusRect.height > 0)) return rawFocus.y;
+  const targetFraction = (rawFocus.y - focusRect.y) / focusRect.height;
+  const resolvedFraction = resolveHeadingUpAnchorFraction(targetFraction, focusRect, selectedCompassTarget(), force);
+  return focusRect.y + focusRect.height * resolvedFraction;
+}
+
 function nearbyHeadingUpFocusY() {
   return headingUpAnchorFraction(false);
 }
@@ -4392,6 +4429,77 @@ function resolveHeadingUpTargetScale(maxScale, previousScale, force = false, now
   const rate = nextScale < previousScale ? HEADING_UP_SCALE_EASE_OUT_RATE : HEADING_UP_SCALE_EASE_RATE;
   const eased = previousScale + (nextScale - previousScale) * (1 - Math.exp(-rate * dt));
   return Number.isFinite(eased) && eased > 0 ? eased : previousScale;
+}
+
+// Holds/eases the heading-up navigation focus's vertical anchor toward targetFraction
+// exactly the way resolveHeadingUpTargetScale holds/eases the scale -- see
+// HEADING_UP_ANCHOR_HOLD_RATIO. Deliberately a fraction of focusRect's height rather than an
+// absolute canvas y: the rect itself can shift (a window resize, the inspector opening, the
+// canvas's own heading-up overscan sizing in for the first time) between one call and the
+// next for reasons that have nothing to do with the compass, and holding a stale *absolute*
+// pixel position across that shift places it nonsensically inside the new rect -- measured
+// as a ~5.5x scale collapse when the canvas gained its overscan inset between two calls in
+// the same frame. A fraction of the rect's own height is invariant to exactly that shift.
+//
+// state.headingUpAnchorFractionSmoothed is the anchor actually on screen; targetFraction is
+// what balancedNavigationAnchorY/headingUpAnchorFraction would place it at right now, given
+// the live (possibly still-rotating) heading. targetKey identifies the navigation target
+// (selectedCompassTarget()) the caller is fitting: a fresh selection never eases in from
+// wherever a *different* target's anchor last settled -- it takes effect immediately, same
+// as manualCameraOverrideFor being keyed on selection identity elsewhere in this file. This
+// also covers the very first call, when there is nothing to hold yet.
+function resolveHeadingUpAnchorFraction(targetFraction, focusRect, targetKey, force = false, now = performance.now()) {
+  if (!Number.isFinite(targetFraction)) {
+    return Number.isFinite(state.headingUpAnchorFractionSmoothed) ? state.headingUpAnchorFractionSmoothed : targetFraction;
+  }
+
+  if (state.headingUpAnchorTargetFor !== targetKey || !Number.isFinite(state.headingUpAnchorFractionSmoothed)) {
+    state.headingUpAnchorTargetFor = targetKey;
+    state.headingUpAnchorEaseAt = null;
+    state.headingUpAnchorEasing = false;
+    state.headingUpAnchorFractionSmoothed = targetFraction;
+    return targetFraction;
+  }
+  const previousFraction = state.headingUpAnchorFractionSmoothed;
+
+  // HEADING_UP_POSITION_PX_THRESHOLD converted to this rect's own fraction space, so "ignore
+  // sub-pixel noise" means the same physical amount of screen regardless of rect height.
+  const settleFraction = focusRect.height > 0 ? HEADING_UP_POSITION_PX_THRESHOLD / focusRect.height : 0;
+  if (Math.abs(previousFraction - targetFraction) <= settleFraction) {
+    state.headingUpAnchorEaseAt = null;
+    state.headingUpAnchorEasing = false;
+    return previousFraction;
+  }
+
+  // Same exemptions as resolveHeadingUpTargetScale: an app-driven framing (force) or a
+  // quiet compass takes the requested anchor immediately, since nothing is fighting it.
+  if (force || !headingUpCompassSensorActive(now)) {
+    state.headingUpAnchorEaseAt = null;
+    state.headingUpAnchorEasing = false;
+    state.headingUpAnchorFractionSmoothed = targetFraction;
+    return targetFraction;
+  }
+
+  if (!state.headingUpAnchorEasing) {
+    if (Math.abs(targetFraction - previousFraction) <= HEADING_UP_ANCHOR_HOLD_RATIO) {
+      state.headingUpAnchorEaseAt = null;
+      return previousFraction;
+    }
+    state.headingUpAnchorEasing = true;
+  }
+
+  const lastEaseAt = state.headingUpAnchorEaseAt;
+  const gapMs = Number.isFinite(lastEaseAt) ? (now - lastEaseAt) : null;
+  if (gapMs == null || gapMs > HEADING_UP_SCALE_EASE_STALE_MS) {
+    state.headingUpAnchorEaseAt = now;
+    return previousFraction;
+  }
+  if (!(gapMs > 0)) return previousFraction; // clock has not advanced (duplicate call this tick)
+  const dt = Math.min(gapMs, HEADING_UP_SCALE_EASE_MAX_DT * 1000) / 1000;
+  state.headingUpAnchorEaseAt = lastEaseAt + dt * 1000;
+  const eased = previousFraction + (targetFraction - previousFraction) * (1 - Math.exp(-HEADING_UP_SCALE_EASE_RATE * dt));
+  state.headingUpAnchorFractionSmoothed = Number.isFinite(eased) ? eased : previousFraction;
+  return state.headingUpAnchorFractionSmoothed;
 }
 
 // The tilt camera as the viewport fit needs it. For a point `m` canvas px from the pivot
@@ -4862,10 +4970,14 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // rotated focus rect. Math.min would leave scale too low when the map
   // was previously at a wider zoom (e.g. walking-radius level on first load).
   const targetScale = resolveHeadingUpTargetScale(maxScale, previousScale, Boolean(options.force));
+  // The scale above is fit against the instantaneous anchor (focus.y) so it always keeps the
+  // destination on screen; the camera's own vertical placement is damped separately (see
+  // dampedHeadingUpFocusY) so simply rotating on the spot does not bob the user's own marker.
+  const focusY = dampedHeadingUpFocusY(focus, focusRect, Boolean(options.force));
   const targetViewport = {
     scale: targetScale,
     tx: focus.x - userPoint.x * targetScale,
-    ty: focus.y - userPoint.y * targetScale,
+    ty: focusY - userPoint.y * targetScale,
   };
 
   if (options.animate) {
@@ -4911,16 +5023,21 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
     }
   }
   const focusRect = bestVisibleCanvasRect();
-  const focus = navigationFocusPoint();
+  const focus = navigationFocusPoint(focusRect);
   const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
   // Use maxScale directly so the viewport always zooms to fit the selected
   // target, even when coming from a wider zoom (e.g. walking-radius overview).
   const targetScale = maxScale;
+  // force: true, matching maxScale being used directly above rather than through
+  // resolveHeadingUpTargetScale -- this is a fresh selection, not the compass follow, so
+  // the camera's own placement should not ease from wherever a previous selection last
+  // settled (it also seeds state for the compass-follow frames that come after this one).
+  const focusY = dampedHeadingUpFocusY(focus, focusRect, true);
   const userPoint = state.userLocation.point;
   animateViewportTo({
     scale: targetScale,
     tx: focus.x - userPoint.x * targetScale,
-    ty: focus.y - userPoint.y * targetScale,
+    ty: focusY - userPoint.y * targetScale,
   }, safeDuration);
 }
 
