@@ -184,7 +184,17 @@ rendered with thousands separators.
 
 `/` is plain, static, server-rendered HTML. **All copy is present without
 JavaScript** — a share target that needs JS to say what it is, isn't one. JS is
-permitted only to enhance the sign-up form (inline validation, async submit).
+permitted only to enhance the sign-up form (inline validation, async submit) and
+to add motion that never gates content.
+
+**Motion** stays subtle and professional. The hero copy rises in on load and
+the hero photo fades in (CSS only). Section headings, intros and cards fade up
+about 16px as they scroll into view, siblings in a row staggered by 90ms (capped
+at three steps); `assets/home/home.js` adds the hidden state only when
+IntersectionObserver exists, so without JavaScript everything is simply shown.
+Cards lift 3px with a deeper shadow on hover (pointer devices only), the tag
+photo scales 3%, and buttons nudge up on hover and press down on click.
+`prefers-reduced-motion: reduce` turns all of it off.
 
 Sections, in order:
 

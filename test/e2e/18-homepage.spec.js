@@ -142,7 +142,7 @@ test.describe("the marketing homepage", () => {
     }));
     expect(iconsBesideHeadings).toEqual([true, true]);
     await expect(page.locator(".ledger").getByRole("link", { name: "Read the Ledger →" })).toHaveCSS("background-color", "rgb(46, 107, 68)");
-    await expect(page.locator("main > section:last-child")).toHaveClass("ledger");
+    await expect(page.locator("main > section:last-child")).toHaveClass(/\bledger\b/);
     await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
     await expect(page.locator(".site-foot")).not.toContainText("Map data ©");
     await expect(page.locator(".offline-note")).toContainText("A note on the moving herd");
@@ -180,6 +180,32 @@ test.describe("the marketing homepage", () => {
     await expect(faq).toHaveCSS("border-radius", "14px");
     await expect(faq.locator(".faq-item")).toHaveCount(5);
     await expect(faq.locator(".faq-item + .faq-item").first()).toHaveCSS("border-top-style", "solid");
+  });
+
+  test("reveals sections gently as they scroll into view, then hands back to hover", async ({ page }) => {
+    await page.goto("/");
+    const faq = page.locator(".faq-list");
+    await expect(faq).toHaveClass(/\breveal\b/);
+    await expect(faq).toHaveCSS("opacity", "0");
+    await faq.scrollIntoViewIfNeeded();
+    await expect(faq).toHaveCSS("opacity", "1");
+    await expect(faq).not.toHaveClass(/\breveal\b/);
+
+    const card = page.locator(".pillars article").first();
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).not.toHaveClass(/\breveal\b/);
+    if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) {
+      await card.hover();
+      await expect(card).not.toHaveCSS("transform", "none");
+    }
+  });
+
+  test("keeps everything still and shown for visitors who ask for reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await expect(page.locator(".reveal")).toHaveCount(0);
+    await expect(page.locator(".faq-list")).toHaveCSS("opacity", "1");
+    await expect(page.locator(".hero-copy h1")).toHaveCSS("animation-name", "none");
   });
 
   test("explains periodic network requests and stale offline cow positions in copy and search data", async ({ page }) => {
