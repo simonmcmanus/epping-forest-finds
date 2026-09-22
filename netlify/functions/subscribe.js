@@ -4,9 +4,9 @@
  * The browser posts here; this function calls EmailOctopus. The API key never
  * reaches the client, and the form never posts to a third party directly.
  *
- * EmailOctopus is configured for double opt-in, so a successful call here means
- * "confirmation email sent", not "subscribed" -- which is why the homepage says
- * "check your inbox" rather than "you're in".
+ * EmailOctopus is configured for double opt-in. A new contact gets a
+ * confirmation email, while an existing contact returns 409 without resending
+ * one, so the browser uses the same neutral success wording for both cases.
  *
  * See spec/spec-marketing.md section 9.
  */
@@ -122,8 +122,13 @@ exports.handler = async (event, context) => {
     // An address already on the list is not an error the caller should learn
     // about: a response that distinguishes "new" from "already subscribed"
     // turns this endpoint into a way to test whether an address is a member.
-    if (upstream.ok || upstream.status === 409) {
-      log(`EmailOctopus accepted request with status ${upstream.status}`);
+    if (upstream.ok) {
+      log(`EmailOctopus created contact with status ${upstream.status}; confirmation requested`);
+      return response(200, { ok: true });
+    }
+
+    if (upstream.status === 409) {
+      log("EmailOctopus reported an existing contact; no new confirmation was sent");
       return response(200, { ok: true });
     }
 

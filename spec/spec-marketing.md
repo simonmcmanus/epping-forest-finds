@@ -365,8 +365,11 @@ which addresses are on the list is an enumeration oracle.
 
 ### 9.3 Consent and compliance
 
-- Double opt-in. The success state says **"Check your inbox"**, never
-  "You're in".
+- Double opt-in. A new contact receives a confirmation message, but EmailOctopus
+  does not resend one when an existing contact produces a `409`. The shared
+  success state therefore says **"If confirmation is needed, check your inbox
+  and spam folder"**: it neither falsely promises a new message nor reveals
+  whether the address is already on the list.
 - The consent checkbox is unbundled and never pre-ticked.
 - Record the consent timestamp **and the wording consented to**, so the record
   survives later copy changes.

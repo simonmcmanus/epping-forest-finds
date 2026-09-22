@@ -62,10 +62,11 @@
           if (submitButton) submitButton.disabled = false;
           return;
         }
-        // Double opt-in: the address is not on the list until they confirm,
-        // so the wording is "check your inbox", never "you're in".
+        // This wording also covers an existing contact. EmailOctopus returns
+        // 409 without resending double opt-in, and distinguishing that case
+        // would reveal whether an address is already on the list.
         form.reset();
-        say("Check your inbox — we've sent you a confirmation email.", "ok");
+        say("Thanks. If confirmation is needed, check your inbox and spam folder.", "ok");
       })
       .catch(function () {
         say("Couldn't reach the server. Please try again.", "error");
