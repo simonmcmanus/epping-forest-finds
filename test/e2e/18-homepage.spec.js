@@ -149,6 +149,28 @@ test.describe("the marketing homepage", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 
+  test("presents the offline steps as numbered cards and the questions as one divided card", async ({ page }) => {
+    await page.goto("/");
+    const steps = page.locator(".offline-how .steps li");
+    await expect(steps).toHaveCount(3);
+    await expect(steps.locator("strong")).toHaveText(["Open it once", "It downloads", "Walk out of range"]);
+    for (const step of await steps.all()) {
+      await expect(step).toHaveCSS("border-radius", "14px");
+      await expect(step).not.toHaveCSS("box-shadow", "none");
+      const badge = await step.evaluate(el => {
+        const style = getComputedStyle(el, "::before");
+        return { background: style.backgroundColor, radius: style.borderRadius, width: style.width };
+      });
+      expect(badge).toEqual({ background: "rgb(29, 74, 47)", radius: "50%", width: "38px" });
+    }
+    await expect(page.locator(".offline-note img")).toHaveAttribute("src", "assets/home/cow.png");
+
+    const faq = page.locator(".faq-list");
+    await expect(faq).toHaveCSS("border-radius", "14px");
+    await expect(faq.locator(".faq-item")).toHaveCount(5);
+    await expect(faq.locator(".faq-item + .faq-item").first()).toHaveCSS("border-top-style", "solid");
+  });
+
   test("explains periodic network requests and stale offline cow positions in copy and search data", async ({ page }) => {
     await page.goto("/");
     const cattle = page.locator(".pillars article").filter({ hasText: "Follow the longhorns" });

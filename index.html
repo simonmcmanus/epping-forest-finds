@@ -258,36 +258,46 @@
       </form>
     </section>
 
-    <section class="how">
-      <h2>How it works offline</h2>
+    <section class="how offline-how" aria-labelledby="offline-heading">
+      <h2 id="offline-heading">How it works offline</h2>
+      <p class="section-intro">One download on signal, then the whole forest travels with you.</p>
       <ol class="steps">
-        <li><strong>Open it once</strong> somewhere with signal or wi-fi.</li>
-        <li><strong>It downloads</strong> the whole forest to your device — a one-time wait.</li>
-        <li><strong>Walk out of range.</strong> The map, your position and your heading all keep working.</li>
+        <li><strong>Open it once</strong><span>Somewhere with signal or wi-fi.</span></li>
+        <li><strong>It downloads</strong><span>The whole forest saves to your device — a one-time wait.</span></li>
+        <li><strong>Walk out of range</strong><span>The map, your position and your heading all keep working.</span></li>
       </ol>
       <aside class="offline-note" aria-label="Cattle locations offline">
-        <strong>A note on the moving herd</strong>
-        <p>Fresh cow locations need a connection. The app checks for updates periodically; offline positions may be out of date.</p>
+        <img src="assets/home/cow.png" width="48" height="48" alt="" aria-hidden="true">
+        <div>
+          <strong>A note on the moving herd</strong>
+          <p>Fresh cow locations need a connection. The app checks for updates periodically; offline positions may be out of date.</p>
+        </div>
       </aside>
     </section>
 
-    <section class="faq">
-      <h2>Questions</h2>
-      <dl>
-        <dt>Does it really work without a phone signal?</dt>
-        <dd>Yes. Once downloaded, the map, trees and paths work offline. Fresh cow locations need a connection; offline, the map shows their last saved positions.</dd>
-
-        <dt>Is it free?</dt>
-        <dd>Yes, it is free to use and there is no account to create.</dd>
-
-        <dt>Where does the tree data come from?</dt>
-        <dd>The Epping Forest Veteran Tree Register. Paths, pubs, car parks and transport come from OpenStreetMap contributors.</dd>
-
-        <dt>How do you know where the cattle are?</dt>
-        <dd>The forest's grazing cattle wear GPS collars, and their positions are published through the Nofence open data API. The map reads that feed when it loads and periodically makes a network request to refresh it, because the cows move around. Offline, you see their last saved positions, which may be out of date.</dd>
-
-        <dt>Which area does it cover?</dt>
-        <dd>Epping Forest and a walking-distance band around its boundary, so the pub or station just outside the treeline is on the map too.</dd>
+    <section class="faq" aria-labelledby="faq-heading">
+      <h2 id="faq-heading">Questions</h2>
+      <dl class="faq-list">
+        <div class="faq-item">
+          <dt>Does it really work without a phone signal?</dt>
+          <dd>Yes. Once downloaded, the map, trees and paths work offline. Fresh cow locations need a connection; offline, the map shows their last saved positions.</dd>
+        </div>
+        <div class="faq-item">
+          <dt>Is it free?</dt>
+          <dd>Yes, it is free to use and there is no account to create.</dd>
+        </div>
+        <div class="faq-item">
+          <dt>Where does the tree data come from?</dt>
+          <dd>The Epping Forest Veteran Tree Register. Paths, pubs, car parks and transport come from OpenStreetMap contributors.</dd>
+        </div>
+        <div class="faq-item">
+          <dt>How do you know where the cattle are?</dt>
+          <dd>The forest's grazing cattle wear GPS collars, and their positions are published through the Nofence open data API. The map reads that feed when it loads and periodically makes a network request to refresh it, because the cows move around. Offline, you see their last saved positions, which may be out of date.</dd>
+        </div>
+        <div class="faq-item">
+          <dt>Which area does it cover?</dt>
+          <dd>Epping Forest and a walking-distance band around its boundary, so the pub or station just outside the treeline is on the map too.</dd>
+        </div>
       </dl>
     </section>
 

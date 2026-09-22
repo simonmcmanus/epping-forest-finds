@@ -233,12 +233,18 @@ Sections, in order:
    Ledger card's accent placement. Introduction, consent and supporting text
    use the full card content width; only the email field has a narrower cap. Both introduction and
    consent include weekly Epping Forest Ledger updates once the site launches.
-8. **How it works offline** — three steps: open it once on signal, it downloads,
-   it then works anywhere in the forest. A separate padded note explains that
-   fresh cattle locations require a connection and saved positions may be stale.
+8. **How it works offline** — a one-line intro, then three steps: open it once
+   on signal, it downloads, it then works anywhere in the forest. Each step is
+   a white shadowed card with a round dark-green number badge, a bold title and
+   a short line beneath; three columns on wide screens, stacked on mobile with
+   the badge to the left. A separate note, tinted with a green left accent and
+   the cow icon, explains that fresh cattle locations require a connection and
+   saved positions may be stale.
 9. **FAQ** — immediately before the footer, with `FAQPage` JSON-LD (§6.3).
    Covers signal, cost/account, tree data, cattle positions and coverage.
-   No battery-use question.
+   No battery-use question. All answers stay visible (no accordion) in one
+   white rounded card, each question-and-answer pair divided by a hairline;
+   on wide screens the question sits in a left column beside its answer.
 10. **Footer** — builder credit, `/terms.html`, GitHub feedback and contact address
    `mcmanus.simon@gmail.com`. No separate dataset-attribution paragraph; source
    explanations remain in the FAQ.
