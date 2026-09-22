@@ -60,6 +60,7 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .inventory-total { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; padding: 22px 20px; background: var(--surface-alt); }
 .inventory-total strong { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: clamp(2rem, 8vw, 3rem); letter-spacing: -.06em; line-height: 1; }
 .inventory-total span { color: var(--muted); font-size: .94rem; font-weight: 700; }
+.inventory-total img { align-self: center; width: 44px; height: 44px; object-fit: contain; }
 .inventory-groups { display: grid; }
 .inventory-group { padding: 20px; border-top: 1px solid var(--line); }
 .inventory-group h3 { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin: 0 0 13px; font-size: 1rem; }

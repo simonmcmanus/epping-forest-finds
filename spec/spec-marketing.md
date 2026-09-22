@@ -215,7 +215,8 @@ Sections, in order:
    icons from `assets/home/`, with centred headings. Use three equal columns
    on wide screens and stack them on mobile.
 5. **What's on the map** — one neutral inventory card, matching the Ledger's
-   categorisation: a headline total, the six app filter groups (Nature, Food,
+   categorisation: a headline total with a 44px map-pin icon
+   (`map-icons/all-finds.png`) to its left, the six app filter groups (Nature, Food,
    Transport, History, Locations and Stories), every subfilter and count, then
    a full-width row for always-shown facilities. Each group heading uses an
    independent homepage copy of the corresponding app category icon, with a

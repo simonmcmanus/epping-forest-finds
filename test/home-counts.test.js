@@ -97,6 +97,22 @@ test("the count sync corrects a homepage that has drifted", () => {
   assert.ok(!fixed.includes(">123<"), "the stale number should be gone");
 });
 
+test("the count sync corrects the headline total beside its map-pin icon", () => {
+  const { updateHomepage } = require("../scripts/sync-homepage-counts.js");
+  const counts = readCounts(ROOT);
+  const inventory = require("../scripts/report/map-inventory.js").buildInventory(ROOT);
+  const stale = readHomepage().replace(
+    /(class="inventory-total"><img[^>]*><strong>)[\d,]+(<\/strong>)/,
+    "$1123$2"
+  );
+
+  assert.notStrictEqual(stale, readHomepage(), "the fixture should actually be stale");
+  assert.match(
+    updateHomepage(stale, counts, inventory),
+    new RegExp(`class="inventory-total"><img[^>]*><strong>${formatCount(inventory.total)}</strong>`)
+  );
+});
+
 test("the count sync corrects the marketing spec too", () => {
   const { updateMarketingSpec } = require("../scripts/sync-homepage-counts.js");
   const counts = readCounts(ROOT);

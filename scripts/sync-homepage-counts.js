@@ -61,7 +61,7 @@ function escapeRegExp(value) {
 function updateHomepage(html, counts, inventory = buildInventory(ROOT)) {
   let out = html;
   out = out.replace(
-    /(class="inventory-total"><strong>)[\d,]+(<\/strong>)/,
+    /(class="inventory-total">(?:<img[^>]*>)?<strong>)[\d,]+(<\/strong>)/,
     `$1${formatCount(inventory.total)}$2`
   );
   for (const group of inventory.groups) {

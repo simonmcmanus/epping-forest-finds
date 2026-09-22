@@ -47,6 +47,14 @@ test.describe("the marketing homepage", () => {
 
     await expect(page.locator(".brand-mark")).toHaveAttribute("src", "assets/home/map-icons/oak.png");
     await expect(page.locator(".inventory-total")).toContainText("31,000");
+    const totalIcon = page.locator(".inventory-total img");
+    await expect(totalIcon).toHaveAttribute("src", "assets/home/map-icons/all-finds.png");
+    const iconLeftOfTotal = await page.locator(".inventory-total").evaluate(total => {
+      const icon = total.querySelector("img").getBoundingClientRect();
+      const count = total.querySelector("strong").getBoundingClientRect();
+      return icon.width === 44 && icon.right <= count.left && icon.bottom > count.top && icon.top < count.bottom;
+    });
+    expect(iconLeftOfTotal).toBe(true);
     await expect(page.locator(".inventory-group h3")).toContainText([
       "Nature25,017", "Food771", "Transport1,864", "History12", "Locations30", "Stories42"
     ]);
