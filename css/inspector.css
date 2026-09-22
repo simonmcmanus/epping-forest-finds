@@ -903,3 +903,46 @@ dd {
   color: inherit;
   font-weight: 700;
 }
+
+/* Tree tag number, styled as the embossed galvanised plate nailed to the tree. */
+.tree-tag-plate {
+  --scallop: radial-gradient(circle 11px at 50% -7px, #0000 96%, #000) top / 20px 51% repeat-x,
+    radial-gradient(circle 11px at 50% calc(100% + 7px), #0000 96%, #000) bottom / 20px 51% repeat-x;
+  position: relative;
+  display: inline-block;
+  padding: 9px 26px;
+  border-radius: 3px;
+  background: linear-gradient(160deg, #d5d9dc 0%, #b4babf 45%, #c8cdd1 70%, #a9afb4 100%);
+  color: #8e959b;
+  font-family: "Arial Rounded MT Bold", "Helvetica Rounded", Arial, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-shadow: -1px -1px 0 rgba(255, 255, 255, 0.6), 1px 1px 1px rgba(60, 66, 72, 0.35);
+  -webkit-mask: var(--scallop);
+  mask: var(--scallop);
+}
+
+/* Rusty nail head on the left, empty nail hole on the right. */
+.tree-tag-plate::before,
+.tree-tag-plate::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+}
+
+.tree-tag-plate::before {
+  left: 9px;
+  background: radial-gradient(circle at 40% 40%, #d98a3d, #8a4a1c 70%, #5d5a55);
+}
+
+.tree-tag-plate::after {
+  right: 9px;
+  background: #3b352e;
+  box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.6);
+}

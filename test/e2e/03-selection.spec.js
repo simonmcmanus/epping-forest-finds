@@ -21,6 +21,10 @@ test.describe("Selection and Inspector", () => {
       await expect(page.locator("#inspectorBody")).toContainText(FIXTURE_TREE.tagNumber);
     });
 
+    test("tag number is shown as a metal tag plate", async ({ page }) => {
+      await expect(page.locator("#inspectorBody .tree-tag-plate")).toHaveText(FIXTURE_TREE.tagNumber);
+    });
+
     test("URL hash reflects the selected tree", async ({ page }) => {
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
     });

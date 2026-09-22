@@ -379,7 +379,7 @@ function showTreeDetails(tree, distance, label) {
   els.inspectorType.textContent = "Veteran tree";
   const estimatedAge = estimateTreeAgeFromGirth(tree);
   const primaryRows = [
-    ["Tag number", treeTagLabel(tree)],
+    ["Tag number", treeTagPlateHtml(treeTagLabel(tree))],
     ["Estimated age", estimatedAge],
     ["Common name", tree.commonName],
     ["Latin name", tree.latinName],
@@ -1034,13 +1034,22 @@ async function shareCurrentLocation() {
   }
 }
 
+// The tag number styled as the embossed galvanised plate nailed to the tree.
+// Returned as a pre-escaped { html } value for detailsHtml.
+function treeTagPlateHtml(tag) {
+  if (!tag) return null;
+  return { html: `<span class="tree-tag-plate">${escapeHtml(tag)}</span>` };
+}
+
 function detailsHtml(rows) {
   const visibleRows = rows.filter(([, value]) => value !== null && value !== undefined && value !== "");
   return `<dl>${visibleRows.map(([label, value, liveKey]) => {
     const shown = displayValue(value);
     const liveAttr = liveKey ? ` data-live-field="${escapeHtml(liveKey)}"` : "";
     let ddContent;
-    if (typeof value === "string" && (value.startsWith("http://") || value.startsWith("https://"))) {
+    if (value && typeof value === "object" && typeof value.html === "string") {
+      ddContent = value.html;
+    } else if (typeof value === "string" && (value.startsWith("http://") || value.startsWith("https://"))) {
       let display;
       try { display = new URL(value).hostname.replace(/^www\./, ""); } catch (_) { display = value; }
       ddContent = `<a href="${escapeHtml(value)}" target="_blank" rel="noreferrer">${escapeHtml(display)}</a>`;
