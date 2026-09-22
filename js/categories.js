@@ -148,16 +148,29 @@ function placeIconSlug(place) {
     || fromFilters(PLACE_FILTER_FALLBACK_PRIORITY);
 }
 
-// The filter a place is listed under, highest-priority first -- the type label
-// the Nearby list and search results show. Deliberately only the keys that are
-// filter chips: the topic keys above have no chip, so filterMeta() has no label
-// for them and a royal site would read "Place" instead of "Historic sites".
-// The *icon* those surfaces show comes from placeIconSlug via landmarkEmoji,
-// so a place still draws the same pin wherever it appears.
+// The filter a place is listed under, highest-priority first. Deliberately only
+// the keys that are filter chips: the topic keys above have no chip, so
+// filterMeta() has no label for them and a royal site would read "Place".
+// The *icon* every surface shows comes from placeIconSlug, never from this, so
+// a place draws the same pin in the list as it does on the map.
 function placePrimaryFilterKey(place) {
   if (!place) return null;
   return [...PLACE_FILTER_PRIORITY, ...PLACE_FILTER_FALLBACK_PRIORITY]
     .find((filterKey) => matchesPlaceFilter(place, filterKey)) || null;
+}
+
+// A key that decides a pin but has no filter chip of its own reads under the
+// chip that covers it. `blue_plaques` leads the priority list so a blue plaque
+// draws the roundel, but the only chip is "Plaques" -- without this the 62
+// plaques in the dataset would all be labelled "Place".
+const FILTER_KEY_LABEL_CHIP = { blue_plaques: "plaques" };
+
+// The filter chip a place is named after, for the type label the Nearby list
+// and search results show beneath its name.
+function placeLabelFilterKey(place) {
+  const filterKey = placePrimaryFilterKey(place);
+  if (!filterKey) return null;
+  return FILTER_KEY_LABEL_CHIP[filterKey] || filterKey;
 }
 
 // Single source of truth for all icon paths. To add an icon: drop the file

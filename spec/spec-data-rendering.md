@@ -317,6 +317,16 @@ its generic castle, and `monuments`, which is labelled "monuments and
 memorials" and would give all 50 war memorials the standing-stone monument.
 Held back, each place keeps its own pin and the chips still cover everything.
 
+**`kind` names a label, `placeIconSlug` names an icon.** An overview entry's
+`kind` (`resolvePlaceKind`, js/app.js) is the filter chip it is listed under
+and feeds only the type label; it used to restate the classification order
+itself and answer `"landmark"` for anything the filter predicates did not
+claim, which the list then turned into a bare pushpin glyph. It now delegates
+to `placeLabelFilterKey`. That is `placePrimaryFilterKey` mapped onto a chip:
+`blue_plaques` leads the icon priority so a blue plaque draws the roundel, but
+the only chip is "Plaques", and without the mapping all 62 would be labelled
+"Place".
+
 `PLACE_FILTER_TOPIC_PRIORITY` sits between the tag rules and the buckets and
 holds the keys that describe what a folklore place is *about* rather than what
 it is — `royal`, `celebrity_association`, `science`, `politics`, `theatre`,
@@ -443,7 +453,10 @@ invisible control.
 - The walking-time chip in the overview heading doubles as a **radius filter toggle** (`data-action="toggle-radius"`). When active (green, `aria-pressed="true"`), only items within the walking radius are shown (`state.showAllOutsideRadius = false`). When inactive (grey, `aria-pressed="false"`), items across all distances are shown (up to 10 nearest per type) with no fallback notice. Clicking toggles `state.showAllOutsideRadius` and triggers a full `selectOverview()` re-render.
 - **Heads-up ordering.** The list is ordered by a *heads-up score*, not by raw distance: `metres * (1 + HEADS_UP_BEHIND_PENALTY * (1 - cos(delta)) / 2)`, where `delta` is the angle between the compass heading the list is ordered by and the bearing from `nearbyOrigin()` to the item. Something dead ahead keeps its true distance, something dead behind counts as twice as far (`HEADS_UP_BEHIND_PENALTY` is 1), and the sides fall smoothly in between — so of two finds the same walk away, the one you are facing is listed first, while distance still dominates enough that a find at your back never drops below one more than twice as far ahead. `headsUpSortedEntries()` applies this to the *whole* in-radius set before the `nearestItemsCount` cap, so an item you are walking straight at can climb into the visible handful rather than being cut off by closer ones behind your shoulder; it returns a new array and never reorders the memoized `overviewItemsForActiveFilter()` result the map pins are drawn from. Items with no single coordinate (trails, water features) keep their plain distance rank. With no compass heading — desktop, or location without orientation — the list is plain nearest-first exactly as before.
 - **The order follows you round, but does not churn.** The list is ordered by `state.nearbyListHeading`, a latched heading rather than the live smoothed one. `refreshNearbyListForHeading()` runs from the compass smoothing loop alongside `updateOverviewDirectionArrows()` (which spins the per-item arrows every frame regardless): it adopts the live heading, and re-renders via `selectOverview()`, only once the two differ by `HEADS_UP_REORDER_DEGREES` (12°). A deliberate turn crosses that in one movement; sensor noise and small sways never do, so the list does not shuffle under the user's thumb. The re-render reuses the existing FLIP reorder animation (`animateNearestItemReorder`, `js/inspector.js`), and `selectOverview()`'s own list-key check drops the re-render entirely when the new heading leaves the order unchanged. Losing the heading (sensor stall, or `goToInitialView` on a stale compass) clears the latch along with `state.compassHeading`.
-- Each entry shows: emoji icon, name, type label, and directional arrow.
+- Each entry shows: icon, name, type label, and directional arrow. A place's
+  icon comes from `placeIconSlug` via `landmarkEmoji`, the same resolver the
+  map pin uses, so the two always agree; only the types with no per-place
+  artwork (cows, trails, water) are drawn from the entry's `kind`.
 - Each entry includes an always-visible combined distance + walk-time chip (`{distance} · {walk time}`) using the existing walking icon (`appIconHtml("walking", ...)`).
 - Tree entries additionally show the physical **tag number** (`#<tagNumber>`) in the footer meta line. The footer meta line order is: **walk chip first** (`🚶 {distance} · {walk time}`), then the type label and tag number (`Tree · #15961`), so that all distance pills align to the left across all item types. The tag chip is omitted when the tree has no tag — including the register's `"0"` placeholder, which marks a record as untagged rather than tagged zero (see "Tree display name" in spec-data-fetching.md).
 - `{distance}` is formatted by `formatDistance()`: whole metres below 1km (`850 m`); above 1km, kilometres to 1 decimal place below 10km and to a whole number at 10km+, with a trailing `.0` trimmed (`1.5 km`, `5 km`, `12 km`) — this keeps the unit and precision human-readable at both close and far range.
@@ -747,7 +760,7 @@ The figure itself is the real road/path-following distance (and the walk time de
 #### Place Details
 
 - Name, category, address, contact, source
-- Inspector title icon matches the map pin: PNG from `filterKindEmoji`/`landmarkIconSlug` priority, emoji fallback for types with no PNG asset
+- Inspector title icon matches the map pin: a place resolves through `placeIconSlug` (via `landmarkEmoji`), other types through `filterKindEmoji`, with a glyph only where no artwork exists
 - OSM attribution (only for OSM-sourced places)
 - Live distance + walking time
 - Bus stop selections append live departures when online; the departures block also shows a bus-stop direction summary (`Buses towards …`) using TfL stop metadata when available, otherwise a deduplicated summary of upcoming destination names for that stop only.

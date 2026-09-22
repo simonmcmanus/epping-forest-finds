@@ -384,6 +384,8 @@ globalThis.__forestFindsTest = {
   matchesPlaceFilter,
   placePrimaryFilterKey,
   placeIconSlug,
+  placeLabelFilterKey,
+  resolvePlaceKind,
   filterKindIconSlug,
   PLACE_FILTER_KEYS,
   PLACE_FILTER_PRIORITY,
@@ -1817,6 +1819,31 @@ test("a place's topic gives it a pin when nothing more specific describes it", (
   assert.equal(placeIconSlug(church), "church");
 });
 
+test("the Nearby list entry kind names a filter chip, so it never decides an icon", () => {
+  // resolvePlaceKind restated the classification order itself and answered
+  // "landmark" for anything the filter predicates did not claim. The list
+  // drew its icon from that kind, and filterKindEmoji("landmark") is a bare
+  // pushpin, so a gate was listed as a plain pin beside its own artwork on
+  // the map. The kind now names the type label only.
+  const { resolvePlaceKind, placeLabelFilterKey } = app;
+  const gate = { category: "gate", categoryTags: ["gate"] };
+  const memorial = { category: "memorial", categoryTags: ["memorial"] };
+  const bluePlaque = {
+    category: "plaque", folkloreCategory: "plaque",
+    folkloreTopics: ["blue_plaque"], categoryTags: ["blue_plaque", "plaque", "art"],
+  };
+
+  assert.equal(resolvePlaceKind(gate), "landmark", "nothing claims a gate, so it has no chip");
+  assert.equal(resolvePlaceKind(memorial), "monuments");
+
+  // blue_plaques leads the icon priority so a blue plaque draws the roundel,
+  // but the only chip is "Plaques" -- the label has to fall back to it or all
+  // 62 plaques read "Place".
+  assert.equal(app.placeIconSlug(bluePlaque), "blue-plaques");
+  assert.equal(placeLabelFilterKey(bluePlaque), "plaques");
+  assert.equal(resolvePlaceKind(bluePlaque), "plaques");
+});
+
 test("the Nearby list shows a place the same pin the map draws for it", () => {
   // landmarkEmoji consulted the filter buckets before the tag rules, so it
   // could disagree with the pin beside it: an archaeological site listed
@@ -1827,6 +1854,11 @@ test("the Nearby list shows a place the same pin the map draws for it", () => {
     { category: "memorial", categoryTags: ["memorial"] },
     { category: "museum", categoryTags: ["museum"] },
     { category: "bicycle_parking", categoryTags: ["bicycle_parking"] },
+    { category: "gate", categoryTags: ["gate"] },
+    { category: "bench", categoryTags: ["bench"] },
+    { category: "viewpoint", categoryTags: ["viewpoint"] },
+    { category: "picnic_site", categoryTags: ["picnic_site"] },
+    { category: "information", categoryTags: ["information"] },
   ];
 
   for (const place of samples) {
