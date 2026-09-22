@@ -101,12 +101,24 @@ const PLACE_FILTER_PRIORITY = [
   "legends", "literature", "film_tv", "art",
 ];
 
+// What a folklore place is *about* rather than what it is. No filter chip
+// offers these, so nothing reached them and crown, celebrities, science,
+// politics and social-history sat in the registry undrawn while their places
+// fell past every rule into the broad `historic` bucket and all drew the same
+// castle. They go after landmarkIconSlug -- ahead of it, a viewpoint tagged
+// `science` would stop being a viewpoint -- and before the buckets.
+// Most specific first: `social_history` is the vaguest and goes last, or it
+// swallows the places that are really about politics.
+const PLACE_FILTER_TOPIC_PRIORITY = [
+  "royal", "celebrity_association", "science", "politics", "theatre", "social_history",
+];
+
 // Buckets, not kinds of place: each covers several things the icon set draws
 // differently, so swept with the rest they would flatten the distinction.
 // `historic` matches anything with a historic flavour at all and would hand
-// an archaeological site or a museum the generic scroll instead of its own
+// an archaeological site or a museum its generic castle instead of their own
 // amphora or portico; `monuments` is labelled "monuments and memorials" and
-// would give all 49 war memorials the standing-stone monument. Both are held
+// would give all 50 war memorials the standing-stone monument. Both are held
 // back until landmarkIconSlug has had its say, and still catch anything the
 // tags do not name.
 const PLACE_FILTER_FALLBACK_PRIORITY = ["monuments", "historic"];
@@ -132,12 +144,16 @@ function placeIconSlug(place) {
   const byTag = landmarkIconSlug(place);
   if (byTag && iconPath(byTag)) return byTag;
 
-  return fromFilters(PLACE_FILTER_FALLBACK_PRIORITY);
+  return fromFilters(PLACE_FILTER_TOPIC_PRIORITY)
+    || fromFilters(PLACE_FILTER_FALLBACK_PRIORITY);
 }
 
-// The filter a place is listed under, highest-priority first. Shared by the Nearby/search
-// list icons (landmarkEmoji, js/app.js) and the type label search results show, so a place
-// reads the same way wherever it is listed.
+// The filter a place is listed under, highest-priority first -- the type label
+// the Nearby list and search results show. Deliberately only the keys that are
+// filter chips: the topic keys above have no chip, so filterMeta() has no label
+// for them and a royal site would read "Place" instead of "Historic sites".
+// The *icon* those surfaces show comes from placeIconSlug via landmarkEmoji,
+// so a place still draws the same pin wherever it appears.
 function placePrimaryFilterKey(place) {
   if (!place) return null;
   return [...PLACE_FILTER_PRIORITY, ...PLACE_FILTER_FALLBACK_PRIORITY]

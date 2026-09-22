@@ -226,8 +226,9 @@ The teardrop pin uses a compact layout with a large icon:
 - Hit detection (`findHit`, `findClusterHit`) is derived from `MAP_ICON_SCALE_UNSELECTED`: `pinR = iconSize × 0.52` (×1.3 visual R), `pinYOffset = iconSize × 0.64` (exact circle centre), giving an accurately-centred tap target slightly larger than the visual pin
 - Because the artwork is drawn at `R × 1.75` inside a head of radius `R`, an
   icon whose content reaches past `1/1.75` of its own half-width pokes out of
-  the pointer. `scripts/generate-map-icons.js` holds every generated icon to
-  that (see `spec-icons.md`).
+  the pointer. Every map icon is held to a 0.52 ceiling under that:
+  `scripts/generate-map-icons.js` for new artwork, `npm run fit:icons` for the
+  original PNGs, and `test/map-icons.test.js` in CI (see `spec-icons.md`).
 - `drawEmojiMapPin` sizes the glyph at `R × 1.15`. The generic 📍
   fallback is itself a map pin, and a pin inside a pin reads as a mistake, so
   a place the data says nothing about (OSM `building=yes`, the last seven on
@@ -312,14 +313,24 @@ then the tag rules in `landmarkIconSlug`, then
 `PLACE_FILTER_FALLBACK_PRIORITY`. That last list holds the keys that are
 buckets rather than kinds of place: `historic`, which matches anything with a
 historic flavour and would otherwise hand an archaeological site or a museum
-the generic scroll, and `monuments`, which is labelled "monuments and
-memorials" and would give all 49 war memorials the standing-stone monument.
+its generic castle, and `monuments`, which is labelled "monuments and
+memorials" and would give all 50 war memorials the standing-stone monument.
 Held back, each place keeps its own pin and the chips still cover everything.
 
-`crown` (royal), `celebrities`, `science`, `politics` and `social-history`
-are in the registry but no filter key that reaches them is in
-`PLACE_FILTER_PRIORITY`, so the map never draws them. They are still used by
-the Nearby and search lists via `filterKindEmoji`.
+`PLACE_FILTER_TOPIC_PRIORITY` sits between the tag rules and the buckets and
+holds the keys that describe what a folklore place is *about* rather than what
+it is — `royal`, `celebrity_association`, `science`, `politics`, `theatre`,
+`social_history`, in that order, vaguest last. No filter chip offers any of
+them, so before this nothing reached `crown`, `celebrities`, `science`,
+`politics` or `social-history` and their places all drew the broad bucket's
+castle. They cannot go ahead of the tag rules: a viewpoint tagged `science` is
+still a viewpoint.
+
+The Nearby list, search results and cluster detail take their icon from the
+same `placeIconSlug` (via `landmarkEmoji` in js/app.js), so a place shows the
+same pin wherever it appears. `placePrimaryFilterKey` stays on the chip
+vocabulary because it feeds the *type label*, and `filterMeta()` has no label
+for a topic key — a royal site would read "Place" instead of "Historic sites".
 
 **Pulsing radial background:** 2-second cycle sine wave oscillating between 0.3–0.8 opacity.
 

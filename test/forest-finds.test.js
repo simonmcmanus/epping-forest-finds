@@ -384,6 +384,7 @@ globalThis.__forestFindsTest = {
   PLACE_FILTER_KEYS,
   PLACE_FILTER_PRIORITY,
   PLACE_FILTER_FALLBACK_PRIORITY,
+  PLACE_FILTER_TOPIC_PRIORITY,
   treeSpeciesIconHtml,
   placeTitle,
   ICON_PATHS,
@@ -1782,6 +1783,48 @@ test("a broad history bucket never takes a pin from a place with artwork of its 
   assert.equal(placeIconSlug(memorial), "landmark-memorial");
   assert.equal(placeIconSlug(stone), "landmark-monument");
   assert.equal(placeIconSlug(unnamedMonument), "landmark-monument");
+});
+
+test("a place's topic gives it a pin when nothing more specific describes it", () => {
+  // No filter chip offers royal, science, politics or social history, so
+  // nothing reached their icons: crown, science, politics, social-history and
+  // celebrities sat in the registry while their places drew the generic
+  // castle the broad `historic` bucket hands out.
+  const { placeIconSlug } = app;
+  const royal = { category: "history", folkloreCategory: "history", categoryTags: ["royal_history"], folkloreTopics: ["royal"] };
+  const scientific = { category: "history", folkloreCategory: "history", categoryTags: ["science"] };
+
+  assert.equal(placeIconSlug(royal), "crown");
+  assert.equal(placeIconSlug(scientific), "science");
+
+  // But a topic never overrides what the place actually is.
+  const viewpoint = { category: "viewpoint", categoryTags: ["viewpoint", "science"] };
+  const church = { category: "place_of_worship", categoryTags: ["place_of_worship", "royal_history"], folkloreTopics: ["royal"] };
+  assert.equal(placeIconSlug(viewpoint), "landmark-viewpoint");
+  assert.equal(placeIconSlug(church), "church");
+});
+
+test("the Nearby list shows a place the same pin the map draws for it", () => {
+  // landmarkEmoji consulted the filter buckets before the tag rules, so it
+  // could disagree with the pin beside it: an archaeological site listed
+  // under the generic castle while the map drew the amphora.
+  const { landmarkEmoji, placeIconSlug, iconPath } = app;
+  const samples = [
+    { category: "archaeological_site", categoryTags: ["archaeological_site"] },
+    { category: "memorial", categoryTags: ["memorial"] },
+    { category: "museum", categoryTags: ["museum"] },
+    { category: "bicycle_parking", categoryTags: ["bicycle_parking"] },
+  ];
+
+  for (const place of samples) {
+    const slug = placeIconSlug(place);
+    assert.ok(slug, `${place.category} should resolve to an icon`);
+    assert.match(
+      landmarkEmoji(place),
+      new RegExp(iconPath(slug).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      `${place.category} should be listed with the same ${slug} pin the map draws`
+    );
+  }
 });
 
 test("a blue plaque draws as a plaque rather than whatever topic it is also tagged with", () => {

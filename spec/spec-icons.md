@@ -251,15 +251,39 @@ poppy red `#b23a2e`.
 **Every drawing sits inside a circle of radius 128 on the 256 viewBox**, and
 the generator fails rather than writing a PNG that does not. The renderer
 paints artwork at 1.75x the pin head's radius (`drawPngMapIcon`), so content
-past `1/1.75` of its own half-width reaches outside the white pointer, which is
-what made the old full-width plaque rectangle sit wrong among the others. The
-icons the set shipped with are not held to this and a few of them do spill
-slightly — `restaurant`, `shop`, `landmark-drinking-water`,
-`landmark-information`, `landmark-dry-cleaning` and `beer`.
+past `1/1.75 = 0.571` of its own half-width reaches outside the white pointer,
+which is what made the old full-width plaque rectangle sit wrong among the
+others. `scripts/lib/icon-fit.js` holds that rule and the 0.52 ceiling both
+scripts measure against — under the spill point, with room for the
+antialiased edge.
 
 Two shapes read at the 35 CSS pixels a pin actually occupies; four do not.
 The memorial went through a wreath-and-cross version that closed into a dark
 blob at map size before settling on cross, plinth and poppy.
+
+## Fitting the original artwork
+
+The set the app shipped with was drawn without the pointer rule, and 18 of its
+icons genuinely poked out of the white head — the restaurant's cutlery, the
+drinking-water tap, the museum's columns, the beer froth. They also ranged from
+0.43 to 0.67, so a gate pin read half again the size of an art pin beside it on
+the same map.
+
+`npm run fit:icons` (`scripts/refit-map-icons.js`) scales any icon over the
+ceiling about its own centre and rewrites the PNG, which is the only transform
+that is safe to apply to raster artwork without a person redrawing it. It took
+34 icons in, the largest (the restaurant) by 25%, and the set now spans 0.43
+to 0.52 rather than 0.43 to 0.67. `npm run fit:icons -- --check` reports without
+writing, and re-running is a no-op because the rescale aims a little under the
+ceiling rather than exactly onto it — the rendered edge lands a pixel wide of
+where the arithmetic put it, and aiming at the limit left icons measuring 0.521
+and rewrote all of them every run.
+
+Two things keep it from drifting back: `test/map-icons.test.js` fails if any
+map icon overflows or if their sizes spread too far apart, and the audit below
+reports the same. An icon that is app chrome rather than a map pin — the nav
+buttons, the filter chips, the generated launcher icons — is exempt, and that
+list is repeated in all three places.
 
 ## Community venues reuse existing icons
 
@@ -306,6 +330,17 @@ The `plaques` bronze plate is drawn but not currently reached: every plaque in
 the dataset is a blue one, and `blue_plaques` wins ahead of it. It is the
 right pin for the first green or black plaque the weekly ledger adds.
 
+A third cause was quieter still. `royal`, `celebrity_association`, `science`,
+`politics` and `social_history` are topics a folklore place carries, and no
+filter chip offers any of them, so nothing ever reached `crown`, `celebrities`,
+`science`, `politics` or `social-history`: those places fell past every rule
+into the broad `historic` bucket and all drew the same castle.
+`PLACE_FILTER_TOPIC_PRIORITY` now sits between the tag rules and the buckets,
+which is the only place it can go — ahead of the tags, a viewpoint tagged
+`science` would stop being a viewpoint. `celebrities`, `politics` and `theatre`
+are still rarely drawn, because the places carrying those topics almost always
+have something better to show (a blue plaque, a school, a film location).
+
 `node scripts/icon-audit.js` (or `npm run audit:icons`) names every place that
 falls through, grouped by category with examples, by loading the app's real
 rules from `js/categories.js` the way `scripts/report/map-inventory.js` does.
@@ -315,8 +350,9 @@ the places they were meant to cover fall through to the emoji), registry
 entries with no file behind them, files reached from outside the registry (the
 service worker's precache list, a page's `<link>`, the manifest — legitimate,
 and listed so they are not mistaken for dead), files nothing refers to at all,
-and files that are byte-identical to another under a different name. `--json`
-gives the same result as data.
+and files that are byte-identical to another under a different name, and map icons
+whose artwork reaches outside the pointer. `--json` gives the same result as
+data.
 
 The resolution order in `icon-audit.js` restates `drawLandmarks()` rather than
 calling it, because the real function needs a canvas and live app state. If the

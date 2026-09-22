@@ -18,13 +18,14 @@
     "audit:duplicates": "python3 scripts/find_duplicates.py",
     "netlify:dev": "npx netlify dev",
     "build": "node scripts/generate-reports-index.js && node scripts/generate-sitemap.js",
-    "test": "npm run test:unit && node --test --test-reporter=dot test/reports-index.test.js test/sitemap.test.js test/transport-departures.test.js test/home-counts.test.js test/home-boundaries.test.js test/subscribe.test.js && npm run test:py",
+    "test": "npm run test:unit && node --test --test-reporter=dot test/map-icons.test.js test/reports-index.test.js test/sitemap.test.js test/transport-departures.test.js test/home-counts.test.js test/home-boundaries.test.js test/subscribe.test.js && npm run test:py",
     "test:unit": "node test/forest-finds.test.js",
     "test:e2e": "npx playwright test",
     "test:e2e:update": "npx playwright test --update-snapshots",
     "test:e2e:ui": "npx playwright test --ui",
     "test:py": "python3 -m unittest discover -s scripts -p 'test_*.py'",
-    "gen:icons": "node scripts/generate-map-icons.js"
+    "gen:icons": "node scripts/generate-map-icons.js",
+    "fit:icons": "node scripts/refit-map-icons.js"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.8",

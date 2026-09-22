@@ -33,6 +33,16 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
+const { FIT_LIMIT, pngContentRadius } = require("./lib/icon-fit");
+
+// App chrome and the generated launcher icons are not drawn in a pointer, so
+// the fit rule does not apply to them. Kept in step with the same list in
+// scripts/refit-map-icons.js.
+const UI_ONLY_ICONS = new Set([
+  "feedback", "filter", "home", "nearby", "pin", "settings", "tick", "walking",
+  "food", "nature", "history", "stories", "campsite", "logo",
+]);
+
 const APP_ROOT = path.join(__dirname, "..");
 
 const LANDMARK_FILES = [
@@ -218,9 +228,28 @@ function audit(root = APP_ROOT) {
     else byHash.set(hash, file);
   }
 
+  // Artwork is drawn at 1.75x the pin head's radius, so an icon reaching past
+  // FIT_LIMIT of its own half-width pokes out of the white pointer -- the
+  // thing that made the old plaque rectangle sit wrong among the others.
+  const overflowing = iconPaths
+    .filter(([slug]) => !UI_ONLY_ICONS.has(slug))
+    .map(([slug, file]) => {
+      const full = path.join(root, file);
+      if (!fs.existsSync(full)) return null;
+      try {
+        return { slug, radius: pngContentRadius(fs.readFileSync(full)) };
+      } catch (error) {
+        return { slug, radius: null, error: error.message };
+      }
+    })
+    .filter((icon) => icon && (icon.radius === null || icon.radius > FIT_LIMIT))
+    .sort((a, b) => (b.radius || 0) - (a.radius || 0));
+
   return {
     generatedAt: new Date().toISOString().slice(0, 10),
     placeCount: places.length,
+    fitLimit: FIT_LIMIT,
+    overflowing,
     totals,
     fallbacks: Array.from(fallbacks.values())
       .map((bucket) => ({ ...bucket, sources: Array.from(bucket.sources).sort() }))
@@ -249,6 +278,14 @@ function report(result) {
   lines.push("", "Filters that match nothing, so their icon is never drawn:");
   lines.push(...(result.unreachableFilters.length
     ? result.unreachableFilters.map((f) => `  ${f.key} (icon: ${f.icon || "none defined"})`)
+    : ["  none"]));
+
+  lines.push("", `Map icons whose artwork reaches outside the pointer (over ${result.fitLimit}):`);
+  lines.push(...(result.overflowing.length
+    ? result.overflowing.map((icon) => (icon.radius === null
+        ? `  ${icon.slug.padEnd(28)} could not be measured: ${icon.error}`
+        : `  ${icon.slug.padEnd(28)} ${icon.radius.toFixed(3)}`))
+      .concat(["  Run `npm run fit:icons` to scale them in."])
     : ["  none"]));
 
   lines.push("", "Icons named in the registry with no file behind them:");

@@ -17,7 +17,7 @@ test.describe("Map pins", () => {
       if (!memorial) return null;
       // placeIconSlug, not landmarkIconSlug: the filter buckets get a say
       // first, and the "monuments and memorials" bucket was quietly handing
-      // all 49 war memorials the standing-stone monument pin instead.
+      // all 50 war memorials the standing-stone monument pin instead.
       const slug = placeIconSlug(memorial);
       return { name: memorial.name, slug, path: iconPath(slug) };
     });
