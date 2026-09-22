@@ -189,8 +189,12 @@ Sections, in order:
    searching physical tag numbers, navigating to a specific tree and checking
    its tag on arrival. Show a labelled photograph of a real numbered metal tag
    alongside three app screenshots: searching its number, following its route
-   and finding it in Nearby. Load these supporting images lazily. Placeholder
-   screenshot assets may stand in until final captures are available. Ages are
+   and viewing its estimated age. Use each screenshot caption for the matching
+   explanation rather than repeating the same three points in a separate list.
+   On wide screens, keep all four cards in one row
+   rather than stacking a screenshot beneath the shorter tag photograph. Load
+   these supporting images lazily. Placeholder screenshot assets may stand in
+   until final captures are available. Ages are
    educated guesses from recorded girth and species where data is available,
    not exact birthdays. The three pillars follow: offline, veteran trees and
    cattle (§3.4), each with its independent brand icon copy from `assets/home/`.

@@ -45,11 +45,12 @@ test.describe("the marketing homepage", () => {
     );
     await expect(trees.locator(".tag-story figcaption")).toHaveText([
       "The tag you spot: 27400",
-      "1. Search the number",
-      "2. Follow the route",
-      "3. Find it nearby"
+      "1. Search its tag number. Enter the number on the tree’s physical tag to find its record on the map.",
+      "2. Navigate to that tree. Select it to see the way from your location, then check its tag number when you arrive.",
+      "3. Discover its estimated age. We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday."
     ]);
     await expect(trees.locator(".app-shot img")).toHaveCount(3);
+    await expect(trees.locator(".steps")).toHaveCount(0);
   });
 
   test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
