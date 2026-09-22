@@ -43,7 +43,13 @@ test.describe("the marketing homepage", () => {
       "alt",
       /metal tree tag stamped with the number 27400/i
     );
-    await expect(trees.locator(".tag-photo figcaption")).toContainText("A numbered tag on a tree");
+    await expect(trees.locator(".tag-story figcaption")).toHaveText([
+      "The tag you spot: 27400",
+      "1. Search the number",
+      "2. Follow the route",
+      "3. Find it nearby"
+    ]);
+    await expect(trees.locator(".app-shot img")).toHaveCount(3);
   });
 
   test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
