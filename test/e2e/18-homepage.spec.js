@@ -143,6 +143,10 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("#formMsg")).toContainText(
       "If confirmation is needed, check your inbox and spam folder."
     );
+    await expect(page.locator("#email")).toBeDisabled();
+    await expect(page.locator("#consent")).toBeDisabled();
+    await expect(page.locator("#signupForm button[type=submit]")).toBeDisabled();
+    await expect(page.locator("#signupForm button[type=submit]")).toHaveText("Request received");
   });
 
   test("refuses to submit without consent", async ({ page }) => {

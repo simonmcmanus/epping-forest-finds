@@ -370,6 +370,10 @@ which addresses are on the list is an enumeration oracle.
   success state therefore says **"If confirmation is needed, check your inbox
   and spam folder"**: it neither falsely promises a new message nor reveals
   whether the address is already on the list.
+- After a successful response, the email and consent controls remain visible
+  but disabled, and the disabled submit button reads **"Request received"**.
+  This makes the completed state unmistakable; reloading restores the form if
+  the visitor needs to correct an address.
 - The consent checkbox is unbundled and never pre-ticked.
 - Record the consent timestamp **and the wording consented to**, so the record
   survives later copy changes.

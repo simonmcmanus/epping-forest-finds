@@ -66,6 +66,13 @@
         // 409 without resending double opt-in, and distinguishing that case
         // would reveal whether an address is already on the list.
         form.reset();
+        if (emailField) emailField.disabled = true;
+        if (consentField) consentField.disabled = true;
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = "Request received";
+        }
+        form.classList.add("is-complete");
         say("Thanks. If confirmation is needed, check your inbox and spam folder.", "ok");
       })
       .catch(function () {
