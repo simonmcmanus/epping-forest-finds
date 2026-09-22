@@ -80,6 +80,10 @@ test.describe("the marketing homepage", () => {
     await expect(trees.locator(".app-shot img")).toHaveCount(3);
     const shots = await trees.locator(".app-shot img").evaluateAll(images => images.map(img => img.getAttribute("src")));
     expect(shots).toEqual(["assets/home/app-search.jpg", "assets/home/app-nearby-route.jpg", "assets/home/app-tree-age.jpg"]);
+    for (const shot of await trees.locator(".app-shot img").all()) {
+      await expect(shot).toHaveCSS("border-top-color", "rgb(29, 74, 47)");
+      await expect(shot).toHaveCSS("border-top-width", "4px");
+    }
     await expect(trees.locator(".steps")).toHaveCount(0);
   });
 

@@ -202,7 +202,9 @@ Sections, in order:
    that routes try to favour scenic forest paths and alleyways, without
    guaranteeing them. The screenshots are interim real captures from the app
    (`app-search.jpg`, `app-nearby-route.jpg`, `app-tree-age.jpg`), scaled to
-   600px wide, until final marketing captures replace them. Ages are educated guesses from recorded girth and
+   600px wide, until final marketing captures replace them. Each is framed as a
+   phone: a 4px dark-green rounded border, inset on a pale green backing above
+   its white caption. Ages are educated guesses from recorded girth and
    species where data is available, not exact birthdays.
 3. **Example tag** — its own section between the tag guide and the feature
    cards: a photograph of a real numbered metal tag (27400), cropped to a

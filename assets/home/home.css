@@ -87,6 +87,9 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .tag-story img { display: block; width: 100%; height: auto; }
 .tag-story figcaption { padding: 9px 12px; color: var(--muted); font-size: .8rem; line-height: 1.4; }
 .tag-story figcaption strong { color: var(--ink); }
+.tag-story .app-shot { background: var(--surface-alt); }
+.tag-story .app-shot img { box-sizing: border-box; width: 90%; margin: 5%; border: 4px solid var(--tree-deep); border-radius: 26px; }
+.app-shot figcaption { background: var(--surface); }
 .tag-feature { display: flex; justify-content: center; }
 .tag-feature img { display: block; width: min(280px, 70vw); height: auto; aspect-ratio: 1; border: 6px solid var(--surface); border-radius: 50%; box-shadow: var(--shadow); object-fit: cover; }
 .faq dt { margin-top: 22px; font-weight: 700; }
