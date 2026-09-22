@@ -218,9 +218,13 @@
 
 
     <section class="signup" id="signup">
-      <img class="signup-icon" src="assets/home/mail.svg" width="56" height="56" alt="">
-      <p class="eyebrow">Stay in the loop</p>
-      <h2>Be first to hear about the release</h2>
+      <div class="signup-head">
+        <img class="signup-icon" src="assets/home/mail.svg" width="52" height="52" alt="">
+        <div>
+          <p class="eyebrow">Stay in the loop</p>
+          <h2>Be first to hear about the release</h2>
+        </div>
+      </div>
       <p class="signup-intro">
         Alpha invitations aren’t open yet. Leave your email to be among the first to hear
         about the release and when invitations open. You’ll also receive major updates about the app and weekly Epping Forest Ledger updates once the site launches.
@@ -228,7 +232,10 @@
 
       <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
         <label class="field-label" for="email">Email address</label>
-        <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+        <div class="signup-row">
+          <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+          <button class="cta-btn" type="submit">Keep me updated</button>
+        </div>
 
         <!-- Honeypot: hidden from people, irresistible to bots. -->
         <div class="hp" aria-hidden="true">
@@ -241,7 +248,6 @@
           <span>Email me about the Epping Forest Finds release, alpha invitations and major updates about the app, plus weekly Epping Forest Ledger updates once the site launches.</span>
         </label>
 
-        <button class="cta-btn" type="submit">Keep me updated</button>
         <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
         <p class="form-small">
           We'll only use your address for this. Unsubscribe from any message.

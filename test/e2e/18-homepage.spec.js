@@ -133,8 +133,13 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates once the site launches");
     await expect(page.locator(".consent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
     await expect(page.locator(".signup + .offline-how + .ledger + .faq")).toHaveCount(1);
-    await expect(page.locator(".signup > .signup-icon")).toHaveAttribute("src", "assets/home/mail.svg");
-    await expect(page.locator(".signup-icon")).toBeVisible();
+    await expect(page.locator(".signup-head .signup-icon")).toHaveAttribute("src", "assets/home/mail.svg");
+    const iconBesideHeading = await page.locator(".signup-head").evaluate(head => {
+      const icon = head.querySelector(".signup-icon").getBoundingClientRect();
+      const heading = head.querySelector("h2").getBoundingClientRect();
+      return icon.right <= heading.left && icon.bottom > heading.top;
+    });
+    expect(iconBesideHeading).toBe(true);
     await expect(page.locator("main > section:last-child")).toHaveClass("faq");
     await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
     await expect(page.locator(".site-foot")).not.toContainText("Map data ©");

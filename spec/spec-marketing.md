@@ -227,10 +227,13 @@ Sections, in order:
    the app icon's yellow background.
 6. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
    left border accent using the app icon's gold (`#f3d36b`), matching the
-   Ledger card's accent placement. A 56px envelope icon
+   Ledger card's accent placement. A 52px envelope icon
    (`assets/home/mail.svg`, cream fill with dark-green outline, in the style of
-   the homepage map pin) sits above the eyebrow. Introduction, consent and supporting text
-   use the full card content width; only the email field has a narrower cap. Both introduction and
+   the homepage map pin) sits beside the eyebrow and heading, never on a line of
+   its own. The layout is tight: email field and button share one row on wide
+   screens (stacked on mobile), with the consent checkbox and privacy line
+   directly beneath. Introduction, consent and supporting text
+   use the full card content width; only the email-and-button row has a narrower cap. Both introduction and
    consent include weekly Epping Forest Ledger updates once the site launches.
 7. **How it works offline** — a one-line intro, then three steps: open it once
    on signal, it downloads, it then works anywhere in the forest. Each step is
