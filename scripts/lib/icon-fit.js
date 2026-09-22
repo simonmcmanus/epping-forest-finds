@@ -22,6 +22,20 @@ const SPILL_POINT = 1 / 1.75;
 // What both scripts hold icons to, leaving room for the antialiased edge.
 const FIT_LIMIT = 0.52;
 
+// The icons that are app chrome rather than map pins: the nav buttons, the
+// filter group and chip icons, and the generated launcher icons. They are
+// drawn in a button, a chip, a page's <link> or the manifest, where filling
+// their box is right, so the pointer rule does not apply to them.
+const UI_ONLY_ICONS = new Set([
+  "feedback", "filter", "home", "nearby", "pin", "settings", "tick", "walking",
+  "food", "nature", "history", "stories", "campsite", "logo",
+]);
+
+/** The registry entries that are drawn inside the map pointer. */
+function mapIconEntries(iconPaths) {
+  return Object.entries(iconPaths).filter(([slug]) => !UI_ONLY_ICONS.has(slug));
+}
+
 /** Decode an 8-bit RGBA PNG far enough to read its alpha channel. */
 function pngPixels(buffer) {
   let offset = 8;
@@ -111,4 +125,12 @@ function chromiumExecutable() {
   return null;
 }
 
-module.exports = { SPILL_POINT, FIT_LIMIT, pngPixels, pngContentRadius, chromiumExecutable };
+module.exports = {
+  SPILL_POINT,
+  FIT_LIMIT,
+  UI_ONLY_ICONS,
+  mapIconEntries,
+  pngPixels,
+  pngContentRadius,
+  chromiumExecutable,
+};

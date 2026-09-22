@@ -29,7 +29,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const { FIT_LIMIT, pngContentRadius, chromiumExecutable } = require("./lib/icon-fit");
+const { FIT_LIMIT, mapIconEntries, pngContentRadius, chromiumExecutable } = require("./lib/icon-fit");
 
 const APP_ROOT = path.join(__dirname, "..");
 const SIZE = 256;
@@ -39,14 +39,6 @@ const SIZE = 256;
 // arithmetic put it; aiming at the limit itself left icons measuring 0.521
 // and every re-run rewrote all of them for nothing.
 const REFIT_TARGET = FIT_LIMIT * 0.97;
-
-// App chrome and the generated launcher icons are never drawn in a pointer:
-// they sit in the nav bar, the filter panel, a page's <link> or the manifest,
-// where filling their box is right.
-const UI_ONLY = new Set([
-  "feedback", "filter", "home", "nearby", "pin", "settings", "tick", "walking",
-  "food", "nature", "history", "stories", "campsite", "logo",
-]);
 
 function loadIconRegistry() {
   const context = { console, projectLonLat: () => null };
@@ -62,8 +54,7 @@ async function main() {
   const checkOnly = args.includes("--check");
   const filters = args.filter((a) => !a.startsWith("-"));
 
-  const registry = Object.entries(loadIconRegistry())
-    .filter(([slug]) => !UI_ONLY.has(slug))
+  const registry = mapIconEntries(loadIconRegistry())
     .filter(([slug]) => !filters.length || filters.some((needle) => slug.includes(needle)))
     .sort(([a], [b]) => a.localeCompare(b));
 

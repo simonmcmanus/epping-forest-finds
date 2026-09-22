@@ -4,18 +4,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const { FIT_LIMIT, SPILL_POINT, pngContentRadius } = require("../scripts/lib/icon-fit.js");
+const { FIT_LIMIT, SPILL_POINT, mapIconEntries, pngContentRadius } = require("../scripts/lib/icon-fit.js");
 
 const APP_ROOT = path.join(__dirname, "..");
-
-// App chrome and the generated launcher icons are not drawn in a pointer:
-// they sit in the nav bar, the filter panel, a page's <link> or the manifest,
-// where filling their box is right. Kept in step with the same list in
-// scripts/refit-map-icons.js and scripts/icon-audit.js.
-const UI_ONLY = new Set([
-  "feedback", "filter", "home", "nearby", "pin", "settings", "tick", "walking",
-  "food", "nature", "history", "stories", "campsite", "logo",
-]);
 
 function loadIconRegistry() {
   const context = { console, projectLonLat: () => null };
@@ -26,7 +17,7 @@ function loadIconRegistry() {
   return vm.runInContext("ICON_PATHS", context);
 }
 
-const mapIcons = Object.entries(loadIconRegistry()).filter(([slug]) => !UI_ONLY.has(slug));
+const mapIcons = mapIconEntries(loadIconRegistry());
 
 test("every icon the map draws fits inside the pointer", () => {
   // drawPngMapIcon (js/renderer.js) paints artwork at 1.75x the pin head's

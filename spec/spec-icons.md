@@ -282,8 +282,10 @@ and rewrote all of them every run.
 Two things keep it from drifting back: `test/map-icons.test.js` fails if any
 map icon overflows or if their sizes spread too far apart, and the audit below
 reports the same. An icon that is app chrome rather than a map pin — the nav
-buttons, the filter chips, the generated launcher icons — is exempt, and that
-list is repeated in all three places.
+buttons, the filter group and chip icons, the generated launcher icons — is
+exempt; `mapIconEntries()` in `scripts/lib/icon-fit.js` is the one list of
+those, so the generator, the refit, the audit and the test cannot disagree
+about what counts as a map pin.
 
 ## Community venues reuse existing icons
 

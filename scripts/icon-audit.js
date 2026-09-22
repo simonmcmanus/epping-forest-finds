@@ -33,15 +33,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const { FIT_LIMIT, pngContentRadius } = require("./lib/icon-fit");
-
-// App chrome and the generated launcher icons are not drawn in a pointer, so
-// the fit rule does not apply to them. Kept in step with the same list in
-// scripts/refit-map-icons.js.
-const UI_ONLY_ICONS = new Set([
-  "feedback", "filter", "home", "nearby", "pin", "settings", "tick", "walking",
-  "food", "nature", "history", "stories", "campsite", "logo",
-]);
+const { FIT_LIMIT, mapIconEntries, pngContentRadius } = require("./lib/icon-fit");
 
 const APP_ROOT = path.join(__dirname, "..");
 
@@ -231,8 +223,7 @@ function audit(root = APP_ROOT) {
   // Artwork is drawn at 1.75x the pin head's radius, so an icon reaching past
   // FIT_LIMIT of its own half-width pokes out of the white pointer -- the
   // thing that made the old plaque rectangle sit wrong among the others.
-  const overflowing = iconPaths
-    .filter(([slug]) => !UI_ONLY_ICONS.has(slug))
+  const overflowing = mapIconEntries(Object.fromEntries(iconPaths))
     .map(([slug, file]) => {
       const full = path.join(root, file);
       if (!fs.existsSync(full)) return null;
