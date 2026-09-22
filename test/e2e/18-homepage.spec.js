@@ -99,6 +99,15 @@ test.describe("the marketing homepage", () => {
       await expect(shot).toHaveCSS("border-top-color", "rgb(29, 74, 47)");
       await expect(shot).toHaveCSS("border-top-width", "4px");
     }
+    for (const figure of await trees.locator(".app-shot").all()) {
+      await expect(figure).toHaveCSS("border-top-width", "0px");
+      const tucked = await figure.evaluate(el => {
+        const phone = el.querySelector("img").getBoundingClientRect();
+        const caption = el.querySelector("figcaption").getBoundingClientRect();
+        return caption.top < phone.bottom && caption.bottom > phone.bottom;
+      });
+      expect(tucked).toBe(true);
+    }
     await expect(trees.locator(".steps")).toHaveCount(0);
   });
 
