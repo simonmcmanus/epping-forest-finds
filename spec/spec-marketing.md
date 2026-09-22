@@ -218,7 +218,8 @@ Sections, in order:
    phone, and the three caption cards stretch to a common height on wide
    screens. Phone and caption move as two objects: on reveal the phone rises
    further (28px against 10px) and its caption trails by 160ms; on hover the
-   phone lifts 6px with a deeper shadow while the caption moves 1px. Ages are educated guesses from recorded girth and
+   phone lifts 6px while the caption moves 1px. The phone's shadow stays tight
+   (it deepens only slightly on hover) so it never smudges the caption card. Ages are educated guesses from recorded girth and
    species where data is available, not exact birthdays.
 3. **Example tag** — its own section between the tag guide and the feature
    cards: a photograph of a real numbered metal tag (27400), cropped to a
