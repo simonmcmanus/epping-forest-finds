@@ -367,9 +367,9 @@ which addresses are on the list is an enumeration oracle.
 
 - Double opt-in. A new contact receives a confirmation message, but EmailOctopus
   does not resend one when an existing contact produces a `409`. The shared
-  success state therefore says **"If confirmation is needed, check your inbox
-  and spam folder"**: it neither falsely promises a new message nor reveals
-  whether the address is already on the list.
+  success state therefore says **"Confirmation is needed — check your inbox.
+  The email might be in your spam folder"**. It does not reveal whether the
+  address is already on the list.
 - After a successful response, the email and consent controls remain visible
   but disabled, and the disabled submit button reads **"Request received"**.
   This makes the completed state unmistakable; reloading restores the form if

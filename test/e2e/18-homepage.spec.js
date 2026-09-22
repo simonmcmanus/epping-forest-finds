@@ -141,7 +141,7 @@ test.describe("the marketing homepage", () => {
     await page.click("#signupForm button[type=submit]");
 
     await expect(page.locator("#formMsg")).toContainText(
-      "If confirmation is needed, check your inbox and spam folder."
+      "Confirmation is needed — check your inbox. The email might be in your spam folder."
     );
     await expect(page.locator("#email")).toBeDisabled();
     await expect(page.locator("#consent")).toBeDisabled();

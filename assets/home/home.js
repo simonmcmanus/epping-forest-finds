@@ -73,7 +73,10 @@
           submitButton.textContent = "Request received";
         }
         form.classList.add("is-complete");
-        say("Thanks. If confirmation is needed, check your inbox and spam folder.", "ok");
+        say(
+          "Thanks. Confirmation is needed — check your inbox. The email might be in your spam folder.",
+          "ok"
+        );
       })
       .catch(function () {
         say("Couldn't reach the server. Please try again.", "error");
