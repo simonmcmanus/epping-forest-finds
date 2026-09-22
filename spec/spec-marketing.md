@@ -206,14 +206,17 @@ Sections, in order:
    a full-width row for always-shown facilities. Each group heading uses an
    independent homepage copy of the corresponding app category icon, with a
    smaller app icon beside every subcategory. Parent icons are deliberately
-   larger so the group hierarchy remains clear. The
+   larger so the group hierarchy remains clear. Both icon sizes sit centred
+   in the same 38px column, with aligned category and subcategory labels. The
    header brand mark is the transparent oak leaf from the app icon, without
    the app icon's yellow background.
 4. **From the Ledger** — an inset editorial card with generous responsive padding,
    a green left border, weekly field-notes eyebrow and a link to `/reports/` (§6.4).
    The index carries individual reports; the homepage remains static.
 5. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
-   border accent using the app icon's gold (`#f3d36b`). Both introduction and
+   left border accent using the app icon's gold (`#f3d36b`), matching the
+   Ledger card's accent placement. Introduction, consent and supporting text
+   use the full card content width; only the email field has a narrower cap. Both introduction and
    consent include weekly Epping Forest Ledger updates once the site launches.
 6. **How it works offline** — three steps: open it once on signal, it downloads,
    it then works anywhere in the forest. A separate padded note explains that

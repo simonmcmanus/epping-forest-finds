@@ -41,6 +41,14 @@ test.describe("the marketing homepage", () => {
     ]);
     await expect(page.locator(".inventory-group h3 img")).toHaveCount(6);
     await expect(page.locator(".inventory-group dt img")).toHaveCount(22);
+    const iconAlignment = await page.locator(".inventory-group").evaluateAll(groups => groups.map(group => {
+      const parent = group.querySelector("h3 img").getBoundingClientRect();
+      return [...group.querySelectorAll("dt img")].every(icon => {
+        const child = icon.getBoundingClientRect();
+        return Math.abs(parent.x + parent.width / 2 - child.x - child.width / 2) < 1;
+      });
+    }));
+    expect(iconAlignment.every(Boolean)).toBe(true);
     await expect(page.locator(".inventory-always")).toContainText("Gates, benches & other facilities");
     await expect(page.locator(".inventory-always")).toContainText("3,264");
   });
@@ -87,7 +95,15 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
     await expect(page.locator(".site-foot")).not.toContainText("Map data ©");
     await expect(page.locator(".offline-note")).toContainText("A note on the moving herd");
-    await expect(page.locator(".signup")).toHaveCSS("border-top-color", "rgb(243, 211, 107)");
+    await expect(page.locator(".signup")).toHaveCSS("border-left-color", "rgb(243, 211, 107)");
+    await expect(page.locator(".signup")).toHaveCSS("border-top-width", "1px");
+    const signupWidths = await page.locator(".signup").evaluate(el => {
+      const style = getComputedStyle(el);
+      const available = el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      return [".signup-intro", ".signup-form"].map(selector =>
+        Math.abs(el.querySelector(selector).getBoundingClientRect().width - available));
+    });
+    expect(signupWidths.every(difference => difference < 1)).toBe(true);
     const ledger = page.locator(".ledger");
     expect(await ledger.evaluate(el => parseFloat(getComputedStyle(el).paddingLeft))).toBeGreaterThanOrEqual(24);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
