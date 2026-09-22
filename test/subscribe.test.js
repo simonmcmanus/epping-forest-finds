@@ -30,11 +30,38 @@ test("obvious rubbish is rejected before a network call is made", () => {
 });
 
 test("a filled honeypot field marks the submission automated", () => {
-  assert.strictEqual(subscribe.looksAutomated({ honeypot: "http://spam.example" }), true);
+  assert.strictEqual(subscribe.looksAutomated({ website: "http://spam.example" }), true);
 });
 
 test("a fast submission is not rejected because browser autofill can be immediate", () => {
   assert.strictEqual(subscribe.looksAutomated({ renderedAt: Date.now() }), false);
+});
+
+test("a silently accepted honeypot submission is visible in privacy-safe function logs", async () => {
+  const messages = [];
+  const originalInfo = console.info;
+  console.info = (message) => messages.push(message);
+
+  try {
+    const result = await subscribe.handler(
+      {
+        httpMethod: "POST",
+        body: JSON.stringify({
+          email: "walker@example.com",
+          consent: true,
+          website: "filled-by-autofill",
+        }),
+      },
+      { awsRequestId: "test-request" }
+    );
+
+    assert.strictEqual(result.statusCode, 200);
+    assert.ok(messages.some((message) => message.includes("[test-request]")));
+    assert.ok(messages.some((message) => message.includes("honeypot")));
+    assert.ok(messages.every((message) => !message.includes("walker@example.com")));
+  } finally {
+    console.info = originalInfo;
+  }
 });
 
 test("the consent wording is recorded so it survives later copy changes", () => {

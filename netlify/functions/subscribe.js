@@ -40,8 +40,8 @@ function isPlausibleEmail(value) {
  * Bot checks that cost nothing and need no third-party script on the one page
  * that has to load fastest. Returns true when the submission looks automated.
  */
-function looksAutomated({ honeypot }) {
-  return Boolean(honeypot);
+function looksAutomated({ website }) {
+  return Boolean(website);
 }
 
 function response(statusCode, body) {
@@ -55,30 +55,50 @@ function response(statusCode, body) {
   };
 }
 
-exports.handler = async (event) => {
-  if (event.httpMethod !== "POST") return response(405, { error: "Method not allowed" });
+function logger(context) {
+  const requestId = (context && context.awsRequestId) || "unknown";
+  return (message) => console.info(`subscribe [${requestId}]: ${message}`);
+}
+
+exports.handler = async (event, context) => {
+  const log = logger(context);
+  log(`received ${event.httpMethod || "unknown"} request`);
+
+  if (event.httpMethod !== "POST") {
+    log("rejected non-POST request");
+    return response(405, { error: "Method not allowed" });
+  }
 
   let payload;
   try {
     payload = JSON.parse(event.body || "{}");
   } catch {
+    log("rejected invalid JSON body");
     return response(400, { error: "Invalid request" });
   }
 
   if (!isPlausibleEmail(payload.email)) {
+    log("rejected invalid email format");
     return response(400, { error: "Please enter a valid email address." });
   }
 
   if (payload.consent !== true) {
+    log("rejected missing consent");
     return response(400, { error: "Please tick the box to confirm you're happy to hear from us." });
   }
 
   // Silently accept anything that looks automated: telling a bot it was
   // detected only teaches it what to change.
-  if (looksAutomated(payload)) return response(200, { ok: true });
+  if (looksAutomated(payload)) {
+    log("silently accepted honeypot submission without contacting EmailOctopus");
+    return response(200, { ok: true });
+  }
 
   if (!API_KEY || !LIST_ID) {
-    console.error("subscribe: EMAILOCTOPUS_API_KEY or EMAILOCTOPUS_LIST_ID is not configured");
+    console.error(
+      `subscribe [${(context && context.awsRequestId) || "unknown"}]: configuration unavailable ` +
+        `(apiKey=${API_KEY ? "present" : "missing"}, listId=${LIST_ID ? "present" : "missing"})`
+    );
     return response(500, { error: "Sign-up is temporarily unavailable. Please try again later." });
   }
 
@@ -102,13 +122,22 @@ exports.handler = async (event) => {
     // An address already on the list is not an error the caller should learn
     // about: a response that distinguishes "new" from "already subscribed"
     // turns this endpoint into a way to test whether an address is a member.
-    if (upstream.ok || upstream.status === 409) return response(200, { ok: true });
+    if (upstream.ok || upstream.status === 409) {
+      log(`EmailOctopus accepted request with status ${upstream.status}`);
+      return response(200, { ok: true });
+    }
 
     const detail = await upstream.text();
-    console.error(`subscribe: EmailOctopus responded ${upstream.status}: ${detail.slice(0, 500)}`);
+    console.error(
+      `subscribe [${(context && context.awsRequestId) || "unknown"}]: ` +
+        `EmailOctopus responded ${upstream.status}: ${detail.slice(0, 500)}`
+    );
     return response(502, { error: "Sign-up is temporarily unavailable. Please try again later." });
   } catch (error) {
-    console.error(`subscribe: request failed: ${error && error.message}`);
+    console.error(
+      `subscribe [${(context && context.awsRequestId) || "unknown"}]: request failed: ` +
+        `${error && error.message}`
+    );
     return response(502, { error: "Sign-up is temporarily unavailable. Please try again later." });
   }
 };

@@ -402,6 +402,11 @@ A public POST endpoint will be abused. Mitigations, in preference order:
   a legitimate immediate submission.
 - Per-IP rate limiting in the function.
 
+The function logs privacy-safe processing stages with the Netlify invocation
+ID, including validation failures, honeypot acceptance, configuration presence
+and the EmailOctopus response status. It never logs the submitted address or
+API key.
+
 No third-party captcha. The script weight and the privacy cost are not worth it
 at this volume, and it would sit on the one page that must load fastest.
 
