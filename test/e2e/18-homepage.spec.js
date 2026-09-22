@@ -113,6 +113,8 @@ test.describe("the marketing homepage", () => {
       };
     });
     expect(geometry).toEqual({ square: true, centred: true });
+    await expect(feature).toHaveCSS("border-top-width", "0px");
+    await expect(page.locator(".tag-feature + .pillars")).toHaveCSS("border-top-width", "0px");
   });
 
   test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
@@ -130,7 +132,9 @@ test.describe("the marketing homepage", () => {
     await page.goto("/");
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates once the site launches");
     await expect(page.locator(".consent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
-    await expect(page.locator(".ledger + .signup + .how + .faq")).toHaveCount(1);
+    await expect(page.locator(".signup + .offline-how + .ledger + .faq")).toHaveCount(1);
+    await expect(page.locator(".signup > .signup-icon")).toHaveAttribute("src", "assets/home/mail.svg");
+    await expect(page.locator(".signup-icon")).toBeVisible();
     await expect(page.locator("main > section:last-child")).toHaveClass("faq");
     await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
     await expect(page.locator(".site-foot")).not.toContainText("Map data ©");

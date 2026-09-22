@@ -209,7 +209,7 @@ Sections, in order:
 3. **Example tag** — its own section between the tag guide and the feature
    cards: a photograph of a real numbered metal tag (27400), cropped to a
    centred circle, with descriptive alt text and no visible caption. Load it
-   lazily.
+   lazily, with no section divider line above or below it.
 4. **Three feature cards** — offline, veteran trees and cattle (§3.4). White
    cards have rounded borders, shadows and 80px centred independent brand
    icons from `assets/home/`, with centred headings. Use three equal columns
@@ -225,21 +225,23 @@ Sections, in order:
    in the same 38px column, with aligned category and subcategory labels. The
    header brand mark is the transparent oak leaf from the app icon, without
    the app icon's yellow background.
-6. **From the Ledger** — an inset editorial card with generous responsive padding,
-   a green left border, weekly field-notes eyebrow and a link to `/reports/` (§6.4).
-   The index carries individual reports; the homepage remains static.
-7. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
+6. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
    left border accent using the app icon's gold (`#f3d36b`), matching the
-   Ledger card's accent placement. Introduction, consent and supporting text
+   Ledger card's accent placement. A 56px envelope icon
+   (`assets/home/mail.svg`, cream fill with dark-green outline, in the style of
+   the homepage map pin) sits above the eyebrow. Introduction, consent and supporting text
    use the full card content width; only the email field has a narrower cap. Both introduction and
    consent include weekly Epping Forest Ledger updates once the site launches.
-8. **How it works offline** — a one-line intro, then three steps: open it once
+7. **How it works offline** — a one-line intro, then three steps: open it once
    on signal, it downloads, it then works anywhere in the forest. Each step is
    a white shadowed card with a round dark-green number badge, a bold title and
    a short line beneath; three columns on wide screens, stacked on mobile with
    the badge to the left. A separate note, tinted with a green left accent and
    the cow icon, explains that fresh cattle locations require a connection and
    saved positions may be stale.
+8. **From the Ledger** — an inset editorial card with generous responsive padding,
+   a green left border, weekly field-notes eyebrow and a link to `/reports/` (§6.4).
+   The index carries individual reports; the homepage remains static.
 9. **FAQ** — immediately before the footer, with `FAQPage` JSON-LD (§6.3).
    Covers signal, cost/account, tree data, cattle positions and coverage.
    No battery-use question. All answers stay visible (no accordion) in one
