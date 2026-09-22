@@ -58,6 +58,16 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * A filter with nothing in it yet reads as broken when printed as "0" on a
+ * marketing page, so an empty subfilter says "Coming soon" instead. The row
+ * stays, so the page still mirrors every app filter and picks the number back
+ * up the moment the data has one.
+ */
+function inventoryCell(count) {
+  return count > 0 ? `<dd>${formatCount(count)}</dd>` : '<dd class="is-soon">Coming soon</dd>';
+}
+
 function updateHomepage(html, counts, inventory = buildInventory(ROOT)) {
   let out = html;
   out = out.replace(
@@ -70,8 +80,8 @@ function updateHomepage(html, counts, inventory = buildInventory(ROOT)) {
     for (const subfilter of group.subfilters) {
       const label = escapeRegExp(subfilter.label).replace(/&/, "&amp;");
       out = out.replace(
-        new RegExp(`(<dt>(?:<img[^>]*>)?${label}</dt><dd>)[\\d,]+(</dd>)`),
-        `$1${formatCount(subfilter.count)}$2`
+        new RegExp(`(<dt>(?:<img[^>]*>)?${label}</dt>)<dd[^>]*>[^<]*</dd>`),
+        `$1${inventoryCell(subfilter.count)}`
       );
     }
   }
@@ -121,7 +131,7 @@ function sync({ check = false, root = ROOT } = {}) {
   return { counts, stale };
 }
 
-module.exports = { sync, updateHomepage, updateMarketingSpec, FIGURES };
+module.exports = { sync, updateHomepage, inventoryCell, updateMarketingSpec, FIGURES };
 
 if (require.main === module) {
   const check = process.argv.includes("--check");

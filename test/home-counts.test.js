@@ -64,7 +64,8 @@ test("the grouped homepage inventory matches the app's map inventory", () => {
     assert.ok(block[1].includes(`<strong>${formatCount(group.count)}</strong>`));
     for (const subfilter of group.subfilters) {
       const label = subfilter.label.replace(/&/g, "&amp;").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      assert.match(block[1], new RegExp(`<dt><img[^>]*>${label}</dt><dd>${formatCount(subfilter.count)}</dd>`));
+      const cell = subfilter.count > 0 ? `<dd>${formatCount(subfilter.count)}</dd>` : '<dd class="is-soon">Coming soon</dd>';
+      assert.match(block[1], new RegExp(`<dt><img[^>]*>${label}</dt>${cell}`));
     }
   }
   assert.match(html, new RegExp(`data-inventory-always[\\s\\S]*?<strong>${formatCount(inventory.alwaysShown.count)}</strong>`));
@@ -95,6 +96,21 @@ test("the count sync corrects a homepage that has drifted", () => {
     "sync-homepage-counts.js should put the real shop count back"
   );
   assert.ok(!fixed.includes(">123<"), "the stale number should be gone");
+});
+
+test("an empty filter says Coming soon rather than 0, and a filled one gets its number back", () => {
+  const { updateHomepage, inventoryCell } = require("../scripts/sync-homepage-counts.js");
+  const counts = readCounts(ROOT);
+  const inventory = require("../scripts/report/map-inventory.js").buildInventory(ROOT);
+  assert.strictEqual(inventoryCell(0), '<dd class="is-soon">Coming soon</dd>');
+  assert.strictEqual(inventoryCell(1234), "<dd>1,234</dd>");
+  assert.doesNotMatch(readHomepage(), /<dd>0<\/dd>/, "the homepage should not print an empty filter as 0");
+
+  const filled = JSON.parse(JSON.stringify(inventory));
+  const plaques = filled.groups.find(group => group.key === "history").subfilters.find(item => item.key === "plaques");
+  plaques.count = 7;
+  const fixed = updateHomepage(readHomepage(), counts, filled);
+  assert.match(fixed, /<dt><img[^>]*>Plaques<\/dt><dd>7<\/dd>/);
 });
 
 test("the count sync corrects the headline total beside its map-pin icon", () => {

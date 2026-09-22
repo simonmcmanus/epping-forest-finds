@@ -45,7 +45,7 @@
         "@type": "SoftwareApplication",
         "name": "Epping Forest Finds",
         "applicationCategory": "TravelApplication",
-        "operatingSystem": "Web browser, iOS, Android",
+        "operatingSystem": "Web browser",
         "url": "https://www.eppingforestfinds.uk/app",
         "areaServed": { "@type": "Place", "name": "Epping Forest, Essex" },
         "description": "A free offline map of Epping Forest: veteran trees, pubs and cafés, paths, car parks and the forest's grazing cattle — working with no phone signal.",
@@ -56,8 +56,18 @@
         "mainEntity": [
           {
             "@type": "Question",
+            "name": "When can I start using it?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Epping Forest Finds is in a closed alpha, and invitations aren’t open yet. Leave your email and you’ll hear as soon as they are." }
+          },
+          {
+            "@type": "Question",
             "name": "Does it really work without a phone signal?",
             "acceptedAnswer": { "@type": "Answer", "text": "Yes. Once downloaded, the map, trees and paths work offline. Fresh cow locations need a connection; offline, the map shows their last saved positions." }
+          },
+          {
+            "@type": "Question",
+            "name": "Do I need to install anything?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. It runs in your phone’s web browser on iPhone and Android, so there is nothing to find in an app store. You can add it to your home screen if you like." }
           },
           {
             "@type": "Question",
@@ -73,6 +83,11 @@
             "@type": "Question",
             "name": "How do you know where the cattle are?",
             "acceptedAnswer": { "@type": "Answer", "text": "The forest's grazing cattle wear GPS collars, and their positions are published through the Nofence open data API. The map reads that feed when it loads and periodically makes a network request to refresh it, because the cows move around. Offline, you see their last saved positions, which may be out of date." }
+          },
+          {
+            "@type": "Question",
+            "name": "Does it track me?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Only if you say yes. The app asks before sharing your location. If you agree, it sends anonymous location and usage data that helps improve the map, and you can turn it off at any time in Settings. A mailing-list address is never linked to it." }
           },
           {
             "@type": "Question",
@@ -92,28 +107,28 @@
       <img class="brand-mark" src="assets/home/map-icons/oak.png" alt="" width="44" height="44">
       <span>Epping Forest Finds</span>
     </a>
-    <a class="head-link" href="/reports/">The Ledger</a>
+    <nav class="head-nav" aria-label="Site">
+      <a class="head-link" href="/reports/">The Ledger</a>
+      <a class="head-link head-cta" href="#signup">Get updates</a>
+    </nav>
   </header>
 
   <main>
 
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow hero-eyebrow"><img class="hero-leaf" src="assets/home/map-icons/oak.png" alt="" width="34" height="34">Epping Forest, offline</p>
-        <h1>Your guide to Epping Forest.<br><span class="h1-tagline">No Signal Necessary.</span></h1>
+        <p class="eyebrow hero-eyebrow"><img class="hero-leaf" src="assets/home/map-icons/oak.png" alt="" width="34" height="34">A free field map for walkers</p>
+        <h1>Your guide to Epping Forest.<br><span class="h1-tagline">No signal needed.</span></h1>
         <p class="hero-sub">
-          A free, offline map of Epping Forest — <strong>24,906</strong> veteran trees,
-          ready to discover. Find a tree by its tag number, navigate to it and see its
-          estimated age. Paths, pubs, facilities and grazing cattle are on the map too.
+          An offline map of all <strong>24,906</strong> veteran trees in the forest.
+          Type the number on a tree’s tag to see its record, its estimated age and a
+          way there. Paths, pubs, car parks and the grazing cattle are on it too.
         </p>
         <!-- Alpha call to action. One swappable element: at launch this becomes
              a link to /app. Nothing else on the page changes. -->
         <div class="cta">
           <a class="cta-btn" href="#signup">Be first to hear</a>
-          <p class="cta-note">
-            Alpha invitations aren’t open yet. Sign up to be among the first to hear about
-            the release and receive major updates about the app.
-          </p>
+          <p class="cta-note">In closed alpha. Leave your email to hear when invitations open.</p>
         </div>
       </div>
       <figure class="hero-photo">
@@ -125,27 +140,32 @@
     <section class="how" id="find-trees" aria-labelledby="find-trees-heading">
       <h2 id="find-trees-heading">Find the tree behind the tag</h2>
       <div class="tag-intro">
-        <p>Those numbered tags connect the trees around you to the Veteran Tree Register.
-          Look up a tree you’ve spotted, or choose a specific one to find on your next walk.</p>
-        <div class="tag-story">
-          <figure class="app-shot app-shot-search">
-            <img src="assets/home/app-search.jpg" width="600" height="1303" loading="lazy" decoding="async" alt="The app’s search screen with the number 440 entered, listing matching trees by tag number with their walking distance.">
-            <figcaption><strong>1. Search its tag number.</strong> Enter the number on the tree’s physical tag to find its record on the map.</figcaption>
-          </figure>
-          <figure class="app-shot app-shot-route">
-            <img src="assets/home/app-nearby-route.jpg" width="600" height="1298" loading="lazy" decoding="async" alt="The app’s map showing a dashed walking route through the forest, with the nearest English Oaks listed by distance and direction.">
-            <figcaption><strong>2. Navigate to that tree.</strong> Select it for a route from your location. We try to find a more scenic way through forest paths and alleyways. Check its tag number when you arrive.</figcaption>
-          </figure>
-          <figure class="app-shot app-shot-age">
-            <img src="assets/home/app-tree-age.jpg" width="600" height="1303" loading="lazy" decoding="async" alt="The app’s detail screen for English Oak tag 15963, showing an estimated age of about 70 years, its girth and a route from your location.">
-            <figcaption><strong>3. Discover its estimated age.</strong> We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday.</figcaption>
-          </figure>
+        <div class="tag-intro-copy">
+          <p>Veteran trees are the forest’s oldest and most valued trees, many of them
+            pollards hundreds of years old. The Veteran Tree Register records them, and
+            the small numbered tags you’ll see on many trunks link a tree to its record.</p>
+          <p>Look up a tree you’ve spotted, or pick one to find on your next walk.</p>
         </div>
+        <figure class="tag-feature">
+          <img src="assets/home/tree-tag-example.jpg" width="1200" height="813" loading="lazy" decoding="async" alt="A weathered metal tree tag stamped with the number 04404 and the letters T.S.S, fixed to tree bark.">
+          <figcaption>Tag 04404. Look for one like it on the trunk.</figcaption>
+        </figure>
       </div>
-    </section>
-
-    <section class="tag-feature">
-      <img src="assets/home/tree-tag-example.jpg" width="1200" height="813" loading="lazy" decoding="async" alt="A weathered metal tree tag stamped with the number 27400 and code TS3, fixed to tree bark.">
+      <div class="tag-story">
+        <figure class="app-shot app-shot-search">
+          <img src="assets/home/app-search.jpg" width="600" height="1303" loading="lazy" decoding="async" alt="The app’s search screen with the number 440 entered, listing matching trees by tag number with their walking distance.">
+          <figcaption><strong>1. Search its tag number.</strong> Enter the number on the tree’s tag to find its record on the map.</figcaption>
+        </figure>
+        <figure class="app-shot app-shot-route">
+          <img src="assets/home/app-nearby-route.jpg" width="600" height="1298" loading="lazy" decoding="async" alt="The app’s map showing a dashed walking route through the forest, with the nearest English Oaks listed by distance and direction.">
+          <figcaption><strong>2. Navigate to that tree.</strong> Select it for a walking route from where you are. We try to pick a scenic way along forest paths, so check its tag when you arrive.</figcaption>
+        </figure>
+        <figure class="app-shot app-shot-age">
+          <img src="assets/home/app-tree-age.jpg" width="600" height="1303" loading="lazy" decoding="async" alt="The app’s detail screen for English Oak tag 15963, showing an estimated age of about 70 years, its girth and a route from your location.">
+          <figcaption><strong>3. Discover its estimated age.</strong> We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday.</figcaption>
+        </figure>
+      </div>
+      <p class="swipe-hint" aria-hidden="true">Swipe for the next step →</p>
     </section>
 
     <section class="pillars">
@@ -153,27 +173,27 @@
         <img class="pillar-icon" src="assets/home/distance.png" width="80" height="80" alt="" aria-hidden="true">
         <h2>Works where your phone doesn't</h2>
         <p>
-          Download the map once, over wi-fi or signal. After that it is on your device:
-          every tree, path and landmark, with no network needed. Walk into the middle of
-          the forest and it keeps working.
-        </p>
-      </article>
-      <article>
-        <img class="pillar-icon" src="assets/home/logo.png" width="80" height="80" alt="" aria-hidden="true">
-        <h2>Every veteran tree in the register</h2>
-        <p>
-          All 24,906 trees from the Epping Forest Veteran Tree Register, each one placed
-          on the map with its species and record. Search by the number on a tree’s physical
-          tag to find that specific tree and explore its estimated age.
+          Download the map once, over wi-fi or signal, and it lives on your device.
+          Walk into the middle of the forest and every tree, path and landmark is
+          still there.
         </p>
       </article>
       <article>
         <img class="pillar-icon" src="assets/home/cow.png" width="80" height="80" alt="" aria-hidden="true">
         <h2>Follow the longhorns</h2>
         <p>
-          Epping Forest's grazing cattle wear GPS collars. The map shows their latest
-          reported positions. Cows move around, so the app periodically makes a network
-          request for up-to-date locations. Offline, you’ll see the last saved positions.
+          Epping Forest's grazing cattle wear GPS collars, and the map shows where they
+          were last reported. Cows wander, so while you have signal the app checks for
+          new positions every so often. Offline, you’ll see the last saved positions.
+        </p>
+      </article>
+      <article>
+        <img class="pillar-icon" src="assets/home/logo.png" width="80" height="80" alt="" aria-hidden="true">
+        <h2>Everything else out there</h2>
+        <p>
+          Paths and bridleways, pubs and cafés, car parks, benches, toilets and gates,
+          bus stops and stations. All within walking distance of the forest, and all
+          of it offline.
         </p>
       </article>
     </section>
@@ -198,15 +218,15 @@
           </section>
           <section class="inventory-group" data-inventory-group="history">
             <h3><span><img src="assets/home/map-icons/history.png" alt="">History</span><strong>12</strong></h3>
-            <dl><div><dt><img src="assets/home/map-icons/historic.png" alt="">Historic sites</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/plaques.png" alt="">Plaques</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/monument.png" alt="">Monuments</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/historic.png" alt="">WWII sites</dt><dd>12</dd></div></dl>
+            <dl><div><dt><img src="assets/home/map-icons/historic.png" alt="">Historic sites</dt><dd class="is-soon">Coming soon</dd></div><div><dt><img src="assets/home/map-icons/plaques.png" alt="">Plaques</dt><dd class="is-soon">Coming soon</dd></div><div><dt><img src="assets/home/map-icons/monument.png" alt="">Monuments</dt><dd class="is-soon">Coming soon</dd></div><div><dt><img src="assets/home/map-icons/historic.png" alt="">WWII sites</dt><dd>12</dd></div></dl>
           </section>
           <section class="inventory-group" data-inventory-group="locations">
             <h3><span><img src="assets/home/map-icons/pin.png" alt="">Locations</span><strong>30</strong></h3>
-            <dl><div><dt><img src="assets/home/map-icons/church.png" alt="">Churches</dt><dd>11</dd></div><div><dt><img src="assets/home/map-icons/education.png" alt="">Education</dt><dd>2</dd></div><div><dt><img src="assets/home/map-icons/medicine.png" alt="">Medical sites</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/campsite.png" alt="">Campsites</dt><dd>17</dd></div></dl>
+            <dl><div><dt><img src="assets/home/map-icons/church.png" alt="">Churches</dt><dd>11</dd></div><div><dt><img src="assets/home/map-icons/education.png" alt="">Education</dt><dd>2</dd></div><div><dt><img src="assets/home/map-icons/medicine.png" alt="">Medical sites</dt><dd class="is-soon">Coming soon</dd></div><div><dt><img src="assets/home/map-icons/campsite.png" alt="">Campsites</dt><dd>17</dd></div></dl>
           </section>
           <section class="inventory-group" data-inventory-group="stories">
             <h3><span><img src="assets/home/map-icons/legends.png" alt="">Stories</span><strong>42</strong></h3>
-            <dl><div><dt><img src="assets/home/map-icons/legends.png" alt="">Legends</dt><dd>33</dd></div><div><dt><img src="assets/home/map-icons/literature.png" alt="">Literature</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/film.png" alt="">Film &amp; TV</dt><dd>8</dd></div><div><dt><img src="assets/home/map-icons/art.png" alt="">Art</dt><dd>1</dd></div></dl>
+            <dl><div><dt><img src="assets/home/map-icons/legends.png" alt="">Legends</dt><dd>33</dd></div><div><dt><img src="assets/home/map-icons/literature.png" alt="">Literature</dt><dd class="is-soon">Coming soon</dd></div><div><dt><img src="assets/home/map-icons/film.png" alt="">Film &amp; TV</dt><dd>8</dd></div><div><dt><img src="assets/home/map-icons/art.png" alt="">Art</dt><dd>1</dd></div></dl>
           </section>
         </div>
         <div class="inventory-always" data-inventory-always>
@@ -214,44 +234,6 @@
           <strong>3,264</strong>
         </div>
       </div>
-    </section>
-
-
-    <section class="signup" id="signup">
-      <p class="eyebrow">Stay in the loop</p>
-      <div class="card-head">
-        <img class="card-icon" src="assets/home/mail.svg" width="44" height="44" alt="">
-        <h2>Be first to hear about the release</h2>
-      </div>
-      <p class="signup-intro">
-        Alpha invitations aren’t open yet. Leave your email to be among the first to hear
-        about the release and when invitations open. You’ll also receive major updates about the app and weekly Epping Forest Ledger updates once the site launches.
-      </p>
-
-      <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
-        <label class="field-label" for="email">Email address</label>
-        <div class="signup-row">
-          <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
-          <button class="cta-btn" type="submit">Keep me updated</button>
-        </div>
-
-        <!-- Honeypot: hidden from people, irresistible to bots. -->
-        <div class="hp" aria-hidden="true">
-          <label for="website">Website</label>
-          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
-        </div>
-
-        <label class="consent">
-          <input id="consent" name="consent" type="checkbox" required>
-          <span>Email me about the Epping Forest Finds release, alpha invitations and major updates about the app, plus weekly Epping Forest Ledger updates once the site launches.</span>
-        </label>
-
-        <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
-        <p class="form-small">
-          We'll only use your address for this. Unsubscribe from any message.
-          See the <a href="/terms.html">privacy notice</a>.
-        </p>
-      </form>
     </section>
 
     <section class="how offline-how" aria-labelledby="offline-heading">
@@ -266,7 +248,7 @@
         <img src="assets/home/cow.png" width="48" height="48" alt="" aria-hidden="true">
         <div>
           <strong>A note on the moving herd</strong>
-          <p>Fresh cow locations need a connection. The app checks for updates periodically; offline positions may be out of date.</p>
+          <p>Fresh cow locations need a connection, and offline positions may be out of date.</p>
         </div>
       </aside>
     </section>
@@ -275,8 +257,16 @@
       <h2 id="faq-heading">Questions</h2>
       <dl class="faq-list">
         <div class="faq-item">
+          <dt>When can I start using it?</dt>
+          <dd>Epping Forest Finds is in a closed alpha, and invitations aren’t open yet. <a href="#signup">Leave your email</a> and you’ll hear as soon as they are.</dd>
+        </div>
+        <div class="faq-item">
           <dt>Does it really work without a phone signal?</dt>
           <dd>Yes. Once downloaded, the map, trees and paths work offline. Fresh cow locations need a connection; offline, the map shows their last saved positions.</dd>
+        </div>
+        <div class="faq-item">
+          <dt>Do I need to install anything?</dt>
+          <dd>No. It runs in your phone’s web browser on iPhone and Android, so there is nothing to find in an app store. You can add it to your home screen if you like.</dd>
         </div>
         <div class="faq-item">
           <dt>Is it free?</dt>
@@ -291,10 +281,48 @@
           <dd>The forest's grazing cattle wear GPS collars, and their positions are published through the Nofence open data API. The map reads that feed when it loads and periodically makes a network request to refresh it, because the cows move around. Offline, you see their last saved positions, which may be out of date.</dd>
         </div>
         <div class="faq-item">
+          <dt>Does it track me?</dt>
+          <dd>Only if you say yes. The app asks before sharing your location. If you agree, it sends anonymous location and usage data that helps improve the map, and you can turn it off at any time in Settings. A mailing-list address is never linked to it. See the <a href="/terms.html">privacy notice</a>.</dd>
+        </div>
+        <div class="faq-item">
           <dt>Which area does it cover?</dt>
           <dd>Epping Forest and a walking-distance band around its boundary, so the pub or station just outside the treeline is on the map too.</dd>
         </div>
       </dl>
+    </section>
+
+    <section class="signup" id="signup">
+      <p class="eyebrow">Stay in the loop</p>
+      <div class="card-head">
+        <img class="card-icon" src="assets/home/mail.svg" width="44" height="44" alt="">
+        <h2>Be first to hear about the release</h2>
+      </div>
+      <p class="signup-intro">
+        Alpha invitations aren’t open yet. Leave your email and we’ll tell you when they
+        are, along with major updates about the app. Once the app launches, you’ll also
+        get the weekly Epping Forest Ledger.
+      </p>
+      <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
+        <label class="field-label" for="email">Email address</label>
+        <div class="signup-row">
+          <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+          <button class="cta-btn" type="submit">Keep me updated</button>
+        </div>
+        <!-- Honeypot: hidden from people, irresistible to bots. -->
+        <div class="hp" aria-hidden="true">
+          <label for="website">Website</label>
+          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+        </div>
+        <label class="consent">
+          <input id="consent" name="consent" type="checkbox" required>
+          <span>Email me about the Epping Forest Finds release, alpha invitations and major updates about the app, plus weekly Epping Forest Ledger updates once the app launches.</span>
+        </label>
+        <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
+        <p class="form-small">
+          We’ll only email you about the things above. Unsubscribe from any message.
+          See the <a href="/terms.html">privacy notice</a>.
+        </p>
+      </form>
     </section>
 
     <section class="ledger" aria-labelledby="ledger-heading">
@@ -314,9 +342,9 @@
 
   <footer class="site-foot">
     <p>
-      Built by Simon McManus. Report a problem on
-      <a href="https://github.com/simonmcmanus/epping-forest-finds/issues">GitHub</a>
-      or email <a href="mailto:mcmanus.simon@gmail.com">mcmanus.simon@gmail.com</a>.
+      Built by Simon McManus. Questions or a problem? Email
+      <a href="mailto:mcmanus.simon@gmail.com">mcmanus.simon@gmail.com</a>
+      or open an issue on <a href="https://github.com/simonmcmanus/epping-forest-finds/issues">GitHub</a>.
     </p>
     <p><a href="/terms.html">Privacy &amp; terms</a></p>
   </footer>

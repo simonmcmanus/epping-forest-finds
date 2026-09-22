@@ -16,7 +16,7 @@
 
   var targets = document.querySelectorAll([
     "main > section:not(.hero) > h2",
-    ".section-intro", ".counts-intro", ".tag-intro > p",
+    ".section-intro", ".counts-intro", ".tag-intro-copy",
     ".app-shot img", ".app-shot figcaption", ".tag-feature img", ".pillars article",
     ".map-inventory", ".signup", ".steps li", ".offline-note",
     ".faq-list", ".ledger"

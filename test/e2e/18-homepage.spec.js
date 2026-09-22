@@ -14,7 +14,7 @@ test.describe("the marketing homepage", () => {
     const page = await context.newPage();
     await page.goto("/");
 
-    await expect(page.locator("h1")).toHaveText("Your guide to Epping Forest.No Signal Necessary.");
+    await expect(page.locator("h1")).toHaveText("Your guide to Epping Forest.No signal needed.");
     await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
     await expect(page.locator("#signupForm")).toBeVisible();
     await expect(page.locator("#find-trees")).toContainText("Search its tag number.");
@@ -27,9 +27,9 @@ test.describe("the marketing homepage", () => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Every veteran tree in the register/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
-    await expect(page.locator(".hero + #find-trees + .tag-feature + .pillars")).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: /Everything else out there/i })).toBeVisible();
+    await expect(page.locator(".hero + #find-trees + .pillars")).toHaveCount(1);
     for (const card of await page.locator(".pillars article").all()) {
       await expect(card).toHaveCSS("border-radius", "14px");
       await expect(card).not.toHaveCSS("box-shadow", "none");
@@ -49,10 +49,10 @@ test.describe("the marketing homepage", () => {
     const brandWidth = parseFloat(await page.locator(".brand-mark").evaluate(el => getComputedStyle(el).width));
     expect(brandWidth).toBeGreaterThanOrEqual(36);
     const headerOnOneLine = await page.locator(".site-head").evaluate(head =>
-      [...head.querySelectorAll(".brand span, .head-link")].every(el => el.getClientRects().length === 1 && el.getBoundingClientRect().height < 32));
+      [...head.querySelectorAll(".brand span, .head-link")].filter(el => getComputedStyle(el).display !== "none").every(el => el.getClientRects().length === 1 && el.getBoundingClientRect().height < 32));
     expect(headerOnOneLine).toBe(true);
     await expect(page.locator(".hero-eyebrow .hero-leaf")).toHaveAttribute("src", "assets/home/map-icons/oak.png");
-    await expect(page.locator(".hero-eyebrow")).toHaveText("Epping Forest, offline");
+    await expect(page.locator(".hero-eyebrow")).toHaveText("A free field map for walkers");
     await expect(page.locator(".inventory-total")).toContainText("31,000");
     const totalIcon = page.locator(".inventory-total img");
     await expect(totalIcon).toHaveAttribute("src", "assets/home/map-icons/all-finds.png");
@@ -75,6 +75,11 @@ test.describe("the marketing homepage", () => {
       });
     }));
     expect(iconAlignment.every(Boolean)).toBe(true);
+    // An empty filter reads as broken if it says 0, so it says "Coming soon".
+    const history = page.locator('[data-inventory-group="history"]');
+    await expect(history.locator("dl div").filter({ hasText: "Plaques" }).locator("dd")).toHaveText("Coming soon");
+    await expect(history.locator("dl div").filter({ hasText: "WWII sites" }).locator("dd")).toHaveText("12");
+    await expect(page.locator(".inventory-group dd").filter({ hasText: /^0$/ })).toHaveCount(0);
     await expect(page.locator(".inventory-always")).toContainText("Gates, benches & other facilities");
     await expect(page.locator(".inventory-always")).toContainText("3,264");
   });
@@ -88,8 +93,8 @@ test.describe("the marketing homepage", () => {
     await expect(trees).toContainText("recorded girth and species");
     await expect(trees).toContainText("not an exact birthday");
     await expect(trees.locator(".tag-story figcaption")).toHaveText([
-      "1. Search its tag number. Enter the number on the tree’s physical tag to find its record on the map.",
-      "2. Navigate to that tree. Select it for a route from your location. We try to find a more scenic way through forest paths and alleyways. Check its tag number when you arrive.",
+      "1. Search its tag number. Enter the number on the tree’s tag to find its record on the map.",
+      "2. Navigate to that tree. Select it for a walking route from where you are. We try to pick a scenic way along forest paths, so check its tag when you arrive.",
       "3. Discover its estimated age. We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday."
     ]);
     await expect(trees.locator(".app-shot img")).toHaveCount(3);
@@ -112,32 +117,69 @@ test.describe("the marketing homepage", () => {
     await expect(trees.locator(".steps")).toHaveCount(0);
   });
 
-  test("shows the example tag on its own, centred in a circle with no caption", async ({ page }) => {
+  test("shows a real tag uncropped beside the explanation of what the tags are", async ({ page }) => {
     await page.goto("/");
-    const feature = page.locator(".tag-feature");
+    const intro = page.locator("#find-trees .tag-intro");
+    await expect(intro.locator(".tag-intro-copy")).toContainText("Veteran trees are the forest’s oldest");
+    const feature = intro.locator("figure.tag-feature");
     const photo = feature.locator("img");
-    await expect(photo).toHaveAttribute("alt", /metal tree tag stamped with the number 27400/i);
-    await expect(feature.locator("figcaption")).toHaveCount(0);
-    await expect(feature).toHaveText("");
+    await expect(photo).toHaveAttribute("alt", /metal tree tag stamped with the number 04404/i);
+    await expect(feature.locator("figcaption")).toHaveText("Tag 04404. Look for one like it on the trunk.");
     await photo.scrollIntoViewIfNeeded();
-    await expect(photo).toHaveCSS("border-radius", "50%");
-    const geometry = await photo.evaluate(img => {
+    await expect.poll(() => photo.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    // The whole tag shows: the photo keeps its own aspect ratio, so no digit is cropped.
+    const ratio = await photo.evaluate(img => {
       const box = img.getBoundingClientRect();
-      const section = img.parentElement.getBoundingClientRect();
-      return {
-        square: Math.abs(box.width - box.height) < 1,
-        centred: Math.abs(box.x + box.width / 2 - section.x - section.width / 2) < 1
-      };
+      return Math.abs(box.width / box.height - img.naturalWidth / img.naturalHeight);
     });
-    expect(geometry).toEqual({ square: true, centred: true });
-    await expect(feature).toHaveCSS("border-top-width", "0px");
-    await expect(page.locator(".tag-feature + .pillars")).toHaveCSS("border-top-width", "0px");
+    expect(ratio).toBeLessThan(0.05);
+    // Wide screens set the copy and the tag side by side.
+    if ((page.viewportSize()?.width || 0) >= 640) {
+      const sideBySide = await intro.evaluate(el => {
+        const copy = el.querySelector(".tag-intro-copy").getBoundingClientRect();
+        const tag = el.querySelector(".tag-feature").getBoundingClientRect();
+        return copy.right <= tag.left && copy.bottom > tag.top && copy.top < tag.bottom;
+      });
+      expect(sideBySide).toBe(true);
+    }
+  });
+
+  test("hints that the tag steps scroll sideways on phones only", async ({ page }) => {
+    await page.goto("/");
+    const hint = page.locator("#find-trees .swipe-hint");
+    const scrolls = await page.locator(".tag-story").evaluate(el => el.scrollWidth > el.clientWidth + 1);
+    if (scrolls) await expect(hint).toBeVisible();
+    else await expect(hint).toBeHidden();
+  });
+
+  test("answers when it opens, installing and tracking in the questions", async ({ page }) => {
+    await page.goto("/");
+    const faq = page.locator(".faq");
+    await expect(faq.locator("dt").first()).toHaveText("When can I start using it?");
+    await expect(faq.locator("dd").first().getByRole("link", { name: "Leave your email" })).toHaveAttribute("href", "#signup");
+    await expect(faq).toContainText("Do I need to install anything?");
+    await expect(faq).toContainText("Does it track me?");
+    const ld = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent());
+    const questions = ld["@graph"].find(item => item["@type"] === "FAQPage").mainEntity.map(item => item.name);
+    await expect(faq.locator("dt")).toHaveText(questions);
+  });
+
+  test("offers a way to the sign-up from the header on wider screens", async ({ page }) => {
+    await page.goto("/");
+    const cta = page.locator(".site-head").getByRole("link", { name: "Get updates" });
+    if ((page.viewportSize()?.width || 0) >= 560) {
+      await expect(cta).toBeVisible();
+      await cta.click();
+      await expect(page).toHaveURL(/#signup$/);
+    } else {
+      await expect(cta).toBeHidden();
+    }
   });
 
   test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Be first to hear", exact: true }).click();
-    await expect(page.locator(".cta-note")).toContainText("Alpha invitations aren’t open yet");
+    await expect(page.locator(".cta-note")).toHaveText("In closed alpha. Leave your email to hear when invitations open.");
     await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
     await expect(page.locator(".signup-intro")).toContainText("major updates");
     await expect(page.getByRole("button", { name: "Keep me updated" })).toBeVisible();
@@ -145,11 +187,12 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("#consent")).not.toBeChecked();
   });
 
-  test("highlights signup before the practical questions and ends on the Ledger", async ({ page }) => {
+  test("asks for sign-up after the practical questions and ends on the Ledger", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates once the site launches");
-    await expect(page.locator(".consent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
-    await expect(page.locator(".signup + .offline-how + .faq + .ledger")).toHaveCount(1);
+    await expect(page.locator(".signup-intro")).toContainText("Once the app launches, you’ll also get the weekly Epping Forest Ledger");
+    await expect(page.locator(".consent")).toContainText("weekly Epping Forest Ledger updates once the app launches");
+    await expect(page.locator("body")).not.toContainText("once the site launches");
+    await expect(page.locator(".counts + .offline-how + .faq + .signup + .ledger")).toHaveCount(1);
     await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.svg");
     await expect(page.locator(".ledger .card-icon")).toHaveAttribute("src", "assets/home/ledger.svg");
     // The eyebrow sits above, flush with the icon; the icon is centred on the title beside it.
@@ -201,7 +244,7 @@ test.describe("the marketing homepage", () => {
 
     const faq = page.locator(".faq-list");
     await expect(faq).toHaveCSS("border-radius", "14px");
-    await expect(faq.locator(".faq-item")).toHaveCount(5);
+    await expect(faq.locator(".faq-item")).toHaveCount(8);
     await expect(faq.locator(".faq-item + .faq-item").first()).toHaveCSS("border-top-style", "solid");
   });
 
@@ -248,7 +291,7 @@ test.describe("the marketing homepage", () => {
   test("explains periodic network requests and stale offline cow positions in copy and search data", async ({ page }) => {
     await page.goto("/");
     const cattle = page.locator(".pillars article").filter({ hasText: "Follow the longhorns" });
-    await expect(cattle).toContainText("periodically makes a network request");
+    await expect(cattle).toContainText("while you have signal the app checks for new positions");
     await expect(cattle).toContainText("last saved positions");
     await expect(page.locator(".how").filter({ hasText: "How it works offline" })).toContainText("offline positions may be out of date");
     const faqs = await page.locator('script[type="application/ld+json"]').textContent();
