@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Bicycle parking: a bicycle with the same P badge landmark-parking carries. -->
+  <g stroke="#284830" stroke-width="12" stroke-linejoin="round" stroke-linecap="round" fill="none">
+    <circle cx="74" cy="166" r="40" fill="#f8f0d0"/>
+    <circle cx="186" cy="166" r="40" fill="#f8f0d0"/>
+    <path d="M74 166 116 100 172 100 186 166"/>
+    <path d="M116 100 158 166"/>
+    <path d="M172 100 196 86"/>
+    <path d="M96 92h34"/>
+  </g>
+  <g stroke="#284830" stroke-width="10" stroke-linejoin="round">
+    <path d="M100 86h30v12h-30z" fill="#80a068"/>
+    <circle cx="74" cy="166" r="7" fill="#284830"/>
+    <circle cx="186" cy="166" r="7" fill="#284830"/>
+  </g>
+  <g stroke="#284830" stroke-width="10">
+    <circle cx="192" cy="70" r="30" fill="#80a068"/>
+  </g>
+  <path d="M185 86V54h11a9 9 0 0 1 0 18h-11" fill="none" stroke="#f8f0d0" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

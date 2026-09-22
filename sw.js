@@ -7,8 +7,8 @@
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v33";
-const DATA_CACHE_NAME = "forest-finds-data-v7";
+const APP_CACHE_NAME = "forest-finds-app-v34";
+const DATA_CACHE_NAME = "forest-finds-data-v8";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
 // "./" is deliberately absent: after the alpha URL split it resolves to the
@@ -131,7 +131,6 @@ const DATA_CACHE_OPPORTUNISTIC = [
   "./data/icons/cow.png",
   "./data/icons/crown.png",
   "./data/icons/distance.png",
-  "./data/icons/dry-cleaning.png",
   "./data/icons/education.png",
   "./data/icons/favicon.png",
   "./data/icons/feedback.png",
@@ -147,15 +146,20 @@ const DATA_CACHE_OPPORTUNISTIC = [
   "./data/icons/icon-maskable-512.png",
   "./data/icons/landmark-archaeological.png",
   "./data/icons/landmark-bench.png",
+  "./data/icons/landmark-bicycle-parking.png",
   "./data/icons/landmark-campsite.png",
   "./data/icons/landmark-drinking-water.png",
   "./data/icons/landmark-dry-cleaning.png",
   "./data/icons/landmark-information.png",
+  "./data/icons/landmark-memorial.png",
   "./data/icons/landmark-monument.png",
   "./data/icons/landmark-museum.png",
   "./data/icons/landmark-parking.png",
+  "./data/icons/landmark-picnic.png",
   "./data/icons/landmark-taxi.png",
+  "./data/icons/landmark-telephone.png",
   "./data/icons/landmark-toilets.png",
+  "./data/icons/landmark-viewpoint.png",
   "./data/icons/legends.png",
   "./data/icons/literature.png",
   "./data/icons/medicine.png",

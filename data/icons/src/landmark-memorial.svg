@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- War memorial: a stone cross on a stepped plinth, with a remembrance poppy.
+       Three shapes only - anything finer closes up at the 35px the map draws. -->
+  <g stroke="#284830" stroke-width="12" stroke-linejoin="round">
+    <rect x="58" y="188" width="140" height="28" rx="7" fill="#c0c0b0"/>
+    <rect x="82" y="160" width="92" height="30" rx="6" fill="#c0c0b0"/>
+    <path d="M110 40h36v40h40v36h-40v48h-36v-48H70V80h40z" fill="#f8f0d0"/>
+  </g>
+  <g stroke="#284830" stroke-width="9" stroke-linejoin="round">
+    <circle cx="128" cy="98" r="19" fill="#b23a2e"/>
+  </g>
+</svg>

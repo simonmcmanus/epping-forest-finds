@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v33"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v34"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -2822,10 +2822,14 @@ function overviewNearestHtml() {
   return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
 }
 
+// The icon the Nearby list, search results and cluster detail show for a
+// place. placeIconSlug() is the same resolver the map pins use, so a place
+// reads identically wherever it appears -- it used to consult the filter
+// buckets before the tag rules and could disagree with its own pin, listing
+// an archaeological site under the generic castle while the map drew the
+// amphora.
 function landmarkEmoji(place) {
-  const filterKey = placePrimaryFilterKey(place);
-  if (filterKey) return filterKindEmoji(filterKey) || "📍";
-  const slug = landmarkIconSlug(place);
+  const slug = placeIconSlug(place);
   if (slug) return appIconHtml(slug);
   return landmarkTypeEmoji(place) || "📍";
 }

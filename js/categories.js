@@ -41,7 +41,7 @@ const FILTER_GROUPS = [
     subfilters: [
       { key: "historic", label: "Historic sites", icon: "historic", title: "historic sites" },
       { key: "plaques", label: "Plaques", icon: "plaques", title: "plaques" },
-      { key: "monuments", label: "Monuments", icon: "plaques", title: "monuments and memorials" },
+      { key: "monuments", label: "Monuments", icon: "landmark-monument", title: "monuments and memorials" },
       { key: "ww2", label: "WWII sites", icon: "historic", title: "WWII sites" },
     ],
   },
@@ -88,20 +88,76 @@ const PLACE_FILTER_KEYS = new Set(
   )
 );
 
+// The order the map, the Nearby list and the search results pick a place's
+// icon in: first match wins. The specific buckets lead, so a blue plaque
+// draws as a plaque rather than picking up whatever topic it also happens to
+// be tagged with -- Jacob Epstein's plaque is tagged `art`, and it drew an
+// artist's palette until `blue_plaques` got here.
 const PLACE_FILTER_PRIORITY = [
   "pubs", "restaurants", "cafes", "shops",
   "bus", "underground", "national_rail", "parking",
-  "historic", "plaques", "monuments", "ww2",
+  "blue_plaques", "plaques", "ww2",
   "churches", "education", "medicine", "campsites",
   "legends", "literature", "film_tv", "art",
 ];
 
-// The filter a place is listed under, highest-priority first. Shared by the Nearby/search
-// list icons (landmarkEmoji, js/app.js) and the type label search results show, so a place
-// reads the same way wherever it is listed.
+// What a folklore place is *about* rather than what it is. No filter chip
+// offers these, so nothing reached them and crown, celebrities, science,
+// politics and social-history sat in the registry undrawn while their places
+// fell past every rule into the broad `historic` bucket and all drew the same
+// castle. They go after landmarkIconSlug -- ahead of it, a viewpoint tagged
+// `science` would stop being a viewpoint -- and before the buckets.
+// Most specific first: `social_history` is the vaguest and goes last, or it
+// swallows the places that are really about politics.
+const PLACE_FILTER_TOPIC_PRIORITY = [
+  "royal", "celebrity_association", "science", "politics", "theatre", "social_history",
+];
+
+// Buckets, not kinds of place: each covers several things the icon set draws
+// differently, so swept with the rest they would flatten the distinction.
+// `historic` matches anything with a historic flavour at all and would hand
+// an archaeological site or a museum its generic castle instead of their own
+// amphora or portico; `monuments` is labelled "monuments and memorials" and
+// would give all 50 war memorials the standing-stone monument. Both are held
+// back until landmarkIconSlug has had its say, and still catch anything the
+// tags do not name.
+const PLACE_FILTER_FALLBACK_PRIORITY = ["monuments", "historic"];
+
+// How a place gets its pin: the specific filters, then the tag rules, then
+// the broad buckets. The renderer, scripts/icon-audit.js and the tests all
+// call this rather than restating the order, so the audit cannot drift from
+// what the map actually draws. Returns null for a place with no artwork,
+// which the renderer draws as a glyph in the pointer instead.
+function placeIconSlug(place) {
+  const fromFilters = (keys) => {
+    for (const filterKey of keys) {
+      if (!matchesPlaceFilter(place, filterKey)) continue;
+      const slug = filterKindIconSlug(filterKey);
+      if (slug && iconPath(slug)) return slug;
+    }
+    return null;
+  };
+
+  const specific = fromFilters(PLACE_FILTER_PRIORITY);
+  if (specific) return specific;
+
+  const byTag = landmarkIconSlug(place);
+  if (byTag && iconPath(byTag)) return byTag;
+
+  return fromFilters(PLACE_FILTER_TOPIC_PRIORITY)
+    || fromFilters(PLACE_FILTER_FALLBACK_PRIORITY);
+}
+
+// The filter a place is listed under, highest-priority first -- the type label
+// the Nearby list and search results show. Deliberately only the keys that are
+// filter chips: the topic keys above have no chip, so filterMeta() has no label
+// for them and a royal site would read "Place" instead of "Historic sites".
+// The *icon* those surfaces show comes from placeIconSlug via landmarkEmoji,
+// so a place still draws the same pin wherever it appears.
 function placePrimaryFilterKey(place) {
   if (!place) return null;
-  return PLACE_FILTER_PRIORITY.find((filterKey) => matchesPlaceFilter(place, filterKey)) || null;
+  return [...PLACE_FILTER_PRIORITY, ...PLACE_FILTER_FALLBACK_PRIORITY]
+    .find((filterKey) => matchesPlaceFilter(place, filterKey)) || null;
 }
 
 // Single source of truth for all icon paths. To add an icon: drop the file
@@ -156,15 +212,20 @@ const ICON_PATHS = {
   gate: "data/icons/gate.png",
   "landmark-archaeological": "data/icons/landmark-archaeological.png",
   "landmark-bench": "data/icons/landmark-bench.png",
+  "landmark-bicycle-parking": "data/icons/landmark-bicycle-parking.png",
   "landmark-campsite": "data/icons/landmark-campsite.png",
   "landmark-drinking-water": "data/icons/landmark-drinking-water.png",
   "landmark-dry-cleaning": "data/icons/landmark-dry-cleaning.png",
   "landmark-information": "data/icons/landmark-information.png",
+  "landmark-memorial": "data/icons/landmark-memorial.png",
   "landmark-monument": "data/icons/landmark-monument.png",
   "landmark-museum": "data/icons/landmark-museum.png",
   "landmark-parking": "data/icons/landmark-parking.png",
+  "landmark-picnic": "data/icons/landmark-picnic.png",
   "landmark-taxi": "data/icons/landmark-taxi.png",
+  "landmark-telephone": "data/icons/landmark-telephone.png",
   "landmark-toilets": "data/icons/landmark-toilets.png",
+  "landmark-viewpoint": "data/icons/landmark-viewpoint.png",
 
   // Tree species (leaf icons)
   logo: "data/icons/trees/logo.png",
@@ -312,7 +373,10 @@ function filterKindEmoji(kind) {
     case "film_tv": return appIconHtml("film");
     case "ww2": return appIconHtml("wwII");
     case "royal": return appIconHtml("crown");
+    case "historic":
     case "history_general": return appIconHtml("historic");
+    case "monuments": return appIconHtml("landmark-monument");
+    case "campsites": return appIconHtml("landmark-campsite");
     case "social_history": return appIconHtml("social-history");
     case "celebrity_association": return appIconHtml("celebrities");
     case "science": return appIconHtml("science");
@@ -322,6 +386,7 @@ function filterKindEmoji(kind) {
     case "theatre": return appIconHtml("theatre");
     case "politics": return appIconHtml("politics");
     case "art": return appIconHtml("art");
+    case "churches":
     case "church": return appIconHtml("church");
     case "legends": return appIconHtml("legends");
     default: return null;
@@ -356,7 +421,10 @@ function filterKindIconSlug(kind) {
     case "film_tv": return "film";
     case "ww2": return "wwII";
     case "royal": return "crown";
+    case "historic":
     case "history_general": return "historic";
+    case "monuments": return "landmark-monument";
+    case "campsites": return "landmark-campsite";
     case "social_history": return "social-history";
     case "celebrity_association": return "celebrities";
     case "science": return "science";
@@ -366,6 +434,7 @@ function filterKindIconSlug(kind) {
     case "theatre": return "theatre";
     case "politics": return "politics";
     case "art": return "art";
+    case "churches":
     case "church": return "church";
     case "legends": return "legends";
     default: return null;
@@ -379,12 +448,19 @@ function landmarkIconSlug(place) {
   if (check(["toilets"])) return "landmark-toilets";
   if (check(["drinking_water", "water_well"])) return "landmark-drinking-water";
   if (check(["information"])) return "landmark-information";
+  if (check(["bicycle_parking", "cycle_parking"])) return "landmark-bicycle-parking";
+  if (check(["memorial", "war_memorial"])) return "landmark-memorial";
   if (check(["monument", "boundary_stone"])) return "landmark-monument";
+  if (check(["picnic_site", "picnic_table"])) return "landmark-picnic";
+  if (check(["viewpoint"])) return "landmark-viewpoint";
+  if (check(["telephone"])) return "landmark-telephone";
   if (check(["archaeological_site", "roman_road", "ruins"])) return "landmark-archaeological";
   if (check(["museum", "attraction", "building", "folly", "tomb", "gate_pier"])) return "landmark-museum";
   if (check(["camp_site", "caravan_site"])) return "landmark-campsite";
   if (check(["dry_cleaning"])) return "landmark-dry-cleaning";
   if (check(["taxi"])) return "landmark-taxi";
+  if (check(["alcohol"])) return "shop";
+  if (check(["chemist"])) return "medicine";
   // The places a town uses that are not food: a village hall, a library, an
   // arts centre. They only became something the map can carry when the weekly
   // run learned to add them, and without a line here each one would draw as a
@@ -435,7 +511,10 @@ function filterKindColor(kind) {
     case "film_tv": return "rgba(134, 74, 162, 0.85)";
     case "ww2": return "rgba(114, 108, 66, 0.85)";
     case "royal": return "rgba(156, 118, 41, 0.85)";
+    case "historic":
     case "history_general": return "rgba(109, 92, 58, 0.85)";
+    case "monuments": return "rgba(118, 112, 47, 0.85)";
+    case "campsites": return "rgba(74, 124, 89, 0.85)";
     case "social_history": return "rgba(150, 108, 74, 0.85)";
     case "celebrity_association": return "rgba(164, 127, 38, 0.85)";
     case "science": return "rgba(54, 113, 176, 0.85)";
@@ -445,6 +524,7 @@ function filterKindColor(kind) {
     case "theatre": return "rgba(155, 84, 124, 0.85)";
     case "politics": return "rgba(79, 91, 134, 0.85)";
     case "art": return "rgba(198, 108, 52, 0.85)";
+    case "churches":
     case "church": return "rgba(111, 121, 89, 0.85)";
     case "legends": return "rgba(111, 77, 140, 0.85)";
     default: return "rgba(118, 112, 47, 0.85)";
@@ -542,8 +622,13 @@ function isTransportCategory(place) {
   return isBusCategory(place) || isTrainCategory(place) || place.category === "taxi" || isParkingCategory(place);
 }
 
+// Every plaque, blue ones included -- a blue plaque is a plaque, and the
+// "Plaques" filter showed nothing at all while this excluded them. Which
+// artwork a plaque draws is decided by PLACE_FILTER_PRIORITY instead:
+// `blue_plaques` sits ahead of `plaques`, so a blue one gets the roundel and
+// anything else gets the bronze plate.
 function isPlaqueCategory(place) {
-  return place && (place.folkloreCategory === "plaque" || place.category === "plaque") && !isBluePlaqueCategory(place);
+  return Boolean(place) && (place.folkloreCategory === "plaque" || place.category === "plaque");
 }
 
 function hasFolkloreTopic(place, topic) {
@@ -643,6 +728,24 @@ function isChurchCategory(place) {
     || hasPlaceTag(place, "church_history");
 }
 
+function isMonumentCategory(place) {
+  return Boolean(place) && (
+    ["memorial", "monument", "boundary_stone", "tomb"].includes(place.category)
+    || hasPlaceTag(place, "memorial")
+    || hasPlaceTag(place, "war_memorial")
+    || hasPlaceTag(place, "monument")
+    || hasPlaceTag(place, "boundary_stone")
+  );
+}
+
+function isCampsiteCategory(place) {
+  return Boolean(place) && (
+    ["camp_site", "caravan_site"].includes(place.category)
+    || hasPlaceTag(place, "camp_site")
+    || hasPlaceTag(place, "caravan_site")
+  );
+}
+
 function matchesPlaceFilter(place, filterKey) {
   switch (filterKey) {
     case "pubs": return isPubCategory(place);
@@ -665,6 +768,14 @@ function matchesPlaceFilter(place, filterKey) {
         && !isSocialHistoryCategory(place)
         && !isPlaqueCategory(place)
         && !isBluePlaqueCategory(place);
+    // The subfilter keys FILTER_GROUPS uses. Without these four the "Historic
+    // sites", "Monuments", "Churches" and "Campsites" toggles matched nothing,
+    // so they hid every place they were meant to show and their icons were
+    // unreachable -- which is what dropped memorials to a bare emoji.
+    case "historic": return isHistoryCategory(place);
+    case "monuments": return isMonumentCategory(place);
+    case "churches": return isChurchCategory(place);
+    case "campsites": return isCampsiteCategory(place);
     case "social_history": return isSocialHistoryCategory(place);
     case "celebrity_association": return isCelebrityAssociationCategory(place);
     case "science": return isScienceCategory(place);

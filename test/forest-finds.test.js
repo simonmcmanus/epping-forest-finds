@@ -377,6 +377,14 @@ globalThis.__forestFindsTest = {
   landmarkIconSlug,
   iconPath,
   appIconHtml,
+  matchesPlaceFilter,
+  placePrimaryFilterKey,
+  placeIconSlug,
+  filterKindIconSlug,
+  PLACE_FILTER_KEYS,
+  PLACE_FILTER_PRIORITY,
+  PLACE_FILTER_FALLBACK_PRIORITY,
+  PLACE_FILTER_TOPIC_PRIORITY,
   treeSpeciesIconHtml,
   placeTitle,
   ICON_PATHS,
@@ -1698,9 +1706,142 @@ test("landmark emoji falls back to useful type icons before location pointer", (
   assert.match(app.landmarkEmoji({ category: "bench", categoryTags: ["bench"] }), /landmark-bench\.png/);
   assert.match(app.landmarkEmoji({ category: "toilets", categoryTags: ["toilets"] }), /landmark-toilets\.png/);
   assert.match(app.landmarkEmoji({ category: "gate", categoryTags: ["gate"] }), /gate\.png/);
-  assert.equal(app.landmarkEmoji({ category: "chemist", categoryTags: ["chemist"] }), "⚕️");
+  assert.match(app.landmarkEmoji({ category: "chemist", categoryTags: ["chemist"] }), /medicine\.png/);
   assert.equal(app.landmarkEmoji({ category: "yes", categoryTags: ["yes", "cafe"] }), "☕");
   assert.equal(app.landmarkEmoji({ category: "something_unclear", categoryTags: ["something_unclear"] }), "📍");
+});
+
+test("the categories that used to draw as a bare emoji now have artwork of their own", () => {
+  // These were 609 of 6,048 places -- memorials as a candle glyph, plaques as
+  // a red pushpin -- painted straight onto the map with no pointer behind
+  // them, which is what made them read as a different kind of marker.
+  // `npm run audit:icons` is the standing count.
+  const { landmarkIconSlug, iconPath } = app;
+  const expected = {
+    memorial: "landmark-memorial",
+    bicycle_parking: "landmark-bicycle-parking",
+    picnic_site: "landmark-picnic",
+    viewpoint: "landmark-viewpoint",
+    telephone: "landmark-telephone",
+    alcohol: "shop",
+    chemist: "medicine",
+  };
+
+  for (const [category, slug] of Object.entries(expected)) {
+    const place = { category, categoryTags: [category] };
+    assert.equal(landmarkIconSlug(place), slug, `${category} should use the ${slug} icon`);
+    assert.ok(iconPath(slug), `${slug} must be a real icon in the registry`);
+    // What the map actually draws, tag rules and filter buckets together.
+    assert.equal(app.placeIconSlug(place), slug, `${category} should still draw ${slug} once the filters have had their say`);
+  }
+});
+
+test("the subfilter keys FILTER_GROUPS offers all classify something", () => {
+  // matchesPlaceFilter switched on a different vocabulary from the one the
+  // filter chips use, so "Historic sites", "Monuments", "Churches" and
+  // "Campsites" matched nothing: they hid every place they were meant to show
+  // and their icons could never be reached.
+  const { matchesPlaceFilter, PLACE_FILTER_KEYS } = app;
+  const samples = [
+    { category: "memorial", categoryTags: ["memorial"] },
+    { category: "monument", categoryTags: ["monument"] },
+    { category: "place_of_worship", categoryTags: ["place_of_worship"] },
+    { category: "camp_site", categoryTags: ["camp_site"] },
+    { category: "plaque", folkloreCategory: "plaque", folkloreTopics: ["blue_plaque"], categoryTags: ["plaque", "blue_plaque"] },
+  ];
+
+  for (const key of ["historic", "monuments", "churches", "campsites", "plaques"]) {
+    assert.ok(PLACE_FILTER_KEYS.has(key), `${key} should be one of the filter chips`);
+    assert.ok(
+      samples.some((place) => matchesPlaceFilter(place, key)),
+      `no place can ever match the ${key} filter`
+    );
+  }
+});
+
+test("a broad history bucket never takes a pin from a place with artwork of its own", () => {
+  // `historic` matches anything with a historic flavour at all. Swept with
+  // the rest of the filters it handed an archaeological site the generic
+  // scroll, so it is held back until landmarkIconSlug has had its say.
+  const { placeIconSlug, matchesPlaceFilter } = app;
+  const dig = { category: "archaeological_site", categoryTags: ["archaeological_site"] };
+  const museum = { category: "museum", categoryTags: ["museum"] };
+  const folkloreOnly = { category: "history", folkloreCategory: "history", categoryTags: [] };
+
+  assert.ok(matchesPlaceFilter(dig, "historic"), "a dig is still a historic site for the filter chip");
+  assert.equal(placeIconSlug(dig), "landmark-archaeological");
+  assert.equal(placeIconSlug(museum), "landmark-museum");
+  assert.equal(placeIconSlug(folkloreOnly), "historic", "with nothing more specific, the bucket does apply");
+
+  // `monuments` is the same shape of problem: it is labelled "monuments and
+  // memorials" and covers both, so held back it lets each keep its own pin.
+  const memorial = { category: "memorial", categoryTags: ["memorial"] };
+  const stone = { category: "boundary_stone", categoryTags: ["boundary_stone"] };
+  const unnamedMonument = { category: "monument", folkloreCategory: "monument", categoryTags: [] };
+
+  assert.ok(matchesPlaceFilter(memorial, "monuments"), "a memorial is still under the Monuments chip");
+  assert.equal(placeIconSlug(memorial), "landmark-memorial");
+  assert.equal(placeIconSlug(stone), "landmark-monument");
+  assert.equal(placeIconSlug(unnamedMonument), "landmark-monument");
+});
+
+test("a place's topic gives it a pin when nothing more specific describes it", () => {
+  // No filter chip offers royal, science, politics or social history, so
+  // nothing reached their icons: crown, science, politics, social-history and
+  // celebrities sat in the registry while their places drew the generic
+  // castle the broad `historic` bucket hands out.
+  const { placeIconSlug } = app;
+  const royal = { category: "history", folkloreCategory: "history", categoryTags: ["royal_history"], folkloreTopics: ["royal"] };
+  const scientific = { category: "history", folkloreCategory: "history", categoryTags: ["science"] };
+
+  assert.equal(placeIconSlug(royal), "crown");
+  assert.equal(placeIconSlug(scientific), "science");
+
+  // But a topic never overrides what the place actually is.
+  const viewpoint = { category: "viewpoint", categoryTags: ["viewpoint", "science"] };
+  const church = { category: "place_of_worship", categoryTags: ["place_of_worship", "royal_history"], folkloreTopics: ["royal"] };
+  assert.equal(placeIconSlug(viewpoint), "landmark-viewpoint");
+  assert.equal(placeIconSlug(church), "church");
+});
+
+test("the Nearby list shows a place the same pin the map draws for it", () => {
+  // landmarkEmoji consulted the filter buckets before the tag rules, so it
+  // could disagree with the pin beside it: an archaeological site listed
+  // under the generic castle while the map drew the amphora.
+  const { landmarkEmoji, placeIconSlug, iconPath } = app;
+  const samples = [
+    { category: "archaeological_site", categoryTags: ["archaeological_site"] },
+    { category: "memorial", categoryTags: ["memorial"] },
+    { category: "museum", categoryTags: ["museum"] },
+    { category: "bicycle_parking", categoryTags: ["bicycle_parking"] },
+  ];
+
+  for (const place of samples) {
+    const slug = placeIconSlug(place);
+    assert.ok(slug, `${place.category} should resolve to an icon`);
+    assert.match(
+      landmarkEmoji(place),
+      new RegExp(iconPath(slug).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      `${place.category} should be listed with the same ${slug} pin the map draws`
+    );
+  }
+});
+
+test("a blue plaque draws as a plaque rather than whatever topic it is also tagged with", () => {
+  // Jacob Epstein's blue plaque is tagged `art`, and with the plaque keys
+  // missing from the priority list it drew an artist's palette on the map.
+  const { placePrimaryFilterKey, filterKindIconSlug } = app;
+  const epstein = {
+    name: "Blue Plaque: Sir Jacob Epstein",
+    category: "plaque",
+    folkloreCategory: "plaque",
+    folkloreTopics: ["blue_plaque"],
+    categoryTags: ["blue_plaque", "plaque", "heritage_plaque", "art"],
+  };
+
+  assert.equal(placePrimaryFilterKey(epstein), "blue_plaques");
+  assert.equal(filterKindIconSlug(placePrimaryFilterKey(epstein)), "blue-plaques");
+  assert.equal(app.placeIconSlug(epstein), "blue-plaques");
 });
 
 test("overview GPS updates keep the user centered even before a compass heading arrives", () => {

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Circular heritage plaque: the familiar blue roundel with a lettered face. -->
+  <circle cx="128" cy="128" r="104" fill="#3e67c4" stroke="#284830" stroke-width="12"/>
+  <circle cx="128" cy="128" r="80" fill="none" stroke="#f8f0d0" stroke-width="7"/>
+  <g fill="#f8f0d0">
+    <rect x="82" y="104" width="92" height="9" rx="4.5"/>
+    <rect x="70" y="124" width="116" height="9" rx="4.5"/>
+    <rect x="94" y="144" width="68" height="9" rx="4.5"/>
+  </g>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Commemorative wall plaque: bronze plate, engraved inscription, corner fixings. -->
+  <g stroke="#284830" stroke-width="12" stroke-linejoin="round">
+    <rect x="40" y="62" width="176" height="132" rx="14" fill="#c0a068"/>
+    <rect x="62" y="84" width="132" height="88" rx="7" fill="#f8f0d0"/>
+  </g>
+  <g fill="#284830">
+    <rect x="80" y="102" width="96" height="10" rx="5"/>
+    <rect x="80" y="123" width="112" height="10" rx="5"/>
+    <rect x="80" y="144" width="72" height="10" rx="5"/>
+  </g>
+  <g stroke="#284830" stroke-width="7" fill="#f8f0d0">
+    <circle cx="53" cy="75" r="7"/>
+    <circle cx="203" cy="75" r="7"/>
+    <circle cx="53" cy="181" r="7"/>
+    <circle cx="203" cy="181" r="7"/>
+  </g>
+</svg>

@@ -33,6 +33,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
+const { FIT_LIMIT, mapIconEntries, pngContentRadius } = require("./lib/icon-fit");
+
 const APP_ROOT = path.join(__dirname, "..");
 
 const LANDMARK_FILES = [
@@ -55,9 +57,10 @@ function loadAppRules() {
     vm.runInContext(fs.readFileSync(path.join(APP_ROOT, file), "utf8"), context, { filename: file });
   }
   return vm.runInContext(
-    "({ ICON_PATHS, PLACE_FILTER_PRIORITY, FILTER_GROUPS, iconPath, filterKindIconSlug, landmarkIconSlug," +
-    " matchesPlaceFilter, buildOsmCategoryTags, normalizeFolkloreLocations, isPubCategory, isCafeCategory," +
-    " isShopCategory, isTransportCategory, getTransportType })",
+    "({ ICON_PATHS, PLACE_FILTER_PRIORITY, PLACE_FILTER_FALLBACK_PRIORITY, FILTER_GROUPS, iconPath," +
+    " filterKindIconSlug, landmarkIconSlug, placeIconSlug, matchesPlaceFilter, buildOsmCategoryTags," +
+    " normalizeFolkloreLocations, isPubCategory, isCafeCategory, isShopCategory, isTransportCategory," +
+    " getTransportType })",
     context
   );
 }
@@ -87,12 +90,11 @@ function loadPlaces(rules, root) {
 }
 
 /**
- * The renderer's own order for choosing a pin, from js/renderer.js's
- * drawLandmarks(): the food and transport special cases first, then the
- * filter-priority sweep, then the landmark tag rules, then the emoji
- * fallback. It is restated here rather than called because drawLandmarks()
- * wants a canvas and the app's live state; if that order ever changes, this
- * has to change with it or the audit stops describing the real map.
+ * The renderer's own order for choosing a pin. The station roundels and the
+ * two food/transport special cases live in drawLandmarks(), which wants a
+ * canvas and the app's live state; everything after them is
+ * `placeIconSlug()` in js/categories.js, which this calls rather than
+ * restating, so the audit cannot drift from what the map draws.
  */
 function resolveIcon(rules, place) {
   if (rules.isPubCategory(place)) return { kind: "png", slug: "beer" };
@@ -105,25 +107,22 @@ function resolveIcon(rules, place) {
     if (type === "parking") return { kind: "png", slug: "landmark-parking" };
     return { kind: "png", slug: "bus" };
   }
-  let slug = null;
-  for (const filterKey of rules.PLACE_FILTER_PRIORITY) {
-    if (rules.matchesPlaceFilter(place, filterKey)) {
-      slug = rules.filterKindIconSlug(filterKey);
-      break;
-    }
-  }
-  if (!slug) slug = rules.landmarkIconSlug(place);
-  if (slug && rules.iconPath(slug)) return { kind: "png", slug };
-  return { kind: "emoji", slug: null };
+  const slug = rules.placeIconSlug(place);
+  return slug ? { kind: "png", slug } : { kind: "emoji", slug: null };
 }
 
 function placeCategory(place) {
   return place.category || place.amenity || place.shop || place.tourism || place.historic || "(none)";
 }
 
+// data/icons/src holds the SVG originals the icons are drawn from (see
+// spec-icons.md); they are build input, never served, so they are not icon
+// files the app could be failing to use.
+const ICON_SOURCE_DIR = `${ICON_DIR}/src`;
+
 function listIconFiles(root, dir = ICON_DIR) {
   const full = path.join(root, dir);
-  if (!fs.existsSync(full)) return [];
+  if (!fs.existsSync(full) || dir === ICON_SOURCE_DIR) return [];
   return fs.readdirSync(full, { withFileTypes: true }).flatMap((entry) =>
     entry.isDirectory() ? listIconFiles(root, path.join(dir, entry.name)) : [path.join(dir, entry.name)]
   );
@@ -191,7 +190,7 @@ function audit(root = APP_ROOT) {
   // A filter key the classifier never matches is a filter that shows nothing
   // and an icon nothing can reach -- the places it was meant to cover fall
   // through to the emoji fallback instead.
-  const unreachableFilters = rules.PLACE_FILTER_PRIORITY
+  const unreachableFilters = [...rules.PLACE_FILTER_PRIORITY, ...rules.PLACE_FILTER_FALLBACK_PRIORITY]
     .filter((key) => !places.some(({ place }) => rules.matchesPlaceFilter(place, key)))
     .map((key) => ({ key, icon: rules.filterKindIconSlug(key) }));
 
@@ -221,9 +220,27 @@ function audit(root = APP_ROOT) {
     else byHash.set(hash, file);
   }
 
+  // Artwork is drawn at 1.75x the pin head's radius, so an icon reaching past
+  // FIT_LIMIT of its own half-width pokes out of the white pointer -- the
+  // thing that made the old plaque rectangle sit wrong among the others.
+  const overflowing = mapIconEntries(Object.fromEntries(iconPaths))
+    .map(([slug, file]) => {
+      const full = path.join(root, file);
+      if (!fs.existsSync(full)) return null;
+      try {
+        return { slug, radius: pngContentRadius(fs.readFileSync(full)) };
+      } catch (error) {
+        return { slug, radius: null, error: error.message };
+      }
+    })
+    .filter((icon) => icon && (icon.radius === null || icon.radius > FIT_LIMIT))
+    .sort((a, b) => (b.radius || 0) - (a.radius || 0));
+
   return {
     generatedAt: new Date().toISOString().slice(0, 10),
     placeCount: places.length,
+    fitLimit: FIT_LIMIT,
+    overflowing,
     totals,
     fallbacks: Array.from(fallbacks.values())
       .map((bucket) => ({ ...bucket, sources: Array.from(bucket.sources).sort() }))
@@ -252,6 +269,14 @@ function report(result) {
   lines.push("", "Filters that match nothing, so their icon is never drawn:");
   lines.push(...(result.unreachableFilters.length
     ? result.unreachableFilters.map((f) => `  ${f.key} (icon: ${f.icon || "none defined"})`)
+    : ["  none"]));
+
+  lines.push("", `Map icons whose artwork reaches outside the pointer (over ${result.fitLimit}):`);
+  lines.push(...(result.overflowing.length
+    ? result.overflowing.map((icon) => (icon.radius === null
+        ? `  ${icon.slug.padEnd(28)} could not be measured: ${icon.error}`
+        : `  ${icon.slug.padEnd(28)} ${icon.radius.toFixed(3)}`))
+      .concat(["  Run `npm run fit:icons` to scale them in."])
     : ["  none"]));
 
   lines.push("", "Icons named in the registry with no file behind them:");

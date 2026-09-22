@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Telephone: the K6 box these are. -->
+  <g stroke="#284830" stroke-width="12" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M112 22h32v16h-32z" fill="#b23a2e"/>
+    <rect x="68" y="66" width="120" height="148" rx="8" fill="#b23a2e"/>
+    <rect x="54" y="38" width="148" height="30" rx="12" fill="#b23a2e"/>
+    <rect x="74" y="68" width="108" height="22" rx="4" fill="#f8f0d0"/>
+    <rect x="60" y="198" width="136" height="22" rx="7" fill="#c0c0b0"/>
+  </g>
+  <g fill="#f8f0d0">
+    <rect x="88" y="104" width="34" height="30" rx="5"/>
+    <rect x="130" y="104" width="34" height="30" rx="5"/>
+    <rect x="88" y="142" width="34" height="30" rx="5"/>
+    <rect x="130" y="142" width="34" height="30" rx="5"/>
+  </g>
+</svg>

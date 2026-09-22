@@ -150,9 +150,9 @@ Draw order (back to front):
    nearby match on the Nearby/Filters/Settings/Report screens; they were removed because a fan
    of dotted lines to a dozen pins crowded the map and implied a walk nobody had chosen. A
    drawn route now always means "this is the destination you selected".
-9. **Trees** — emoji markers
-10. **Landmarks** — emoji markers with category-specific rendering
-11. **Cows** — emoji markers
+9. **Trees** — teardrop pins
+10. **Landmarks** — teardrop pins with category-specific artwork
+11. **Cows** — teardrop pins
 12. **User location** — pulsing blue dot
 13. **Selected overlay** — highlight ring on selected item
 14. **Selected road/path overlay** — highlighted road/path segments
@@ -210,7 +210,13 @@ Filtered to major types only. Style varies by `roadType` (motorway thicker/darke
 
 ## Marker Rendering
 
-### Pin geometry (`drawPngMapIcon`)
+### Pin geometry (`drawMapPinShape`, `drawPngMapIcon`, `drawEmojiMapPin`)
+
+`drawMapPinShape` draws the white teardrop every marker sits in and returns
+its head centre and radius; `drawPngMapIcon` then paints the artwork inside
+it, and `drawEmojiMapPin` paints an emoji glyph there for a place with no
+artwork of its own. **Nothing is drawn on the map without the pointer behind
+it** — that is what makes the markers read as one family.
 
 The teardrop pin uses a compact layout with a large icon:
 - Circle radius: `size × 0.4`; tail height: `R × 0.6`; icon fills `R × 1.75`
@@ -218,6 +224,15 @@ The teardrop pin uses a compact layout with a large icon:
 - Border opacity: `rgba(0,0,0,0.25)`
 - Unselected scale: `MAP_ICON_SCALE_UNSELECTED = 2.2`; selected scale: `MAP_ICON_SCALE = 2` (plus animated pulse ×1.05–1.17)
 - Hit detection (`findHit`, `findClusterHit`) is derived from `MAP_ICON_SCALE_UNSELECTED`: `pinR = iconSize × 0.52` (×1.3 visual R), `pinYOffset = iconSize × 0.64` (exact circle centre), giving an accurately-centred tap target slightly larger than the visual pin
+- Because the artwork is drawn at `R × 1.75` inside a head of radius `R`, an
+  icon whose content reaches past `1/1.75` of its own half-width pokes out of
+  the pointer. Every map icon is held to a 0.52 ceiling under that:
+  `scripts/generate-map-icons.js` for new artwork, `npm run fit:icons` for the
+  original PNGs, and `test/map-icons.test.js` in CI (see `spec-icons.md`).
+- `drawEmojiMapPin` sizes the glyph at `R × 1.15`. The generic 📍
+  fallback is itself a map pin, and a pin inside a pin reads as a mistake, so
+  a place the data says nothing about (OSM `building=yes`, the last seven on
+  the map) gets a plain `#76702f` dot in the head instead.
 - `findHit` resolves, in order: highlighted locations (places, cows, trees, waymarked trails) then streets (roads, railways), and nothing else. Background polygons are not hit-tested, so every remaining tap is "open ground" and relocates the Nearby browse origin (see "Browsing Another Spot").
 - **Only what is drawn is tappable.** Pin hit-testing asks the renderer's own `shouldDrawMapIcon(type, item, buildNearbyIconLookup())` rather than sweeping the raw datasets, so a pin that is not on screen cannot be selected at the position it would occupy. This covers all three cases the renderer already distinguishes: outside the nearby set, hidden by an expanded group, and hidden because a location is selected — in that last case only the selected pin itself is drawn, so it stays tappable and everything around it is open ground. With ~25,000 trees in the register against the ~60 the map draws (`MAX_MAP_TREES`), the old dataset-wide sweep meant a tap "away from the selection" routinely landed on an invisible tree and re-selected it instead of returning to Nearby. Waymarked trails are the exception and are deliberately *not* gated on this: a trail is hit-tested along its whole drawn line, and that line is terrain — drawn whatever the nearby set, group, or selection happens to be, exactly like a street. Only its pin comes and goes.
 
@@ -225,7 +240,7 @@ The teardrop pin uses a compact layout with a large icon:
 
 All point-type overview items are clustered in screen space (30 CSS-pixel radius, greedy nearest-first) before drawing. `buildTypeClusters(itemSet, toScreen)` is the generic function used for trees, cows, paths, and water features. Landmarks are first grouped by rendered icon type (`landmarkClusterKey`) then clustered within each group via `buildLandmarkClusters`.
 
-Each cluster draws **one pin** at the screen centroid of its members. When a cluster contains more than one item, a small count badge is drawn in the top-right of the pin by `drawClusterBadge`. Badges only appear on PNG teardrop pins (not SVG roundels or emoji). Route lines use the world-space centroid of each cluster (one line per cluster for trees; individual items for other types).
+Each cluster draws **one pin** at the screen centroid of its members. When a cluster contains more than one item, a small count badge is drawn in the top-right of the pin by `drawClusterBadge`. Badges appear on every teardrop pin, artwork and emoji-fallback alike, but not on the SVG station roundels, which have no pointer. Route lines use the world-space centroid of each cluster (one line per cluster for trees; individual items for other types).
 
 **Cluster tap interaction:** tapping a multi-item cluster pin (in overview mode, i.e. no current selection) triggers `findClusterHit` — which rebuilds clusters for all types at the current viewport and tags each cluster with its `itemType` (`"tree"`, `"landmark"`, `"cow"`, `"path"`, or `"water"`) — and, if hit:
 1. Sets `state.clusterZoomed = true` and `state.clusterExpanded = cluster`.
@@ -252,44 +267,70 @@ While `state.clusterZoomed` is true, `ensureOverviewTargetsVisible`, `keepOvervi
 
 Category-specific rendering:
 
-| Category | Emoji | Background |
-|----------|-------|------------|
-| Pubs & bars | 🍺 | Pulsing radial purple gradient |
-| Cafés | ☕ | Pulsing radial brown gradient |
-| Restaurants | 🍽️ | Standard |
-| Shops | 🛒 | Standard |
-| Bus stops | 🚌 | Pulsing radial orange gradient |
+| Category | Pin | Background |
+|----------|-----|------------|
+| Pubs & bars | `beer` | Pulsing radial purple gradient |
+| Cafés | `cafe` | Pulsing radial brown gradient |
+| Restaurants | `restaurant` | Standard |
+| Shops | `shop` | Standard |
+| Bus stops | `bus` | Pulsing radial orange gradient |
 | Underground | SVG roundel | Custom SVG rendering |
 | National Rail | SVG logo | Custom SVG rendering |
-| Historic | 📜 | Standard |
-| Plaques | 🪧 | Standard |
-| Blue plaques | 🔵 | Standard |
-| Film/TV | 🎬 | Standard |
-| WWII | 🪖 | Standard |
-| Royal | 👑 | Standard |
-| Parking | 🅿️ | Standard |
-| Cycle parking | 🚲 | Standard |
-| Benches | 🪑 | Standard |
-| Toilets | 🚻 | Standard |
-| Drinking water | 🚰 | Standard |
-| Information | ℹ️ | Standard |
-| Gates / entrances | 🚪 | Standard |
-| Barriers | 🚧 | Standard |
-| Campsites | ⛺ | Standard |
-| Memorials | 🕯️ | Standard |
-| Monuments | 🗿 | Standard |
-| Ambiguous locations | 📍 | Standard |
-| Celebrity | ⭐ | Standard |
-| Science | 🔭 | Standard |
-| Education | 🎓 | Standard |
-| Medicine | ⚕️ | Standard |
-| Literature | 📚 | Standard |
-| Theatre | 🎭 | Standard |
-| Politics | 🏛️ | Standard |
-| Art | 🎨 | Standard |
-| Churches | ⛪ | Standard |
-| Legends | ✨ | Standard |
-| Default | 📍 | Standard |
+| Blue plaques | `blue-plaques` | Standard |
+| Plaques | `plaques` | Standard |
+| Memorials | `landmark-memorial` | Standard |
+| Monuments | `landmark-monument` | Standard |
+| WWII | `wwII` | Standard |
+| Churches | `church` | Standard |
+| Education | `education` | Standard |
+| Medicine | `medicine` | Standard |
+| Campsites | `landmark-campsite` | Standard |
+| Legends | `legends` | Standard |
+| Literature | `literature` | Standard |
+| Film/TV | `film` | Standard |
+| Art | `art` | Standard |
+| Gates / entrances / barriers | `gate` | Standard |
+| Benches | `landmark-bench` | Standard |
+| Cycle parking | `landmark-bicycle-parking` | Standard |
+| Parking | `landmark-parking` | Standard |
+| Toilets | `landmark-toilets` | Standard |
+| Drinking water | `landmark-drinking-water` | Standard |
+| Information | `landmark-information` | Standard |
+| Archaeological | `landmark-archaeological` | Standard |
+| Museums / attractions / follies | `landmark-museum` | Standard |
+| Picnic sites | `landmark-picnic` | Standard |
+| Viewpoints | `landmark-viewpoint` | Standard |
+| Telephones | `landmark-telephone` | Standard |
+| Taxis | `landmark-taxi` | Standard |
+| Dry cleaning | `landmark-dry-cleaning` | Standard |
+| Historic (catch-all) | `historic` | Standard |
+| Untyped (`building=yes`) | plain dot in the pointer | Standard |
+
+The table is in resolution order, and `placeIconSlug` (js/categories.js) is
+the single definition of it, shared by the renderer, `landmarkClusterKey`,
+`scripts/icon-audit.js` and the tests. It sweeps `PLACE_FILTER_PRIORITY`,
+then the tag rules in `landmarkIconSlug`, then
+`PLACE_FILTER_FALLBACK_PRIORITY`. That last list holds the keys that are
+buckets rather than kinds of place: `historic`, which matches anything with a
+historic flavour and would otherwise hand an archaeological site or a museum
+its generic castle, and `monuments`, which is labelled "monuments and
+memorials" and would give all 50 war memorials the standing-stone monument.
+Held back, each place keeps its own pin and the chips still cover everything.
+
+`PLACE_FILTER_TOPIC_PRIORITY` sits between the tag rules and the buckets and
+holds the keys that describe what a folklore place is *about* rather than what
+it is — `royal`, `celebrity_association`, `science`, `politics`, `theatre`,
+`social_history`, in that order, vaguest last. No filter chip offers any of
+them, so before this nothing reached `crown`, `celebrities`, `science`,
+`politics` or `social-history` and their places all drew the broad bucket's
+castle. They cannot go ahead of the tag rules: a viewpoint tagged `science` is
+still a viewpoint.
+
+The Nearby list, search results and cluster detail take their icon from the
+same `placeIconSlug` (via `landmarkEmoji` in js/app.js), so a place shows the
+same pin wherever it appears. `placePrimaryFilterKey` stays on the chip
+vocabulary because it feeds the *type label*, and `filterMeta()` has no label
+for a topic key — a royal site would read "Place" instead of "Historic sites".
 
 **Pulsing radial background:** 2-second cycle sine wave oscillating between 0.3–0.8 opacity.
 
