@@ -231,9 +231,11 @@ committed under `reports/` and are never listed by the index or the sitemap.
 
 ## Address
 
-The site's official address is `https://www.eppingforestfinds.uk`. Every link
-the report generates — the app link, the "report a mistake" link, canonical
-and link-preview addresses — is built from `SITE_BASE` in `render_report.py`.
+The site's official address is `https://www.eppingforestfinds.uk`. The app
+advert and its "report a mistake" deep link default to
+`https://www.eppingforestfinds.uk/app`; canonical and link-preview addresses
+remain under their public report URLs. These addresses are built from
+`SITE_BASE` in `render_report.py`.
 
 ## Sections that are always there
 

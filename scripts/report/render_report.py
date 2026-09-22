@@ -33,7 +33,7 @@ else:
     from .text_utils import oxford_comma_join, pluralize_label
 
 SITE_BASE = "https://www.eppingforestfinds.uk"
-DEFAULT_APP_LINK = SITE_BASE + "/"
+DEFAULT_APP_LINK = SITE_BASE + "/app"
 SOCIAL_IMAGE_URL = SITE_BASE + "/data/icons/icon-512.png"
 
 # The cattle on the report's map are drawn with the app's own cow icon, shrunk
@@ -460,7 +460,7 @@ def render_ai_note(app_link, date_display):
     straight into the app's own report-a-problem screen, pre-filled so we know
     which week it came from."""
     subject = f"Mistake in the Epping Forest Ledger for {date_display}" if date_display else "Mistake in the Epping Forest Ledger"
-    deep_link = f"{app_link.rstrip('/')}/#report={quote(subject, safe='')}"
+    deep_link = f"{app_link.rstrip('/')}#report={quote(subject, safe='')}"
     return (
         '<aside class="ai-note">'
         '<h4>Written by AI — please tell us if it is wrong</h4>'
