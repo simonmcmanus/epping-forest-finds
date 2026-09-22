@@ -1,10 +1,20 @@
 const TFL_BASE = "https://api.tfl.gov.uk";
 
+// A compass bearing tells a rider nothing they can act on -- "towards 225" or
+// "towards NE" reads as noise next to "towards Walthamstow Central" -- so any
+// value that is only a bearing (degrees, compass letters, or bare compass
+// words) is rejected rather than shown as the stop's direction.
+const COMPASS_BEARING_REGEX = /^(?:\d{1,3}(?:\.\d+)?\s*(?:°|deg(?:rees)?)?|(?:north|south|east|west)(?:[\s-]?(?:north|south|east|west))?)$/i;
+// Letter compass points come through uppercase ("NE", "SSW"); matching them
+// case-insensitively would also swallow short place names like "New".
+const COMPASS_POINT_REGEX = /^[NSEW]{1,3}$/;
+
 function normalizeDirectionText(value) {
   if (typeof value !== "string") return null;
   const cleaned = value.replace(/\s+/g, " ").trim();
   if (!cleaned) return null;
   if (/^stop\s+[a-z0-9]$/i.test(cleaned)) return null;
+  if (COMPASS_BEARING_REGEX.test(cleaned) || COMPASS_POINT_REGEX.test(cleaned)) return null;
   return cleaned.replace(/^towards\s+/i, "");
 }
 
@@ -42,18 +52,15 @@ function stopMetadataDirection(stopPoint) {
     ].filter(Boolean).join(" ");
     // TfL stop metadata is inconsistent, so match any property whose label looks
     // direction-related and then normalize the associated value.
-    if (!/towards|destination|direction|bearing|compass/i.test(descriptor)) continue;
+    if (!/towards|destination|direction/i.test(descriptor)) continue;
     const direction = normalizeDirectionText(property && (property.value || property.description));
     if (direction) return direction;
   }
 
   const indicator = normalizeDirectionText(stopPoint.indicator);
-  if (indicator && /bound|towards|via|\b(?:north|south|east|west|n|s|e|w)\b/i.test(indicator)) {
+  if (indicator && /bound|towards|via/i.test(indicator)) {
     return indicator;
   }
-
-  const bearing = normalizeDirectionText(stopPoint.bearing);
-  if (bearing) return bearing;
 
   return null;
 }

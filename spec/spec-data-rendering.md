@@ -764,6 +764,7 @@ The figure itself is the real road/path-following distance (and the walk time de
 - OSM attribution (only for OSM-sourced places)
 - Live distance + walking time
 - Bus stop selections append live departures when online; the departures block also shows a bus-stop direction summary (`Buses towards …`) using TfL stop metadata when available, otherwise a deduplicated summary of upcoming destination names for that stop only.
+- The direction is only ever a place a bus is heading for, or wording such as `northbound`/`via …` from the stop's own flag. A compass bearing is never used: TfL's `bearing`, `CompassPoint` and similar metadata (`225`, `NE`, `north-east`) are discarded rather than shown, because a bearing tells a rider nothing they can act on. A stop with no usable direction shows no direction line, and its Nearby entry keeps its plain name.
 
 #### Cow Details
 
