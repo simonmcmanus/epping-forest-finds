@@ -41,7 +41,7 @@ function loadAppRules() {
   // scope rather than becoming properties of the context object, so the ones
   // this script needs are read back out with an expression.
   return vm.runInContext(
-    "({ FILTER_GROUPS, PLACE_FILTER_PRIORITY, matchesPlaceFilter, buildOsmCategoryTags, normalizeFolkloreLocations, extractWaterFeatures })",
+    "({ FILTER_GROUPS, placeLabelFilterKey, buildOsmCategoryTags, normalizeFolkloreLocations, extractWaterFeatures })",
     context
   );
 }
@@ -103,12 +103,15 @@ function buildInventory(root = APP_ROOT) {
   const fixedCounts = { [TREE_KEY]: treeCount, [WATER_KEY]: waterCount };
 
   // A place can satisfy more than one subfilter (a historic pub is both), so
-  // the same priority order the map uses to pick a pin's icon decides which
-  // single subfilter it is counted under. That keeps the breakdown adding up
-  // to the total instead of double-counting.
+  // it is counted under the one filter chip the app lists it under. That keeps
+  // the breakdown adding up to the total instead of double-counting. The app's
+  // own placeLabelFilterKey decides, rather than a copy of its priority order:
+  // that order has a fallback tier (historic, monuments) and a chipless key
+  // (blue_plaques reads as Plaques), and a copy that missed them counted all
+  // three as zero.
   const claimed = new Map();
   for (const place of places) {
-    const key = rules.PLACE_FILTER_PRIORITY.find((filterKey) => rules.matchesPlaceFilter(place, filterKey));
+    const key = rules.placeLabelFilterKey(place);
     if (!key) continue;
     claimed.set(key, (claimed.get(key) || 0) + 1);
   }
