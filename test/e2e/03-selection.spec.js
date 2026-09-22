@@ -22,7 +22,7 @@ test.describe("Selection and Inspector", () => {
     });
 
     test("tag number is shown as a metal tag plate", async ({ page }) => {
-      await expect(page.locator("#inspectorBody .tree-tag-plate")).toHaveText(FIXTURE_TREE.tagNumber);
+      await expect(page.locator("#inspectorBody .tree-tag-number")).toHaveText(FIXTURE_TREE.tagNumber);
     });
 
     test("URL hash reflects the selected tree", async ({ page }) => {

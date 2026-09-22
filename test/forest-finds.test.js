@@ -3118,7 +3118,7 @@ test("nearby list omits tag chip when tree has no tag number", () => {
 
 test("tree tag number renders as an escaped metal tag plate", () => {
   assert.equal(app.treeTagPlateHtml(null), null);
-  assert.equal(app.detailsHtml([["Tag number", app.treeTagPlateHtml("<1>")]]).includes('<span class="tree-tag-plate">&lt;1&gt;</span>'), true);
+  assert.equal(app.detailsHtml([["Tag number", app.treeTagPlateHtml("<1>")]]).includes('<span class="tree-tag-number">&lt;1&gt;</span>'), true);
 });
 
 test("nearby transport entries use the generated bus icon asset", () => {

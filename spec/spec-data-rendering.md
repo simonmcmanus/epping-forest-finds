@@ -750,7 +750,7 @@ The figure itself is the real road/path-following distance (and the walk time de
 
 #### Tree Details
 
-- **Tag number** (physical forest tag) is shown as the **first** always-visible field, before Estimated age and Common name. This is the number printed on the physical tag nailed to the tree, making it easy to confirm you're looking at the right record without extra taps. The number is drawn as the physical tag itself (`.tree-tag-plate`): an embossed galvanised-grey plate with wavy top and bottom edges, a rusty nail head on the left and an empty nail hole on the right. It is plain text, so it stays selectable, searchable and readable by screen readers.
+- **Tag number** (physical forest tag) is shown as the **first** always-visible field, before Estimated age and Common name. This is the number printed on the physical tag nailed to the tree, making it easy to confirm you're looking at the right record without extra taps. The number is drawn as the physical tag itself (`.tree-tag` / `.tree-tag-plate`): a galvanised-grey plate with wavy top and bottom edges, a soft drop shadow and faint rust, large dark raised digits (high contrast for legibility), a rusty nail head on the left and an empty nail hole on the right. It is plain text, so it stays selectable, searchable and readable by screen readers.
 - Register fields: IDs, taxonomy, status, girth, metadata, comments, grid refs
 - Enriched named-tree data: match metadata, folklore/historical notes, source links
 - Inspector title icon: `tree.png`

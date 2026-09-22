@@ -1038,7 +1038,7 @@ async function shareCurrentLocation() {
 // Returned as a pre-escaped { html } value for detailsHtml.
 function treeTagPlateHtml(tag) {
   if (!tag) return null;
-  return { html: `<span class="tree-tag-plate">${escapeHtml(tag)}</span>` };
+  return { html: `<span class="tree-tag"><span class="tree-tag-plate"><span class="tree-tag-number">${escapeHtml(tag)}</span></span></span>` };
 }
 
 function detailsHtml(rows) {
