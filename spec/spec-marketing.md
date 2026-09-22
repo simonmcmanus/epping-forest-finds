@@ -188,24 +188,26 @@ Sections, in order:
 1. **Hero** — the line-art longhorn (§7) as background, headline (§3.1),
    sub-line (§3.2), and the primary CTA element (§8). The photo caption uses
    white text on an opaque dark-green backing for contrast across the image.
-2. **Three feature cards** — directly after the hero: offline, veteran trees
-   and cattle (§3.4). White cards have rounded borders, shadows and 80px centred
-   independent brand icons from `assets/home/`, with centred headings. Use three
-   equal columns on wide screens and stack them on mobile.
-3. **Find the tree behind the tag** — after the feature cards, explain
+2. **Find the tree behind the tag** — directly after the hero, explain
    searching physical tag numbers, navigating to a specific tree and checking
-   its tag on arrival. Show a labelled photograph of a real numbered metal tag
-   alongside three app screenshots: searching its number, following its route
-   and viewing its estimated age. Use each screenshot caption for the matching
-   explanation rather than repeating the same three points in a separate list.
-   On wide screens, keep all four cards in one row
-   rather than stacking a screenshot beneath the shorter tag photograph. Load
-   these supporting images lazily. The navigation caption explains that routes
-   try to favour scenic forest paths and alleyways, without guaranteeing them. Placeholder screenshot assets may stand in
-   until final captures are available. Ages are
-   educated guesses from recorded girth and species where data is available,
-   not exact birthdays.
-4. **What's on the map** — one neutral inventory card, matching the Ledger's
+   its tag on arrival, with three app screenshots: searching its number,
+   following its route and viewing its estimated age. Use each screenshot
+   caption for the matching explanation rather than repeating the same three
+   points in a separate list. On wide screens, keep the three cards in one
+   row. Load these supporting images lazily. The navigation caption explains
+   that routes try to favour scenic forest paths and alleyways, without
+   guaranteeing them. Placeholder screenshot assets may stand in until final
+   captures are available. Ages are educated guesses from recorded girth and
+   species where data is available, not exact birthdays.
+3. **Example tag** — its own section between the tag guide and the feature
+   cards: a photograph of a real numbered metal tag (27400), cropped to a
+   centred circle, with descriptive alt text and no visible caption. Load it
+   lazily.
+4. **Three feature cards** — offline, veteran trees and cattle (§3.4). White
+   cards have rounded borders, shadows and 80px centred independent brand
+   icons from `assets/home/`, with centred headings. Use three equal columns
+   on wide screens and stack them on mobile.
+5. **What's on the map** — one neutral inventory card, matching the Ledger's
    categorisation: a headline total, the six app filter groups (Nature, Food,
    Transport, History, Locations and Stories), every subfilter and count, then
    a full-width row for always-shown facilities. Each group heading uses an
@@ -215,21 +217,21 @@ Sections, in order:
    in the same 38px column, with aligned category and subcategory labels. The
    header brand mark is the transparent oak leaf from the app icon, without
    the app icon's yellow background.
-5. **From the Ledger** — an inset editorial card with generous responsive padding,
+6. **From the Ledger** — an inset editorial card with generous responsive padding,
    a green left border, weekly field-notes eyebrow and a link to `/reports/` (§6.4).
    The index carries individual reports; the homepage remains static.
-6. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
+7. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
    left border accent using the app icon's gold (`#f3d36b`), matching the
    Ledger card's accent placement. Introduction, consent and supporting text
    use the full card content width; only the email field has a narrower cap. Both introduction and
    consent include weekly Epping Forest Ledger updates once the site launches.
-7. **How it works offline** — three steps: open it once on signal, it downloads,
+8. **How it works offline** — three steps: open it once on signal, it downloads,
    it then works anywhere in the forest. A separate padded note explains that
    fresh cattle locations require a connection and saved positions may be stale.
-8. **FAQ** — immediately before the footer, with `FAQPage` JSON-LD (§6.3).
+9. **FAQ** — immediately before the footer, with `FAQPage` JSON-LD (§6.3).
    Covers signal, cost/account, tree data, cattle positions and coverage.
    No battery-use question.
-9. **Footer** — builder credit, `/terms.html`, GitHub feedback and contact address
+10. **Footer** — builder credit, `/terms.html`, GitHub feedback and contact address
    `mcmanus.simon@gmail.com`. No separate dataset-attribution paragraph; source
    explanations remain in the FAQ.
 

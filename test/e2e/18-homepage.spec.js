@@ -29,7 +29,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Every veteran tree in the register/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
-    await expect(page.locator(".hero + .pillars + #find-trees")).toHaveCount(1);
+    await expect(page.locator(".hero + #find-trees + .tag-feature + .pillars")).toHaveCount(1);
     for (const card of await page.locator(".pillars article").all()) {
       await expect(card).toHaveCSS("border-radius", "14px");
       await expect(card).not.toHaveCSS("box-shadow", "none");
@@ -72,18 +72,33 @@ test.describe("the marketing homepage", () => {
     await expect(trees).toContainText("Navigate to that tree.");
     await expect(trees).toContainText("recorded girth and species");
     await expect(trees).toContainText("not an exact birthday");
-    await expect(trees.locator(".tag-photo img")).toHaveAttribute(
-      "alt",
-      /metal tree tag stamped with the number 27400/i
-    );
     await expect(trees.locator(".tag-story figcaption")).toHaveText([
-      "The tag you spot: 27400",
       "1. Search its tag number. Enter the number on the tree’s physical tag to find its record on the map.",
       "2. Navigate to that tree. Select it for a route from your location. We try to find a more scenic way through forest paths and alleyways. Check its tag number when you arrive.",
       "3. Discover its estimated age. We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday."
     ]);
     await expect(trees.locator(".app-shot img")).toHaveCount(3);
     await expect(trees.locator(".steps")).toHaveCount(0);
+  });
+
+  test("shows the example tag on its own, centred in a circle with no caption", async ({ page }) => {
+    await page.goto("/");
+    const feature = page.locator(".tag-feature");
+    const photo = feature.locator("img");
+    await expect(photo).toHaveAttribute("alt", /metal tree tag stamped with the number 27400/i);
+    await expect(feature.locator("figcaption")).toHaveCount(0);
+    await expect(feature).toHaveText("");
+    await photo.scrollIntoViewIfNeeded();
+    await expect(photo).toHaveCSS("border-radius", "50%");
+    const geometry = await photo.evaluate(img => {
+      const box = img.getBoundingClientRect();
+      const section = img.parentElement.getBoundingClientRect();
+      return {
+        square: Math.abs(box.width - box.height) < 1,
+        centred: Math.abs(box.x + box.width / 2 - section.x - section.width / 2) < 1
+      };
+    });
+    expect(geometry).toEqual({ square: true, centred: true });
   });
 
   test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
