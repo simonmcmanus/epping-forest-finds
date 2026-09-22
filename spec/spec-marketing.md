@@ -234,7 +234,9 @@ Sections, in order:
    larger so the group hierarchy remains clear. Both icon sizes sit centred
    in the same 38px column, with aligned category and subcategory labels. The
    header brand mark is the transparent oak leaf from the app icon, without
-   the app icon's yellow background.
+   the app icon's yellow background, shown at 44px (36px on phones), with the
+   brand name and Ledger link each kept to one line. The same leaf sits in a
+   34px cream circle before the hero eyebrow ("Epping Forest, offline").
 6. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
    left border accent using the app icon's gold (`#f3d36b`), matching the
    Ledger card's accent placement. A 52px envelope icon

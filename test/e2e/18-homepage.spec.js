@@ -46,6 +46,13 @@ test.describe("the marketing homepage", () => {
     await page.goto("/");
 
     await expect(page.locator(".brand-mark")).toHaveAttribute("src", "assets/home/map-icons/oak.png");
+    const brandWidth = parseFloat(await page.locator(".brand-mark").evaluate(el => getComputedStyle(el).width));
+    expect(brandWidth).toBeGreaterThanOrEqual(36);
+    const headerOnOneLine = await page.locator(".site-head").evaluate(head =>
+      [...head.querySelectorAll(".brand span, .head-link")].every(el => el.getClientRects().length === 1 && el.getBoundingClientRect().height < 32));
+    expect(headerOnOneLine).toBe(true);
+    await expect(page.locator(".hero-eyebrow .hero-leaf")).toHaveAttribute("src", "assets/home/map-icons/oak.png");
+    await expect(page.locator(".hero-eyebrow")).toHaveText("Epping Forest, offline");
     await expect(page.locator(".inventory-total")).toContainText("31,000");
     const totalIcon = page.locator(".inventory-total img");
     await expect(totalIcon).toHaveAttribute("src", "assets/home/map-icons/all-finds.png");
