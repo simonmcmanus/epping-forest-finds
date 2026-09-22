@@ -31,6 +31,18 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
   });
 
+  test("matches the app legend's detailed map key and uses the oak-leaf brand mark", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.locator(".brand-mark")).toHaveAttribute("src", "assets/home/favicon.png");
+    await expect(page.locator(".map-key li")).toHaveText([
+      "●Trees", "💧Hydrology", "🌿Nature designations", "🌻Gardens & parks",
+      "🥾Paths & trails", "🐄Cows", "🍺Pubs & bars", "🍽️Restaurants",
+      "☕Cafés", "🚆Trains", "🚌Buses", "🅿️Car parks", "📍Locations",
+      "🪧Plaques", "📜History", "✨Legends"
+    ]);
+  });
+
   test("explains finding a specific tree by its tag and treating its age as an estimate", async ({ page }) => {
     await page.goto("/");
     const trees = page.locator("#find-trees");

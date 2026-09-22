@@ -198,7 +198,12 @@ Sections, in order:
    educated guesses from recorded girth and species where data is available,
    not exact birthdays. The three pillars follow: offline, veteran trees and
    cattle (§3.4), each with its independent brand icon copy from `assets/home/`.
-3. **What's on the map** — the counts block (§3.4 fourth item, §4).
+3. **What's on the map** — the counts block (§3.4 fourth item, §4), followed
+   by a coloured key naming the same 16 feature types as the in-app map legend:
+   trees, hydrology, nature designations, gardens and parks, paths and trails,
+   cows, pubs and bars, restaurants, cafés, trains, buses, car parks, locations,
+   plaques, history and legends. The colour accents should remain secondary to
+   the written labels so the key does not rely on colour alone.
 4. **How it works offline** — three steps: open it once on signal, it
    downloads, it then works anywhere in the forest. This section exists to
    answer the "how can a map work with no signal?" objection, which is the
