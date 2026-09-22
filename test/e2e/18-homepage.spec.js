@@ -34,13 +34,14 @@ test.describe("the marketing homepage", () => {
   test("matches the app legend's detailed map key and uses the oak-leaf brand mark", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.locator(".brand-mark")).toHaveAttribute("src", "assets/home/favicon.png");
+    await expect(page.locator(".brand-mark")).toHaveAttribute("src", "assets/home/map-icons/oak.png");
     await expect(page.locator(".map-key li")).toHaveText([
-      "●Trees", "💧Hydrology", "🌿Nature designations", "🌻Gardens & parks",
-      "🥾Paths & trails", "🐄Cows", "🍺Pubs & bars", "🍽️Restaurants",
-      "☕Cafés", "🚆Trains", "🚌Buses", "🅿️Car parks", "📍Locations",
-      "🪧Plaques", "📜History", "✨Legends"
+      "24,906Trees", "1,519Hydrology features", "16Nature designations", "3,904Gardens & parks",
+      "9,162Paths & trails", "LiveCow locations", "98Pubs & bars", "259Restaurants",
+      "168Cafés", "28Train stations", "1,069Bus stops", "767Car parks", "30Locations",
+      "0Plaques", "12History sites", "33Legends"
     ]);
+    await expect(page.locator(".map-key img")).toHaveCount(16);
   });
 
   test("explains finding a specific tree by its tag and treating its age as an estimate", async ({ page }) => {

@@ -63,6 +63,46 @@ test("the homepage's headline counts match the datasets they describe", () => {
   }
 });
 
+test("the detailed map key counts match the features behind the app legend", () => {
+  const html = readHomepage();
+  const inventory = require("../scripts/report/map-inventory.js").buildInventory(ROOT);
+  const environment = JSON.parse(
+    fs.readFileSync(path.join(ROOT, "data", "local-environment.geojson"), "utf8")
+  );
+  const environmentCounts = environment.features.reduce((counts, feature) => {
+    const key = feature.properties && feature.properties.featureType;
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+  const subfilters = Object.fromEntries(
+    inventory.groups.flatMap(group => group.subfilters.map(item => [item.key, item.count]))
+  );
+  const groups = Object.fromEntries(inventory.groups.map(group => [group.key, group.count]));
+  const expected = {
+    trees: subfilters.trees,
+    hydrology: (environmentCounts.hydrology_line || 0) + (environmentCounts.hydrology_area || 0),
+    "nature-designations": environmentCounts.nature_designation || 0,
+    "gardens-parks": environmentCounts.garden || 0,
+    paths: readCounts(ROOT).paths,
+    pubs: subfilters.pubs,
+    restaurants: subfilters.restaurants,
+    cafes: subfilters.cafes,
+    trains: subfilters.underground + subfilters.national_rail,
+    buses: subfilters.bus,
+    parking: subfilters.parking,
+    locations: groups.locations,
+    plaques: subfilters.plaques,
+    history: groups.history,
+    legends: subfilters.legends,
+  };
+
+  for (const [key, count] of Object.entries(expected)) {
+    const item = html.match(new RegExp(`data-map-key="${key}"[\\s\\S]*?<strong>([\\d,]+)</strong>`));
+    assert.ok(item, `the homepage should show a count for ${key}`);
+    assert.strictEqual(item[1], formatCount(count), `${key} should match the map dataset`);
+  }
+});
+
 /**
  * The test above says when the page is wrong. It took a person reading the
  * failure and editing the copy to make it right again -- which the weekly

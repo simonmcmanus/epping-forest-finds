@@ -202,8 +202,12 @@ Sections, in order:
    by a coloured key naming the same 16 feature types as the in-app map legend:
    trees, hydrology, nature designations, gardens and parks, paths and trails,
    cows, pubs and bars, restaurants, cafés, trains, buses, car parks, locations,
-   plaques, history and legends. The colour accents should remain secondary to
-   the written labels so the key does not rely on colour alone.
+   plaques, history and legends. Each entry carries the current dataset count
+   and an independent homepage copy of the icon the app uses on the map; cattle
+   say `Live` because their current count changes with the collar feed. The
+   colour accents remain secondary to the written labels so the key does not
+   rely on colour alone. The header brand mark is the transparent oak leaf from
+   the app icon, without the app icon's yellow background.
 4. **How it works offline** — three steps: open it once on signal, it
    downloads, it then works anywhere in the forest. This section exists to
    answer the "how can a map work with no signal?" objection, which is the
