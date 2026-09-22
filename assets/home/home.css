@@ -118,9 +118,8 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 
 .signup-intro { max-width: none; margin: 0 0 20px; }
 .signup .eyebrow { color: var(--tree); }
-.card-head { display: flex; gap: 16px; align-items: center; margin-bottom: 14px; }
-.card-icon { flex: 0 0 52px; width: 52px; height: 52px; }
-.card-head .eyebrow { margin-bottom: 2px; }
+.card-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
+.card-icon { flex: 0 0 44px; width: 44px; height: 44px; }
 .card-head h2 { margin: 0; }
 .signup-row { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 36rem; }
 .signup-row .cta-btn { white-space: nowrap; }

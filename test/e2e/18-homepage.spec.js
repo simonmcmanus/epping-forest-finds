@@ -142,12 +142,18 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator(".signup + .offline-how + .faq + .ledger")).toHaveCount(1);
     await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.svg");
     await expect(page.locator(".ledger .card-icon")).toHaveAttribute("src", "assets/home/ledger.svg");
-    const iconsBesideHeadings = await page.locator(".card-head").evaluateAll(heads => heads.map(head => {
+    // The eyebrow sits above, flush with the icon; the icon is centred on the title beside it.
+    const iconAlignment = await page.locator(".card-head").evaluateAll(heads => heads.map(head => {
       const icon = head.querySelector(".card-icon").getBoundingClientRect();
       const heading = head.querySelector("h2").getBoundingClientRect();
-      return icon.right <= heading.left && icon.bottom > heading.top;
+      const eyebrow = head.previousElementSibling.getBoundingClientRect();
+      return {
+        besideTitle: icon.right <= heading.left,
+        centredOnTitle: Math.abs(icon.top + icon.height / 2 - (heading.top + heading.height / 2)) < 1,
+        flushWithEyebrow: Math.abs(icon.left - eyebrow.left) < 1 && eyebrow.bottom <= icon.top
+      };
     }));
-    expect(iconsBesideHeadings).toEqual([true, true]);
+    expect(iconAlignment).toEqual(Array(2).fill({ besideTitle: true, centredOnTitle: true, flushWithEyebrow: true }));
     await expect(page.locator(".ledger").getByRole("link", { name: "Read the Ledger →" })).toHaveCSS("background-color", "rgb(46, 107, 68)");
     await expect(page.locator("main > section:last-child")).toHaveClass(/\bledger\b/);
     await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
