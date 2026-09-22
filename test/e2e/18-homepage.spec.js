@@ -126,7 +126,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator('a[href="/terms.html"]').first()).toBeVisible();
   });
 
-  test("tells the visitor to check their inbox rather than claiming they are subscribed", async ({ page }) => {
+  test("gives a neutral success message that also covers an existing address", async ({ page }) => {
     await page.route("**/api/subscribe", (route) =>
       route.fulfill({
         status: 200,
@@ -140,7 +140,13 @@ test.describe("the marketing homepage", () => {
     await page.check("#consent");
     await page.click("#signupForm button[type=submit]");
 
-    await expect(page.locator("#formMsg")).toContainText(/check your inbox/i);
+    await expect(page.locator("#formMsg")).toContainText(
+      "Confirmation is needed — check your inbox. The email might be in your spam folder."
+    );
+    await expect(page.locator("#email")).toBeDisabled();
+    await expect(page.locator("#consent")).toBeDisabled();
+    await expect(page.locator("#signupForm button[type=submit]")).toBeDisabled();
+    await expect(page.locator("#signupForm button[type=submit]")).toHaveText("Request received");
   });
 
   test("refuses to submit without consent", async ({ page }) => {
