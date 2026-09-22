@@ -3,9 +3,18 @@
  * edition first. See spec/spec-weekly-report.md.
  */
 
+const path = require("node:path");
 const { test, expect } = require("@playwright/test");
+const { generate } = require("../../scripts/generate-reports-index.js");
 
 test.describe("the Ledger listing", () => {
+  // reports/index.html is a build output (gitignored, written by `npm run
+  // build`), and CI's e2e job does not build. Generate it the way the build
+  // does, so these specs test the current generator rather than a stale file.
+  test.beforeAll(() => {
+    generate(path.join(__dirname, "..", "..", "reports"));
+  });
+
   test("lists every edition newest first, under the homepage's header and green hero", async ({ page }) => {
     await page.goto("/reports/");
 
