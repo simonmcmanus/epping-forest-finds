@@ -100,10 +100,9 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .faq-item + .faq-item { border-top: 1px solid var(--line); }
 .faq-item dt { margin: 0; font-size: 1.02rem; font-weight: 700; line-height: 1.4; }
 .faq-item dd { max-width: 42em; margin: 6px 0 0; color: var(--muted); }
-.tag-intro { margin-bottom: 24px; }
-.tag-feature, .tag-feature + .pillars { border-top: 0; }
-.tag-feature { padding: 8px 0; }
-.tag-intro > p { margin: 0; color: var(--muted); }
+.tag-intro { display: grid; gap: 24px; align-items: center; margin-bottom: 24px; }
+.tag-feature { margin: 0; padding: 0; border: 0; }
+.tag-copy p { margin: 0; color: var(--muted); }
 .tag-story { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 84%); gap: 14px; align-items: start; overflow-x: auto; margin-top: 24px; padding: 2px 2px 12px; scroll-snap-type: x proximity; }
 .tag-story figure { display: flex; flex-direction: column; margin: 0; scroll-snap-align: start; }
 .tag-story .app-shot img { position: relative; z-index: 1; display: block; box-sizing: border-box; width: 84%; height: auto; margin: 0 auto; border: 4px solid var(--tree-deep); border-radius: 26px; background: var(--surface); box-shadow: 0 2px 6px rgba(24, 28, 17, .14); }
@@ -168,6 +167,8 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 }
 
 @media (min-width: 640px) {
+  .tag-intro { grid-template-columns: minmax(0, 1fr) clamp(180px, 24vw, 260px); gap: 40px; }
+  .tag-feature img { width: 100%; }
   .hero { grid-template-columns: minmax(0, 1.08fr) minmax(300px, .92fr); min-height: 470px; }
   .hero-copy { padding: 48px 42px; }.hero-photo { min-height: 0; }
   .tag-story { grid-auto-flow: row; grid-auto-columns: auto; grid-template-areas: "search route age"; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto; align-items: stretch; overflow: visible; padding: 0; }

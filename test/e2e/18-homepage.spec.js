@@ -31,7 +31,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Get to know the old trees/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
-    await expect(page.locator(".hero + .counts + #find-trees + .tag-feature + .pillars")).toHaveCount(1);
+    await expect(page.locator(".hero + .counts + .pillars + #find-trees")).toHaveCount(1);
     for (const card of await page.locator(".pillars article").all()) {
       await expect(card).toHaveCSS("border-radius", "14px");
       await expect(card).not.toHaveCSS("box-shadow", "none");
@@ -117,7 +117,7 @@ test.describe("the marketing homepage", () => {
     await expect(trees.locator(".steps")).toHaveCount(0);
   });
 
-  test("shows the example tag on its own, centred in a circle with no caption", async ({ page }) => {
+  test("places the circular tag beside the introduction on desktop and below it on mobile", async ({ page }) => {
     await page.goto("/");
     const feature = page.locator(".tag-feature");
     const photo = feature.locator("img");
@@ -136,7 +136,16 @@ test.describe("the marketing homepage", () => {
     });
     expect(geometry).toEqual({ square: true, centred: true });
     await expect(feature).toHaveCSS("border-top-width", "0px");
-    await expect(page.locator(".tag-feature + .pillars")).toHaveCSS("border-top-width", "0px");
+    await expect(page.locator("#find-trees .tag-intro .tag-feature")).toHaveCount(1);
+    const layout = await page.locator(".tag-intro").evaluate(intro => {
+      const copy = intro.querySelector(".tag-copy").getBoundingClientRect();
+      const photo = intro.querySelector(".tag-feature").getBoundingClientRect();
+      return innerWidth >= 640
+        ? photo.left >= copy.right && photo.top < copy.bottom && photo.bottom > copy.top
+        : photo.top >= copy.bottom;
+    });
+    expect(layout).toBe(true);
+    await expect(page.locator("#find-trees > .tag-intro + .tag-story")).toHaveCount(1);
   });
 
   test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
@@ -333,6 +342,10 @@ test.describe("the marketing homepage", () => {
       expect(new URL(url).pathname).toMatch(/^\/assets\/home\//);
     }
     await expect(page.locator(".hero-photo img")).toBeVisible();
+    for (const image of await page.locator('img[loading="lazy"]').all()) {
+      await image.scrollIntoViewIfNeeded();
+      await expect.poll(() => image.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    }
     await expect.poll(() => page.locator("img").evaluateAll(images => images.every(img => img.complete && img.naturalWidth > 0))).toBe(true);
     expect(requests.filter(path => /^\/(js|css|data)\//.test(path))).toEqual([]);
   });
