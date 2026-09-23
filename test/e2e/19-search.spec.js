@@ -140,6 +140,44 @@ test.describe("Searching the map", () => {
     await page.waitForFunction(() => state.searchHighlightResults.length === 0);
   });
 
+  test("the map shows only the matching pin for a search, ignoring the active filters", async ({ page }) => {
+    await page.click("#searchToggle");
+    await page.click("#nearbyToggle");
+    await page.waitForFunction(
+      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
+    );
+
+    // Filter down to just Cows, then search for the pub -- a category Cows-only would hide.
+    await page.click("#filterToggle");
+    await page.click('[data-filter-subfilter="cows"]');
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", FIXTURE_PLACE);
+    await page.waitForFunction(
+      (name) => state.searchHighlightResults.some((r) => r.item?.name === name),
+      FIXTURE_PLACE
+    );
+
+    const lookup = await page.evaluate(() => {
+      const active = activeIconLookup();
+      return {
+        landmarkCount: active.landmark.size,
+        treeCount: active.tree.size,
+        opacity: markerOpacityFor("landmark", Array.from(active.landmark)[0]),
+      };
+    });
+    expect(lookup.landmarkCount).toBe(1);
+    expect(lookup.treeCount).toBe(0);
+    expect(lookup.opacity).toBe(1);
+
+    // The active filter is still there to clear.
+    const clearButton = page.locator("#mapSearchResults [data-filter-clear-all]");
+    await expect(clearButton).toBeVisible();
+    await clearButton.click();
+    await expect(clearButton).toHaveCount(0);
+    const filtersAfter = await page.evaluate(() => state.overviewFilters.length);
+    expect(filtersAfter).toBe(0);
+  });
+
   test("the nearby button is the way back out of search", async ({ page }) => {
     await page.click("#searchToggle");
     await page.waitForFunction(

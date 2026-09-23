@@ -593,6 +593,10 @@ function setupFilterPanelHandlers() {
     const clearAllButton = event.target.closest("[data-filter-clear-all]");
     if (clearAllButton) {
       setOverviewFilters([]);
+      // setOverviewFilters only refreshes the Filter screen's own chips/camera -- it has no
+      // notion of Search, whose own "Clear all filters" row (searchResultsHtml) needs a
+      // rerender too, so the row disappears now that there is nothing left to clear.
+      if (state.searchScreenOpen) renderSearchResults();
       return;
     }
 

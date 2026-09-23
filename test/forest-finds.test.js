@@ -245,6 +245,12 @@ globalThis.__forestFindsTest = {
   SEARCH_RANK_WORD,
   SEARCH_RANK_SUBSTRING,
   SEARCH_RANK_TOKENS,
+  SEARCH_HIGHLIGHT_LIMIT,
+  updateSearchHighlight,
+  buildSearchIconLookup,
+  activeIconLookup,
+  markerOpacityFor,
+  searchClearFiltersHtml,
   treeHashKey,
   findTreeByHashKey,
   treeDisplayName,
@@ -3298,6 +3304,79 @@ test("search works with no location fix, listing matches without distances", () 
   assert.equal(results.length, 1);
   assert.equal(results[0].metres, null, "no origin means no distance to report");
   assert.doesNotMatch(app.searchResultsHtml("royal forest"), /walk-chip/);
+});
+
+test("the map shows only the search matches, drawn with their normal pins -- nothing else in those categories", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  app.state.searchScreenOpen = true;
+  app.searchResultsHtml("royal forest");
+
+  const lookup = app.buildSearchIconLookup();
+  assert.equal(lookup.landmark.size, 1, "only the matching pub is in the search set");
+  assert.ok(Array.from(lookup.landmark)[0].name === "The Royal Forest");
+  assert.equal(lookup.tree.size, 0, "the unrelated trees are left out entirely, not dimmed");
+
+  assert.equal(app.activeIconLookup(), lookup, "the shared draw/hit-test lookup is the search one while search has matches");
+});
+
+test("activeIconLookup falls back to the ordinary Nearby set once Search has no query", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  app.state.searchScreenOpen = true;
+  app.searchResultsHtml("");
+
+  assert.equal(app.state.searchHighlightResults.length, 0);
+  assert.equal(app.activeIconLookup(), app.buildNearbyIconLookup());
+});
+
+test("search results are never dimmed by the active category filters", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  const pub = app.state.landmarks.find((place) => place.id === "pub-1");
+
+  app.setOverviewFilters(["cows"]);
+  assert.equal(app.markerOpacityFor("landmark", pub), 0.3, "off Search, a filtered-out category is dimmed as usual");
+
+  app.state.searchScreenOpen = true;
+  assert.equal(app.markerOpacityFor("landmark", pub), 1, "inside Search the same item is full strength");
+  assert.equal(app.markerOpacityFor("cow", { id: "any-cow" }), 1);
+});
+
+test("a \"Clear all filters\" row appears in Search whenever filters are active, on every state of the results pane", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+
+  assert.doesNotMatch(app.searchResultsHtml(""), /data-filter-clear-all/, "nothing to clear yet");
+
+  app.setOverviewFilters(["cows"]);
+  assert.match(app.searchResultsHtml(""), /data-filter-clear-all/, "empty prompt");
+  assert.match(app.searchResultsHtml("a"), /data-filter-clear-all/, "too-short prompt");
+  assert.match(app.searchResultsHtml("zzzznothing"), /data-filter-clear-all/, "no-matches state");
+  assert.match(app.searchResultsHtml("royal forest"), /data-filter-clear-all/, "results list");
+
+  app.setOverviewFilters([]);
+  assert.doesNotMatch(app.searchResultsHtml("royal forest"), /data-filter-clear-all/, "hidden again once cleared");
+});
+
+test("nearest-first: searching a whole category (cows) leads with the closest one", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  app.state.cows = [
+    { serialNo: "far-cow", ...makePoint(app, 0.05, 0) },
+    { serialNo: "near-cow", ...makePoint(app, 0.001, 0) },
+  ];
+
+  const results = app.searchMapFeatures("cow").filter((r) => r.type === "cow");
+
+  assert.equal(results.length, 2);
+  assert.equal(results[0].item.serialNo, "near-cow");
+  assert.equal(results[1].item.serialNo, "far-cow");
 });
 
 test("the search index picks up data that arrived after the last search", () => {
