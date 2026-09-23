@@ -106,7 +106,7 @@ Epping Forest." so the first line leads.
 > so they might have wandered off since.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 771 pubs, cafés and shops. 1,596 car parks,
+> 9,162 paths and bridleways. 846 pubs, cafés and shops. 1,596 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -149,7 +149,7 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 771 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 846 food & drink | feature count, `data/local-landmarks-food.geojson` |
 | 1,596 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
@@ -400,7 +400,7 @@ the site runs in.
 
 | State | CTA | Supporting line |
 | --- | --- | --- |
-| `closed` | Keep me in the loop → sign-up form | "We’re still getting things ready. Alpha invitations aren’t open yet, but leave your email and we’ll give you a shout about the release and major app updates." |
+| `closed` | Keep me in the loop → sign-up form | "Want to be one of the first to try it? Sign up now to be an early tester, and we’ll give you a shout when it’s ready." |
 | `open` | Open the map → `/app` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
@@ -453,8 +453,8 @@ which addresses are on the list is an enumeration oracle.
   survives later copy changes.
 - Every message carries a working unsubscribe link from the first one.
 - Consent wording in the form and server-side record must match exactly:
-  “Email me about the Epping Forest Finds release, alpha invitations and major
-  updates about the app, plus weekly Epping Forest Ledger updates once the site launches.” Nothing else is sent to this list without fresh consent.
+  “Email me when it’s ready, plus weekly Epping Forest Ledger updates once the
+  site launches.” Nothing else is sent to this list without fresh consent.
 
 ### 9.4 Privacy policy changes (blocking)
 

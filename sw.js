@@ -8,7 +8,7 @@
 const IS_DEV = self.__DEV__ === true;
 
 const APP_CACHE_NAME = "forest-finds-app-v42";
-const DATA_CACHE_NAME = "forest-finds-data-v9";
+const DATA_CACHE_NAME = "forest-finds-data-v10";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
 // "./" is deliberately absent: after the alpha URL split it resolves to the
