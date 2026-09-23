@@ -4948,6 +4948,18 @@ function alignHeadingUpNavigationViewport(options = {}) {
   if (!navigationAnchorActive()) return false;
   if (selectionCameraTransitionActive()) return false;
   if (state.clusterZoomed) return false;
+  // This is the walking-radius ring's own framing (nearbyNavigationFocusPoint/
+  // maxNearbyHeadingUpScale below), reached both directly -- every watchPosition fix calls it
+  // whenever nothing is selected, which nearbyNavigationAnchorActive() makes true throughout
+  // Search too -- and via ensureOverviewTargetsVisible, which every one of this function's other
+  // callers (compass ticks, filter changes, GPS fixes) ultimately routes through under the same
+  // "no selection" condition. Search frames its own highlighted matches instead
+  // (updateSearchHighlight/fitSearchCameraToHighlight), so applying the ring's framing here,
+  // unconditionally and without animation, was silently snapping a still-open search back to the
+  // ring on the next GPS fix or compass tick, sometimes long after the search fit had settled.
+  // Leaving the camera alone here means it simply stays on the search fit until the query next
+  // changes, rather than fighting it.
+  if (state.searchScreenOpen && state.searchHighlightResults.length) return false;
   clearHeadingUpCanvasTransform();
   const previousScale = state.viewport.scale;
   const previousTx = state.viewport.tx;
@@ -6275,13 +6287,33 @@ let _searchCameraFitTimer = null;
 
 function updateSearchHighlight(results) {
   const top = results.slice(0, SEARCH_HIGHLIGHT_LIMIT);
+  const hadResults = state.searchHighlightResults.length > 0;
   state.searchHighlightResults = top;
   requestDraw();
   if (_searchCameraFitTimer != null) {
     clearTimeout(_searchCameraFitTimer);
     _searchCameraFitTimer = null;
   }
-  if (!top.length) return;
+  if (!top.length) {
+    // No matches -- an empty/too-short query, or a query nothing on the map answers. The camera
+    // has no search fit to hold any more, so it's the Nearby ring's turn: without this it stayed
+    // wherever the last search fit left it, which read as "stuck" rather than "back to normal".
+    // Only worth doing if there *were* results a moment ago -- an empty query on first opening
+    // Search has nothing to fall back from (openSearchScreen's own fallback already covers it).
+    if (hadResults && state.userLocation) {
+      ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
+    }
+    return;
+  }
+  if (!hadResults) {
+    // The first match to appear (query just became long enough, or the very first keystroke
+    // already matched something): fit immediately rather than leaving the camera on the ring for
+    // the length of the debounce below -- that gap read as the map "still showing Nearby" even
+    // though a match already existed. Only a result set that already has something on screen
+    // waits for a typing pause before re-fitting again (see SEARCH_CAMERA_FIT_DEBOUNCE_MS above).
+    fitSearchCameraToHighlight();
+    return;
+  }
   _searchCameraFitTimer = setTimeout(() => {
     _searchCameraFitTimer = null;
     // The screen may have moved on (a result picked, search closed) during the pause -- this

@@ -201,6 +201,14 @@ test.describe("Searching the map with a location fix", () => {
     await setup(page);
   });
 
+  // The first match to appear fits the camera immediately (no debounce -- see
+  // updateSearchHighlight's comment); waiting for the animation to actually finish
+  // (viewportAnimationTo clears once it lands) avoids reading the viewport mid-flight, which a
+  // bare "is it onscreen yet" check can pass on well before the animation settles.
+  async function waitForSearchFitToSettle(page) {
+    await page.waitForFunction(() => state.viewportAnimationTo == null);
+  }
+
   test("the camera fit keeps the user's own position on screen alongside the matches", async ({ page }) => {
     await page.click("#searchToggle");
     await page.fill("#mapSearchInput", FIXTURE_ROAD);
@@ -208,12 +216,50 @@ test.describe("Searching the map with a location fix", () => {
       (name) => state.searchHighlightResults.some((r) => r.item?.name === name),
       FIXTURE_ROAD
     );
+    await waitForSearchFitToSettle(page);
 
-    // Wait past the debounce + animation for the fit to actually land (see the other spec).
-    await page.waitForFunction(() => {
+    const onscreen = await page.evaluate(() => {
       const origin = nearbyOrigin();
       const point = worldToScreen(origin.point);
       return point.x >= 0 && point.x <= els.canvas.width && point.y >= 0 && point.y <= els.canvas.height;
     });
+    expect(onscreen).toBe(true);
+  });
+
+  test("a later GPS fix does not snap the camera back to the Nearby ring", async ({ page, context }) => {
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", FIXTURE_ROAD);
+    await page.waitForFunction(
+      (name) => state.searchHighlightResults.some((r) => r.item?.name === name),
+      FIXTURE_ROAD
+    );
+    await waitForSearchFitToSettle(page);
+    const settledScale = await page.evaluate(() => state.viewport.scale);
+
+    // A fresh GPS fix -- exactly what a real watchPosition update, or the foreground sensor
+    // watchdog restarting a stale watch, delivers periodically regardless of whether the user
+    // has actually moved.
+    const nudged = { latitude: FOREST_LOCATION.latitude + 0.0003, longitude: FOREST_LOCATION.longitude };
+    await context.setGeolocation({ ...nudged, accuracy: 5 });
+    await page.waitForFunction(
+      (target) => Math.abs(state.userLocation.latitude - target.latitude) < 0.0001,
+      nudged
+    );
+    // Give any (wrongly re-triggered) ring fit's own animation time to finish landing, so a
+    // regression would be caught here rather than racing this assertion.
+    await page.waitForTimeout(1000);
+
+    const after = await page.evaluate(() => {
+      const origin = nearbyOrigin();
+      const point = worldToScreen(origin.point);
+      return {
+        scale: state.viewport.scale,
+        userOnscreen: point.x >= 0 && point.x <= els.canvas.width && point.y >= 0 && point.y <= els.canvas.height,
+      };
+    });
+    // The ring fit is a much wider/tighter scale than the search fit settled on above -- a
+    // regression shows up as this scale jumping, not just as staying similar by coincidence.
+    expect(after.scale).toBeCloseTo(settledScale, 1);
+    expect(after.userOnscreen).toBe(true);
   });
 });

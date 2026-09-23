@@ -345,9 +345,12 @@ the only one.
   same `SELECTION_ROUTES` table, and the map animates to it.
 - **Matching ignores case, accents and punctuation**, so "st marys" finds "St Mary's" and
   "cafe" finds "Café". Each field is ranked on its own — exact, then prefix, then whole-word,
-  then substring — so a tree's tag can match exactly without its species name diluting it. A
-  multi-word query that no single field answers still matches when every word appears somewhere
-  in the entry. Equal matches are ordered by distance from the Nearby origin.
+  then substring — so a tree's tag can match exactly without its species name diluting it. A bare
+  species word ("oak", "holly", "hornbeam") whole-word-matches every tree whose common name
+  contains it ("English Oak", "Holm Oak", …), so searching a type of tree returns every nearby
+  tree of that kind, not only one searched by its exact full name. A multi-word query that no
+  single field answers still matches when every word appears somewhere in the entry. Equal
+  matches are ordered by distance from the Nearby origin.
 - **A name the map repeats is not allowed to fill the list.** A street arrives from
   OpenStreetMap as many separate ways, so a line feature (road, trail, water, railway) is listed
   once — the nearest piece of it. Points are capped rather than collapsed: the eight bus stops
@@ -355,7 +358,7 @@ the only one.
 - **It works with no location fix**: matches are still listed, without distances or walk times.
 - Typing only re-renders the results list, never the field, so focus and the caret survive; the
   results are re-rendered at most once per animation frame.
-- Opening Search shows the same map view as the Filter, Settings and Feedback screens.
+- **The map highlights the results, not just the list.** The top 10 matches (nearest first) are drawn with their ordinary map pins — no separate ring or highlight styling, and not dimmed or hidden by whatever category filters are active — while everything else in those categories is left off the map; a "Clear all filters" control is offered from within Search whenever filters are active, so they don't have to be left to see every match. The camera fits itself to those matches plus the user's own position, live as the query changes, rather than showing the same fixed view as the Filter, Settings and Feedback screens. See "Search's camera and highlighting" in `spec/spec-data-rendering.md` for the mechanics.
 
 ## Settings Screen
 
