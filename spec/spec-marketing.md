@@ -94,7 +94,7 @@ Epping Forest." so the first line leads.
 > Then off you go. The trees, paths and landmarks stay on your phone,
 > even when the bars disappear. Which, round here, they do.
 
-**Every veteran tree in the register**
+**Get to know the old trees**
 > All 24,906 trees from the Epping Forest Veteran Tree Register, right here
 > on the map with their species and records. Got a tag number? Pop it in
 > to find that tree and see its estimated age. There’s a fair bit of history in those trunks.
@@ -208,7 +208,7 @@ Sections, in order:
    sub-line (§3.2), and the primary CTA element (§8). The photo caption uses
    white text on an opaque dark-green backing for contrast across the image,
    running flush to the photo's left, right and bottom edges with no inset.
-2. **Find the tree behind the tag** — directly after the hero, explain
+2. **What’s with the tree tags?** — directly after the hero, explain
    searching physical tag numbers, navigating to a specific tree and checking
    its tag on arrival, with three app screenshots: searching its number,
    following its route and viewing its estimated age. Use each screenshot
@@ -259,7 +259,7 @@ Sections, in order:
    directly beneath. Introduction, consent and supporting text
    use the full card content width; only the email-and-button row has a narrower cap. Both introduction and
    consent include weekly Epping Forest Ledger updates once the site launches.
-7. **How it works offline** — a one-line intro, then three steps: open it once
+7. **No signal? Here’s the plan** — a one-line intro, then three steps: open it once
    on signal, it downloads, it then works anywhere in the forest. The steps and
    the cattle note share one white shadowed card (like the map inventory), so
    there are no floating boxes. Each step has a round dark-green number badge
@@ -268,13 +268,13 @@ Sections, in order:
    small circled arrow on each rule showing the sequence. The card's footer is a
    green-tinted strip with the cow icon explaining that fresh cattle locations
    require a connection and saved positions may be stale.
-8. **FAQ** — after the offline section, with `FAQPage` JSON-LD (§6.3).
+8. **FAQ** — headed “Good to know”, after the offline section, with `FAQPage` JSON-LD (§6.3).
    Covers signal, cost/account, tree data, cattle positions and coverage.
    No battery-use question. All answers stay visible (no accordion) in one
    white rounded card, each question-and-answer pair divided by a hairline;
    on wide screens the question sits in a left column beside its answer.
 9. **From the Ledger** — the last section before the footer, after the FAQ: an
-   inset editorial card matching the sign-up card's layout: responsive padding, a green left border and shadow, the weekly field-notes
+   inset editorial card matching the sign-up card's layout: responsive padding, a green left border and shadow, the “Round the forest · Every week”
    eyebrow above a 44px newspaper icon (`assets/home/ledger.svg`, same style as
    the envelope) centred beside the heading, aligned like the sign-up card, and a solid green "Read the Ledger →"
    button linking to `/reports/` (§6.4).
@@ -399,15 +399,15 @@ the site runs in.
 
 | State | CTA | Supporting line |
 | --- | --- | --- |
-| `closed` | Be first to hear → sign-up form | "We’re still getting things ready. Alpha invitations aren’t open yet, but leave your email and we’ll give you a shout about the release and major app updates." |
+| `closed` | Keep me in the loop → sign-up form | "We’re still getting things ready. Alpha invitations aren’t open yet, but leave your email and we’ll give you a shout about the release and major app updates." |
 | `open` | Open the map → `/app` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
 links — is written to be true in all three states and does not change.
 
 The page must not imply immediate access or invitations already being sent.
-The signup heading is “Be first to hear about the release”, the submit button
-is “Keep me updated”, and the introduction repeats that invitations aren’t
+The signup heading is “Be in the know”, the submit button
+is “Keep me posted”, and the introduction repeats that invitations aren’t
 open yet and subscribers will also receive major updates and weekly Ledger updates
 once the site launches. The consent label states the same mailing scope.
 

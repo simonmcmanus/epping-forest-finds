@@ -29,7 +29,7 @@ test.describe("the marketing homepage", () => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Every veteran tree in the register/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Get to know the old trees/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
     await expect(page.locator(".hero + #find-trees + .tag-feature + .pillars")).toHaveCount(1);
     for (const card of await page.locator(".pillars article").all()) {
@@ -87,7 +87,7 @@ test.describe("the marketing homepage", () => {
   test("explains finding a specific tree by its tag and treating its age as an estimate", async ({ page }) => {
     await page.goto("/");
     const trees = page.locator("#find-trees");
-    await expect(trees.getByRole("heading", { name: "Find the tree behind the tag" })).toBeVisible();
+    await expect(trees.getByRole("heading", { name: "What’s with the tree tags?" })).toBeVisible();
     await expect(trees).toContainText("Pop in the tag number.");
     await expect(trees).toContainText("Take the scenic route.");
     await expect(trees).toContainText("recorded girth and species");
@@ -141,11 +141,11 @@ test.describe("the marketing homepage", () => {
 
   test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: "Be first to hear", exact: true }).click();
+    await page.getByRole("link", { name: "Keep me in the loop", exact: true }).click();
     await expect(page.locator(".cta-note")).toContainText("Alpha invitations aren’t open yet");
     await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
     await expect(page.locator(".signup-intro")).toContainText("major app updates");
-    await expect(page.getByRole("button", { name: "Keep me updated" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Keep me posted" })).toBeVisible();
     await expect(page.locator(".consent")).toContainText("release, alpha invitations and major updates");
     await expect(page.locator("#consent")).not.toBeChecked();
   });
@@ -266,7 +266,7 @@ test.describe("the marketing homepage", () => {
     const cattle = page.locator(".pillars article").filter({ hasText: "Follow the longhorns" });
     await expect(cattle).toContainText("online for updates now and then");
     await expect(cattle).toContainText("last saved positions");
-    await expect(page.locator(".how").filter({ hasText: "How it works offline" })).toContainText("offline positions may be out of date");
+    await expect(page.locator(".how").filter({ hasText: "No signal? Here’s the plan" })).toContainText("offline positions may be out of date");
     const faqs = await page.locator('script[type="application/ld+json"]').textContent();
     const questions = JSON.parse(faqs)["@graph"].find(item => item["@type"] === "FAQPage").mainEntity;
     for (const name of ["Does it really work without a phone signal?", "How do you know where the cattle are?"]) {
