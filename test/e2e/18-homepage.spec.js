@@ -20,7 +20,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
     await expect(page.locator("#signupForm")).toBeVisible();
     await expect(page.locator("#find-trees")).toContainText("Search its tag number.");
-    await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
+    await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open quite yet");
 
     await context.close();
   });
@@ -89,12 +89,12 @@ test.describe("the marketing homepage", () => {
     const trees = page.locator("#find-trees");
     await expect(trees.getByRole("heading", { name: "Find the tree behind the tag" })).toBeVisible();
     await expect(trees).toContainText("Search its tag number.");
-    await expect(trees).toContainText("Navigate to that tree.");
+    await expect(trees).toContainText("Make your way to that tree.");
     await expect(trees).toContainText("recorded girth and species");
     await expect(trees).toContainText("not an exact birthday");
     await expect(trees.locator(".tag-story figcaption")).toHaveText([
       "1. Search its tag number. Enter the number on the tree’s physical tag to find its record on the map.",
-      "2. Navigate to that tree. Select it for a route from your location. We try to find a more scenic way through forest paths and alleyways. Check its tag number when you arrive.",
+      "2. Make your way to that tree. Select it for a route from your location. We try to find a more scenic way through forest paths and alleyways. Do check its tag number when you arrive.",
       "3. Discover its estimated age. We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday."
     ]);
     await expect(trees.locator(".app-shot img")).toHaveCount(3);
@@ -142,9 +142,9 @@ test.describe("the marketing homepage", () => {
   test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Be first to hear", exact: true }).click();
-    await expect(page.locator(".cta-note")).toContainText("Alpha invitations aren’t open yet");
-    await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
-    await expect(page.locator(".signup-intro")).toContainText("major updates");
+    await expect(page.locator(".cta-note")).toContainText("Alpha invitations aren’t open quite yet");
+    await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open quite yet");
+    await expect(page.locator(".signup-intro")).toContainText("occasional important update");
     await expect(page.getByRole("button", { name: "Keep me updated" })).toBeVisible();
     await expect(page.locator(".consent")).toContainText("release, alpha invitations and major updates");
     await expect(page.locator("#consent")).not.toBeChecked();
@@ -152,7 +152,7 @@ test.describe("the marketing homepage", () => {
 
   test("highlights signup before the practical questions and ends on the Ledger", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates once the site launches");
+    await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger notes once the site launches");
     await expect(page.locator(".consent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
     await expect(page.locator(".signup + .offline-how + .faq + .ledger")).toHaveCount(1);
     await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.svg");
@@ -264,7 +264,7 @@ test.describe("the marketing homepage", () => {
   test("explains periodic network requests and stale offline cow positions in copy and search data", async ({ page }) => {
     await page.goto("/");
     const cattle = page.locator(".pillars article").filter({ hasText: "Follow the longhorns" });
-    await expect(cattle).toContainText("periodically makes a network request");
+    await expect(cattle).toContainText("checks the network from time to time");
     await expect(cattle).toContainText("last saved positions");
     await expect(page.locator(".how").filter({ hasText: "How it works offline" })).toContainText("offline positions may be out of date");
     const faqs = await page.locator('script[type="application/ld+json"]').textContent();
