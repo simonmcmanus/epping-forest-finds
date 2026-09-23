@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-09-21T09:41:50.728125Z",
+  "generatedAt": "2026-09-23T05:55:15.230675Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -1870,6 +1870,448 @@
         "address": "189 High Road, Loughton, Essex, IG10 4LF",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 51.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/aldersbrook-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0306205,
+          51.5645465
+        ]
+      },
+      "properties": {
+        "id": "manual/aldersbrook-hall",
+        "osmType": "way",
+        "osmId": 1037797059,
+        "name": "Aldersbrook Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 129.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/aldersbrook-library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.033044,
+          51.5633737
+        ]
+      },
+      "properties": {
+        "id": "manual/aldersbrook-library",
+        "osmType": "way",
+        "osmId": 1038103852,
+        "name": "Aldersbrook Library",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "2a Park Road London E12 5HQ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 58.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/aston-mansfield-community-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0558184,
+          51.5540592
+        ]
+      },
+      "properties": {
+        "id": "manual/aston-mansfield-community-centre",
+        "osmType": "way",
+        "osmId": 772432841,
+        "name": "Aston Mansfield Community Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "1 Toronto Avenue London E12 5JF",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 278.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/bedford-house",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0383013,
+          51.6278493
+        ]
+      },
+      "properties": {
+        "id": "manual/bedford-house",
+        "osmType": "way",
+        "osmId": 1292736881,
+        "name": "Bedford House",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.bedfordhouse.org.uk/",
+        "phone": "+44 20 8504 6668",
+        "address": "4 Westbury Road Buckhurst Hill IG9 5NW",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 239.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/buckhurst-hill-library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0364038,
+          51.6261899
+        ]
+      },
+      "properties": {
+        "id": "manual/buckhurst-hill-library",
+        "osmType": "node",
+        "osmId": 1084359801,
+        "name": "Buckhurst Hill Library",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Queens Road Buckhurst Hill",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 184.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/chingford-masonic-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0109393,
+          51.634449
+        ]
+      },
+      "properties": {
+        "id": "manual/chingford-masonic-hall",
+        "osmType": "way",
+        "osmId": 626162217,
+        "name": "Chingford Masonic Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.chingfordmasonichall.co.uk/",
+        "phone": null,
+        "address": "2 Forest View London E4 7AZ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 40.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/chingford-united-services-club",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0016936,
+          51.6290852
+        ]
+      },
+      "properties": {
+        "id": "manual/chingford-united-services-club",
+        "osmType": "way",
+        "osmId": 680916391,
+        "name": "Chingford United Services Club",
+        "category": "social_centre",
+        "categoryLabel": "Social Club",
+        "amenity": "social_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.theusc.club",
+        "phone": null,
+        "address": "18 King's Road London E4 7EY",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 50.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/community-place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0107217,
+          51.5745546
+        ]
+      },
+      "properties": {
+        "id": "manual/community-place",
+        "osmType": "way",
+        "osmId": 454663256,
+        "name": "Community Place",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "806 High Road Leyton London",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 108.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/coney-burrows-community-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0093693,
+          51.626931
+        ]
+      },
+      "properties": {
+        "id": "manual/coney-burrows-community-centre",
+        "osmType": "node",
+        "osmId": 2928028403,
+        "name": "Coney Burrows Community Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 35.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/coopersale-village-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1345835,
+          51.7047955
+        ]
+      },
+      "properties": {
+        "id": "manual/coopersale-village-hall",
+        "osmType": "way",
+        "osmId": 118711462,
+        "name": "Coopersale Village Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "http://www.coopersale.org.uk/",
+        "phone": null,
+        "address": "Institute Road Coopersale CM16 7QY",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 265.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/elbwo-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0236344,
+          51.5525312
+        ]
+      },
+      "properties": {
+        "id": "manual/elbwo-centre",
+        "osmType": "node",
+        "osmId": 12287656513,
+        "name": "ELBWO Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://elbwo.org",
+        "phone": null,
+        "address": "Clinton Road",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 209.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/epping-forest-district-council-offices",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1141689,
+          51.7016318
+        ]
+      },
+      "properties": {
+        "id": "manual/epping-forest-district-council-offices",
+        "osmType": "way",
+        "osmId": 330944908,
+        "name": "Epping Forest District Council offices",
+        "category": "townhall",
+        "categoryLabel": "Town Hall",
+        "amenity": "townhall",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "CM16 4BZ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 45.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/epping-library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1098526,
+          51.6991343
+        ]
+      },
+      "properties": {
+        "id": "manual/epping-library",
+        "osmType": "way",
+        "osmId": 490695288,
+        "name": "Epping Library",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "CM16 5EB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 385.0,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }

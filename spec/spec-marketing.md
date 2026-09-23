@@ -104,7 +104,7 @@ Epping Forest." so the first line leads.
 > request for up-to-date locations. Offline, you’ll see the last saved positions.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 771 pubs, cafés and shops. 1,596 car parks,
+> 9,162 paths and bridleways. 846 pubs, cafés and shops. 1,596 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -143,7 +143,7 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 771 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 846 food & drink | feature count, `data/local-landmarks-food.geojson` |
 | 1,596 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
