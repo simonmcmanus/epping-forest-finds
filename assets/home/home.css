@@ -101,7 +101,7 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .faq-item dt { margin: 0; font-size: 1.02rem; font-weight: 700; line-height: 1.4; }
 .faq-item dd { max-width: 42em; margin: 6px 0 0; color: var(--muted); }
 .tag-intro { display: grid; gap: 24px; align-items: center; margin-bottom: 24px; }
-.tag-feature { margin: 0; padding: 0; border: 0; }
+.tag-feature { order: -1; margin: 0; padding: 0; border: 0; }
 .tag-copy p { margin: 0; color: var(--muted); }
 .tag-story { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 84%); gap: 14px; align-items: start; overflow-x: auto; margin-top: 24px; padding: 2px 2px 12px; scroll-snap-type: x proximity; }
 .tag-story figure { display: flex; flex-direction: column; margin: 0; scroll-snap-align: start; }
@@ -167,7 +167,7 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 }
 
 @media (min-width: 640px) {
-  .tag-intro { grid-template-columns: minmax(0, 1fr) clamp(180px, 24vw, 260px); gap: 40px; }
+  .tag-intro { grid-template-columns: clamp(180px, 24vw, 260px) minmax(0, 1fr); gap: 40px; }
   .tag-feature img { width: 100%; }
   .hero { grid-template-columns: minmax(0, 1.08fr) minmax(300px, .92fr); min-height: 470px; }
   .hero-copy { padding: 48px 42px; }.hero-photo { min-height: 0; }

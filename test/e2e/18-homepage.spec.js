@@ -117,7 +117,7 @@ test.describe("the marketing homepage", () => {
     await expect(trees.locator(".steps")).toHaveCount(0);
   });
 
-  test("places the circular tag beside the introduction on desktop and below it on mobile", async ({ page }) => {
+  test("places the circular tag beside the introduction on desktop and above it on mobile", async ({ page }) => {
     await page.goto("/");
     const feature = page.locator(".tag-feature");
     const photo = feature.locator("img");
@@ -141,8 +141,8 @@ test.describe("the marketing homepage", () => {
       const copy = intro.querySelector(".tag-copy").getBoundingClientRect();
       const photo = intro.querySelector(".tag-feature").getBoundingClientRect();
       return innerWidth >= 640
-        ? photo.left >= copy.right && photo.top < copy.bottom && photo.bottom > copy.top
-        : photo.top >= copy.bottom;
+        ? photo.right <= copy.left && photo.top < copy.bottom && photo.bottom > copy.top
+        : photo.bottom <= copy.top;
     });
     expect(layout).toBe(true);
     await expect(page.locator("#find-trees > .tag-intro + .tag-story")).toHaveCount(1);
