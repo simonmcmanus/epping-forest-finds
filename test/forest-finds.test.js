@@ -8399,6 +8399,100 @@ test("the map inventory counts far more than the food places alone", () => {
   );
 });
 
+test("the app's modal overlays declare dialog role, modal state and an accessible name", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
+
+  assert.match(html, /id="locationGate"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="locationGateTitle"/);
+  assert.match(html, /id="distanceWarning"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="distanceWarningTitle"/);
+  assert.match(html, /id="trackingConsentModal"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="trackingConsentTitle"/);
+  assert.match(html, /id="onboardingOverlay"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-label="[^"]+"/);
+});
+
+test("a skip link lets keyboard users bypass the canvas map to reach the Nearby panel", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
+
+  assert.match(html, /<a class="skip-link" href="#inspector">[^<]*<\/a>/);
+  assert.match(html, /<aside id="inspector"[^>]*tabindex="-1"/, "skip target must be focusable for the jump to land for screen-reader users");
+
+  const css = fs.readFileSync(path.join(__dirname, "..", "css", "base.css"), "utf8");
+  assert.match(css, /\.skip-link\s*\{[^}]*top:\s*-100px/, "skip link should be visually hidden until focused");
+  assert.match(css, /\.skip-link:focus\s*\{[^}]*top:\s*8px/, "skip link should become visible on focus");
+});
+
+test("activateModalFocus traps Tab within the container and restores focus on deactivate", () => {
+  // Minimal hand-rolled DOM: just enough real focus()/querySelectorAll()/addEventListener()
+  // semantics for js/nav.js's actual activateModalFocus to run against, without pulling in a
+  // DOM-emulation dependency the project otherwise has no use for. Exercises the real helper,
+  // not a re-implementation of it.
+  function makeEl(tag, { focusable = false } = {}) {
+    const listeners = {};
+    const el = {
+      tagName: tag,
+      disabled: false,
+      offsetParent: {}, // "visible" by default
+      children: [],
+      addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
+      removeEventListener(type, fn) {
+        if (listeners[type]) listeners[type] = listeners[type].filter((f) => f !== fn);
+      },
+      dispatchEvent(event) { (listeners[event.type] || []).forEach((fn) => fn(event)); },
+      focus() { fakeDoc.activeElement = el; },
+      querySelectorAll(selector) {
+        if (selector.includes("a[href]") || selector.includes("button")) {
+          return el.children.filter((c) => c.tagName === "BUTTON");
+        }
+        return [];
+      },
+    };
+    if (focusable) el.tagName = "BUTTON";
+    return el;
+  }
+
+  const opener = makeEl("BUTTON", { focusable: true });
+  const modal = makeEl("DIV");
+  const first = makeEl("BUTTON", { focusable: true });
+  const last = makeEl("BUTTON", { focusable: true });
+  modal.children = [first, last];
+
+  const fakeDoc = { activeElement: null, contains: () => true };
+  global.document = fakeDoc;
+
+  const navSrc = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
+  const fnMatch = navSrc.match(/function activateModalFocus\([\s\S]*?\n}\n/);
+  assert.ok(fnMatch, "activateModalFocus should exist in js/nav.js");
+  const activateModalFocusFn = vm.runInThisContext(`(function() { ${fnMatch[0]} return activateModalFocus; })()`);
+
+  opener.focus();
+  assert.equal(fakeDoc.activeElement, opener);
+
+  const deactivate = activateModalFocusFn(modal);
+  assert.equal(fakeDoc.activeElement, first, "focus should move into the modal");
+
+  last.focus();
+  modal.dispatchEvent({ type: "keydown", key: "Tab", shiftKey: false, preventDefault() {} });
+  assert.equal(fakeDoc.activeElement, first, "Tab from the last item should wrap to the first, not escape the modal");
+
+  deactivate();
+  assert.equal(fakeDoc.activeElement, opener, "closing the modal should restore focus to the opener");
+
+  delete global.document;
+});
+
+test("admin's clickable user rows are keyboard-operable (role, tabindex, Enter/Space)", () => {
+  const js = fs.readFileSync(path.join(__dirname, "..", "js", "admin.js"), "utf8");
+
+  assert.match(js, /function makeActivatable/);
+  assert.match(js, /el\.setAttribute\("role", "button"\)/);
+  assert.match(js, /el\.setAttribute\("tabindex", "0"\)/);
+  assert.match(js, /event\.key === "Enter" \|\| event\.key === " "/);
+});
+
+test("the admin login field has a programmatic label, not just a placeholder", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8");
+
+  assert.match(html, /<label for="loginPassword"[^>]*>[^<]*Admin password[^<]*<\/label>/);
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;

@@ -1171,6 +1171,11 @@ function checkDistanceToForest(latitude, longitude) {
     
     if (els.distanceWarning) {
       els.distanceWarning.hidden = false;
+      els.distanceWarning._deactivateFocus = typeof activateModalFocus === "function"
+        ? activateModalFocus(els.distanceWarning, {
+            onEscape: () => els.distanceWarningButton?.click(),
+          })
+        : null;
     }
   }
 }

@@ -56,6 +56,7 @@ function showTrackingConsent() {
 
     modal.hidden = false;
     modal.classList.remove("tc-fading-out");
+    const deactivateFocus = typeof activateModalFocus === "function" ? activateModalFocus(modal, { onEscape: () => onDecline() }) : null;
 
     const acceptBtn = modal.querySelector(".tc-accept");
     const declineBtn = modal.querySelector(".tc-decline");
@@ -63,6 +64,7 @@ function showTrackingConsent() {
     function done(accepted) {
       acceptBtn.removeEventListener("click", onAccept);
       declineBtn.removeEventListener("click", onDecline);
+      if (deactivateFocus) deactivateFocus();
       modal.classList.add("tc-fading-out");
       modal.addEventListener("transitionend", () => {
         modal.hidden = true;

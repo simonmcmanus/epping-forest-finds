@@ -998,6 +998,35 @@ The location gate (`#locationGate`) and tracking consent modal (`#trackingConsen
 
 ---
 
+## Accessibility
+
+Keyboard and screen-reader support for the app shell, on top of the arrow-key/Enter navigation
+already documented for Nearby/Search result rows under Overview Content and Secondary Screens.
+
+- **Skip link.** `app.html` opens with `<a class="skip-link" href="#inspector">Skip to nearby
+  places</a>`, hidden off-screen (`css/base.css` `.skip-link`) until it receives keyboard focus,
+  so a keyboard or screen-reader user can jump straight from page load to the list-based Nearby
+  panel instead of tabbing across the canvas map, which has no keyboard-operable content of its
+  own. `#inspector` carries `tabindex="-1"` so the jump actually lands focus there.
+- **Modal dialogs.** The four full-screen overlays — `#locationGate`, `#distanceWarning`,
+  `#trackingConsentModal`, `#onboardingOverlay` — carry `role="dialog"` and `aria-modal="true"`,
+  each labelled via `aria-labelledby` (or `aria-label` for onboarding, whose heading text changes
+  per step). Opening one calls `activateModalFocus(container, { onEscape })` (`js/nav.js`), which:
+  moves focus to the dialog's first focusable control; traps Tab/Shift+Tab so focus cycles within
+  the dialog instead of escaping to the map behind it; closes the dialog on Escape where an
+  `onEscape` handler is supplied (tracking consent treats Escape as decline; the distance warning
+  treats it as dismiss; the location gate has no dismiss action and ignores Escape); and restores
+  focus to whatever triggered the dialog once the returned `deactivate()` runs. The onboarding
+  overlay additionally moves focus to each step's `<h2>` (given `tabindex="-1"`) as the step's
+  content is re-rendered, since replacing `innerHTML` would otherwise drop focus to `<body>`.
+- **Focus-visible styling.** `css/base.css` gives buttons, links, inputs, selects, textareas and
+  `[tabindex]` elements a visible focus ring (`:focus-visible`). The walking-radius range input
+  (`css/inspector.css` `.walk-radius-range`) styles its `::-webkit-slider-thumb` /
+  `::-moz-range-thumb` on `:focus-visible` specifically, since the browser's default outline
+  lands on the track rather than the draggable thumb.
+
+---
+
 ## Legend / Key
 
 Always visible, shows active marker semantics:

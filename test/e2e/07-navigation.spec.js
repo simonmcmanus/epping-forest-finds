@@ -148,4 +148,21 @@ test.describe("URL navigation", () => {
       await expect(page.locator("#filterToggle")).not.toHaveClass(/screen-active/);
     });
   });
+
+  test.describe("keyboard accessibility", () => {
+    test("a skip link jumps from the canvas straight to the Nearby panel", async ({ page }) => {
+      // setup() force-hides the location gate JS-side (see helpers.js), which does not itself
+      // move focus, so activating the skip link directly (rather than fighting real browser Tab
+      // order against a gate that already claimed focus on open) is what actually exercises the
+      // feature: that it exists, is reachable, and its target receives focus.
+      await setup(page);
+      const skipLink = page.locator(".skip-link");
+      await expect(skipLink).toHaveAttribute("href", "#inspector");
+      await skipLink.focus();
+      await expect(skipLink).toBeFocused();
+
+      await page.keyboard.press("Enter");
+      await expect(page.locator("#inspector")).toBeFocused();
+    });
+  });
 });

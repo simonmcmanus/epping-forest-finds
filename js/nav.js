@@ -513,6 +513,10 @@ function setupInspectorHandlers() {
   if (els.distanceWarningButton) {
     els.distanceWarningButton.addEventListener("click", () => {
       state.distanceWarningShown = true;
+      if (els.distanceWarning._deactivateFocus) {
+        els.distanceWarning._deactivateFocus();
+        els.distanceWarning._deactivateFocus = null;
+      }
       hideWithFade(els.distanceWarning);
     });
   }
@@ -1540,13 +1544,64 @@ function hideWithFade(el, onDone) {
   setTimeout(finish, 420);
 }
 
+// Focus trap + Escape-to-close for the app's modal overlays (WCAG 2.1.2 No Keyboard Trap,
+// 2.4.3 Focus Order, 2.4.7 Focus Visible). Moves focus into the container, cycles Tab/Shift+Tab
+// between its focusable elements instead of letting focus escape to the map behind it, and
+// restores focus to whatever triggered the modal once `deactivate()` runs. `onEscape` is called
+// on Escape but is not required — a modal with no dismiss action simply ignores it.
+function activateModalFocus(container, { onEscape } = {}) {
+  if (!container) return () => {};
+  const previouslyFocused = document.activeElement;
+  const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const focusable = () => Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR))
+    .filter((el) => el.offsetParent !== null);
+
+  const first = focusable()[0];
+  if (first) first.focus();
+
+  function onKeydown(e) {
+    if (e.key === "Escape") {
+      if (onEscape) { e.preventDefault(); onEscape(); }
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const items = focusable();
+    if (!items.length) return;
+    const firstEl = items[0];
+    const lastEl = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === firstEl) {
+      e.preventDefault();
+      lastEl.focus();
+    } else if (!e.shiftKey && document.activeElement === lastEl) {
+      e.preventDefault();
+      firstEl.focus();
+    }
+  }
+  container.addEventListener("keydown", onKeydown);
+
+  return function deactivateModalFocus() {
+    container.removeEventListener("keydown", onKeydown);
+    if (previouslyFocused && typeof previouslyFocused.focus === "function" && document.contains(previouslyFocused)) {
+      previouslyFocused.focus();
+    }
+  };
+}
+if (typeof globalThis !== "undefined") globalThis.activateModalFocus = activateModalFocus;
+
 function setLocationGateVisible(visible, message, buttonLabel, title) {
   if (!els.locationGate) return;
   if (visible) {
     els.locationGate.classList.remove("fading-out");
     els.locationGate.hidden = false;
     if (els.locationGateButton) els.locationGateButton.disabled = false;
+    if (!els.locationGate._deactivateFocus) {
+      els.locationGate._deactivateFocus = activateModalFocus(els.locationGate);
+    }
   } else {
+    if (els.locationGate._deactivateFocus) {
+      els.locationGate._deactivateFocus();
+      els.locationGate._deactivateFocus = null;
+    }
     // When the gate is dismissed (all permissions granted), show loading overlay if data isn't ready yet
     if (!state.dataLoaded && els.loadingOverlay) {
       els.loadingOverlay.hidden = false;
