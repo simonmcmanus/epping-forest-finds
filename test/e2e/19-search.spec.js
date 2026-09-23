@@ -7,6 +7,7 @@ const { setup, FIXTURE_TREE } = require("./helpers");
 // collapse into one row.
 const FIXTURE_PLACE = "Railway Bell";
 const FIXTURE_ROAD = "Forest Road";
+const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
 test.describe("Searching the map", () => {
   test.beforeEach(async ({ page }) => {
@@ -190,5 +191,29 @@ test.describe("Searching the map", () => {
       () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
     );
     await expect(page).not.toHaveURL(/#search/);
+  });
+});
+
+test.describe("Searching the map with a location fix", () => {
+  test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
+
+  test.beforeEach(async ({ page }) => {
+    await setup(page);
+  });
+
+  test("the camera fit keeps the user's own position on screen alongside the matches", async ({ page }) => {
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", FIXTURE_ROAD);
+    await page.waitForFunction(
+      (name) => state.searchHighlightResults.some((r) => r.item?.name === name),
+      FIXTURE_ROAD
+    );
+
+    const onscreen = await page.evaluate(() => {
+      const origin = nearbyOrigin();
+      const point = worldToScreen(origin.point);
+      return point.x >= 0 && point.x <= els.canvas.width && point.y >= 0 && point.y <= els.canvas.height;
+    });
+    expect(onscreen).toBe(true);
   });
 });

@@ -3379,6 +3379,33 @@ test("nearest-first: searching a whole category (cows) leads with the closest on
   assert.equal(results[1].item.serialNo, "far-cow");
 });
 
+test("the camera fit for a search keeps the user's own position in view, not just the matches", () => {
+  resetSearchData(app);
+  app.els.canvas.width = 1000;
+  app.els.canvas.height = 800;
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  // A match far enough away that framing it alone would push the user's own position, at the
+  // opposite side of the view, off the edge of the canvas.
+  app.state.landmarks.push({ id: "far-pub", name: "Distant Forest Tavern", category: "pub", categoryTags: ["pub"], ...makePoint(app, 0.3, 0.3) });
+
+  app.state.searchScreenOpen = true;
+  app.searchResultsHtml("distant forest tavern");
+
+  assert.ok(app.state.searchHighlightResults.length > 0, "the far match is in the highlighted set");
+  // updateSearchHighlight fits with animate: true, which only sets the animation's target
+  // (state.viewportAnimationTo) rather than state.viewport itself -- jump straight to that
+  // target rather than driving the animation loop forward.
+  assert.ok(app.state.viewportAnimationTo, "the search fit should start a camera animation");
+  app.state.viewport = { ...app.state.viewportAnimationTo };
+  const userScreenPoint = app.worldToScreen(app.state.userLocation.point);
+  assert.ok(
+    userScreenPoint.x >= 0 && userScreenPoint.x <= app.els.canvas.width
+      && userScreenPoint.y >= 0 && userScreenPoint.y <= app.els.canvas.height,
+    "the user's own position stays inside the fitted viewport alongside the match"
+  );
+});
+
 test("the search index picks up data that arrived after the last search", () => {
   resetSearchData(app);
   app.state.userLocation = makePoint(app, 0, 0);

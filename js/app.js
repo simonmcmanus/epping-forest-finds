@@ -6255,6 +6255,11 @@ function updateSearchHighlight(results) {
   state.searchHighlightResults = top;
   const points = top.map((result) => searchResultPoint(result.type, result.item)).filter(Boolean);
   if (points.length) {
+    // Frame the user's own position too -- nearbyOrigin() is the same point searchResultDistance
+    // measures every match's walk chip from, so "nearest first" stays legible against where you
+    // actually are, rather than zooming out to a view that only shows the matches themselves.
+    const origin = nearbyOrigin();
+    if (origin && origin.point) points.push(origin.point);
     fitToPoints(points, false, { focusVisibleArea: true, animate: true, assumeInspectorOpen: true });
   } else {
     requestDraw();
