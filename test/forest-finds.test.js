@@ -246,7 +246,9 @@ globalThis.__forestFindsTest = {
   SEARCH_RANK_SUBSTRING,
   SEARCH_RANK_TOKENS,
   SEARCH_HIGHLIGHT_LIMIT,
+  SEARCH_CAMERA_FIT_DEBOUNCE_MS,
   updateSearchHighlight,
+  fitSearchCameraToHighlight,
   buildSearchIconLookup,
   activeIconLookup,
   markerOpacityFor,
@@ -3379,7 +3381,7 @@ test("nearest-first: searching a whole category (cows) leads with the closest on
   assert.equal(results[1].item.serialNo, "far-cow");
 });
 
-test("the camera fit for a search keeps the user's own position in view, not just the matches", () => {
+test("the camera fit for a search keeps the user's own position in view, not just the matches", async () => {
   resetSearchData(app);
   app.els.canvas.width = 1000;
   app.els.canvas.height = 800;
@@ -3393,9 +3395,12 @@ test("the camera fit for a search keeps the user's own position in view, not jus
   app.searchResultsHtml("distant forest tavern");
 
   assert.ok(app.state.searchHighlightResults.length > 0, "the far match is in the highlighted set");
-  // updateSearchHighlight fits with animate: true, which only sets the animation's target
-  // (state.viewportAnimationTo) rather than state.viewport itself -- jump straight to that
-  // target rather than driving the animation loop forward.
+  // The camera fit is debounced past a typing pause (SEARCH_CAMERA_FIT_DEBOUNCE_MS) so rapid
+  // keystrokes don't each retarget it -- see updateSearchHighlight's comment.
+  await new Promise((resolve) => setTimeout(resolve, app.SEARCH_CAMERA_FIT_DEBOUNCE_MS + 50));
+  // fitToPoints animates: it only sets the animation's target (state.viewportAnimationTo) rather
+  // than state.viewport itself -- jump straight to that target rather than driving the
+  // animation loop forward.
   assert.ok(app.state.viewportAnimationTo, "the search fit should start a camera animation");
   app.state.viewport = { ...app.state.viewportAnimationTo };
   const userScreenPoint = app.worldToScreen(app.state.userLocation.point);

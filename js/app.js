@@ -6250,20 +6250,44 @@ function searchMapFeatures(query) {
 // every top match sits rather than only the closest one. Called on every results recompute --
 // searchResultsHtml, on open and on each debounced keystroke (renderSearchResults) -- so the
 // highlight and framing track the query live rather than only on selecting a result.
+// Frames the user's own position alongside the highlighted matches -- nearbyOrigin() is the same
+// point searchResultDistance measures every match's walk chip from, so "nearest first" stays
+// legible against where you actually are, rather than zooming out to a view that only shows the
+// matches themselves.
+function fitSearchCameraToHighlight() {
+  const points = state.searchHighlightResults
+    .map((result) => searchResultPoint(result.type, result.item))
+    .filter(Boolean);
+  if (!points.length) return;
+  const origin = nearbyOrigin();
+  if (origin && origin.point) points.push(origin.point);
+  fitToPoints(points, false, { focusVisibleArea: true, animate: true, assumeInspectorOpen: true });
+}
+
+// How long a typing pause has to hold before the camera re-fits. Refitting on every keystroke
+// -- what this used to do -- meant every transient result set a fast typist passed through on
+// the way to their actual query got its own camera move: a single very-close match a few
+// characters into a longer name is common, and zooming tight onto it only to zoom back out two
+// keystrokes later read as jumpy rather than "live". The highlighted pins and results list still
+// update every keystroke (see below); only the camera waits.
+const SEARCH_CAMERA_FIT_DEBOUNCE_MS = 350;
+let _searchCameraFitTimer = null;
+
 function updateSearchHighlight(results) {
   const top = results.slice(0, SEARCH_HIGHLIGHT_LIMIT);
   state.searchHighlightResults = top;
-  const points = top.map((result) => searchResultPoint(result.type, result.item)).filter(Boolean);
-  if (points.length) {
-    // Frame the user's own position too -- nearbyOrigin() is the same point searchResultDistance
-    // measures every match's walk chip from, so "nearest first" stays legible against where you
-    // actually are, rather than zooming out to a view that only shows the matches themselves.
-    const origin = nearbyOrigin();
-    if (origin && origin.point) points.push(origin.point);
-    fitToPoints(points, false, { focusVisibleArea: true, animate: true, assumeInspectorOpen: true });
-  } else {
-    requestDraw();
+  requestDraw();
+  if (_searchCameraFitTimer != null) {
+    clearTimeout(_searchCameraFitTimer);
+    _searchCameraFitTimer = null;
   }
+  if (!top.length) return;
+  _searchCameraFitTimer = setTimeout(() => {
+    _searchCameraFitTimer = null;
+    // The screen may have moved on (a result picked, search closed) during the pause -- this
+    // fit is only still wanted if Search is still open and looking at this same set.
+    if (state.searchScreenOpen) fitSearchCameraToHighlight();
+  }, SEARCH_CAMERA_FIT_DEBOUNCE_MS);
 }
 
 // Search's own matches are never dimmed or hidden by the active category filters (see

@@ -105,24 +105,24 @@ test.describe("Searching the map", () => {
       FIXTURE_ROAD
     );
 
-    const afterRoad = await page.evaluate(() => {
-      // Every highlighted point should be visible on screen -- the camera fit that
-      // updateSearchHighlight() triggers has to actually have reached them.
+    // The camera fit is debounced past a typing pause (SEARCH_CAMERA_FIT_DEBOUNCE_MS) and then
+    // animates (DEFAULT_VIEWPORT_ANIMATION_MS) -- wait for it to actually land rather than
+    // asserting on the pre-fit viewport.
+    await page.waitForFunction(() => {
       const points = state.searchHighlightResults
         .map((r) => searchResultPoint(r.type, r.item))
         .filter(Boolean)
         .map((p) => worldToScreen(p));
-      const onscreen = points.every((p) => p.x >= 0 && p.x <= els.canvas.width && p.y >= 0 && p.y <= els.canvas.height);
-      return {
-        count: state.searchHighlightResults.length,
-        fitScale: state.fitScale,
-        keys: state.searchHighlightResults.map((r) => r.key),
-        onscreen,
-      };
+      return points.length > 0 && points.every((p) => p.x >= 0 && p.x <= els.canvas.width && p.y >= 0 && p.y <= els.canvas.height);
     });
+
+    const afterRoad = await page.evaluate(() => ({
+      count: state.searchHighlightResults.length,
+      fitScale: state.fitScale,
+      keys: state.searchHighlightResults.map((r) => r.key),
+    }));
     expect(afterRoad.count).toBeGreaterThan(0);
     expect(afterRoad.count).toBeLessThanOrEqual(10);
-    expect(afterRoad.onscreen).toBe(true);
 
     // Narrowing to a single, local match re-fits tighter and swaps the highlighted set.
     await page.fill("#mapSearchInput", FIXTURE_TREE.tagNumber);
@@ -209,11 +209,11 @@ test.describe("Searching the map with a location fix", () => {
       FIXTURE_ROAD
     );
 
-    const onscreen = await page.evaluate(() => {
+    // Wait past the debounce + animation for the fit to actually land (see the other spec).
+    await page.waitForFunction(() => {
       const origin = nearbyOrigin();
       const point = worldToScreen(origin.point);
       return point.x >= 0 && point.x <= els.canvas.width && point.y >= 0 && point.y <= els.canvas.height;
     });
-    expect(onscreen).toBe(true);
   });
 });
