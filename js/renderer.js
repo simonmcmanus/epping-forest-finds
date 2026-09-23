@@ -237,6 +237,7 @@ function drawOverlay() {
   }
   drawUser(ctx, toScreen, isTilted);
   drawNearbyAnchorMarker(ctx, toScreen);
+  drawSearchHighlights(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
 }
 
@@ -1855,6 +1856,31 @@ function drawUser(ctx, toScreen, isTilted) {
   ctx.font = `800 ${11 * dpr * dotScale}px system-ui`;
   ctx.fillText("You", point.x + radius + 3 * dpr, point.y + 4 * dpr * dotScale);
   ctx.globalAlpha = 1;  // Reset opacity for subsequent drawing
+  ctx.restore();
+}
+
+// Rings each of state.searchHighlightResults (js/app.js, kept live by updateSearchHighlight as
+// the user types) so the top matches a search zoomed out to fit are also visibly picked out
+// from everything else still drawn underneath them.
+function drawSearchHighlights(ctx, toScreen) {
+  if (!state.searchScreenOpen) return;
+  const results = state.searchHighlightResults;
+  if (!results || !results.length) return;
+  if (!toScreen) toScreen = worldToScreen;
+  const dpr = pixelRatio();
+  ctx.save();
+  ctx.strokeStyle = "#ffb703";
+  ctx.lineWidth = 2.5 * dpr;
+  ctx.setLineDash([4 * dpr, 3 * dpr]);
+  for (const result of results) {
+    const point = searchResultPoint(result.type, result.item);
+    if (!point) continue;
+    const screen = toScreen(point);
+    if (!isNearCanvas(screen, 24 * dpr * MAP_ICON_SCALE)) continue;
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, 16 * dpr, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 

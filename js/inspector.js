@@ -807,6 +807,7 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
   // Every screen entry point routes through here, so this is where Search stands down;
   // openSearchScreen sets the flag again straight after its own call.
   state.searchScreenOpen = false;
+  if (state.searchHighlightResults.length) state.searchHighlightResults = [];
   if (els.searchToggle) els.searchToggle.classList.remove("screen-active");
   if (showBack) {
     state.filterScreenOpen = false;

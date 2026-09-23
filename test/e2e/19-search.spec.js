@@ -94,6 +94,52 @@ test.describe("Searching the map", () => {
     await expect(page.locator("#mapSearchResults")).toContainText("Search for a tree tag");
   });
 
+  test("typing a query highlights the top matches and frames all of them, live", async ({ page }) => {
+    await page.click("#searchToggle");
+
+    await page.fill("#mapSearchInput", FIXTURE_ROAD);
+    // renderSearchResults debounces to one rAF; wait for that recompute rather than the input event.
+    await page.waitForFunction(
+      (name) => state.searchHighlightResults.some((r) => r.item?.name === name),
+      FIXTURE_ROAD
+    );
+
+    const afterRoad = await page.evaluate(() => {
+      // Every highlighted point should be visible on screen -- the camera fit that
+      // updateSearchHighlight() triggers has to actually have reached them.
+      const points = state.searchHighlightResults
+        .map((r) => searchResultPoint(r.type, r.item))
+        .filter(Boolean)
+        .map((p) => worldToScreen(p));
+      const onscreen = points.every((p) => p.x >= 0 && p.x <= els.canvas.width && p.y >= 0 && p.y <= els.canvas.height);
+      return {
+        count: state.searchHighlightResults.length,
+        fitScale: state.fitScale,
+        keys: state.searchHighlightResults.map((r) => r.key),
+        onscreen,
+      };
+    });
+    expect(afterRoad.count).toBeGreaterThan(0);
+    expect(afterRoad.count).toBeLessThanOrEqual(10);
+    expect(afterRoad.onscreen).toBe(true);
+
+    // Narrowing to a single, local match re-fits tighter and swaps the highlighted set.
+    await page.fill("#mapSearchInput", FIXTURE_TREE.tagNumber);
+    await page.waitForFunction(
+      (tag) => state.searchHighlightResults.some((r) => r.item?.tagNumber === tag),
+      FIXTURE_TREE.tagNumber
+    );
+    const afterTree = await page.evaluate(() => ({
+      count: state.searchHighlightResults.length,
+      keys: state.searchHighlightResults.map((r) => r.key),
+    }));
+    expect(afterTree.keys).not.toEqual(afterRoad.keys);
+
+    // Clearing the query drops the highlight entirely.
+    await page.click("#mapSearchClear");
+    await page.waitForFunction(() => state.searchHighlightResults.length === 0);
+  });
+
   test("the nearby button is the way back out of search", async ({ page }) => {
     await page.click("#searchToggle");
     await page.waitForFunction(

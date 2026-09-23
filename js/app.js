@@ -235,6 +235,10 @@ const state = {
   // input so re-entering Search from a result restores what was typed.
   searchScreenOpen: false,
   searchQuery: "",
+  // The top SEARCH_HIGHLIGHT_LIMIT results for the current query, kept so the renderer can ring
+  // them on the map and the camera can frame all of them at once (updateSearchHighlight). Reset
+  // to [] wherever Search stands down (setInspectorSelectionChrome, js/inspector.js).
+  searchHighlightResults: [],
   distanceWarningShown: false,
   nearestItemsCount: 10,
   walkingDistanceMinutes: 5,
@@ -5937,6 +5941,10 @@ function normalizeTreeNumber(value) {
 // by name and finding it by walking past it end up in exactly the same place.
 
 const SEARCH_RESULT_LIMIT = 30;
+// How many of the top matches the map highlights and zooms out to fit, live as the user types.
+// Matches the Nearby list's own "closest 10" framing rather than SEARCH_RESULT_LIMIT's fuller
+// scrollable list, so the map isn't asked to frame a query that returns dozens of hits.
+const SEARCH_HIGHLIGHT_LIMIT = 10;
 const SEARCH_MIN_QUERY_LENGTH = 2;
 
 // Match quality, best first. Distance breaks ties, so "Forest Road" two streets away beats
@@ -6237,16 +6245,35 @@ function searchMapFeatures(query) {
   return results;
 }
 
+// Rings the top SEARCH_HIGHLIGHT_LIMIT matches on the map (drawSearchHighlights, js/renderer.js)
+// and zooms out just enough to fit all of them, so typing a broad query immediately shows where
+// every top match sits rather than only the closest one. Called on every results recompute --
+// searchResultsHtml, on open and on each debounced keystroke (renderSearchResults) -- so the
+// highlight and framing track the query live rather than only on selecting a result.
+function updateSearchHighlight(results) {
+  const top = results.slice(0, SEARCH_HIGHLIGHT_LIMIT);
+  state.searchHighlightResults = top;
+  const points = top.map((result) => searchResultPoint(result.type, result.item)).filter(Boolean);
+  if (points.length) {
+    fitToPoints(points, false, { focusVisibleArea: true, animate: true, assumeInspectorOpen: true });
+  } else {
+    requestDraw();
+  }
+}
+
 function searchResultsHtml(query) {
   const needle = normalizeSearchText(query);
   if (!needle) {
+    updateSearchHighlight([]);
     return `<p class="empty">Search for a tree tag or species, a shop, pub or café, a road, a trail, or anywhere else on the map.</p>`;
   }
   if (needle.length < SEARCH_MIN_QUERY_LENGTH) {
+    updateSearchHighlight([]);
     return `<p class="empty">Keep typing — search needs at least ${SEARCH_MIN_QUERY_LENGTH} characters.</p>`;
   }
 
   const results = searchMapFeatures(query);
+  updateSearchHighlight(results);
   if (!results.length) {
     return `<p class="empty">Nothing on the map matches “${escapeHtml(query.trim())}”.</p>`;
   }
@@ -6329,7 +6356,10 @@ function openSearchScreen() {
   setInspectorMinimized(false);
   syncHashFromSelection();
   requestDraw();
-  if (state.userLocation) {
+  // searchScreenHtml (just rendered above) already fit the camera to the restored query's own
+  // highlighted matches via updateSearchHighlight -- only fall back to the Nearby-ring framing
+  // when there is no query to frame yet.
+  if (state.userLocation && !state.searchHighlightResults.length) {
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
   }
 }
