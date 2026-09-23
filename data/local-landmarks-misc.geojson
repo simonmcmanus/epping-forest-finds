@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-09-23T05:55:15.230675Z",
+  "generatedAt": "2026-09-23T06:57:48.557986Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -2312,6 +2312,176 @@
         "address": "CM16 5EB",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 385.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/field-community-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0203166,
+          51.5536544
+        ]
+      },
+      "properties": {
+        "id": "manual/field-community-centre",
+        "osmType": "way",
+        "osmId": 696375846,
+        "name": "Field Community Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "147 Station Road London E7 0AE",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 275.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/forest-gate-youth-community-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0247791,
+          51.5523469
+        ]
+      },
+      "properties": {
+        "id": "manual/forest-gate-youth-community-centre",
+        "osmType": "way",
+        "osmId": 144358882,
+        "name": "Forest Gate Youth & Community Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Woodford Road London E7 0DH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 194.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/ghousia-community-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0102027,
+          51.5795653
+        ]
+      },
+      "properties": {
+        "id": "manual/ghousia-community-centre",
+        "osmType": "way",
+        "osmId": 217328227,
+        "name": "Ghousia Community Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 247.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/hale-end-library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0012081,
+          51.6092292
+        ]
+      },
+      "properties": {
+        "id": "manual/hale-end-library",
+        "osmType": "way",
+        "osmId": 79015959,
+        "name": "Hale End Library",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 414.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/harrow-green-community-library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0063876,
+          51.5581169
+        ]
+      },
+      "properties": {
+        "id": "manual/harrow-green-community-library",
+        "osmType": "node",
+        "osmId": 279547975,
+        "name": "Harrow Green Community Library",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://harrowgreenlibrary.com/",
+        "phone": null,
+        "address": "2-4 Cathall Road London E11 4LF",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 40.1,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
