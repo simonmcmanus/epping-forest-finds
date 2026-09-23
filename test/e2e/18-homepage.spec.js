@@ -148,14 +148,14 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("#find-trees > .tag-intro + .tag-story")).toHaveCount(1);
   });
 
-  test("invites early testers to sign up and offers release news and major updates", async ({ page }) => {
+  test("invites early testers to sign up and offers weekly ledger updates", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Keep me in the loop", exact: true }).click();
     await expect(page.locator(".cta-note")).toContainText("Sign up now to be an early tester");
     await expect(page.locator(".signup-intro")).toContainText("Sign up now to be an early tester");
-    await expect(page.locator(".signup-intro")).toContainText("major app updates");
+    await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates");
     await expect(page.getByRole("button", { name: "Keep me posted" })).toBeVisible();
-    await expect(page.locator(".consent")).toContainText("early tester access, the Epping Forest Finds release and major updates");
+    await expect(page.locator(".consent")).toContainText("Email me when it’s ready, plus weekly Epping Forest Ledger updates");
     await expect(page.locator("#consent")).not.toBeChecked();
   });
 
