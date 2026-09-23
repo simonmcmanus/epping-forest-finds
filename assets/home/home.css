@@ -42,7 +42,8 @@ h2 { margin: 0 0 16px; font-size: clamp(1.55rem, 4vw, 2.15rem); }
 p { margin: 0 0 14px; }
 .hero-sub { max-width: 35em; margin-bottom: 27px; color: #d8e5d3; font-size: clamp(1.02rem, 2.6vw, 1.17rem); }
 .hero-sub strong { color: #fff; }
-.cta-btn { display: inline-block; border: 0; border-radius: 9px; padding: 13px 22px; background: var(--surface); color: var(--tree-deep); cursor: pointer; font: inherit; font-weight: 700; text-decoration: none; }
+.cta-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 9px; padding: 13px 22px; background: var(--surface); color: var(--tree-deep); cursor: pointer; font: inherit; font-weight: 700; text-decoration: none; }
+.cta-icon { flex: 0 0 18px; width: 18px; height: 18px; }
 .cta-btn:hover { background: #e6eee1; }
 .cta-note { max-width: 34em; margin: 14px 0 0; color: #c9dfc9; font-size: .88rem; }
 .hero-photo { position: relative; min-height: 265px; margin: 0; }
