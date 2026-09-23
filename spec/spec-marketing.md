@@ -77,9 +77,10 @@ Epping Forest." so the first line leads.
 
 ### 3.2 Hero sub-line
 
-> A free, offline map of Epping Forest — 24,906 veteran trees, ready to discover.
-> Find a tree by its tag number, navigate to it and see its estimated age.
-> Paths, pubs, facilities and grazing cattle are on the map too.
+> Fancy a nose round the forest? There are 24,906 veteran trees
+> to get to know. Pop in a tree’s tag number, find your way over and see roughly
+> how old it is. Paths, pubs, loos and the longhorns are on here too.
+> All on a free, offline map. Handy when your signal’s done a runner.
 
 ### 3.3 One-line description (meta description, manifest, store listings)
 
@@ -89,19 +90,20 @@ Epping Forest." so the first line leads.
 ### 3.4 Pillar headings and bodies
 
 **Works where your phone doesn't**
-> Download the map once, over wi-fi or signal. After that it is on your device:
-> every tree, path and landmark, with no network needed. Walk into the middle
-> of the forest and it keeps working.
+> Get the map downloaded while you’ve got wi-fi or a bit of signal.
+> Then off you go. The trees, paths and landmarks stay on your phone,
+> even when the bars disappear. Which, round here, they do.
 
-**Every veteran tree in the register**
-> All 24,906 trees from the Epping Forest Veteran Tree Register, each one
-> placed on the map with its species and record. Search by the number on a
-> tree’s physical tag to find that specific tree and explore its estimated age.
+**Get to know the old trees**
+> All 24,906 trees from the Epping Forest Veteran Tree Register, right here
+> on the map with their species and records. Got a tag number? Pop it in
+> to find that tree and see its estimated age. There’s a fair bit of history in those trunks.
 
 **Follow the longhorns**
-> Epping Forest's grazing cattle wear GPS collars. The map shows their latest
-> reported positions. Cows move around, so the app periodically makes a network
-> request for up-to-date locations. Offline, you’ll see the last saved positions.
+> The longhorns have got GPS collars. Very high-tech for a bunch that spends
+> most of the day chewing. We show their latest reported positions and check
+> online for updates now and then. Offline, you’ll see the last saved positions,
+> so they might have wandered off since.
 
 **Everything else you need out there**
 > 9,162 paths and bridleways. 771 pubs, cafés and shops. 1,596 car parks,
@@ -128,8 +130,12 @@ Each of these contradicts something the project has already published:
 
 ### 3.7 Tone
 
-Plain, concrete, local, unhurried. Short sentences. Specific numbers over
-adjectives. The voice of someone who walks there, not a startup launch.
+Warm, chatty and lightly cheeky: a local London/Essex voice with a bit of Cockney
+charm. Use everyday contractions and phrases such as “have a nose”, “give you a
+shout” and “done a runner”. Let the humour come from familiar forest moments:
+patchy signal, a cuppa after a walk, cattle going about their business. Keep facts
+and practical instructions clear. No phonetic accent spelling, forced rhyming
+slang, invented personal anecdotes or claims of local residence.
 
 Avoid: exclamation marks, "revolutionise", "seamless", "experience" as a noun,
 "powered by", emoji in body copy, and stacked superlatives. If a sentence would
@@ -202,7 +208,24 @@ Sections, in order:
    sub-line (§3.2), and the primary CTA element (§8). The photo caption uses
    white text on an opaque dark-green backing for contrast across the image,
    running flush to the photo's left, right and bottom edges with no inset.
-2. **Find the tree behind the tag** — directly after the hero, explain
+2. **What's on the map** — directly after the hero, one neutral inventory card, matching the Ledger's
+   categorisation: a headline total with a 44px map-pin icon
+   (`map-icons/all-finds.png`) to its left, the six app filter groups (Nature, Food,
+   Transport, History, Locations and Stories), every subfilter and count, then
+   a full-width row for always-shown facilities. Each group heading uses an
+   independent homepage copy of the corresponding app category icon, with a
+   smaller app icon beside every subcategory. Parent icons are deliberately
+   larger so the group hierarchy remains clear. Both icon sizes sit centred
+   in the same 38px column, with aligned category and subcategory labels. The
+   header brand mark is the transparent oak leaf from the app icon, without
+   the app icon's yellow background, shown at 44px (36px on phones), with the
+   brand name and Ledger link each kept to one line. The same leaf sits in a
+   34px cream circle before the hero eyebrow ("Epping Forest, offline").
+3. **Three feature cards** — offline, veteran trees and cattle (§3.4). White
+   cards have rounded borders, shadows and 80px centred independent brand
+   icons from `assets/home/`, with centred headings. Use three equal columns
+   on wide screens and stack them on mobile.
+4. **What’s with the tree tags?** — directly after the feature cards, explain
    searching physical tag numbers, navigating to a specific tree and checking
    its tag on arrival, with three app screenshots: searching its number,
    following its route and viewing its estimated age. Use each screenshot
@@ -221,28 +244,12 @@ Sections, in order:
    phone lifts 6px while the caption moves 1px. The phone's shadow stays tight
    (it deepens only slightly on hover) so it never smudges the caption card. Ages are educated guesses from recorded girth and
    species where data is available, not exact birthdays.
-3. **Example tag** — its own section between the tag guide and the feature
-   cards: a photograph of a real numbered metal tag (27400), cropped to a
-   centred circle, with descriptive alt text and no visible caption. Load it
-   lazily, with no section divider line above or below it.
-4. **Three feature cards** — offline, veteran trees and cattle (§3.4). White
-   cards have rounded borders, shadows and 80px centred independent brand
-   icons from `assets/home/`, with centred headings. Use three equal columns
-   on wide screens and stack them on mobile.
-5. **What's on the map** — one neutral inventory card, matching the Ledger's
-   categorisation: a headline total with a 44px map-pin icon
-   (`map-icons/all-finds.png`) to its left, the six app filter groups (Nature, Food,
-   Transport, History, Locations and Stories), every subfilter and count, then
-   a full-width row for always-shown facilities. Each group heading uses an
-   independent homepage copy of the corresponding app category icon, with a
-   smaller app icon beside every subcategory. Parent icons are deliberately
-   larger so the group hierarchy remains clear. Both icon sizes sit centred
-   in the same 38px column, with aligned category and subcategory labels. The
-   header brand mark is the transparent oak leaf from the app icon, without
-   the app icon's yellow background, shown at 44px (36px on phones), with the
-   brand name and Ledger link each kept to one line. The same leaf sits in a
-   34px cream circle before the hero eyebrow ("Epping Forest, offline").
-6. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
+   The introduction pairs its heading and text with the circular tree-tag photo
+   (27400) on the right on screens at least 640px wide. On smaller screens, centre
+   the photo below the text. Keep its descriptive alt text and lazy loading, with
+   no caption or separate section divider. The three app screenshots sit below
+   this introduction at the full section width.
+5. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
    left border accent using the app icon's gold (`#f3d36b`), matching the
    Ledger card's accent placement. A 52px envelope icon
    (`assets/home/mail.svg`, cream fill with dark-green outline, in the style of
@@ -253,7 +260,7 @@ Sections, in order:
    directly beneath. Introduction, consent and supporting text
    use the full card content width; only the email-and-button row has a narrower cap. Both introduction and
    consent include weekly Epping Forest Ledger updates once the site launches.
-7. **How it works offline** — a one-line intro, then three steps: open it once
+6. **No signal? Here’s the plan** — a one-line intro, then three steps: open it once
    on signal, it downloads, it then works anywhere in the forest. The steps and
    the cattle note share one white shadowed card (like the map inventory), so
    there are no floating boxes. Each step has a round dark-green number badge
@@ -262,18 +269,18 @@ Sections, in order:
    small circled arrow on each rule showing the sequence. The card's footer is a
    green-tinted strip with the cow icon explaining that fresh cattle locations
    require a connection and saved positions may be stale.
-8. **FAQ** — after the offline section, with `FAQPage` JSON-LD (§6.3).
+7. **FAQ** — headed “Good to know”, after the offline section, with `FAQPage` JSON-LD (§6.3).
    Covers signal, cost/account, tree data, cattle positions and coverage.
    No battery-use question. All answers stay visible (no accordion) in one
    white rounded card, each question-and-answer pair divided by a hairline;
    on wide screens the question sits in a left column beside its answer.
-9. **From the Ledger** — the last section before the footer, after the FAQ: an
-   inset editorial card matching the sign-up card's layout: responsive padding, a green left border and shadow, the weekly field-notes
+8. **From the Ledger** — the last section before the footer, after the FAQ: an
+   inset editorial card matching the sign-up card's layout: responsive padding, a green left border and shadow, the “Round the forest · Every week”
    eyebrow above a 44px newspaper icon (`assets/home/ledger.svg`, same style as
    the envelope) centred beside the heading, aligned like the sign-up card, and a solid green "Read the Ledger →"
    button linking to `/reports/` (§6.4).
    The index carries individual reports; the homepage remains static.
-10. **Footer** — builder credit, `/terms.html`, GitHub feedback and contact address
+9. **Footer** — builder credit, `/terms.html`, GitHub feedback and contact address
    `mcmanus.simon@gmail.com`. No separate dataset-attribution paragraph; source
    explanations remain in the FAQ.
 
@@ -393,15 +400,15 @@ the site runs in.
 
 | State | CTA | Supporting line |
 | --- | --- | --- |
-| `closed` | Be first to hear → sign-up form | "Alpha invitations aren’t open yet. Sign up to be among the first to hear about the release and receive major updates about the app." |
+| `closed` | Keep me in the loop → sign-up form | "We’re still getting things ready. Alpha invitations aren’t open yet, but leave your email and we’ll give you a shout about the release and major app updates." |
 | `open` | Open the map → `/app` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
 links — is written to be true in all three states and does not change.
 
 The page must not imply immediate access or invitations already being sent.
-The signup heading is “Be first to hear about the release”, the submit button
-is “Keep me updated”, and the introduction repeats that invitations aren’t
+The signup heading is “Be in the know”, the submit button
+is “Keep me posted”, and the introduction repeats that invitations aren’t
 open yet and subscribers will also receive major updates and weekly Ledger updates
 once the site launches. The consent label states the same mailing scope.
 

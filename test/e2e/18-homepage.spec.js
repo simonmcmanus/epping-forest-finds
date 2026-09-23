@@ -19,7 +19,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("h1")).toHaveText("Your guide to Epping Forest.No Signal Necessary.");
     await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
     await expect(page.locator("#signupForm")).toBeVisible();
-    await expect(page.locator("#find-trees")).toContainText("Search its tag number.");
+    await expect(page.locator("#find-trees")).toContainText("Pop in the tag number.");
     await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
 
     await context.close();
@@ -29,9 +29,9 @@ test.describe("the marketing homepage", () => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Every veteran tree in the register/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Get to know the old trees/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
-    await expect(page.locator(".hero + #find-trees + .tag-feature + .pillars")).toHaveCount(1);
+    await expect(page.locator(".hero + .counts + .pillars + #find-trees")).toHaveCount(1);
     for (const card of await page.locator(".pillars article").all()) {
       await expect(card).toHaveCSS("border-radius", "14px");
       await expect(card).not.toHaveCSS("box-shadow", "none");
@@ -87,15 +87,15 @@ test.describe("the marketing homepage", () => {
   test("explains finding a specific tree by its tag and treating its age as an estimate", async ({ page }) => {
     await page.goto("/");
     const trees = page.locator("#find-trees");
-    await expect(trees.getByRole("heading", { name: "Find the tree behind the tag" })).toBeVisible();
-    await expect(trees).toContainText("Search its tag number.");
-    await expect(trees).toContainText("Navigate to that tree.");
+    await expect(trees.getByRole("heading", { name: "What’s with the tree tags?" })).toBeVisible();
+    await expect(trees).toContainText("Pop in the tag number.");
+    await expect(trees).toContainText("Take the scenic route.");
     await expect(trees).toContainText("recorded girth and species");
     await expect(trees).toContainText("not an exact birthday");
     await expect(trees.locator(".tag-story figcaption")).toHaveText([
-      "1. Search its tag number. Enter the number on the tree’s physical tag to find its record on the map.",
-      "2. Navigate to that tree. Select it for a route from your location. We try to find a more scenic way through forest paths and alleyways. Check its tag number when you arrive.",
-      "3. Discover its estimated age. We use the recorded girth and species to make an educated guess, where the data is available — not an exact birthday."
+      "1. Pop in the tag number. See that little number on the tree? Type it in and its record comes up on the map.",
+      "2. Take the scenic route. Pick the tree for a route from where you are. We’ll try to take you through forest paths and alleyways — the nice way round. Check the tag when you get there.",
+      "3. See how old it might be. We use the recorded girth and species for an educated guess, where we’ve got the data. It’s not an exact birthday, so hold off on the candles."
     ]);
     await expect(trees.locator(".app-shot img")).toHaveCount(3);
     const shots = await trees.locator(".app-shot img").evaluateAll(images => images.map(img => img.getAttribute("src")));
@@ -117,7 +117,7 @@ test.describe("the marketing homepage", () => {
     await expect(trees.locator(".steps")).toHaveCount(0);
   });
 
-  test("shows the example tag on its own, centred in a circle with no caption", async ({ page }) => {
+  test("places the circular tag beside the introduction on desktop and below it on mobile", async ({ page }) => {
     await page.goto("/");
     const feature = page.locator(".tag-feature");
     const photo = feature.locator("img");
@@ -136,16 +136,25 @@ test.describe("the marketing homepage", () => {
     });
     expect(geometry).toEqual({ square: true, centred: true });
     await expect(feature).toHaveCSS("border-top-width", "0px");
-    await expect(page.locator(".tag-feature + .pillars")).toHaveCSS("border-top-width", "0px");
+    await expect(page.locator("#find-trees .tag-intro .tag-feature")).toHaveCount(1);
+    const layout = await page.locator(".tag-intro").evaluate(intro => {
+      const copy = intro.querySelector(".tag-copy").getBoundingClientRect();
+      const photo = intro.querySelector(".tag-feature").getBoundingClientRect();
+      return innerWidth >= 640
+        ? photo.left >= copy.right && photo.top < copy.bottom && photo.bottom > copy.top
+        : photo.top >= copy.bottom;
+    });
+    expect(layout).toBe(true);
+    await expect(page.locator("#find-trees > .tag-intro + .tag-story")).toHaveCount(1);
   });
 
   test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: "Be first to hear", exact: true }).click();
+    await page.getByRole("link", { name: "Keep me in the loop", exact: true }).click();
     await expect(page.locator(".cta-note")).toContainText("Alpha invitations aren’t open yet");
     await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
-    await expect(page.locator(".signup-intro")).toContainText("major updates");
-    await expect(page.getByRole("button", { name: "Keep me updated" })).toBeVisible();
+    await expect(page.locator(".signup-intro")).toContainText("major app updates");
+    await expect(page.getByRole("button", { name: "Keep me posted" })).toBeVisible();
     await expect(page.locator(".consent")).toContainText("release, alpha invitations and major updates");
     await expect(page.locator("#consent")).not.toBeChecked();
   });
@@ -264,9 +273,9 @@ test.describe("the marketing homepage", () => {
   test("explains periodic network requests and stale offline cow positions in copy and search data", async ({ page }) => {
     await page.goto("/");
     const cattle = page.locator(".pillars article").filter({ hasText: "Follow the longhorns" });
-    await expect(cattle).toContainText("periodically makes a network request");
+    await expect(cattle).toContainText("online for updates now and then");
     await expect(cattle).toContainText("last saved positions");
-    await expect(page.locator(".how").filter({ hasText: "How it works offline" })).toContainText("offline positions may be out of date");
+    await expect(page.locator(".how").filter({ hasText: "No signal? Here’s the plan" })).toContainText("offline positions may be out of date");
     const faqs = await page.locator('script[type="application/ld+json"]').textContent();
     const questions = JSON.parse(faqs)["@graph"].find(item => item["@type"] === "FAQPage").mainEntity;
     for (const name of ["Does it really work without a phone signal?", "How do you know where the cattle are?"]) {
@@ -333,6 +342,10 @@ test.describe("the marketing homepage", () => {
       expect(new URL(url).pathname).toMatch(/^\/assets\/home\//);
     }
     await expect(page.locator(".hero-photo img")).toBeVisible();
+    for (const image of await page.locator('img[loading="lazy"]').all()) {
+      await image.scrollIntoViewIfNeeded();
+      await expect.poll(() => image.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    }
     await expect.poll(() => page.locator("img").evaluateAll(images => images.every(img => img.complete && img.naturalWidth > 0))).toBe(true);
     expect(requests.filter(path => /^\/(js|css|data)\//.test(path))).toEqual([]);
   });
