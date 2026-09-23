@@ -20,7 +20,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
     await expect(page.locator("#signupForm")).toBeVisible();
     await expect(page.locator("#find-trees")).toContainText("Pop in the tag number.");
-    await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
+    await expect(page.locator(".signup-intro")).toContainText("Sign up now to be an early tester");
 
     await context.close();
   });
@@ -148,14 +148,14 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("#find-trees > .tag-intro + .tag-story")).toHaveCount(1);
   });
 
-  test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
+  test("invites early testers to sign up and offers release news and major updates", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Keep me in the loop", exact: true }).click();
-    await expect(page.locator(".cta-note")).toContainText("Alpha invitations aren’t open yet");
-    await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
+    await expect(page.locator(".cta-note")).toContainText("Sign up now to be an early tester");
+    await expect(page.locator(".signup-intro")).toContainText("Sign up now to be an early tester");
     await expect(page.locator(".signup-intro")).toContainText("major app updates");
     await expect(page.getByRole("button", { name: "Keep me posted" })).toBeVisible();
-    await expect(page.locator(".consent")).toContainText("release, alpha invitations and major updates");
+    await expect(page.locator(".consent")).toContainText("early tester access, the Epping Forest Finds release and major updates");
     await expect(page.locator("#consent")).not.toBeChecked();
   });
 
