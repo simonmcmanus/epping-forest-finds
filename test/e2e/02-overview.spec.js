@@ -79,6 +79,46 @@ test.describe("Overview / Nearby screen", () => {
       await expect(walkChip).toBeVisible();
       await expect(walkChip).toContainText(/\b(?:\d+\s*m|\d+(?:\.\d+)?\s*km)\s*·\s*(?:<\s*1\s*min|\d+\s*min|\d+h(?:\s*\d+min)?)/);
     });
+
+    test("arrow keys step through the nearby list, and Enter opens the focused row", async ({ page }) => {
+      await setup(page);
+      const rows = page.locator("#inspectorBody .nearest-item");
+      await expect(rows.first()).toBeVisible();
+      const rowCount = await rows.count();
+      test.skip(rowCount < 3, "fixture data did not produce enough nearby rows to step through");
+
+      await rows.first().focus();
+      const firstItem = await rows.first().evaluate((el) => ({ type: el.dataset.overviewType, key: el.dataset.overviewKey }));
+
+      await page.keyboard.press("ArrowDown");
+      await expect(rows.nth(1)).toBeFocused();
+      await page.keyboard.press("ArrowDown");
+      await expect(rows.nth(2)).toBeFocused();
+
+      await page.keyboard.press("ArrowUp");
+      await expect(rows.nth(1)).toBeFocused();
+      await page.keyboard.press("ArrowUp");
+      await expect(rows.first()).toBeFocused();
+      // Nearby has no field above the list -- ArrowUp on the first row is a no-op.
+      await page.keyboard.press("ArrowUp");
+      await expect(rows.first()).toBeFocused();
+
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(() => Boolean(state.selected));
+      const selectedMatches = await page.evaluate((item) => {
+        const key = (() => {
+          switch (item.type) {
+            case "tree": return typeof treeHashKey === "function" && treeHashKey(state.selected.item);
+            case "landmark": return typeof placeHashKey === "function" && placeHashKey(state.selected.item);
+            case "cow": return typeof cowKey === "function" && cowKey(state.selected.item);
+            case "path": return typeof pathHashKey === "function" && pathHashKey(state.selected.item);
+            default: return null;
+          }
+        })();
+        return state.selected?.type === item.type && key === item.key;
+      }, firstItem);
+      expect(selectedMatches).toBe(true);
+    });
   });
 
   test("nearby list does not contain the walking distance selector", async ({ page }) => {

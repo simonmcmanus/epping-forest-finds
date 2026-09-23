@@ -613,6 +613,41 @@ function setupFilterPanelHandlers() {
   });
 }
 
+// Arrow-key navigation through whichever `.nearest-list` is currently rendered -- the Nearby
+// list (`[data-overview-type]` rows) and the Search results list (`[data-search-type]` rows)
+// share the same `.nearest-item` button markup, so one handler covers both; only one of the two
+// is ever on screen at a time. Enter needs no extra handling here: a focused `<button>` already
+// activates on Enter natively, which the existing delegated click handler picks up.
+function handleNearestListArrowKey(event) {
+  const items = Array.from(els.inspectorBody.querySelectorAll(".nearest-item"));
+  if (!items.length) return;
+  const currentItem = event.target.closest(".nearest-item");
+  const searchInput = event.target.closest("#mapSearchInput");
+  if (!currentItem && !searchInput) return; // arrow keys elsewhere in the inspector are untouched
+
+  if (event.key === "ArrowDown") {
+    const nextIndex = currentItem ? items.indexOf(currentItem) + 1 : 0;
+    if (nextIndex < items.length) {
+      event.preventDefault();
+      items[nextIndex].focus();
+    }
+    return;
+  }
+
+  // ArrowUp
+  if (!currentItem) return; // already at the top (the search field) -- nowhere further up to go
+  const index = items.indexOf(currentItem);
+  event.preventDefault();
+  if (index === 0) {
+    // Back up into the field itself when there is one (Search); the plain Nearby list has none,
+    // so the first row simply stays put.
+    const input = document.getElementById("mapSearchInput");
+    if (input) input.focus();
+  } else {
+    items[index - 1].focus();
+  }
+}
+
 function setupSearchAndNavHandlers() {
   if (els.searchToggle) {
     els.searchToggle.addEventListener("click", () => {
@@ -636,6 +671,10 @@ function setupSearchAndNavHandlers() {
   });
 
   els.inspectorBody.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      handleNearestListArrowKey(event);
+      return;
+    }
     if (event.key !== "Enter") return;
     const input = event.target.closest("#mapSearchInput");
     if (!input) return;

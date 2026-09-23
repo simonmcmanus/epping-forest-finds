@@ -36,6 +36,49 @@ test.describe("Searching the map", () => {
     await expect(result).toContainText("Pubs");
   });
 
+  test("arrow keys step from the search field into the results, and Enter opens the focused row", async ({ page }) => {
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", "oak");
+
+    const rows = page.locator("#mapSearchResults .nearest-item");
+    await expect(rows.first()).toBeVisible();
+    const rowCount = await rows.count();
+    test.skip(rowCount < 3, "not enough oak results in the fixture data to step through");
+
+    const input = page.locator("#mapSearchInput");
+    await input.focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(rows.first()).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(rows.nth(1)).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(rows.nth(2)).toBeFocused();
+
+    await page.keyboard.press("ArrowUp");
+    await expect(rows.nth(1)).toBeFocused();
+    // ArrowUp from the first row goes back up into the search field, unlike the plain Nearby
+    // list which has no field above it.
+    await page.keyboard.press("ArrowUp");
+    await expect(rows.first()).toBeFocused();
+    await page.keyboard.press("ArrowUp");
+    await expect(input).toBeFocused();
+
+    const secondRowInfo = await rows.nth(1).evaluate((el) => ({ type: el.dataset.searchType, key: el.dataset.searchKey }));
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(rows.nth(1)).toBeFocused();
+    await page.keyboard.press("Enter");
+
+    await page.waitForFunction(() => Boolean(state.selected));
+    const selectedMatches = await page.evaluate((expected) => {
+      const key = expected.type === "tree" ? treeHashKey(state.selected.item)
+        : expected.type === "landmark" ? placeHashKey(state.selected.item)
+        : null;
+      return state.selected?.type === expected.type && key === expected.key;
+    }, secondRowInfo);
+    expect(selectedMatches).toBe(true);
+  });
+
   test("searching a tree tag finds that tree, and choosing it navigates there", async ({ page }) => {
     await page.click("#searchToggle");
     await page.fill("#mapSearchInput", FIXTURE_TREE.tagNumber);
