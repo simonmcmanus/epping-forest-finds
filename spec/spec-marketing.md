@@ -208,7 +208,20 @@ Sections, in order:
    sub-line (§3.2), and the primary CTA element (§8). The photo caption uses
    white text on an opaque dark-green backing for contrast across the image,
    running flush to the photo's left, right and bottom edges with no inset.
-2. **What’s with the tree tags?** — directly after the hero, explain
+2. **What's on the map** — directly after the hero, one neutral inventory card, matching the Ledger's
+   categorisation: a headline total with a 44px map-pin icon
+   (`map-icons/all-finds.png`) to its left, the six app filter groups (Nature, Food,
+   Transport, History, Locations and Stories), every subfilter and count, then
+   a full-width row for always-shown facilities. Each group heading uses an
+   independent homepage copy of the corresponding app category icon, with a
+   smaller app icon beside every subcategory. Parent icons are deliberately
+   larger so the group hierarchy remains clear. Both icon sizes sit centred
+   in the same 38px column, with aligned category and subcategory labels. The
+   header brand mark is the transparent oak leaf from the app icon, without
+   the app icon's yellow background, shown at 44px (36px on phones), with the
+   brand name and Ledger link each kept to one line. The same leaf sits in a
+   34px cream circle before the hero eyebrow ("Epping Forest, offline").
+3. **What’s with the tree tags?** — directly after the map inventory, explain
    searching physical tag numbers, navigating to a specific tree and checking
    its tag on arrival, with three app screenshots: searching its number,
    following its route and viewing its estimated age. Use each screenshot
@@ -227,27 +240,14 @@ Sections, in order:
    phone lifts 6px while the caption moves 1px. The phone's shadow stays tight
    (it deepens only slightly on hover) so it never smudges the caption card. Ages are educated guesses from recorded girth and
    species where data is available, not exact birthdays.
-3. **Example tag** — its own section between the tag guide and the feature
+4. **Example tag** — its own section between the tag guide and the feature
    cards: a photograph of a real numbered metal tag (27400), cropped to a
    centred circle, with descriptive alt text and no visible caption. Load it
    lazily, with no section divider line above or below it.
-4. **Three feature cards** — offline, veteran trees and cattle (§3.4). White
+5. **Three feature cards** — offline, veteran trees and cattle (§3.4). White
    cards have rounded borders, shadows and 80px centred independent brand
    icons from `assets/home/`, with centred headings. Use three equal columns
    on wide screens and stack them on mobile.
-5. **What's on the map** — one neutral inventory card, matching the Ledger's
-   categorisation: a headline total with a 44px map-pin icon
-   (`map-icons/all-finds.png`) to its left, the six app filter groups (Nature, Food,
-   Transport, History, Locations and Stories), every subfilter and count, then
-   a full-width row for always-shown facilities. Each group heading uses an
-   independent homepage copy of the corresponding app category icon, with a
-   smaller app icon beside every subcategory. Parent icons are deliberately
-   larger so the group hierarchy remains clear. Both icon sizes sit centred
-   in the same 38px column, with aligned category and subcategory labels. The
-   header brand mark is the transparent oak leaf from the app icon, without
-   the app icon's yellow background, shown at 44px (36px on phones), with the
-   brand name and Ledger link each kept to one line. The same leaf sits in a
-   34px cream circle before the hero eyebrow ("Epping Forest, offline").
 6. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
    left border accent using the app icon's gold (`#f3d36b`), matching the
    Ledger card's accent placement. A 52px envelope icon

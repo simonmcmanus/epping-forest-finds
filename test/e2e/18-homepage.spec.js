@@ -31,7 +31,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Get to know the old trees/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
-    await expect(page.locator(".hero + #find-trees + .tag-feature + .pillars")).toHaveCount(1);
+    await expect(page.locator(".hero + .counts + #find-trees + .tag-feature + .pillars")).toHaveCount(1);
     for (const card of await page.locator(".pillars article").all()) {
       await expect(card).toHaveCSS("border-radius", "14px");
       await expect(card).not.toHaveCSS("box-shadow", "none");
