@@ -77,9 +77,10 @@ Epping Forest." so the first line leads.
 
 ### 3.2 Hero sub-line
 
-> A free, offline map of Epping Forest — 24,906 veteran trees, ready for a proper
-> wander. Find a tree by its tag number, make your way to it and see its estimated age.
-> Paths, pubs, facilities and grazing cattle are on the map as well.
+> Fancy a nose round the forest? There are 24,906 veteran trees
+> to get to know. Pop in a tree’s tag number, find your way over and see roughly
+> how old it is. Paths, pubs, loos and the longhorns are on here too.
+> All on a free, offline map. Handy when your signal’s done a runner.
 
 ### 3.3 One-line description (meta description, manifest, store listings)
 
@@ -89,19 +90,20 @@ Epping Forest." so the first line leads.
 ### 3.4 Pillar headings and bodies
 
 **Works where your phone doesn't**
-> Download the map once, over wi-fi or a decent signal. After that it is on your
-> device: every tree, path and landmark, with no network needed. Head into the middle
-> of the forest and it carries on working.
+> Get the map downloaded while you’ve got wi-fi or a bit of signal.
+> Then off you go. The trees, paths and landmarks stay on your phone,
+> even when the bars disappear. Which, round here, they do.
 
 **Every veteran tree in the register**
-> All 24,906 trees from the Epping Forest Veteran Tree Register, each one
-> placed on the map with its species and record. Search the number on a tree’s
-> physical tag to find that particular tree and have a look at its estimated age.
+> All 24,906 trees from the Epping Forest Veteran Tree Register, right here
+> on the map with their species and records. Got a tag number? Pop it in
+> to find that tree and see its estimated age. There’s a fair bit of history in those trunks.
 
 **Follow the longhorns**
-> Epping Forest's grazing cattle wear GPS collars. The map shows their latest
-> reported positions. Cows do wander, so the app checks the network from time to
-> time for an update. Offline, you’ll see the last saved positions.
+> The longhorns have got GPS collars. Very high-tech for a bunch that spends
+> most of the day chewing. We show their latest reported positions and check
+> online for updates now and then. Offline, you’ll see the last saved positions,
+> so they might have wandered off since.
 
 **Everything else you need out there**
 > 9,162 paths and bridleways. 771 pubs, cafés and shops. 1,596 car parks,
@@ -128,11 +130,12 @@ Each of these contradicts something the project has already published:
 
 ### 3.7 Tone
 
-Plain, concrete, local, unhurried, with the understated polish of a reasonably
-posh London/Essex walker. Short sentences. Specific numbers over adjectives. The
-voice of someone who walks there, not a startup launch. Use gently idiomatic phrases
-such as “a proper wander”, “a decent signal” and “carry on working” sparingly; never
-write the accent phonetically or turn the voice into a caricature.
+Warm, chatty and lightly cheeky: a local London/Essex voice with a bit of Cockney
+charm. Use everyday contractions and phrases such as “have a nose”, “give you a
+shout” and “done a runner”. Let the humour come from familiar forest moments:
+patchy signal, a cuppa after a walk, cattle going about their business. Keep facts
+and practical instructions clear. No phonetic accent spelling, forced rhyming
+slang, invented personal anecdotes or claims of local residence.
 
 Avoid: exclamation marks, "revolutionise", "seamless", "experience" as a noun,
 "powered by", emoji in body copy, and stacked superlatives. If a sentence would
@@ -396,7 +399,7 @@ the site runs in.
 
 | State | CTA | Supporting line |
 | --- | --- | --- |
-| `closed` | Be first to hear → sign-up form | "Alpha invitations aren’t open quite yet. Sign up to be among the first to hear about the release and receive the occasional important update about the app." |
+| `closed` | Be first to hear → sign-up form | "We’re still getting things ready. Alpha invitations aren’t open yet, but leave your email and we’ll give you a shout about the release and major app updates." |
 | `open` | Open the map → `/app` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
