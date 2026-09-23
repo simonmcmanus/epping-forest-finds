@@ -226,7 +226,7 @@ function findHit(screen, world) {
   // renderer already distinguishes: outside the nearby set, hidden by an expanded group, and
   // hidden because a location is selected (where only the selected pin itself is drawn -- so
   // that one stays tappable, and tapping anywhere else near it is open ground).
-  const iconLookup = buildNearbyIconLookup();
+  const iconLookup = activeIconLookup();
   const selectedItem = hasRealSelection() ? state.selected.item : null;
   function isTappablePin(type, item) {
     return item === selectedItem || shouldDrawMapIcon(type, item, iconLookup);
@@ -354,7 +354,7 @@ function findClusterHit(screen) {
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const pinR = iconSize * 0.4 * 1.3;
   const pinYOffset = iconSize * 0.64;
-  const lookup = buildNearbyIconLookup();
+  const lookup = activeIconLookup();
   const tag = (clusters, itemType) => clusters.map(c => ({ ...c, itemType }));
   const allClusters = [
     ...tag(buildTypeClusters(lookup.tree, worldToScreen), "tree"),
@@ -807,6 +807,7 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
   // Every screen entry point routes through here, so this is where Search stands down;
   // openSearchScreen sets the flag again straight after its own call.
   state.searchScreenOpen = false;
+  if (state.searchHighlightResults.length) state.searchHighlightResults = [];
   if (els.searchToggle) els.searchToggle.classList.remove("screen-active");
   if (showBack) {
     state.filterScreenOpen = false;
@@ -822,6 +823,10 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
 
 function markerOpacityFor(kind, item) {
   if (kind === "tree") return 1;
+  // Search results are their own set (buildSearchIconLookup, js/renderer.js), shown full
+  // strength regardless of which category filters happen to be active -- a search should never
+  // come back dimmed just because the Filter screen was last left on a different category.
+  if (state.searchScreenOpen) return 1;
   const locationSelected = state.selected && ["tree", "landmark", "cow", "path"].includes(state.selected.type);
   if (locationSelected) {
     if (state.selected.type === kind && state.selected.item === item) return 1;

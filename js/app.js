@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v41"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v42"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -235,6 +235,10 @@ const state = {
   // input so re-entering Search from a result restores what was typed.
   searchScreenOpen: false,
   searchQuery: "",
+  // The top SEARCH_HIGHLIGHT_LIMIT results for the current query, kept so the renderer can ring
+  // them on the map and the camera can frame all of them at once (updateSearchHighlight). Reset
+  // to [] wherever Search stands down (setInspectorSelectionChrome, js/inspector.js).
+  searchHighlightResults: [],
   distanceWarningShown: false,
   nearestItemsCount: 10,
   walkingDistanceMinutes: 5,
@@ -4944,6 +4948,18 @@ function alignHeadingUpNavigationViewport(options = {}) {
   if (!navigationAnchorActive()) return false;
   if (selectionCameraTransitionActive()) return false;
   if (state.clusterZoomed) return false;
+  // This is the walking-radius ring's own framing (nearbyNavigationFocusPoint/
+  // maxNearbyHeadingUpScale below), reached both directly -- every watchPosition fix calls it
+  // whenever nothing is selected, which nearbyNavigationAnchorActive() makes true throughout
+  // Search too -- and via ensureOverviewTargetsVisible, which every one of this function's other
+  // callers (compass ticks, filter changes, GPS fixes) ultimately routes through under the same
+  // "no selection" condition. Search frames its own highlighted matches instead
+  // (updateSearchHighlight/fitSearchCameraToHighlight), so applying the ring's framing here,
+  // unconditionally and without animation, was silently snapping a still-open search back to the
+  // ring on the next GPS fix or compass tick, sometimes long after the search fit had settled.
+  // Leaving the camera alone here means it simply stays on the search fit until the query next
+  // changes, rather than fighting it.
+  if (state.searchScreenOpen && state.searchHighlightResults.length) return false;
   clearHeadingUpCanvasTransform();
   const previousScale = state.viewport.scale;
   const previousTx = state.viewport.tx;
@@ -5937,6 +5953,10 @@ function normalizeTreeNumber(value) {
 // by name and finding it by walking past it end up in exactly the same place.
 
 const SEARCH_RESULT_LIMIT = 30;
+// How many of the top matches the map highlights and zooms out to fit, live as the user types.
+// Matches the Nearby list's own "closest 10" framing rather than SEARCH_RESULT_LIMIT's fuller
+// scrollable list, so the map isn't asked to frame a query that returns dozens of hits.
+const SEARCH_HIGHLIGHT_LIMIT = 10;
 const SEARCH_MIN_QUERY_LENGTH = 2;
 
 // Match quality, best first. Distance breaks ties, so "Forest Road" two streets away beats
@@ -6237,18 +6257,100 @@ function searchMapFeatures(query) {
   return results;
 }
 
+// Rings the top SEARCH_HIGHLIGHT_LIMIT matches on the map (drawSearchHighlights, js/renderer.js)
+// and zooms out just enough to fit all of them, so typing a broad query immediately shows where
+// every top match sits rather than only the closest one. Called on every results recompute --
+// searchResultsHtml, on open and on each debounced keystroke (renderSearchResults) -- so the
+// highlight and framing track the query live rather than only on selecting a result.
+// Frames the user's own position alongside the highlighted matches -- nearbyOrigin() is the same
+// point searchResultDistance measures every match's walk chip from, so "nearest first" stays
+// legible against where you actually are, rather than zooming out to a view that only shows the
+// matches themselves.
+function fitSearchCameraToHighlight() {
+  const points = state.searchHighlightResults
+    .map((result) => searchResultPoint(result.type, result.item))
+    .filter(Boolean);
+  if (!points.length) return;
+  const origin = nearbyOrigin();
+  if (origin && origin.point) points.push(origin.point);
+  fitToPoints(points, false, { focusVisibleArea: true, animate: true, assumeInspectorOpen: true });
+}
+
+// How long a typing pause has to hold before the camera re-fits. Refitting on every keystroke
+// -- what this used to do -- meant every transient result set a fast typist passed through on
+// the way to their actual query got its own camera move: a single very-close match a few
+// characters into a longer name is common, and zooming tight onto it only to zoom back out two
+// keystrokes later read as jumpy rather than "live". The highlighted pins and results list still
+// update every keystroke (see below); only the camera waits.
+const SEARCH_CAMERA_FIT_DEBOUNCE_MS = 350;
+let _searchCameraFitTimer = null;
+
+function updateSearchHighlight(results) {
+  const top = results.slice(0, SEARCH_HIGHLIGHT_LIMIT);
+  const hadResults = state.searchHighlightResults.length > 0;
+  state.searchHighlightResults = top;
+  requestDraw();
+  if (_searchCameraFitTimer != null) {
+    clearTimeout(_searchCameraFitTimer);
+    _searchCameraFitTimer = null;
+  }
+  if (!top.length) {
+    // No matches -- an empty/too-short query, or a query nothing on the map answers. The camera
+    // has no search fit to hold any more, so it's the Nearby ring's turn: without this it stayed
+    // wherever the last search fit left it, which read as "stuck" rather than "back to normal".
+    // Only worth doing if there *were* results a moment ago -- an empty query on first opening
+    // Search has nothing to fall back from (openSearchScreen's own fallback already covers it).
+    if (hadResults && state.userLocation) {
+      ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
+    }
+    return;
+  }
+  if (!hadResults) {
+    // The first match to appear (query just became long enough, or the very first keystroke
+    // already matched something): fit immediately rather than leaving the camera on the ring for
+    // the length of the debounce below -- that gap read as the map "still showing Nearby" even
+    // though a match already existed. Only a result set that already has something on screen
+    // waits for a typing pause before re-fitting again (see SEARCH_CAMERA_FIT_DEBOUNCE_MS above).
+    fitSearchCameraToHighlight();
+    return;
+  }
+  _searchCameraFitTimer = setTimeout(() => {
+    _searchCameraFitTimer = null;
+    // The screen may have moved on (a result picked, search closed) during the pause -- this
+    // fit is only still wanted if Search is still open and looking at this same set.
+    if (state.searchScreenOpen) fitSearchCameraToHighlight();
+  }, SEARCH_CAMERA_FIT_DEBOUNCE_MS);
+}
+
+// Search's own matches are never dimmed or hidden by the active category filters (see
+// markerOpacityFor's search bypass, js/inspector.js, and buildSearchIconLookup, js/renderer.js)
+// -- but the filters set on the Filter screen stay in effect for Nearby underneath, so this row
+// offers the same one-click reset the Filter screen has, without leaving Search to reach it.
+function searchClearFiltersHtml() {
+  if (!state.overviewFilters.length) return "";
+  return `<div class="filter-actions search-clear-filters">
+    <button class="filter-action-btn filter-clear-all" type="button" data-filter-clear-all>
+      Clear all filters
+    </button>
+  </div>`;
+}
+
 function searchResultsHtml(query) {
+  const clearFiltersHtml = searchClearFiltersHtml();
   const needle = normalizeSearchText(query);
   if (!needle) {
-    return `<p class="empty">Search for a tree tag or species, a shop, pub or café, a road, a trail, or anywhere else on the map.</p>`;
+    updateSearchHighlight([]);
+    return `${clearFiltersHtml}<p class="empty">Search for a tree tag or species, a shop, pub or café, a road, a trail, or anywhere else on the map.</p>`;
   }
   if (needle.length < SEARCH_MIN_QUERY_LENGTH) {
-    return `<p class="empty">Keep typing — search needs at least ${SEARCH_MIN_QUERY_LENGTH} characters.</p>`;
+    updateSearchHighlight([]);
+    return `${clearFiltersHtml}<p class="empty">Keep typing — search needs at least ${SEARCH_MIN_QUERY_LENGTH} characters.</p>`;
   }
 
   const results = searchMapFeatures(query);
+  updateSearchHighlight(results);
   if (!results.length) {
-    return `<p class="empty">Nothing on the map matches “${escapeHtml(query.trim())}”.</p>`;
+    return `${clearFiltersHtml}<p class="empty">Nothing on the map matches “${escapeHtml(query.trim())}”.</p>`;
   }
 
   const itemsHtml = results.map((result) => {
@@ -6272,7 +6374,7 @@ function searchResultsHtml(query) {
   const countLabel = results.length >= SEARCH_RESULT_LIMIT
     ? `Closest ${SEARCH_RESULT_LIMIT} matches`
     : `${results.length} match${results.length === 1 ? "" : "es"}`;
-  return `<div class="nearby-heading"><strong>${escapeHtml(countLabel)}</strong></div><ul class="nearest-list">${itemsHtml}</ul>`;
+  return `${clearFiltersHtml}<div class="nearby-heading"><strong>${escapeHtml(countLabel)}</strong></div><ul class="nearest-list">${itemsHtml}</ul>`;
 }
 
 // The nav button's magnifier again, at title size. There is no search PNG in the icon
@@ -6329,7 +6431,10 @@ function openSearchScreen() {
   setInspectorMinimized(false);
   syncHashFromSelection();
   requestDraw();
-  if (state.userLocation) {
+  // searchScreenHtml (just rendered above) already fit the camera to the restored query's own
+  // highlighted matches via updateSearchHighlight -- only fall back to the Nearby-ring framing
+  // when there is no query to frame yet.
+  if (state.userLocation && !state.searchHighlightResults.length) {
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
   }
 }

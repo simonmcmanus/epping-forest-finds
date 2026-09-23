@@ -164,7 +164,7 @@ function draw() {
   const width = els.canvas.width;
   const height = els.canvas.height;
   const animatedEmojiScale = updateAnimatedEmojiScale();
-  const nearbyIconLookup = buildNearbyIconLookup();
+  const nearbyIconLookup = activeIconLookup();
   const treeClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, worldToScreen), worldToScreen);
   const landmarkClusters = applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen), worldToScreen);
   const cowClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, worldToScreen), worldToScreen);
@@ -233,7 +233,7 @@ function drawOverlay() {
     : (typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen);
   if (isTilted) drawUserRadarOverlayTilted(ctx);
   if (useOverlayForPins) {
-    drawAllPinsSorted(ctx, buildNearbyIconLookup(), toScreen);
+    drawAllPinsSorted(ctx, activeIconLookup(), toScreen);
   }
   drawUser(ctx, toScreen, isTilted);
   drawNearbyAnchorMarker(ctx, toScreen);
@@ -1334,6 +1334,40 @@ function sampleSpread(list, max) {
 // extra pass costs nothing per frame; findHit (js/inspector.js) applies the same restriction so
 // a hidden pin can't still be tapped.
 let _groupIconLookupCache = null;
+
+// While Search is open with an active query, the map shows only the top matches
+// (state.searchHighlightResults, kept live by updateSearchHighlight in js/app.js) drawn with
+// their normal species/place icons -- no separate highlight styling, no radius or filter
+// gating (see markerOpacityFor's search bypass, js/inspector.js). Roads and railways are lines,
+// not entries in this lookup, so a road/railway search match stays visible the way every line
+// already is; only the point types (tree/landmark/cow/path/water) need narrowing here.
+let _searchIconLookupCache = null;
+
+function buildSearchIconLookup() {
+  const results = state.searchHighlightResults;
+  if (_searchIconLookupCache && _searchIconLookupCache.results === results) {
+    return _searchIconLookupCache.result;
+  }
+  const result = {
+    tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set(),
+    outOfRadius: new Set(),
+  };
+  for (const entry of results) {
+    const set = result[entry.type];
+    if (set) set.add(entry.item);
+  }
+  _searchIconLookupCache = { results, result };
+  return result;
+}
+
+// The one lookup every pin-drawing pass and hit-test should use: Search's own restricted set
+// while it has matches to show, the ordinary Nearby/Filter/Settings/Report set otherwise (an
+// open Search screen with no query yet, or too short a query, falls back to this too -- see
+// searchResultsHtml/updateSearchHighlight, js/app.js).
+function activeIconLookup() {
+  if (state.searchScreenOpen && state.searchHighlightResults.length) return buildSearchIconLookup();
+  return buildNearbyIconLookup();
+}
 
 function buildNearbyIconLookup() {
   const full = buildFullNearbyIconLookup();
