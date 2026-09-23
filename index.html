@@ -110,10 +110,10 @@
         <!-- Alpha call to action. One swappable element: at launch this becomes
              a link to /app. Nothing else on the page changes. -->
         <div class="cta">
-          <a class="cta-btn" href="#signup">Keep me in the loop</a>
+          <a class="cta-btn" href="#signup"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3a5 5 0 0 0-5 5v3.2c0 .7-.24 1.38-.68 1.93L4.6 15.4A1 1 0 0 0 5.4 17h13.2a1 1 0 0 0 .8-1.6l-1.72-2.27A3.2 3.2 0 0 1 17 11.2V8a5 5 0 0 0-5-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Keep me in the loop</a>
           <p class="cta-note">
-            We’re still getting things ready. Alpha invitations aren’t open yet,
-            but leave your email and we’ll give you a shout about the release and major app updates.
+            Want to be one of the first to try it? Sign up now to be an early tester,
+            and we’ll give you a shout when it’s ready.
           </p>
         </div>
       </div>
@@ -227,16 +227,15 @@
         <h2>Be in the know</h2>
       </div>
       <p class="signup-intro">
-        Alpha invitations aren’t open yet — we’re still getting things ready.
-        Leave your email and we’ll give you a shout about the release, invitations
-        and major app updates. You’ll get weekly Epping Forest Ledger updates once the site launches too.
+        Want to be one of the first to try it? Sign up now to be an early tester
+        plus weekly Epping Forest Ledger updates once the site launches.
       </p>
 
       <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
         <label class="field-label" for="email">Email address</label>
         <div class="signup-row">
           <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
-          <button class="cta-btn" type="submit">Keep me posted</button>
+          <button class="cta-btn" type="submit"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 11 20 4l-4.5 16-4-6-6-3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11.5 14 20 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Keep me posted</button>
         </div>
 
         <!-- Honeypot: hidden from people, irresistible to bots. -->
@@ -247,7 +246,7 @@
 
         <label class="consent">
           <input id="consent" name="consent" type="checkbox" required>
-          <span>Email me about the Epping Forest Finds release, alpha invitations and major updates about the app, plus weekly Epping Forest Ledger updates once the site launches.</span>
+          <span>Email me when it’s ready, plus weekly Epping Forest Ledger updates once the site launches.</span>
         </label>
 
         <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
@@ -313,7 +312,7 @@
         What’s been going on round the forest? A weekly catch-up on new records,
         the cattle and the changing seasons, with the data to back it up.
       </p>
-      <a class="cta-btn" href="/reports/">Read the Ledger →</a>
+      <a class="cta-btn" href="/reports/"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3.5h9l3.5 3.5V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12h6M9 15.5h6M9 8.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Read the Ledger →</a>
     </section>
 
   </main>

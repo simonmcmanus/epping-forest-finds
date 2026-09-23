@@ -20,7 +20,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
     await expect(page.locator("#signupForm")).toBeVisible();
     await expect(page.locator("#find-trees")).toContainText("Pop in the tag number.");
-    await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
+    await expect(page.locator(".signup-intro")).toContainText("Sign up now to be an early tester");
 
     await context.close();
   });
@@ -117,7 +117,7 @@ test.describe("the marketing homepage", () => {
     await expect(trees.locator(".steps")).toHaveCount(0);
   });
 
-  test("places the circular tag beside the introduction on desktop and below it on mobile", async ({ page }) => {
+  test("places the circular tag beside the introduction on desktop and above it on mobile", async ({ page }) => {
     await page.goto("/");
     const feature = page.locator(".tag-feature");
     const photo = feature.locator("img");
@@ -141,21 +141,21 @@ test.describe("the marketing homepage", () => {
       const copy = intro.querySelector(".tag-copy").getBoundingClientRect();
       const photo = intro.querySelector(".tag-feature").getBoundingClientRect();
       return innerWidth >= 640
-        ? photo.left >= copy.right && photo.top < copy.bottom && photo.bottom > copy.top
-        : photo.top >= copy.bottom;
+        ? photo.right <= copy.left && photo.top < copy.bottom && photo.bottom > copy.top
+        : photo.bottom <= copy.top;
     });
     expect(layout).toBe(true);
     await expect(page.locator("#find-trees > .tag-intro + .tag-story")).toHaveCount(1);
   });
 
-  test("offers release news and major updates while alpha invitations are not open", async ({ page }) => {
+  test("invites early testers to sign up and offers weekly ledger updates", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Keep me in the loop", exact: true }).click();
-    await expect(page.locator(".cta-note")).toContainText("Alpha invitations aren’t open yet");
-    await expect(page.locator(".signup-intro")).toContainText("Alpha invitations aren’t open yet");
-    await expect(page.locator(".signup-intro")).toContainText("major app updates");
+    await expect(page.locator(".cta-note")).toContainText("Sign up now to be an early tester");
+    await expect(page.locator(".signup-intro")).toContainText("Sign up now to be an early tester");
+    await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates");
     await expect(page.getByRole("button", { name: "Keep me posted" })).toBeVisible();
-    await expect(page.locator(".consent")).toContainText("release, alpha invitations and major updates");
+    await expect(page.locator(".consent")).toContainText("Email me when it’s ready, plus weekly Epping Forest Ledger updates");
     await expect(page.locator("#consent")).not.toBeChecked();
   });
 
