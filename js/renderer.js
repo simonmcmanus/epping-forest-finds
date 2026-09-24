@@ -1,6 +1,6 @@
 const MAP_ICON_SCALE = 2;
 const MAP_ICON_SCALE_UNSELECTED = 2.2;
-const MAP_PNG_ICON_SIZE = 19;
+const MAP_PNG_ICON_SIZE = 24;
 const BEER_ICON_SCALE = 1.15;
 const MAX_MAP_TREES = 60;
 const SELECTED_OVERLAY_PULSE_PERIOD_MS = 380;  // Shared pulse period for smooth animation
