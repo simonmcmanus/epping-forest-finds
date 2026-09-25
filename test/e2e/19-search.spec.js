@@ -79,6 +79,47 @@ test.describe("Searching the map", () => {
     expect(selectedMatches).toBe(true);
   });
 
+  test("keyboard focus stays visible inside the scrollable results list", async ({ page }) => {
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", "oak");
+
+    const rows = page.locator("#mapSearchResults .nearest-item");
+    await expect(rows.first()).toBeVisible();
+    const rowCount = await rows.count();
+    test.skip(rowCount < 5, "not enough oak results in the fixture data to scroll through");
+
+    // Step deep enough into the list that a focused row without scroll-into-view behaviour
+    // would land below the visible results panel.
+    await page.locator("#mapSearchInput").focus();
+    for (let i = 0; i < rowCount; i++) {
+      await page.keyboard.press("ArrowDown");
+    }
+    const lastRow = rows.last();
+    await expect(lastRow).toBeFocused();
+    const inView = await lastRow.evaluate((el) => {
+      const rowRect = el.getBoundingClientRect();
+      const listRect = document.getElementById("mapSearchResults").getBoundingClientRect();
+      return rowRect.top >= listRect.top - 1 && rowRect.bottom <= listRect.bottom + 1;
+    });
+    expect(inView).toBe(true);
+
+    // Tabbing (rather than arrow keys) through the list must keep the same guarantee -- it hits
+    // the browser's native focus order, not the ArrowDown/ArrowUp handler.
+    await page.locator("#mapSearchInput").focus();
+    for (let i = 0; i < rowCount + 1; i++) {
+      await page.keyboard.press("Tab");
+    }
+    const focusedViaTab = await page.evaluate(() => document.activeElement?.classList?.contains("nearest-item"));
+    expect(focusedViaTab).toBe(true);
+    const tabInView = await page.evaluate(() => {
+      const el = document.activeElement;
+      const rowRect = el.getBoundingClientRect();
+      const listRect = document.getElementById("mapSearchResults").getBoundingClientRect();
+      return rowRect.top >= listRect.top - 1 && rowRect.bottom <= listRect.bottom + 1;
+    });
+    expect(tabInView).toBe(true);
+  });
+
   test("searching a tree tag finds that tree, and choosing it navigates there", async ({ page }) => {
     await page.click("#searchToggle");
     await page.fill("#mapSearchInput", FIXTURE_TREE.tagNumber);

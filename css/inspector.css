@@ -420,7 +420,18 @@ button.settings-toggle.active {
   height: 4px;
   border-radius: 999px;
   background: var(--line);
-  outline: none;
+}
+
+/* The default outline lands on the track, not the thumb the user is actually dragging — style
+   the thumb itself so keyboard focus is visible (WCAG 2.4.7). */
+.walk-radius-range:focus-visible::-webkit-slider-thumb {
+  outline: 3px solid var(--nav);
+  outline-offset: 2px;
+}
+
+.walk-radius-range:focus-visible::-moz-range-thumb {
+  outline: 3px solid var(--nav);
+  outline-offset: 2px;
 }
 
 .walk-radius-range::-webkit-slider-thumb {

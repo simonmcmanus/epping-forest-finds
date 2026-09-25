@@ -55,6 +55,7 @@ function showOnboarding() {
     const selected = new Set(["trees", "cows"]);
 
     overlay.hidden = false;
+    const deactivateFocus = typeof activateModalFocus === "function" ? activateModalFocus(overlay) : null;
 
     function renderProgress() {
       progressEl.innerHTML = ONBOARDING_STEPS.map((_, i) => {
@@ -190,6 +191,18 @@ function showOnboarding() {
         // Continue to welcome + filter personalisation even when location is skipped.
         goNext();
       });
+
+      // Each step replaces contentEl/actionsEl wholesale, which drops focus back to <body> for
+      // a keyboard user — move it to the step's heading so screen readers announce the new step
+      // and Tab resumes from a sane place, without stealing focus on the very first render
+      // (activateModalFocus already placed it on the first control that time).
+      if (direction) {
+        const heading = contentEl.querySelector("h2");
+        if (heading) {
+          heading.setAttribute("tabindex", "-1");
+          heading.focus();
+        }
+      }
     }
 
     function hasGlobalState() {
@@ -231,6 +244,7 @@ function showOnboarding() {
 
     function finish() {
       localStorage.setItem(ONBOARDING_KEY, "1");
+      if (deactivateFocus) deactivateFocus();
       overlay.classList.add("fading-out");
       overlay.addEventListener("transitionend", () => {
         overlay.hidden = true;

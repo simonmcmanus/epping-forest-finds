@@ -560,6 +560,14 @@ Per the project's completion checklist:
   `Update Snapshots` action in the same change as the hero image, on the
   `mobile` project only.
 - **Sitemap** — `test/sitemap.test.js` updated for the `/app` disallow.
+- **Accessibility** — a "Skip to content" link is the first focusable element
+  in `<body>`, hidden off-screen until focused and jumping to `<main id="main"
+  tabindex="-1">` so keyboard users can bypass the header. Heading order runs
+  h1 → h2 (section headings) → h3 (inventory grid items) with no level
+  skipped. Body text colours (`--muted` on `--paper`, and the hero's light
+  green on `--tree-deep`) meet WCAG AA contrast (~7:1). The sign-up honeypot
+  field carries `tabindex="-1"` so it is not keyboard-reachable despite being
+  visually and semantically hidden.
 
 Note that `server.js` does not run Netlify edge functions, so the gate is
 invisible in local dev. Homepage and sign-up behaviour is testable locally;

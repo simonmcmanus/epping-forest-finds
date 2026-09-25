@@ -998,6 +998,64 @@ The location gate (`#locationGate`) and tracking consent modal (`#trackingConsen
 
 ---
 
+## Accessibility
+
+Keyboard and screen-reader support for the app shell, on top of the arrow-key/Enter navigation
+already documented for Nearby/Search result rows under Overview Content and Secondary Screens.
+
+- **Skip link.** `app.html` opens with `<a class="skip-link" href="#inspector">Skip to nearby
+  places</a>`, hidden off-screen (`css/base.css` `.skip-link`) until it receives keyboard focus,
+  so a keyboard or screen-reader user can jump straight from page load to the list-based Nearby
+  panel instead of tabbing across the canvas map, which has no keyboard-operable content of its
+  own. `#inspector` carries `tabindex="-1"` so the jump actually lands focus there.
+- **Modal dialogs.** The four full-screen overlays — `#locationGate`, `#distanceWarning`,
+  `#trackingConsentModal`, `#onboardingOverlay` — carry `role="dialog"` and `aria-modal="true"`,
+  each labelled via `aria-labelledby` (or `aria-label` for onboarding, whose heading text changes
+  per step). Opening one calls `activateModalFocus(container, { onEscape })` (`js/nav.js`), which:
+  moves focus to the dialog's first focusable control; traps Tab/Shift+Tab so focus cycles within
+  the dialog instead of escaping to the map behind it; closes the dialog on Escape where an
+  `onEscape` handler is supplied (tracking consent treats Escape as decline; the distance warning
+  treats it as dismiss; the location gate has no dismiss action and ignores Escape); and restores
+  focus to whatever triggered the dialog once the returned `deactivate()` runs. The onboarding
+  overlay additionally moves focus to each step's `<h2>` (given `tabindex="-1"`) as the step's
+  content is re-rendered, since replacing `innerHTML` would otherwise drop focus to `<body>`.
+- **Focus-visible styling.** `css/base.css` gives buttons, links, inputs, selects, textareas and
+  `[tabindex]` elements a visible focus ring (`:focus-visible`), solid `var(--nav)` rather than a
+  translucent tint — the original `rgba(60, 99, 130, 0.35)` (and the slider thumb's `0.6`, in
+  `css/inspector.css`) blended down to under the 3:1 contrast WCAG 2.4.11 requires against the
+  app's light backgrounds, so a keyboard user's focus was moving correctly but nothing on screen
+  showed it. The walking-radius range input (`css/inspector.css` `.walk-radius-range`) styles its
+  `::-webkit-slider-thumb` / `::-moz-range-thumb` on `:focus-visible` specifically, since the
+  browser's default outline lands on the track rather than the draggable thumb.
+- **Focus lands on the page without a click.** `boot()` (`js/app.js`) focuses the skip link as
+  soon as the page is interactive, before the location/onboarding checks that may open a modal.
+  A full page load doesn't reliably hand keyboard focus to the document — it can sit in the
+  browser's own chrome instead — so without this, a keyboard-only visitor's first Tab could go
+  nowhere obvious. If a modal opens next (the location gate or onboarding), `activateModalFocus`
+  moves focus into it immediately after, taking precedence; this only matters on the path where
+  none does. It also means a mouse/touch interaction with the map — panning, tapping a tree —
+  which leaves nothing focused (the canvas is never itself a focus target) doesn't cost a
+  keyboard user an extra Tab afterward either: browsers resume sequential focus navigation from
+  wherever it last was, which is the skip link's position from this same boot-time call, so the
+  very next Tab reaches the nav row directly rather than restarting the whole document from the
+  top.
+- **The nav row is always reachable.** `#nearbyToggle`/`#filterToggle`/`#searchToggle`/
+  `#reportToggle`/`#settingsToggle` sit at the top of `#inspector`, ahead of any per-screen
+  content — Nearby's list, a selected tree/place/cow's detail view, and the Search/Filter/
+  Settings/Report screens all render below the nav row rather than replacing it. So Tab always
+  reaches all five buttons, in that order, right after the skip link, whatever is currently shown.
+- **Keeping keyboard focus in view.** The Nearby/Search results list (`.nearest-list`) scrolls
+  inside `#inspectorBody`, so moving focus through it — with the arrow-key handler
+  (`handleNearestListArrowKey`, `js/nav.js`) or with plain Tab, which uses the browser's own
+  default order and runs no handler of ours — could previously land the focused `.nearest-item`
+  row outside the visible scroll area with nothing on screen to show focus had moved.
+  `handleNearestListArrowKey` now calls `scrollIntoView({ block: "nearest" })` on the row it
+  focuses, and a delegated `focusin` listener on `#inspectorBody` does the same for any
+  `.nearest-item` focused by another means (Tab included), so a keyboard user's focus is always
+  scrolled into view.
+
+---
+
 ## Legend / Key
 
 Always visible, shows active marker semantics:
