@@ -236,8 +236,9 @@ function buildIndexHtml(files) {
   </aside>
 </main>
 <footer class="site-foot">
-  <p>Built by Simon McManus. Report a problem on
-  <a href="https://github.com/simonmcmanus/epping-forest-finds/issues">GitHub</a>.</p>
+  <p>Created and curated by AI with oversight from
+  <a href="https://simonmcmanus.com">Simon McManus</a>. AI can make mistakes,
+  please <a href="https://github.com/simonmcmanus/epping-forest-finds/issues">report them here</a>.</p>
   <p><a href="/terms.html">Privacy &amp; terms</a></p>
 </footer>
 </body>
