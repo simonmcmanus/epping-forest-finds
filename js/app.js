@@ -386,6 +386,7 @@ const els = {
   reportToggle: document.getElementById("reportToggle"),
   settingsToggle: document.getElementById("settingsToggle"),
   inspectorActions: document.querySelector(".inspector-actions"),
+  skipLink: document.querySelector(".skip-link"),
 };
 
 // --- Router ---------------------------------------------------------------------------
@@ -699,6 +700,13 @@ async function boot() {
   setupInteractions();
   resizeCanvas();
   draw();
+
+  // Give the skip link keyboard focus as soon as the page is interactive, rather than leaving a
+  // keyboard user to discover Tab works at all: a full page load doesn't reliably hand focus to
+  // the document, so without this the first Tab can go nowhere obvious and read as "the app isn't
+  // keyboard-usable". If a modal (onboarding, the location gate) opens next, activateModalFocus
+  // moves focus into it immediately after, so this only matters on the path where none does.
+  if (els.skipLink) els.skipLink.focus();
 
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();

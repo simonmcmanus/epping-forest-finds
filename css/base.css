@@ -54,7 +54,11 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
-  outline: 3px solid rgba(60, 99, 130, 0.35);
+  /* Solid, not translucent: the old rgba(60, 99, 130, 0.35) ring blended down to under 2:1
+     contrast against the app's light backgrounds -- Tab was moving focus correctly, but nothing
+     on screen showed it, which read as "the nav doesn't work from the keyboard" even though it
+     did. var(--nav) solid gives >8:1 against white and the nav row's own #edf2ec background. */
+  outline: 3px solid var(--nav);
   outline-offset: 2px;
 }
 

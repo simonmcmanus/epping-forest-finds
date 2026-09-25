@@ -169,7 +169,7 @@
 }
 
 .onboarding-chip:focus-visible {
-  outline: 3px solid rgba(60, 99, 130, 0.35);
+  outline: 3px solid var(--nav);
   outline-offset: 2px;
 }
 
@@ -228,7 +228,7 @@
 }
 
 .onboarding-skip-btn:focus-visible {
-  outline: 3px solid rgba(60, 99, 130, 0.35);
+  outline: 3px solid var(--nav);
   outline-offset: 2px;
 }
 

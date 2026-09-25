@@ -189,5 +189,37 @@ test.describe("URL navigation", () => {
         await expect(page.locator(`#${id}`)).toBeFocused();
       }
     });
+
+    test.describe("with location already granted", () => {
+      // Geolocation must be granted here: otherwise boot() shows the location gate, which
+      // correctly (and intentionally) traps focus onto itself -- see the "Modal dialogs" section
+      // of spec-data-rendering.md. This test is about the path where no modal opens at all.
+      test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+      test("a keyboard user can reach the nav without clicking first", async ({ page }) => {
+        // A full page load doesn't reliably hand keyboard focus to the document (it can sit in
+        // the browser chrome instead), so without boot() explicitly focusing the skip link, the
+        // first Tab a keyboard-only visitor presses can go nowhere obvious -- indistinguishable
+        // from the nav simply not being keyboard-operable. No setup()/body.focus() here: this
+        // exercises the real boot path, with no modal open to claim focus instead.
+        await skipOnboarding(page);
+        await mockCowApi(page);
+        await gotoAndWaitForMap(page);
+        await expect(page.locator(".skip-link")).toBeFocused();
+
+        await page.keyboard.press("Tab");
+        await expect(page.locator("#nearbyToggle")).toBeFocused();
+      });
+    });
+
+    test("the focus ring is solid, not the low-contrast translucent one", async ({ page }) => {
+      await setup(page);
+      await page.locator("#nearbyToggle").focus();
+      const outline = await page.locator("#nearbyToggle").evaluate((el) => getComputedStyle(el).outlineColor);
+      // The old rgba(60, 99, 130, 0.35)/0.6 rings blended down to under the 3:1 contrast WCAG
+      // 2.4.11 requires against the app's light backgrounds -- a keyboard user's focus was
+      // moving, but nothing on screen showed it. Solid var(--nav) renders as opaque rgb(44, 79, 133).
+      expect(outline).toBe("rgb(44, 79, 133)");
+    });
   });
 });

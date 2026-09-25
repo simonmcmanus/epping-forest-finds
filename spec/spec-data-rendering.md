@@ -1020,10 +1020,20 @@ already documented for Nearby/Search result rows under Overview Content and Seco
   overlay additionally moves focus to each step's `<h2>` (given `tabindex="-1"`) as the step's
   content is re-rendered, since replacing `innerHTML` would otherwise drop focus to `<body>`.
 - **Focus-visible styling.** `css/base.css` gives buttons, links, inputs, selects, textareas and
-  `[tabindex]` elements a visible focus ring (`:focus-visible`). The walking-radius range input
-  (`css/inspector.css` `.walk-radius-range`) styles its `::-webkit-slider-thumb` /
-  `::-moz-range-thumb` on `:focus-visible` specifically, since the browser's default outline
-  lands on the track rather than the draggable thumb.
+  `[tabindex]` elements a visible focus ring (`:focus-visible`), solid `var(--nav)` rather than a
+  translucent tint — the original `rgba(60, 99, 130, 0.35)` (and the slider thumb's `0.6`, in
+  `css/inspector.css`) blended down to under the 3:1 contrast WCAG 2.4.11 requires against the
+  app's light backgrounds, so a keyboard user's focus was moving correctly but nothing on screen
+  showed it. The walking-radius range input (`css/inspector.css` `.walk-radius-range`) styles its
+  `::-webkit-slider-thumb` / `::-moz-range-thumb` on `:focus-visible` specifically, since the
+  browser's default outline lands on the track rather than the draggable thumb.
+- **Focus lands on the page without a click.** `boot()` (`js/app.js`) focuses the skip link as
+  soon as the page is interactive, before the location/onboarding checks that may open a modal.
+  A full page load doesn't reliably hand keyboard focus to the document — it can sit in the
+  browser's own chrome instead — so without this, a keyboard-only visitor's first Tab could go
+  nowhere obvious. If a modal opens next (the location gate or onboarding), `activateModalFocus`
+  moves focus into it immediately after, taking precedence; this only matters on the path where
+  none does.
 - **The nav row is always reachable.** `#nearbyToggle`/`#filterToggle`/`#searchToggle`/
   `#reportToggle`/`#settingsToggle` sit at the top of `#inspector`, ahead of any per-screen
   content — Nearby's list, a selected tree/place/cow's detail view, and the Search/Filter/
