@@ -220,7 +220,7 @@ function audit(root = APP_ROOT) {
     else byHash.set(hash, file);
   }
 
-  // Artwork is drawn at 1.75x the pin head's radius, so an icon reaching past
+  // Artwork is drawn at 1.85x the pin head's radius, so an icon reaching past
   // FIT_LIMIT of its own half-width pokes out of the white pointer -- the
   // thing that made the old plaque rectangle sit wrong among the others.
   const overflowing = mapIconEntries(Object.fromEntries(iconPaths))

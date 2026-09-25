@@ -20,8 +20,8 @@ function loadIconRegistry() {
 const mapIcons = mapIconEntries(loadIconRegistry());
 
 test("every icon the map draws fits inside the pointer", () => {
-  // drawPngMapIcon (js/renderer.js) paints artwork at 1.75x the pin head's
-  // radius, so content past 1/1.75 of its own half-width pokes out of the
+  // drawPngMapIcon (js/renderer.js) paints artwork at 1.85x the pin head's
+  // radius, so content past 1/1.85 of its own half-width pokes out of the
   // white pointer. The set the app shipped with was drawn without that
   // constraint and 18 of its icons genuinely overflowed -- the restaurant's
   // cutlery, the drinking-water tap, the beer froth. `npm run fit:icons`

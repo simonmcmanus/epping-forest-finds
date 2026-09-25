@@ -12,9 +12,9 @@
  *   npm run gen:icons -- memorial  # only sources matching "memorial"
  *
  * It also enforces the one rule the renderer cares about, which lives in
- * scripts/lib/icon-fit.js: artwork is drawn at 1.75x the pin head's radius,
- * so content past 1/1.75 of its own half-width spills out of the pointer.
- * Icons are designed to r=128 of the 256 viewBox (0.5, which draws to 0.875R)
+ * scripts/lib/icon-fit.js: artwork is drawn at 1.85x the pin head's radius,
+ * so content past 1/1.85 of its own half-width spills out of the pointer.
+ * Icons are designed to r=128 of the 256 viewBox (0.5, which draws to 0.925R)
  * and this fails the build past FIT_LIMIT rather than letting one ship.
  * scripts/refit-map-icons.js holds the original PNGs to the same ceiling.
  */

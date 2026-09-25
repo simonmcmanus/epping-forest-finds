@@ -5,8 +5,8 @@
  * Scales the original icon PNGs down until their artwork fits inside the map
  * pointer, and rewrites them in place.
  *
- * drawPngMapIcon() (js/renderer.js) paints artwork at 1.75x the pin head's
- * radius, so content past 1/1.75 = 0.571 of its own half-width reaches
+ * drawPngMapIcon() (js/renderer.js) paints artwork at 1.85x the pin head's
+ * radius, so content past 1/1.85 = 0.541 of its own half-width reaches
  * outside the white pointer. The set the app shipped with was drawn without
  * that constraint: 18 of its icons genuinely poked out -- the restaurant's
  * cutlery, the drinking-water tap, the beer froth -- and the rest ranged from

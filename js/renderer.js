@@ -41,9 +41,11 @@ function getMapImage(src) {
 // drawn down to the place's own point. Returns the head's centre and radius
 // so the caller can put artwork or a glyph inside it.
 //
-// Artwork is drawn at 1.75x the head radius, so anything reaching past
-// 1/1.75 of its own half-width pokes out of the pointer. The generator
-// (scripts/generate-map-icons.js) holds new icons to that.
+// Artwork is drawn at 1.85x the head radius, so anything reaching past
+// 1/1.85 of its own half-width pokes out of the pointer. The generator
+// (scripts/generate-map-icons.js) holds new icons well inside that via
+// FIT_LIMIT (scripts/lib/icon-fit.js), which is independent of this
+// multiplier, so raising it here is safe without touching icon assets.
 function drawMapPinShape(ctx, x, y, size) {
   const R = size * 0.4;
   const pH = R * 0.6;
@@ -71,7 +73,7 @@ function drawPngMapIcon(ctx, src, x, y, size) {
 
   ctx.save();
   const { cx, cy, R } = drawMapPinShape(ctx, x, y, size);
-  const iconSize = R * 1.75;
+  const iconSize = R * 1.85;
   ctx.drawImage(img, cx - iconSize / 2, cy - iconSize / 2, iconSize, iconSize);
   ctx.restore();
   return true;
@@ -108,7 +110,7 @@ function drawEmojiMapPin(ctx, emoji, x, y, size) {
     return true;
   }
 
-  ctx.font = `${R * 1.15}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
+  ctx.font = `${R * 1.2}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#111";
