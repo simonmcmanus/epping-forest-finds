@@ -58,7 +58,7 @@ function drawMapPinShape(ctx, x, y, size) {
   ctx.fillStyle = "white";
   ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.25)";
-  ctx.lineWidth = Math.max(1, size * 0.055);
+  ctx.lineWidth = Math.max(1, size * 0.04);
   ctx.stroke();
 
   return { cx, cy, R };
@@ -2040,7 +2040,7 @@ function drawSelectedPathOverlay(ctx) {
 function zoomEmojiScaleTarget() {
   const baselineScale = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
   const zoomRatio = baselineScale > 0 ? state.viewport.scale / baselineScale : 1;
-  return clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.35), 0.45, 1.15);
+  return clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.35), 0.3, 1.15);
 }
 
 function updateAnimatedEmojiScale() {

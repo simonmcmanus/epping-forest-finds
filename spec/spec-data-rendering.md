@@ -221,8 +221,12 @@ it** — that is what makes the markers read as one family.
 The teardrop pin uses a compact layout with a large icon:
 - Circle radius: `size × 0.4`; tail height: `R × 0.6`; icon fills `R × 1.75`
 - Circle centre is `R × 1.6` = `size × 0.64` above the tip point
-- Border opacity: `rgba(0,0,0,0.25)`
+- Border opacity: `rgba(0,0,0,0.25)`; border width `size × 0.04` (kept thin
+  deliberately — the icon-fill ratio below is a hard ceiling set by the
+  pre-generated icon artwork, so a thinner ring is the lever available for
+  less chrome around a marker without touching every icon asset)
 - Unselected scale: `MAP_ICON_SCALE_UNSELECTED = 2.2`; selected scale: `MAP_ICON_SCALE = 2` (plus animated pulse ×1.05–1.17)
+- All pins additionally scale with zoom via `mapEmojiScale()`/`zoomEmojiScaleTarget()`: `(viewport.scale / baseFitScale) ^ 0.35`, clamped to `[0.3, 1.15]`. Lowering the floor from `0.45` to `0.3` lets markers keep shrinking at extreme zoom-out instead of bottoming out at 45% size — same-category clustering (below) still applies on top of this, independently.
 - Hit detection (`findHit`, `findClusterHit`) is derived from `MAP_ICON_SCALE_UNSELECTED`: `pinR = iconSize × 0.52` (×1.3 visual R), `pinYOffset = iconSize × 0.64` (exact circle centre), giving an accurately-centred tap target slightly larger than the visual pin
 - Because the artwork is drawn at `R × 1.75` inside a head of radius `R`, an
   icon whose content reaches past `1/1.75` of its own half-width pokes out of
