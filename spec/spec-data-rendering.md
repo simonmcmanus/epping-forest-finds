@@ -219,16 +219,21 @@ artwork of its own. **Nothing is drawn on the map without the pointer behind
 it** — that is what makes the markers read as one family.
 
 The teardrop pin uses a compact layout with a large icon:
-- Circle radius: `size × 0.4`; tail height: `R × 0.6`; icon fills `R × 1.75`
+- Circle radius: `size × 0.4`; tail height: `R × 0.6`; icon fills `R × 1.85`
 - Circle centre is `R × 1.6` = `size × 0.64` above the tip point
-- Border opacity: `rgba(0,0,0,0.25)`
+- Border opacity: `rgba(0,0,0,0.25)`; border width `size × 0.04` (kept thin
+  deliberately, to leave less chrome around a marker)
 - Unselected scale: `MAP_ICON_SCALE_UNSELECTED = 2.2`; selected scale: `MAP_ICON_SCALE = 2` (plus animated pulse ×1.05–1.17)
+- All pins additionally scale with zoom via `mapEmojiScale()`/`zoomEmojiScaleTarget()`: `(viewport.scale / baseFitScale) ^ 0.35`, clamped to `[0.3, 1.15]`. Lowering the floor from `0.45` to `0.3` lets markers keep shrinking at extreme zoom-out instead of bottoming out at 45% size — same-category clustering (below) still applies on top of this, independently.
 - Hit detection (`findHit`, `findClusterHit`) is derived from `MAP_ICON_SCALE_UNSELECTED`: `pinR = iconSize × 0.52` (×1.3 visual R), `pinYOffset = iconSize × 0.64` (exact circle centre), giving an accurately-centred tap target slightly larger than the visual pin
-- Because the artwork is drawn at `R × 1.75` inside a head of radius `R`, an
-  icon whose content reaches past `1/1.75` of its own half-width pokes out of
-  the pointer. Every map icon is held to a 0.52 ceiling under that:
+- Because the artwork is drawn at `R × 1.85` inside a head of radius `R`, an
+  icon whose content reaches past `1/1.85` of its own half-width pokes out of
+  the pointer. Every map icon is held to a 0.52 ceiling under that — well
+  inside the `1/1.85 ≈ 0.541` spill point, so this ratio can be raised
+  (currently up to `1/0.52 ≈ 1.92`) without regenerating any icon asset:
   `scripts/generate-map-icons.js` for new artwork, `npm run fit:icons` for the
   original PNGs, and `test/map-icons.test.js` in CI (see `spec-icons.md`).
+  `drawEmojiMapPin`'s glyph fallback scales in proportion (`R × 1.2`).
 - `drawEmojiMapPin` sizes the glyph at `R × 1.15`. The generic 📍
   fallback is itself a map pin, and a pin inside a pin reads as a mistake, so
   a place the data says nothing about (OSM `building=yes`, the last seven on
@@ -239,6 +244,8 @@ The teardrop pin uses a compact layout with a large icon:
 ### Clustering
 
 All point-type overview items are clustered in screen space (greedy nearest-first) before drawing. `buildTypeClusters(itemSet, toScreen)` is the generic function used for trees, cows, paths, and water features. Landmarks are first grouped by rendered icon type (`landmarkClusterKey`) then clustered within each group via `buildLandmarkClusters`. The clustering radius is 30 CSS px scaled by `MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF` (the 30px figure was tuned against the original 16px icon size), so as pins get bigger, nearby items merge into a count badge sooner instead of visually overlapping.
+
+**Paint order within a type.** `drawTrees`, `drawLandmarks`, `drawCows`, `drawPathPins`, and `drawWaterPins` (the plain top-down path, `draw()`) each sort their own clusters ascending by `screenPt.y` before drawing, so a pin lower on screen paints over one further up instead of in whatever order `buildTypeClusters`/`buildLandmarkClusters` happened to build them — otherwise a pin that should read as "in front" could draw behind a farther one from the same layer. `drawAllPinsSorted` (used instead of the five functions above whenever `nearbyHeadingUpActive()` or `tiltActive()`) already did this correctly across *every* type in one combined pass; the fix here brings the plain top-down path in line with it for pins of the same type. Ordering *between* types in the top-down path is still the fixed layer order trees → landmarks → cows → paths → water, not screen depth — a known gap, unlikely to be visible since different-type pins rarely sit close enough to overlap.
 
 Each cluster draws **one pin** at the screen centroid of its members. When a cluster contains more than one item, a small count badge is drawn in the top-right of the pin by `drawClusterBadge`. Badges appear on every teardrop pin, artwork and emoji-fallback alike, but not on the SVG station roundels, which have no pointer. Route lines use the world-space centroid of each cluster (one line per cluster for trees; individual items for other types).
 

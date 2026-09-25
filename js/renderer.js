@@ -41,9 +41,11 @@ function getMapImage(src) {
 // drawn down to the place's own point. Returns the head's centre and radius
 // so the caller can put artwork or a glyph inside it.
 //
-// Artwork is drawn at 1.75x the head radius, so anything reaching past
-// 1/1.75 of its own half-width pokes out of the pointer. The generator
-// (scripts/generate-map-icons.js) holds new icons to that.
+// Artwork is drawn at 1.85x the head radius, so anything reaching past
+// 1/1.85 of its own half-width pokes out of the pointer. The generator
+// (scripts/generate-map-icons.js) holds new icons well inside that via
+// FIT_LIMIT (scripts/lib/icon-fit.js), which is independent of this
+// multiplier, so raising it here is safe without touching icon assets.
 function drawMapPinShape(ctx, x, y, size) {
   const R = size * 0.4;
   const pH = R * 0.6;
@@ -58,7 +60,7 @@ function drawMapPinShape(ctx, x, y, size) {
   ctx.fillStyle = "white";
   ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.25)";
-  ctx.lineWidth = Math.max(1, size * 0.055);
+  ctx.lineWidth = Math.max(1, size * 0.04);
   ctx.stroke();
 
   return { cx, cy, R };
@@ -71,7 +73,7 @@ function drawPngMapIcon(ctx, src, x, y, size) {
 
   ctx.save();
   const { cx, cy, R } = drawMapPinShape(ctx, x, y, size);
-  const iconSize = R * 1.75;
+  const iconSize = R * 1.85;
   ctx.drawImage(img, cx - iconSize / 2, cy - iconSize / 2, iconSize, iconSize);
   ctx.restore();
   return true;
@@ -108,7 +110,7 @@ function drawEmojiMapPin(ctx, emoji, x, y, size) {
     return true;
   }
 
-  ctx.font = `${R * 1.15}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
+  ctx.font = `${R * 1.2}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#111";
@@ -1202,10 +1204,15 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
   const mapScale = mapEmojiScale();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = treeClusters || buildTypeClusters(nearbyIconLookup.tree, resolvedToScreen);
+  // Sorted ascending by screen Y (painter's algorithm) so a pin lower on
+  // screen -- closer to the viewer in this top-down layout -- always paints
+  // over one further up, instead of drawing in whatever order clusters
+  // happened to be built in.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
 
@@ -1478,10 +1485,12 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
   const uScale = MAP_ICON_SCALE_UNSELECTED;
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * uScale;
   const clusters = landmarkClusters || buildLandmarkClusters(nearbyIconLookup.landmark, resolvedToScreen);
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, LANDMARK_CULL_MARGIN_PX * dpr)) continue;
 
@@ -1534,10 +1543,12 @@ function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = pathClusters || buildTypeClusters(nearbyIconLookup.path, resolvedToScreen);
   if (!clusters.length) return;
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     ctx.globalAlpha = reveal;
@@ -1556,10 +1567,12 @@ function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = waterClusters || buildTypeClusters(nearbyIconLookup.water, resolvedToScreen);
   if (!clusters.length) return;
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     ctx.globalAlpha = reveal;
@@ -1578,10 +1591,12 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
   const mapScale = mapEmojiScale();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = cowClusters || buildTypeClusters(nearbyIconLookup.cow, resolvedToScreen);
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const baseOpacity = markerOpacityFor("cow", items[0]);
@@ -2040,7 +2055,7 @@ function drawSelectedPathOverlay(ctx) {
 function zoomEmojiScaleTarget() {
   const baselineScale = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
   const zoomRatio = baselineScale > 0 ? state.viewport.scale / baselineScale : 1;
-  return clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.35), 0.45, 1.15);
+  return clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.35), 0.3, 1.15);
 }
 
 function updateAnimatedEmojiScale() {
