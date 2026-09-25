@@ -54,12 +54,16 @@ test.describe("compass reliability", () => {
   test("a heading already trusted from the drifting stream is dropped the moment a real bearing arrives", async ({ page }) => {
     const result = await page.evaluate(async () => {
       // A phone whose relative stream starts first: the app trusts it rather than leaving the
-      // user with no compass at all.
+      // user with no compass at all. Gaps between dispatches are a microtask tick rather than
+      // a real setTimeout: the calibration gate only trusts samples inside a trailing 900ms
+      // window, and a CPU-starved runner can stretch five 20ms real timers past that window,
+      // evicting the earliest sample before a fourth ever arrives -- flaking a test that has
+      // nothing to do with real elapsed time.
       for (let i = 0; i < 5; i += 1) {
         window.dispatchEvent(new DeviceOrientationEvent("deviceorientation", {
           alpha: 0, beta: 10, gamma: 0, absolute: false,
         }));
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        await Promise.resolve();
       }
       const relativeHeading = state.compassHeading;
 
