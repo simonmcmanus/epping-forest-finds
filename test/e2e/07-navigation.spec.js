@@ -210,6 +210,27 @@ test.describe("URL navigation", () => {
         await page.keyboard.press("Tab");
         await expect(page.locator("#nearbyToggle")).toBeFocused();
       });
+
+      test("Tab from a map interaction goes straight to the nav row, not back to the skip link", async ({ page }) => {
+        // A pointer interaction with the canvas (panning, tapping a tree) leaves nothing
+        // focused -- the canvas itself is never a focus target (see the skip-link's own note).
+        // The browser still remembers where the sequential-focus-navigation cursor last was
+        // (the skip link, from boot()'s own focus call), so the next Tab resumes from there
+        // rather than restarting the whole document from the top -- a keyboard user who has
+        // already been using the map with a mouse/touch shouldn't have to tab past the skip
+        // link a second time just to reach Filters or Search.
+        await skipOnboarding(page);
+        await mockCowApi(page);
+        await gotoAndWaitForMap(page);
+        const box = await page.locator("#mapCanvas").boundingBox();
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+        const order = ["nearbyToggle", "filterToggle", "searchToggle", "reportToggle", "settingsToggle"];
+        for (const id of order) {
+          await page.keyboard.press("Tab");
+          await expect(page.locator(`#${id}`)).toBeFocused();
+        }
+      });
     });
 
     test("the focus ring is solid, not the low-contrast translucent one", async ({ page }) => {

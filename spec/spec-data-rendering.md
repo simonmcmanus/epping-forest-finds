@@ -1033,7 +1033,12 @@ already documented for Nearby/Search result rows under Overview Content and Seco
   browser's own chrome instead — so without this, a keyboard-only visitor's first Tab could go
   nowhere obvious. If a modal opens next (the location gate or onboarding), `activateModalFocus`
   moves focus into it immediately after, taking precedence; this only matters on the path where
-  none does.
+  none does. It also means a mouse/touch interaction with the map — panning, tapping a tree —
+  which leaves nothing focused (the canvas is never itself a focus target) doesn't cost a
+  keyboard user an extra Tab afterward either: browsers resume sequential focus navigation from
+  wherever it last was, which is the skip link's position from this same boot-time call, so the
+  very next Tab reaches the nav row directly rather than restarting the whole document from the
+  top.
 - **The nav row is always reachable.** `#nearbyToggle`/`#filterToggle`/`#searchToggle`/
   `#reportToggle`/`#settingsToggle` sit at the top of `#inspector`, ahead of any per-screen
   content — Nearby's list, a selected tree/place/cow's detail view, and the Search/Filter/
