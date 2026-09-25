@@ -1024,6 +1024,15 @@ already documented for Nearby/Search result rows under Overview Content and Seco
   (`css/inspector.css` `.walk-radius-range`) styles its `::-webkit-slider-thumb` /
   `::-moz-range-thumb` on `:focus-visible` specifically, since the browser's default outline
   lands on the track rather than the draggable thumb.
+- **Keeping keyboard focus in view.** The Nearby/Search results list (`.nearest-list`) scrolls
+  inside `#inspectorBody`, so moving focus through it — with the arrow-key handler
+  (`handleNearestListArrowKey`, `js/nav.js`) or with plain Tab, which uses the browser's own
+  default order and runs no handler of ours — could previously land the focused `.nearest-item`
+  row outside the visible scroll area with nothing on screen to show focus had moved.
+  `handleNearestListArrowKey` now calls `scrollIntoView({ block: "nearest" })` on the row it
+  focuses, and a delegated `focusin` listener on `#inspectorBody` does the same for any
+  `.nearest-item` focused by another means (Tab included), so a keyboard user's focus is always
+  scrolled into view.
 
 ---
 

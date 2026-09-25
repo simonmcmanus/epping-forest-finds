@@ -634,6 +634,7 @@ function handleNearestListArrowKey(event) {
     if (nextIndex < items.length) {
       event.preventDefault();
       items[nextIndex].focus();
+      items[nextIndex].scrollIntoView({ block: "nearest" });
     }
     return;
   }
@@ -649,6 +650,7 @@ function handleNearestListArrowKey(event) {
     if (input) input.focus();
   } else {
     items[index - 1].focus();
+    items[index - 1].scrollIntoView({ block: "nearest" });
   }
 }
 
@@ -672,6 +674,14 @@ function setupSearchAndNavHandlers() {
     const input = event.target.closest("#mapSearchInput");
     if (!input) return;
     setSearchQuery(input.value);
+  });
+
+  // Tab moves focus through the scrollable Nearby/Search results list using the browser's own
+  // default order -- no keydown handler of ours runs for it -- so without this the focused row
+  // can land outside the visible scroll area with nothing on screen to show it moved at all.
+  els.inspectorBody.addEventListener("focusin", (event) => {
+    const item = event.target.closest(".nearest-item");
+    if (item) item.scrollIntoView({ block: "nearest" });
   });
 
   els.inspectorBody.addEventListener("keydown", (event) => {
