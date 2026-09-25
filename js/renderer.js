@@ -1,6 +1,10 @@
 const MAP_ICON_SCALE = 2;
 const MAP_ICON_SCALE_UNSELECTED = 2.2;
 const MAP_PNG_ICON_SIZE = 30;
+// The 30 CSS-px clustering radius below was tuned against the original 16px icon size; scale
+// it with MAP_PNG_ICON_SIZE so bigger pins merge into a count badge sooner instead of just
+// overlapping each other when a lot of them fall close together.
+const CLUSTER_RADIUS_ICON_SIZE_REF = 16;
 const BEER_ICON_SCALE = 1.15;
 const MAX_MAP_TREES = 60;
 const SELECTED_OVERLAY_PULSE_PERIOD_MS = 380;  // Shared pulse period for smooth animation
@@ -1103,7 +1107,7 @@ function applySingletonExpansion(clusters, toScreen) {
 
 function buildTypeClusters(itemSet, toScreen) {
   const dpr = pixelRatio();
-  const clusterRadius = 30 * dpr;
+  const clusterRadius = 30 * dpr * (MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF);
   const assigned = new Set();
   const clusters = [];
 
