@@ -1024,6 +1024,11 @@ already documented for Nearby/Search result rows under Overview Content and Seco
   (`css/inspector.css` `.walk-radius-range`) styles its `::-webkit-slider-thumb` /
   `::-moz-range-thumb` on `:focus-visible` specifically, since the browser's default outline
   lands on the track rather than the draggable thumb.
+- **The nav row is always reachable.** `#nearbyToggle`/`#filterToggle`/`#searchToggle`/
+  `#reportToggle`/`#settingsToggle` sit at the top of `#inspector`, ahead of any per-screen
+  content — Nearby's list, a selected tree/place/cow's detail view, and the Search/Filter/
+  Settings/Report screens all render below the nav row rather than replacing it. So Tab always
+  reaches all five buttons, in that order, right after the skip link, whatever is currently shown.
 - **Keeping keyboard focus in view.** The Nearby/Search results list (`.nearest-list`) scrolls
   inside `#inspectorBody`, so moving focus through it — with the arrow-key handler
   (`handleNearestListArrowKey`, `js/nav.js`) or with plain Tab, which uses the browser's own

@@ -164,5 +164,30 @@ test.describe("URL navigation", () => {
       await page.keyboard.press("Enter");
       await expect(page.locator("#inspector")).toBeFocused();
     });
+
+    test("Nearby, Filters, Search, Report and Settings are always reachable by Tab", async ({ page }) => {
+      // The nav row (#nearbyToggle/#filterToggle/#searchToggle/#reportToggle/#settingsToggle)
+      // sits at the top of #inspector, before any per-screen content, so it is the first thing
+      // Tab reaches after the skip link on every screen -- Nearby, a selected tree/place/cow, and
+      // the Search/Filter/Settings/Report screens all render their own content below it rather
+      // than replacing it.
+      await setup(page);
+      await page.locator("body").evaluate((el) => el.focus());
+      const order = ["nearbyToggle", "filterToggle", "searchToggle", "reportToggle", "settingsToggle"];
+      for (const id of order) {
+        await page.keyboard.press("Tab");
+        await expect(page.locator(`#${id}`)).toBeFocused();
+      }
+    });
+
+    test("the nav row stays reachable with a place selected", async ({ page }) => {
+      await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+      await page.locator("body").evaluate((el) => el.focus());
+      const order = ["nearbyToggle", "filterToggle", "searchToggle", "reportToggle", "settingsToggle", "inspectorBack"];
+      for (const id of order) {
+        await page.keyboard.press("Tab");
+        await expect(page.locator(`#${id}`)).toBeFocused();
+      }
+    });
   });
 });
