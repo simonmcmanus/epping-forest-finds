@@ -70,6 +70,21 @@ test.describe("Location and GPS — happy path", () => {
       await gotoAndWaitForMap(page);
       await expect(page.locator("#locationGateButton")).toBeEnabled();
     });
+
+    test("location gate is a labelled, keyboard-focus-trapped dialog", async ({ page }) => {
+      await gotoAndWaitForMap(page);
+      const gate = page.locator("#locationGate");
+      await expect(gate).toHaveAttribute("role", "dialog");
+      await expect(gate).toHaveAttribute("aria-modal", "true");
+      await expect(gate).toHaveAttribute("aria-labelledby", "locationGateTitle");
+
+      // Opening the gate should have moved focus into it, onto its one control.
+      await expect(page.locator("#locationGateButton")).toBeFocused();
+
+      // Tab should cycle back to the same button rather than escaping to the map behind it.
+      await page.keyboard.press("Tab");
+      await expect(page.locator("#locationGateButton")).toBeFocused();
+    });
   });
 
   test.describe("the location request never answers", () => {

@@ -148,4 +148,99 @@ test.describe("URL navigation", () => {
       await expect(page.locator("#filterToggle")).not.toHaveClass(/screen-active/);
     });
   });
+
+  test.describe("keyboard accessibility", () => {
+    test("a skip link jumps from the canvas straight to the Nearby panel", async ({ page }) => {
+      // setup() force-hides the location gate JS-side (see helpers.js), which does not itself
+      // move focus, so activating the skip link directly (rather than fighting real browser Tab
+      // order against a gate that already claimed focus on open) is what actually exercises the
+      // feature: that it exists, is reachable, and its target receives focus.
+      await setup(page);
+      const skipLink = page.locator(".skip-link");
+      await expect(skipLink).toHaveAttribute("href", "#inspector");
+      await skipLink.focus();
+      await expect(skipLink).toBeFocused();
+
+      await page.keyboard.press("Enter");
+      await expect(page.locator("#inspector")).toBeFocused();
+    });
+
+    test("Nearby, Filters, Search, Report and Settings are always reachable by Tab", async ({ page }) => {
+      // The nav row (#nearbyToggle/#filterToggle/#searchToggle/#reportToggle/#settingsToggle)
+      // sits at the top of #inspector, before any per-screen content, so it is the first thing
+      // Tab reaches after the skip link on every screen -- Nearby, a selected tree/place/cow, and
+      // the Search/Filter/Settings/Report screens all render their own content below it rather
+      // than replacing it.
+      await setup(page);
+      await page.locator("body").evaluate((el) => el.focus());
+      const order = ["nearbyToggle", "filterToggle", "searchToggle", "reportToggle", "settingsToggle"];
+      for (const id of order) {
+        await page.keyboard.press("Tab");
+        await expect(page.locator(`#${id}`)).toBeFocused();
+      }
+    });
+
+    test("the nav row stays reachable with a place selected", async ({ page }) => {
+      await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+      await page.locator("body").evaluate((el) => el.focus());
+      const order = ["nearbyToggle", "filterToggle", "searchToggle", "reportToggle", "settingsToggle", "inspectorBack"];
+      for (const id of order) {
+        await page.keyboard.press("Tab");
+        await expect(page.locator(`#${id}`)).toBeFocused();
+      }
+    });
+
+    test.describe("with location already granted", () => {
+      // Geolocation must be granted here: otherwise boot() shows the location gate, which
+      // correctly (and intentionally) traps focus onto itself -- see the "Modal dialogs" section
+      // of spec-data-rendering.md. This test is about the path where no modal opens at all.
+      test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+      test("a keyboard user can reach the nav without clicking first", async ({ page }) => {
+        // A full page load doesn't reliably hand keyboard focus to the document (it can sit in
+        // the browser chrome instead), so without boot() explicitly focusing the skip link, the
+        // first Tab a keyboard-only visitor presses can go nowhere obvious -- indistinguishable
+        // from the nav simply not being keyboard-operable. No setup()/body.focus() here: this
+        // exercises the real boot path, with no modal open to claim focus instead.
+        await skipOnboarding(page);
+        await mockCowApi(page);
+        await gotoAndWaitForMap(page);
+        await expect(page.locator(".skip-link")).toBeFocused();
+
+        await page.keyboard.press("Tab");
+        await expect(page.locator("#nearbyToggle")).toBeFocused();
+      });
+
+      test("Tab from a map interaction goes straight to the nav row, not back to the skip link", async ({ page }) => {
+        // A pointer interaction with the canvas (panning, tapping a tree) leaves nothing
+        // focused -- the canvas itself is never a focus target (see the skip-link's own note).
+        // The browser still remembers where the sequential-focus-navigation cursor last was
+        // (the skip link, from boot()'s own focus call), so the next Tab resumes from there
+        // rather than restarting the whole document from the top -- a keyboard user who has
+        // already been using the map with a mouse/touch shouldn't have to tab past the skip
+        // link a second time just to reach Filters or Search.
+        await skipOnboarding(page);
+        await mockCowApi(page);
+        await gotoAndWaitForMap(page);
+        const box = await page.locator("#mapCanvas").boundingBox();
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+        const order = ["nearbyToggle", "filterToggle", "searchToggle", "reportToggle", "settingsToggle"];
+        for (const id of order) {
+          await page.keyboard.press("Tab");
+          await expect(page.locator(`#${id}`)).toBeFocused();
+        }
+      });
+    });
+
+    test("the focus ring is solid, not the low-contrast translucent one", async ({ page }) => {
+      await setup(page);
+      await page.locator("#nearbyToggle").focus();
+      const outline = await page.locator("#nearbyToggle").evaluate((el) => getComputedStyle(el).outlineColor);
+      // The old rgba(60, 99, 130, 0.35)/0.6 rings blended down to under the 3:1 contrast WCAG
+      // 2.4.11 requires against the app's light backgrounds -- a keyboard user's focus was
+      // moving, but nothing on screen showed it. Solid var(--nav) renders as opaque rgb(44, 79, 133).
+      expect(outline).toBe("rgb(44, 79, 133)");
+    });
+  });
 });

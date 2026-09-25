@@ -49,9 +49,37 @@ button:disabled {
 }
 
 button:focus-visible,
-a:focus-visible {
-  outline: 3px solid rgba(60, 99, 130, 0.35);
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  /* Solid, not translucent: the old rgba(60, 99, 130, 0.35) ring blended down to under 2:1
+     contrast against the app's light backgrounds -- Tab was moving focus correctly, but nothing
+     on screen showed it, which read as "the nav doesn't work from the keyboard" even though it
+     did. var(--nav) solid gives >8:1 against white and the nav row's own #edf2ec background. */
+  outline: 3px solid var(--nav);
   outline-offset: 2px;
+}
+
+/* Bypass block (WCAG 2.4.1): hidden until focused, so keyboard/screen-reader users can jump
+   past the canvas map straight to the list-based Nearby panel instead of tabbing through it. */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 8px;
+  z-index: 1000;
+  background: var(--tree);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+
+.skip-link:focus {
+  top: 8px;
 }
 
 .app {

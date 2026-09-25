@@ -21,7 +21,7 @@ The admin UI stores the password in `sessionStorage` under `ff-admin-session-pas
 ## Pages / Views
 
 ### Login screen
-- Full-page password form
+- Full-page password form, with a visually-hidden (`.sr-only`) `<label>` for the password field so it has a programmatic name beyond its placeholder text
 - On success: loads all tracking data, transitions to the map view
 - On same-tab refresh after a successful login: restores the session from `sessionStorage` and re-fetches data without asking for the password again
 - **Log out** clears the stored admin session and returns to the login screen
@@ -71,6 +71,10 @@ Lists every user who has at least one location ping or tap event, sorted by most
 - Tooltip with last-seen timestamp
 
 Clicking a row filters the map to that user only. Clicking again (or the "All users" row) clears the filter.
+
+Rows are keyboard-operable, not click-only: each row carries `role="button"`, `tabindex="0"` and
+`aria-pressed` reflecting whether it is the current filter, and responds to Enter/Space the same
+as a click (`makeActivatable()` in `js/admin.js`).
 
 ## Top bar controls
 

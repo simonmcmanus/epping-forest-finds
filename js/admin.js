@@ -1164,19 +1164,34 @@ function buildUserList() {
   // Sort by last seen desc
   const users = [...byUser.entries()].sort((a, b) => b[1].last < a[1].last ? -1 : 1);
 
+  // Makes a clickable "row" div operable from the keyboard too (WCAG 2.1.1/4.1.2): a plain
+  // div with only a click handler is invisible to Tab and to assistive tech's button semantics.
+  function makeActivatable(el, onActivate) {
+    el.setAttribute("role", "button");
+    el.setAttribute("tabindex", "0");
+    el.addEventListener("click", onActivate);
+    el.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onActivate();
+      }
+    });
+  }
+
   const items = users.map(([uid, info]) => {
     const colour = userColour(uid);
     const lastSeen = new Date(info.last).toLocaleString();
     const div = document.createElement("div");
     div.className = "admin-user-item" + (uid === selectedUid ? " selected" : "");
     div.dataset.uid = uid;
+    div.setAttribute("aria-pressed", uid === selectedUid ? "true" : "false");
     div.innerHTML = `
       <span class="admin-user-dot" style="background:${colour}"></span>
       <span class="admin-user-label">${shortUid(uid)}</span>
       <span class="admin-user-meta">${info.count} pts · ${info.clicks} taps</span>
     `;
     div.title = `Last seen: ${lastSeen}`;
-    div.addEventListener("click", () => {
+    makeActivatable(div, () => {
       selectedUid = selectedUid === uid ? null : uid;
       buildUserList();
       render();
@@ -1188,8 +1203,9 @@ function buildUserList() {
   // "All users" row
   const allRow = document.createElement("div");
   allRow.className = "admin-user-item" + (!selectedUid ? " selected" : "");
+  allRow.setAttribute("aria-pressed", !selectedUid ? "true" : "false");
   allRow.innerHTML = `<span class="admin-user-dot" style="background:#aaa"></span><span class="admin-user-label">All users</span><span class="admin-user-meta">${users.length}</span>`;
-  allRow.addEventListener("click", () => { selectedUid = null; buildUserList(); render(); });
+  makeActivatable(allRow, () => { selectedUid = null; buildUserList(); render(); });
   list.appendChild(allRow);
   items.forEach((el) => list.appendChild(el));
 }
