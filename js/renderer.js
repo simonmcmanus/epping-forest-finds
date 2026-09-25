@@ -1204,10 +1204,15 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
   const mapScale = mapEmojiScale();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = treeClusters || buildTypeClusters(nearbyIconLookup.tree, resolvedToScreen);
+  // Sorted ascending by screen Y (painter's algorithm) so a pin lower on
+  // screen -- closer to the viewer in this top-down layout -- always paints
+  // over one further up, instead of drawing in whatever order clusters
+  // happened to be built in.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
 
@@ -1480,10 +1485,12 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
   const uScale = MAP_ICON_SCALE_UNSELECTED;
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * uScale;
   const clusters = landmarkClusters || buildLandmarkClusters(nearbyIconLookup.landmark, resolvedToScreen);
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, LANDMARK_CULL_MARGIN_PX * dpr)) continue;
 
@@ -1536,10 +1543,12 @@ function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = pathClusters || buildTypeClusters(nearbyIconLookup.path, resolvedToScreen);
   if (!clusters.length) return;
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     ctx.globalAlpha = reveal;
@@ -1558,10 +1567,12 @@ function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = waterClusters || buildTypeClusters(nearbyIconLookup.water, resolvedToScreen);
   if (!clusters.length) return;
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     ctx.globalAlpha = reveal;
@@ -1580,10 +1591,12 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
   const mapScale = mapEmojiScale();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = cowClusters || buildTypeClusters(nearbyIconLookup.cow, resolvedToScreen);
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const baseOpacity = markerOpacityFor("cow", items[0]);
