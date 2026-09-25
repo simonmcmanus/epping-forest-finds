@@ -280,9 +280,11 @@ Sections, in order:
    the envelope) centred beside the heading, aligned like the sign-up card, and a solid green "Read the Ledger →"
    button linking to `/reports/` (§6.4).
    The index carries individual reports; the homepage remains static.
-9. **Footer** — builder credit, `/terms.html`, GitHub feedback and contact address
-   `mcmanus.simon@gmail.com`. No separate dataset-attribution paragraph; source
-   explanations remain in the FAQ.
+9. **Footer** — "Created and curated by AI with oversight from Simon McManus"
+   (linking to `simonmcmanus.com`), an "AI can make mistakes, please report
+   them here" GitHub issues link, and `/terms.html`. No separate
+   dataset-attribution paragraph; source explanations remain in the FAQ. The
+   reports index (`scripts/generate-reports-index.js`) uses the same footer copy.
 
 ### 5.1 Page weight and assets
 
