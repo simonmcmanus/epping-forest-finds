@@ -25,6 +25,19 @@ test.describe("the marketing homepage", () => {
     await context.close();
   });
 
+  test("lets a keyboard user skip the header straight to the content", async ({ page }) => {
+    await page.goto("/");
+
+    const skipLink = page.locator(".skip-link");
+    await expect(skipLink).toHaveAttribute("href", "#main");
+
+    await page.keyboard.press("Tab");
+    await expect(skipLink).toBeFocused();
+
+    await skipLink.press("Enter");
+    await expect(page.locator("#main")).toBeFocused();
+  });
+
   test("states the offline promise, the trees and the cattle", async ({ page }) => {
     await page.goto("/");
 

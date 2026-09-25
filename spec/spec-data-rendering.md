@@ -238,7 +238,7 @@ The teardrop pin uses a compact layout with a large icon:
 
 ### Clustering
 
-All point-type overview items are clustered in screen space (30 CSS-pixel radius, greedy nearest-first) before drawing. `buildTypeClusters(itemSet, toScreen)` is the generic function used for trees, cows, paths, and water features. Landmarks are first grouped by rendered icon type (`landmarkClusterKey`) then clustered within each group via `buildLandmarkClusters`.
+All point-type overview items are clustered in screen space (greedy nearest-first) before drawing. `buildTypeClusters(itemSet, toScreen)` is the generic function used for trees, cows, paths, and water features. Landmarks are first grouped by rendered icon type (`landmarkClusterKey`) then clustered within each group via `buildLandmarkClusters`. The clustering radius is 30 CSS px scaled by `MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF` (the 30px figure was tuned against the original 16px icon size), so as pins get bigger, nearby items merge into a count badge sooner instead of visually overlapping.
 
 Each cluster draws **one pin** at the screen centroid of its members. When a cluster contains more than one item, a small count badge is drawn in the top-right of the pin by `drawClusterBadge`. Badges appear on every teardrop pin, artwork and emoji-fallback alike, but not on the SVG station roundels, which have no pointer. Route lines use the world-space centroid of each cluster (one line per cluster for trees; individual items for other types).
 
@@ -256,7 +256,7 @@ While `state.clusterZoomed` is true, `ensureOverviewTargetsVisible`, `keepOvervi
 
 ### Trees
 
-- Overview trees are **clustered in screen space** (30 CSS-pixel radius, greedy nearest-first) by `buildTreeClusters()`. One teardrop PNG pin is drawn per cluster at the cluster's screen centroid using the species leaf icon (or generic tree icon) at `MAP_ICON_SCALE_UNSELECTED` size. All map pins share one base size, `MAP_PNG_ICON_SIZE` (30 CSS px before the unselected/selected scale multipliers) — bumped from 16 so pins read clearly at a glance.
+- Overview trees are **clustered in screen space** (greedy nearest-first, radius scaled by pin size — see "Overview" above) by `buildTreeClusters()`. One teardrop PNG pin is drawn per cluster at the cluster's screen centroid using the species leaf icon (or generic tree icon) at `MAP_ICON_SCALE_UNSELECTED` size. All map pins share one base size, `MAP_PNG_ICON_SIZE` (30 CSS px before the unselected/selected scale multipliers) — bumped from 16 so pins read clearly at a glance.
 - When a cluster contains more than one tree, a small green count badge (e.g. "4" or "9+") is drawn in the top-right of the pin.
 - Only clusters whose members are all in the active overview set are drawn; `shouldDrawMapIcon` selection check applies at the function level (all tree pins hidden when any location is selected).
 - **Out-of-radius clusters render exactly like in-radius ones — no dimming.** They used to be drawn at 0.4 opacity. The walking-radius wash (see "Walking radius" above) already darkens everything beyond the ring, so a pin out there reads as outside it without being faded as well; the dim was a second signal for a fact the map had already made, and it landed on the pin — the one thing the user is trying to read out there. `buildNearbyIconLookup()` still returns the `outOfRadius` set recording the distinction, but nothing in the draw path reads it. Per-marker opacity from `markerOpacityFor()` (a non-matching place, a stale cow, a selection dimming everything else) is unaffected and still applies.
@@ -995,6 +995,64 @@ The location gate (`#locationGate`) and tracking consent modal (`#trackingConsen
 - **Location gate button gives immediate visual feedback** — the button is disabled as soon as it is tapped (preventing confusion from the geolocation or compass-permission async wait). `setLocationGateVisible(true, ...)` always re-enables the button so it is interactive again whenever the gate re-appears with a new message (error, compass prompt, etc.).
 - **Compass permission (iOS)** — `DeviceOrientationEvent.requestPermission()` is a device API that does not require internet. On failure or denial, `showCompassAccessPrompt()` re-shows the gate; the button is re-enabled by `setLocationGateVisible`.
 - **Geolocation** — GPS works without internet. The `locateUser` callback (success or error) triggers `setLocationGateVisible` which re-enables the gate button.
+
+---
+
+## Accessibility
+
+Keyboard and screen-reader support for the app shell, on top of the arrow-key/Enter navigation
+already documented for Nearby/Search result rows under Overview Content and Secondary Screens.
+
+- **Skip link.** `app.html` opens with `<a class="skip-link" href="#inspector">Skip to nearby
+  places</a>`, hidden off-screen (`css/base.css` `.skip-link`) until it receives keyboard focus,
+  so a keyboard or screen-reader user can jump straight from page load to the list-based Nearby
+  panel instead of tabbing across the canvas map, which has no keyboard-operable content of its
+  own. `#inspector` carries `tabindex="-1"` so the jump actually lands focus there.
+- **Modal dialogs.** The four full-screen overlays — `#locationGate`, `#distanceWarning`,
+  `#trackingConsentModal`, `#onboardingOverlay` — carry `role="dialog"` and `aria-modal="true"`,
+  each labelled via `aria-labelledby` (or `aria-label` for onboarding, whose heading text changes
+  per step). Opening one calls `activateModalFocus(container, { onEscape })` (`js/nav.js`), which:
+  moves focus to the dialog's first focusable control; traps Tab/Shift+Tab so focus cycles within
+  the dialog instead of escaping to the map behind it; closes the dialog on Escape where an
+  `onEscape` handler is supplied (tracking consent treats Escape as decline; the distance warning
+  treats it as dismiss; the location gate has no dismiss action and ignores Escape); and restores
+  focus to whatever triggered the dialog once the returned `deactivate()` runs. The onboarding
+  overlay additionally moves focus to each step's `<h2>` (given `tabindex="-1"`) as the step's
+  content is re-rendered, since replacing `innerHTML` would otherwise drop focus to `<body>`.
+- **Focus-visible styling.** `css/base.css` gives buttons, links, inputs, selects, textareas and
+  `[tabindex]` elements a visible focus ring (`:focus-visible`), solid `var(--nav)` rather than a
+  translucent tint — the original `rgba(60, 99, 130, 0.35)` (and the slider thumb's `0.6`, in
+  `css/inspector.css`) blended down to under the 3:1 contrast WCAG 2.4.11 requires against the
+  app's light backgrounds, so a keyboard user's focus was moving correctly but nothing on screen
+  showed it. The walking-radius range input (`css/inspector.css` `.walk-radius-range`) styles its
+  `::-webkit-slider-thumb` / `::-moz-range-thumb` on `:focus-visible` specifically, since the
+  browser's default outline lands on the track rather than the draggable thumb.
+- **Focus lands on the page without a click.** `boot()` (`js/app.js`) focuses the skip link as
+  soon as the page is interactive, before the location/onboarding checks that may open a modal.
+  A full page load doesn't reliably hand keyboard focus to the document — it can sit in the
+  browser's own chrome instead — so without this, a keyboard-only visitor's first Tab could go
+  nowhere obvious. If a modal opens next (the location gate or onboarding), `activateModalFocus`
+  moves focus into it immediately after, taking precedence; this only matters on the path where
+  none does. It also means a mouse/touch interaction with the map — panning, tapping a tree —
+  which leaves nothing focused (the canvas is never itself a focus target) doesn't cost a
+  keyboard user an extra Tab afterward either: browsers resume sequential focus navigation from
+  wherever it last was, which is the skip link's position from this same boot-time call, so the
+  very next Tab reaches the nav row directly rather than restarting the whole document from the
+  top.
+- **The nav row is always reachable.** `#nearbyToggle`/`#filterToggle`/`#searchToggle`/
+  `#reportToggle`/`#settingsToggle` sit at the top of `#inspector`, ahead of any per-screen
+  content — Nearby's list, a selected tree/place/cow's detail view, and the Search/Filter/
+  Settings/Report screens all render below the nav row rather than replacing it. So Tab always
+  reaches all five buttons, in that order, right after the skip link, whatever is currently shown.
+- **Keeping keyboard focus in view.** The Nearby/Search results list (`.nearest-list`) scrolls
+  inside `#inspectorBody`, so moving focus through it — with the arrow-key handler
+  (`handleNearestListArrowKey`, `js/nav.js`) or with plain Tab, which uses the browser's own
+  default order and runs no handler of ours — could previously land the focused `.nearest-item`
+  row outside the visible scroll area with nothing on screen to show focus had moved.
+  `handleNearestListArrowKey` now calls `scrollIntoView({ block: "nearest" })` on the row it
+  focuses, and a delegated `focusin` listener on `#inspectorBody` does the same for any
+  `.nearest-item` focused by another means (Tab included), so a keyboard user's focus is always
+  scrolled into view.
 
 ---
 

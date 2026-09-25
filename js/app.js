@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v43"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v45"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -386,6 +386,7 @@ const els = {
   reportToggle: document.getElementById("reportToggle"),
   settingsToggle: document.getElementById("settingsToggle"),
   inspectorActions: document.querySelector(".inspector-actions"),
+  skipLink: document.querySelector(".skip-link"),
 };
 
 // --- Router ---------------------------------------------------------------------------
@@ -699,6 +700,13 @@ async function boot() {
   setupInteractions();
   resizeCanvas();
   draw();
+
+  // Give the skip link keyboard focus as soon as the page is interactive, rather than leaving a
+  // keyboard user to discover Tab works at all: a full page load doesn't reliably hand focus to
+  // the document, so without this the first Tab can go nowhere obvious and read as "the app isn't
+  // keyboard-usable". If a modal (onboarding, the location gate) opens next, activateModalFocus
+  // moves focus into it immediately after, so this only matters on the path where none does.
+  if (els.skipLink) els.skipLink.focus();
 
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();
@@ -1171,6 +1179,11 @@ function checkDistanceToForest(latitude, longitude) {
     
     if (els.distanceWarning) {
       els.distanceWarning.hidden = false;
+      els.distanceWarning._deactivateFocus = typeof activateModalFocus === "function"
+        ? activateModalFocus(els.distanceWarning, {
+            onEscape: () => els.distanceWarningButton?.click(),
+          })
+        : null;
     }
   }
 }
