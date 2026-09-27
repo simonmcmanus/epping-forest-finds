@@ -11,6 +11,32 @@ test.describe("Map pins", () => {
     await setup(page);
   });
 
+  test("transport pins use a red London bus and unbadged parking artwork", async ({ page }) => {
+    const artwork = await page.evaluate(async () => {
+      const samples = {};
+      for (const slug of ["bus", "landmark-parking", "landmark-bicycle-parking"]) {
+        const image = new Image();
+        image.src = iconPath(slug);
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 256;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(image, 0, 0, 256, 256);
+        const pixels = ctx.getImageData(0, 0, 256, 256).data;
+        let red = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          if (pixels[i] > 140 && pixels[i + 1] < 90 && pixels[i + 2] < 80 && pixels[i + 3] > 200) red++;
+        }
+        samples[slug] = { red, badgeAlpha: ctx.getImageData(195, 65, 1, 1).data[3] };
+      }
+      return samples;
+    });
+
+    expect(artwork.bus.red, "the double-decker has a visible heritage-red body").toBeGreaterThan(1000);
+    expect(artwork["landmark-parking"].badgeAlpha, "the car has no separate parking badge").toBe(0);
+    expect(artwork["landmark-bicycle-parking"].badgeAlpha, "the bicycle has no separate parking badge").toBe(0);
+  });
+
   test("a memorial draws the memorial artwork rather than a candle glyph", async ({ page }) => {
     const resolved = await page.evaluate(() => {
       const memorial = state.landmarks.find((place) => place.category === "memorial");

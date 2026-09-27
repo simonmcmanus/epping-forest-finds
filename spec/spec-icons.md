@@ -5,7 +5,7 @@ filter-food
 A plate with fork and knife
 
 filter-transport
-A front-facing bus
+A front-facing red London double-decker bus
 
 filter-history
 A rolled historical scroll
@@ -29,7 +29,7 @@ filter-ponds-streams
 A single water droplet
 
 filter-pubs
-A beer mug
+A British nonic pint glass, without a handle
 
 filter-restaurants
 A plate with fork and knife
@@ -41,10 +41,10 @@ filter-shops
 A shopping basket
 
 filter-bus
-A front-facing bus
+A front-facing red London double-decker bus
 
 filter-parking
-A parked car
+A single front-facing car, without a P badge or map pin
 
 filter-historic-places
 A classical building with columns
@@ -53,7 +53,7 @@ filter-royal
 A crown
 
 filter-ww2
-A military helmet
+A British Brodie helmet, without a star or crossed weapons
 
 filter-social-history
 A woven basket
@@ -77,7 +77,7 @@ filter-medicine
 A medical cross
 
 filter-literature
-A stack of books
+A single open book, without a map pin
 
 filter-theatre
 Comedy and tragedy masks
@@ -128,10 +128,10 @@ inspector-railway
 A railway train
 
 landmark-parking
-A parked car
+A single front-facing car, without a P badge or map pin
 
 landmark-bicycle-parking
-A bicycle with the P badge the car-park icon carries
+A single bicycle, without a P badge
 
 landmark-bench
 A park bench
@@ -158,7 +158,7 @@ landmark-museum
 A museum building with columns
 
 landmark-campsite
-A camping tent
+A single camping tent, without trees or a map pin
 
 landmark-picnic
 A picnic table, plank top over a bench
@@ -167,7 +167,7 @@ landmark-viewpoint
 A spotting telescope on a tripod
 
 landmark-taxi
-A taxi cab
+A London black cab
 
 landmark-telephone
 A K6 telephone box
@@ -237,6 +237,19 @@ A single field maple leaf with five compact lobes
 
 tree-ash
 A single ash compound leaf with paired leaflets
+## UK setting and small-size legibility
+
+Map artwork uses one recognisable subject, with no additional location pins,
+parking badges or decorative props. Bus, pub, taxi and WWII artwork uses a
+London double-decker, British nonic pint glass, London black cab and Brodie
+helmet respectively. Parking uses a car; bicycle parking uses a bicycle;
+medical sites use a single cross; literature uses an open book; campsites use
+a tent. Keep the forest-green outlines and house palette, using heritage red
+for the bus. Check silhouettes at map size as well as the 256px original.
+The remaining map artwork was reviewed: UK rail symbols, the K6 telephone
+box, heritage buildings, local nature and generic facilities retain their
+existing subjects.
+
 ## Drawing an icon
 
 `data/icons/src/*.svg` is the editable original for every icon added since the
