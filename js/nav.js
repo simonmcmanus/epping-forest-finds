@@ -93,6 +93,31 @@ function nearbyOrigin() {
   return state.nearbyAnchor || state.userLocation;
 }
 
+// A real GPS fix never holds perfectly still -- even standing on one spot, especially under
+// forest canopy, consecutive fixes wander by a few metres. overviewItemsForActiveFilter caches
+// on the origin's raw coordinates and re-sorts/re-samples its candidate lists (sampleSpread's
+// tree cap in particular) whenever they change, so every such wobble could swap which items
+// landed in a capped sample -- visible as map pins jumping while the phone sat still. This holds
+// the origin used for that candidate selection fixed until the live fix has moved further than a
+// real, deliberate distance away from it, so imperceptible GPS noise no longer reaches the
+// pin/list selection at all.
+let _stableNearbyOrigin = null;
+const STABLE_NEARBY_ORIGIN_HYSTERESIS_METRES = 15;
+
+function stableNearbyOrigin() {
+  const origin = nearbyOrigin();
+  if (!origin) {
+    _stableNearbyOrigin = null;
+    return null;
+  }
+  if (origin === _stableNearbyOrigin) return _stableNearbyOrigin;
+  if (!_stableNearbyOrigin
+      || distanceMetres(_stableNearbyOrigin.latitude, _stableNearbyOrigin.longitude, origin.latitude, origin.longitude) > STABLE_NEARBY_ORIGIN_HYSTERESIS_METRES) {
+    _stableNearbyOrigin = origin;
+  }
+  return _stableNearbyOrigin;
+}
+
 // Search, Filter, Settings, and Report screens all show the map in the background and must
 // present the same fixed "zoomed out to show all highlighted locations" view (see
 // nearbyCameraFitPoints/ensureOverviewTargetsVisible in index.html and

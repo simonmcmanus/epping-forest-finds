@@ -2508,7 +2508,10 @@ function overviewItemsForActiveFilter() {
   // Pinch, js/nav.js). Reading the raw GPS fix here instead left the ring centred on the
   // browsed spot while the matches inside it were still scanned from wherever the user
   // actually stood. With no anchor set -- the usual case -- this is the GPS fix as before.
-  const origin = nearbyOrigin();
+  // stableNearbyOrigin() (not the raw fix) because this candidate scan feeds sampleSpread's
+  // capped tree sample -- a few-metre GPS wobble reordering "nearest 60" was visible as pins
+  // jumping while the phone sat still (see its own comment, js/nav.js).
+  const origin = stableNearbyOrigin();
   if (!origin) return [];
   const { latitude, longitude } = origin;
 

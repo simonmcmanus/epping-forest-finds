@@ -1237,10 +1237,71 @@ function megaClusterRadius(totalItems, dpr) {
   return clamp(16 * dpr + Math.sqrt(totalItems) * 2.6 * dpr, 18 * dpr, 34 * dpr);
 }
 
-// Drawn as one badge with the total count in the middle and a small ring of dots around the
-// rim -- one per distinct category present, largest group first, capped at 6 -- so tapping isn't
-// the only way to tell *what kind* of things are grouped here, only *how many* of each.
-function drawMegaBadge(ctx, cx, cy, totalItems, byType, dpr) {
+// The same icon each category's own draw function would put in its pin -- picked from the
+// cluster's first item exactly the way drawTrees/drawLandmarks/drawPathPins/drawWaterPins/
+// drawCows do -- so a mega badge's ring shows the *actual* glyph for what's inside, not just a
+// colour standing in for it. Anything with no PNG of its own (the underground/rail SVG marks)
+// falls back to the generic pin icon.
+function megaClusterMemberIconSrc(itemType, cluster) {
+  const repr = cluster.items[0];
+  switch (itemType) {
+    case "tree":
+      return (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
+    case "cow":
+      return iconPath("cow");
+    case "path":
+      return iconPath("waymarked");
+    case "water":
+      return iconPath("ponds");
+    case "landmark": {
+      if (isPubCategory(repr)) return iconPath("beer");
+      if (isCafeCategory(repr)) return iconPath("cafe");
+      if (isShopCategory(repr)) return iconPath("shop");
+      if (isTransportCategory(repr)) {
+        const transportType = getTransportType(repr);
+        if (transportType === "parking") return iconPath("landmark-parking");
+        if (transportType === "underground" || transportType === "national_rail") return iconPath("pin");
+        return iconPath("bus");
+      }
+      const slug = placeIconSlug(repr);
+      return (slug && iconPath(slug)) || iconPath("pin");
+    }
+    default:
+      return iconPath("pin");
+  }
+}
+
+// A small circular chip -- white disc, category-coloured ring, the category's own icon cropped
+// to a circle inside -- used around the mega badge's rim (see drawMegaBadge). Silently draws
+// just the coloured ring if the icon image hasn't finished loading yet (getMapImage triggers a
+// redraw once it has, same as every other map icon).
+function drawMegaClusterIconChip(ctx, x, y, src, itemType, chipR, dpr) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, chipR, 0, Math.PI * 2);
+  ctx.fillStyle = "#fff";
+  ctx.fill();
+  ctx.lineWidth = 1.6 * dpr;
+  ctx.strokeStyle = megaClusterCategoryColor(itemType);
+  ctx.stroke();
+
+  const img = src ? getMapImage(src) : null;
+  if (img && img.complete && img.naturalWidth) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, chipR * 0.82, 0, Math.PI * 2);
+    ctx.clip();
+    const iconSize = chipR * 1.7;
+    ctx.drawImage(img, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+// Drawn as one badge with the total count in the middle and a small ring of icon chips around
+// the rim -- one per distinct category present, largest group first, capped at 6 -- so tapping
+// isn't the only way to tell *what* is grouped here, only *how many* of each.
+function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   const R = megaClusterRadius(totalItems, dpr);
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.35)";
@@ -1263,19 +1324,13 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, dpr) {
   ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
 
   const types = Array.from(byType.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const dotR = Math.max(3.5 * dpr, R * 0.16);
-  const ringR = R + dotR + 1.5 * dpr;
+  const chipR = Math.max(6 * dpr, R * 0.36);
+  const ringR = R + chipR + 1.5 * dpr;
   types.forEach(([itemType], i) => {
     const angle = -Math.PI / 2 + (i / types.length) * Math.PI * 2;
     const dx = cx + Math.cos(angle) * ringR;
     const dy = cy + Math.sin(angle) * ringR;
-    ctx.beginPath();
-    ctx.arc(dx, dy, dotR, 0, Math.PI * 2);
-    ctx.fillStyle = megaClusterCategoryColor(itemType);
-    ctx.fill();
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 1.2 * dpr;
-    ctx.stroke();
+    drawMegaClusterIconChip(ctx, dx, dy, byTypeIconSrc.get(itemType), itemType, chipR, dpr);
   });
   ctx.restore();
 }
@@ -1289,17 +1344,19 @@ function drawMegaClusters(ctx, megaGroups) {
   for (const group of megaGroups) {
     let totalItems = 0, sx = 0, sy = 0;
     const byType = new Map();
+    const byTypeIconSrc = new Map();
     for (const { itemType, cluster } of group) {
       const n = cluster.items.length;
       totalItems += n;
       sx += cluster.screenPt.x * n;
       sy += cluster.screenPt.y * n;
       byType.set(itemType, (byType.get(itemType) || 0) + n);
+      if (!byTypeIconSrc.has(itemType)) byTypeIconSrc.set(itemType, megaClusterMemberIconSrc(itemType, cluster));
     }
     const cx = sx / totalItems;
     const cy = sy / totalItems;
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterRadius(totalItems, dpr) * 2)) continue;
-    drawMegaBadge(ctx, cx, cy, totalItems, byType, dpr);
+    drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr);
   }
   ctx.globalAlpha = 1;
   ctx.restore();
