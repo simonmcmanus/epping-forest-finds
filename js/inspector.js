@@ -400,6 +400,16 @@ function findClusterHit(screen) {
   // Cross-category mega clusters (see buildSuperClusters, js/renderer.js) draw on top of the
   // per-type badges they absorb, so check those first -- a tap in their radius always means the
   // mega badge, never one of the individual clusters merged into it.
+  //
+  // Deliberately the base MEGA_CLUSTER_MIN_MEMBERS here, not megaClusterMinMembersFor's
+  // near-user-stricter floor: that floor only raises the bar for drawing a consolidated badge
+  // near the user (so nearby ground stays legible, individual pins rather than one gold circle --
+  // see its own comment), it was never meant to also switch off the tap affordance. A 2-cluster
+  // overlap near the user still draws as separate, overlapping pins with nothing to visually mark
+  // it as a group -- but a tap there still needs to land on *something* coherent. Gating this hit
+  // test on the same stricter floor left those spots with no group to expand at all: the tap fell
+  // straight through to individual-pin hit-testing and picked whichever pin happened to be on top,
+  // which is exactly the "doesn't expand, just goes to one item" bug this exists to prevent.
   if (!state.clusterExpanded) {
     const megaGroups = buildSuperClusters([
       { itemType: "tree", clusters: treeClusters },
@@ -407,7 +417,7 @@ function findClusterHit(screen) {
       { itemType: "cow", clusters: cowClusters },
       { itemType: "path", clusters: pathClusters },
       { itemType: "water", clusters: waterClusters },
-    ]).filter(group => group.length >= megaClusterMinMembersFor(group));
+    ]).filter(group => group.length >= MEGA_CLUSTER_MIN_MEMBERS);
     for (const group of megaGroups) {
       let totalItems = 0, sx = 0, sy = 0, items = [];
       const itemsByType = {};
