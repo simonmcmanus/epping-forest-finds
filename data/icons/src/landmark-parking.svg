@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Parking: a single parked car, no separate P badge -- reads at small sizes. -->
+  <g stroke="#284830" stroke-width="13" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M38 190
+             L38 166
+             Q38 150 58 148
+             L92 148
+             L112 108
+             Q120 100 132 100
+             L168 100
+             Q180 100 188 110
+             L206 148
+             Q222 150 222 168
+             L222 190Z" fill="#f8f0d0"/>
+    <path d="M100 145 116 112 Q122 108 130 108 L166 108 Q174 108 180 116 L194 145Z" fill="#80a068"/>
+  </g>
+  <g stroke="#284830" stroke-width="11">
+    <circle cx="78" cy="192" r="28" fill="#284830"/>
+    <circle cx="184" cy="192" r="28" fill="#284830"/>
+  </g>
+  <circle cx="78" cy="192" r="11" fill="#f8f0d0"/>
+  <circle cx="184" cy="192" r="11" fill="#f8f0d0"/>
+</svg>

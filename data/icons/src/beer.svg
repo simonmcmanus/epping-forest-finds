@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Pubs: an English pint glass, tapered and handle-less -- no American beer stein. -->
+  <g stroke="#284830" stroke-width="13" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M78 210 60 70 196 70 178 210Z" fill="#c0a068"/>
+    <path d="M64 104h128" stroke-width="9"/>
+  </g>
+  <g fill="#f8f0d0" stroke="#284830" stroke-width="10" stroke-linejoin="round">
+    <rect x="60" y="56" width="136" height="26" rx="12"/>
+    <circle cx="72" cy="50" r="20"/>
+    <circle cx="106" cy="42" r="22"/>
+    <circle cx="144" cy="42" r="22"/>
+    <circle cx="180" cy="50" r="20"/>
+  </g>
+  <circle cx="100" cy="150" r="6" fill="#284830"/>
+  <circle cx="140" cy="178" r="6" fill="#284830"/>
+</svg>

@@ -5,7 +5,7 @@ filter-food
 A plate with fork and knife
 
 filter-transport
-A front-facing bus
+A UK red double-decker bus in side profile
 
 filter-history
 A rolled historical scroll
@@ -29,7 +29,7 @@ filter-ponds-streams
 A single water droplet
 
 filter-pubs
-A beer mug
+An English pint glass with foam, no handle
 
 filter-restaurants
 A plate with fork and knife
@@ -41,10 +41,10 @@ filter-shops
 A shopping basket
 
 filter-bus
-A front-facing bus
+A UK red double-decker bus in side profile
 
 filter-parking
-A parked car
+A single parked car, no separate P badge
 
 filter-historic-places
 A classical building with columns
@@ -128,10 +128,10 @@ inspector-railway
 A railway train
 
 landmark-parking
-A parked car
+A single parked car, no separate P badge
 
 landmark-bicycle-parking
-A bicycle with the P badge the car-park icon carries
+A bicycle alone, no separate P badge
 
 landmark-bench
 A park bench
@@ -167,7 +167,7 @@ landmark-viewpoint
 A spotting telescope on a tripod
 
 landmark-taxi
-A taxi cab
+A London black cab in side profile
 
 landmark-telephone
 A K6 telephone box
@@ -286,6 +286,24 @@ buttons, the filter group and chip icons, the generated launcher icons — is
 exempt; `mapIconEntries()` in `scripts/lib/icon-fit.js` is the one list of
 those, so the generator, the refit, the audit and the test cannot disagree
 about what counts as a map pin.
+
+## A UK-focused redraw
+
+Five icons were hand-authored PNGs with no editable source and read as
+American: the bus was a flat-nosed front-facing coach (a US school-bus
+silhouette, not a London double-decker), the pub glass was a handled beer
+stein, the taxi was a checkered cab with a roof-mounted `TAXI` sign (the New
+York look, not a black cab), and both the car-park and bicycle-parking icons
+carried a second, disconnected "P" badge alongside the vehicle -- two shapes
+that stop reading as one mark at 35px. `bus`, `beer`, `landmark-parking`,
+`landmark-bicycle-parking` and `landmark-taxi` were redrawn as
+`data/icons/src/*.svg` in the house style: the bus is now a red double-decker
+in side profile, the pub glass a tapered English pint with foam and no
+handle, the taxi a black-cab silhouette, and both parking icons dropped the
+"P" badge to a single vehicle shape. The rest of the set -- castles, columned
+buildings, Big Ben, the National Rail and Underground roundels, the K6
+telephone box -- was reviewed against the same "is this American, and is it
+one shape" test and kept as is.
 
 ## Community venues reuse existing icons
 

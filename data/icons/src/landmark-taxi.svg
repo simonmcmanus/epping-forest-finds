@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Taxi: a London black cab, not a checkered American yellow cab. -->
+  <g stroke="#284830" stroke-width="13" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M34 190
+             L34 162
+             Q34 146 54 144
+             L82 144
+             L100 100
+             Q110 88 128 88
+             L166 88
+             Q184 88 194 102
+             L210 144
+             Q230 148 230 168
+             L230 190Z" fill="#284830"/>
+    <path d="M92 140 106 104 Q112 98 122 98 L164 98 Q176 98 182 108 L198 140Z" fill="#f8f0d0"/>
+    <path d="M136 98v42" stroke="#284830" stroke-width="9"/>
+  </g>
+  <g stroke="#284830" stroke-width="11">
+    <circle cx="74" cy="192" r="27" fill="#284830"/>
+    <circle cx="190" cy="192" r="27" fill="#284830"/>
+  </g>
+  <circle cx="74" cy="192" r="11" fill="#f8f0d0"/>
+  <circle cx="190" cy="192" r="11" fill="#f8f0d0"/>
+</svg>
