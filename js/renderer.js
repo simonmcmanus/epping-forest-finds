@@ -185,7 +185,7 @@ function draw() {
     { itemType: "cow", clusters: cowClusters },
     { itemType: "path", clusters: pathClusters },
     { itemType: "water", clusters: waterClusters },
-  ]).filter(group => group.length >= MEGA_CLUSTER_MIN_MEMBERS);
+  ]).filter(group => group.length >= megaClusterMinMembersFor(group));
   const megaClusterSet = new Set();
   for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
   const filteredTreeClusters = treeClusters.filter(c => !megaClusterSet.has(c));
@@ -1202,9 +1202,29 @@ const MEGA_CLUSTER_MERGE_RADIUS_CSS_PX = 22;
 // A mega badge replaces genuinely crowded ground, not just two neighbours sharing a spot -- but
 // requiring three (tried briefly) left plenty of two-category overlaps as bare stacked pins with
 // no way to tap "both of these", which is exactly the confusing case mega clustering exists to
-// fix. Two is the right floor: buildSuperClusters' merge result is left as individual pins only
-// below that.
+// fix. Two is the right floor away from the user: buildSuperClusters' merge result is left as
+// individual pins only below that.
 const MEGA_CLUSTER_MIN_MEMBERS = 2;
+
+// Close to the user -- inside the distance a 5-minute walk covers -- is exactly where the extra
+// tap a mega badge costs matters most: it's the ground being actively navigated, where seeing
+// each pin without opening anything is the point. A merge that would happily declutter the far
+// side of the walking radius reads as unhelpful right next to "You", collapsing detail the
+// walker is standing in. Requiring more piled-up categories there means a badge only replaces
+// individual pins nearby when it's genuinely necessary, not merely possible.
+const MEGA_CLUSTER_MIN_MEMBERS_NEAR_USER = 4;
+
+// Picks MEGA_CLUSTER_MIN_MEMBERS or the stricter *_NEAR_USER floor for one candidate group,
+// based on how far its own spot is from nearbyOrigin() (GPS fix or browse anchor, matching the
+// walking-radius ring itself). Falls back to the ordinary floor with no origin to measure from.
+function megaClusterMinMembersFor(group) {
+  const origin = typeof nearbyOrigin === "function" ? nearbyOrigin() : null;
+  if (!origin) return MEGA_CLUSTER_MIN_MEMBERS;
+  const repr = group[0].cluster;
+  const lonLat = unprojectPoint(repr.worldPt);
+  const metres = distanceMetres(origin.latitude, origin.longitude, lonLat.latitude, lonLat.longitude);
+  return metres <= walkingDistanceToMetres(5) ? MEGA_CLUSTER_MIN_MEMBERS_NEAR_USER : MEGA_CLUSTER_MIN_MEMBERS;
+}
 
 function buildSuperClusters(taggedGroups) {
   const dpr = pixelRatio();
@@ -2073,7 +2093,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     { itemType: "cow", clusters: cowClustersAll },
     { itemType: "path", clusters: pathClustersAll },
     { itemType: "water", clusters: waterClustersAll },
-  ]).filter(group => group.length >= MEGA_CLUSTER_MIN_MEMBERS);
+  ]).filter(group => group.length >= megaClusterMinMembersFor(group));
   const megaClusterSet = new Set();
   for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
 

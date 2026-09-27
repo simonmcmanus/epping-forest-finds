@@ -382,7 +382,7 @@ function findClusterHit(screen) {
       { itemType: "cow", clusters: cowClusters },
       { itemType: "path", clusters: pathClusters },
       { itemType: "water", clusters: waterClusters },
-    ]).filter(group => group.length >= MEGA_CLUSTER_MIN_MEMBERS);
+    ]).filter(group => group.length >= megaClusterMinMembersFor(group));
     for (const group of megaGroups) {
       let totalItems = 0, sx = 0, sy = 0, items = [];
       const itemsByType = {};
