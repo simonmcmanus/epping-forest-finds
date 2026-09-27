@@ -1,16 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <!-- Bicycle parking: a bicycle alone, no separate P badge -- reads at small sizes. -->
-  <g stroke="#284830" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" fill="none">
-    <circle cx="80" cy="176" r="48" fill="#f8f0d0"/>
-    <circle cx="176" cy="176" r="48" fill="#f8f0d0"/>
-    <path d="M80 176 128 96 172 96 176 176"/>
-    <path d="M128 96 154 176"/>
-    <path d="M172 96 200 78"/>
-    <path d="M104 88h34"/>
-  </g>
-  <g stroke="#284830" stroke-width="11" stroke-linejoin="round">
-    <path d="M108 82h30v12h-30z" fill="#80a068"/>
-    <circle cx="80" cy="176" r="8" fill="#284830"/>
-    <circle cx="176" cy="176" r="8" fill="#284830"/>
+  <g transform="translate(128 132) scale(1.06) translate(-128 -132)">
+    <g stroke="#284830" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" fill="none">
+      <circle cx="80" cy="176" r="48" fill="#f8f0d0"/>
+      <circle cx="176" cy="176" r="48" fill="#f8f0d0"/>
+      <path d="M80 176 128 96 172 96 176 176"/>
+      <path d="M128 96 154 176"/>
+      <path d="M172 96 200 78"/>
+      <path d="M104 88h34"/>
+    </g>
+    <g stroke="#284830" stroke-width="11" stroke-linejoin="round">
+      <path d="M108 82h30v12h-30z" fill="#80a068"/>
+      <circle cx="80" cy="176" r="8" fill="#284830"/>
+      <circle cx="176" cy="176" r="8" fill="#284830"/>
+    </g>
   </g>
 </svg>

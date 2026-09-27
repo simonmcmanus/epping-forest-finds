@@ -1,24 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <!-- Taxi: a London black cab, not a checkered American yellow cab. -->
-  <g stroke="#284830" stroke-width="13" stroke-linejoin="round" stroke-linecap="round">
-    <path d="M34 190
-             L34 162
-             Q34 146 54 144
-             L82 144
-             L100 100
-             Q110 88 128 88
-             L166 88
-             Q184 88 194 102
-             L210 144
-             Q230 148 230 168
-             L230 190Z" fill="#284830"/>
-    <path d="M92 140 106 104 Q112 98 122 98 L164 98 Q176 98 182 108 L198 140Z" fill="#f8f0d0"/>
-    <path d="M136 98v42" stroke="#284830" stroke-width="9"/>
+  <!-- Taxi: a London black cab -- boxy roofline and a roof sign, not a recoloured car. -->
+  <g transform="translate(128 146) scale(1.06) translate(-128 -146)">
+    <g stroke="#284830" stroke-width="13" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M30 192
+               L30 164
+               Q30 150 46 148
+               L70 146
+               L82 104
+               Q88 92 102 92
+               L154 92
+               Q168 92 174 104
+               L186 146
+               L210 148
+               Q226 150 226 164
+               L226 192Z" fill="#284830"/>
+      <path d="M92 142 100 106 Q104 100 112 100 L144 100 Q152 100 156 106 L164 142Z" fill="#f8f0d0"/>
+      <path d="M128 100v42" stroke-width="8"/>
+      <rect x="106" y="74" width="44" height="18" rx="5" fill="#f8f0d0"/>
+    </g>
+    <g stroke="#284830" stroke-width="11">
+      <circle cx="76" cy="192" r="27" fill="#284830"/>
+      <circle cx="180" cy="192" r="27" fill="#284830"/>
+    </g>
+    <circle cx="76" cy="192" r="11" fill="#f8f0d0"/>
+    <circle cx="180" cy="192" r="11" fill="#f8f0d0"/>
   </g>
-  <g stroke="#284830" stroke-width="11">
-    <circle cx="74" cy="192" r="27" fill="#284830"/>
-    <circle cx="190" cy="192" r="27" fill="#284830"/>
-  </g>
-  <circle cx="74" cy="192" r="11" fill="#f8f0d0"/>
-  <circle cx="190" cy="192" r="11" fill="#f8f0d0"/>
 </svg>

@@ -1,17 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <!-- Bus: a UK red double-decker in side profile. -->
   <g stroke="#284830" stroke-width="12" stroke-linejoin="round" stroke-linecap="round">
-    <rect x="30" y="58" width="196" height="132" rx="16" fill="#b23a2e"/>
-    <path d="M30 122h196" stroke-width="10"/>
-    <rect x="46" y="72" width="42" height="34" rx="6" fill="#f8f0d0"/>
-    <rect x="96" y="72" width="42" height="34" rx="6" fill="#f8f0d0"/>
-    <rect x="146" y="72" width="42" height="34" rx="6" fill="#f8f0d0"/>
-    <rect x="46" y="136" width="34" height="46" rx="6" fill="#f8f0d0"/>
-    <rect x="88" y="136" width="34" height="46" rx="6" fill="#f8f0d0"/>
-    <rect x="176" y="136" width="34" height="46" rx="6" fill="#f8f0d0"/>
-    <circle cx="76" cy="208" r="27" fill="#284830"/>
-    <circle cx="180" cy="208" r="27" fill="#284830"/>
+    <rect x="28" y="56" width="200" height="136" rx="16" fill="#b23a2e"/>
+    <path d="M28 122h200" stroke-width="10"/>
+    <rect x="44" y="70" width="40" height="34" rx="6" fill="#f8f0d0"/>
+    <rect x="94" y="70" width="40" height="34" rx="6" fill="#f8f0d0"/>
+    <rect x="144" y="70" width="40" height="34" rx="6" fill="#f8f0d0"/>
+    <rect x="44" y="136" width="34" height="44" rx="6" fill="#f8f0d0"/>
+    <rect x="88" y="136" width="36" height="44" rx="6" fill="#80a068"/>
+    <rect x="150" y="136" width="34" height="44" rx="6" fill="#f8f0d0"/>
   </g>
-  <circle cx="76" cy="208" r="11" fill="#f8f0d0"/>
-  <circle cx="180" cy="208" r="11" fill="#f8f0d0"/>
+  <path d="M106 138v40" stroke="#284830" stroke-width="6"/>
+  <g stroke="#284830" stroke-width="11">
+    <circle cx="74" cy="210" r="28" fill="#284830"/>
+    <circle cx="182" cy="210" r="28" fill="#284830"/>
+  </g>
+  <circle cx="74" cy="210" r="11" fill="#f8f0d0"/>
+  <circle cx="182" cy="210" r="11" fill="#f8f0d0"/>
 </svg>
