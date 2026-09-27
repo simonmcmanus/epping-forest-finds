@@ -385,18 +385,20 @@ function findClusterHit(screen) {
     ]).filter(group => group.length > 1);
     for (const group of megaGroups) {
       let totalItems = 0, sx = 0, sy = 0, items = [];
-      for (const { cluster } of group) {
+      const itemsByType = {};
+      for (const { itemType, cluster } of group) {
         const n = cluster.items.length;
         totalItems += n;
         sx += cluster.screenPt.x * n;
         sy += cluster.screenPt.y * n;
         items = items.concat(cluster.items);
+        itemsByType[itemType] = (itemsByType[itemType] || []).concat(cluster.items);
       }
       const cx = sx / totalItems;
       const cy = sy / totalItems;
       const dpr = pixelRatio();
       if (Math.hypot(cx - screen.x, cy - screen.y) < megaClusterOuterRadius(totalItems, dpr)) {
-        return { items, itemType: "_mega", screenPt: { x: cx, y: cy } };
+        return { items, itemsByType, itemType: "_mega", screenPt: { x: cx, y: cy } };
       }
     }
   }

@@ -1608,7 +1608,18 @@ function buildNearbyIconLookup() {
     water: new Set(),
     outOfRadius: full.outOfRadius,
   };
-  if (result[group.itemType]) result[group.itemType] = new Set(group.items);
+  // A mega cluster's items span several real types (see buildSuperClusters/findClusterHit) --
+  // its own itemType is the synthetic "_mega", which isn't one of the Sets above, so it carries
+  // an itemsByType breakdown instead and every real type gets its own slice restored. Without
+  // this, indexing result["_mega"] silently missed and left every set empty: expanding a mega
+  // cluster narrowed the map down to nothing rather than to its own items.
+  if (group.itemType === "_mega" && group.itemsByType) {
+    for (const [itemType, items] of Object.entries(group.itemsByType)) {
+      if (result[itemType]) result[itemType] = new Set(items);
+    }
+  } else if (result[group.itemType]) {
+    result[group.itemType] = new Set(group.items);
+  }
   _groupIconLookupCache = { group, full, result };
   return result;
 }
