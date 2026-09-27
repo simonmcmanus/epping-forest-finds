@@ -1263,17 +1263,6 @@ function megaClusterChipRadius(R, dpr) {
 // rather than a tally of what's here.
 const MEGA_CLUSTER_MAX_CHIPS = 5;
 
-// Chips are laid out along a fixed arc centred on the bottom of the badge, not spread around the
-// whole circle -- "hanging off" the bottom the way a cluster of price tags or charms would,
-// rather than a clock face of icons. The arc's width does not grow with the chip count, so more
-// chips packed into the same span sit closer together and start overlapping each other more the
-// more of them there are: exactly the "there's a lot going on here" signal a wider, evenly-spaced
-// ring would not give (a ring big enough to keep 5 chips apart holds 2 chips just as far apart,
-// which reads as no different from a quiet spot). Tuned (chip radius + arc width together) so 2-3
-// chips stay clearly apart and only 4-5 start to overlap, and only lightly -- an earlier, tighter
-// pass made every icon hard to make out at a glance, which defeats the whole point of the chips.
-const MEGA_CLUSTER_CHIP_ARC_RADIANS = 2.4;
-
 // The full on-screen reach of a mega badge, centre circle plus the chip ring around its rim --
 // i.e. how far out a tap or an off-screen check needs to look, not just the centre circle's R.
 function megaClusterOuterRadius(totalItems, dpr) {
@@ -1403,9 +1392,12 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   // Position every chip first, then draw largest-group-first last (so it paints on top of its
   // overlapping neighbours) -- the layout is still ordered largest-to-smallest left to right.
   const positioned = types.map(([key, info], i) => {
-    // Straight down (PI/2, since y grows downward on canvas) when there's only one; otherwise
-    // spread evenly across the fixed bottom arc, centred on straight down.
-    const angle = n === 1 ? Math.PI / 2 : (Math.PI / 2 - MEGA_CLUSTER_CHIP_ARC_RADIANS / 2) + (i / (n - 1)) * MEGA_CLUSTER_CHIP_ARC_RADIANS;
+    // Starts straight down (PI/2, since y grows downward on canvas) and spreads clockwise
+    // around the *whole* circle, rather than confined to a bottom arc -- confining them made a
+    // 4th or 5th chip start overlapping its neighbours well before the ring ran out of room
+    // elsewhere. Full-circle spacing means a chip only ever gets close to another chip, never
+    // to two at once, so 5 still read clearly while a genuinely packed spot still shows as one.
+    const angle = Math.PI / 2 + (i / n) * Math.PI * 2;
     return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
   });
   for (let i = positioned.length - 1; i >= 0; i--) {
