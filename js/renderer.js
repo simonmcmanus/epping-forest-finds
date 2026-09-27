@@ -1237,6 +1237,21 @@ function megaClusterRadius(totalItems, dpr) {
   return clamp(16 * dpr + Math.sqrt(totalItems) * 2.6 * dpr, 18 * dpr, 34 * dpr);
 }
 
+// The icon chip radius drawMegaBadge places around the rim -- pulled out so the hit-test in
+// findClusterHit (js/inspector.js) and the off-screen cull below can agree on the badge's true
+// on-screen extent, chips included, rather than just its centre circle.
+function megaClusterChipRadius(R, dpr) {
+  return Math.max(10 * dpr, R * 0.52);
+}
+
+// The full on-screen reach of a mega badge, centre circle plus the chip ring around its rim --
+// i.e. how far out a tap or an off-screen check needs to look, not just the centre circle's R.
+function megaClusterOuterRadius(totalItems, dpr) {
+  const R = megaClusterRadius(totalItems, dpr);
+  const chipR = megaClusterChipRadius(R, dpr);
+  return R + 2 * chipR + 2 * dpr;
+}
+
 // The same icon each category's own draw function would put in its pin -- picked from the
 // cluster's first item exactly the way drawTrees/drawLandmarks/drawPathPins/drawWaterPins/
 // drawCows do -- so a mega badge's ring shows the *actual* glyph for what's inside, not just a
@@ -1289,9 +1304,9 @@ function drawMegaClusterIconChip(ctx, x, y, src, itemType, chipR, dpr) {
   if (img && img.complete && img.naturalWidth) {
     ctx.save();
     ctx.beginPath();
-    ctx.arc(x, y, chipR * 0.82, 0, Math.PI * 2);
+    ctx.arc(x, y, chipR * 0.9, 0, Math.PI * 2);
     ctx.clip();
-    const iconSize = chipR * 1.7;
+    const iconSize = chipR * 2.15;
     ctx.drawImage(img, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize);
     ctx.restore();
   }
@@ -1324,8 +1339,8 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
 
   const types = Array.from(byType.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const chipR = Math.max(6 * dpr, R * 0.36);
-  const ringR = R + chipR + 1.5 * dpr;
+  const chipR = megaClusterChipRadius(R, dpr);
+  const ringR = R + chipR + 2 * dpr;
   types.forEach(([itemType], i) => {
     const angle = -Math.PI / 2 + (i / types.length) * Math.PI * 2;
     const dx = cx + Math.cos(angle) * ringR;
@@ -1355,7 +1370,7 @@ function drawMegaClusters(ctx, megaGroups) {
     }
     const cx = sx / totalItems;
     const cy = sy / totalItems;
-    if (!isNearCanvas({ x: cx, y: cy }, megaClusterRadius(totalItems, dpr) * 2)) continue;
+    if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
     drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr);
   }
   ctx.globalAlpha = 1;

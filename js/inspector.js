@@ -19,7 +19,13 @@ function handleMapClick(event) {
       if (itemPoints.length) {
         state.clusterZoomed = true;
         state.clusterExpanded = cluster;
-        if (state.userLocation && state.userLocation.point) {
+        // A mega cluster (see buildSuperClusters, js/renderer.js) can sit anywhere on screen,
+        // often far from the user -- centring on the user the way a normal, user-proximate
+        // cluster does could barely move the camera, or even zoom out, reading as "it just
+        // snapped back to my own location" instead of zooming into the tapped spot. Fit its own
+        // bounding box instead, the same fallback a normal cluster tap already uses when there is
+        // no user location at all.
+        if (cluster.itemType !== "_mega" && state.userLocation && state.userLocation.point) {
           const user = state.userLocation.point;
           const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
           const dpr = pixelRatio();
@@ -389,7 +395,7 @@ function findClusterHit(screen) {
       const cx = sx / totalItems;
       const cy = sy / totalItems;
       const dpr = pixelRatio();
-      if (Math.hypot(cx - screen.x, cy - screen.y) < megaClusterRadius(totalItems, dpr)) {
+      if (Math.hypot(cx - screen.x, cy - screen.y) < megaClusterOuterRadius(totalItems, dpr)) {
         return { items, itemType: "_mega", screenPt: { x: cx, y: cy } };
       }
     }
