@@ -1256,8 +1256,21 @@ function megaClusterRadius(totalItems, dpr) {
 // findClusterHit (js/inspector.js) and the off-screen cull below can agree on the badge's true
 // on-screen extent, chips included, rather than just its centre circle.
 function megaClusterChipRadius(R, dpr) {
-  return Math.max(10 * dpr, R * 0.52);
+  return Math.max(10 * dpr, R * 0.62);
 }
+
+// The badge caps at this many chips (largest group first) -- past this the ring reads as noise
+// rather than a tally of what's here.
+const MEGA_CLUSTER_MAX_CHIPS = 5;
+
+// Chips are laid out along a fixed arc centred on the bottom of the badge, not spread around the
+// whole circle -- "hanging off" the bottom the way a cluster of price tags or charms would,
+// rather than a clock face of icons. The arc's width does not grow with the chip count, so more
+// chips packed into the same span sit closer together and start overlapping each other more the
+// more of them there are: exactly the "there's a lot going on here" signal a wider, evenly-spaced
+// ring would not give (a ring big enough to keep 5 chips apart holds 2 chips just as far apart,
+// which reads as no different from a quiet spot).
+const MEGA_CLUSTER_CHIP_ARC_RADIANS = 2.0;
 
 // The full on-screen reach of a mega badge, centre circle plus the chip ring around its rim --
 // i.e. how far out a tap or an off-screen check needs to look, not just the centre circle's R.
@@ -1301,6 +1314,18 @@ function megaClusterMemberIconSrc(itemType, cluster) {
     default:
       return iconPath("pin");
   }
+}
+
+// Landmarks are one itemType ("landmark") covering many visually distinct pins -- pub, cafe,
+// shop, a dozen monument/history sub-kinds -- already told apart by landmarkClusterKey when
+// buildLandmarkClusters groups them in the first place. Bucketing a mega badge's chips by the
+// coarse itemType alone collapsed every one of those sub-kinds into a single "landmark" bucket,
+// showing only whichever cluster happened to be processed first -- a badge piled with a pub, a
+// bench and a monument read as holding just one thing. This is the finer key the chip grouping
+// actually needs; every other type is already homogeneous enough that itemType alone is fine.
+function megaClusterDisplayKey(itemType, cluster) {
+  if (itemType !== "landmark") return itemType;
+  return `landmark:${landmarkClusterKey(cluster.items[0])}`;
 }
 
 // A small circular chip -- white disc, category-coloured ring, the category's own icon cropped
@@ -1369,15 +1394,22 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   // floating fully outside it on their own separate ring. That keeps the whole badge's on-screen
   // footprint close to the centre circle's own size instead of ~3x it, the footprint being
   // exactly what made a handful of these look cluttered at a glance.
-  const types = Array.from(byType.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const types = Array.from(byType.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, MEGA_CLUSTER_MAX_CHIPS);
   const chipR = megaClusterChipRadius(R, dpr);
   const ringR = R;
-  types.forEach(([itemType], i) => {
-    const angle = -Math.PI / 2 + (i / types.length) * Math.PI * 2;
-    const dx = cx + Math.cos(angle) * ringR;
-    const dy = cy + Math.sin(angle) * ringR;
-    drawMegaClusterIconChip(ctx, dx, dy, byTypeIconSrc.get(itemType), itemType, chipR, dpr);
+  const n = types.length;
+  // Position every chip first, then draw largest-group-first last (so it paints on top of its
+  // overlapping neighbours) -- the layout is still ordered largest-to-smallest left to right.
+  const positioned = types.map(([key, info], i) => {
+    // Straight down (PI/2, since y grows downward on canvas) when there's only one; otherwise
+    // spread evenly across the fixed bottom arc, centred on straight down.
+    const angle = n === 1 ? Math.PI / 2 : (Math.PI / 2 - MEGA_CLUSTER_CHIP_ARC_RADIANS / 2) + (i / (n - 1)) * MEGA_CLUSTER_CHIP_ARC_RADIANS;
+    return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
   });
+  for (let i = positioned.length - 1; i >= 0; i--) {
+    const { key, info, x, y } = positioned[i];
+    drawMegaClusterIconChip(ctx, x, y, byTypeIconSrc.get(key), info.itemType, chipR, dpr);
+  }
   ctx.restore();
 }
 
@@ -1396,8 +1428,10 @@ function drawMegaClusters(ctx, megaGroups) {
       totalItems += n;
       sx += cluster.screenPt.x * n;
       sy += cluster.screenPt.y * n;
-      byType.set(itemType, (byType.get(itemType) || 0) + n);
-      if (!byTypeIconSrc.has(itemType)) byTypeIconSrc.set(itemType, megaClusterMemberIconSrc(itemType, cluster));
+      const key = megaClusterDisplayKey(itemType, cluster);
+      const existing = byType.get(key);
+      byType.set(key, { count: (existing ? existing.count : 0) + n, itemType });
+      if (!byTypeIconSrc.has(key)) byTypeIconSrc.set(key, megaClusterMemberIconSrc(itemType, cluster));
     }
     const cx = sx / totalItems;
     const cy = sy / totalItems;
@@ -2057,8 +2091,10 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
       sy += cluster.screenPt.y * n;
       swx += cluster.worldPt.x * n;
       swy += cluster.worldPt.y * n;
-      byType.set(itemType, (byType.get(itemType) || 0) + n);
-      if (!byTypeIconSrc.has(itemType)) byTypeIconSrc.set(itemType, megaClusterMemberIconSrc(itemType, cluster));
+      const key = megaClusterDisplayKey(itemType, cluster);
+      const existing = byType.get(key);
+      byType.set(key, { count: (existing ? existing.count : 0) + n, itemType });
+      if (!byTypeIconSrc.has(key)) byTypeIconSrc.set(key, megaClusterMemberIconSrc(itemType, cluster));
     }
     const cx = sx / totalItems;
     const cy = sy / totalItems;
