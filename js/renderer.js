@@ -1976,7 +1976,59 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
   const reveal = nearbyRevealOpacity();
   const calls = [];
 
-  const treeClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, toScreen), toScreen);
+  const treeClustersAll = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, toScreen), toScreen);
+  const landmarkClustersAll = applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, toScreen), toScreen);
+  const cowClustersAll = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, toScreen), toScreen);
+  const pathClustersAll = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, toScreen), toScreen);
+  const waterClustersAll = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, toScreen), toScreen);
+
+  // Heading-up/tilt draws every pin type through this one sorted-by-depth pass instead of the
+  // five separate drawTrees/drawLandmarks/... calls draw() uses, but it still built its clusters
+  // per type only -- the same cross-category pile-up buildSuperClusters exists to fix on the flat
+  // map (see its own comment) was never applied here, so a phone with a compass (heading-up is
+  // the default there) never saw mega clusters at all. Same merge pass, same exclusion of the
+  // clusters it absorbs from their own type's pins.
+  const megaGroups = state.clusterExpanded ? [] : buildSuperClusters([
+    { itemType: "tree", clusters: treeClustersAll },
+    { itemType: "landmark", clusters: landmarkClustersAll },
+    { itemType: "cow", clusters: cowClustersAll },
+    { itemType: "path", clusters: pathClustersAll },
+    { itemType: "water", clusters: waterClustersAll },
+  ]).filter(group => group.length > 1);
+  const megaClusterSet = new Set();
+  for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
+
+  const treeClusters = treeClustersAll.filter(c => !megaClusterSet.has(c));
+  const landmarkClusters = landmarkClustersAll.filter(c => !megaClusterSet.has(c));
+  const cowClusters = cowClustersAll.filter(c => !megaClusterSet.has(c));
+  const pathClusters = pathClustersAll.filter(c => !megaClusterSet.has(c));
+  const waterClusters = waterClustersAll.filter(c => !megaClusterSet.has(c));
+
+  for (const group of megaGroups) {
+    let totalItems = 0, sx = 0, sy = 0, swx = 0, swy = 0;
+    const byType = new Map();
+    const byTypeIconSrc = new Map();
+    for (const { itemType, cluster } of group) {
+      const n = cluster.items.length;
+      totalItems += n;
+      sx += cluster.screenPt.x * n;
+      sy += cluster.screenPt.y * n;
+      swx += cluster.worldPt.x * n;
+      swy += cluster.worldPt.y * n;
+      byType.set(itemType, (byType.get(itemType) || 0) + n);
+      if (!byTypeIconSrc.has(itemType)) byTypeIconSrc.set(itemType, megaClusterMemberIconSrc(itemType, cluster));
+    }
+    const cx = sx / totalItems;
+    const cy = sy / totalItems;
+    const worldPt = { x: swx / totalItems, y: swy / totalItems };
+    if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
+    const pinScale = tiltPinScale(worldPt);
+    calls.push({ y: cy, fn(c) {
+      c.globalAlpha = reveal;
+      drawMegaBadge(c, cx, cy, totalItems, byType, byTypeIconSrc, dpr * pinScale);
+    }});
+  }
+
   for (const cluster of treeClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
@@ -1990,7 +2042,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     }});
   }
 
-  const landmarkClusters = applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, toScreen), toScreen);
   for (const cluster of landmarkClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, 16 * dpr * uScale)) continue;
@@ -2032,7 +2083,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     }});
   }
 
-  const cowClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, toScreen), toScreen);
   for (const cluster of cowClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
@@ -2045,7 +2095,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     }});
   }
 
-  const pathClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, toScreen), toScreen);
   for (const cluster of pathClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
@@ -2057,7 +2106,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     }});
   }
 
-  const waterClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, toScreen), toScreen);
   for (const cluster of waterClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
