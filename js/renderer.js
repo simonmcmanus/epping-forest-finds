@@ -1194,14 +1194,17 @@ function buildLandmarkClusters(landmarkSet, toScreen) {
 // Deliberately tighter than buildTypeClusters' own 30 CSS-px radius: that spacing already keeps
 // same-category badges from overlapping, so two *different* categories placed that far apart
 // are just neighbours, not the pile-up mega clustering exists to fix. Merging them there anyway
-// made mega badges appear far more readily than the density actually warranted -- this only
-// merges clusters whose badges would visually collide.
-const MEGA_CLUSTER_MERGE_RADIUS_CSS_PX = 16;
+// made mega badges appear far more readily than the density actually warranted; going too far
+// the other way (16px, tried briefly) left it barely merging anything, back to overlapping
+// individual pins with no group affordance to tap. 22px sits between the two.
+const MEGA_CLUSTER_MERGE_RADIUS_CSS_PX = 22;
 
-// A mega badge replaces genuinely crowded ground -- three or more categories' pins piled
-// together -- not just two neighbours sharing a spot, which reads fine as two ordinary pins
-// side by side. Below this, buildSuperClusters' merge result is left as individual pins.
-const MEGA_CLUSTER_MIN_MEMBERS = 3;
+// A mega badge replaces genuinely crowded ground, not just two neighbours sharing a spot -- but
+// requiring three (tried briefly) left plenty of two-category overlaps as bare stacked pins with
+// no way to tap "both of these", which is exactly the confusing case mega clustering exists to
+// fix. Two is the right floor: buildSuperClusters' merge result is left as individual pins only
+// below that.
+const MEGA_CLUSTER_MIN_MEMBERS = 2;
 
 function buildSuperClusters(taggedGroups) {
   const dpr = pixelRatio();
@@ -1261,7 +1264,9 @@ function megaClusterChipRadius(R, dpr) {
 function megaClusterOuterRadius(totalItems, dpr) {
   const R = megaClusterRadius(totalItems, dpr);
   const chipR = megaClusterChipRadius(R, dpr);
-  return R + 2 * chipR + 2 * dpr;
+  // Chips are centred on the badge's own rim (see drawMegaBadge), so the badge's true reach is
+  // the centre circle plus half a chip's width poking past it, not a whole separate ring beyond.
+  return R + chipR;
 }
 
 // The same icon each category's own draw function would put in its pin -- picked from the
@@ -1328,6 +1333,16 @@ function drawMegaClusterIconChip(ctx, x, y, src, itemType, chipR, dpr) {
 // Drawn as one badge with the total count in the middle and a small ring of icon chips around
 // the rim -- one per distinct category present, largest group first, capped at 6 -- so tapping
 // isn't the only way to tell *what* is grouped here, only *how many* of each.
+// The gold the app's own home-screen icon (assets/home/favicon.png) uses behind its oak leaf --
+// reused here instead of a flat colour so a mega badge reads as "part of this app's identity",
+// not an unrelated warning-style marker.
+function megaClusterBadgeFill(ctx, cx, cy, R) {
+  const gradient = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+  gradient.addColorStop(0, "#f3c968");
+  gradient.addColorStop(1, "#d99a3a");
+  return gradient;
+}
+
 function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   const R = megaClusterRadius(totalItems, dpr);
   ctx.save();
@@ -1335,7 +1350,7 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   ctx.shadowBlur = 6 * dpr;
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx.fillStyle = "#2f5a42";
+  ctx.fillStyle = megaClusterBadgeFill(ctx, cx, cy, R);
   ctx.fill();
   ctx.shadowColor = "transparent";
   ctx.shadowBlur = 0;
@@ -1347,12 +1362,16 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = `700 ${fontSize}px system-ui`;
-  ctx.fillStyle = "#fff";
+  ctx.fillStyle = "#3a2c10";
   ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
 
+  // Chips sit centred *on* the badge's own rim -- half inside, half outside -- rather than
+  // floating fully outside it on their own separate ring. That keeps the whole badge's on-screen
+  // footprint close to the centre circle's own size instead of ~3x it, the footprint being
+  // exactly what made a handful of these look cluttered at a glance.
   const types = Array.from(byType.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
   const chipR = megaClusterChipRadius(R, dpr);
-  const ringR = R + chipR + 2 * dpr;
+  const ringR = R;
   types.forEach(([itemType], i) => {
     const angle = -Math.PI / 2 + (i / types.length) * Math.PI * 2;
     const dx = cx + Math.cos(angle) * ringR;
