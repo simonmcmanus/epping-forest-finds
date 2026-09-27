@@ -176,6 +176,23 @@ function draw() {
   const cowClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, worldToScreen), worldToScreen);
   const pathClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, worldToScreen), worldToScreen);
   const waterClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, worldToScreen), worldToScreen);
+  // A cluster already being expanded (state.clusterExpanded) has been split into individual,
+  // truly-tappable pins above -- forcing those back into a cross-category mega badge would
+  // undo the expansion the user just asked for, so mega-clustering is skipped for that frame.
+  const megaGroups = state.clusterExpanded ? [] : buildSuperClusters([
+    { itemType: "tree", clusters: treeClusters },
+    { itemType: "landmark", clusters: landmarkClusters },
+    { itemType: "cow", clusters: cowClusters },
+    { itemType: "path", clusters: pathClusters },
+    { itemType: "water", clusters: waterClusters },
+  ]).filter(group => group.length > 1);
+  const megaClusterSet = new Set();
+  for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
+  const filteredTreeClusters = treeClusters.filter(c => !megaClusterSet.has(c));
+  const filteredLandmarkClusters = landmarkClusters.filter(c => !megaClusterSet.has(c));
+  const filteredCowClusters = cowClusters.filter(c => !megaClusterSet.has(c));
+  const filteredPathClusters = pathClusters.filter(c => !megaClusterSet.has(c));
+  const filteredWaterClusters = waterClusters.filter(c => !megaClusterSet.has(c));
   ctx.clearRect(0, 0, width, height);
   drawBase(ctx, width, height);
 
@@ -195,11 +212,12 @@ function draw() {
   const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
     || (typeof tiltActive === "function" && tiltActive());
   if (!useOverlayForPins) {
-    drawTrees(ctx, nearbyIconLookup, undefined, treeClusters);
-    drawLandmarks(ctx, nearbyIconLookup, undefined, landmarkClusters);
-    drawCows(ctx, nearbyIconLookup, undefined, cowClusters);
-    drawPathPins(ctx, nearbyIconLookup, undefined, pathClusters);
-    drawWaterPins(ctx, nearbyIconLookup, undefined, waterClusters);
+    drawTrees(ctx, nearbyIconLookup, undefined, filteredTreeClusters);
+    drawLandmarks(ctx, nearbyIconLookup, undefined, filteredLandmarkClusters);
+    drawCows(ctx, nearbyIconLookup, undefined, filteredCowClusters);
+    drawPathPins(ctx, nearbyIconLookup, undefined, filteredPathClusters);
+    drawWaterPins(ctx, nearbyIconLookup, undefined, filteredWaterClusters);
+    drawMegaClusters(ctx, megaGroups);
   }
   drawSelectedRoadOverlay(ctx);
   drawSelectedPathOverlay(ctx);
@@ -1162,6 +1180,129 @@ function buildLandmarkClusters(landmarkSet, toScreen) {
     clusters.push(...buildTypeClusters(group, toScreen));
   }
   return clusters;
+}
+
+// Individual per-type clustering (buildTypeClusters/buildLandmarkClusters) only merges pins of
+// the same kind, so at a low zoom level -- lots of different categories sharing one patch of
+// forest -- their badges still pile on top of each other: a dozen overlapping white teardrops
+// with no way to tell what's underneath. This second pass runs across every category's
+// already-built clusters and merges any that are still screen-close into one cross-category
+// "mega cluster", drawn as a single badge (see drawMegaClusters) instead of N overlapping pins.
+// Reuses the same radius buildTypeClusters uses, since that's the distance already tuned to
+// avoid icon overlap -- anything still closer than that once every category is on the table is
+// exactly the overlap this exists to fix.
+function buildSuperClusters(taggedGroups) {
+  const dpr = pixelRatio();
+  const radius = 30 * dpr * (MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF);
+  const nodes = [];
+  for (const { itemType, clusters } of taggedGroups) {
+    for (const cluster of clusters) nodes.push({ itemType, cluster });
+  }
+  const assigned = new Set();
+  const superClusters = [];
+  for (const first of nodes) {
+    if (assigned.has(first)) continue;
+    const members = [first];
+    assigned.add(first);
+    // BFS so a chain of nearby clusters (A close to B, B close to C) merges into one region
+    // even when A and C themselves are too far apart to merge directly.
+    for (let i = 0; i < members.length; i++) {
+      const m = members[i];
+      for (const other of nodes) {
+        if (assigned.has(other)) continue;
+        if (Math.hypot(m.cluster.screenPt.x - other.cluster.screenPt.x, m.cluster.screenPt.y - other.cluster.screenPt.y) < radius) {
+          members.push(other);
+          assigned.add(other);
+        }
+      }
+    }
+    superClusters.push(members);
+  }
+  return superClusters;
+}
+
+const MEGA_CLUSTER_CATEGORY_COLOR = {
+  tree: "rgba(47, 111, 78, 0.95)",
+  cow: "rgba(154, 106, 47, 0.95)",
+  path: "rgba(109, 68, 140, 0.95)",
+  water: "rgba(58, 127, 201, 0.95)",
+  landmark: "rgba(196, 132, 38, 0.95)",
+};
+
+function megaClusterCategoryColor(itemType) {
+  return MEGA_CLUSTER_CATEGORY_COLOR[itemType] || "rgba(118, 112, 47, 0.95)";
+}
+
+function megaClusterRadius(totalItems, dpr) {
+  return clamp(16 * dpr + Math.sqrt(totalItems) * 2.6 * dpr, 18 * dpr, 34 * dpr);
+}
+
+// Drawn as one badge with the total count in the middle and a small ring of dots around the
+// rim -- one per distinct category present, largest group first, capped at 6 -- so tapping isn't
+// the only way to tell *what kind* of things are grouped here, only *how many* of each.
+function drawMegaBadge(ctx, cx, cy, totalItems, byType, dpr) {
+  const R = megaClusterRadius(totalItems, dpr);
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = 6 * dpr;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fillStyle = "#2f5a42";
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 2.5 * dpr;
+  ctx.stroke();
+
+  const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${fontSize}px system-ui`;
+  ctx.fillStyle = "#fff";
+  ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
+
+  const types = Array.from(byType.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const dotR = Math.max(3.5 * dpr, R * 0.16);
+  const ringR = R + dotR + 1.5 * dpr;
+  types.forEach(([itemType], i) => {
+    const angle = -Math.PI / 2 + (i / types.length) * Math.PI * 2;
+    const dx = cx + Math.cos(angle) * ringR;
+    const dy = cy + Math.sin(angle) * ringR;
+    ctx.beginPath();
+    ctx.arc(dx, dy, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = megaClusterCategoryColor(itemType);
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1.2 * dpr;
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function drawMegaClusters(ctx, megaGroups) {
+  if (!megaGroups || !megaGroups.length) return;
+  const dpr = pixelRatio();
+  const reveal = nearbyRevealOpacity();
+  ctx.save();
+  ctx.globalAlpha = reveal;
+  for (const group of megaGroups) {
+    let totalItems = 0, sx = 0, sy = 0;
+    const byType = new Map();
+    for (const { itemType, cluster } of group) {
+      const n = cluster.items.length;
+      totalItems += n;
+      sx += cluster.screenPt.x * n;
+      sy += cluster.screenPt.y * n;
+      byType.set(itemType, (byType.get(itemType) || 0) + n);
+    }
+    const cx = sx / totalItems;
+    const cy = sy / totalItems;
+    if (!isNearCanvas({ x: cx, y: cy }, megaClusterRadius(totalItems, dpr) * 2)) continue;
+    drawMegaBadge(ctx, cx, cy, totalItems, byType, dpr);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 function drawClusterBadge(ctx, x, y, count, pinSize, dpr) {

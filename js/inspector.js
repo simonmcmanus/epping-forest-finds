@@ -40,7 +40,11 @@ function handleMapClick(event) {
         } else {
           fitToPoints(itemPoints, false, { animate: true, durationMs: 400, focusVisibleArea: true, assumeInspectorOpen: true });
         }
-        showClusterDetail(cluster);
+        // A mega cluster spans several categories, so there's no single item-type list to show
+        // (showClusterDetail assumes one) -- zooming in is enough: it splits into its real,
+        // per-category pins (state.clusterExpanded forces each one open), which are then each
+        // tappable the normal way.
+        if (cluster.itemType !== "_mega") showClusterDetail(cluster);
         requestDraw();
         return;
       }
@@ -356,13 +360,42 @@ function findClusterHit(screen) {
   const pinYOffset = iconSize * 0.64;
   const lookup = activeIconLookup();
   const tag = (clusters, itemType) => clusters.map(c => ({ ...c, itemType }));
-  const allClusters = [
-    ...tag(buildTypeClusters(lookup.tree, worldToScreen), "tree"),
-    ...tag(buildLandmarkClusters(lookup.landmark, worldToScreen), "landmark"),
-    ...tag(buildTypeClusters(lookup.cow, worldToScreen), "cow"),
-    ...tag(buildTypeClusters(lookup.path, worldToScreen), "path"),
-    ...tag(buildTypeClusters(lookup.water, worldToScreen), "water"),
-  ];
+  const treeClusters = tag(buildTypeClusters(lookup.tree, worldToScreen), "tree");
+  const landmarkClusters = tag(buildLandmarkClusters(lookup.landmark, worldToScreen), "landmark");
+  const cowClusters = tag(buildTypeClusters(lookup.cow, worldToScreen), "cow");
+  const pathClusters = tag(buildTypeClusters(lookup.path, worldToScreen), "path");
+  const waterClusters = tag(buildTypeClusters(lookup.water, worldToScreen), "water");
+
+  // Cross-category mega clusters (see buildSuperClusters, js/renderer.js) draw on top of the
+  // per-type badges they absorb, so check those first -- a tap in their radius always means the
+  // mega badge, never one of the individual clusters merged into it.
+  if (!state.clusterExpanded) {
+    const megaGroups = buildSuperClusters([
+      { itemType: "tree", clusters: treeClusters },
+      { itemType: "landmark", clusters: landmarkClusters },
+      { itemType: "cow", clusters: cowClusters },
+      { itemType: "path", clusters: pathClusters },
+      { itemType: "water", clusters: waterClusters },
+    ]).filter(group => group.length > 1);
+    for (const group of megaGroups) {
+      let totalItems = 0, sx = 0, sy = 0, items = [];
+      for (const { cluster } of group) {
+        const n = cluster.items.length;
+        totalItems += n;
+        sx += cluster.screenPt.x * n;
+        sy += cluster.screenPt.y * n;
+        items = items.concat(cluster.items);
+      }
+      const cx = sx / totalItems;
+      const cy = sy / totalItems;
+      const dpr = pixelRatio();
+      if (Math.hypot(cx - screen.x, cy - screen.y) < megaClusterRadius(totalItems, dpr)) {
+        return { items, itemType: "_mega", screenPt: { x: cx, y: cy } };
+      }
+    }
+  }
+
+  const allClusters = [...treeClusters, ...landmarkClusters, ...cowClusters, ...pathClusters, ...waterClusters];
   for (const cluster of allClusters) {
     if (cluster.items.length <= 1) continue;
     if (Math.hypot(cluster.screenPt.x - screen.x, (cluster.screenPt.y - pinYOffset) - screen.y) < pinR) return cluster;
