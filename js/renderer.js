@@ -171,15 +171,21 @@ function draw() {
   const height = els.canvas.height;
   const animatedEmojiScale = updateAnimatedEmojiScale();
   const nearbyIconLookup = activeIconLookup();
-  const treeClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, worldToScreen), worldToScreen);
-  const landmarkClusters = applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen), worldToScreen);
-  const cowClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, worldToScreen), worldToScreen);
-  const pathClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, worldToScreen), worldToScreen);
-  const waterClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, worldToScreen), worldToScreen);
-  // A cluster already being expanded (state.clusterExpanded) has been split into individual,
-  // truly-tappable pins above -- forcing those back into a cross-category mega badge would
-  // undo the expansion the user just asked for, so mega-clustering is skipped for that frame.
-  const megaGroups = state.clusterExpanded ? [] : buildSuperClusters([
+  const treeClusters = buildTypeClusters(nearbyIconLookup.tree, worldToScreen);
+  const landmarkClusters = buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen);
+  const cowClusters = buildTypeClusters(nearbyIconLookup.cow, worldToScreen);
+  const pathClusters = buildTypeClusters(nearbyIconLookup.path, worldToScreen);
+  const waterClusters = buildTypeClusters(nearbyIconLookup.water, worldToScreen);
+  // Expanding a cluster narrows nearbyIconLookup (buildNearbyIconLookup, above) down to that
+  // group's own items and nothing else -- but it deliberately does *not* force every one of them
+  // into its own singleton pin any more. A tap that zoomed into, say, 100 items piled at one spot
+  // used to unconditionally flatten all 100 into individual pins regardless of how much screen
+  // space the zoom actually bought them, which was just as dense and just as hard to use as the
+  // pile-up it replaced. Re-running the ordinary clustering passes on the narrowed set instead
+  // lets it re-cluster naturally at the new zoom: items that spread apart on screen become
+  // individual pins, items still close together become a smaller sub-cluster (mega or
+  // same-category) the user can tap into again, one level deeper, the same way they got here.
+  const megaGroups = buildSuperClusters([
     { itemType: "tree", clusters: treeClusters },
     { itemType: "landmark", clusters: landmarkClusters },
     { itemType: "cow", clusters: cowClusters },
@@ -1101,28 +1107,6 @@ function drawLayer(ctx, layer) {
     }
   }
   ctx.restore();
-}
-
-// When a cluster is expanded via state.clusterExpanded, split any cluster that
-// contains one of the expanded items into individual 1-item clusters so each
-// member is always tappable regardless of screen proximity.
-function applySingletonExpansion(clusters, toScreen) {
-  if (!state.clusterExpanded) return clusters;
-  const expandedSet = new Set(state.clusterExpanded.items);
-  const result = [];
-  for (const cluster of clusters) {
-    if (cluster.items.some(item => expandedSet.has(item))) {
-      for (const item of cluster.items) {
-        if (item.point) {
-          const sp = toScreen(item.point);
-          result.push({ items: [item], screenPt: sp, worldPt: item.point });
-        }
-      }
-    } else {
-      result.push(cluster);
-    }
-  }
-  return result;
 }
 
 function buildTypeClusters(itemSet, toScreen) {
@@ -2075,19 +2059,22 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
   const reveal = nearbyRevealOpacity();
   const calls = [];
 
-  const treeClustersAll = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, toScreen), toScreen);
-  const landmarkClustersAll = applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, toScreen), toScreen);
-  const cowClustersAll = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, toScreen), toScreen);
-  const pathClustersAll = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, toScreen), toScreen);
-  const waterClustersAll = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, toScreen), toScreen);
+  const treeClustersAll = buildTypeClusters(nearbyIconLookup.tree, toScreen);
+  const landmarkClustersAll = buildLandmarkClusters(nearbyIconLookup.landmark, toScreen);
+  const cowClustersAll = buildTypeClusters(nearbyIconLookup.cow, toScreen);
+  const pathClustersAll = buildTypeClusters(nearbyIconLookup.path, toScreen);
+  const waterClustersAll = buildTypeClusters(nearbyIconLookup.water, toScreen);
 
   // Heading-up/tilt draws every pin type through this one sorted-by-depth pass instead of the
   // five separate drawTrees/drawLandmarks/... calls draw() uses, but it still built its clusters
   // per type only -- the same cross-category pile-up buildSuperClusters exists to fix on the flat
   // map (see its own comment) was never applied here, so a phone with a compass (heading-up is
   // the default there) never saw mega clusters at all. Same merge pass, same exclusion of the
-  // clusters it absorbs from their own type's pins.
-  const megaGroups = state.clusterExpanded ? [] : buildSuperClusters([
+  // clusters it absorbs from their own type's pins. Also, like the flat path, still runs while a
+  // cluster is expanded -- a still-dense expanded view should offer a next, smaller level of
+  // clustering to tap into, not force every absorbed item into its own singleton pin regardless
+  // of how much screen space the zoom actually bought them.
+  const megaGroups = buildSuperClusters([
     { itemType: "tree", clusters: treeClustersAll },
     { itemType: "landmark", clusters: landmarkClustersAll },
     { itemType: "cow", clusters: cowClustersAll },

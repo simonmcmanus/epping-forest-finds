@@ -410,31 +410,34 @@ function findClusterHit(screen) {
   // test on the same stricter floor left those spots with no group to expand at all: the tap fell
   // straight through to individual-pin hit-testing and picked whichever pin happened to be on top,
   // which is exactly the "doesn't expand, just goes to one item" bug this exists to prevent.
-  if (!state.clusterExpanded) {
-    const megaGroups = buildSuperClusters([
-      { itemType: "tree", clusters: treeClusters },
-      { itemType: "landmark", clusters: landmarkClusters },
-      { itemType: "cow", clusters: cowClusters },
-      { itemType: "path", clusters: pathClusters },
-      { itemType: "water", clusters: waterClusters },
-    ]).filter(group => group.length >= MEGA_CLUSTER_MIN_MEMBERS);
-    for (const group of megaGroups) {
-      let totalItems = 0, sx = 0, sy = 0, items = [];
-      const itemsByType = {};
-      for (const { itemType, cluster } of group) {
-        const n = cluster.items.length;
-        totalItems += n;
-        sx += cluster.screenPt.x * n;
-        sy += cluster.screenPt.y * n;
-        items = items.concat(cluster.items);
-        itemsByType[itemType] = (itemsByType[itemType] || []).concat(cluster.items);
-      }
-      const cx = sx / totalItems;
-      const cy = sy / totalItems;
-      const dpr = pixelRatio();
-      if (Math.hypot(cx - screen.x, cy - screen.y) < megaClusterOuterRadius(totalItems, dpr)) {
-        return { items, itemsByType, itemType: "_mega", screenPt: { x: cx, y: cy } };
-      }
+  //
+  // Runs even while a cluster is already expanded (state.clusterExpanded): the lookup above is
+  // narrowed to that group's own items, built fresh from wherever the zoom-in landed, so a still-
+  // dense expanded view can offer a next, smaller mega cluster to tap into -- one level of
+  // drill-down at a time -- rather than only ever flattening straight to individual pins.
+  const megaGroups = buildSuperClusters([
+    { itemType: "tree", clusters: treeClusters },
+    { itemType: "landmark", clusters: landmarkClusters },
+    { itemType: "cow", clusters: cowClusters },
+    { itemType: "path", clusters: pathClusters },
+    { itemType: "water", clusters: waterClusters },
+  ]).filter(group => group.length >= MEGA_CLUSTER_MIN_MEMBERS);
+  for (const group of megaGroups) {
+    let totalItems = 0, sx = 0, sy = 0, items = [];
+    const itemsByType = {};
+    for (const { itemType, cluster } of group) {
+      const n = cluster.items.length;
+      totalItems += n;
+      sx += cluster.screenPt.x * n;
+      sy += cluster.screenPt.y * n;
+      items = items.concat(cluster.items);
+      itemsByType[itemType] = (itemsByType[itemType] || []).concat(cluster.items);
+    }
+    const cx = sx / totalItems;
+    const cy = sy / totalItems;
+    const dpr = pixelRatio();
+    if (Math.hypot(cx - screen.x, cy - screen.y) < megaClusterOuterRadius(totalItems, dpr)) {
+      return { items, itemsByType, itemType: "_mega", screenPt: { x: cx, y: cy } };
     }
   }
 
