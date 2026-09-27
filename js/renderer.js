@@ -1256,7 +1256,7 @@ function megaClusterRadius(totalItems, dpr) {
 // findClusterHit (js/inspector.js) and the off-screen cull below can agree on the badge's true
 // on-screen extent, chips included, rather than just its centre circle.
 function megaClusterChipRadius(R, dpr) {
-  return Math.max(10 * dpr, R * 0.62);
+  return Math.max(10 * dpr, R * 0.46);
 }
 
 // The badge caps at this many chips (largest group first) -- past this the ring reads as noise
@@ -1269,8 +1269,10 @@ const MEGA_CLUSTER_MAX_CHIPS = 5;
 // chips packed into the same span sit closer together and start overlapping each other more the
 // more of them there are: exactly the "there's a lot going on here" signal a wider, evenly-spaced
 // ring would not give (a ring big enough to keep 5 chips apart holds 2 chips just as far apart,
-// which reads as no different from a quiet spot).
-const MEGA_CLUSTER_CHIP_ARC_RADIANS = 2.0;
+// which reads as no different from a quiet spot). Tuned (chip radius + arc width together) so 2-3
+// chips stay clearly apart and only 4-5 start to overlap, and only lightly -- an earlier, tighter
+// pass made every icon hard to make out at a glance, which defeats the whole point of the chips.
+const MEGA_CLUSTER_CHIP_ARC_RADIANS = 2.4;
 
 // The full on-screen reach of a mega badge, centre circle plus the chip ring around its rim --
 // i.e. how far out a tap or an off-screen check needs to look, not just the centre circle's R.
