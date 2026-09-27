@@ -37,20 +37,28 @@ function handleMapClick(event) {
             maxDx = Math.max(maxDx, Math.abs(pt.x - user.x));
             maxDy = Math.max(maxDy, Math.abs(pt.y - user.y));
           }
-          const targetScale = (maxDx > 0 || maxDy > 0)
+          // Capped the same way applyBoundsToViewport caps a bounds fit (fitScale * 220, the
+          // same ceiling the manual pinch gesture enforces): a same-category cluster whose
+          // members are genuinely near-coincident in world space -- almost never happens since
+          // buildTypeClusters would have merged them into one point already, but the same
+          // near-zero-range blow-up is possible in principle -- would otherwise ask for an
+          // absurd, unusable zoom level with nothing recognisable on screen.
+          const baseFitScaleForCap = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
+          const rawTargetScale = (maxDx > 0 || maxDy > 0)
             ? Math.min(maxDx > 0 ? halfW / maxDx : Infinity, maxDy > 0 ? halfH / maxDy : Infinity)
             : state.viewport.scale;
+          const targetScale = baseFitScaleForCap > 0 ? Math.min(rawTargetScale, baseFitScaleForCap * 220) : rawTargetScale;
           const focusCx = focusRect.x + focusRect.width / 2;
           const focusCy = focusRect.y + focusRect.height / 2;
           animateViewportTo({ scale: targetScale, tx: focusCx - user.x * targetScale, ty: focusCy - user.y * targetScale }, 400);
         } else {
           fitToPoints(itemPoints, false, { animate: true, durationMs: 400, focusVisibleArea: true, assumeInspectorOpen: true });
         }
-        // A mega cluster spans several categories, so there's no single item-type list to show
-        // (showClusterDetail assumes one) -- zooming in is enough: it splits into its real,
-        // per-category pins (state.clusterExpanded forces each one open), which are then each
-        // tappable the normal way.
-        if (cluster.itemType !== "_mega") showClusterDetail(cluster);
+        // showClusterDetail handles a mega cluster's mixed types itself (via cluster.itemsByType),
+        // same list screen as any other cluster -- the zoom-in also still splits it into its
+        // real, per-category pins on the map (state.clusterExpanded forces each one open), each
+        // then tappable there too.
+        showClusterDetail(cluster);
         requestDraw();
         return;
       }
@@ -132,55 +140,42 @@ function handleMapClick(event) {
   requestDraw();
 }
 
-function showClusterDetail(cluster) {
-  const { itemType, items } = cluster;
-  const count = items.length;
+// One row of the cluster-detail list, for one item of one real type -- pulled out of
+// showClusterDetail so a mixed mega cluster (several real types under one tap) can build the
+// same row for each of its items, keyed by that item's own type rather than one type for the
+// whole list.
+function clusterItemRowHtml(itemType, item) {
+  let name, key, iconHtml;
+  const lat = item.latitude ?? "";
+  const lon = item.longitude ?? "";
 
-  const typeLabels = { tree: "Trees", cow: "Cows", path: "Trails", water: "Water features", landmark: "Places" };
-  const emojiSlugs = { tree: "tree", cow: "cow" };
+  if (itemType === "tree") {
+    name = treeDisplayName(item);
+    key = treeHashKey(item);
+    iconHtml = treeSpeciesIconHtml(item.commonName, item.latinName) || filterKindEmoji("trees") || "🌳";
+  } else if (itemType === "cow") {
+    name = "Cow";
+    key = cowKey(item);
+    iconHtml = filterKindEmoji("cows") || "🐄";
+  } else if (itemType === "path") {
+    name = item.name || item.ref || "Waymarked trail";
+    key = pathHashKey(item);
+    iconHtml = filterKindEmoji("waymarked_trails") || "🥾";
+  } else if (itemType === "water") {
+    name = item.name || "Water feature";
+    key = waterHashKey(item);
+    iconHtml = filterKindEmoji("ponds") || "💧";
+  } else {
+    name = placeTitle(item);
+    key = placeHashKey(item);
+    iconHtml = landmarkEmoji(item);
+  }
 
-  const titleText = `${count} ${typeLabels[itemType] || "Places"}`;
-  const emoji = emojiSlugs[itemType]
-    ? appIconHtml(emojiSlugs[itemType], "app-icon title-icon")
-    : filterKindEmoji(itemType === "path" ? "waymarked_trails" : "ponds") || "📍";
+  const metres = distanceFromUser(item);
+  const walkHtml = walkInfoHtml(metres);
+  const treeTagChip = itemType === "tree" && item.tagNumber ? ` · #${escapeHtml(String(item.tagNumber))}` : "";
 
-  setInspectorSelectionChrome({ emoji, showBack: true });
-  els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = titleText;
-  els.inspectorType.textContent = "Tap to navigate";
-
-  const itemsHtml = items.map(item => {
-    let name, key, iconHtml;
-    const lat = item.latitude ?? "";
-    const lon = item.longitude ?? "";
-
-    if (itemType === "tree") {
-      name = treeDisplayName(item);
-      key = treeHashKey(item);
-      iconHtml = treeSpeciesIconHtml(item.commonName, item.latinName) || filterKindEmoji("trees") || "🌳";
-    } else if (itemType === "cow") {
-      name = "Cow";
-      key = cowKey(item);
-      iconHtml = filterKindEmoji("cows") || "🐄";
-    } else if (itemType === "path") {
-      name = item.name || item.ref || "Waymarked trail";
-      key = pathHashKey(item);
-      iconHtml = filterKindEmoji("waymarked_trails") || "🥾";
-    } else if (itemType === "water") {
-      name = item.name || "Water feature";
-      key = waterHashKey(item);
-      iconHtml = filterKindEmoji("ponds") || "💧";
-    } else {
-      name = placeTitle(item);
-      key = placeHashKey(item);
-      iconHtml = landmarkEmoji(item);
-    }
-
-    const metres = distanceFromUser(item);
-    const walkHtml = walkInfoHtml(metres);
-    const treeTagChip = itemType === "tree" && item.tagNumber ? ` · #${escapeHtml(String(item.tagNumber))}` : "";
-
-    return `<li><button class="nearest-item" type="button" data-overview-type="${escapeHtml(itemType)}" data-overview-key="${escapeHtml(key)}">
+  return `<li><button class="nearest-item" type="button" data-overview-type="${escapeHtml(itemType)}" data-overview-key="${escapeHtml(key)}">
       <div class="nearest-header">
         <span class="nearest-icon" aria-hidden="true">${iconHtml}</span>
         <span class="nearest-name">${escapeHtml(name)}</span>
@@ -190,7 +185,37 @@ function showClusterDetail(cluster) {
         <span class="nearest-arrow" data-item-lat="${lat}" data-item-lon="${lon}" aria-hidden="true">↑</span>
       </div>
     </button></li>`;
-  }).join("");
+}
+
+function showClusterDetail(cluster) {
+  const { itemType, items } = cluster;
+  const count = items.length;
+  const isMega = itemType === "_mega";
+
+  const typeLabels = { tree: "Trees", cow: "Cows", path: "Trails", water: "Water features", landmark: "Places" };
+  const emojiSlugs = { tree: "tree", cow: "cow" };
+
+  // A mega cluster spans several real types (see buildSuperClusters, js/renderer.js), so there
+  // is no one label or icon for the whole group the way a same-category cluster has -- "N
+  // things nearby" and the generic pin read as "here's what's piled up here", the same job the
+  // gold badge on the map itself is doing.
+  const titleText = isMega ? `${count} things nearby` : `${count} ${typeLabels[itemType] || "Places"}`;
+  const emoji = isMega
+    ? appIconHtml("pin", "app-icon title-icon")
+    : (emojiSlugs[itemType]
+      ? appIconHtml(emojiSlugs[itemType], "app-icon title-icon")
+      : filterKindEmoji(itemType === "path" ? "waymarked_trails" : "ponds") || "📍");
+
+  setInspectorSelectionChrome({ emoji, showBack: true });
+  els.inspectorTools.hidden = true;
+  els.inspectorTitle.textContent = titleText;
+  els.inspectorType.textContent = "Tap to navigate";
+
+  const itemsHtml = isMega
+    ? Object.entries(cluster.itemsByType || {})
+      .flatMap(([realType, typeItems]) => typeItems.map(item => clusterItemRowHtml(realType, item)))
+      .join("")
+    : items.map(item => clusterItemRowHtml(itemType, item)).join("");
 
   // "forward", like every other drill-down screen: the group list is one level in from Nearby
   // and its back button returns via goToInitialView -> selectOverview(true), which slides

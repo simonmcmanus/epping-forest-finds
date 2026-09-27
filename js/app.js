@@ -1377,11 +1377,24 @@ function applyBoundsToViewport(bounds, options = {}) {
       : defaultRect);
   const viewportWidth = Math.max(1, focusRect.width);
   const viewportHeight = Math.max(1, focusRect.height);
+  // A bounding box for points that are all genuinely near-coincident in world space -- a mega
+  // cluster's members, say, tight enough together that they read as one pile on screen -- has a
+  // near-zero range on one or both axes. The 0.0001 floor below stops that from being a literal
+  // division by zero, but a floor that small still asks for a scale in the tens of thousands:
+  // effectively "zoom in until this one spot fills the screen", which pins/text/everything else
+  // render at nonsensical size under, or off-screen entirely. Captured before this function
+  // overwrites state.fitScale itself, so the cap is relative to the real, whole-dataset fit.
+  const baseFitScaleForCap = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
   const rangeX = Math.max(0.0001, bounds.maxX - bounds.minX);
   const rangeY = Math.max(0.0001, bounds.maxY - bounds.minY);
   state.fitScale = Math.min((viewportWidth - padding * 2) / rangeX, (viewportHeight - padding * 2) / rangeY);
   if (options.minScale > 0) {
     state.fitScale = Math.max(state.fitScale, options.minScale);
+  }
+  // Same ceiling the manual pinch-to-zoom gesture already enforces (state.fitScale * 220 there),
+  // so a fit never asks for more zoom than a user could reach by hand.
+  if (baseFitScaleForCap > 0) {
+    state.fitScale = Math.min(state.fitScale, baseFitScaleForCap * 220);
   }
 
   const targetScale = state.fitScale;
