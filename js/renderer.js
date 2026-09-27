@@ -185,7 +185,7 @@ function draw() {
     { itemType: "cow", clusters: cowClusters },
     { itemType: "path", clusters: pathClusters },
     { itemType: "water", clusters: waterClusters },
-  ]).filter(group => group.length > 1);
+  ]).filter(group => group.length >= MEGA_CLUSTER_MIN_MEMBERS);
   const megaClusterSet = new Set();
   for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
   const filteredTreeClusters = treeClusters.filter(c => !megaClusterSet.has(c));
@@ -1191,9 +1191,21 @@ function buildLandmarkClusters(landmarkSet, toScreen) {
 // Reuses the same radius buildTypeClusters uses, since that's the distance already tuned to
 // avoid icon overlap -- anything still closer than that once every category is on the table is
 // exactly the overlap this exists to fix.
+// Deliberately tighter than buildTypeClusters' own 30 CSS-px radius: that spacing already keeps
+// same-category badges from overlapping, so two *different* categories placed that far apart
+// are just neighbours, not the pile-up mega clustering exists to fix. Merging them there anyway
+// made mega badges appear far more readily than the density actually warranted -- this only
+// merges clusters whose badges would visually collide.
+const MEGA_CLUSTER_MERGE_RADIUS_CSS_PX = 16;
+
+// A mega badge replaces genuinely crowded ground -- three or more categories' pins piled
+// together -- not just two neighbours sharing a spot, which reads fine as two ordinary pins
+// side by side. Below this, buildSuperClusters' merge result is left as individual pins.
+const MEGA_CLUSTER_MIN_MEMBERS = 3;
+
 function buildSuperClusters(taggedGroups) {
   const dpr = pixelRatio();
-  const radius = 30 * dpr * (MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF);
+  const radius = MEGA_CLUSTER_MERGE_RADIUS_CSS_PX * dpr * (MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF);
   const nodes = [];
   for (const { itemType, clusters } of taggedGroups) {
     for (const cluster of clusters) nodes.push({ itemType, cluster });
@@ -2005,7 +2017,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     { itemType: "cow", clusters: cowClustersAll },
     { itemType: "path", clusters: pathClustersAll },
     { itemType: "water", clusters: waterClustersAll },
-  ]).filter(group => group.length > 1);
+  ]).filter(group => group.length >= MEGA_CLUSTER_MIN_MEMBERS);
   const megaClusterSet = new Set();
   for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
 
