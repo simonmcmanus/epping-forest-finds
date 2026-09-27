@@ -1263,6 +1263,14 @@ function megaClusterChipRadius(R, dpr) {
 // rather than a tally of what's here.
 const MEGA_CLUSTER_MAX_CHIPS = 5;
 
+// The angle between adjacent chips, not the arc's total width -- so the gap (and so the amount
+// of overlap) between any two neighbouring chips stays the same small amount regardless of how
+// many chips there are, rather than shrinking (and the overlap growing) as more get packed into
+// a fixed-width arc. Tuned against megaClusterChipRadius so two adjacent chips overlap by
+// roughly 15-20% of their own width -- enough to read as "these belong together" without one
+// covering the other's icon.
+const MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS = 0.8;
+
 // The full on-screen reach of a mega badge, centre circle plus the chip ring around its rim --
 // i.e. how far out a tap or an off-screen check needs to look, not just the centre circle's R.
 function megaClusterOuterRadius(totalItems, dpr) {
@@ -1391,13 +1399,14 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   const n = types.length;
   // Position every chip first, then draw largest-group-first last (so it paints on top of its
   // overlapping neighbours) -- the layout is still ordered largest-to-smallest left to right.
+  // Centred straight down (PI/2, since y grows downward on canvas), spreading out symmetrically
+  // by a fixed angle per chip rather than a fixed total arc -- so the gap between any two
+  // neighbours (and so the slight overlap between them) stays the same regardless of how many
+  // chips there are, instead of tightening as more get packed into one span. More chips fan
+  // further round from the bottom rather than crowding closer together.
+  const arcSpan = MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS * (n - 1);
   const positioned = types.map(([key, info], i) => {
-    // Starts straight down (PI/2, since y grows downward on canvas) and spreads clockwise
-    // around the *whole* circle, rather than confined to a bottom arc -- confining them made a
-    // 4th or 5th chip start overlapping its neighbours well before the ring ran out of room
-    // elsewhere. Full-circle spacing means a chip only ever gets close to another chip, never
-    // to two at once, so 5 still read clearly while a genuinely packed spot still shows as one.
-    const angle = Math.PI / 2 + (i / n) * Math.PI * 2;
+    const angle = (Math.PI / 2 - arcSpan / 2) + i * MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
     return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
   });
   for (let i = positioned.length - 1; i >= 0; i--) {
