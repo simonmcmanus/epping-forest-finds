@@ -250,8 +250,8 @@ poppy red `#b23a2e`.
 
 **Every drawing sits inside a circle of radius 128 on the 256 viewBox**, and
 the generator fails rather than writing a PNG that does not. The renderer
-paints artwork at 1.75x the pin head's radius (`drawPngMapIcon`), so content
-past `1/1.75 = 0.571` of its own half-width reaches outside the white pointer,
+paints artwork at 1.85x the pin head's radius (`drawPngMapIcon`), so content
+past `1/1.85 = 0.541` of its own half-width reaches outside the white pointer,
 which is what made the old full-width plaque rectangle sit wrong among the
 others. `scripts/lib/icon-fit.js` holds that rule and the 0.52 ceiling both
 scripts measure against — under the spill point, with room for the
