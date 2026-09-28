@@ -72,6 +72,51 @@ test.describe("Map interaction", () => {
       expect(after.hasListedItems, "the Nearby list is populated around the new anchor").toBe(true);
       await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
     });
+
+    test("tapping a cluster while something is selected expands the cluster, not the pin behind it", async ({ page }) => {
+      await setup(page);
+
+      // Select a tree first -- mirrors viewing one tree, then tapping a nearby cluster to browse
+      // the rest. Cluster hit-testing used to be skipped whenever state.selected was set, so a
+      // tap here fell straight through to findHit and picked up whatever individual pin sat
+      // behind the badge instead of expanding it.
+      await page.evaluate(() => {
+        stopViewportAnimation();
+        const lookup = buildNearbyIconLookup();
+        state.selected = { type: "tree", item: [...lookup.tree][0] };
+        requestDraw();
+      });
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
+
+      // Find a cluster whose hit-test circle overlaps an individual pin's own hit region -- the
+      // exact overlap the old code got wrong.
+      const clusterScreen = await page.evaluate(() => {
+        const dpr = pixelRatio();
+        const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
+        const pinYOffset = iconSize * 0.64;
+        const lookup = buildNearbyIconLookup();
+        const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+        for (const cluster of clusters) {
+          if (cluster.items.length <= 1) continue;
+          const screen = { x: cluster.screenPt.x, y: cluster.screenPt.y - pinYOffset };
+          if (!findClusterHit(screen)) continue;
+          const world = screenToWorld(screen.x, screen.y);
+          if (findHit(screen, world).type !== "none") return screen;
+        }
+        return null;
+      });
+      test.skip(!clusterScreen, "no multi-item tree cluster overlapping an individual pin at this camera");
+
+      const dpr = await page.evaluate(() => pixelRatio());
+      const { insetX, insetY, left, top } = await page.evaluate(() => {
+        const r = (document.querySelector(".map-stage") || document.getElementById("mapCanvas")).getBoundingClientRect();
+        return { insetX: state.canvasInsetX, insetY: state.canvasInsetY, left: r.left, top: r.top };
+      });
+      await page.mouse.click(left + (clusterScreen.x - insetX) / dpr, top + (clusterScreen.y - insetY) / dpr);
+
+      await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+      await expect.poll(() => page.evaluate(() => Boolean(state.nearbyAnchor))).toBe(true);
+    });
   });
 
   test.describe("The nearest area", () => {

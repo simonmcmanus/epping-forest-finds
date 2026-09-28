@@ -10,13 +10,23 @@ function handleMapClick(event) {
   if (!state.trees.length) return;
   const screen = canvasPoint(event);
 
-  // In overview mode, tapping a multi-item cluster -- same-category or the cross-category
-  // "mega" badge alike -- behaves like tapping open ground on that spot: the group becomes the
-  // Nearby browse anchor, sized to cover it, and the Nearby list updates to show what's inside.
-  // See focusNearbyOnClusterGroup (js/nav.js).
-  if (!state.selected) {
-    const cluster = findClusterHit(screen);
-    if (cluster && focusNearbyOnClusterGroup(cluster)) {
+  // Tapping a multi-item cluster -- same-category or the cross-category "mega" badge alike --
+  // behaves like tapping open ground on that spot: the group becomes the Nearby browse anchor,
+  // sized to cover it, and the Nearby list updates to show what's inside. See
+  // focusNearbyOnClusterGroup (js/nav.js).
+  //
+  // Checked regardless of state.selected: a cluster badge can sit in front of (and partly
+  // over) an already-selected item's pin, e.g. after selecting one tree and then tapping a
+  // nearby mega cluster to browse the rest. Gating this on "nothing selected" used to send that
+  // tap straight to findHit below, which then matched the selected item's own pin sitting behind
+  // the badge instead of expanding the cluster the tap visibly landed on.
+  const cluster = findClusterHit(screen);
+  if (cluster) {
+    if (state.selected) {
+      state.selected = null;
+      syncHashFromSelection();
+    }
+    if (focusNearbyOnClusterGroup(cluster)) {
       requestDraw();
       return;
     }
