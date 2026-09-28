@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-09-23T06:57:48.557986Z",
+  "generatedAt": "2026-09-28T06:22:07.419320Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -2310,7 +2310,7 @@
         "website": null,
         "phone": null,
         "address": "CM16 5EB",
-        "openingHours": null,
+        "openingHours": "Mo-Fr 09:00-17:30; Sa 09:00-17:00; Su off",
         "distanceToForestBoundaryMetres": 385.0,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
@@ -2482,6 +2482,312 @@
         "address": "2-4 Cathall Road London E11 4LF",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 40.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/indian-muslim-federation-uk",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0083858,
+          51.5632596
+        ]
+      },
+      "properties": {
+        "id": "manual/indian-muslim-federation-uk",
+        "osmType": "node",
+        "osmId": 10167569129,
+        "name": "Indian Muslim Federation UK",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "38 Trinity Close",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 404.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/leytonstone-ex-services-club",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0114921,
+          51.5680009
+        ]
+      },
+      "properties": {
+        "id": "manual/leytonstone-ex-services-club",
+        "osmType": "way",
+        "osmId": 220921091,
+        "name": "Leytonstone Ex-Services Club",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 334.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/leytonstone-muslim-community-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0125192,
+          51.5689243
+        ]
+      },
+      "properties": {
+        "id": "manual/leytonstone-muslim-community-centre",
+        "osmType": "way",
+        "osmId": 512168150,
+        "name": "Leytonstone Muslim Community Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://leytonstonemuslim.com/",
+        "phone": "+44 20 8558 8002",
+        "address": "Carlton Road London E11 3AQ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 298.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/libraryplus-leytonstone",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0104253,
+          51.5681729
+        ]
+      },
+      "properties": {
+        "id": "manual/libraryplus-leytonstone",
+        "osmType": "way",
+        "osmId": 28808110,
+        "name": "LibraryPlus Leytonstone",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Church Lane London E11 1HG",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 397.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/loughton-library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0589458,
+          51.649115
+        ]
+      },
+      "properties": {
+        "id": "manual/loughton-library",
+        "osmType": "way",
+        "osmId": 93529414,
+        "name": "Loughton Library",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 27.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/loughton-town-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.059247,
+          51.6489392
+        ]
+      },
+      "properties": {
+        "id": "manual/loughton-town-hall",
+        "osmType": "way",
+        "osmId": 1045351199,
+        "name": "Loughton Town Hall",
+        "category": "townhall",
+        "categoryLabel": "Town Hall",
+        "amenity": "townhall",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "http://www.loughton-tc.gov.uk",
+        "phone": "+44 20 8508 4200",
+        "address": "Traps Hill Loughton IG10 1HD",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 20.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/manor-park-community-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0480846,
+          51.5502277
+        ]
+      },
+      "properties": {
+        "id": "manual/manor-park-community-centre",
+        "osmType": "way",
+        "osmId": 961034072,
+        "name": "Manor Park Community Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "High Street North London E12 6QN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 323.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/manor-park-library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0472934,
+          51.5508178
+        ]
+      },
+      "properties": {
+        "id": "manual/manor-park-library",
+        "osmType": "node",
+        "osmId": 4730679173,
+        "name": "Manor Park Library",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 249.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/marc-adele-blair-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0120931,
+          51.607603
+        ]
+      },
+      "properties": {
+        "id": "manual/marc-adele-blair-hall",
+        "osmType": "way",
+        "osmId": 475595561,
+        "name": "Marc & Adele Blair Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "83 Marlborough Road London",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 412.9,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
