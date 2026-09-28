@@ -1419,11 +1419,22 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   // Centred straight down (PI/2, since y grows downward on canvas), spreading out symmetrically
   // by a fixed angle per chip rather than a fixed total arc -- so the gap between any two
   // neighbours (and so the slight overlap between them) stays the same regardless of how many
-  // chips there are, instead of tightening as more get packed into one span. More chips fan
-  // further round from the bottom rather than crowding closer together.
-  const arcSpan = MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS * (n - 1);
+  // chips there are, instead of tightening as more get packed into one span.
+  //
+  // That fixed step is a deliberate *overlap* though -- the right choice once there genuinely
+  // isn't room to avoid it, but not when there is: two or three chips on a badge this size have
+  // easily enough of the ring to go all the way round without touching. noOverlapStep is the
+  // angle at which two neighbouring chips' discs just touch (chord between centres == 2*chipR,
+  // solved via the chord/radius/angle relationship); if fitting every chip at that angle still
+  // stays within a full turn of the ring, that's used instead of the tighter overlapping step --
+  // more chips fan further round from the bottom, with no overlap, rather than crowding closer
+  // together. Only once a full turn genuinely isn't enough room does it fall back to the
+  // original fixed, intentionally-overlapping step.
+  const noOverlapStep = ringR > 0 ? 2 * Math.asin(Math.min(1, chipR / ringR)) : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
+  const step = noOverlapStep * (n - 1) <= Math.PI * 2 ? noOverlapStep : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
+  const arcSpan = step * (n - 1);
   const positioned = types.map(([key, info], i) => {
-    const angle = (Math.PI / 2 - arcSpan / 2) + i * MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
+    const angle = (Math.PI / 2 - arcSpan / 2) + i * step;
     return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
   });
   for (let i = positioned.length - 1; i >= 0; i--) {
