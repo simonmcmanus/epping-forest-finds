@@ -363,7 +363,6 @@ globalThis.__forestFindsTest = {
   tiltFarClipCssPx,
   buildNearbyIconLookup,
   isNearCanvas,
-  showClusterDetail,
   findHit,
   focusNearbyOnMapPoint,
   isOutsideNearestArea,
@@ -3041,30 +3040,6 @@ test("formatDistance uses metres under 1km and trims unnecessary km decimals", (
   assert.equal(app.formatDistance(5000), "5 km");
   assert.equal(app.formatDistance(9940), "9.9 km");
   assert.equal(app.formatDistance(12300), "12 km");
-});
-
-test("cluster detail rows show always-visible combined distance and walk time chips", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  const tree = { id: "cluster-tree", commonName: "Cluster tree", ...makePoint(app, 0.001, 0) };
-
-  app.showClusterDetail({ itemType: "tree", items: [tree] });
-
-  const html = app.els.inspectorBody.innerHTML;
-  assert.match(html, /class="walk-chip"/);
-  assert.match(html, /data\/icons\/walking\.png/);
-  assert.match(html, /\d+\s*m\s*·\s*(?:<\s*1|\d+)\s*min/);
-});
-
-test("cluster detail rows show tag number for trees", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  const tree = { id: "cluster-tree", commonName: "Cluster tree", tagNumber: "15961", ...makePoint(app, 0.001, 0) };
-
-  app.showClusterDetail({ itemType: "tree", items: [tree] });
-
-  const html = app.els.inspectorBody.innerHTML;
-  assert.match(html, /#15961/, "cluster detail must show the tree tag number");
 });
 
 test("nearby list shows tag number for trees", () => {

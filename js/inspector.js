@@ -10,40 +10,25 @@ function handleMapClick(event) {
   if (!state.trees.length) return;
   const screen = canvasPoint(event);
 
-  // In overview mode, tapping a multi-item cluster expands it: zooms to separate
-  // the items and shows a cluster detail list in the inspector.
-  if (!state.selected) {
-    const cluster = findClusterHit(screen);
-    if (cluster) {
-      const itemPoints = cluster.items.map(item => item.point).filter(Boolean);
-      if (itemPoints.length) {
-        state.clusterZoomed = true;
-        state.clusterExpanded = cluster;
-        if (state.userLocation && state.userLocation.point) {
-          const user = state.userLocation.point;
-          const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-          const dpr = pixelRatio();
-          const padding = 40 * dpr;
-          const halfW = Math.max(1, focusRect.width / 2 - padding);
-          const halfH = Math.max(1, focusRect.height / 2 - padding);
-          let maxDx = 0, maxDy = 0;
-          for (const pt of itemPoints) {
-            maxDx = Math.max(maxDx, Math.abs(pt.x - user.x));
-            maxDy = Math.max(maxDy, Math.abs(pt.y - user.y));
-          }
-          const targetScale = (maxDx > 0 || maxDy > 0)
-            ? Math.min(maxDx > 0 ? halfW / maxDx : Infinity, maxDy > 0 ? halfH / maxDy : Infinity)
-            : state.viewport.scale;
-          const focusCx = focusRect.x + focusRect.width / 2;
-          const focusCy = focusRect.y + focusRect.height / 2;
-          animateViewportTo({ scale: targetScale, tx: focusCx - user.x * targetScale, ty: focusCy - user.y * targetScale }, 400);
-        } else {
-          fitToPoints(itemPoints, false, { animate: true, durationMs: 400, focusVisibleArea: true, assumeInspectorOpen: true });
-        }
-        showClusterDetail(cluster);
-        requestDraw();
-        return;
-      }
+  // Tapping a multi-item cluster -- same-category or the cross-category "mega" badge alike --
+  // behaves like tapping open ground on that spot: the group becomes the Nearby browse anchor,
+  // sized to cover it, and the Nearby list updates to show what's inside. See
+  // focusNearbyOnClusterGroup (js/nav.js).
+  //
+  // Checked regardless of state.selected: a cluster badge can sit in front of (and partly
+  // over) an already-selected item's pin, e.g. after selecting one tree and then tapping a
+  // nearby mega cluster to browse the rest. Gating this on "nothing selected" used to send that
+  // tap straight to findHit below, which then matched the selected item's own pin sitting behind
+  // the badge instead of expanding the cluster the tap visibly landed on.
+  const cluster = findClusterHit(screen);
+  if (cluster) {
+    if (state.selected) {
+      state.selected = null;
+      syncHashFromSelection();
+    }
+    if (focusNearbyOnClusterGroup(cluster)) {
+      requestDraw();
+      return;
     }
   }
 
@@ -120,82 +105,6 @@ function handleMapClick(event) {
     trackSelectionClick(hit.type, hit.item, "map");
   }
   requestDraw();
-}
-
-function showClusterDetail(cluster) {
-  const { itemType, items } = cluster;
-  const count = items.length;
-
-  const typeLabels = { tree: "Trees", cow: "Cows", path: "Trails", water: "Water features", landmark: "Places" };
-  const emojiSlugs = { tree: "tree", cow: "cow" };
-
-  const titleText = `${count} ${typeLabels[itemType] || "Places"}`;
-  const emoji = emojiSlugs[itemType]
-    ? appIconHtml(emojiSlugs[itemType], "app-icon title-icon")
-    : filterKindEmoji(itemType === "path" ? "waymarked_trails" : "ponds") || "📍";
-
-  setInspectorSelectionChrome({ emoji, showBack: true });
-  els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = titleText;
-  els.inspectorType.textContent = "Tap to navigate";
-
-  const itemsHtml = items.map(item => {
-    let name, key, iconHtml;
-    const lat = item.latitude ?? "";
-    const lon = item.longitude ?? "";
-
-    if (itemType === "tree") {
-      name = treeDisplayName(item);
-      key = treeHashKey(item);
-      iconHtml = treeSpeciesIconHtml(item.commonName, item.latinName) || filterKindEmoji("trees") || "🌳";
-    } else if (itemType === "cow") {
-      name = "Cow";
-      key = cowKey(item);
-      iconHtml = filterKindEmoji("cows") || "🐄";
-    } else if (itemType === "path") {
-      name = item.name || item.ref || "Waymarked trail";
-      key = pathHashKey(item);
-      iconHtml = filterKindEmoji("waymarked_trails") || "🥾";
-    } else if (itemType === "water") {
-      name = item.name || "Water feature";
-      key = waterHashKey(item);
-      iconHtml = filterKindEmoji("ponds") || "💧";
-    } else {
-      name = placeTitle(item);
-      key = placeHashKey(item);
-      iconHtml = landmarkEmoji(item);
-    }
-
-    const metres = distanceFromUser(item);
-    const walkHtml = walkInfoHtml(metres);
-    const treeTagChip = itemType === "tree" && item.tagNumber ? ` · #${escapeHtml(String(item.tagNumber))}` : "";
-
-    return `<li><button class="nearest-item" type="button" data-overview-type="${escapeHtml(itemType)}" data-overview-key="${escapeHtml(key)}">
-      <div class="nearest-header">
-        <span class="nearest-icon" aria-hidden="true">${iconHtml}</span>
-        <span class="nearest-name">${escapeHtml(name)}</span>
-      </div>
-      <div class="nearest-footer">
-        <span class="nearest-meta">${walkHtml}${treeTagChip}</span>
-        <span class="nearest-arrow" data-item-lat="${lat}" data-item-lon="${lon}" aria-hidden="true">↑</span>
-      </div>
-    </button></li>`;
-  }).join("");
-
-  // "forward", like every other drill-down screen: the group list is one level in from Nearby
-  // and its back button returns via goToInitialView -> selectOverview(true), which slides
-  // "back". Passing no direction here left this the one screen change in the app that swapped
-  // its contents instantly while the map animated underneath it.
-  transitionInspectorBody(`<ul class="nearest-list">${itemsHtml}</ul>`, "forward", () => {
-    updateOverviewDirectionArrows();
-  });
-
-  // A group of pins at one spot on the map is not something a link can re-derive, so this
-  // screen has no URL of its own -- but it is still a screen, and back has to leave it. It
-  // pushes an entry carrying the URL of the screen it sits on top of; urlMatchesCurrentScreen
-  // (js/app.js) never counts an open group as matching a URL, so going back applies that URL
-  // and closes the group.
-  setHashFromSelection(currentScreenRoute(), { force: true });
 }
 
 function trackSelectionClick(itemType, item, source) {
@@ -356,13 +265,57 @@ function findClusterHit(screen) {
   const pinYOffset = iconSize * 0.64;
   const lookup = activeIconLookup();
   const tag = (clusters, itemType) => clusters.map(c => ({ ...c, itemType }));
-  const allClusters = [
-    ...tag(buildTypeClusters(lookup.tree, worldToScreen), "tree"),
-    ...tag(buildLandmarkClusters(lookup.landmark, worldToScreen), "landmark"),
-    ...tag(buildTypeClusters(lookup.cow, worldToScreen), "cow"),
-    ...tag(buildTypeClusters(lookup.path, worldToScreen), "path"),
-    ...tag(buildTypeClusters(lookup.water, worldToScreen), "water"),
-  ];
+  const treeClusters = tag(buildTypeClusters(lookup.tree, worldToScreen), "tree");
+  const landmarkClusters = tag(buildLandmarkClusters(lookup.landmark, worldToScreen), "landmark");
+  const cowClusters = tag(buildTypeClusters(lookup.cow, worldToScreen), "cow");
+  const pathClusters = tag(buildTypeClusters(lookup.path, worldToScreen), "path");
+  const waterClusters = tag(buildTypeClusters(lookup.water, worldToScreen), "water");
+
+  // Cross-category mega clusters (see buildSuperClusters, js/renderer.js) draw on top of the
+  // per-type badges they absorb, so check those first -- a tap in their radius always means the
+  // mega badge, never one of the individual clusters merged into it.
+  //
+  // Deliberately the base MEGA_CLUSTER_MIN_MEMBERS here, not megaClusterMinMembersFor's
+  // near-user-stricter floor: that floor only raises the bar for drawing a consolidated badge
+  // near the user (so nearby ground stays legible, individual pins rather than one gold circle --
+  // see its own comment), it was never meant to also switch off the tap affordance. A 2-cluster
+  // overlap near the user still draws as separate, overlapping pins with nothing to visually mark
+  // it as a group -- but a tap there still needs to land on *something* coherent. Gating this hit
+  // test on the same stricter floor left those spots with no group to expand at all: the tap fell
+  // straight through to individual-pin hit-testing and picked whichever pin happened to be on top,
+  // which is exactly the "doesn't expand, just goes to one item" bug this exists to prevent.
+  //
+  // Runs even while a cluster is already expanded (state.clusterExpanded): the lookup above is
+  // narrowed to that group's own items, built fresh from wherever the zoom-in landed, so a still-
+  // dense expanded view can offer a next, smaller mega cluster to tap into -- one level of
+  // drill-down at a time -- rather than only ever flattening straight to individual pins.
+  const megaGroups = buildSuperClusters([
+    { itemType: "tree", clusters: treeClusters },
+    { itemType: "landmark", clusters: landmarkClusters },
+    { itemType: "cow", clusters: cowClusters },
+    { itemType: "path", clusters: pathClusters },
+    { itemType: "water", clusters: waterClusters },
+  ]).filter(group => group.length >= MEGA_CLUSTER_MIN_MEMBERS);
+  for (const group of megaGroups) {
+    let totalItems = 0, sx = 0, sy = 0, items = [];
+    const itemsByType = {};
+    for (const { itemType, cluster } of group) {
+      const n = cluster.items.length;
+      totalItems += n;
+      sx += cluster.screenPt.x * n;
+      sy += cluster.screenPt.y * n;
+      items = items.concat(cluster.items);
+      itemsByType[itemType] = (itemsByType[itemType] || []).concat(cluster.items);
+    }
+    const cx = sx / totalItems;
+    const cy = sy / totalItems;
+    const dpr = pixelRatio();
+    if (Math.hypot(cx - screen.x, cy - screen.y) < megaClusterOuterRadius(totalItems, dpr)) {
+      return { items, itemsByType, itemType: "_mega", screenPt: { x: cx, y: cy } };
+    }
+  }
+
+  const allClusters = [...treeClusters, ...landmarkClusters, ...cowClusters, ...pathClusters, ...waterClusters];
   for (const cluster of allClusters) {
     if (cluster.items.length <= 1) continue;
     if (Math.hypot(cluster.screenPt.x - screen.x, (cluster.screenPt.y - pinYOffset) - screen.y) < pinR) return cluster;
