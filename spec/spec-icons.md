@@ -421,6 +421,22 @@ and sit exactly like the PNG nav icons around them, and both stroke in
 `ui-search` prompt above is unused and stays listed only so the set is
 complete if the glyph is ever drawn as an asset.
 
+`.nav-icon` (main navigation row and the inspector back arrow) and `.title-icon`
+(the emoji/icon beside a screen's heading, e.g. Filters/Settings/Report) are
+both `40px * var(--icon-scale)` (`css/inspector.css`), up from an original
+22px/23px — small enough at the original size to read as fiddly rather than a
+clear glyph. `.close`/`.inspector-back`, the circular buttons those icons sit
+in, grew to match (`64px * var(--icon-scale)`, from 36px) so the icon keeps
+comfortable padding inside its button rather than crowding it. The Nearby
+list's own per-row icon (`.nearest-icon`/`.nearest-icon .app-icon`,
+`css/map-ui.css`) is `36px`, up from 20px, for the same reason. `test/
+forest-finds.test.js`'s "generated UI icon classes render at the enlarged
+sizes" test locks all four in place; its regexes deliberately bound each match
+inside `[^}]*` rather than `[\s\S]*` so a later, unrelated selector's own
+"width: 36px;" can't vacuously satisfy an assertion about a rule higher up
+the file — an earlier, unbounded version of that regex did exactly that and
+stayed green through a size that had quietly reverted.
+
 ## Generated app icon assets
 
 `scripts/generate-app-icon.py` composites `trees/oak.png` — the English oak
