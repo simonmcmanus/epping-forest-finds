@@ -229,6 +229,7 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
           arc() { arcCount += 1; },
           fill() {}, fillRect() {}, stroke() {}, setLineDash() {},
           createRadialGradient() { return { addColorStop() {} }; },
+          createLinearGradient() { return { addColorStop() {} }; },
         });
         return arcCount > 0;
       });
