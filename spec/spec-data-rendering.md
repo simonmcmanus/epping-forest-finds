@@ -68,7 +68,7 @@ interface RenderState {
   overviewExpandedGroups: string[];
   filterPanelCollapsed: boolean;
   nearestItemsCount: number;       // 3|5|10|15|20|25, default 10
-  walkingDistanceMinutes: number;   // continuous, half-minute steps; default 5; see walkingRadiusFloorMinutes
+  walkingDistanceMinutes: number;   // continuous, unsnapped; default 5; see walkingRadiusFloorMinutes
   walkingRadiusAtFloor: boolean;    // true only while the pinch gesture is actively pinned at the floor
   compassHeading: number | null;
   compassPermission: string;
@@ -525,13 +525,11 @@ moving the real GPS fix:
   and then animating a second time. A map tap never dismisses Filter/Settings/Report (see
   "Secondary Screens" below), but an open-ground tap does move their anchor, as above.
 - **Pinch-to-resize the radius:** a two-finger pinch on the map canvas while any screen that
-  draws the ring is active (Nearby, or Filter/Settings/Report) scales `state.walkingDistanceMinutes` continuously (no fixed stops) — spreading
-  fingers apart shrinks the radius (zoom in), pinching together grows it (zoom out), tracking
-  the pinch distance ratio from where the gesture started. Values are rounded to the nearest
-  half-minute (`roundWalkingMinutes`) before being applied, so pointermove ticks landing in the
-  same half-minute bucket cost nothing beyond that arithmetic (`applyWalkingRadiusChange`
-  no-ops when the rounded value hasn't moved) — this bounds how often the real per-tick work (a
-  nearest-item rescan and list re-render) actually runs. Each real change re-renders the
+  draws the ring is active (Nearby, or Filter/Settings/Report) scales `state.walkingDistanceMinutes` continuously (no fixed stops, and no rounding to a value grid — see "Walking-radius floor"
+  above) — spreading fingers apart shrinks the radius (zoom in), pinching together grows it
+  (zoom out), tracking the pinch distance ratio from where the gesture started. Each pointermove
+  applies its raw value directly, so the ring tracks the gesture with no perceptible snap; only
+  the displayed label rounds, to the nearest whole minute. Each real change re-renders the
   nearest list and re-fits the camera via the same path a Settings radius change uses
   (`refreshNearbyRadiusView`, `animate:false` mid-gesture so intermediate fits don't queue an
   animation each tick; the gesture's end re-runs it once more with the default `animate:true`
@@ -559,11 +557,15 @@ moving the real GPS fix:
   all the way down to `WALKING_RADIUS_TIGHT_MIN_MINUTES` (0.25 min, ~21 m), so a find a few
   seconds away can be closed right in on, ring and camera together. The camera follows because
   the Nearby fit frames the ring and nothing else (see "Heading-up nearby mode" below).
-  Values snap to a grid: `WALKING_RADIUS_STEP_MINUTES` (0.5) at a minute and above,
-  `WALKING_RADIUS_FINE_STEP_MINUTES` (0.25) below it, where half-minute steps would be a third
-  of what is left (`walkingMinutesStep`/`roundWalkingMinutes`/`ceilWalkingMinutes`). A value
-  snapped at the floor is rounded *up* onto that grid so it can never land just inside it.
-  Sub-minute radii are shown in seconds ("15 sec") rather than as a fraction of a minute —
+  The floor itself is rounded *up* onto a grid — `WALKING_RADIUS_STEP_MINUTES` (0.5) at a minute
+  and above, `WALKING_RADIUS_FINE_STEP_MINUTES` (0.25) below it, where half-minute steps would be
+  a third of what is left (`walkingMinutesStep`/`ceilWalkingMinutes`) — so it can never land just
+  inside the nearest real item. The radius itself, though, is never snapped to that grid: a pinch
+  or wheel gesture (see below) applies the continuous value it computes directly, so the ring
+  tracks the gesture smoothly instead of jumping between stops. Only the Settings slider still
+  steps along that grid, since it is a native `<input type="range">` with its own `step`
+  attribute (`roundWalkingMinutes`). Sub-minute radii are shown in seconds ("15 sec"); everywhere
+  else the continuous minutes value is rounded to the nearest whole minute for display —
   `formatWalkingRadius()` is what every user-facing radius label goes through.
   While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
   and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
@@ -590,10 +592,11 @@ moving the real GPS fix:
   and a trackpad pinch (reported as ctrl+wheel, in far smaller deltas) multiplies that rate by
   `TRACKPAD_PINCH_RATE_MULTIPLIER` so a whole pinch is worth a whole pinch. The running value
   lives unrounded in `state.wheelRadiusMinutes` rather than being read back from the applied
-  radius: a single trackpad delta is smaller than the value grid, so reading it back would round
-  every event away to the radius it started from and the ring would never move. It is clamped to
-  the floor/maximum, unlike the pinch's own base, because a wheel only accumulates — an unclamped
-  value would make the user scroll back through everything they overshot before the ring moved.
+  radius, which is itself unrounded too — the radius is never snapped to a value grid, so a run
+  of small trackpad deltas moves the ring continuously rather than needing to first accumulate
+  past a step. It is clamped to the floor/maximum, unlike the pinch's own base, because a wheel
+  only accumulates — an unclamped value would make the user scroll back through everything they
+  overshot before the ring moved.
   A wheel has no pointerup, so the gesture ends `WHEEL_RADIUS_SETTLE_MS` (220ms) after the last
   event (`endNearbyRadiusWheel`), which is where the settling animation, the cleared floor notice
   and the Settings-slider sync happen — the same things `endNearbyRadiusPinch` does on lift-off.

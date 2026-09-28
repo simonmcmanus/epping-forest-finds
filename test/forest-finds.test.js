@@ -272,7 +272,6 @@ globalThis.__forestFindsTest = {
   metresToWalkingMinutes,
   roundWalkingMinutes,
   ceilWalkingMinutes,
-  formatWalkingMinutes,
   formatWalkingRadius,
   ensureWalkingRadiusCoversNearest,
   nearbyRadiusIsEmpty,
@@ -3713,7 +3712,8 @@ test("sub-minute radii snap to quarter-minute steps and read as seconds", () => 
   assert.equal(app.formatWalkingRadius(0.25), "15 sec");
   assert.equal(app.formatWalkingRadius(0.5), "30 sec");
   assert.equal(app.formatWalkingRadius(1), "1 min");
-  assert.equal(app.formatWalkingRadius(5.5), "5.5 min");
+  assert.equal(app.formatWalkingRadius(5.5), "6 min", "the displayed radius rounds to the nearest whole minute");
+  assert.equal(app.formatWalkingRadius(5.4), "5 min");
 });
 
 test("settings slider offers the finer step once the floor drops below a minute", () => {
@@ -3826,14 +3826,16 @@ test("scrolling the wheel resizes the walking radius rather than the map", () =>
 test("a wheel gesture keeps its own running value, so small trackpad deltas still add up", () => {
   setUpWheelNearby(app);
 
-  // One tiny delta rounds away to the radius it started from...
+  // The radius moves continuously -- no value grid to round away to -- so even one tiny delta
+  // nudges it immediately.
   app.updateNearbyRadiusWheel(wheelEvent(-2, { ctrlKey: true }));
-  assert.equal(app.state.walkingDistanceMinutes, 5, "a single trackpad delta is below the value grid");
-  assert.ok(app.state.wheelRadiusMinutes < 5, "but the gesture remembers it");
+  const afterOne = app.state.walkingDistanceMinutes;
+  assert.ok(afterOne < 5, "a single trackpad delta already moves the ring");
+  assert.equal(app.state.wheelRadiusMinutes, afterOne, "the gesture's running value matches what was applied");
 
-  // ...while a run of them moves the ring.
+  // ...and a run of them keeps moving it further in the same direction.
   for (let i = 0; i < 20; i += 1) app.updateNearbyRadiusWheel(wheelEvent(-2, { ctrlKey: true }));
-  assert.ok(app.state.walkingDistanceMinutes < 5, "a continued trackpad pinch should reach the next step");
+  assert.ok(app.state.walkingDistanceMinutes < afterOne, "a continued trackpad pinch should keep shrinking the ring");
 });
 
 test("a trackpad pinch moves the radius further than the same wheel delta", () => {
@@ -3915,12 +3917,7 @@ test("settings form's slider floor hides tick marks the user can no longer reach
   assert.match(html, /<option value="30">/, "the reachable preset at the floor should still appear as a tick mark");
 });
 
-test("formatWalkingMinutes prints whole minutes plainly and halves with one decimal", () => {
-  assert.equal(app.formatWalkingMinutes(5), "5");
-  assert.equal(app.formatWalkingMinutes(5.5), "5.5");
-});
-
-test("roundWalkingMinutes snaps a continuous pinch value to the nearest half-minute", () => {
+test("roundWalkingMinutes snaps the settings slider's own value to the nearest half-minute", () => {
   assert.equal(app.roundWalkingMinutes(5.2), 5);
   assert.equal(app.roundWalkingMinutes(5.3), 5.5);
 });
