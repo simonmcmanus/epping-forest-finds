@@ -1240,18 +1240,6 @@ function buildSuperClusters(taggedGroups) {
   return superClusters;
 }
 
-const MEGA_CLUSTER_CATEGORY_COLOR = {
-  tree: "rgba(47, 111, 78, 0.95)",
-  cow: "rgba(154, 106, 47, 0.95)",
-  path: "rgba(109, 68, 140, 0.95)",
-  water: "rgba(58, 127, 201, 0.95)",
-  landmark: "rgba(196, 132, 38, 0.95)",
-};
-
-function megaClusterCategoryColor(itemType) {
-  return MEGA_CLUSTER_CATEGORY_COLOR[itemType] || "rgba(118, 112, 47, 0.95)";
-}
-
 function megaClusterRadius(totalItems, dpr) {
   return clamp(16 * dpr + Math.sqrt(totalItems) * 2.6 * dpr, 18 * dpr, 34 * dpr);
 }
@@ -1331,19 +1319,18 @@ function megaClusterDisplayKey(itemType, cluster) {
   return `landmark:${landmarkClusterKey(cluster.items[0])}`;
 }
 
-// A small circular chip -- white disc, category-coloured ring, the category's own icon cropped
-// to a circle inside -- used around the mega badge's rim (see drawMegaBadge). Silently draws
-// just the coloured ring if the icon image hasn't finished loading yet (getMapImage triggers a
-// redraw once it has, same as every other map icon).
-function drawMegaClusterIconChip(ctx, x, y, src, itemType, chipR, dpr) {
+// A small circular chip -- plain white disc, the category's own icon cropped to a circle inside,
+// no ring of its own -- used around the mega badge's rim (see drawMegaBadge). No border: a badge
+// with a coloured ring per chip plus a white ring around the badge itself was the "too many
+// borders" density the badge existed to cut down on in the first place. Draws just the disc if
+// the icon image hasn't finished loading yet (getMapImage triggers a redraw once it has, same as
+// every other map icon).
+function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
   ctx.save();
   ctx.beginPath();
   ctx.arc(x, y, chipR, 0, Math.PI * 2);
   ctx.fillStyle = "#fff";
   ctx.fill();
-  ctx.lineWidth = 1.6 * dpr;
-  ctx.strokeStyle = megaClusterCategoryColor(itemType);
-  ctx.stroke();
 
   const img = src ? getMapImage(src) : null;
   if (img && img.complete && img.naturalWidth) {
@@ -1364,27 +1351,44 @@ function drawMegaClusterIconChip(ctx, x, y, src, itemType, chipR, dpr) {
 // The gold the app's own home-screen icon (assets/home/favicon.png) uses behind its oak leaf --
 // reused here instead of a flat colour so a mega badge reads as "part of this app's identity",
 // not an unrelated warning-style marker.
+//
+// Radial, centred on the badge and brightest there, fading toward the rim rather than filling
+// flat to a hard edge -- a mega badge stands for a rough area several items share, not one exact
+// spot, so it reads more like a soft patch of light (think a sun) than a coin with a rim. No
+// border is drawn around it at all: a crisp white ring plus a coloured ring on every chip around
+// it was exactly the layered-borders clutter the badge exists to cut down on.
 function megaClusterBadgeFill(ctx, cx, cy, R) {
-  const gradient = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
-  gradient.addColorStop(0, "#f3c968");
-  gradient.addColorStop(1, "#d99a3a");
+  const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+  gradient.addColorStop(0, "rgba(247, 210, 128, 0.95)");
+  gradient.addColorStop(0.55, "rgba(243, 201, 104, 0.85)");
+  gradient.addColorStop(1, "rgba(217, 154, 58, 0.35)");
   return gradient;
+}
+
+// A wider, fainter halo drawn behind the badge itself -- the same radial gold fading all the way
+// to transparent well past R -- so the "rough area" reads even where the badge's own fill has
+// already faded toward its rim, instead of the softness stopping abruptly at R.
+function megaClusterGlowFill(ctx, cx, cy, R) {
+  const glowR = R * 1.7;
+  const gradient = ctx.createRadialGradient(cx, cy, R * 0.3, cx, cy, glowR);
+  gradient.addColorStop(0, "rgba(243, 201, 104, 0.4)");
+  gradient.addColorStop(1, "rgba(243, 201, 104, 0)");
+  return { gradient, glowR };
 }
 
 function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   const R = megaClusterRadius(totalItems, dpr);
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.35)";
-  ctx.shadowBlur = 6 * dpr;
+  const { gradient: glowFill, glowR } = megaClusterGlowFill(ctx, cx, cy, R);
+  ctx.beginPath();
+  ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
+  ctx.fillStyle = glowFill;
+  ctx.fill();
+
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
   ctx.fillStyle = megaClusterBadgeFill(ctx, cx, cy, R);
   ctx.fill();
-  ctx.shadowColor = "transparent";
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 2.5 * dpr;
-  ctx.stroke();
 
   const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
   ctx.textAlign = "center";
@@ -1414,8 +1418,8 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
     return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
   });
   for (let i = positioned.length - 1; i >= 0; i--) {
-    const { key, info, x, y } = positioned[i];
-    drawMegaClusterIconChip(ctx, x, y, byTypeIconSrc.get(key), info.itemType, chipR, dpr);
+    const { key, x, y } = positioned[i];
+    drawMegaClusterIconChip(ctx, x, y, byTypeIconSrc.get(key), chipR);
   }
   ctx.restore();
 }
