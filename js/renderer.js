@@ -1333,9 +1333,11 @@ function megaClusterRadius(totalItems, dpr) {
 // floor, than the inner circle's own ratio would suggest: with R shrunk down to make room for
 // the outer disc, a chip sized purely off R read as squashed -- too little room for the icon
 // inside it to read clearly -- so this is sized mostly off its own floor rather than scaling
-// all the way down with R.
+// all the way down with R. Both the floor and the ratio were nearly doubled from an original
+// 11.5px/0.52 pass that read as too small to tell one chip's icon apart from another at a
+// glance.
 function megaClusterChipRadius(R, dpr) {
-  return Math.max(11.5 * dpr, R * 0.52);
+  return Math.max(21 * dpr, R * 0.95);
 }
 
 // The badge caps at this many chips (largest group first) -- past this the ring reads as noise
