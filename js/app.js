@@ -265,11 +265,6 @@ const state = {
   dragging: false,
   moved: false,
   dragStart: null,
-  // Screen-space centre of the mega cluster badge currently under a mouse hover (desktop only --
-  // touch never fires a hover), or null. Set by the pointermove hover handler in
-  // setupMapCanvasHandlers (js/nav.js), read by drawMegaBadge (js/renderer.js) to draw that one
-  // badge's hover highlight.
-  hoveredMegaBadgeCenter: null,
   installPrompt: null,
   swUpdateAvailable: false,
   dataUpdateAvailable: false,

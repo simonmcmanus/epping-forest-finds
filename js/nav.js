@@ -918,11 +918,10 @@ const CLUSTER_TOUR_ZOOM_OUT_MS = 350;
 const CLUSTER_TOUR_PAN_MS = 450;
 const CLUSTER_TOUR_ZOOM_IN_MS = 450;
 
-function focusNearbyOnClusterGroup(cluster) {
-  const items = (cluster.items || []).filter(item => item && item.point
-    && Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
-  if (!items.length) return false;
-
+// Shared by focusNearbyOnClusterGroup (the real camera tour, below) and the mega badge's own
+// count display (drawMegaClusters, js/renderer.js), so the two can never disagree: the centre
+// and walking radius a tap on this group will actually land on, computed once.
+function clusterFocusTarget(items) {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const item of items) {
     minX = Math.min(minX, item.point.x);
@@ -945,6 +944,32 @@ function focusNearbyOnClusterGroup(cluster) {
   const rawMinutes = metresToWalkingMinutes(maxMetres * WALKING_RADIUS_FLOOR_BUFFER);
   const floorMinutes = walkingRadiusFloorMinutes(center);
   const targetMinutes = ceilWalkingMinutes(clamp(rawMinutes, floorMinutes, WALKING_RADIUS_MAX_MINUTES));
+  return { centerPoint, center, targetMinutes };
+}
+
+// Counts every real item (all types, unfiltered -- matching the unfiltered branch of
+// overviewItemsForActiveFilter, js/app.js) within a cluster's eventual walking radius. Used to
+// show a mega badge's true count: the raw number of items buildSuperClusters happened to merge
+// into one badge is often smaller, since the final radius (walkingRadiusFloorMinutes' own
+// minimum, plus the walking-radius grid ceilWalkingMinutes rounds up to) commonly reaches past
+// a tight cluster's own members into neighbouring ground -- a badge that said "7" opened onto a
+// Nearby list of 20 because of exactly that gap.
+function clusterVisibleItemCount(center, targetMinutes) {
+  const maxMetres = walkingDistanceToMetres(targetMinutes);
+  const { latitude, longitude } = center;
+  return nearbyTreesWithinDistance(latitude, longitude, maxMetres).length
+    + nearbyCowsWithinDistance(latitude, longitude, maxMetres).length
+    + nearbyWaymarkedPathsWithinDistance(latitude, longitude, maxMetres).length
+    + nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres).length
+    + nearbyPlacesByFilterWithinDistance(latitude, longitude, () => true, maxMetres).length;
+}
+
+function focusNearbyOnClusterGroup(cluster) {
+  const items = (cluster.items || []).filter(item => item && item.point
+    && Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+  if (!items.length) return false;
+
+  const { centerPoint, center, targetMinutes } = clusterFocusTarget(items);
 
   const fromPoint = nearbyRenderOriginPoint() || (nearbyOrigin() && nearbyOrigin().point);
   if (!fromPoint) return false;
@@ -1486,11 +1511,9 @@ function setupMapCanvasHandlers() {
 
 // Desktop-only: a mouse can rest on a spot without pressing, which is a hover, not a drag --
 // something touch has no equivalent of, so this is entirely separate from the drag/pinch
-// handling above. Two things it drives: the cursor (pointer over anything tappable, so a click
-// reads as a distinct action from a drag before the click even lands -- the OS-level affordance
-// for "this is clickable" that canvas content gets none of for free), and, for a mega cluster
-// badge specifically, a highlighted redraw (see drawMegaBadge, js/renderer.js) -- the one shape
-// on the map custom-drawn enough that a plain cursor change alone was not much of a signal.
+// handling above. Drives the cursor only (pointer over anything tappable, so a click reads as a
+// distinct action from a drag before the click even lands -- the OS-level affordance for "this
+// is clickable" that canvas content gets none of for free).
 function setupMapHoverHandlers() {
   let pendingScreen = null;
   let scheduled = false;
@@ -1513,34 +1536,15 @@ function setupMapHoverHandlers() {
   els.canvas.addEventListener("pointerleave", (event) => {
     if (event.pointerType !== "mouse") return;
     pendingScreen = null;
-    clearMapHoverState();
+    els.canvas.style.cursor = "";
   });
 }
 
 function updateMapHoverState(screen) {
-  // Same gate handleMapClick (js/inspector.js) uses before it will even look for a cluster --
-  // a real selection replaces the map interaction entirely, so nothing on it should look
-  // hoverable.
-  const cluster = !state.selected ? findClusterHit(screen) : null;
-  const megaCenter = cluster && cluster.itemType === "_mega" ? cluster.screenPt : null;
-
+  const cluster = findClusterHit(screen);
   const world = screenToWorld(screen.x, screen.y);
   const hit = cluster ? { type: cluster.itemType } : findHit(screen, world);
   els.canvas.style.cursor = (cluster || hit.type !== "none") ? "pointer" : "";
-
-  const already = state.hoveredMegaBadgeCenter;
-  const changed = Boolean(already) !== Boolean(megaCenter)
-    || (already && megaCenter && (Math.abs(already.x - megaCenter.x) > 0.5 || Math.abs(already.y - megaCenter.y) > 0.5));
-  if (!changed) return;
-  state.hoveredMegaBadgeCenter = megaCenter;
-  requestDraw();
-}
-
-function clearMapHoverState() {
-  els.canvas.style.cursor = "";
-  if (!state.hoveredMegaBadgeCenter) return;
-  state.hoveredMegaBadgeCenter = null;
-  requestDraw();
 }
 
 function setInspectorMinimized(minimized) {

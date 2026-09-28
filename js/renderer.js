@@ -26,12 +26,6 @@ let _overlayWasTilted = false;
 const SELECTED_PULSE_REDRAW_INTERVAL_MS = 50;
 let _selectedPulseTimer = null;
 
-// Same throttled-redraw pattern as the selection pulse above, for the hovered mega badge's chip
-// bob (drawMegaBadge) -- a much slower, gentler motion (MEGA_CLUSTER_HOVER_BOB_PERIOD_MS, 1400ms)
-// so it does not need anywhere near a 50ms redraw interval to look smooth.
-const MEGA_HOVER_PULSE_REDRAW_INTERVAL_MS = 80;
-let _megaHoverPulseTimer = null;
-
 function getMapImage(src) {
   if (!mapImageCache.has(src)) {
     const img = new Image();
@@ -243,15 +237,6 @@ function draw() {
   if (state.selected && ["road", "path"].includes(state.selected.type)) {
     clearTimeout(_selectedPulseTimer);
     _selectedPulseTimer = setTimeout(requestDraw, SELECTED_PULSE_REDRAW_INTERVAL_MS);
-  }
-
-  // Keeps the hovered mega badge's chip-bob animation (drawMegaBadge) actually animating: a
-  // single requestDraw() only paints the current instant of the sine wave once, same as the
-  // selection pulse above -- without this the chips would nudge to wherever the wave happened to
-  // be on the one frame the hover started and then sit still there.
-  if (state.hoveredMegaBadgeCenter) {
-    clearTimeout(_megaHoverPulseTimer);
-    _megaHoverPulseTimer = setTimeout(requestDraw, MEGA_HOVER_PULSE_REDRAW_INTERVAL_MS);
   }
 
   if (typeof postDraw === "function") postDraw();
@@ -1399,35 +1384,14 @@ const MEGA_CLUSTER_INNER_COLOR = "#f3c968";
 // about show through if you look for it, not read as a wash you can see the whole scene behind.
 const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.88)";
 
-// Desktop-only hover affordance (state.hoveredMegaBadgeCenter, set by the pointermove handler in
-// setupMapHoverHandlers, js/nav.js -- touch never sets it, since touch has no hover). A cursor
-// change alone is easy to miss on a shape this custom, so hovering also scales the whole badge up
-// a little (reads as "this responds to you" the way a real button's own hover state would) and
-// sets each chip gently bobbing in and out along its own spoke -- a first version instead
-// brightened the outer disc's tint on hover, which read as a colour swap rather than something
-// alive responding to the pointer; nudging the icons themselves is the more legible version of
-// the same idea. MEGA_CLUSTER_HOVER_BOB_PERIOD_MS is deliberately slower and gentler than
-// SELECTED_OVERLAY_PULSE_PERIOD_MS's selection pulse (380ms) -- this is an ambient "still there,
-// still listening" motion, not an urgent one, and each chip's own phase offset (i * a fixed
-// stagger) keeps them bobbing out of sync with each other rather than as one rigid unit.
-const MEGA_CLUSTER_HOVER_SCALE = 1.08;
-const MEGA_CLUSTER_HOVER_BOB_PERIOD_MS = 1400;
-const MEGA_CLUSTER_HOVER_BOB_CHIP_STAGGER = 0.6;
-// How far a chip bobs, as a fraction of its own radius -- subtle on purpose, a nudge rather than
-// a wobble.
-const MEGA_CLUSTER_HOVER_BOB_AMPLITUDE_RATIO = 0.16;
-
-function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, hovered) {
-  const scale = hovered ? MEGA_CLUSTER_HOVER_SCALE : 1;
-  const R = megaClusterRadius(totalItems, dpr) * scale;
+function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
+  const R = megaClusterRadius(totalItems, dpr);
   const chipR = megaClusterChipRadius(R, dpr);
   const ringR = megaClusterChipRingRadius(R, chipR);
   // MEGA_CLUSTER_OUTER_DISC_PADDING beyond the chips' own exact reach (ringR + chipR) -- without
   // it a chip sat exactly tangent to the disc's edge, which read as bursting out of it rather
-  // than sitting inside it. Matches megaClusterOuterRadius exactly (modulo the hover scale,
-  // which is purely a drawing-time embellishment and never changes the tappable region itself),
-  // so the hit-test/cull region and the drawn disc never disagree about where the badge's edge
-  // actually is.
+  // than sitting inside it. Matches megaClusterOuterRadius exactly, so the hit-test/cull region
+  // and the drawn disc never disagree about where the badge's edge actually is.
   const outerR = (ringR + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
   ctx.save();
 
@@ -1477,19 +1441,9 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, hove
   const noOverlapStep = ringR > 0 ? 2 * Math.asin(Math.min(1, chipR / ringR)) : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
   const step = noOverlapStep * (n - 1) <= Math.PI * 2 ? noOverlapStep : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
   const arcSpan = step * (n - 1);
-  if (_animationStartTime === null) _animationStartTime = performance.now();
-  const bobElapsed = performance.now() - _animationStartTime;
   const positioned = types.map(([key, info], i) => {
     const angle = (Math.PI / 2 - arcSpan / 2) + i * step;
-    // Each chip bobs in and out along its own spoke (not sideways -- that would read as jitter
-    // rather than a deliberate nudge), phase-staggered per chip so they move as a loose group,
-    // not one rigid unit.
-    const bob = hovered
-      ? Math.sin((bobElapsed / MEGA_CLUSTER_HOVER_BOB_PERIOD_MS) * Math.PI * 2 + i * MEGA_CLUSTER_HOVER_BOB_CHIP_STAGGER)
-        * chipR * MEGA_CLUSTER_HOVER_BOB_AMPLITUDE_RATIO
-      : 0;
-    const r = ringR + bob;
-    return { key, info, x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
+    return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
   });
   for (let i = positioned.length - 1; i >= 0; i--) {
     const { key, x, y } = positioned[i];
@@ -1508,11 +1462,13 @@ function drawMegaClusters(ctx, megaGroups) {
     let totalItems = 0, sx = 0, sy = 0;
     const byType = new Map();
     const byTypeIconSrc = new Map();
+    let allItems = [];
     for (const { itemType, cluster } of group) {
       const n = cluster.items.length;
       totalItems += n;
       sx += cluster.screenPt.x * n;
       sy += cluster.screenPt.y * n;
+      allItems = allItems.concat(cluster.items);
       const key = megaClusterDisplayKey(itemType, cluster);
       const existing = byType.get(key);
       byType.set(key, { count: (existing ? existing.count : 0) + n, itemType });
@@ -1521,9 +1477,15 @@ function drawMegaClusters(ctx, megaGroups) {
     const cx = sx / totalItems;
     const cy = sy / totalItems;
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
-    const hovered = state.hoveredMegaBadgeCenter
-      && Math.hypot(cx - state.hoveredMegaBadgeCenter.x, cy - state.hoveredMegaBadgeCenter.y) < 1;
-    drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, hovered);
+    // The badge's count (and, following from it, its size) reflects what a tap here will
+    // actually show in the Nearby list -- clusterFocusTarget/clusterVisibleItemCount (js/nav.js)
+    // replicate focusNearbyOnClusterGroup's own centre+radius math exactly, so the two can never
+    // disagree. Often larger than totalItems (the raw count buildSuperClusters merged into this
+    // one badge): the tap's eventual walking radius commonly reaches past this group's own
+    // members into neighbouring ground.
+    const target = clusterFocusTarget(allItems);
+    const visibleCount = target ? clusterVisibleItemCount(target.center, target.targetMinutes) : totalItems;
+    drawMegaBadge(ctx, cx, cy, Math.max(visibleCount, totalItems), byType, byTypeIconSrc, dpr);
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -2174,6 +2136,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     let totalItems = 0, sx = 0, sy = 0, swx = 0, swy = 0;
     const byType = new Map();
     const byTypeIconSrc = new Map();
+    let allItems = [];
     for (const { itemType, cluster } of group) {
       const n = cluster.items.length;
       totalItems += n;
@@ -2181,6 +2144,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
       sy += cluster.screenPt.y * n;
       swx += cluster.worldPt.x * n;
       swy += cluster.worldPt.y * n;
+      allItems = allItems.concat(cluster.items);
       const key = megaClusterDisplayKey(itemType, cluster);
       const existing = byType.get(key);
       byType.set(key, { count: (existing ? existing.count : 0) + n, itemType });
@@ -2191,11 +2155,13 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const worldPt = { x: swx / totalItems, y: swy / totalItems };
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
-    const hovered = state.hoveredMegaBadgeCenter
-      && Math.hypot(cx - state.hoveredMegaBadgeCenter.x, cy - state.hoveredMegaBadgeCenter.y) < 1;
+    // See the flat-path drawMegaClusters (above) for why this differs from the raw merged count.
+    const target = clusterFocusTarget(allItems);
+    const visibleCount = target ? clusterVisibleItemCount(target.center, target.targetMinutes) : totalItems;
+    const badgeCount = Math.max(visibleCount, totalItems);
     calls.push({ y: cy, fn(c) {
       c.globalAlpha = reveal;
-      drawMegaBadge(c, cx, cy, totalItems, byType, byTypeIconSrc, dpr * pinScale, hovered);
+      drawMegaBadge(c, cx, cy, badgeCount, byType, byTypeIconSrc, dpr * pinScale);
     }});
   }
 
