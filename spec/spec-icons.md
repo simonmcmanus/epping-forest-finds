@@ -5,7 +5,7 @@ filter-food
 A plate with fork and knife
 
 filter-transport
-A front-facing red London double-decker bus
+A red London double-decker in side profile, with two rows of windows and visible wheels
 
 filter-history
 A rolled historical scroll
@@ -29,7 +29,7 @@ filter-ponds-streams
 A single water droplet
 
 filter-pubs
-A British nonic pint glass, without a handle
+A British nonic pint glass with a curved rim, tapered body and creamy head, without a handle
 
 filter-restaurants
 A plate with fork and knife
@@ -41,7 +41,7 @@ filter-shops
 A shopping basket
 
 filter-bus
-A front-facing red London double-decker bus
+A red London double-decker in side profile, with two rows of windows and visible wheels
 
 filter-parking
 A single front-facing car, without a P badge or map pin
@@ -158,7 +158,7 @@ landmark-museum
 A museum building with columns
 
 landmark-campsite
-A single camping tent, without trees or a map pin
+A camping tent
 
 landmark-picnic
 A picnic table, plank top over a bench
@@ -167,7 +167,7 @@ landmark-viewpoint
 A spotting telescope on a tripod
 
 landmark-taxi
-A London black cab
+A London black cab with a rounded high roof, upright windscreen and tall grille
 
 landmark-telephone
 A K6 telephone box
@@ -244,7 +244,7 @@ parking badges or decorative props. Bus, pub, taxi and WWII artwork uses a
 London double-decker, British nonic pint glass, London black cab and Brodie
 helmet respectively. Parking uses a car; bicycle parking uses a bicycle;
 medical sites use a single cross; literature uses an open book; campsites use
-a tent. Keep the forest-green outlines and house palette, using heritage red
+the original tent artwork. Keep the forest-green outlines and house palette, using heritage red
 for the bus. Check silhouettes at map size as well as the 256px original.
 The remaining map artwork was reviewed: UK rail symbols, the K6 telephone
 box, heritage buildings, local nature and generic facilities retain their

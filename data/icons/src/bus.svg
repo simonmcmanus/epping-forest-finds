@@ -1,5 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <g stroke="#284830" stroke-width="11" stroke-linejoin="round" stroke-linecap="round">
-<rect x="65" y="24" width="126" height="202" rx="24" fill="#b23a2e"/><path d="M78 219v13m100-13v13" stroke-width="18"/><rect x="81" y="45" width="94" height="58" rx="8" fill="#f8f0d0"/><rect x="81" y="120" width="94" height="53" rx="8" fill="#f8f0d0"/><path d="M128 46v55m0 21v49"/><path d="M86 195h12m60 0h12" stroke="#f8f0d0"/>
+  <!-- Side profile: two full decks and exposed wheels identify a London bus at pin size. -->
+  <g stroke="#284830" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M25 180V68q0-25 25-25h148q30 0 33 28l5 100q0 20-21 20H40q-15 0-15-11Z" fill="#b23a2e"/>
+    <path d="M203 48q24 3 28 25l5 98q0 20-21 20h-12Z" fill="#942f28" stroke="none"/>
+    <path d="M42 67h42v38H42Zm57 0h43v38H99Zm58 0h45v38h-45Z" fill="#f8f0d0" stroke-width="6"/>
+    <path d="M42 132h42v34H42Zm57 0h43v34H99Z" fill="#f8f0d0" stroke-width="6"/>
+    <path d="M162 133h42v54h-42Z" fill="#f8f0d0" stroke-width="6"/>
+    <path d="M183 134v51" stroke-width="5"/>
+    <path d="M29 118h202" stroke="#f8f0d0" stroke-width="7"/>
+    <circle cx="68" cy="192" r="22" fill="#284830"/>
+    <circle cx="198" cy="192" r="22" fill="#284830"/>
+    <circle cx="68" cy="192" r="9" fill="#c0c0b0" stroke="none"/>
+    <circle cx="198" cy="192" r="9" fill="#c0c0b0" stroke="none"/>
+    <path d="M225 158h6" stroke="#f8f0d0" stroke-width="7"/>
   </g>
 </svg>

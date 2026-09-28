@@ -1,5 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <g stroke="#284830" stroke-width="11" stroke-linejoin="round" stroke-linecap="round">
-<path d="M53 126 72 73q4-13 20-13h72q16 0 20 13l19 53" fill="#284830"/><rect x="108" y="40" width="40" height="20" rx="5" fill="#c0a068"/><path d="M87 79h82l14 43H73z" fill="#f8f0d0"/><rect x="32" y="122" width="192" height="76" rx="27" fill="#284830"/><path d="M56 194v18m144-18v18" stroke-width="20"/><circle cx="65" cy="152" r="13" fill="#f8f0d0"/><circle cx="191" cy="152" r="13" fill="#f8f0d0"/><path d="M103 148h50v32h-50z" fill="#c0c0b0"/>
+  <!-- London black cab: high rounded roof, upright windscreen, curved bonnet and tall grille. -->
+  <g stroke="#284830" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M55 170v39q0 10 12 10t12-10v-24m98-15v39q0 10 12 10t12-10v-24" fill="#284830"/>
+    <path d="m57 127 9-44q6-37 62-37t62 37l9 44q21 9 21 33v33H36v-33q0-24 21-33Z" fill="#384b42"/>
+    <path d="M83 83q3-17 45-17t45 17l7 35H76Z" fill="#f8f0d0"/>
+    <path d="M128 69v47" stroke-width="6"/>
+    <path d="M74 135q54-16 108 0l14 53H60Z" fill="#284830"/>
+    <rect x="105" y="32" width="46" height="23" rx="7" fill="#c0a068" stroke-width="6"/>
+    <path d="M36 118h13m158 0h13" stroke-width="11"/>
+    <circle cx="65" cy="157" r="14" fill="#f8f0d0"/>
+    <circle cx="191" cy="157" r="14" fill="#f8f0d0"/>
+    <rect x="107" y="140" width="42" height="45" rx="7" fill="#c0c0b0" stroke-width="6"/>
+    <path d="M119 149v26m18-26v26" stroke-width="4"/>
+    <path d="M45 197h166" stroke="#c0c0b0" stroke-width="8"/>
   </g>
 </svg>
