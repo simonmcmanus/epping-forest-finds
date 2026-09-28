@@ -1441,15 +1441,6 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
   const iconSize = chipR * 2.15;
   ctx.drawImage(img, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize);
   ctx.restore();
-  // A thin ring, not a filled backing (see above for why a backing was dropped): against the
-  // disc's own gold, an icon with no edge of its own read as smudged into the badge rather than
-  // as a distinct chip sitting on it. The ring gives every chip a crisp, consistent edge without
-  // reintroducing a background behind the artwork.
-  ctx.beginPath();
-  ctx.arc(x, y, chipR * 0.9, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(255, 252, 244, 0.92)";
-  ctx.lineWidth = Math.max(1, chipR * 0.09);
-  ctx.stroke();
 }
 
 // Drawn as one badge with the total count in the middle and a small ring of icon chips around
@@ -1459,19 +1450,17 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
 // reused here instead of a flat colour so a mega badge reads as "part of this app's identity",
 // not an unrelated warning-style marker.
 //
-// A deeper, more saturated bronze-gold in place of the original flat, paler yellow -- that
-// version's tones sat close enough to each other (and to a plain warning-sign amber) to read as
-// slightly washed-out and a little "toy-like" rather than a considered brand colour. This pass
-// widens the range between the pin's own highlight and shadow for a more definite, jewel-like
-// dome, and darkens the outer disc's base tone so it reads as a deliberate bronze rather than a
-// diluted version of the pin's own gold. A thin, dark-bronze stroke (`MEGA_CLUSTER_EDGE_STROKE`,
-// used on both the outer disc and the pin) gives every edge a crisp line against the map behind
-// it, closer to how a printed map's own place markers are finished.
-const MEGA_CLUSTER_INNER_HIGHLIGHT = "#f6ce72";
-const MEGA_CLUSTER_INNER_SHADOW = "#a3690f";
-const MEGA_CLUSTER_OUTER_HIGHLIGHT = "rgba(224, 168, 78, 0.9)";
-const MEGA_CLUSTER_OUTER_SHADOW = "rgba(138, 88, 20, 0.9)";
-const MEGA_CLUSTER_EDGE_STROKE = "rgba(74, 46, 9, 0.55)";
+// Brighter and darker ends of the same two golds, used only as radial-gradient stops (see
+// megaSphereGradient) -- never as flat fills on their own, so a badge still reads as "two golds"
+// at a glance, just each one now domed instead of flat. Kept close either side of the brand
+// gold -- a first pass ranged much further apart (a near-white highlight, a near-brown shadow)
+// and read as a different, duller colour rather than the same brand gold with shading on it; a
+// later, deeper bronze pass with edge strokes and a drop shadow was also tried and reverted --
+// it read as less polished, not more.
+const MEGA_CLUSTER_INNER_HIGHLIGHT = "#f8d989";
+const MEGA_CLUSTER_INNER_SHADOW = "#dba63f";
+const MEGA_CLUSTER_OUTER_HIGHLIGHT = "rgba(229, 175, 92, 0.88)";
+const MEGA_CLUSTER_OUTER_SHADOW = "rgba(198, 133, 44, 0.88)";
 
 // A top-left-lit radial gradient standing in for each disc's former flat fill, so the badge
 // reads as a raised sphere rather than a flat coin -- the same top-lit shading language the
@@ -1504,7 +1493,7 @@ function drawMegaBadgeCountPin(ctx, tipX, tipY, R, totalItems, dpr) {
   ctx.closePath();
   ctx.fillStyle = megaSphereGradient(ctx, tipX, headY, R, MEGA_CLUSTER_INNER_HIGHLIGHT, MEGA_CLUSTER_INNER_SHADOW);
   ctx.fill();
-  ctx.strokeStyle = MEGA_CLUSTER_EDGE_STROKE;
+  ctx.strokeStyle = "rgba(0,0,0,0.25)";
   ctx.lineWidth = Math.max(1, R * 0.08);
   ctx.stroke();
 
@@ -1554,23 +1543,12 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
   const outerR = (ringR + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
 
   // Paler, semi-opaque outer disc sized to actually contain the chip ring (outerR, the same
-  // reach megaClusterOuterRadius already uses for hit-testing and culling). A soft shadow behind
-  // it (cheap: ctx.shadowBlur on the fill call only, cleared immediately after) grounds the
-  // whole badge against the map the way a raised object actually casts one, instead of reading
-  // as a flat sticker pasted over the terrain.
+  // reach megaClusterOuterRadius already uses for hit-testing and culling).
   ctx.beginPath();
   if (groundCenterFlat) traceGroundCirclePath(ctx, groundCenterFlat, outerR);
   else ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-  ctx.save();
-  ctx.shadowColor = "rgba(20, 14, 4, 0.35)";
-  ctx.shadowBlur = outerR * 0.22;
-  ctx.shadowOffsetY = outerR * 0.08;
   ctx.fillStyle = megaSphereGradient(ctx, cx, cy, outerR, MEGA_CLUSTER_OUTER_HIGHLIGHT, MEGA_CLUSTER_OUTER_SHADOW);
   ctx.fill();
-  ctx.restore();
-  ctx.strokeStyle = MEGA_CLUSTER_EDGE_STROKE;
-  ctx.lineWidth = Math.max(1, outerR * 0.035);
-  ctx.stroke();
 
   // Outside tilt the count still sits as a flat inner circle on top of the outer disc, exactly
   // as before -- only under tilt does it move out to the upright pin drawn below.
@@ -1579,9 +1557,6 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.fillStyle = megaSphereGradient(ctx, cx, cy, R, MEGA_CLUSTER_INNER_HIGHLIGHT, MEGA_CLUSTER_INNER_SHADOW);
     ctx.fill();
-    ctx.strokeStyle = MEGA_CLUSTER_EDGE_STROKE;
-    ctx.lineWidth = Math.max(1, R * 0.08);
-    ctx.stroke();
 
     const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
     ctx.textAlign = "center";
