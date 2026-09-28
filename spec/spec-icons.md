@@ -266,12 +266,21 @@ icon is an isolated cream lodge with a sage roof and transparent surroundings.
 Tree-species leaves retain their distinct outlines and veins, with tonal
 greens; the cow has English Longhorn horns curving down beside its face.
 
-The rail symbols, medical cross, tick, walking figure, inline search/back
-controls and brand location mark retain their familiar simple shapes. Launcher
+The rail symbols, medical cross and inline search/back controls retain their
+familiar simple shapes. The walking figure and completion tick use softly
+shaded illustrations while preserving their recognisable silhouettes. Launcher
 tiles keep their separate platform backgrounds. All registered in-app PNG
 icons have transparent space around the artwork; check them at 28px as well
 as at full size. `data/icons/src/prompts.json` records the built-in ImageGen
 prompts for the app-wide illustration pass.
+
+The Nearby mark is an emerald location beacon with a gold centre and two gold
+arcs. The same artwork is used for the loading/onboarding brand mark and the
+homepage's independent location illustration. A gold compass-pin alternative
+is retained in `docs/icon-review/` for brand exploration, not loaded by the app.
+The folded map and compass illustrations replace their flat or platform-specific
+counterparts in the location fallback and compass calibration prompt. Review
+decisions and generation prompts are recorded in `docs/icon-review/`.
 
 ## Drawing an icon
 
@@ -428,5 +437,5 @@ and writes:
 - `favicon.png` — 128px, square, leaf at 72% so it still reads at 16px. Linked
   from `index.html`, `admin.html`, `terms.html` and the generated reports index.
 
-`trees/logo.png` is not part of this set. It stays the location pin, and is
+`trees/logo.png` is not part of this set. It uses the emerald Nearby beacon, and is
 used by the onboarding welcome step and the loading screen.
