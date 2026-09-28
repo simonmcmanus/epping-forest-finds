@@ -1350,6 +1350,11 @@ const MEGA_CLUSTER_MAX_CHIPS = 5;
 // covering the other's icon.
 const MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS = 0.95;
 
+// Extra angle added on top of the bare "just touching" angle between two neighbouring chips
+// (see noOverlapStep below), so chips read as separate items with a bit of breathing room
+// rather than sitting edge-to-edge.
+const MEGA_CLUSTER_CHIP_GAP_RADIANS = 0.22;
+
 // The ring (distance from the badge's centre) chips sit on -- shared by drawMegaBadge's layout
 // and megaClusterOuterRadius below so neither can drift out of sync with the other. Chips belong
 // in the outer disc's own band, not straddling into the inner circle: at R + half a chip's width
@@ -1599,7 +1604,14 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
   // more chips fan further round from the bottom, with no overlap, rather than crowding closer
   // together. Only once a full turn genuinely isn't enough room does it fall back to the
   // original fixed, intentionally-overlapping step.
-  const noOverlapStep = ringR > 0 ? 2 * Math.asin(Math.min(1, chipR / ringR)) : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
+  // touchStep alone lands chips exactly tangent to each other -- zero gap, which at a glance
+  // read as crowded/overlapping even though no two chips actually overlapped. Adding a fixed
+  // angular margin here gives every pair of neighbouring chips visible daylight between them
+  // whenever there's room on the ring for it, without touching the tighter fallback step below
+  // (still used once a badge has so many chips that even the bare touching angle would run past
+  // a full turn).
+  const touchStep = ringR > 0 ? 2 * Math.asin(Math.min(1, chipR / ringR)) : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
+  const noOverlapStep = touchStep + MEGA_CLUSTER_CHIP_GAP_RADIANS;
   const step = noOverlapStep * (n - 1) <= Math.PI * 2 ? noOverlapStep : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
   const arcSpan = step * (n - 1);
   // Under tilt, a chip's position (never its own artwork -- that stays a plain undistorted
