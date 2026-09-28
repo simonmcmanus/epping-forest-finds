@@ -1282,12 +1282,20 @@ function megaClusterChipRingRadius(R, chipR) {
   return R + chipR * 0.5;
 }
 
-// The full on-screen reach of a mega badge, centre circle plus the chip ring around its rim --
-// i.e. how far out a tap or an off-screen check needs to look, not just the centre circle's R.
+// Extra room the outer disc gives the chips beyond their own exact reach (ringR + chipR) --
+// without it, a chip sat exactly tangent to the disc's edge, which at a glance read as "bursting
+// out of" the disc rather than sitting inside it. This margin is part of the badge's real
+// on-screen reach (used below by both the drawn disc and the hit-test/cull radius), not a purely
+// cosmetic overdraw, so tapping the badge's outer edge and the badge's visual edge always agree.
+const MEGA_CLUSTER_OUTER_DISC_PADDING = 1.18;
+
+// The full on-screen reach of a mega badge, centre circle plus the chip ring around its rim (and
+// the padding above) -- i.e. how far out a tap or an off-screen check needs to look, not just
+// the centre circle's R.
 function megaClusterOuterRadius(totalItems, dpr) {
   const R = megaClusterRadius(totalItems, dpr);
   const chipR = megaClusterChipRadius(R, dpr);
-  return megaClusterChipRingRadius(R, chipR) + chipR;
+  return (megaClusterChipRingRadius(R, chipR) + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
 }
 
 // The same icon each category's own draw function would put in its pin -- picked from the
@@ -1336,29 +1344,23 @@ function megaClusterDisplayKey(itemType, cluster) {
   return `landmark:${landmarkClusterKey(cluster.items[0])}`;
 }
 
-// A small circular chip -- plain white disc, the category's own icon cropped to a circle inside,
-// no ring of its own -- used around the mega badge's rim (see drawMegaBadge). No border: a badge
-// with a coloured ring per chip plus a white ring around the badge itself was the "too many
-// borders" density the badge existed to cut down on in the first place. Draws just the disc if
-// the icon image hasn't finished loading yet (getMapImage triggers a redraw once it has, same as
-// every other map icon).
+// One category's icon, cropped to a circle, sitting directly on the badge underneath it -- no
+// white disc of its own any more. Each map icon already carries its own coloured circular
+// background baked into the artwork (the same icon appModule/appIconHtml use everywhere else),
+// so a white backing behind it here was a second, redundant background rather than something
+// the icon needed to read clearly -- just one more layer in an already layered badge. The
+// circular clip stays: it is what keeps a square icon image from spilling past chipR at its
+// corners, not what gives it a background. Draws nothing (leans on getMapImage's own redraw
+// once loaded) if the icon image hasn't finished loading yet.
 function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
+  const img = src ? getMapImage(src) : null;
+  if (!(img && img.complete && img.naturalWidth)) return;
   ctx.save();
   ctx.beginPath();
-  ctx.arc(x, y, chipR, 0, Math.PI * 2);
-  ctx.fillStyle = "#fff";
-  ctx.fill();
-
-  const img = src ? getMapImage(src) : null;
-  if (img && img.complete && img.naturalWidth) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(x, y, chipR * 0.9, 0, Math.PI * 2);
-    ctx.clip();
-    const iconSize = chipR * 2.15;
-    ctx.drawImage(img, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize);
-    ctx.restore();
-  }
+  ctx.arc(x, y, chipR * 0.9, 0, Math.PI * 2);
+  ctx.clip();
+  const iconSize = chipR * 2.15;
+  ctx.drawImage(img, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize);
   ctx.restore();
 }
 
@@ -1378,13 +1380,32 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
 // opacity, so the two solid tones are literally the two ends of what used to be one fade, just
 // split across two clearly separate zones instead of blended within one.
 const MEGA_CLUSTER_INNER_COLOR = "#f3c968";
-const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.25)";
+// Faint on purpose -- barely enough tint to read as "an area", not a solid shape in its own
+// right. 0.25 (and 0.4 before that) both still read as a fairly opaque wash once the disc is
+// this size on a real screen; this is low enough that the map underneath stays legible through
+// it, which is the point of drawing an *area* rather than a solid badge.
+const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.14)";
 
-function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
-  const R = megaClusterRadius(totalItems, dpr);
+// Desktop-only hover affordance (state.hoveredMegaBadgeCenter, set by the pointermove handler in
+// setupMapHoverHandlers, js/nav.js -- touch never sets it, since touch has no hover). A cursor
+// change alone is easy to miss on a shape this custom; scaling the whole badge up a little and
+// brightening the outer disc's tint reads as "this responds to you" the way a real button's own
+// hover state would, without needing a border or an outline this design has otherwise dropped.
+const MEGA_CLUSTER_HOVER_SCALE = 1.08;
+const MEGA_CLUSTER_HOVER_OUTER_COLOR = "rgba(217, 154, 58, 0.24)";
+
+function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, hovered) {
+  const scale = hovered ? MEGA_CLUSTER_HOVER_SCALE : 1;
+  const R = megaClusterRadius(totalItems, dpr) * scale;
   const chipR = megaClusterChipRadius(R, dpr);
   const ringR = megaClusterChipRingRadius(R, chipR);
-  const outerR = ringR + chipR;
+  // MEGA_CLUSTER_OUTER_DISC_PADDING beyond the chips' own exact reach (ringR + chipR) -- without
+  // it a chip sat exactly tangent to the disc's edge, which read as bursting out of it rather
+  // than sitting inside it. Matches megaClusterOuterRadius exactly (modulo the hover scale,
+  // which is purely a drawing-time embellishment and never changes the tappable region itself),
+  // so the hit-test/cull region and the drawn disc never disagree about where the badge's edge
+  // actually is.
+  const outerR = (ringR + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
   ctx.save();
 
   // Two circles, not a circle plus a separate border: a paler, semi-opaque outer disc sized to
@@ -1394,7 +1415,7 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   // zone, not a filled shape plus a stroke drawn round it.
   ctx.beginPath();
   ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-  ctx.fillStyle = MEGA_CLUSTER_OUTER_COLOR;
+  ctx.fillStyle = hovered ? MEGA_CLUSTER_HOVER_OUTER_COLOR : MEGA_CLUSTER_OUTER_COLOR;
   ctx.fill();
 
   ctx.beginPath();
@@ -1467,7 +1488,9 @@ function drawMegaClusters(ctx, megaGroups) {
     const cx = sx / totalItems;
     const cy = sy / totalItems;
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
-    drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr);
+    const hovered = state.hoveredMegaBadgeCenter
+      && Math.hypot(cx - state.hoveredMegaBadgeCenter.x, cy - state.hoveredMegaBadgeCenter.y) < 1;
+    drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, hovered);
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -2135,9 +2158,11 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const worldPt = { x: swx / totalItems, y: swy / totalItems };
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
+    const hovered = state.hoveredMegaBadgeCenter
+      && Math.hypot(cx - state.hoveredMegaBadgeCenter.x, cy - state.hoveredMegaBadgeCenter.y) < 1;
     calls.push({ y: cy, fn(c) {
       c.globalAlpha = reveal;
-      drawMegaBadge(c, cx, cy, totalItems, byType, byTypeIconSrc, dpr * pinScale);
+      drawMegaBadge(c, cx, cy, totalItems, byType, byTypeIconSrc, dpr * pinScale, hovered);
     }});
   }
 

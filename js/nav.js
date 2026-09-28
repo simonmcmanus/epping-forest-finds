@@ -1480,6 +1480,67 @@ function setupMapCanvasHandlers() {
     event.preventDefault();
     endNearbyRadiusGesture();
   }, { passive: false });
+
+  setupMapHoverHandlers();
+}
+
+// Desktop-only: a mouse can rest on a spot without pressing, which is a hover, not a drag --
+// something touch has no equivalent of, so this is entirely separate from the drag/pinch
+// handling above. Two things it drives: the cursor (pointer over anything tappable, so a click
+// reads as a distinct action from a drag before the click even lands -- the OS-level affordance
+// for "this is clickable" that canvas content gets none of for free), and, for a mega cluster
+// badge specifically, a highlighted redraw (see drawMegaBadge, js/renderer.js) -- the one shape
+// on the map custom-drawn enough that a plain cursor change alone was not much of a signal.
+function setupMapHoverHandlers() {
+  let pendingScreen = null;
+  let scheduled = false;
+
+  els.canvas.addEventListener("pointermove", (event) => {
+    if (event.pointerType !== "mouse") return;
+    if (state.dragging || state.pinchActive) return;
+    // findClusterHit rebuilds every cluster from scratch (see its own comment), and the browser
+    // can fire mousemove far faster than that is worth paying for. Coalesced to at most once per
+    // animation frame -- only the latest position by the time the frame runs actually matters.
+    pendingScreen = canvasPoint(event);
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      if (pendingScreen) updateMapHoverState(pendingScreen);
+    });
+  });
+
+  els.canvas.addEventListener("pointerleave", (event) => {
+    if (event.pointerType !== "mouse") return;
+    pendingScreen = null;
+    clearMapHoverState();
+  });
+}
+
+function updateMapHoverState(screen) {
+  // Same gate handleMapClick (js/inspector.js) uses before it will even look for a cluster --
+  // a real selection replaces the map interaction entirely, so nothing on it should look
+  // hoverable.
+  const cluster = !state.selected ? findClusterHit(screen) : null;
+  const megaCenter = cluster && cluster.itemType === "_mega" ? cluster.screenPt : null;
+
+  const world = screenToWorld(screen.x, screen.y);
+  const hit = cluster ? { type: cluster.itemType } : findHit(screen, world);
+  els.canvas.style.cursor = (cluster || hit.type !== "none") ? "pointer" : "";
+
+  const already = state.hoveredMegaBadgeCenter;
+  const changed = Boolean(already) !== Boolean(megaCenter)
+    || (already && megaCenter && (Math.abs(already.x - megaCenter.x) > 0.5 || Math.abs(already.y - megaCenter.y) > 0.5));
+  if (!changed) return;
+  state.hoveredMegaBadgeCenter = megaCenter;
+  requestDraw();
+}
+
+function clearMapHoverState() {
+  els.canvas.style.cursor = "";
+  if (!state.hoveredMegaBadgeCenter) return;
+  state.hoveredMegaBadgeCenter = null;
+  requestDraw();
 }
 
 function setInspectorMinimized(minimized) {
