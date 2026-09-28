@@ -68,7 +68,7 @@ interface RenderState {
   overviewExpandedGroups: string[];
   filterPanelCollapsed: boolean;
   nearestItemsCount: number;       // 3|5|10|15|20|25, default 10
-  walkingDistanceMinutes: number;   // continuous, half-minute steps; default 5; see walkingRadiusFloorMinutes
+  walkingDistanceMinutes: number;   // continuous, unsnapped; default 5; see walkingRadiusFloorMinutes
   walkingRadiusAtFloor: boolean;    // true only while the pinch gesture is actively pinned at the floor
   compassHeading: number | null;
   compassPermission: string;
@@ -244,6 +244,8 @@ The teardrop pin uses a compact layout with a large icon:
 ### Clustering
 
 All point-type overview items are clustered in screen space (greedy nearest-first) before drawing. `buildTypeClusters(itemSet, toScreen)` is the generic function used for trees, cows, paths, and water features. Landmarks are first grouped by rendered icon type (`landmarkClusterKey`) then clustered within each group via `buildLandmarkClusters`. The clustering radius is 30 CSS px scaled by `MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF` (the 30px figure was tuned against the original 16px icon size), so as pins get bigger, nearby items merge into a count badge sooner instead of visually overlapping.
+
+Both `buildTypeClusters` and `buildSuperClusters` (below) find each point's neighbours via a spatial grid (`buildScreenPointGrid`/`forEachNearbyGridPoint`, `js/renderer.js`) rather than an all-pairs scan: points are bucketed into cells the size of the clustering radius, so a search only checks the 3x3 block of cells around a point — a cell edge equal to the radius guarantees two points within it can never be more than one cell apart on either axis, so that block never misses a real neighbour. This matters because `draw()` rebuilds every cluster from scratch on every animation frame of a pan or zoom, and a fully zoomed-out view puts every item in the forest on screen (and therefore "eligible") at once — an all-pairs scan there is O(n²) redone 60 times a second, which is what made zooming out sluggish once clustering was introduced. The grid does not change *which* items end up in a cluster, only how fast their neighbours are found; the one behavioural wrinkle is iteration order — a grid scan of 9 cells does not naturally come out in original-item order the way a straight array scan did, and `cluster.items[0]` is relied on elsewhere (`megaClusterMemberIconSrc`, `megaClusterDisplayKey`) as a stable representative item, so found members are re-sorted back into that order (each point's original index in its input array) before a cluster is built.
 
 **Paint order within a type.** `drawTrees`, `drawLandmarks`, `drawCows`, `drawPathPins`, and `drawWaterPins` (the plain top-down path, `draw()`) each sort their own clusters ascending by `screenPt.y` before drawing, so a pin lower on screen paints over one further up instead of in whatever order `buildTypeClusters`/`buildLandmarkClusters` happened to build them — otherwise a pin that should read as "in front" could draw behind a farther one from the same layer. `drawAllPinsSorted` (used instead of the five functions above whenever `nearbyHeadingUpActive()` or `tiltActive()`) already did this correctly across *every* type in one combined pass; the fix here brings the plain top-down path in line with it for pins of the same type. Ordering *between* types in the top-down path is still the fixed layer order trees → landmarks → cows → paths → water, not screen depth — a known gap, unlikely to be visible since different-type pins rarely sit close enough to overlap.
 
@@ -525,20 +527,31 @@ moving the real GPS fix:
   and then animating a second time. A map tap never dismisses Filter/Settings/Report (see
   "Secondary Screens" below), but an open-ground tap does move their anchor, as above.
 - **Pinch-to-resize the radius:** a two-finger pinch on the map canvas while any screen that
-  draws the ring is active (Nearby, or Filter/Settings/Report) scales `state.walkingDistanceMinutes` continuously (no fixed stops) — spreading
-  fingers apart shrinks the radius (zoom in), pinching together grows it (zoom out), tracking
-  the pinch distance ratio from where the gesture started. Values are rounded to the nearest
-  half-minute (`roundWalkingMinutes`) before being applied, so pointermove ticks landing in the
-  same half-minute bucket cost nothing beyond that arithmetic (`applyWalkingRadiusChange`
-  no-ops when the rounded value hasn't moved) — this bounds how often the real per-tick work (a
-  nearest-item rescan and list re-render) actually runs. Each real change re-renders the
-  nearest list and re-fits the camera via the same path a Settings radius change uses
-  (`refreshNearbyRadiusView`, `animate:false` mid-gesture so intermediate fits don't queue an
-  animation each tick; the gesture's end re-runs it once more with the default `animate:true`
-  for a smooth settle; and `refreshNearbyRadiusView` deliberately skips `selectOverview()` on a
-  secondary screen so resizing from Settings doesn't throw that screen's own content away). Pinch
-  is ignored over a real selection, which replaces the map view entirely, and cancels/ignores any
-  in-progress single-finger drag.
+  draws the ring is active (Nearby, or Filter/Settings/Report) scales `state.walkingDistanceMinutes` continuously (no fixed stops, and no rounding to a value grid — see "Walking-radius floor"
+  above) — spreading fingers apart shrinks the radius (zoom in), pinching together grows it
+  (zoom out), tracking the pinch distance ratio from where the gesture started. Each pointermove
+  applies its raw value directly, so the ring tracks the gesture with no perceptible snap; only
+  the displayed label rounds, to the nearest whole minute.
+  `applyWalkingRadiusGesture` (`js/nav.js`) splits what a tick actually does by cost. The ring's
+  value and an instant (`animate:false`), unanimated camera re-fit (`ensureOverviewTargetsVisible`)
+  run on **every** tick — canvas-only work, cheap regardless of frequency now that clustering is
+  O(n) rather than all-pairs (see "Clustering" below) — so the ring and the camera framing it both
+  track the gesture at full pointer rate. The Nearby list's own HTML re-render (`selectOverview`)
+  and the nearest-item rescan (`refreshNearestTreeForNearbyOrigin`) are not cheap, and a pinch or
+  trackpad pinch can fire many pointermove events inside one animation frame — rebuilding the list
+  on every one of them (rather than the coarse value-grid steps this used to be rounded to, which
+  throttled it as a side effect) is what made zooming out feel jittery once the radius stopped
+  snapping to that grid. So that part alone is coalesced to at most once per animation frame (the
+  same `requestAnimationFrame`-coalescing pattern the inspector drag handle uses for
+  `recentreMapForInspectorChange`): the list and nearest tree catch up a frame behind the ring
+  rather than being rebuilt on every tick and falling behind the input. The gesture's end
+  (`endNearbyRadiusPinch`/`endNearbyRadiusWheel`/`endNearbyRadiusGesture`) cancels any
+  still-pending coalesced list refresh (`cancelPendingRadiusGestureRefresh`) and runs the full
+  `refreshNearbyRadiusView` once more itself, with the default `animate:true` for a smooth camera
+  settle — mirroring the single animated re-fit a Settings-slider release triggers, and
+  deliberately skipping `selectOverview()` on a secondary screen so resizing from Settings doesn't
+  throw that screen's own content away. Pinch is ignored over a real selection, which replaces the
+  map view entirely, and cancels/ignores any in-progress single-finger drag.
   Releasing either finger of a **multi-touch** gesture never registers as a map tap
   (`state.multiTouchOccurred`, set as soon as a second pointer goes down and cleared only once
   every finger is off the glass) — that holds even where the radius pinch itself is ignored,
@@ -559,11 +572,15 @@ moving the real GPS fix:
   all the way down to `WALKING_RADIUS_TIGHT_MIN_MINUTES` (0.25 min, ~21 m), so a find a few
   seconds away can be closed right in on, ring and camera together. The camera follows because
   the Nearby fit frames the ring and nothing else (see "Heading-up nearby mode" below).
-  Values snap to a grid: `WALKING_RADIUS_STEP_MINUTES` (0.5) at a minute and above,
-  `WALKING_RADIUS_FINE_STEP_MINUTES` (0.25) below it, where half-minute steps would be a third
-  of what is left (`walkingMinutesStep`/`roundWalkingMinutes`/`ceilWalkingMinutes`). A value
-  snapped at the floor is rounded *up* onto that grid so it can never land just inside it.
-  Sub-minute radii are shown in seconds ("15 sec") rather than as a fraction of a minute —
+  The floor itself is rounded *up* onto a grid — `WALKING_RADIUS_STEP_MINUTES` (0.5) at a minute
+  and above, `WALKING_RADIUS_FINE_STEP_MINUTES` (0.25) below it, where half-minute steps would be
+  a third of what is left (`walkingMinutesStep`/`ceilWalkingMinutes`) — so it can never land just
+  inside the nearest real item. The radius itself, though, is never snapped to that grid: a pinch
+  or wheel gesture (see below) applies the continuous value it computes directly, so the ring
+  tracks the gesture smoothly instead of jumping between stops. Only the Settings slider still
+  steps along that grid, since it is a native `<input type="range">` with its own `step`
+  attribute (`roundWalkingMinutes`). Sub-minute radii are shown in seconds ("15 sec"); everywhere
+  else the continuous minutes value is rounded to the nearest whole minute for display —
   `formatWalkingRadius()` is what every user-facing radius label goes through.
   While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
   and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
@@ -590,10 +607,11 @@ moving the real GPS fix:
   and a trackpad pinch (reported as ctrl+wheel, in far smaller deltas) multiplies that rate by
   `TRACKPAD_PINCH_RATE_MULTIPLIER` so a whole pinch is worth a whole pinch. The running value
   lives unrounded in `state.wheelRadiusMinutes` rather than being read back from the applied
-  radius: a single trackpad delta is smaller than the value grid, so reading it back would round
-  every event away to the radius it started from and the ring would never move. It is clamped to
-  the floor/maximum, unlike the pinch's own base, because a wheel only accumulates — an unclamped
-  value would make the user scroll back through everything they overshot before the ring moved.
+  radius, which is itself unrounded too — the radius is never snapped to a value grid, so a run
+  of small trackpad deltas moves the ring continuously rather than needing to first accumulate
+  past a step. It is clamped to the floor/maximum, unlike the pinch's own base, because a wheel
+  only accumulates — an unclamped value would make the user scroll back through everything they
+  overshot before the ring moved.
   A wheel has no pointerup, so the gesture ends `WHEEL_RADIUS_SETTLE_MS` (220ms) after the last
   event (`endNearbyRadiusWheel`), which is where the settling animation, the cleared floor notice
   and the Settings-slider sync happen — the same things `endNearbyRadiusPinch` does on lift-off.
