@@ -1378,7 +1378,7 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
 // opacity, so the two solid tones are literally the two ends of what used to be one fade, just
 // split across two clearly separate zones instead of blended within one.
 const MEGA_CLUSTER_INNER_COLOR = "#f3c968";
-const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.4)";
+const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.25)";
 
 function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   const R = megaClusterRadius(totalItems, dpr);
