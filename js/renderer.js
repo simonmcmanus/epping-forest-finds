@@ -1465,11 +1465,14 @@ const MEGA_CLUSTER_INNER_COLOR = "#f3c968";
 const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.88)";
 // Brighter and darker ends of the same two golds, used only as radial-gradient stops (see
 // megaSphereGradient) -- never as flat fills on their own, so a badge still reads as "two golds"
-// at a glance, just each one now domed instead of flat.
-const MEGA_CLUSTER_INNER_HIGHLIGHT = "#fce3ab";
-const MEGA_CLUSTER_INNER_SHADOW = "#c98f30";
-const MEGA_CLUSTER_OUTER_HIGHLIGHT = "rgba(240, 197, 130, 0.88)";
-const MEGA_CLUSTER_OUTER_SHADOW = "rgba(163, 110, 32, 0.88)";
+// at a glance, just each one now domed instead of flat. Kept close either side of the original
+// flat MEGA_CLUSTER_INNER_COLOR/_OUTER_COLOR -- a first pass ranged much further apart
+// (near-white highlight, near-brown shadow) and read as a different, duller colour rather than
+// the same brand gold with shading on it.
+const MEGA_CLUSTER_INNER_HIGHLIGHT = "#f8d989";
+const MEGA_CLUSTER_INNER_SHADOW = "#dba63f";
+const MEGA_CLUSTER_OUTER_HIGHLIGHT = "rgba(229, 175, 92, 0.88)";
+const MEGA_CLUSTER_OUTER_SHADOW = "rgba(198, 133, 44, 0.88)";
 
 // A top-left-lit radial gradient standing in for each disc's former flat fill, so the badge
 // reads as a raised sphere rather than a flat coin -- the same top-lit shading language the
@@ -1485,17 +1488,28 @@ function megaSphereGradient(ctx, cx, cy, r, highlight, shadow) {
   return gradient;
 }
 
-// Under tilt, the outer disc is traced on the *ground* plane (traceGroundCirclePath, the same
-// flat-sample-then-project treatment the walking-radius ring and the radar cone use) instead of
-// with ctx.arc(), so it foreshortens into the same kind of ellipse the radius ring shows once a
-// tap expands this badge into it -- both read as one flat disc painted on the terrain, tilting
-// together as the phone tilts, rather than the badge floating as a camera-facing coin above a
-// ground shape it is about to become. groundCenterFlat is the badge's centre in *flat*
-// (untilted) screen space -- callers already have it from worldToScreenFlat(worldPt) -- and is
-// null on the non-tilted flat-map draw path, where ctx.arc() is already correct. The inner
-// circle, count text and icon chips stay camera-facing (drawn at cx/cy, the already-projected
-// centre) like every other pin's own upright content -- only the badge's own "area" reads as
-// ground-painted, exactly as only the walking radius' fill (not the "You" dot on top of it) does.
+// Local linear approximation of the tilt projection around one point, good enough for
+// anything as small as a badge (a true ground shape needs traceGroundCirclePath's full
+// per-point resampling; over a few tens of pixels the two are visually indistinguishable).
+// Sampled by finite difference along flat x/y rather than derived analytically from
+// tiltProjectScreenPoint's own formula, so this keeps working if that projection ever changes.
+// Applying the resulting matrix with ctx.transform() and then drawing the *whole* badge
+// (both discs, the count text, every icon chip) at local origin (0, 0) means every part of the
+// badge foreshortens together as one flat decal painted on the ground, rather than only the
+// outer disc lying flat while the count and chips stand up off it like a normal upright pin --
+// which is what tilting the phone while a badge was open actually looked like beforehand.
+function applyTiltGroundTransform(ctx, centerFlat) {
+  const eps = 8;
+  const p0 = tiltProjectScreenPoint(centerFlat);
+  const px = tiltProjectScreenPoint({ x: centerFlat.x + eps, y: centerFlat.y });
+  const py = tiltProjectScreenPoint({ x: centerFlat.x, y: centerFlat.y + eps });
+  ctx.transform((px.x - p0.x) / eps, (px.y - p0.y) / eps, (py.x - p0.x) / eps, (py.y - p0.y) / eps, p0.x, p0.y);
+}
+
+// groundCenterFlat is the badge's centre in *flat* (untilted) screen space -- callers already
+// have it from worldToScreenFlat(worldPt) -- and is null on the non-tilted flat-map draw path,
+// where cx/cy (the already-projected centre) is used directly and every shape is a plain
+// ctx.arc()/fillText() as before.
 function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, groundCenterFlat) {
   const R = megaClusterRadius(totalItems, dpr);
   const chipR = megaClusterChipRadius(R, dpr);
@@ -1506,6 +1520,11 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
   // and the drawn disc never disagree about where the badge's edge actually is.
   const outerR = (ringR + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
   ctx.save();
+  if (groundCenterFlat) applyTiltGroundTransform(ctx, groundCenterFlat);
+  // ox/oy is the origin every shape below is drawn around -- (0, 0) once the ground transform
+  // above has shifted the canvas's own origin there, otherwise the plain projected centre.
+  const ox = groundCenterFlat ? 0 : cx;
+  const oy = groundCenterFlat ? 0 : cy;
 
   // Two circles, not a circle plus a separate border: a paler, semi-opaque outer disc sized to
   // actually contain the chip ring (outerR, the same reach megaClusterOuterRadius already uses
@@ -1513,14 +1532,13 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
   // of it holding just the count. The two golds read as one badge with an inner and an outer
   // zone, not a filled shape plus a stroke drawn round it.
   ctx.beginPath();
-  if (groundCenterFlat) traceGroundCirclePath(ctx, groundCenterFlat, outerR);
-  else ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-  ctx.fillStyle = megaSphereGradient(ctx, cx, cy, outerR, MEGA_CLUSTER_OUTER_HIGHLIGHT, MEGA_CLUSTER_OUTER_SHADOW);
+  ctx.arc(ox, oy, outerR, 0, Math.PI * 2);
+  ctx.fillStyle = megaSphereGradient(ctx, ox, oy, outerR, MEGA_CLUSTER_OUTER_HIGHLIGHT, MEGA_CLUSTER_OUTER_SHADOW);
   ctx.fill();
 
   ctx.beginPath();
-  ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx.fillStyle = megaSphereGradient(ctx, cx, cy, R, MEGA_CLUSTER_INNER_HIGHLIGHT, MEGA_CLUSTER_INNER_SHADOW);
+  ctx.arc(ox, oy, R, 0, Math.PI * 2);
+  ctx.fillStyle = megaSphereGradient(ctx, ox, oy, R, MEGA_CLUSTER_INNER_HIGHLIGHT, MEGA_CLUSTER_INNER_SHADOW);
   ctx.fill();
 
   const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
@@ -1528,7 +1546,7 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
   ctx.textBaseline = "middle";
   ctx.font = `700 ${fontSize}px system-ui`;
   ctx.fillStyle = "#3a2c10";
-  ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
+  ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), ox, oy);
 
   // Chips sit mostly outside the (now much smaller) inner circle, centred on ringR rather than
   // R itself, and reach exactly to outerR, so they land inside the pale outer disc above rather
@@ -1556,7 +1574,7 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
   const arcSpan = step * (n - 1);
   const positioned = types.map(([key, info], i) => {
     const angle = (Math.PI / 2 - arcSpan / 2) + i * step;
-    return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
+    return { key, info, x: ox + Math.cos(angle) * ringR, y: oy + Math.sin(angle) * ringR };
   });
   for (let i = positioned.length - 1; i >= 0; i--) {
     const { key, x, y } = positioned[i];
