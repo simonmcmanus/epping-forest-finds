@@ -1494,9 +1494,7 @@ function megaSphereGradient(ctx, cx, cy, r, highlight, shadow) {
 // unreadable at any real tilt angle -- exactly what every *other* pin on the map already avoids
 // by standing upright off the ground it points at. tipX/tipY is the ground point the pin points
 // down at (the badge's own projected centre), matching how a normal pin's pointer lands exactly
-// on the spot it marks. Returns the head's own centre so callers (the icon chips, below) can fan
-// around the same circle the pin actually draws, rather than around the separate ground anchor
-// the pin's pointer happens to touch down on.
+// on the spot it marks.
 function drawMegaBadgeCountPin(ctx, tipX, tipY, R, totalItems, dpr) {
   const pH = R * 0.6;
   const headY = tipY - R - pH;
@@ -1517,8 +1515,6 @@ function drawMegaBadgeCountPin(ctx, tipX, tipY, R, totalItems, dpr) {
   ctx.font = `700 ${fontSize}px system-ui`;
   ctx.fillStyle = "#3a2c10";
   ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), tipX, headY);
-
-  return { x: tipX, y: headY };
 }
 
 // groundCenterFlat is the badge's centre in *flat* (untilted) screen space -- callers already
@@ -1528,15 +1524,14 @@ function drawMegaBadgeCountPin(ctx, tipX, tipY, R, totalItems, dpr) {
 // resampling the walking-radius ring and the radar cone already use, rather than a cheaper local
 // approximation: the disc sits well off the screen centre for most badges, where an approximation
 // derived at just one point drifted visibly out of step with the true ground ellipse as the view
-// rotated. The count and the icon chips are both drawn afterwards, upright and camera-facing at
-// the plain projected `cx`/`cy` -- the count as its own pointer pin (drawMegaBadgeCountPin), the
-// chips fanned around that pin's own head (the point it actually returns), not around the
-// separate ground anchor `cx`/`cy` the pin's pointer touches down on -- so the chips read as
-// attached to the one circle you can actually see and read, instead of drifting away from it as
-// the pin's own height (which grows with `R`, and so with the badge's item count) changes. Only
-// the disc's own area needs to read as painted on the ground; the count and chips are things you
-// have to actually read or recognise, so they stay legible at any tilt angle instead of
-// foreshortening into an ellipse alongside it.
+// rotated. The count is drawn afterwards, upright and camera-facing, as its own pointer pin
+// (drawMegaBadgeCountPin) anchored at the plain projected `cx`/`cy` -- a flat number lying on the
+// foreshortened ground the way the disc does is unreadable at any real tilt angle. The icon chips
+// stay camera-facing too but are fanned around that same `cx`/`cy` ground point, sitting on the
+// disc, rather than around the pin's own (much higher) head: fanning them around the head instead
+// was tried first, on the theory that they should stay visually attached to the one circle you
+// can actually read, but that left them floating well clear of the disc they are meant to mark
+// the top of -- looking adrift from the badge rather than part of it.
 // Outside tilt the whole badge -- both discs, the count, and the chips -- draws exactly as
 // before: plain circles and text at cx/cy, no transform, no pointer.
 function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, groundCenterFlat) {
@@ -1559,9 +1554,6 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
 
   // Outside tilt the count still sits as a flat inner circle on top of the outer disc, exactly
   // as before -- only under tilt does it move out to the upright pin drawn below.
-  // headCenter is where the chips fan around: the flat inner circle's own centre outside tilt,
-  // or the upright pin's head once drawn under it.
-  let headCenter = { x: cx, y: cy };
   if (!groundCenterFlat) {
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
@@ -1575,13 +1567,18 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
     ctx.fillStyle = "#3a2c10";
     ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
   } else {
-    headCenter = drawMegaBadgeCountPin(ctx, cx, cy, R, totalItems, dpr);
+    drawMegaBadgeCountPin(ctx, cx, cy, R, totalItems, dpr);
   }
 
   // Icon chips are small artwork, not text -- unlike the count they read fine lying flat on the
   // outer disc when it is ground-projected under tilt -- but the request was for them to stand
-  // up and face the camera the same way the count pin now does, fanned around that pin's own
-  // head rather than drifting relative to it.
+  // up and face the camera. They're fanned around `cx`/`cy` -- the disc's own ground anchor, the
+  // point the pin's own pointer touches down on -- rather than around the pin's head: an earlier
+  // pass tried the head instead, on the theory that chips should stay visually attached to the
+  // one circle you can actually read, but that put them floating up near the pin, well clear of
+  // the disc they're meant to sit on top of. Anchoring on the ground point instead keeps them
+  // sitting on the disc, exactly where the bus/plate/cart icons in a screenshot showed them
+  // adrift from it.
   //
   // Chips sit mostly outside the (now much smaller) inner circle, centred on ringR rather than
   // R itself, and reach exactly to outerR, so they land inside the pale outer disc above rather
@@ -1609,7 +1606,7 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
   const arcSpan = step * (n - 1);
   const positioned = types.map(([key, info], i) => {
     const angle = (Math.PI / 2 - arcSpan / 2) + i * step;
-    return { key, info, x: headCenter.x + Math.cos(angle) * ringR, y: headCenter.y + Math.sin(angle) * ringR };
+    return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
   });
   for (let i = positioned.length - 1; i >= 0; i--) {
     const { key, x, y } = positioned[i];
