@@ -49,6 +49,11 @@ test.describe("Map interaction", () => {
 
       await tapCanvasPoint(page, target.point);
 
+      // The state change (anchor, radius, list) lands at the start of the tour's pan phase, not
+      // instantly on tap -- see focusNearbyOnClusterGroup's three-phase camera tour (js/nav.js)
+      // -- so wait for it rather than asserting immediately after the tap.
+      await page.waitForFunction(() => Boolean(state.nearbyAnchor));
+
       // Tapping a group behaves like tapping open ground on that spot: the Nearby browse anchor
       // moves to the group's centre and the radius grows to cover it, so the Nearby list -- the
       // same screen, no separate cluster-detail screen -- now reads as "what's around here".

@@ -1447,7 +1447,7 @@ function viewportAnimationAlreadyHeadedTo(targetViewport) {
     && Math.abs(inFlight.ty - targetViewport.ty) < VIEWPORT_ANIMATION_SAME_TARGET_PX;
 }
 
-function animateViewportTo(targetViewport, durationMs) {
+function animateViewportTo(targetViewport, durationMs, onComplete) {
   const safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
   if (viewportAnimationAlreadyHeadedTo(targetViewport)) return;
   stopViewportAnimation();
@@ -1467,6 +1467,7 @@ function animateViewportTo(targetViewport, durationMs) {
     state.viewport.tx = targetViewport.tx;
     state.viewport.ty = targetViewport.ty;
     requestDraw();
+    if (typeof onComplete === "function") onComplete();
     return;
   }
 
@@ -1503,6 +1504,7 @@ function animateViewportTo(targetViewport, durationMs) {
       state.viewport.ty = state.viewportAnimationTo.ty;
       stopViewportAnimation();
       requestDraw();
+      if (typeof onComplete === "function") onComplete();
       return;
     }
 
