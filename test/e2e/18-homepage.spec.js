@@ -180,6 +180,8 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.png");
     await expect(page.locator(".ledger .card-icon")).toHaveAttribute("src", "assets/home/ledger.png");
     await expect(page.locator(".tag-copy .card-icon")).toHaveAttribute("src", "assets/home/tree-tag.png");
+    await expect(page.locator(".offline-how .card-icon")).toHaveAttribute("src", "assets/home/offline.png");
+    await expect(page.locator(".faq .card-icon")).toHaveAttribute("src", "assets/home/faq.png");
     // The eyebrow sits above, flush with the icon; the icon is centred on the title beside it.
     const iconAlignment = await page.locator(".signup .card-head, .ledger .card-head").evaluateAll(heads => heads.map(head => {
       const icon = head.querySelector(".card-icon").getBoundingClientRect();

@@ -10,5 +10,13 @@
   {
     "name": "tree-tag",
     "prompt": "Create one polished illustrated homepage icon: a single small rectangular silvery metal tree identification tag like the photo, softly rounded slightly worn edges, two small fixing holes at left and right, just the large stamped number 27400. Gentle sage-grey metallic shading with cream highlights. No bark, tree, string, leaves or extra text. Reference 1 is STYLE ONLY: match the book's rich but restrained colours, deep forest-green outlines, gentle dimensional shading and cream highlights. Reference 2 is the actual tree tag: simplify that metal tag into the icon, preserving its broad rectangular shape. Readable at 44px. Square composition, centered artwork filling about 80% of canvas. Genuine transparent alpha background, no backdrop, no checkerboard or ground shadow. Single isolated subject."
+  },
+  {
+    "name": "faq",
+    "prompt": "Use case: stylized-concept. Create one polished illustrated homepage icon matching the attached envelope STYLE ONLY: deep forest-green outlines, cream highlights, restrained sage and warm gold, gentle dimensional shading, clean professional silhouette readable at 44px. Square composition, centered subject filling 80% of canvas. Genuine transparent alpha background, no background, checkerboard, ground shadow or extra props. Subject: a single cream speech bubble with a large deep forest-green question mark. Subtle golden lower edge and softly shaded cream face, small integrated speech tail. Only text is '?'. Avoid multiple bubbles or tiny details."
+  },
+  {
+    "name": "offline",
+    "prompt": "Use case: stylized-concept. Create one polished illustrated homepage icon matching the attached envelope STYLE ONLY: deep forest-green outlines, cream highlights, restrained sage and warm gold, gentle dimensional shading, clean professional silhouette readable at 44px. Square composition, centered subject filling 80% of canvas. Genuine transparent alpha background, no background, checkerboard, ground shadow or extra props. Subject: a single smartphone in slight three-quarter view showing a very simple sage-green offline map with one broad cream winding path and one small gold location dot. Deep forest-green phone frame and cream screen highlights, slight gold edge. No signal bars, wifi marks, words, floating badges or extra objects. Keep map extremely simple and immediately readable."
   }
 ]

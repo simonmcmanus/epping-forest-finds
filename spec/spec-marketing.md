@@ -288,8 +288,10 @@ Sections, in order:
 
 ### 5.1 Page weight and assets
 
-The email, Ledger and tree-tag illustrations use transparent PNGs with gentle
-shading and forest-green contours. The tree-tag section heading carries a
+The email, Ledger, tree-tag, FAQ and offline illustrations use transparent PNGs
+with gentle shading and forest-green contours. “Good to know” uses a question-mark
+speech bubble (`faq.png`); “No signal? Here’s the plan” uses a phone showing a
+saved map (`offline.png`). Both sit beside their headings at 44px. The tree-tag section heading carries a
 numbered metal-tag icon based on the adjacent photograph; the photograph stays
 as the real-world example. Their masters and prompts live in
 `assets/home/icon-sources/`. The reports index reuses the Ledger PNG.
