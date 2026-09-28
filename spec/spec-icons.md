@@ -14,7 +14,7 @@ filter-locations
 A map pin
 
 filter-stories
-Three sparkles
+An open cream storybook with a terracotta cover and a star on its page
 
 filter-trees
 A veteran ancient oak tree with a broad canopy
@@ -23,10 +23,10 @@ filter-cows
 A grazing cow in side profile
 
 filter-waymarked-trails
-A hiking boot
+A timber waymarker post with a single arrow plaque
 
 filter-ponds-streams
-A single water droplet
+A blue woodland pool edged with a few reeds
 
 filter-pubs
 A British nonic pint glass with a curved rim, tapered body and creamy head, without a handle
@@ -68,7 +68,7 @@ filter-celebrity
 A five-point star
 
 filter-science
-A telescope
+A glass laboratory flask with golden liquid
 
 filter-education
 A graduation cap
@@ -92,7 +92,7 @@ filter-church
 A church with a steeple
 
 filter-legends
-Three magical sparkles
+A golden trophy cup with a single star
 
 filter-film-tv
 A film clapperboard
@@ -254,6 +254,24 @@ Check silhouettes at map size as well as the 256px original.
 The remaining map artwork was reviewed: UK rail symbols, the K6 telephone
 box, heritage buildings, local nature and generic facilities retain their
 existing subjects.
+
+## App-wide illustration style
+
+Place, filter and navigation illustrations share forest-green contours,
+soft cream highlights and gentle dimensional shading. Use warm gold and tan,
+terracotta, natural greens and water blue to distinguish subjects without
+adding decorative objects. Food and restaurant icons share the same plate
+artwork; the campsite filter reuses the original tent silhouette. The home
+icon is an isolated cream lodge with a sage roof and transparent surroundings.
+Tree-species leaves retain their distinct outlines and veins, with tonal
+greens; the cow has English Longhorn horns curving down beside its face.
+
+The rail symbols, medical cross, tick, walking figure, inline search/back
+controls and brand location mark retain their familiar simple shapes. Launcher
+tiles keep their separate platform backgrounds. All registered in-app PNG
+icons have transparent space around the artwork; check them at 28px as well
+as at full size. `data/icons/src/prompts.json` records the built-in ImageGen
+prompts for the app-wide illustration pass.
 
 ## Drawing an icon
 

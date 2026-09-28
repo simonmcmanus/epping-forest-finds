@@ -17,10 +17,11 @@ function loadIconRegistry() {
   return vm.runInContext("ICON_PATHS", context);
 }
 
-const mapIcons = mapIconEntries(loadIconRegistry());
+const iconRegistry = loadIconRegistry();
+const mapIcons = mapIconEntries(iconRegistry);
 
-test("every map icon has a transparent background around its artwork", () => {
-  for (const [slug, file] of mapIcons) {
+test("every registered app icon has a transparent background around its artwork", () => {
+  for (const [slug, file] of Object.entries(iconRegistry)) {
     const { width, height, data } = pngPixels(fs.readFileSync(path.join(APP_ROOT, file)));
     let transparent = 0;
     for (let y = 0; y < height; y++) {

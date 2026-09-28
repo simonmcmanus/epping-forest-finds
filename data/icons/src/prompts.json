@@ -1,0 +1,118 @@
+{
+  "tool": "built-in image_gen",
+  "styleReference": "landmark-taxi.png",
+  "icons": [
+    {
+      "name": "education",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one graduation mortarboard, dark forest green cap with warm golden tassel, restrained perspective. Reference image is STYLE ONLY; do not depict a taxi. Match its polished hand-illustrated dimensional shading, deep forest-green contours, soft cream highlights and restrained colour. More colourful than flat monochrome, using sage, warm gold, cream, natural terracotta and blue where appropriate. Bold readable silhouette at 28px, minimal interior details, no extra props, no text. Square canvas, artwork centered with ample transparent margin. Genuine transparent alpha background: no backdrop, no checkerboard, no ground shadow. Single icon only."
+    },
+    {
+      "name": "film",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one film clapperboard, cream and deep forest striped clapper and charcoal green slate, subtle dimensional edges, no words. Reference image is STYLE ONLY; do not depict a taxi. Match its polished hand-illustrated dimensional shading, deep forest-green contours, soft cream highlights and restrained colour. More colourful than flat monochrome, using sage, warm gold, cream, natural terracotta and blue where appropriate. Bold readable silhouette at 28px, minimal interior details, no extra props, no text. Square canvas, artwork centered with ample transparent margin. Genuine transparent alpha background: no backdrop, no checkerboard, no ground shadow. Single icon only."
+    },
+    {
+      "name": "restaurant",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one cream dinner plate with warm ochre rim, simple sage fork on left and knife on right, compact clear silhouette. Reference image is STYLE ONLY; do not depict a taxi. Match its polished hand-illustrated dimensional shading, deep forest-green contours, soft cream highlights and restrained colour. More colourful than flat monochrome, using sage, warm gold, cream, natural terracotta and blue where appropriate. Bold readable silhouette at 28px, minimal interior details, no extra props, no text. Square canvas, artwork centered with ample transparent margin. Genuine transparent alpha background: no backdrop, no checkerboard, no ground shadow. Single icon only."
+    },
+    {
+      "name": "shop",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one woven warm tan shopping basket with two sage handles, no contents or extra objects. Reference image is STYLE ONLY; do not depict a taxi. Match its polished hand-illustrated dimensional shading, deep forest-green contours, soft cream highlights and restrained colour. More colourful than flat monochrome, using sage, warm gold, cream, natural terracotta and blue where appropriate. Bold readable silhouette at 28px, minimal interior details, no extra props, no text. Square canvas, artwork centered with ample transparent margin. Genuine transparent alpha background: no backdrop, no checkerboard, no ground shadow. Single icon only."
+    },
+    {
+      "name": "science",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one small glass conical laboratory flask with golden liquid and two bubbles, pale blue glass highlights. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours, soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "theatre",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: a compact pair of theatrical comedy and tragedy masks, one cream and one warm terracotta, simple bold expressions. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours, soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "legends",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one small golden folklore trophy cup with forest green handles and a single star embossed on its bowl, no surrounding ornaments. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours, soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "celebreties",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one warm golden five-point star with softly shaded bevelled facets. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours, soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "gate",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one British timber five-bar field gate, warm tan rails and sage posts, simple stout construction. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours, soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "waymarked",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one sturdy warm tan footpath waymarker post with a single cream arrow plaque, deep green arrow. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours, soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "cow",
+      "prompt": "Edit this cow icon only: preserve its body, chestnut and cream colouring, forest green contours, soft dimensional shading, centered composition and transparent background. Replace the wide upward horns with the distinctive English Longhorn horns: emerging at either side of the skull, curving OUT then DOWN close beside the cheeks, with tips pointing slightly inward at muzzle height. Do not use Texas-style wide upward horns. Keep everything else unchanged and preserve genuine transparent alpha."
+    },
+    {
+      "name": "ponds",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one small blue woodland pool edged by a few simple sage reeds, compact single silhouette, no landscape. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours, soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "tree",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one broad crowned deciduous English woodland tree, rich sage green layered canopy, warm tan trunk, clean uncluttered shape. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "nature",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one simple sprig with three broad fresh green leaves, gently curved warm green stem, highlighted leaf surfaces. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "history",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one rolled parchment scroll, warm cream paper, softly shaded tan rolled edges, two broad forest-green inscription marks, no real text. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "stories",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one open cream storybook with golden page edges and muted terracotta cover, a small embossed star on one page rather than extra floating objects. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "home",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one small English forest lodge with warm cream walls, sage pitched roof and tan front door, isolated building only, no trees or surroundings. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "feedback",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one cream speech bubble with warm gold pencil angled across its right side, two clear simple shapes. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "settings",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one sage green cog wheel with cream centre, subtly bevelled warm highlights, instantly recognisable settings glyph. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "filter",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one sage green funnel with a warm cream inner face, restrained shaded depth, no extra floating dots. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream, natural terracotta and blue colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "nearby",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one forest green location pin with warm golden central dot, compact two curved sage signal arcs, clear simple silhouette. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream and natural colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "pin",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one warm terracotta map location pin with a cream central circular opening, gentle dimensional shading. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream and natural colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "trees/ash",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one ash compound leaf: three opposing pairs of leaflets plus one terminal leaflet, seven total, rich fresh green leaflets on one slender stem, simplified broad veins, recognisable Fraxinus excelsior. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream and natural colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "trees/beach",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one common beech leaf, oval pointed tip, gently wavy smooth margins, fresh yellow-green shading, distinct simple parallel veins. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream and natural colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "trees/holly",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one glossy holly leaf with distinct spiny edges, deep green with bright sage highlights, no berries. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream and natural colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "trees/hornbeam",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one hornbeam leaf, pointed oval, finely serrated margins and clear parallel veins, warm green shaded surface. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream and natural colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "trees/oak",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one English oak leaf with rounded deep lobes, rich green softly highlighted surface and warm golden central vein, no acorn. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream and natural colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    },
+    {
+      "name": "trees/wild",
+      "prompt": "Use case: stylized-concept. Create one professional small app icon: one wild service tree leaf Sorbus torminalis, five to seven sharply pointed triangular lobes with the basal lobes spreading outward, fresh green with soft golden highlights. Reference image is STYLE ONLY; do not depict a taxi. Match its polished illustrated shading, deep forest-green contours and soft cream highlights. Rich but restrained sage, warm gold, cream and natural colours. Keep dimensional shading gentle, not shiny plastic. Bold readable silhouette at 28px, minimal interior detail, no extra props or words. Square canvas, centered isolated artwork with ample transparent margin. Genuine transparent alpha background, no backdrop/checkerboard/ground shadow. One icon only."
+    }
+  ]
+}

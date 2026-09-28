@@ -320,7 +320,10 @@ final full-width row for features that are always shown and have no filter of th
 own (gates, benches, toilets and similar). Each group heading and subcategory
 carries the same icon used by the app; group icons are larger to make the
 hierarchy clear. Those icons are resized and embedded in the report HTML so the
-inventory keeps its meaning when the report is saved or forwarded.
+inventory keeps its meaning when the report is saved or forwarded. When app
+icon artwork changes, regenerate or update the published report embeds in the
+same release so the homepage, ledger and map share the same transparent,
+shaded icon style.
 The public homepage uses this same card format and grouping.
 
 Rules:

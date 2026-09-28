@@ -290,7 +290,10 @@ Sections, in order:
 
 - Homepage CSS, JavaScript and images live together in `assets/home/`.
   `index.html` references only that directory for local runtime assets. Brand
-  icons are independent copies, so app icon changes cannot change the homepage.
+  and map icons are independent copies, so the homepage does not import app
+  code; when the illustrated icon style changes, review and update these
+  copies in the same change, preserving transparent backgrounds and readable
+  small-size silhouettes.
 - The root-scoped app service worker passes `assets/home/` requests directly
   to the browser without reading or writing app/data caches, including for
   returning app users. Marketing releases therefore need no app cache bump.
