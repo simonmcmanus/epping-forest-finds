@@ -902,6 +902,53 @@ function setNearbyAnchor(latitude, longitude, point) {
   refreshNearbyRadiusView({ animate: false });
 }
 
+// Tapping a grouped set of pins -- a same-category cluster or a cross-category "mega" badge
+// (buildSuperClusters, js/renderer.js) alike -- behaves exactly like tapping open ground on
+// that spot (focusNearbyOnMapPoint): the group's centre becomes the Nearby browse anchor and
+// the walking radius grows just far enough to keep every member of the group inside the ring.
+// The Nearby list then reads "what's in this group" on its own, with no separate cluster-list
+// screen to learn -- one interaction covers both kinds of group, which is the point: fewer
+// states for the user to hold in mind.
+function focusNearbyOnClusterGroup(cluster) {
+  const items = (cluster.items || []).filter(item => item && item.point
+    && Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+  if (!items.length) return false;
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const item of items) {
+    minX = Math.min(minX, item.point.x);
+    maxX = Math.max(maxX, item.point.x);
+    minY = Math.min(minY, item.point.y);
+    maxY = Math.max(maxY, item.point.y);
+  }
+  const centerPoint = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  const center = unprojectPoint(centerPoint);
+
+  let maxMetres = 0;
+  for (const item of items) {
+    maxMetres = Math.max(maxMetres, distanceMetres(center.latitude, center.longitude, item.latitude, item.longitude));
+  }
+  // Same buffer walkingRadiusFloorMinutes uses to settle its nearest item clearly inside the
+  // ring rather than right on its edge -- here it keeps the group's farthest member off the
+  // rim too.
+  // ceilWalkingMinutes, not roundWalkingMinutes: rounding to the nearest grid point can round
+  // down, shrinking the ring back inside the group it was just sized to cover.
+  const rawMinutes = metresToWalkingMinutes(maxMetres * WALKING_RADIUS_FLOOR_BUFFER);
+  const floorMinutes = walkingRadiusFloorMinutes(center);
+  const targetMinutes = ceilWalkingMinutes(clamp(rawMinutes, floorMinutes, WALKING_RADIUS_MAX_MINUTES));
+
+  setInspectorMinimized(false);
+  startNearbyOriginTransition(nearbyRenderOriginPoint());
+  state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
+  state.walkingDistanceMinutes = targetMinutes;
+  state.outOfRadiusRevealFilters = [];
+  state.clusterExpanded = null;
+  state.clusterZoomed = false;
+  refreshNearbyRadiusView({ animate: true });
+  syncSettingsWalkSlider();
+  return true;
+}
+
 function clearNearbyAnchor() {
   if (!state.nearbyAnchor) return;
   startNearbyOriginTransition(nearbyRenderOriginPoint());

@@ -10,58 +10,15 @@ function handleMapClick(event) {
   if (!state.trees.length) return;
   const screen = canvasPoint(event);
 
-  // In overview mode, tapping a multi-item cluster expands it: zooms to separate
-  // the items and shows a cluster detail list in the inspector.
+  // In overview mode, tapping a multi-item cluster -- same-category or the cross-category
+  // "mega" badge alike -- behaves like tapping open ground on that spot: the group becomes the
+  // Nearby browse anchor, sized to cover it, and the Nearby list updates to show what's inside.
+  // See focusNearbyOnClusterGroup (js/nav.js).
   if (!state.selected) {
     const cluster = findClusterHit(screen);
-    if (cluster) {
-      const itemPoints = cluster.items.map(item => item.point).filter(Boolean);
-      if (itemPoints.length) {
-        state.clusterZoomed = true;
-        state.clusterExpanded = cluster;
-        // A mega cluster (see buildSuperClusters, js/renderer.js) can sit anywhere on screen,
-        // often far from the user -- centring on the user the way a normal, user-proximate
-        // cluster does could barely move the camera, or even zoom out, reading as "it just
-        // snapped back to my own location" instead of zooming into the tapped spot. Fit its own
-        // bounding box instead, the same fallback a normal cluster tap already uses when there is
-        // no user location at all.
-        if (cluster.itemType !== "_mega" && state.userLocation && state.userLocation.point) {
-          const user = state.userLocation.point;
-          const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-          const dpr = pixelRatio();
-          const padding = 40 * dpr;
-          const halfW = Math.max(1, focusRect.width / 2 - padding);
-          const halfH = Math.max(1, focusRect.height / 2 - padding);
-          let maxDx = 0, maxDy = 0;
-          for (const pt of itemPoints) {
-            maxDx = Math.max(maxDx, Math.abs(pt.x - user.x));
-            maxDy = Math.max(maxDy, Math.abs(pt.y - user.y));
-          }
-          // Capped the same way applyBoundsToViewport caps a bounds fit (fitScale * 220, the
-          // same ceiling the manual pinch gesture enforces): a same-category cluster whose
-          // members are genuinely near-coincident in world space -- almost never happens since
-          // buildTypeClusters would have merged them into one point already, but the same
-          // near-zero-range blow-up is possible in principle -- would otherwise ask for an
-          // absurd, unusable zoom level with nothing recognisable on screen.
-          const baseFitScaleForCap = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
-          const rawTargetScale = (maxDx > 0 || maxDy > 0)
-            ? Math.min(maxDx > 0 ? halfW / maxDx : Infinity, maxDy > 0 ? halfH / maxDy : Infinity)
-            : state.viewport.scale;
-          const targetScale = baseFitScaleForCap > 0 ? Math.min(rawTargetScale, baseFitScaleForCap * 220) : rawTargetScale;
-          const focusCx = focusRect.x + focusRect.width / 2;
-          const focusCy = focusRect.y + focusRect.height / 2;
-          animateViewportTo({ scale: targetScale, tx: focusCx - user.x * targetScale, ty: focusCy - user.y * targetScale }, 400);
-        } else {
-          fitToPoints(itemPoints, false, { animate: true, durationMs: 400, focusVisibleArea: true, assumeInspectorOpen: true });
-        }
-        // showClusterDetail handles a mega cluster's mixed types itself (via cluster.itemsByType),
-        // same list screen as any other cluster -- the zoom-in also still splits it into its
-        // real, per-category pins on the map (state.clusterExpanded forces each one open), each
-        // then tappable there too.
-        showClusterDetail(cluster);
-        requestDraw();
-        return;
-      }
+    if (cluster && focusNearbyOnClusterGroup(cluster)) {
+      requestDraw();
+      return;
     }
   }
 
@@ -138,99 +95,6 @@ function handleMapClick(event) {
     trackSelectionClick(hit.type, hit.item, "map");
   }
   requestDraw();
-}
-
-// One row of the cluster-detail list, for one item of one real type -- pulled out of
-// showClusterDetail so a mixed mega cluster (several real types under one tap) can build the
-// same row for each of its items, keyed by that item's own type rather than one type for the
-// whole list.
-function clusterItemRowHtml(itemType, item) {
-  let name, key, iconHtml;
-  const lat = item.latitude ?? "";
-  const lon = item.longitude ?? "";
-
-  if (itemType === "tree") {
-    name = treeDisplayName(item);
-    key = treeHashKey(item);
-    iconHtml = treeSpeciesIconHtml(item.commonName, item.latinName) || filterKindEmoji("trees") || "🌳";
-  } else if (itemType === "cow") {
-    name = "Cow";
-    key = cowKey(item);
-    iconHtml = filterKindEmoji("cows") || "🐄";
-  } else if (itemType === "path") {
-    name = item.name || item.ref || "Waymarked trail";
-    key = pathHashKey(item);
-    iconHtml = filterKindEmoji("waymarked_trails") || "🥾";
-  } else if (itemType === "water") {
-    name = item.name || "Water feature";
-    key = waterHashKey(item);
-    iconHtml = filterKindEmoji("ponds") || "💧";
-  } else {
-    name = placeTitle(item);
-    key = placeHashKey(item);
-    iconHtml = landmarkEmoji(item);
-  }
-
-  const metres = distanceFromUser(item);
-  const walkHtml = walkInfoHtml(metres);
-  const treeTagChip = itemType === "tree" && item.tagNumber ? ` · #${escapeHtml(String(item.tagNumber))}` : "";
-
-  return `<li><button class="nearest-item" type="button" data-overview-type="${escapeHtml(itemType)}" data-overview-key="${escapeHtml(key)}">
-      <div class="nearest-header">
-        <span class="nearest-icon" aria-hidden="true">${iconHtml}</span>
-        <span class="nearest-name">${escapeHtml(name)}</span>
-      </div>
-      <div class="nearest-footer">
-        <span class="nearest-meta">${walkHtml}${treeTagChip}</span>
-        <span class="nearest-arrow" data-item-lat="${lat}" data-item-lon="${lon}" aria-hidden="true">↑</span>
-      </div>
-    </button></li>`;
-}
-
-function showClusterDetail(cluster) {
-  const { itemType, items } = cluster;
-  const count = items.length;
-  const isMega = itemType === "_mega";
-
-  const typeLabels = { tree: "Trees", cow: "Cows", path: "Trails", water: "Water features", landmark: "Places" };
-  const emojiSlugs = { tree: "tree", cow: "cow" };
-
-  // A mega cluster spans several real types (see buildSuperClusters, js/renderer.js), so there
-  // is no one label or icon for the whole group the way a same-category cluster has -- "N
-  // things nearby" and the generic pin read as "here's what's piled up here", the same job the
-  // gold badge on the map itself is doing.
-  const titleText = isMega ? `${count} things nearby` : `${count} ${typeLabels[itemType] || "Places"}`;
-  const emoji = isMega
-    ? appIconHtml("pin", "app-icon title-icon")
-    : (emojiSlugs[itemType]
-      ? appIconHtml(emojiSlugs[itemType], "app-icon title-icon")
-      : filterKindEmoji(itemType === "path" ? "waymarked_trails" : "ponds") || "📍");
-
-  setInspectorSelectionChrome({ emoji, showBack: true });
-  els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = titleText;
-  els.inspectorType.textContent = "Tap to navigate";
-
-  const itemsHtml = isMega
-    ? Object.entries(cluster.itemsByType || {})
-      .flatMap(([realType, typeItems]) => typeItems.map(item => clusterItemRowHtml(realType, item)))
-      .join("")
-    : items.map(item => clusterItemRowHtml(itemType, item)).join("");
-
-  // "forward", like every other drill-down screen: the group list is one level in from Nearby
-  // and its back button returns via goToInitialView -> selectOverview(true), which slides
-  // "back". Passing no direction here left this the one screen change in the app that swapped
-  // its contents instantly while the map animated underneath it.
-  transitionInspectorBody(`<ul class="nearest-list">${itemsHtml}</ul>`, "forward", () => {
-    updateOverviewDirectionArrows();
-  });
-
-  // A group of pins at one spot on the map is not something a link can re-derive, so this
-  // screen has no URL of its own -- but it is still a screen, and back has to leave it. It
-  // pushes an entry carrying the URL of the screen it sits on top of; urlMatchesCurrentScreen
-  // (js/app.js) never counts an open group as matching a URL, so going back applies that URL
-  // and closes the group.
-  setHashFromSelection(currentScreenRoute(), { force: true });
 }
 
 function trackSelectionClick(itemType, item, source) {

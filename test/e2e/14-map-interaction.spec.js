@@ -8,13 +8,18 @@ test.describe("Map interaction", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 
   test.describe("Selecting a group", () => {
-    test("tapping a group of trees shows only that group on the map", async ({ page }) => {
+    test("tapping a group of trees browses the Nearby view to that group", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       // Find a real multi-item tree cluster at the current camera and tap its pin. Which pins
       // cluster together depends on the live dataset and the settled camera, so the target is
       // read from the same clustering the renderer draws from rather than guessed at in pixels.
+      // The expected anchor/radius are computed here the same way focusNearbyOnClusterGroup
+      // (js/nav.js) does, so the assertions below check that function's actual contract --
+      // covering the group's own footprint -- rather than exact list membership, which the
+      // Nearby list's existing nearest-N cap (state.nearestItemsCount) can still trim in a
+      // register this dense, same as it does for any other browsed spot.
       const target = await page.evaluate(() => {
         stopViewportAnimation();
         const lookup = buildNearbyIconLookup();
@@ -22,32 +27,45 @@ test.describe("Map interaction", () => {
         const cluster = clusters.find((c) => c.items.length > 1);
         if (!cluster) return null;
         const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const item of cluster.items) {
+          minX = Math.min(minX, item.point.x);
+          maxX = Math.max(maxX, item.point.x);
+          minY = Math.min(minY, item.point.y);
+          maxY = Math.max(maxY, item.point.y);
+        }
+        const center = unprojectPoint({ x: (minX + maxX) / 2, y: (minY + maxY) / 2 });
+        let maxMetres = 0;
+        for (const item of cluster.items) {
+          maxMetres = Math.max(maxMetres, distanceMetres(center.latitude, center.longitude, item.latitude, item.longitude));
+        }
         return {
           point: { x: cluster.screenPt.x, y: cluster.screenPt.y - iconSize * 0.64 },
-          otherHighlightedCount: lookup.landmark.size + lookup.cow.size + lookup.path.size + lookup.water.size,
+          center,
+          maxMetres,
         };
       });
       test.skip(!target, "no multi-item tree cluster on screen at this camera");
 
       await tapCanvasPoint(page, target.point);
 
-      const after = await page.evaluate(() => {
-        const lookup = buildNearbyIconLookup();
-        const group = state.clusterExpanded;
-        return {
-          expanded: Boolean(group),
-          groupSize: group ? group.items.length : 0,
-          treesShown: lookup.tree.size,
-          everyShownTreeIsInTheGroup: group ? [...lookup.tree].every((t) => group.items.includes(t)) : false,
-          otherTypesShown: lookup.landmark.size + lookup.cow.size + lookup.path.size + lookup.water.size,
-        };
-      });
+      // Tapping a group behaves like tapping open ground on that spot: the Nearby browse anchor
+      // moves to the group's centre and the radius grows to cover it, so the Nearby list -- the
+      // same screen, no separate cluster-detail screen -- now reads as "what's around here".
+      const after = await page.evaluate((center) => ({
+        hasAnchor: Boolean(state.nearbyAnchor),
+        anchorDistanceFromGroupCentre: state.nearbyAnchor
+          ? distanceMetres(state.nearbyAnchor.latitude, state.nearbyAnchor.longitude, center.latitude, center.longitude)
+          : null,
+        radiusMetres: walkingDistanceToMetres(state.walkingDistanceMinutes),
+        hasListedItems: document.querySelectorAll("#inspectorBody .nearest-item").length > 0,
+      }), target.center);
 
-      expect(after.expanded, "tapping a cluster pin should expand the group").toBe(true);
-      expect(after.treesShown).toBe(after.groupSize);
-      expect(after.everyShownTreeIsInTheGroup, "only the group's own trees stay on the map").toBe(true);
-      expect(after.otherTypesShown, "highlighted locations from the previous view are hidden").toBe(0);
-      await expect(page.locator("#inspectorTitle")).toContainText("Trees");
+      expect(after.hasAnchor, "tapping a group sets a browse anchor, same as tapping open ground").toBe(true);
+      expect(after.anchorDistanceFromGroupCentre, "the anchor sits at the group's own centre").toBeLessThan(1);
+      expect(after.radiusMetres, "the walking radius grows to cover the group's farthest member").toBeGreaterThanOrEqual(target.maxMetres);
+      expect(after.hasListedItems, "the Nearby list is populated around the new anchor").toBe(true);
+      await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
     });
   });
 
