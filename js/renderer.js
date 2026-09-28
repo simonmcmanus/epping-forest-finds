@@ -1271,15 +1271,14 @@ const MEGA_CLUSTER_MAX_CHIPS = 5;
 const MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS = 0.95;
 
 // The ring (distance from the badge's centre) chips sit on -- shared by drawMegaBadge's layout
-// and megaClusterOuterRadius below so neither can drift out of sync with the other. Now that the
-// inner circle (megaClusterRadius) is deliberately small and the chips are not, centring chips
-// exactly on R -- half inside the inner circle, half outside -- put chip *centres* barely
-// further apart than their own radius, so neighbouring chips overlapped almost completely
-// instead of the ~15-20% the fixed angle step was originally tuned for. Pushing the ring out to
-// R + half a chip's width sits each chip mostly outside the inner circle instead of straddling
-// deep into it, which is what actually restores that original, legible amount of overlap.
+// and megaClusterOuterRadius below so neither can drift out of sync with the other. Chips belong
+// in the outer disc's own band, not straddling into the inner circle: at R + half a chip's width
+// (tried first) a chip's inner edge landed *inside* R, so the icon visibly crossed from the outer
+// disc into the inner circle instead of sitting inside the outer one. Pushing the ring out to
+// R + a whole chip's width keeps a chip's inner edge right at the inner circle's own rim --
+// touching it, not overlapping it -- so the whole chip sits in the outer disc's band.
 function megaClusterChipRingRadius(R, chipR) {
-  return R + chipR * 0.5;
+  return R + chipR;
 }
 
 // Extra room the outer disc gives the chips beyond their own exact reach (ringR + chipR) --
@@ -1287,7 +1286,7 @@ function megaClusterChipRingRadius(R, chipR) {
 // out of" the disc rather than sitting inside it. This margin is part of the badge's real
 // on-screen reach (used below by both the drawn disc and the hit-test/cull radius), not a purely
 // cosmetic overdraw, so tapping the badge's outer edge and the badge's visual edge always agree.
-const MEGA_CLUSTER_OUTER_DISC_PADDING = 1.18;
+const MEGA_CLUSTER_OUTER_DISC_PADDING = 1.22;
 
 // The full on-screen reach of a mega badge, centre circle plus the chip ring around its rim (and
 // the padding above) -- i.e. how far out a tap or an off-screen check needs to look, not just
@@ -1380,11 +1379,10 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
 // opacity, so the two solid tones are literally the two ends of what used to be one fade, just
 // split across two clearly separate zones instead of blended within one.
 const MEGA_CLUSTER_INNER_COLOR = "#f3c968";
-// Faint on purpose -- barely enough tint to read as "an area", not a solid shape in its own
-// right. 0.25 (and 0.4 before that) both still read as a fairly opaque wash once the disc is
-// this size on a real screen; this is low enough that the map underneath stays legible through
-// it, which is the point of drawing an *area* rather than a solid badge.
-const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.14)";
+// Nearly opaque on purpose -- 0.14 (and 0.25, and 0.4 before that) all went the wrong way: asked
+// to be "barely possible to see through", not barely tinted. The map underneath should just
+// about show through if you look for it, not read as a wash you can see the whole scene behind.
+const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.88)";
 
 // Desktop-only hover affordance (state.hoveredMegaBadgeCenter, set by the pointermove handler in
 // setupMapHoverHandlers, js/nav.js -- touch never sets it, since touch has no hover). A cursor
@@ -1392,7 +1390,7 @@ const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.14)";
 // brightening the outer disc's tint reads as "this responds to you" the way a real button's own
 // hover state would, without needing a border or an outline this design has otherwise dropped.
 const MEGA_CLUSTER_HOVER_SCALE = 1.08;
-const MEGA_CLUSTER_HOVER_OUTER_COLOR = "rgba(217, 154, 58, 0.24)";
+const MEGA_CLUSTER_HOVER_OUTER_COLOR = "rgba(232, 174, 78, 0.95)";
 
 function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, hovered) {
   const scale = hovered ? MEGA_CLUSTER_HOVER_SCALE : 1;
