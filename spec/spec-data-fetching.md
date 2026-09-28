@@ -69,6 +69,11 @@ Steps: `trees`, `places`, `paths`, `roads`, `environment`, `forest`, `cows`
 
 Each step transitions through states: `pending` → `loading` → `done` | `error`
 
+Loading steps show a transparent emerald-and-gold illustrated ring rotating
+once every 1.1 seconds. Completed steps show a full-size green tick without a
+surrounding filled disc. With reduced motion enabled, the loading ring stays
+still; labels, counts and the progress bar continue to communicate progress.
+
 ### Fallback Strategy
 
 - **Trees:** Try `data/trees/index.json` first, then load all listed chunk files with a concurrency limit of 6 and one retry per failed chunk. If chunk loading fails, fall back to the full register. On mobile/touch devices and constrained connections, full-file fallback tries the smaller base URL before the legacy enriched URL; other devices try the legacy enriched URL after the base retry.

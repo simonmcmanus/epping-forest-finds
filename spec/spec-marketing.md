@@ -288,6 +288,10 @@ Sections, in order:
 
 ### 5.1 Page weight and assets
 
+The walking-distance pillar uses a shaded folded map (`assets/home/distance.png`)
+and the location pillar uses the emerald-and-gold Nearby beacon
+(`assets/home/logo.png`), stored as independent homepage copies.
+
 The email, Ledger, tree-tag, FAQ and offline illustrations use transparent PNGs
 with gentle shading and forest-green contours. “Good to know” uses a question-mark
 speech bubble (`faq.png`); “No signal? Here’s the plan” uses a phone showing a

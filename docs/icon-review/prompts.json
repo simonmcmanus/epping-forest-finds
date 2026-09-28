@@ -1,0 +1,30 @@
+[
+  {
+    "name": "nearby-gold",
+    "prompt": "Use case: stylized-concept. Production Epping Forest Finds app icon. Reference image is style reference only: polished dimensional illustration, dark forest-green contours, soft cream highlights and rich colour. Make more vibrant and distinctive while staying professional. Single isolated symbol centred on square canvas, 80% canvas coverage, genuine transparent alpha background. No backdrop, text, checkerboard, cast shadow or additional objects. Read clearly at 24px, broad simple shapes, no tiny detail. A warm golden-yellow map pin with softly bevelled golden sides and dark forest-green outline. In its round head a deep emerald circular inset with a single bold cream four-point compass star. A compact pair of emerald discovery arcs just above its upper right shoulder. Strong memorable silhouette suitable for a woodland discovery brand. No leaves, trees or landscape."
+  },
+  {
+    "name": "nearby-emerald",
+    "prompt": "Use case: stylized-concept. Production Epping Forest Finds app icon. Reference image is style reference only: polished dimensional illustration, dark forest-green contours, soft cream highlights and rich colour. Make more vibrant and distinctive while staying professional. Single isolated symbol centred on square canvas, 80% canvas coverage, genuine transparent alpha background. No backdrop, text, checkerboard, cast shadow or additional objects. Read clearly at 24px, broad simple shapes, no tiny detail. An emerald green map pin with softly rounded shaded edges and dark forest-green outline. A large luminous golden-yellow circular centre, cream reflection on upper left. Two short golden radiating arcs at upper right, thick and clean. Strong warm vibrant beacon silhouette suitable for a woodland discovery brand, elegant compact proportions."
+  },
+  {
+    "name": "loading-tick",
+    "prompt": "Use case: stylized-concept. Production Epping Forest Finds app icon. Reference image is style reference only: polished dimensional illustration, dark forest-green contours, soft cream highlights and rich colour. Make more vibrant and distinctive while staying professional. Single isolated symbol centred on square canvas, 80% canvas coverage, genuine transparent alpha background. No backdrop, text, checkerboard, cast shadow or additional objects. Read clearly at 24px, broad simple shapes, no tiny detail. One large bold check mark, entirely rich emerald green with dark forest-green outer contour, subtle lighter green bevel and cream edge highlight. Slightly rounded ends. No circle, badge, dots or other parts. Clear thick strokes and one decisive tick silhouette. Keep shading smooth and restrained."
+  },
+  {
+    "name": "loading-ring",
+    "prompt": "Use case: stylized-concept. Production Epping Forest Finds app icon. Reference image is style reference only: polished dimensional illustration, dark forest-green contours, soft cream highlights and rich colour. Make more vibrant and distinctive while staying professional. Single isolated symbol centred on square canvas, 80% canvas coverage, genuine transparent alpha background. No backdrop, text, checkerboard, cast shadow or additional objects. Read clearly at 24px, broad simple shapes, no tiny detail. One simple thick open circular loading ring with a clear gap at the top right. Smooth rounded ends, rich emerald green at the lower left flowing to warm golden yellow at the upper right. Subtle dimensional bevel and cream edge highlight. No arrows, extra dots or centre object. Balanced circular shape with large empty transparent centre, legible at 22px."
+  },
+  {
+    "name": "distance",
+    "prompt": "Use case: stylized-concept. One professional illustrated UI icon for Epping Forest Finds. Match reference STYLE ONLY: dark forest-green contours, warm cream highlights, muted sage, small warm golden accents, gentle dimensional shading. Single subject readable at 24px. Centered square canvas with 80% coverage. True transparent alpha background, no ground shadow, backdrop, checkerboard or text. One folded paper walking map, three simple accordion panels with broad cream edges and soft sage land. Just one broad dotted forest-green path and one small golden destination dot drawn on the paper. No floating map pins, trees, magnifier or extra objects. Visually simple."
+  },
+  {
+    "name": "walking",
+    "prompt": "Use case: stylized-concept. One professional illustrated UI icon for Epping Forest Finds. Match reference STYLE ONLY: dark forest-green contours, warm cream highlights, muted sage, small warm golden accents, gentle dimensional shading. Single subject readable at 24px. Centered square canvas with 80% coverage. True transparent alpha background, no ground shadow, backdrop, checkerboard or text. A single clear walking-person pictogram in side view mid stride, circular head, two arms and two separated legs. Warm cream-filled body with bold forest-green outline and restrained sage shading at edges. No clothing details, face, backpack, scenery or props. Maintain standard instantly legible pedestrian sign silhouette."
+  },
+  {
+    "name": "compass",
+    "prompt": "Use case: stylized-concept. One professional illustrated UI icon for Epping Forest Finds. Match reference STYLE ONLY: dark forest-green contours, warm cream highlights, muted sage, small warm golden accents, gentle dimensional shading. Single subject readable at 24px. Centered square canvas with 80% coverage. True transparent alpha background, no ground shadow, backdrop, checkerboard or text. A single round pocket compass, dark forest-green case, warm golden bevelled rim, cream face with one bold green-and-terracotta direction needle. Only four short broad cardinal marks, no letters or tiny ticks. No chain, lid or extra props. Straight-on view."
+  }
+]
