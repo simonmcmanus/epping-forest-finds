@@ -1699,11 +1699,13 @@ test("walking radius marker still draws when nearest results use fallback", () =
     stroke() {},
     setLineDash() {},
     createRadialGradient() { return { addColorStop() {} }; },
+    createLinearGradient() { return { addColorStop() {} }; },
   };
 
   app.drawWalkingRadius(ctx);
 
-  assert.equal(arcCount, 1);
+  // One arc for the dimming cutout, one for the rim highlight stroke traced inside it.
+  assert.equal(arcCount, 2);
 });
 
 test("walking radius marker hides in selected-detail mode", () => {
@@ -2091,9 +2093,11 @@ test("walking radius marker draws on the report (feedback) screen", () => {
     stroke() {},
     setLineDash() {},
     createRadialGradient() { return { addColorStop() {} }; },
+    createLinearGradient() { return { addColorStop() {} }; },
   });
 
-  assert.equal(arcCount, 1);
+  // One arc for the dimming cutout, one for the rim highlight stroke traced inside it.
+  assert.equal(arcCount, 2);
 });
 
 test("nothing draws a route line until a destination is actually selected", () => {

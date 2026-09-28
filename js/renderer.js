@@ -786,6 +786,32 @@ function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, cone) {
   ctx.restore();
 }
 
+// A faint top-left-lit rim on the *inside* of the clear circle's edge -- same light direction as
+// megaSphereGradient's badge shading, so a mega badge zooming in to become this circle
+// (focusNearbyOnClusterGroup, js/nav.js) reads as the same lit dome growing, not a flat gold
+// coin dissolving into a flat gap. Stroked, not filled: the circle's interior must stay fully
+// clear so the map underneath is untouched, exactly as the surrounding comment on
+// drawWalkingRadiusDimming requires.
+const NEARBY_RIM_HIGHLIGHT = "rgba(255, 250, 235, 0.55)";
+const NEARBY_RIM_SHADOW = "rgba(20, 30, 24, 0.16)";
+
+function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
+  const lineWidth = Math.max(1.5 * dpr, radiusPx * 0.012);
+  const inset = lineWidth * 1.2;
+  ctx.save();
+  ctx.beginPath();
+  if (tilted) traceGroundCirclePath(ctx, center, radiusPx - inset);
+  else ctx.arc(center.x, center.y, radiusPx - inset, 0, Math.PI * 2);
+  const gradient = ctx.createLinearGradient(center.x - radiusPx, center.y - radiusPx, center.x + radiusPx, center.y + radiusPx);
+  gradient.addColorStop(0, NEARBY_RIM_HIGHLIGHT);
+  gradient.addColorStop(0.55, "rgba(255, 250, 235, 0)");
+  gradient.addColorStop(1, NEARBY_RIM_SHADOW);
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawWalkingRadius(ctx) {
   // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
   // the map behind it (nearbyRenderOriginPoint, index.html).
@@ -802,6 +828,7 @@ function drawWalkingRadius(ctx) {
   const tilted = typeof tiltActive === "function" && tiltActive();
 
   drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, nearbyUserCone(center, radiusPx, tilted));
+  drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr);
 }
 
 // Screen-space geometry for the wedge that ties the "You" dot to the walking-radius ring while
@@ -1436,6 +1463,27 @@ const MEGA_CLUSTER_INNER_COLOR = "#f3c968";
 // to be "barely possible to see through", not barely tinted. The map underneath should just
 // about show through if you look for it, not read as a wash you can see the whole scene behind.
 const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.88)";
+// Brighter and darker ends of the same two golds, used only as radial-gradient stops (see
+// megaSphereGradient) -- never as flat fills on their own, so a badge still reads as "two golds"
+// at a glance, just each one now domed instead of flat.
+const MEGA_CLUSTER_INNER_HIGHLIGHT = "#fce3ab";
+const MEGA_CLUSTER_INNER_SHADOW = "#c98f30";
+const MEGA_CLUSTER_OUTER_HIGHLIGHT = "rgba(240, 197, 130, 0.88)";
+const MEGA_CLUSTER_OUTER_SHADOW = "rgba(163, 110, 32, 0.88)";
+
+// A top-left-lit radial gradient standing in for each disc's former flat fill, so the badge
+// reads as a raised sphere rather than a flat coin -- the same top-lit shading language the
+// walking-radius circle's own rim highlight (drawWalkingRadiusRimHighlight, below) uses, so a
+// mega badge growing into the walking radius during focusNearbyOnClusterGroup's zoom (js/nav.js)
+// looks like one lit surface expanding rather than a flat badge fading into a flat circle.
+function megaSphereGradient(ctx, cx, cy, r, highlight, shadow) {
+  const lightX = cx - r * 0.32;
+  const lightY = cy - r * 0.38;
+  const gradient = ctx.createRadialGradient(lightX, lightY, r * 0.05, cx, cy, r * 1.05);
+  gradient.addColorStop(0, highlight);
+  gradient.addColorStop(1, shadow);
+  return gradient;
+}
 
 function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   const R = megaClusterRadius(totalItems, dpr);
@@ -1455,12 +1503,12 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   // zone, not a filled shape plus a stroke drawn round it.
   ctx.beginPath();
   ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-  ctx.fillStyle = MEGA_CLUSTER_OUTER_COLOR;
+  ctx.fillStyle = megaSphereGradient(ctx, cx, cy, outerR, MEGA_CLUSTER_OUTER_HIGHLIGHT, MEGA_CLUSTER_OUTER_SHADOW);
   ctx.fill();
 
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx.fillStyle = MEGA_CLUSTER_INNER_COLOR;
+  ctx.fillStyle = megaSphereGradient(ctx, cx, cy, R, MEGA_CLUSTER_INNER_HIGHLIGHT, MEGA_CLUSTER_INNER_SHADOW);
   ctx.fill();
 
   const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
