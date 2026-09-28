@@ -249,10 +249,15 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 - **Every selectable thing has a URL**, listed in `SELECTION_ROUTES`. Trees and places were the
   only two before the router, so selecting a cow, a street or a trail used to rewrite the address
   bar to the Nearby screen's URL while that thing was on screen.
-- **An expanded map group (cluster) is the one screen with no URL of its own** — it is a set of
-  pins at one spot, not something a link can re-derive. It pushes an entry carrying the URL of
-  the screen it opened on top of, and `urlMatchesCurrentScreen` never counts an open group as
-  matching a URL, so going back applies that URL and closes the group.
+- **Moving the Nearby browse anchor — a cluster tap or a tap on open ground — has no URL of its
+  own**, but still retraces on back/forward like a selection does. `pushNearbyAnchorHistory`
+  (`js/app.js`) pushes a history entry alongside every anchor move (`setNearbyAnchor`,
+  `focusNearbyOnClusterGroup`'s `moveAndSettle`, `clearNearbyAnchor`), carrying a snapshot of
+  `state.nearbyAnchor` in `history.state` rather than the URL. `popstate`'s
+  `restoreNearbyAnchorFromHistory` (`js/nav.js`) applies that snapshot before the URL's own route
+  is re-applied, so tapping a cluster, then another, then pressing back walks the anchor back one
+  hop at a time — and forward replays it — the same way selecting a tree and going back returns
+  to what was selected before.
 - **A URL naming something the dataset does not have** (a stale share link) falls back to Nearby
   and corrects the entry in place with `replaceState`, rather than leaving the app on a screen
   its URL does not describe.
