@@ -1357,34 +1357,24 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
 // spot, so it reads more like a soft patch of light (think a sun) than a coin with a rim. No
 // border is drawn around it at all: a crisp white ring plus a coloured ring on every chip around
 // it was exactly the layered-borders clutter the badge exists to cut down on.
+//
+// Contained entirely within R -- a first version also drew a second, wider and fainter halo
+// past R to carry the softness further out, but at the spacing two nearby badges actually sit
+// (or a badge next to a full-size selected pin), that halo's own translucent circle overlapped
+// the next thing over and read as a muddy smudge rather than a soft edge. The gradient alone,
+// stopping at the badge's real radius, keeps the "soft area, not a hard dot" read without
+// reaching into whatever is next to it.
 function megaClusterBadgeFill(ctx, cx, cy, R) {
   const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-  gradient.addColorStop(0, "rgba(247, 210, 128, 0.95)");
-  gradient.addColorStop(0.55, "rgba(243, 201, 104, 0.85)");
-  gradient.addColorStop(1, "rgba(217, 154, 58, 0.35)");
+  gradient.addColorStop(0, "rgba(247, 210, 128, 0.97)");
+  gradient.addColorStop(0.6, "rgba(243, 201, 104, 0.92)");
+  gradient.addColorStop(1, "rgba(217, 154, 58, 0.55)");
   return gradient;
-}
-
-// A wider, fainter halo drawn behind the badge itself -- the same radial gold fading all the way
-// to transparent well past R -- so the "rough area" reads even where the badge's own fill has
-// already faded toward its rim, instead of the softness stopping abruptly at R.
-function megaClusterGlowFill(ctx, cx, cy, R) {
-  const glowR = R * 1.7;
-  const gradient = ctx.createRadialGradient(cx, cy, R * 0.3, cx, cy, glowR);
-  gradient.addColorStop(0, "rgba(243, 201, 104, 0.4)");
-  gradient.addColorStop(1, "rgba(243, 201, 104, 0)");
-  return { gradient, glowR };
 }
 
 function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   const R = megaClusterRadius(totalItems, dpr);
   ctx.save();
-  const { gradient: glowFill, glowR } = megaClusterGlowFill(ctx, cx, cy, R);
-  ctx.beginPath();
-  ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
-  ctx.fillStyle = glowFill;
-  ctx.fill();
-
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
   ctx.fillStyle = megaClusterBadgeFill(ctx, cx, cy, R);
