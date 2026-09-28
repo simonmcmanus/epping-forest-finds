@@ -210,8 +210,8 @@
   position: absolute;
   top: 12px;
   left: 14px;
-  width: calc(64px * var(--icon-scale));
-  height: calc(64px * var(--icon-scale));
+  width: calc(36px * var(--icon-scale));
+  height: calc(36px * var(--icon-scale));
   border-radius: 999px;
   border: 1px solid var(--line);
   background: #fff;
@@ -242,13 +242,13 @@
 }
 
 .nav-icon {
-  width: calc(40px * var(--icon-scale));
-  height: calc(40px * var(--icon-scale));
+  width: calc(22px * var(--icon-scale));
+  height: calc(22px * var(--icon-scale));
 }
 
 .title-icon {
-  width: calc(40px * var(--icon-scale));
-  height: calc(40px * var(--icon-scale));
+  width: calc(23px * var(--icon-scale));
+  height: calc(23px * var(--icon-scale));
 }
 
 .inspector .type {
@@ -262,8 +262,8 @@
 }
 
 .close {
-  width: calc(64px * var(--icon-scale));
-  height: calc(64px * var(--icon-scale));
+  width: calc(36px * var(--icon-scale));
+  height: calc(36px * var(--icon-scale));
   flex: 0 0 auto;
   border-radius: 6px;
   background: #edf2ec;

@@ -422,20 +422,25 @@ and sit exactly like the PNG nav icons around them, and both stroke in
 complete if the glyph is ever drawn as an asset.
 
 `.nav-icon` (main navigation row and the inspector back arrow) and `.title-icon`
-(the emoji/icon beside a screen's heading, e.g. Filters/Settings/Report) are
-both `40px * var(--icon-scale)` (`css/inspector.css`), up from an original
-22px/23px — small enough at the original size to read as fiddly rather than a
-clear glyph. `.close`/`.inspector-back`, the circular buttons those icons sit
-in, grew to match (`64px * var(--icon-scale)`, from 36px) so the icon keeps
-comfortable padding inside its button rather than crowding it. The Nearby
-list's own per-row icon (`.nearest-icon`/`.nearest-icon .app-icon`,
-`css/map-ui.css`) is `36px`, up from 20px, for the same reason. `test/
-forest-finds.test.js`'s "generated UI icon classes render at the enlarged
-sizes" test locks all four in place; its regexes deliberately bound each match
-inside `[^}]*` rather than `[\s\S]*` so a later, unrelated selector's own
-"width: 36px;" can't vacuously satisfy an assertion about a rule higher up
-the file — an earlier, unbounded version of that regex did exactly that and
-stayed green through a size that had quietly reverted.
+(the emoji/icon beside a screen's heading, e.g. Filters/Settings/Report) stay
+at their original `22px`/`23px * var(--icon-scale)` (`css/inspector.css`), in
+their original `36px * var(--icon-scale)` `.close`/`.inspector-back` buttons
+— a pass that enlarged all four to 40px/64px made the row read as
+inconsistent width and overrun its own container, since the five buttons no
+longer shared a comfortable fit against the icons and badges inside them.
+The Nearby list's own per-row icon (`.nearest-icon`/`.nearest-icon .app-icon`,
+`css/map-ui.css`) is enlarged instead, to `44px` (up from 20px) — that row has
+no such fixed-width neighbours to overrun. It sits in its own grid column
+(`.nearest-item`'s `grid-template-columns: auto 1fr`) spanning the full
+height of both the name row and the meta/distance row beside it
+(`.nearest-content`, holding `.nearest-header`/`.nearest-footer` stacked),
+rather than being sized to just the first line the way a flex-row icon would
+be. `test/forest-finds.test.js`'s "generated UI icon classes render at the
+enlarged sizes" test locks all four sizes in place; its regexes deliberately
+bound each match inside `[^}]*` rather than `[\s\S]*` so a later, unrelated
+selector's own "width: 44px;" can't vacuously satisfy an assertion about a
+rule higher up the file — an earlier, unbounded version of that regex did
+exactly that and stayed green through a size that had quietly reverted.
 
 ## Generated app icon assets
 

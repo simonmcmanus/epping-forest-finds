@@ -16,10 +16,17 @@
   padding: 7px 12px;
   font: inherit;
   display: grid;
-  gap: 2px;
-  grid-template-rows: auto auto;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 10px;
   transition: all 140ms ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.nearest-content {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .nearest-item:hover {
@@ -53,23 +60,26 @@
 .nearest-header {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
   min-width: 0;
 }
 
+/* Sits in its own grid column (.nearest-item), spanning the full height of the
+   name row and the meta/distance row beside it, rather than being sized to
+   just the first line -- a bigger icon reads clearly without the row itself
+   growing taller than the two lines of text next to it already are. */
 .nearest-icon {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
-  font-size: 32px;
+  font-size: 40px;
   line-height: 1;
 }
 
 .nearest-icon .app-icon {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
 }
 
