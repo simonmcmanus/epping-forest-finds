@@ -1485,7 +1485,18 @@ function megaSphereGradient(ctx, cx, cy, r, highlight, shadow) {
   return gradient;
 }
 
-function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
+// Under tilt, the outer disc is traced on the *ground* plane (traceGroundCirclePath, the same
+// flat-sample-then-project treatment the walking-radius ring and the radar cone use) instead of
+// with ctx.arc(), so it foreshortens into the same kind of ellipse the radius ring shows once a
+// tap expands this badge into it -- both read as one flat disc painted on the terrain, tilting
+// together as the phone tilts, rather than the badge floating as a camera-facing coin above a
+// ground shape it is about to become. groundCenterFlat is the badge's centre in *flat*
+// (untilted) screen space -- callers already have it from worldToScreenFlat(worldPt) -- and is
+// null on the non-tilted flat-map draw path, where ctx.arc() is already correct. The inner
+// circle, count text and icon chips stay camera-facing (drawn at cx/cy, the already-projected
+// centre) like every other pin's own upright content -- only the badge's own "area" reads as
+// ground-painted, exactly as only the walking radius' fill (not the "You" dot on top of it) does.
+function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, groundCenterFlat) {
   const R = megaClusterRadius(totalItems, dpr);
   const chipR = megaClusterChipRadius(R, dpr);
   const ringR = megaClusterChipRingRadius(R, chipR);
@@ -1502,7 +1513,8 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   // of it holding just the count. The two golds read as one badge with an inner and an outer
   // zone, not a filled shape plus a stroke drawn round it.
   ctx.beginPath();
-  ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+  if (groundCenterFlat) traceGroundCirclePath(ctx, groundCenterFlat, outerR);
+  else ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
   ctx.fillStyle = megaSphereGradient(ctx, cx, cy, outerR, MEGA_CLUSTER_OUTER_HIGHLIGHT, MEGA_CLUSTER_OUTER_SHADOW);
   ctx.fill();
 
@@ -2260,9 +2272,12 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const target = clusterFocusTarget(allItems);
     const visibleCount = target ? clusterVisibleItemCount(target.center, target.targetMinutes) : totalItems;
     const badgeCount = Math.max(visibleCount, totalItems);
+    // Ground-space centre for the outer disc's tilt-projected footprint (drawMegaBadge) --
+    // null outside active tilt, where the badge stays a plain camera-facing circle.
+    const groundCenterFlat = tiltActive() ? worldToScreenFlat(worldPt) : null;
     calls.push({ y: cy, fn(c) {
       c.globalAlpha = reveal;
-      drawMegaBadge(c, cx, cy, badgeCount, byType, byTypeIconSrc, dpr * pinScale);
+      drawMegaBadge(c, cx, cy, badgeCount, byType, byTypeIconSrc, dpr * pinScale, groundCenterFlat);
     }});
   }
 
