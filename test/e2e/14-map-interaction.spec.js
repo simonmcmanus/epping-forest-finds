@@ -73,6 +73,41 @@ test.describe("Map interaction", () => {
       await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
     });
 
+    test("the browser back button undoes a cluster tap and returns to the previous anchor", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      const anchorBefore = await page.evaluate(() => state.nearbyAnchor);
+
+      const target = await page.evaluate(() => {
+        stopViewportAnimation();
+        const lookup = buildNearbyIconLookup();
+        const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+        const cluster = clusters.find((c) => c.items.length > 1);
+        if (!cluster) return null;
+        const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
+        return { point: { x: cluster.screenPt.x, y: cluster.screenPt.y - iconSize * 0.64 } };
+      });
+      test.skip(!target, "no multi-item tree cluster on screen at this camera");
+
+      await tapCanvasPoint(page, target.point);
+      await page.waitForFunction(() => Boolean(state.nearbyAnchor));
+      const anchorAfterTap = await page.evaluate(() => state.nearbyAnchor);
+
+      // The browser back button retraces the cluster tap the same way it retraces a selection
+      // (see pushNearbyAnchorHistory/restoreNearbyAnchorFromHistory, js/app.js and js/nav.js).
+      // The restored anchor is re-derived from a lat/lon snapshot (history.state has no room for
+      // live object references), so it is compared by value rather than by exact float equality.
+      await page.goBack();
+      await expect.poll(() => page.evaluate(() => state.nearbyAnchor)).toEqual(anchorBefore);
+
+      // And forward replays it, landing back on the cluster's own anchor.
+      await page.goForward();
+      await expect.poll(() => page.evaluate(() => {
+        const a = state.nearbyAnchor;
+        return a ? { latitude: a.latitude, longitude: a.longitude } : null;
+      })).toEqual(anchorAfterTap ? { latitude: anchorAfterTap.latitude, longitude: anchorAfterTap.longitude } : null);
+    });
+
     test("tapping a cluster while something is selected expands the cluster, not the pin behind it", async ({ page }) => {
       await setup(page);
 

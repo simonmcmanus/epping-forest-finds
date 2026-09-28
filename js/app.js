@@ -422,6 +422,19 @@ const ROUTE_REPORT = "report";
 // the in-app back arrow must return to Nearby itself rather than leaving the site.
 const NAV_DEPTH_KEY = "forestNavDepth";
 
+// Carries the Nearby browse anchor (state.nearbyAnchor) on every history entry, so moving
+// between clusters -- which has no URL of its own, unlike a selection -- still retraces on the
+// browser back button and the inspector's own back arrow. Every entry snapshots the anchor in
+// effect *when that entry was created*, so landing back on it (in either direction) restores
+// exactly that anchor. Absent (older entries, or the initial boot entry before this existed)
+// reads as "no anchor" via nearbyAnchorSnapshot's own null default.
+const NEARBY_ANCHOR_KEY = "forestNearbyAnchor";
+
+function nearbyAnchorSnapshot() {
+  const anchor = state.nearbyAnchor;
+  return anchor ? { latitude: anchor.latitude, longitude: anchor.longitude } : null;
+}
+
 // Every selectable thing, with the URL parameter that names it, the key it is written as and
 // how it is resolved and shown again. Trees and places were the only two with a URL before
 // the router; the rest are here so that a screen change can never leave the URL describing a
@@ -493,7 +506,7 @@ function routerBootFinished() {
 function initRouter() {
   if (navDepthOf(history.state) !== null) return;
   history.replaceState(
-    { [NAV_DEPTH_KEY]: 0 },
+    { [NAV_DEPTH_KEY]: 0, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
     "",
     `${window.location.pathname}${window.location.search}${window.location.hash}`
   );
@@ -575,7 +588,25 @@ function setHashFromSelection(value, { force = false } = {}) {
   const nextHash = value ? `#${value}` : "";
   if (!force && window.location.hash === nextHash) return;
   const url = `${window.location.pathname}${window.location.search}${nextHash}`;
-  history.pushState({ [NAV_DEPTH_KEY]: navDepth() + 1 }, "", url);
+  history.pushState(
+    { [NAV_DEPTH_KEY]: navDepth() + 1, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
+    "",
+    url
+  );
+}
+
+// The anchor-only counterpart to setHashFromSelection, for a Nearby browse move (a cluster tap
+// or a tap on open ground moving state.nearbyAnchor): the hash never changes, so it always
+// pushes rather than relying on setHashFromSelection's "hash unchanged" short-circuit, which
+// would otherwise skip it entirely.
+function pushNearbyAnchorHistory() {
+  if (routeApplyDepth > 0 || routerBooting) return;
+  const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  history.pushState(
+    { [NAV_DEPTH_KEY]: navDepth() + 1, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
+    "",
+    url
+  );
 }
 
 // Corrects the current entry's URL without adding one, keeping the entry's depth.

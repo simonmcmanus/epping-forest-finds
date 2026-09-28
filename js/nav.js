@@ -732,6 +732,7 @@ function setupSearchAndNavHandlers() {
   // fragment fires hashchange alone; applyRouteFromUrl no-ops when the app is already on the
   // screen the URL names, so being called twice for one change costs nothing.
   window.addEventListener("popstate", () => {
+    restoreNearbyAnchorFromHistory();
     applyRouteFromUrl();
   });
   window.addEventListener("hashchange", () => {
@@ -901,6 +902,31 @@ function setNearbyAnchor(latitude, longitude, point) {
   // what the camera should be looking at.
   state.outOfRadiusRevealFilters = [];
   refreshNearbyRadiusView({ animate: false });
+  pushNearbyAnchorHistory();
+}
+
+// The counterpart to pushNearbyAnchorHistory (js/app.js), run on every popstate before the URL
+// itself is re-applied: puts state.nearbyAnchor back to whatever it was on the history entry
+// just landed on, so moving between clusters undoes on the browser back button and the
+// inspector's own back arrow exactly like a selection does, instead of leaving the ring wherever
+// the last cluster tap left it.
+function restoreNearbyAnchorFromHistory() {
+  const entry = history.state;
+  const snapshot = entry ? entry[NEARBY_ANCHOR_KEY] : null;
+  const current = state.nearbyAnchor;
+  const unchanged = current && snapshot
+    ? current.latitude === snapshot.latitude && current.longitude === snapshot.longitude
+    : !current && !snapshot;
+  if (unchanged) return;
+  stopViewportAnimation();
+  state.clusterZoomed = false;
+  startNearbyOriginTransition(nearbyRenderOriginPoint());
+  state.nearbyAnchor = snapshot
+    ? { latitude: snapshot.latitude, longitude: snapshot.longitude, point: projectLonLat(snapshot.longitude, snapshot.latitude) }
+    : null;
+  state.outOfRadiusRevealFilters = [];
+  updateNearbyAnchorBar();
+  refreshNearbyRadiusView({ animate: true });
 }
 
 // Tapping a grouped set of pins -- a same-category cluster or a cross-category "mega" badge
@@ -1039,6 +1065,7 @@ function focusNearbyOnClusterGroup(cluster) {
     if (!secondaryScreenActive()) selectOverview();
     updateNearbyAnchorBar();
     syncSettingsWalkSlider();
+    pushNearbyAnchorHistory();
     animateViewportTo(panViewport, CLUSTER_TOUR_PAN_MS, zoomInToFinal);
   }
 
@@ -1052,6 +1079,7 @@ function clearNearbyAnchor() {
   state.nearbyAnchor = null;
   state.outOfRadiusRevealFilters = [];
   refreshNearbyRadiusView({ animate: false });
+  pushNearbyAnchorHistory();
 }
 
 // Shows/hides #nearbyAnchorBar, the way back from a browsed spot. It lives in the inspector
