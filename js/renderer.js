@@ -1537,11 +1537,13 @@ function drawMegaBadgeCountPin(ctx, tipX, tipY, R, totalItems, dpr) {
 
 // groundCenterFlat is the badge's centre in *flat* (untilted) screen space -- callers already
 // have it from worldToScreenFlat(worldPt) -- and is null on the non-tilted flat-map draw path.
-// Under tilt (groundCenterFlat set) the outer disc and icon chips are ground-painted (see
-// applyTiltGroundTransform, above) but the count is drawn afterwards, outside that transform, as
-// an upright pin (drawMegaBadgeCountPin) anchored at the plain projected `cx`/`cy` -- otherwise
-// the one piece of the badge that has to be *read*, not just recognised, would lie flat on the
-// foreshortened ground like the discs and chips and become illegible at any real tilt angle.
+// Under tilt (groundCenterFlat set) only the outer disc is ground-painted (see
+// applyTiltGroundTransform, above); the count and the icon chips are both drawn afterwards,
+// outside that transform, upright and camera-facing at the plain projected `cx`/`cy` -- the
+// count as its own pointer pin (drawMegaBadgeCountPin), the chips fanned around the badge
+// exactly as they are on the flat map. Only the disc's own area needs to read as painted on the
+// ground; the count and chips are things you have to actually read or recognise, so they stay
+// legible at any tilt angle instead of foreshortening into an ellipse alongside it.
 // Outside tilt the whole badge -- both discs, the count, and the chips -- draws exactly as
 // before: plain circles and text at cx/cy, no transform, no pointer.
 function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, groundCenterFlat) {
@@ -1583,7 +1585,16 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
     ctx.fillStyle = "#3a2c10";
     ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), ox, oy);
   }
+  ctx.restore();
 
+  // Icon chips are small artwork, not text -- unlike the count they read fine lying flat on the
+  // outer disc when it is ground-projected under tilt -- but a first pass left them lying flat
+  // anyway, foreshortened right alongside the disc, and the request was for them to stand up
+  // and face the camera the same way the count pin now does. So, like the count, chips are
+  // positioned and drawn *after* ctx.restore() undoes the ground transform, at the plain
+  // projected `cx`/`cy` rather than the local `ox`/`oy` the disc used -- upright and legible at
+  // any tilt angle, fanned around the badge exactly as they are on the flat map.
+  //
   // Chips sit mostly outside the (now much smaller) inner circle, centred on ringR rather than
   // R itself, and reach exactly to outerR, so they land inside the pale outer disc above rather
   // than floating past it.
@@ -1610,16 +1621,15 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
   const arcSpan = step * (n - 1);
   const positioned = types.map(([key, info], i) => {
     const angle = (Math.PI / 2 - arcSpan / 2) + i * step;
-    return { key, info, x: ox + Math.cos(angle) * ringR, y: oy + Math.sin(angle) * ringR };
+    return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
   });
   for (let i = positioned.length - 1; i >= 0; i--) {
     const { key, x, y } = positioned[i];
     drawMegaClusterIconChip(ctx, x, y, byTypeIconSrc.get(key), chipR);
   }
-  ctx.restore();
 
   // Drawn after the ground transform is restored, so this one shape stays upright and
-  // camera-facing (readable) while everything above it lies flat on the tilted terrain.
+  // camera-facing (readable) while the disc beneath it lies flat on the tilted terrain.
   if (groundCenterFlat) drawMegaBadgeCountPin(ctx, cx, cy, R, totalItems, dpr);
 }
 
