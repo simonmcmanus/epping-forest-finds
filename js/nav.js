@@ -427,9 +427,9 @@ function setupInteractions() {
 // iOS Safari doesn't shrink the layout viewport when the on-screen keyboard opens, so the
 // `position: absolute; bottom: 10px` mobile inspector sheet (see css/map-ui.css) stays pinned
 // behind the keyboard instead of moving with it. VisualViewport reports the actually-visible
-// area, so we use it to shift/shrink the sheet above the keyboard. Scoped to the Report screen —
-// the only screen with a text input that can summon a keyboard (Settings uses a <select>, Filter
-// has no text input).
+// area, so we use it to shift/shrink the sheet above the keyboard. Scoped to the screens with a
+// text input that can summon a keyboard: the Report screen and the Search screen (Settings uses
+// a <select>, Filter has no text input).
 const REPORT_KEYBOARD_INSET_MIN_PX = 40; // ignore sub-keyboard-sized viewport jitter (e.g. browser chrome show/hide)
 
 function setupReportKeyboardAvoidance() {
@@ -440,7 +440,7 @@ function setupReportKeyboardAvoidance() {
 
 function handleReportViewportChange() {
   if (!els.inspector) return;
-  if (state.selected?.type !== "report") {
+  if (state.selected?.type !== "report" && !state.searchScreenOpen) {
     clearReportKeyboardInset();
     return;
   }

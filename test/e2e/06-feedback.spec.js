@@ -211,12 +211,30 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await context.close();
   });
 
-  test("is scoped to the Report screen — Settings is unaffected by the simulated keyboard", async ({ page }) => {
+  test("is scoped to screens with a text input — Settings is unaffected by the simulated keyboard", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.click("#settingsToggle");
     await expect(page.locator("#settingsWalkMins")).toBeVisible();
 
     await simulateKeyboardInset(page, 260);
+    await expect(page.locator("#inspector")).not.toHaveClass(/keyboard-avoiding/);
+  });
+
+  test("also applies to the Search screen's query field", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.click("#searchToggle");
+    await expect(page.locator("#mapSearchInput")).toBeVisible();
+
+    const beforeBox = await page.locator("#mapSearchInput").boundingBox();
+    const insetPx = 260;
+    await simulateKeyboardInset(page, insetPx);
+
+    await expect(page.locator("#inspector")).toHaveClass(/keyboard-avoiding/);
+    const afterBox = await page.locator("#mapSearchInput").boundingBox();
+    expect(beforeBox.y - afterBox.y).toBeGreaterThan(insetPx - 20);
+
+    // Closing the keyboard clears the avoidance state
+    await simulateKeyboardInset(page, 0);
     await expect(page.locator("#inspector")).not.toHaveClass(/keyboard-avoiding/);
   });
 });
