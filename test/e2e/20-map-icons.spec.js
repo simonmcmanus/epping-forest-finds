@@ -11,6 +11,61 @@ test.describe("Map pins", () => {
     await setup(page);
   });
 
+  test("home artwork has transparent surroundings rather than a square background", async ({ page }) => {
+    const transparentFraction = await page.evaluate(async () => {
+      const image = new Image();
+      image.src = iconPath("home");
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 256;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0, 256, 256);
+      const pixels = ctx.getImageData(0, 0, 256, 256).data;
+      let transparent = 0;
+      for (let i = 3; i < pixels.length; i += 4) if (pixels[i] < 16) transparent++;
+      return transparent / (256 * 256);
+    });
+    expect(transparentFraction).toBeGreaterThan(0.2);
+  });
+
+  test("transport pins use a red London bus and unbadged parking artwork", async ({ page }) => {
+    const artwork = await page.evaluate(async () => {
+      const samples = {};
+      for (const slug of ["bus", "landmark-parking", "landmark-bicycle-parking"]) {
+        const image = new Image();
+        image.src = iconPath(slug);
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 256;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(image, 0, 0, 256, 256);
+        const pixels = ctx.getImageData(0, 0, 256, 256).data;
+        let red = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          if (pixels[i] > 140 && pixels[i + 1] < 90 && pixels[i + 2] < 80 && pixels[i + 3] > 200) red++;
+        }
+        // The side profile exposes several upper windows, distinguishing the
+        // two-deck bus silhouette from the previous narrow front view.
+        let upperWindows = 0;
+        let inWindow = false;
+        for (let x = 0; x < 256; x++) {
+          const i = (85 * 256 + x) * 4;
+          const cream = pixels[i] > 230 && pixels[i + 1] > 220 && pixels[i + 2] > 180 && pixels[i + 3] > 200;
+          if (cream && !inWindow) upperWindows++;
+          inWindow = cream;
+        }
+        samples[slug] = { red, upperWindows, windscreenRed: ctx.getImageData(110, 105, 1, 1).data[0], badgeAlpha: ctx.getImageData(195, 65, 1, 1).data[3] };
+      }
+      return samples;
+    });
+
+    expect(artwork.bus.red, "the double-decker has a visible heritage-red body").toBeGreaterThan(1000);
+    expect(artwork.bus.upperWindows, "the side profile exposes the upper-deck windows").toBeGreaterThanOrEqual(3);
+    expect(artwork["landmark-parking"].windscreenRed, "the cream side-profile car retains its dark window").toBeLessThan(100);
+    expect(artwork["landmark-parking"].badgeAlpha, "the car has no separate parking badge").toBe(0);
+    expect(artwork["landmark-bicycle-parking"].badgeAlpha, "the bicycle has no separate parking badge").toBe(0);
+  });
+
   test("a memorial draws the memorial artwork rather than a candle glyph", async ({ page }) => {
     const resolved = await page.evaluate(() => {
       const memorial = state.landmarks.find((place) => place.category === "memorial");

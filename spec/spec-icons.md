@@ -5,7 +5,7 @@ filter-food
 A plate with fork and knife
 
 filter-transport
-A front-facing bus
+A red London double-decker in side profile, with two rows of windows and visible wheels
 
 filter-history
 A rolled historical scroll
@@ -14,7 +14,7 @@ filter-locations
 A map pin
 
 filter-stories
-Three sparkles
+An open cream storybook with a terracotta cover and a star on its page
 
 filter-trees
 A veteran ancient oak tree with a broad canopy
@@ -23,13 +23,13 @@ filter-cows
 A grazing cow in side profile
 
 filter-waymarked-trails
-A hiking boot
+A timber waymarker post with a single arrow plaque
 
 filter-ponds-streams
-A single water droplet
+A blue woodland pool edged with a few reeds
 
 filter-pubs
-A beer mug
+A British nonic pint glass with a curved rim, tapered body and creamy head, without a handle
 
 filter-restaurants
 A plate with fork and knife
@@ -38,13 +38,13 @@ filter-cafes
 A coffee cup
 
 filter-shops
-A shopping basket
+A supermarket trolley with an open metal cart, gold handle and two wheels
 
 filter-bus
-A front-facing bus
+A red London double-decker in side profile, with two rows of windows and visible wheels
 
 filter-parking
-A parked car
+The original-style cream car in side profile, isolated without its P badge or map pin
 
 filter-historic-places
 A classical building with columns
@@ -53,10 +53,10 @@ filter-royal
 A crown
 
 filter-ww2
-A military helmet
+A British Brodie helmet, without a star or crossed weapons
 
 filter-social-history
-A woven basket
+A historical scroll
 
 filter-plaques
 A bronze wall plaque with an engraved inscription and corner fixings
@@ -68,7 +68,7 @@ filter-celebrity
 A five-point star
 
 filter-science
-A telescope
+A glass laboratory flask with golden liquid
 
 filter-education
 A graduation cap
@@ -77,13 +77,13 @@ filter-medicine
 A medical cross
 
 filter-literature
-A stack of books
+A single open book, without a map pin
 
 filter-theatre
 Comedy and tragedy masks
 
 filter-politics
-A civic building with columns
+The Elizabeth Tower clock tower
 
 filter-art
 An artist palette
@@ -92,7 +92,7 @@ filter-church
 A church with a steeple
 
 filter-legends
-Three magical sparkles
+A golden trophy cup with a single star
 
 filter-film-tv
 A film clapperboard
@@ -128,16 +128,16 @@ inspector-railway
 A railway train
 
 landmark-parking
-A parked car
+The original-style cream car in side profile, isolated without its P badge or map pin
 
 landmark-bicycle-parking
-A bicycle with the P badge the car-park icon carries
+A single bicycle, without a P badge
 
 landmark-bench
 A park bench
 
 landmark-toilets
-A public toilet facility
+A single cream toilet in side view, without a building or extra signage
 
 landmark-drinking-water
 A water tap
@@ -167,7 +167,7 @@ landmark-viewpoint
 A spotting telescope on a tripod
 
 landmark-taxi
-A taxi cab
+A London black cab in side view, with a squared passenger cabin and distinct bonnet
 
 landmark-telephone
 A K6 telephone box
@@ -237,10 +237,48 @@ A single field maple leaf with five compact lobes
 
 tree-ash
 A single ash compound leaf with paired leaflets
+## UK setting and small-size legibility
+
+Map artwork uses one recognisable subject, with no additional location pins,
+parking badges or decorative props. Bus, pub, taxi and WWII artwork uses a
+London double-decker, British nonic pint glass, London black cab and Brodie
+helmet respectively. Parking uses a car; bicycle parking uses a bicycle;
+medical sites use a single cross; literature uses an open book; campsites use
+the original tent artwork. Keep the forest-green outlines and house palette, using heritage red
+for the bus. Illustrated subjects share restrained shading, cream highlights
+and forest-green outlines. The cab uses a recognisable side silhouette; the
+pint has glass highlights and a curved creamy head. Toilets use a single
+toilet silhouette rather than a detailed building. Every map icon has a
+transparent background, with no opaque square or baked-in checkerboard.
+Check silhouettes at map size as well as the 256px original.
+The remaining map artwork was reviewed: UK rail symbols, the K6 telephone
+box, heritage buildings, local nature and generic facilities retain their
+existing subjects.
+
+## App-wide illustration style
+
+Place, filter and navigation illustrations share forest-green contours,
+soft cream highlights and gentle dimensional shading. Use warm gold and tan,
+terracotta, natural greens and water blue to distinguish subjects without
+adding decorative objects. Food and restaurant icons share the same plate
+artwork; the campsite filter reuses the original tent silhouette. The home
+icon is an isolated cream lodge with a sage roof and transparent surroundings.
+Tree-species leaves retain their distinct outlines and veins, with tonal
+greens; the cow has English Longhorn horns curving down beside its face.
+
+The rail symbols, medical cross, tick, walking figure, inline search/back
+controls and brand location mark retain their familiar simple shapes. Launcher
+tiles keep their separate platform backgrounds. All registered in-app PNG
+icons have transparent space around the artwork; check them at 28px as well
+as at full size. `data/icons/src/prompts.json` records the built-in ImageGen
+prompts for the app-wide illustration pass.
+
 ## Drawing an icon
 
-`data/icons/src/*.svg` is the editable original for every icon added since the
-set was first drawn; the PNGs beside them in `data/icons/` are build output.
+`data/icons/src/` holds SVG or transparent PNG masters, with exactly one
+source per icon. The 256px PNGs in `data/icons/` are committed build output.
+Raster masters retain the approved illustrations; the generator fits their
+visible artwork to a consistent 0.48 content radius while preserving alpha.
 `npm run gen:icons` (`scripts/generate-map-icons.js`) rasterises the sources to
 256x256 through headless Chromium, and takes a name fragment to do one at a
 time. `data/icons/src/_palette.md` holds the house palette, sampled from the

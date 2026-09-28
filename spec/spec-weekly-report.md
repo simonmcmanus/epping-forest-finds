@@ -290,7 +290,7 @@ is indexable. Both generators run from `npm run build`.
 
 The listing wears the homepage's look (palette, Fraunces and Public Sans, cards)
 with its styles inlined, loading only the oak leaf and Ledger icon from
-`assets/home/` and nothing from the app. It has the homepage's brand header
+`assets/home/` (including the shaded `ledger.png`) and nothing from the app. It has the homepage's brand header
 (linking to `/`, with a "Get updates" link to `/#signup`), a dark-green hero
 with the "Field notes · Published weekly" eyebrow, then **Every edition**: one
 white card of rows, each reading "Epping Forest Ledger" over the week's date,
@@ -320,7 +320,10 @@ final full-width row for features that are always shown and have no filter of th
 own (gates, benches, toilets and similar). Each group heading and subcategory
 carries the same icon used by the app; group icons are larger to make the
 hierarchy clear. Those icons are resized and embedded in the report HTML so the
-inventory keeps its meaning when the report is saved or forwarded.
+inventory keeps its meaning when the report is saved or forwarded. When app
+icon artwork changes, regenerate or update the published report embeds in the
+same release so the homepage, ledger and map share the same transparent,
+shaded icon style.
 The public homepage uses this same card format and grouping.
 
 Rules:
