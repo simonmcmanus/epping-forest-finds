@@ -1240,8 +1240,12 @@ function buildSuperClusters(taggedGroups) {
   return superClusters;
 }
 
+// Smaller than the badge's real on-screen reach (megaClusterOuterRadius) on purpose: this is
+// just the gold "sun" at the centre, with the chip ring and its own containing border (see
+// drawMegaBadge) doing the rest of the footprint. A bigger inner circle here left nothing for
+// that outer border to actually contain -- it does the same job.
 function megaClusterRadius(totalItems, dpr) {
-  return clamp(16 * dpr + Math.sqrt(totalItems) * 2.6 * dpr, 18 * dpr, 34 * dpr);
+  return clamp(11 * dpr + Math.sqrt(totalItems) * 2 * dpr, 13 * dpr, 26 * dpr);
 }
 
 // The icon chip radius drawMegaBadge places around the rim -- pulled out so the hit-test in
@@ -1411,6 +1415,17 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
     const { key, x, y } = positioned[i];
     drawMegaClusterIconChip(ctx, x, y, byTypeIconSrc.get(key), chipR);
   }
+
+  // One border for the whole badge, sized to actually contain the chips (R + chipR, the same
+  // reach megaClusterOuterRadius already uses for hit-testing and off-screen culling) rather
+  // than just the inner gold circle they sit half outside of. Thick and semi-opaque -- a hint
+  // that everything inside belongs together, not a hard edge -- drawn last so it frames the
+  // chips instead of sitting under them.
+  ctx.beginPath();
+  ctx.arc(cx, cy, R + chipR, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(154, 106, 47, 0.55)";
+  ctx.lineWidth = 3 * dpr;
+  ctx.stroke();
   ctx.restore();
 }
 
