@@ -1358,16 +1358,20 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
 //
 // Radial, centred on the badge and brightest there, fading toward the rim rather than filling
 // flat to a hard edge -- a mega badge stands for a rough area several items share, not one exact
-// spot, so it reads more like a soft patch of light (think a sun) than a coin with a rim. No
-// border is drawn around it at all: a crisp white ring plus a coloured ring on every chip around
-// it was exactly the layered-borders clutter the badge exists to cut down on.
+// spot, so it reads more like a soft patch of light (think a sun) than a coin with a rim. This is
+// the *inner* circle's own fill only (see drawMegaBadge) -- the outer, chip-containing disc has
+// its own flat, paler fill, so the badge reads as two concentric zones rather than one shape plus
+// a stroke drawn round it: no ring is stroked around either circle or around any chip -- a crisp
+// white ring plus a coloured ring on every chip was exactly the layered-borders clutter the badge
+// exists to cut down on.
 //
 // Contained entirely within R -- a first version also drew a second, wider and fainter halo
 // past R to carry the softness further out, but at the spacing two nearby badges actually sit
 // (or a badge next to a full-size selected pin), that halo's own translucent circle overlapped
 // the next thing over and read as a muddy smudge rather than a soft edge. The gradient alone,
-// stopping at the badge's real radius, keeps the "soft area, not a hard dot" read without
-// reaching into whatever is next to it.
+// stopping at the inner circle's own radius, keeps the "soft area, not a hard dot" read without
+// reaching into whatever is next to it -- the outer disc (below) picks the containment job back
+// up at a scale that does fit the badge's real footprint.
 function megaClusterBadgeFill(ctx, cx, cy, R) {
   const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
   gradient.addColorStop(0, "rgba(247, 210, 128, 0.97)");
@@ -1378,7 +1382,20 @@ function megaClusterBadgeFill(ctx, cx, cy, R) {
 
 function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   const R = megaClusterRadius(totalItems, dpr);
+  const chipR = megaClusterChipRadius(R, dpr);
+  const outerR = R + chipR;
   ctx.save();
+
+  // Two circles, not a circle plus a separate border: a paler, semi-opaque outer disc sized to
+  // actually contain the chip ring (outerR, the same reach megaClusterOuterRadius already uses
+  // for hit-testing and culling), with the smaller, fully-opaque inner circle -- the same radial
+  // "sun" gradient as before -- sitting on top of it holding just the count. The two golds read
+  // as one badge with an inner and an outer zone, not a filled shape plus a stroke drawn round it.
+  ctx.beginPath();
+  ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(232, 184, 96, 0.38)";
+  ctx.fill();
+
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
   ctx.fillStyle = megaClusterBadgeFill(ctx, cx, cy, R);
@@ -1391,12 +1408,10 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   ctx.fillStyle = "#3a2c10";
   ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
 
-  // Chips sit centred *on* the badge's own rim -- half inside, half outside -- rather than
-  // floating fully outside it on their own separate ring. That keeps the whole badge's on-screen
-  // footprint close to the centre circle's own size instead of ~3x it, the footprint being
-  // exactly what made a handful of these look cluttered at a glance.
+  // Chips sit centred *on* the inner circle's own rim -- half inside, half outside -- and
+  // reach exactly to outerR, so they land inside the pale outer disc above rather than
+  // floating past it.
   const types = Array.from(byType.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, MEGA_CLUSTER_MAX_CHIPS);
-  const chipR = megaClusterChipRadius(R, dpr);
   const ringR = R;
   const n = types.length;
   // Position every chip first, then draw largest-group-first last (so it paints on top of its
@@ -1415,17 +1430,6 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
     const { key, x, y } = positioned[i];
     drawMegaClusterIconChip(ctx, x, y, byTypeIconSrc.get(key), chipR);
   }
-
-  // One border for the whole badge, sized to actually contain the chips (R + chipR, the same
-  // reach megaClusterOuterRadius already uses for hit-testing and off-screen culling) rather
-  // than just the inner gold circle they sit half outside of. Thick and semi-opaque -- a hint
-  // that everything inside belongs together, not a hard edge -- drawn last so it frames the
-  // chips instead of sitting under them.
-  ctx.beginPath();
-  ctx.arc(cx, cy, R + chipR, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(154, 106, 47, 0.55)";
-  ctx.lineWidth = 3 * dpr;
-  ctx.stroke();
   ctx.restore();
 }
 
