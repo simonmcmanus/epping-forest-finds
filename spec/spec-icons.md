@@ -38,7 +38,7 @@ filter-cafes
 A coffee cup
 
 filter-shops
-A shopping basket
+A supermarket trolley with an open metal cart, gold handle and two wheels
 
 filter-bus
 A red London double-decker in side profile, with two rows of windows and visible wheels

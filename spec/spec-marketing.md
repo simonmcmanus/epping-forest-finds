@@ -252,7 +252,7 @@ Sections, in order:
 5. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
    left border accent using the app icon's gold (`#f3d36b`), matching the
    Ledger card's accent placement. A 52px envelope icon
-   (`assets/home/mail.svg`, cream fill with dark-green outline, in the style of
+   (`assets/home/mail.png`, shaded cream and gold with dark-green outline, in the style of
    the homepage map pin), 44px, sits on the heading's line, vertically centred
    on it, never on a line of its own. The eyebrow runs above, its left edge
    flush with the icon. The layout is tight: email field and button share one row on wide
@@ -276,7 +276,7 @@ Sections, in order:
    on wide screens the question sits in a left column beside its answer.
 8. **From the Ledger** — the last section before the footer, after the FAQ: an
    inset editorial card matching the sign-up card's layout: responsive padding, a green left border and shadow, the “Round the forest · Every week”
-   eyebrow above a 44px newspaper icon (`assets/home/ledger.svg`, same style as
+   eyebrow above a 44px newspaper icon (`assets/home/ledger.png`, same style as
    the envelope) centred beside the heading, aligned like the sign-up card, and a solid green "Read the Ledger →"
    button linking to `/reports/` (§6.4).
    The index carries individual reports; the homepage remains static.
@@ -287,6 +287,12 @@ Sections, in order:
    reports index (`scripts/generate-reports-index.js`) uses the same footer copy.
 
 ### 5.1 Page weight and assets
+
+The email, Ledger and tree-tag illustrations use transparent PNGs with gentle
+shading and forest-green contours. The tree-tag section heading carries a
+numbered metal-tag icon based on the adjacent photograph; the photograph stays
+as the real-world example. Their masters and prompts live in
+`assets/home/icon-sources/`. The reports index reuses the Ledger PNG.
 
 - Homepage CSS, JavaScript and images live together in `assets/home/`.
   `index.html` references only that directory for local runtime assets. Brand

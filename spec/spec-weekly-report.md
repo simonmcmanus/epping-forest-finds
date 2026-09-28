@@ -290,7 +290,7 @@ is indexable. Both generators run from `npm run build`.
 
 The listing wears the homepage's look (palette, Fraunces and Public Sans, cards)
 with its styles inlined, loading only the oak leaf and Ledger icon from
-`assets/home/` and nothing from the app. It has the homepage's brand header
+`assets/home/` (including the shaded `ledger.png`) and nothing from the app. It has the homepage's brand header
 (linking to `/`, with a "Get updates" link to `/#signup`), a dark-green hero
 with the "Field notes · Published weekly" eyebrow, then **Every edition**: one
 white card of rows, each reading "Epping Forest Ledger" over the week's date,

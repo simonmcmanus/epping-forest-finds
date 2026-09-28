@@ -16,7 +16,7 @@
     },
     {
       "name": "shop",
-      "prompt": "Use case: stylized-concept. Create one professional small app icon: one woven warm tan shopping basket with two sage handles, no contents or extra objects. Reference image is STYLE ONLY; do not depict a taxi. Match its polished hand-illustrated dimensional shading, deep forest-green contours, soft cream highlights and restrained colour. More colourful than flat monochrome, using sage, warm gold, cream, natural terracotta and blue where appropriate. Bold readable silhouette at 28px, minimal interior details, no extra props, no text. Square canvas, artwork centered with ample transparent margin. Genuine transparent alpha background: no backdrop, no checkerboard, no ground shadow. Single icon only."
+      "prompt": "Create one shopping TROLLEY icon for a UK forest discovery app, matching the reference's illustrated style only. A recognisable supermarket trolley in side view: sage grey metal open wire cart with just three broad grid divisions, warm gold handle, two distinct small wheels, deep forest-green outline, cream highlights and gentle dimensional shading. No groceries, no woven material, no bags or other props. Readable at 28 pixels. Single centered isolated object with ample margins on square canvas. Genuine transparent alpha background, no checkerboard, no backdrop or cast ground shadow."
     },
     {
       "name": "science",

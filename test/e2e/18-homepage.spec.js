@@ -177,10 +177,11 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates once the site launches");
     await expect(page.locator(".consent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
     await expect(page.locator(".signup + .offline-how + .faq + .ledger")).toHaveCount(1);
-    await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.svg");
-    await expect(page.locator(".ledger .card-icon")).toHaveAttribute("src", "assets/home/ledger.svg");
+    await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.png");
+    await expect(page.locator(".ledger .card-icon")).toHaveAttribute("src", "assets/home/ledger.png");
+    await expect(page.locator(".tag-copy .card-icon")).toHaveAttribute("src", "assets/home/tree-tag.png");
     // The eyebrow sits above, flush with the icon; the icon is centred on the title beside it.
-    const iconAlignment = await page.locator(".card-head").evaluateAll(heads => heads.map(head => {
+    const iconAlignment = await page.locator(".signup .card-head, .ledger .card-head").evaluateAll(heads => heads.map(head => {
       const icon = head.querySelector(".card-icon").getBoundingClientRect();
       const heading = head.querySelector("h2").getBoundingClientRect();
       const eyebrow = head.previousElementSibling.getBoundingClientRect();

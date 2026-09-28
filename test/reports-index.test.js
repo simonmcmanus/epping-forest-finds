@@ -116,7 +116,7 @@ test("the listing wears the homepage's look: brand header, green hero and card l
   const html = buildIndexHtml([{ name: "epping-forest-ledger-2026-09-14.html", size: 1, mtimeMs: 0 }]);
   assert.match(html, /<a class="brand" href="\/">/);
   assert.match(html, /src="\/assets\/home\/map-icons\/oak\.png"/);
-  assert.match(html, /src="\/assets\/home\/ledger\.svg"/);
+  assert.match(html, /src="\/assets\/home\/ledger\.png"/);
   assert.match(html, /--tree-deep: #1d4a2f/);
   assert.doesNotMatch(html, /\/(js|css)\//, "never loads the app's code or styles");
   assert.match(html, /href="\/#signup"/);

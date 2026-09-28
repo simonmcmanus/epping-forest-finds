@@ -221,7 +221,7 @@ function buildIndexHtml(files) {
 </header>
 <main>
   <section class="hero">
-    <p class="eyebrow"><img src="/assets/home/ledger.svg" alt="" width="34" height="34">Field notes · Published weekly</p>
+    <p class="eyebrow"><img src="/assets/home/ledger.png" alt="" width="34" height="34">Field notes · Published weekly</p>
     <h1>Epping Forest Ledger</h1>
     <p class="subtitle">${escapeHtml(INDEX_DESCRIPTION)}</p>
   </section>
