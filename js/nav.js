@@ -944,7 +944,17 @@ function focusNearbyOnClusterGroup(cluster) {
   state.outOfRadiusRevealFilters = [];
   state.clusterExpanded = null;
   state.clusterZoomed = false;
-  refreshNearbyRadiusView({ animate: true });
+  // animate: false, matching setNearbyAnchor -- the origin-transition slide started above is
+  // the whole animation here, not a separate one to layer on top of it. Passing animate: true
+  // would additionally start an animateViewportTo tween toward a *fixed* target snapshotted
+  // this instant, while prepareCanvasForDraw keeps directly force-writing state.viewport every
+  // real frame for the *duration* of the slide (see its state.nearbyOriginTransition branch) --
+  // two writers on the same fields, each unaware of the other, is what "not animating smoothly"
+  // actually was: whichever one last wrote a frame won it, so the camera arrived in one or two
+  // visible jumps instead of easing. The slide alone already blends both the pan (the origin
+  // itself interpolates) and, since this always flips state.nearbyAnchor from unset to set on a
+  // first cluster tap, the zoom too (maxNearbyHeadingUpScale's fromBrowsing/browsing blend).
+  refreshNearbyRadiusView({ animate: false });
   syncSettingsWalkSlider();
   return true;
 }
