@@ -1534,7 +1534,17 @@ function drawMegaBadgeCountPin(ctx, tipX, tipY, R, totalItems, dpr) {
 // the top of -- looking adrift from the badge rather than part of it.
 // Outside tilt the whole badge -- both discs, the count, and the chips -- draws exactly as
 // before: plain circles and text at cx/cy, no transform, no pointer.
-function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, groundCenterFlat) {
+//
+// pinScale (default 1) applies only to the upright count pin drawn under tilt, never to the
+// disc or the chips: `dpr` alone drives every geometry size below (R, chipR, ringR, outerR),
+// matching the plain `pixelRatio()` findClusterHit (js/inspector.js) already hit-tests and
+// culls against, so the disc's size depends only on the badge's item count, never on where it
+// sits relative to the user's heading. The pointer is the one part of the badge allowed to
+// shrink as it swings behind the user (tiltPinScale, the same near-heading collapse every other
+// pin already gets) so it stops obscuring pins ahead of it -- the disc itself is an area
+// indicator ("this cluster covers roughly this much ground") and has no business changing size
+// just because the badge happens to be behind you at the moment.
+function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, groundCenterFlat, pinScale = 1) {
   const R = megaClusterRadius(totalItems, dpr);
   const chipR = megaClusterChipRadius(R, dpr);
   const ringR = megaClusterChipRingRadius(R, chipR);
@@ -1567,7 +1577,7 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
     ctx.fillStyle = "#3a2c10";
     ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
   } else {
-    drawMegaBadgeCountPin(ctx, cx, cy, R, totalItems, dpr);
+    drawMegaBadgeCountPin(ctx, cx, cy, R * pinScale, totalItems, dpr * pinScale);
   }
 
   // Icon chips are small artwork, not text -- unlike the count they read fine lying flat on the
@@ -1604,8 +1614,25 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
   const noOverlapStep = ringR > 0 ? 2 * Math.asin(Math.min(1, chipR / ringR)) : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
   const step = noOverlapStep * (n - 1) <= Math.PI * 2 ? noOverlapStep : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
   const arcSpan = step * (n - 1);
+  // Under tilt, a chip's position (never its own artwork -- that stays a plain undistorted
+  // icon) is worked out on the *ground* plane, at the same ringR distance from
+  // groundCenterFlat the disc's own points are, and only then projected with
+  // tiltProjectScreenPoint -- exactly how the disc's boundary itself is built
+  // (traceGroundCirclePath). Offsetting the already-projected `cx`/`cy` by `ringR` in plain
+  // screen space (the flat-map approach, reused here first) instead traces a circle in screen
+  // space while the disc under it is a foreshortened ellipse, so a chip positioned that way
+  // could land outside the ellipse's actual edge even though the same `ringR` comfortably fits
+  // inside the disc on the flat map -- exactly the "not sitting on the circle" gap a screenshot
+  // showed under real tilt.
   const positioned = types.map(([key, info], i) => {
     const angle = (Math.PI / 2 - arcSpan / 2) + i * step;
+    if (groundCenterFlat) {
+      const p = tiltProjectScreenPoint({
+        x: groundCenterFlat.x + Math.cos(angle) * ringR,
+        y: groundCenterFlat.y + Math.sin(angle) * ringR,
+      });
+      return { key, info, x: p.x, y: p.y };
+    }
     return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
   });
   for (let i = positioned.length - 1; i >= 0; i--) {
@@ -2326,7 +2353,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const groundCenterFlat = tiltActive() ? worldToScreenFlat(worldPt) : null;
     calls.push({ y: cy, fn(c) {
       c.globalAlpha = reveal;
-      drawMegaBadge(c, cx, cy, badgeCount, byType, byTypeIconSrc, dpr * pinScale, groundCenterFlat);
+      drawMegaBadge(c, cx, cy, badgeCount, byType, byTypeIconSrc, dpr, groundCenterFlat, pinScale);
     }});
   }
 
