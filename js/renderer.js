@@ -1109,6 +1109,41 @@ function drawLayer(ctx, layer) {
   ctx.restore();
 }
 
+// Buckets points into cells the size of the clustering radius, so a neighbour search only has to
+// look at the 3x3 block of cells around a point instead of every other point on the map. A cell
+// edge equal to the radius guarantees that: two points within `radius` of each other can never be
+// more than one cell apart on either axis, so the 3x3 block never misses a real neighbour. This is
+// what turns clustering from an all-pairs O(n^2) scan into one bounded by how many points actually
+// land near each other -- the difference that matters once a fully zoomed-out view puts every item
+// in the forest on screen (and therefore "eligible") at once, redone on every animation frame of a
+// pan or zoom.
+function buildScreenPointGrid(points, cellSize, screenPointOf) {
+  const grid = new Map();
+  for (const point of points) {
+    const { x, y } = screenPointOf(point);
+    const key = `${Math.floor(x / cellSize)},${Math.floor(y / cellSize)}`;
+    let bucket = grid.get(key);
+    if (!bucket) {
+      bucket = [];
+      grid.set(key, bucket);
+    }
+    bucket.push(point);
+  }
+  return grid;
+}
+
+function forEachNearbyGridPoint(grid, cellSize, screenPointOf, origin, visit) {
+  const cx = Math.floor(origin.x / cellSize);
+  const cy = Math.floor(origin.y / cellSize);
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      const bucket = grid.get(`${cx + dx},${cy + dy}`);
+      if (!bucket) continue;
+      for (const point of bucket) visit(point);
+    }
+  }
+}
+
 function buildTypeClusters(itemSet, toScreen) {
   const dpr = pixelRatio();
   const clusterRadius = 30 * dpr * (MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF);
@@ -1118,18 +1153,26 @@ function buildTypeClusters(itemSet, toScreen) {
   const eligible = [];
   for (const item of (itemSet || [])) {
     if (!item.point) continue;
-    eligible.push({ item, sp: toScreen(item.point) });
+    eligible.push({ item, sp: toScreen(item.point), idx: eligible.length });
   }
+  if (!eligible.length) return clusters;
+
+  const grid = buildScreenPointGrid(eligible, clusterRadius, (p) => p.sp);
 
   for (const first of eligible) {
     if (assigned.has(first.item)) continue;
     const members = [];
-    for (const other of eligible) {
-      if (assigned.has(other.item)) continue;
+    forEachNearbyGridPoint(grid, clusterRadius, (p) => p.sp, first.sp, (other) => {
+      if (assigned.has(other.item)) return;
       if (Math.hypot(first.sp.x - other.sp.x, first.sp.y - other.sp.y) < clusterRadius) {
         members.push(other);
       }
-    }
+    });
+    // The grid visits its 9 cells in a fixed order, not the original eligible-array order that
+    // the old all-pairs scan produced (and that cluster.items[0] consumers -- see
+    // megaClusterMemberIconSrc/megaClusterDisplayKey -- rely on for a stable representative
+    // item). Restoring that order is one cheap sort over a small member list.
+    members.sort((a, b) => a.idx - b.idx);
     for (const m of members) assigned.add(m.item);
     const sx = members.reduce((s, m) => s + m.sp.x, 0) / members.length;
     const sy = members.reduce((s, m) => s + m.sp.y, 0) / members.length;
@@ -1215,8 +1258,10 @@ function buildSuperClusters(taggedGroups) {
   const radius = MEGA_CLUSTER_MERGE_RADIUS_CSS_PX * dpr * (MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF);
   const nodes = [];
   for (const { itemType, clusters } of taggedGroups) {
-    for (const cluster of clusters) nodes.push({ itemType, cluster });
+    for (const cluster of clusters) nodes.push({ itemType, cluster, idx: nodes.length });
   }
+  if (!nodes.length) return [];
+  const grid = buildScreenPointGrid(nodes, radius, (n) => n.cluster.screenPt);
   const assigned = new Set();
   const superClusters = [];
   for (const first of nodes) {
@@ -1227,12 +1272,20 @@ function buildSuperClusters(taggedGroups) {
     // even when A and C themselves are too far apart to merge directly.
     for (let i = 0; i < members.length; i++) {
       const m = members[i];
-      for (const other of nodes) {
-        if (assigned.has(other)) continue;
+      const found = [];
+      forEachNearbyGridPoint(grid, radius, (n) => n.cluster.screenPt, m.cluster.screenPt, (other) => {
+        if (assigned.has(other)) return;
         if (Math.hypot(m.cluster.screenPt.x - other.cluster.screenPt.x, m.cluster.screenPt.y - other.cluster.screenPt.y) < radius) {
-          members.push(other);
-          assigned.add(other);
+          found.push(other);
         }
+      });
+      // Same order restoration as buildTypeClusters -- a grid scan of the 9 nearby cells doesn't
+      // come out in the original nodes-array order that consumers keying off first-occurrence
+      // (the byTypeIconSrc/byDisplayKey maps in drawMegaClusters) depend on.
+      found.sort((a, b) => a.idx - b.idx);
+      for (const other of found) {
+        members.push(other);
+        assigned.add(other);
       }
     }
     superClusters.push(members);
