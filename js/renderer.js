@@ -26,6 +26,12 @@ let _overlayWasTilted = false;
 const SELECTED_PULSE_REDRAW_INTERVAL_MS = 50;
 let _selectedPulseTimer = null;
 
+// Same throttled-redraw pattern as the selection pulse above, for the hovered mega badge's chip
+// bob (drawMegaBadge) -- a much slower, gentler motion (MEGA_CLUSTER_HOVER_BOB_PERIOD_MS, 1400ms)
+// so it does not need anywhere near a 50ms redraw interval to look smooth.
+const MEGA_HOVER_PULSE_REDRAW_INTERVAL_MS = 80;
+let _megaHoverPulseTimer = null;
+
 function getMapImage(src) {
   if (!mapImageCache.has(src)) {
     const img = new Image();
@@ -237,6 +243,15 @@ function draw() {
   if (state.selected && ["road", "path"].includes(state.selected.type)) {
     clearTimeout(_selectedPulseTimer);
     _selectedPulseTimer = setTimeout(requestDraw, SELECTED_PULSE_REDRAW_INTERVAL_MS);
+  }
+
+  // Keeps the hovered mega badge's chip-bob animation (drawMegaBadge) actually animating: a
+  // single requestDraw() only paints the current instant of the sine wave once, same as the
+  // selection pulse above -- without this the chips would nudge to wherever the wave happened to
+  // be on the one frame the hover started and then sit still there.
+  if (state.hoveredMegaBadgeCenter) {
+    clearTimeout(_megaHoverPulseTimer);
+    _megaHoverPulseTimer = setTimeout(requestDraw, MEGA_HOVER_PULSE_REDRAW_INTERVAL_MS);
   }
 
   if (typeof postDraw === "function") postDraw();
@@ -1244,7 +1259,7 @@ function buildSuperClusters(taggedGroups) {
 // just the solid centre circle holding the count, with the outer disc and the chip ring around
 // it (see drawMegaBadge) doing the rest of the footprint.
 function megaClusterRadius(totalItems, dpr) {
-  return clamp(9 * dpr + Math.sqrt(totalItems) * 1.7 * dpr, 11 * dpr, 22 * dpr);
+  return clamp(12 * dpr + Math.sqrt(totalItems) * 2 * dpr, 15 * dpr, 26 * dpr);
 }
 
 // The icon chip radius drawMegaBadge places around the rim -- pulled out so the hit-test in
@@ -1286,7 +1301,7 @@ function megaClusterChipRingRadius(R, chipR) {
 // out of" the disc rather than sitting inside it. This margin is part of the badge's real
 // on-screen reach (used below by both the drawn disc and the hit-test/cull radius), not a purely
 // cosmetic overdraw, so tapping the badge's outer edge and the badge's visual edge always agree.
-const MEGA_CLUSTER_OUTER_DISC_PADDING = 1.22;
+const MEGA_CLUSTER_OUTER_DISC_PADDING = 1.06;
 
 // The full on-screen reach of a mega badge, centre circle plus the chip ring around its rim (and
 // the padding above) -- i.e. how far out a tap or an off-screen check needs to look, not just
@@ -1386,11 +1401,21 @@ const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.88)";
 
 // Desktop-only hover affordance (state.hoveredMegaBadgeCenter, set by the pointermove handler in
 // setupMapHoverHandlers, js/nav.js -- touch never sets it, since touch has no hover). A cursor
-// change alone is easy to miss on a shape this custom; scaling the whole badge up a little and
-// brightening the outer disc's tint reads as "this responds to you" the way a real button's own
-// hover state would, without needing a border or an outline this design has otherwise dropped.
+// change alone is easy to miss on a shape this custom, so hovering also scales the whole badge up
+// a little (reads as "this responds to you" the way a real button's own hover state would) and
+// sets each chip gently bobbing in and out along its own spoke -- a first version instead
+// brightened the outer disc's tint on hover, which read as a colour swap rather than something
+// alive responding to the pointer; nudging the icons themselves is the more legible version of
+// the same idea. MEGA_CLUSTER_HOVER_BOB_PERIOD_MS is deliberately slower and gentler than
+// SELECTED_OVERLAY_PULSE_PERIOD_MS's selection pulse (380ms) -- this is an ambient "still there,
+// still listening" motion, not an urgent one, and each chip's own phase offset (i * a fixed
+// stagger) keeps them bobbing out of sync with each other rather than as one rigid unit.
 const MEGA_CLUSTER_HOVER_SCALE = 1.08;
-const MEGA_CLUSTER_HOVER_OUTER_COLOR = "rgba(232, 174, 78, 0.95)";
+const MEGA_CLUSTER_HOVER_BOB_PERIOD_MS = 1400;
+const MEGA_CLUSTER_HOVER_BOB_CHIP_STAGGER = 0.6;
+// How far a chip bobs, as a fraction of its own radius -- subtle on purpose, a nudge rather than
+// a wobble.
+const MEGA_CLUSTER_HOVER_BOB_AMPLITUDE_RATIO = 0.16;
 
 function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, hovered) {
   const scale = hovered ? MEGA_CLUSTER_HOVER_SCALE : 1;
@@ -1413,7 +1438,7 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, hove
   // zone, not a filled shape plus a stroke drawn round it.
   ctx.beginPath();
   ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-  ctx.fillStyle = hovered ? MEGA_CLUSTER_HOVER_OUTER_COLOR : MEGA_CLUSTER_OUTER_COLOR;
+  ctx.fillStyle = MEGA_CLUSTER_OUTER_COLOR;
   ctx.fill();
 
   ctx.beginPath();
@@ -1452,9 +1477,19 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, hove
   const noOverlapStep = ringR > 0 ? 2 * Math.asin(Math.min(1, chipR / ringR)) : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
   const step = noOverlapStep * (n - 1) <= Math.PI * 2 ? noOverlapStep : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
   const arcSpan = step * (n - 1);
+  if (_animationStartTime === null) _animationStartTime = performance.now();
+  const bobElapsed = performance.now() - _animationStartTime;
   const positioned = types.map(([key, info], i) => {
     const angle = (Math.PI / 2 - arcSpan / 2) + i * step;
-    return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
+    // Each chip bobs in and out along its own spoke (not sideways -- that would read as jitter
+    // rather than a deliberate nudge), phase-staggered per chip so they move as a loose group,
+    // not one rigid unit.
+    const bob = hovered
+      ? Math.sin((bobElapsed / MEGA_CLUSTER_HOVER_BOB_PERIOD_MS) * Math.PI * 2 + i * MEGA_CLUSTER_HOVER_BOB_CHIP_STAGGER)
+        * chipR * MEGA_CLUSTER_HOVER_BOB_AMPLITUDE_RATIO
+      : 0;
+    const r = ringR + bob;
+    return { key, info, x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
   });
   for (let i = positioned.length - 1; i >= 0; i--) {
     const { key, x, y } = positioned[i];
