@@ -531,14 +531,27 @@ moving the real GPS fix:
   above) — spreading fingers apart shrinks the radius (zoom in), pinching together grows it
   (zoom out), tracking the pinch distance ratio from where the gesture started. Each pointermove
   applies its raw value directly, so the ring tracks the gesture with no perceptible snap; only
-  the displayed label rounds, to the nearest whole minute. Each real change re-renders the
-  nearest list and re-fits the camera via the same path a Settings radius change uses
-  (`refreshNearbyRadiusView`, `animate:false` mid-gesture so intermediate fits don't queue an
-  animation each tick; the gesture's end re-runs it once more with the default `animate:true`
-  for a smooth settle; and `refreshNearbyRadiusView` deliberately skips `selectOverview()` on a
-  secondary screen so resizing from Settings doesn't throw that screen's own content away). Pinch
-  is ignored over a real selection, which replaces the map view entirely, and cancels/ignores any
-  in-progress single-finger drag.
+  the displayed label rounds, to the nearest whole minute.
+  `applyWalkingRadiusGesture` (`js/nav.js`) splits what a tick actually does by cost. The ring's
+  value and an instant (`animate:false`), unanimated camera re-fit (`ensureOverviewTargetsVisible`)
+  run on **every** tick — canvas-only work, cheap regardless of frequency now that clustering is
+  O(n) rather than all-pairs (see "Clustering" below) — so the ring and the camera framing it both
+  track the gesture at full pointer rate. The Nearby list's own HTML re-render (`selectOverview`)
+  and the nearest-item rescan (`refreshNearestTreeForNearbyOrigin`) are not cheap, and a pinch or
+  trackpad pinch can fire many pointermove events inside one animation frame — rebuilding the list
+  on every one of them (rather than the coarse value-grid steps this used to be rounded to, which
+  throttled it as a side effect) is what made zooming out feel jittery once the radius stopped
+  snapping to that grid. So that part alone is coalesced to at most once per animation frame (the
+  same `requestAnimationFrame`-coalescing pattern the inspector drag handle uses for
+  `recentreMapForInspectorChange`): the list and nearest tree catch up a frame behind the ring
+  rather than being rebuilt on every tick and falling behind the input. The gesture's end
+  (`endNearbyRadiusPinch`/`endNearbyRadiusWheel`/`endNearbyRadiusGesture`) cancels any
+  still-pending coalesced list refresh (`cancelPendingRadiusGestureRefresh`) and runs the full
+  `refreshNearbyRadiusView` once more itself, with the default `animate:true` for a smooth camera
+  settle — mirroring the single animated re-fit a Settings-slider release triggers, and
+  deliberately skipping `selectOverview()` on a secondary screen so resizing from Settings doesn't
+  throw that screen's own content away. Pinch is ignored over a real selection, which replaces the
+  map view entirely, and cancels/ignores any in-progress single-finger drag.
   Releasing either finger of a **multi-touch** gesture never registers as a map tap
   (`state.multiTouchOccurred`, set as soon as a second pointer goes down and cleared only once
   every finger is off the glass) — that holds even where the radius pinch itself is ignored,

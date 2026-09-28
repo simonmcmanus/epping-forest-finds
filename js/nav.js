@@ -1160,6 +1160,31 @@ function updateNearbyRadiusPinch() {
 // index.html) rather than the radius silently refusing to shrink further. The applied value stays
 // continuous -- no snapping to a value grid -- so the ring tracks the gesture smoothly; only the
 // displayed label (formatWalkingRadius) rounds to a whole minute.
+//
+// The ring and the camera framing it (state.walkingDistanceMinutes plus an instant, unanimated
+// ensureOverviewTargetsVisible) are updated on every call, so both track the gesture at full
+// pointer rate -- canvas-only work, cheap regardless of how often it happens, now that clustering
+// is O(n) rather than all-pairs (see buildScreenPointGrid, js/renderer.js). What is not cheap is
+// the Nearby list's own HTML re-render and the nearest-item rescan (selectOverview,
+// refreshNearestTreeForNearbyOrigin) -- a pinch or trackpad pinch can fire many pointermove events
+// inside a single animation frame, and rebuilding the list on every one of them (rather than the
+// coarse value-grid steps this used to be rounded to, which throttled it as a side effect) is what
+// made zooming out feel jittery once the radius stopped snapping. So only that part is coalesced,
+// to at most once per animation frame (the same pattern the inspector drag handle uses for
+// recentreMapForInspectorChange, above): the ring and camera keep moving smoothly under the finger
+// every tick, and the list catches up a frame behind rather than being rebuilt on every one of
+// them and falling behind the input instead.
+let _radiusGestureListRefreshFrame = null;
+
+// Called by every gesture-end handler before it runs its own final refreshNearbyRadiusView() --
+// otherwise a coalesced list refresh already queued for the next frame (above) could land right
+// after it and redo the same work a second time for nothing.
+function cancelPendingRadiusGestureRefresh() {
+  if (_radiusGestureListRefreshFrame == null) return;
+  cancelAnimationFrame(_radiusGestureListRefreshFrame);
+  _radiusGestureListRefreshFrame = null;
+}
+
 function applyWalkingRadiusGesture(rawMinutes) {
   const floor = walkingRadiusFloorMinutes(nearbyOrigin());
   const atFloor = rawMinutes < floor;
@@ -1179,7 +1204,18 @@ function applyWalkingRadiusGesture(rawMinutes) {
     }
     return floor;
   }
-  applyWalkingRadiusChange(minutes, { animate: false });
+  state.walkingDistanceMinutes = minutes;
+  state.outOfRadiusRevealFilters = [];
+  ensureOverviewTargetsVisible({ animate: false, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
+  requestDraw();
+  if (_radiusGestureListRefreshFrame == null) {
+    _radiusGestureListRefreshFrame = requestAnimationFrame(() => {
+      _radiusGestureListRefreshFrame = null;
+      refreshNearestTreeForNearbyOrigin();
+      if (!secondaryScreenActive()) selectOverview();
+      updateNearbyAnchorBar();
+    });
+  }
   return floor;
 }
 
@@ -1246,6 +1282,7 @@ function endNearbyRadiusWheel() {
   state.wheelRadiusSettleTimer = null;
   state.wheelRadiusMinutes = null;
   state.walkingRadiusAtFloor = false;
+  cancelPendingRadiusGestureRefresh();
   refreshNearbyRadiusView();
   syncSettingsWalkSlider();
 }
@@ -1271,6 +1308,7 @@ function endNearbyRadiusGesture() {
   if (!Number.isFinite(state.gestureRadiusBaseMinutes)) return;
   state.gestureRadiusBaseMinutes = null;
   state.walkingRadiusAtFloor = false;
+  cancelPendingRadiusGestureRefresh();
   refreshNearbyRadiusView();
   syncSettingsWalkSlider();
 }
@@ -1294,6 +1332,7 @@ function endNearbyRadiusPinch() {
   state.walkingRadiusAtFloor = false;
   // One smooth settling animation now that the gesture has ended, mirroring the single
   // animated re-fit a Settings-slider release triggers (bindSettingsHandlers, index.html).
+  cancelPendingRadiusGestureRefresh();
   refreshNearbyRadiusView();
   // The gesture runs over the Settings screen too, where its own slider must not be left
   // showing the radius the ring had before the pinch.
