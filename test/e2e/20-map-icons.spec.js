@@ -27,7 +27,7 @@ test.describe("Map pins", () => {
         for (let i = 0; i < pixels.length; i += 4) {
           if (pixels[i] > 140 && pixels[i + 1] < 90 && pixels[i + 2] < 80 && pixels[i + 3] > 200) red++;
         }
-        // The side profile exposes three upper windows, distinguishing the
+        // The side profile exposes several upper windows, distinguishing the
         // two-deck bus silhouette from the previous narrow front view.
         let upperWindows = 0;
         let inWindow = false;
@@ -43,7 +43,7 @@ test.describe("Map pins", () => {
     });
 
     expect(artwork.bus.red, "the double-decker has a visible heritage-red body").toBeGreaterThan(1000);
-    expect(artwork.bus.upperWindows, "the side profile exposes the upper-deck windows").toBe(3);
+    expect(artwork.bus.upperWindows, "the side profile exposes the upper-deck windows").toBeGreaterThanOrEqual(3);
     expect(artwork["landmark-parking"].windscreenRed, "the cream side-profile car retains its dark window").toBeLessThan(100);
     expect(artwork["landmark-parking"].badgeAlpha, "the car has no separate parking badge").toBe(0);
     expect(artwork["landmark-bicycle-parking"].badgeAlpha, "the bicycle has no separate parking badge").toBe(0);

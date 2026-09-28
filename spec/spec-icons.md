@@ -56,7 +56,7 @@ filter-ww2
 A British Brodie helmet, without a star or crossed weapons
 
 filter-social-history
-A woven basket
+A historical scroll
 
 filter-plaques
 A bronze wall plaque with an engraved inscription and corner fixings
@@ -83,7 +83,7 @@ filter-theatre
 Comedy and tragedy masks
 
 filter-politics
-A civic building with columns
+The Elizabeth Tower clock tower
 
 filter-art
 An artist palette
@@ -137,7 +137,7 @@ landmark-bench
 A park bench
 
 landmark-toilets
-A public toilet facility
+A single cream toilet in side view, without a building or extra signage
 
 landmark-drinking-water
 A water tap
@@ -167,7 +167,7 @@ landmark-viewpoint
 A spotting telescope on a tripod
 
 landmark-taxi
-A London black cab with a rounded high roof, upright windscreen and tall grille
+A London black cab in side view, with a squared passenger cabin and distinct bonnet
 
 landmark-telephone
 A K6 telephone box
@@ -245,18 +245,22 @@ London double-decker, British nonic pint glass, London black cab and Brodie
 helmet respectively. Parking uses a car; bicycle parking uses a bicycle;
 medical sites use a single cross; literature uses an open book; campsites use
 the original tent artwork. Keep the forest-green outlines and house palette, using heritage red
-for the bus. Vehicle wheels stay proportional; the cab has rounded wings and
-a subtle bonnet highlight, and the pint has a softly curved creamy head. Check silhouettes at map size as well as the 256px original.
+for the bus. Illustrated subjects share restrained shading, cream highlights
+and forest-green outlines. The cab uses a recognisable side silhouette; the
+pint has glass highlights and a curved creamy head. Toilets use a single
+toilet silhouette rather than a detailed building. Every map icon has a
+transparent background, with no opaque square or baked-in checkerboard.
+Check silhouettes at map size as well as the 256px original.
 The remaining map artwork was reviewed: UK rail symbols, the K6 telephone
 box, heritage buildings, local nature and generic facilities retain their
 existing subjects.
 
 ## Drawing an icon
 
-`data/icons/src/*.svg` holds the sources for new artwork; the PNGs beside them
-in `data/icons/` are build output. The parking source embeds a raster master
-to preserve the original cream car illustration after removing its P-shaped
-location pin. The other sources are editable vectors.
+`data/icons/src/` holds SVG or transparent PNG masters, with exactly one
+source per icon. The 256px PNGs in `data/icons/` are committed build output.
+Raster masters retain the approved illustrations; the generator fits their
+visible artwork to a consistent 0.48 content radius while preserving alpha.
 `npm run gen:icons` (`scripts/generate-map-icons.js`) rasterises the sources to
 256x256 through headless Chromium, and takes a name fragment to do one at a
 time. `data/icons/src/_palette.md` holds the house palette, sampled from the
