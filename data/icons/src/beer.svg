@@ -5,6 +5,7 @@
     <path d="M67 42q61-13 122 0l-5 39q12 21-2 39l-15 97q-1 14-39 14t-39-14l-15-97q-14-18-2-39Z" fill="url(#ale)"/>
     <path d="M68 42q60-13 120 0l-4 30q-58 12-112 0Z" fill="#f8f0d0" stroke="none"/>
     <path d="M67 42q61-13 122 0l-5 39q12 21-2 39l-15 97q-1 14-39 14t-39-14l-15-97q-14-18-2-39Z" fill="none"/>
+    <path d="M73 68q53 11 110 0" fill="none" stroke="#f8f0d0" stroke-width="9"/>
     <ellipse cx="128" cy="41" rx="61" ry="13" fill="#f8f0d0"/>
     <path d="M91 88q-8 13 1 27l12 83" fill="none" stroke="#f8f0d0" stroke-width="9"/>
     <path d="M100 215q28 8 56 0" fill="none" stroke="#f8f0d0" stroke-width="6"/>

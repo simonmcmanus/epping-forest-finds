@@ -44,7 +44,7 @@ filter-bus
 A red London double-decker in side profile, with two rows of windows and visible wheels
 
 filter-parking
-A single front-facing car, without a P badge or map pin
+The original-style cream car in side profile, isolated without its P badge or map pin
 
 filter-historic-places
 A classical building with columns
@@ -128,7 +128,7 @@ inspector-railway
 A railway train
 
 landmark-parking
-A single front-facing car, without a P badge or map pin
+The original-style cream car in side profile, isolated without its P badge or map pin
 
 landmark-bicycle-parking
 A single bicycle, without a P badge
@@ -245,15 +245,18 @@ London double-decker, British nonic pint glass, London black cab and Brodie
 helmet respectively. Parking uses a car; bicycle parking uses a bicycle;
 medical sites use a single cross; literature uses an open book; campsites use
 the original tent artwork. Keep the forest-green outlines and house palette, using heritage red
-for the bus. Check silhouettes at map size as well as the 256px original.
+for the bus. Vehicle wheels stay proportional; the cab has rounded wings and
+a subtle bonnet highlight, and the pint has a softly curved creamy head. Check silhouettes at map size as well as the 256px original.
 The remaining map artwork was reviewed: UK rail symbols, the K6 telephone
 box, heritage buildings, local nature and generic facilities retain their
 existing subjects.
 
 ## Drawing an icon
 
-`data/icons/src/*.svg` is the editable original for every icon added since the
-set was first drawn; the PNGs beside them in `data/icons/` are build output.
+`data/icons/src/*.svg` holds the sources for new artwork; the PNGs beside them
+in `data/icons/` are build output. The parking source embeds a raster master
+to preserve the original cream car illustration after removing its P-shaped
+location pin. The other sources are editable vectors.
 `npm run gen:icons` (`scripts/generate-map-icons.js`) rasterises the sources to
 256x256 through headless Chromium, and takes a name fragment to do one at a
 time. `data/icons/src/_palette.md` holds the house palette, sampled from the

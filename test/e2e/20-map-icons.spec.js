@@ -37,13 +37,14 @@ test.describe("Map pins", () => {
           if (cream && !inWindow) upperWindows++;
           inWindow = cream;
         }
-        samples[slug] = { red, upperWindows, badgeAlpha: ctx.getImageData(195, 65, 1, 1).data[3] };
+        samples[slug] = { red, upperWindows, windscreenRed: ctx.getImageData(110, 105, 1, 1).data[0], badgeAlpha: ctx.getImageData(195, 65, 1, 1).data[3] };
       }
       return samples;
     });
 
     expect(artwork.bus.red, "the double-decker has a visible heritage-red body").toBeGreaterThan(1000);
     expect(artwork.bus.upperWindows, "the side profile exposes the upper-deck windows").toBe(3);
+    expect(artwork["landmark-parking"].windscreenRed, "the cream side-profile car retains its dark window").toBeLessThan(100);
     expect(artwork["landmark-parking"].badgeAlpha, "the car has no separate parking badge").toBe(0);
     expect(artwork["landmark-bicycle-parking"].badgeAlpha, "the bicycle has no separate parking badge").toBe(0);
   });
