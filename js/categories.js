@@ -178,9 +178,12 @@ function placeLabelFilterKey(place) {
 const ICON_PATHS = {
   // App UI
   bus: "data/icons/bus.png",
+  compass: "data/icons/compass.png",
+  distance: "data/icons/distance.png",
   feedback: "data/icons/feedback.png",
   filter: "data/icons/filter.png",
   home: "data/icons/home.png",
+  loading: "data/icons/loading.png",
   nearby: "data/icons/nearby.png",
   pin: "data/icons/pin.png",
   settings: "data/icons/settings.png",

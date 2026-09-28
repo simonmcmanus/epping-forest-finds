@@ -23,6 +23,31 @@ test.describe("Loading experience", () => {
     await expect(page.locator("#sw-version")).toBeAttached();
   });
 
+  test("loading indicators use clear artwork and respect reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.route("**/data/**/*.json", route => route.abort());
+    await page.goto("/app");
+    const indicators = await page.evaluate(async () => {
+      setLoadStep("trees", "loading");
+      setLoadStep("places", "done");
+      const loading = document.querySelector('[data-load-step="trees"] .step-icon');
+      const done = document.querySelector('[data-load-step="places"] .step-icon');
+      const spinner = getComputedStyle(loading, "::before");
+      const tick = getComputedStyle(done, "::after");
+      const urls = [spinner.backgroundImage, tick.backgroundImage].map(value => value.match(/url\(["']?(.*?)["']?\)/)?.[1]);
+      const decoded = await Promise.all(urls.map(async url => {
+        if (!url) return false;
+        const img = new Image(); img.src = url; await img.decode();
+        return img.naturalWidth > 0;
+      }));
+      return { decoded, animation: spinner.animationName, width: parseFloat(tick.width), background: getComputedStyle(done).backgroundColor };
+    });
+    expect(indicators.decoded).toEqual([true, true]);
+    expect(indicators.animation).toBe("none");
+    expect(indicators.width).toBeGreaterThanOrEqual(20);
+    expect(indicators.background).toBe("rgba(0, 0, 0, 0)");
+  });
+
   test("overlay dismisses automatically after all steps complete", async ({ page }) => {
     await page.goto("/app");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
