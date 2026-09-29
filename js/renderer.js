@@ -303,6 +303,13 @@ function drawNearbyAnchorMarker(ctx, toScreen) {
 // because the always-on flat 2D footprint layer below still uses it.
 const BUILDING_FILL_RGB = [152, 152, 152];
 const BUILDING_FILL = `rgb(${BUILDING_FILL_RGB[0]}, ${BUILDING_FILL_RGB[1]}, ${BUILDING_FILL_RGB[2]})`;
+// Building footprints never set an outline of their own, so for as long as the map has had them
+// they were stroked with whatever style the last environment feature left on the context -- a
+// garden's, since gardens come last in local-environment.geojson. That is the look every screenshot
+// baseline records. Culling off-screen features changes which feature draws last, so the outline
+// is now stated rather than inherited.
+const BUILDING_OUTLINE = "rgba(90, 140, 70, 0.45)";
+const BUILDING_OUTLINE_WIDTH = 1.2;
 
 function drawCowPastures(ctx) {
   if (!state.cowPastures.length) return;
@@ -543,6 +550,7 @@ function drawEnvironment(ctx) {
 
   const dpr = pixelRatio();
   const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
+  const view = environmentViewWorldBounds();
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -550,6 +558,7 @@ function drawEnvironment(ctx) {
   for (const feature of state.environmentFeatures) {
     const geometry = feature.geometry || {};
     const type = feature.properties && feature.properties.featureType;
+    if (!environmentGeometryInView(geometry, view)) continue;
 
     if (type === "hydrology_area") {
       drawEnvironmentPolygon(ctx, geometry, {
@@ -588,6 +597,8 @@ function drawEnvironment(ctx) {
     if (type === "building") {
       drawEnvironmentPolygon(ctx, geometry, {
         fill: BUILDING_FILL,
+        stroke: BUILDING_OUTLINE,
+        width: BUILDING_OUTLINE_WIDTH * dpr,
       });
     }
 
@@ -607,32 +618,17 @@ function drawEnvironment(ctx) {
       ? Math.min(1, (performance.now() - state.buildingsRevealStartTime) / BUILDINGS_FADE_MS)
       : 1;
 
-    const bw = els.canvas.width, bh = els.canvas.height;
-    const bCorners = [screenToWorld(0, 0), screenToWorld(bw, 0), screenToWorld(0, bh), screenToWorld(bw, bh)];
-    const wMinX = Math.min(...bCorners.map(c => c.x));
-    const wMaxX = Math.max(...bCorners.map(c => c.x));
-    const wMinY = Math.min(...bCorners.map(c => c.y));
-    const wMaxY = Math.max(...bCorners.map(c => c.y));
-    const marginX = (wMaxX - wMinX) * 0.05;
-    const marginY = (wMaxY - wMinY) * 0.05;
-
     ctx.save();
     ctx.globalAlpha = fadeAlpha;
     for (const feature of state.buildingFeatures) {
       const geom = feature.geometry || {};
-      const coords = geom.type === "Polygon" ? geom.coordinates
-        : geom.type === "MultiPolygon" ? geom.coordinates[0]
-        : null;
-      if (coords) {
-        const ring = coords[0];
-        if (ring && ring[0]) {
-          const pt = projectLonLat(Number(ring[0][0]), Number(ring[0][1]));
-          if (pt.x < wMinX - marginX || pt.x > wMaxX + marginX ||
-              pt.y < wMinY - marginY || pt.y > wMaxY + marginY) continue;
-        }
-      }
+      // Whole-footprint bbox rather than the first vertex alone: never culls a building that
+      // pokes into view, and reads a cached bbox instead of re-projecting ~20k vertices a frame.
+      if (!environmentGeometryInView(geom, view)) continue;
       drawEnvironmentPolygon(ctx, geom, {
         fill: BUILDING_FILL,
+        stroke: BUILDING_OUTLINE,
+        width: BUILDING_OUTLINE_WIDTH * dpr,
       });
     }
     ctx.restore();
@@ -643,13 +639,84 @@ function drawEnvironment(ctx) {
   ctx.restore();
 }
 
+// The environment layer is ~130k vertices (gardens, water, railways) plus ~130k more in
+// buildings. It used to run projectLonLat -- a log and a tan -- on every one of them on every
+// frame, and draw every feature whether or not it was on screen: around 70 ms a frame on a
+// desktop CPU, several hundred on a phone, which is most of what a pan, zoom or compass tick
+// cost. The lon/lat -> world projection never changes, so it is done once per geometry and
+// kept alongside the geometry's world-space bbox; each frame then only runs worldToScreen for
+// features whose bbox overlaps the view. Output is pixel-identical: the same world points go
+// through the same worldToScreen, and a feature whose bbox misses the (5%-padded) view cannot
+// put a pixel on the canvas.
+const _projectedEnvironmentGeometry = new WeakMap();
+
+function projectedEnvironmentGeometry(geometry) {
+  let cached = _projectedEnvironmentGeometry.get(geometry);
+  if (cached) return cached;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  // Flat [x0, y0, x1, y1, ...] typed arrays rather than {x, y} objects: a quarter of a million
+  // points is several megabytes less heap this way, which matters on the phones this is for.
+  const projectLine = (line) => {
+    const coordinates = Array.isArray(line) ? line : [];
+    const flat = new Float64Array(coordinates.length * 2);
+    for (let i = 0; i < coordinates.length; i += 1) {
+      const point = projectLonLat(Number(coordinates[i][0]), Number(coordinates[i][1]));
+      flat[i * 2] = point.x;
+      flat[i * 2 + 1] = point.y;
+      if (point.x < minX) minX = point.x;
+      if (point.x > maxX) maxX = point.x;
+      if (point.y < minY) minY = point.y;
+      if (point.y > maxY) maxY = point.y;
+    }
+    return flat;
+  };
+  cached = {
+    polygons: polygonRingsFromGeometry(geometry).map((polygon) => (Array.isArray(polygon) ? polygon : []).map(projectLine)),
+    segments: lineSegmentsFromGeometry(geometry).map(projectLine),
+    minX, maxX, minY, maxY,
+  };
+  _projectedEnvironmentGeometry.set(geometry, cached);
+  return cached;
+}
+
+// World-space bounds of the whole canvas bitmap (overscan included), padded 5% -- the same
+// corner test drawPaths already culls with, including under tilt, where screenToWorld clamps to
+// the far clip. Null when the corners do not unproject to finite points: then nothing is culled.
+function environmentViewWorldBounds() {
+  const w = els.canvas.width, h = els.canvas.height;
+  const corners = [screenToWorld(0, 0), screenToWorld(w, 0), screenToWorld(0, h), screenToWorld(w, h)];
+  if (!corners.every((c) => c && Number.isFinite(c.x) && Number.isFinite(c.y))) return null;
+  const minX = Math.min(...corners.map((c) => c.x));
+  const maxX = Math.max(...corners.map((c) => c.x));
+  const minY = Math.min(...corners.map((c) => c.y));
+  const maxY = Math.max(...corners.map((c) => c.y));
+  const marginX = (maxX - minX) * 0.05;
+  const marginY = (maxY - minY) * 0.05;
+  return { minX: minX - marginX, maxX: maxX + marginX, minY: minY - marginY, maxY: maxY + marginY };
+}
+
+// worldToScreen reads x/y and never keeps its argument, so one scratch point serves every vertex.
+const _environmentScratchPoint = { x: 0, y: 0 };
+function environmentVertexToScreen(flat, index) {
+  _environmentScratchPoint.x = flat[index * 2];
+  _environmentScratchPoint.y = flat[index * 2 + 1];
+  return worldToScreen(_environmentScratchPoint);
+}
+
+function environmentGeometryInView(geometry, view) {
+  if (!view) return true;
+  const g = projectedEnvironmentGeometry(geometry);
+  return !(g.maxX < view.minX || g.minX > view.maxX || g.maxY < view.minY || g.minY > view.maxY);
+}
+
 function drawEnvironmentLines(ctx, geometry, style) {
-  const segments = lineSegmentsFromGeometry(geometry);
+  const segments = projectedEnvironmentGeometry(geometry).segments;
   for (const segment of segments) {
-    if (!Array.isArray(segment) || segment.length < 2) continue;
+    const count = segment.length / 2;
+    if (count < 2) continue;
     ctx.beginPath();
-    for (let i = 0; i < segment.length; i += 1) {
-      const point = worldToScreen(projectLonLat(Number(segment[i][0]), Number(segment[i][1])));
+    for (let i = 0; i < count; i += 1) {
+      const point = environmentVertexToScreen(segment, i);
       if (i === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
     }
@@ -662,14 +729,15 @@ function drawEnvironmentLines(ctx, geometry, style) {
 }
 
 function drawEnvironmentPolygon(ctx, geometry, style) {
-  const polygons = polygonRingsFromGeometry(geometry);
+  const polygons = projectedEnvironmentGeometry(geometry).polygons;
   for (const polygon of polygons) {
-    if (!Array.isArray(polygon) || !polygon.length) continue;
+    if (!polygon.length) continue;
     ctx.beginPath();
     for (const ring of polygon) {
-      if (!Array.isArray(ring) || ring.length < 3) continue;
-      for (let i = 0; i < ring.length; i += 1) {
-        const point = worldToScreen(projectLonLat(Number(ring[i][0]), Number(ring[i][1])));
+      const count = ring.length / 2;
+      if (count < 3) continue;
+      for (let i = 0; i < count; i += 1) {
+        const point = environmentVertexToScreen(ring, i);
         if (i === 0) ctx.moveTo(point.x, point.y);
         else ctx.lineTo(point.x, point.y);
       }
@@ -683,15 +751,16 @@ function drawEnvironmentPolygon(ctx, geometry, style) {
 }
 
 function drawRailwayLines(ctx, geometry, properties, style) {
-  const segments = lineSegmentsFromGeometry(geometry);
+  const segments = projectedEnvironmentGeometry(geometry).segments;
   const railwayType = properties && properties.railway;
 
   for (const segment of segments) {
-    if (!Array.isArray(segment) || segment.length < 2) continue;
+    const count = segment.length / 2;
+    if (count < 2) continue;
 
     ctx.beginPath();
-    for (let i = 0; i < segment.length; i += 1) {
-      const point = worldToScreen(projectLonLat(Number(segment[i][0]), Number(segment[i][1])));
+    for (let i = 0; i < count; i += 1) {
+      const point = environmentVertexToScreen(segment, i);
       if (i === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
     }
@@ -1116,18 +1185,22 @@ function drawLayer(ctx, layer) {
   ctx.strokeStyle = style.stroke;
   ctx.lineWidth = style.width * pixelRatio();
 
+  // Same cached projection as the environment layer (projectedEnvironmentGeometry): the forest
+  // boundary is detailed enough that re-projecting it every frame was the single largest piece
+  // of script time in a pan.
+  const view = environmentViewWorldBounds();
   for (const feature of layer.data.features) {
     const geometry = feature.geometry;
-    if (!geometry) continue;
-    const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
-    for (const polygon of polygons) {
+    if (!geometry || !environmentGeometryInView(geometry, view)) continue;
+    for (const polygon of projectedEnvironmentGeometry(geometry).polygons) {
       ctx.beginPath();
       for (const ring of polygon) {
-        ring.forEach(([longitude, latitude], index) => {
-          const point = worldToScreen(projectLonLat(longitude, latitude));
+        const count = ring.length / 2;
+        for (let index = 0; index < count; index += 1) {
+          const point = environmentVertexToScreen(ring, index);
           if (index === 0) ctx.moveTo(point.x, point.y);
           else ctx.lineTo(point.x, point.y);
-        });
+        }
       }
       ctx.fill("evenodd");
       ctx.stroke();
@@ -1683,9 +1756,9 @@ function drawMegaClusters(ctx, megaGroups) {
     // disagree. Often larger than totalItems (the raw count buildSuperClusters merged into this
     // one badge): the tap's eventual walking radius commonly reaches past this group's own
     // members into neighbouring ground.
-    const target = clusterFocusTarget(allItems);
-    const visibleCount = target ? clusterVisibleItemCount(target.center, target.targetMinutes) : totalItems;
-    drawMegaBadge(ctx, cx, cy, Math.max(visibleCount, totalItems), byType, byTypeIconSrc, dpr);
+    // Memoized per group (megaBadgeVisibleCount, js/nav.js): six full-dataset scans per badge
+    // per frame is what stalled the UI once mega clustering shipped.
+    drawMegaBadge(ctx, cx, cy, megaBadgeVisibleCount(allItems), byType, byTypeIconSrc, dpr);
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -2356,9 +2429,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
     // See the flat-path drawMegaClusters (above) for why this differs from the raw merged count.
-    const target = clusterFocusTarget(allItems);
-    const visibleCount = target ? clusterVisibleItemCount(target.center, target.targetMinutes) : totalItems;
-    const badgeCount = Math.max(visibleCount, totalItems);
+    const badgeCount = megaBadgeVisibleCount(allItems);
     // Ground-space centre for the outer disc's tilt-projected footprint (drawMegaBadge) --
     // null outside active tilt, where the badge stays a plain camera-facing circle. Also null
     // when the badge's own centre falls in tiltProjectScreenPoint's near-camera clip band
@@ -2606,11 +2677,12 @@ function drawSelectedRoadOverlay(ctx) {
   ctx.lineJoin = "round";
 
   for (const segment of road.segments) {
-    if (segment.length < 2) continue;
+    const count = segment.length / 2;
+    if (count < 2) continue;
 
     ctx.beginPath();
-    for (let i = 0; i < segment.length; i += 1) {
-      const point = worldToScreen(segment[i]);
+    for (let i = 0; i < count; i += 1) {
+      const point = environmentVertexToScreen(segment, i);
       if (i === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
     }
@@ -2642,11 +2714,12 @@ function drawSelectedPathOverlay(ctx) {
   ctx.lineJoin = "round";
 
   for (const segment of path.segments) {
-    if (segment.length < 2) continue;
+    const count = segment.length / 2;
+    if (count < 2) continue;
 
     ctx.beginPath();
-    for (let i = 0; i < segment.length; i += 1) {
-      const point = worldToScreen(segment[i]);
+    for (let i = 0; i < count; i += 1) {
+      const point = environmentVertexToScreen(segment, i);
       if (i === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
     }
