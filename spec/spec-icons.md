@@ -283,6 +283,11 @@ The folded map and compass illustrations replace their flat or platform-specific
 counterparts in the location fallback and compass calibration prompt. Review
 decisions and generation prompts are recorded in `docs/icon-review/`.
 
+Road and railway search results and detail headings use matching transparent
+illustrations: a winding grey road with UK white markings, and a simple section
+of railway track. Route types stay explicit in their text labels; no platform
+car or train emoji are used for these line features.
+
 ## Drawing an icon
 
 `data/icons/src/` holds SVG or transparent PNG masters, with exactly one

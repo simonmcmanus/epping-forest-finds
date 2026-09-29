@@ -326,13 +326,8 @@ button.settings-toggle.has-update::after {
 }
 
 .inspector-actions .nav-icon {
-  width: calc(44px * var(--icon-scale));
-  height: calc(44px * var(--icon-scale));
-}
-
-.inspector-actions svg.nav-icon {
-  width: calc(30px * var(--icon-scale));
-  height: calc(30px * var(--icon-scale));
+  width: calc(36px * var(--icon-scale));
+  height: calc(36px * var(--icon-scale));
 }
 
 .inspector-back .nav-icon {

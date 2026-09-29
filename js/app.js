@@ -6249,10 +6249,10 @@ function searchResultIconHtml(type, item) {
     case "landmark": return landmarkEmoji(item);
     case "cow": return appIconHtml("cow");
     case "path": return appIconHtml("waymarked");
-    case "road": return roadEmoji(item);
+    case "road": return roadIconHtml();
     case "water": return appIconHtml("ponds");
-    case "railway": return "🚆";
-    default: return "📍";
+    case "railway": return appIconHtml("railway");
+    default: return appIconHtml("pin");
   }
 }
 

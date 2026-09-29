@@ -454,11 +454,8 @@ function distanceToSegment(px, py, x1, y1, x2, y2) {
 
 // Shared with the search results list (js/app.js), so a street reads the same in a result
 // row as it does on its own screen.
-function roadEmoji(road) {
-  const roadType = road && road.roadType;
-  return roadType === "motorway" ? "🛣️"
-    : roadType === "trunk" || roadType === "primary" ? "🛤️"
-    : "🚙";
+function roadIconHtml(className = "app-icon") {
+  return appIconHtml("road", className);
 }
 
 function roadTypeLabel(road) {
@@ -474,7 +471,7 @@ function roadTypeLabel(road) {
 }
 
 function showRoadDetails(road, distance) {
-  setInspectorSelectionChrome({ emoji: roadEmoji(road), showBack: true });
+  setInspectorSelectionChrome({ emoji: roadIconHtml("app-icon title-icon"), showBack: true });
   els.inspectorTools.hidden = true;
 
   const typeLabel = roadTypeLabel(road);
@@ -500,12 +497,7 @@ function showRailwayDetails(railway) {
   const props = railway.properties || {};
   const railwayType = props.railway;
 
-  const railwayEmoji = railwayType === "subway" ? "🚇"
-    : railwayType === "tram" ? "🚊"
-    : railwayType === "light_rail" ? "🚈"
-    : "🚂";
-
-  setInspectorSelectionChrome({ emoji: railwayEmoji, showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("railway", "app-icon title-icon"), showBack: true });
   els.inspectorTools.hidden = true;
 
   const railwayTypeLabel = railwayType === "rail" ? "Railway Line"

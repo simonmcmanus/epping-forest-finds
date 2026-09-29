@@ -42,6 +42,8 @@ test.describe("Overview / Nearby screen", () => {
   });
 
   test("panel navigation has large clear icons without overlapping controls", async ({ page }) => {
+    // Measure the settled row, after the existing startup filter hint finishes.
+    await page.locator('.inspector-actions').evaluate(nav => nav.getAnimations({ subtree: true }).forEach(animation => animation.finish()));
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
       const layout = await page.locator('.inspector-actions').evaluate(nav => {
@@ -54,7 +56,7 @@ test.describe("Overview / Nearby screen", () => {
           const box = button.getBoundingClientRect();
           const icon = button.querySelector('.nav-icon').getBoundingClientRect();
           return { target: box.width >= 44 && box.height >= 44,
-            artwork: icon.width >= (button.querySelector('img') ? 40 : 28),
+            artwork: icon.width === 36 && icon.height === 36,
             fits: box.left >= panel.left && box.right <= panel.right,
             separate: i ? buttons[i - 1].getBoundingClientRect().right <= box.left : backBox.right <= box.left };
         });

@@ -167,6 +167,8 @@ const DATA_CACHE_OPPORTUNISTIC = [
   "./data/icons/nature.png",
   "./data/icons/nearby.png",
   "./data/icons/loading.png",
+  "./data/icons/road.png",
+  "./data/icons/railway.png",
   "./data/icons/oak.png",
   "./data/icons/pin.png",
   "./data/icons/plaques.png",
