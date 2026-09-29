@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v53"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v54"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -2854,13 +2854,15 @@ function overviewNearestHtml() {
     const treeTagChip = treeTag ? ` · #${escapeHtml(treeTag)}` : "";
     const outOfRadiusClass = entry.outOfRadius ? " out-of-radius" : "";
     return `<li><button class="nearest-item${outOfRadiusClass}" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}">
-      <div class="nearest-header">
-        <span class="nearest-icon" aria-hidden="true">${emoji}</span>
-        <span class="nearest-name">${escapeHtml(name)}</span>
-      </div>
-      <div class="nearest-footer">
-        <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
-        <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true">↑</span>
+      <span class="nearest-icon" aria-hidden="true">${emoji}</span>
+      <div class="nearest-content">
+        <div class="nearest-header">
+          <span class="nearest-name">${escapeHtml(name)}</span>
+        </div>
+        <div class="nearest-footer">
+          <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
+          <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true">↑</span>
+        </div>
       </div>
     </button></li>`;
   }).join("");

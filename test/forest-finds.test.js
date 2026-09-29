@@ -1521,10 +1521,18 @@ test("generated UI icon classes render at the enlarged sizes", () => {
   const mapUiCss = fs.readFileSync(path.join(__dirname, "..", "css", "map-ui.css"), "utf8");
 
   assert.match(baseCss, /--icon-scale:\s*1;/);
-  assert.match(inspectorCss, /\.nav-icon\s*\{[\s\S]*width:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(inspectorCss, /\.title-icon\s*\{[\s\S]*width:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(mapUiCss, /\.nearest-icon\s+\.app-icon\s*\{[\s\S]*width:\s*32px;[\s\S]*height:\s*32px;/);
-  assert.match(mapUiCss, /\.walk-icon\s*\{[\s\S]*width:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);[\s\S]*height:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);/);
+  // [^}]* (not [\s\S]*) deliberately bounds each match inside its own rule's braces -- an
+  // unbounded match here previously let a later, unrelated selector's "width: 32px;" satisfy
+  // the assertion even while the rule actually named kept its original, smaller size. The nav
+  // row and screen-title icons stay at their original, small size: a pass that enlarged them
+  // (and their .close/.inspector-back buttons) made the row inconsistent width and overran its
+  // container. Only the Nearby list's own per-row icon is enlarged, and it now spans both the
+  // name and meta/distance lines beside it (see .nearest-item's grid layout) rather than being
+  // sized to just the first line.
+  assert.match(inspectorCss, /\.nav-icon\s*\{[^}]*width:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(inspectorCss, /\.title-icon\s*\{[^}]*width:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(mapUiCss, /\.nearest-icon\s+\.app-icon\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/);
+  assert.match(mapUiCss, /\.walk-icon\s*\{[^}]*width:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);/);
 });
 
 test("nearest list falls back to one closest item for each active type outside the walking radius", () => {
@@ -1699,11 +1707,13 @@ test("walking radius marker still draws when nearest results use fallback", () =
     stroke() {},
     setLineDash() {},
     createRadialGradient() { return { addColorStop() {} }; },
+    createLinearGradient() { return { addColorStop() {} }; },
   };
 
   app.drawWalkingRadius(ctx);
 
-  assert.equal(arcCount, 1);
+  // One arc for the dimming cutout, one for the rim highlight stroke traced inside it.
+  assert.equal(arcCount, 2);
 });
 
 test("walking radius marker hides in selected-detail mode", () => {
@@ -2091,9 +2101,11 @@ test("walking radius marker draws on the report (feedback) screen", () => {
     stroke() {},
     setLineDash() {},
     createRadialGradient() { return { addColorStop() {} }; },
+    createLinearGradient() { return { addColorStop() {} }; },
   });
 
-  assert.equal(arcCount, 1);
+  // One arc for the dimming cutout, one for the rim highlight stroke traced inside it.
+  assert.equal(arcCount, 2);
 });
 
 test("nothing draws a route line until a destination is actually selected", () => {

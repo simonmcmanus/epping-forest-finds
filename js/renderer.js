@@ -786,6 +786,32 @@ function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, cone) {
   ctx.restore();
 }
 
+// A faint top-left-lit rim on the *inside* of the clear circle's edge -- same light direction as
+// megaSphereGradient's badge shading, so a mega badge zooming in to become this circle
+// (focusNearbyOnClusterGroup, js/nav.js) reads as the same lit dome growing, not a flat gold
+// coin dissolving into a flat gap. Stroked, not filled: the circle's interior must stay fully
+// clear so the map underneath is untouched, exactly as the surrounding comment on
+// drawWalkingRadiusDimming requires.
+const NEARBY_RIM_HIGHLIGHT = "rgba(255, 250, 235, 0.55)";
+const NEARBY_RIM_SHADOW = "rgba(20, 30, 24, 0.16)";
+
+function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
+  const lineWidth = Math.max(1.5 * dpr, radiusPx * 0.012);
+  const inset = lineWidth * 1.2;
+  ctx.save();
+  ctx.beginPath();
+  if (tilted) traceGroundCirclePath(ctx, center, radiusPx - inset);
+  else ctx.arc(center.x, center.y, radiusPx - inset, 0, Math.PI * 2);
+  const gradient = ctx.createLinearGradient(center.x - radiusPx, center.y - radiusPx, center.x + radiusPx, center.y + radiusPx);
+  gradient.addColorStop(0, NEARBY_RIM_HIGHLIGHT);
+  gradient.addColorStop(0.55, "rgba(255, 250, 235, 0)");
+  gradient.addColorStop(1, NEARBY_RIM_SHADOW);
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawWalkingRadius(ctx) {
   // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
   // the map behind it (nearbyRenderOriginPoint, index.html).
@@ -802,6 +828,7 @@ function drawWalkingRadius(ctx) {
   const tilted = typeof tiltActive === "function" && tiltActive();
 
   drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, nearbyUserCone(center, radiusPx, tilted));
+  drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr);
 }
 
 // Screen-space geometry for the wedge that ties the "You" dot to the walking-radius ring while
@@ -1323,6 +1350,11 @@ const MEGA_CLUSTER_MAX_CHIPS = 5;
 // covering the other's icon.
 const MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS = 0.95;
 
+// Extra angle added on top of the bare "just touching" angle between two neighbouring chips
+// (see noOverlapStep below), so chips read as separate items with a bit of breathing room
+// rather than sitting edge-to-edge.
+const MEGA_CLUSTER_CHIP_GAP_RADIANS = 0.22;
+
 // The ring (distance from the badge's centre) chips sit on -- shared by drawMegaBadge's layout
 // and megaClusterOuterRadius below so neither can drift out of sync with the other. Chips belong
 // in the outer disc's own band, not straddling into the inner circle: at R + half a chip's width
@@ -1420,24 +1452,95 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
 // the rim -- one per distinct category present, largest group first, capped at 6 -- so tapping
 // isn't the only way to tell *what* is grouped here, only *how many* of each.
 // The gold the app's own home-screen icon (assets/home/favicon.png) uses behind its oak leaf --
-// reused here instead of a flat colour so a mega badge reads as "part of this app's identity",
-// not an unrelated warning-style marker.
+// reused here instead of a flat colour so the inner count circle/pin reads as "part of this
+// app's identity", not an unrelated warning-style marker.
 //
-// Two solid colours, not a gradient: a first version faded the inner circle from a bright
-// centre to a darker rim (an attempt at reading as a soft "sun" rather than a hard dot), but
-// with the outer disc already doing the job of a second, softer zone around it, the gradient on
-// top of that was a third tone in the same badge -- multiple colours doing the one job the outer
-// disc alone now does. The inner circle is flat-filled with the gradient's old *centre* colour;
-// the outer disc (below, drawMegaBadge) reuses the gradient's old *rim* colour at reduced
-// opacity, so the two solid tones are literally the two ends of what used to be one fade, just
-// split across two clearly separate zones instead of blended within one.
-const MEGA_CLUSTER_INNER_COLOR = "#f3c968";
-// Nearly opaque on purpose -- 0.14 (and 0.25, and 0.4 before that) all went the wrong way: asked
-// to be "barely possible to see through", not barely tinted. The map underneath should just
-// about show through if you look for it, not read as a wash you can see the whole scene behind.
-const MEGA_CLUSTER_OUTER_COLOR = "rgba(217, 154, 58, 0.88)";
+// Brighter and darker ends of the same gold, used only as radial-gradient stops (see
+// megaSphereGradient) -- never as a flat fill on its own, so the inner circle/pin still reads
+// as "the brand gold" at a glance, just domed instead of flat. Kept close either side of the
+// brand gold -- a first pass ranged much further apart (a near-white highlight, a near-brown
+// shadow) and read as a different, duller colour rather than the same brand gold with shading
+// on it; a later, deeper bronze pass with edge strokes and a drop shadow was also tried and
+// reverted -- it read as less polished, not more.
+const MEGA_CLUSTER_INNER_HIGHLIGHT = "#f8d989";
+const MEGA_CLUSTER_INNER_SHADOW = "#dba63f";
 
-function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
+// The outer disc's own fill -- a translucent white wash rather than a gold gradient, so it
+// reads as a ground-area highlight (the same language the walking-radius ring's clear interior
+// already uses) instead of competing with the inner gold circle/pin for "the badge's colour".
+const MEGA_CLUSTER_OUTER_DISC_FILL = "rgba(255, 255, 255, 0.4)";
+
+// A top-left-lit radial gradient standing in for each disc's former flat fill, so the badge
+// reads as a raised sphere rather than a flat coin -- the same top-lit shading language the
+// walking-radius circle's own rim highlight (drawWalkingRadiusRimHighlight, below) uses, so a
+// mega badge growing into the walking radius during focusNearbyOnClusterGroup's zoom (js/nav.js)
+// looks like one lit surface expanding rather than a flat badge fading into a flat circle.
+function megaSphereGradient(ctx, cx, cy, r, highlight, shadow) {
+  const lightX = cx - r * 0.32;
+  const lightY = cy - r * 0.38;
+  const gradient = ctx.createRadialGradient(lightX, lightY, r * 0.05, cx, cy, r * 1.05);
+  gradient.addColorStop(0, highlight);
+  gradient.addColorStop(1, shadow);
+  return gradient;
+}
+
+// The count circle drawn as an upright teardrop pin (same construction as drawMapPinShape,
+// just gold-filled and holding a number instead of white with an icon) rather than another flat
+// disc under tilt. A flat number lying on the foreshortened ground the way the disc does is
+// unreadable at any real tilt angle -- exactly what every *other* pin on the map already avoids
+// by standing upright off the ground it points at. tipX/tipY is the ground point the pin points
+// down at (the badge's own projected centre), matching how a normal pin's pointer lands exactly
+// on the spot it marks.
+function drawMegaBadgeCountPin(ctx, tipX, tipY, R, totalItems, dpr) {
+  const pH = R * 0.6;
+  const headY = tipY - R - pH;
+  const halfAngle = Math.PI / 5;
+  ctx.beginPath();
+  ctx.arc(tipX, headY, R, Math.PI / 2 + halfAngle, Math.PI / 2 - halfAngle, false);
+  ctx.lineTo(tipX, tipY);
+  ctx.closePath();
+  ctx.fillStyle = megaSphereGradient(ctx, tipX, headY, R, MEGA_CLUSTER_INNER_HIGHLIGHT, MEGA_CLUSTER_INNER_SHADOW);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.25)";
+  ctx.lineWidth = Math.max(1, R * 0.08);
+  ctx.stroke();
+
+  const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${fontSize}px system-ui`;
+  ctx.fillStyle = "#3a2c10";
+  ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), tipX, headY);
+}
+
+// groundCenterFlat is the badge's centre in *flat* (untilted) screen space -- callers already
+// have it from worldToScreenFlat(worldPt) -- and is null on the non-tilted flat-map draw path.
+// Under tilt (groundCenterFlat set) only the outer disc is ground-painted, traced with
+// traceGroundCirclePath -- the same flat-sample-then-`tiltProjectScreenPoint` per-point
+// resampling the walking-radius ring and the radar cone already use, rather than a cheaper local
+// approximation: the disc sits well off the screen centre for most badges, where an approximation
+// derived at just one point drifted visibly out of step with the true ground ellipse as the view
+// rotated. The count is drawn afterwards, upright and camera-facing, as its own pointer pin
+// (drawMegaBadgeCountPin) anchored at the plain projected `cx`/`cy` -- a flat number lying on the
+// foreshortened ground the way the disc does is unreadable at any real tilt angle. The icon chips
+// stay camera-facing too but are fanned around that same `cx`/`cy` ground point, sitting on the
+// disc, rather than around the pin's own (much higher) head: fanning them around the head instead
+// was tried first, on the theory that they should stay visually attached to the one circle you
+// can actually read, but that left them floating well clear of the disc they are meant to mark
+// the top of -- looking adrift from the badge rather than part of it.
+// Outside tilt the whole badge -- both discs, the count, and the chips -- draws exactly as
+// before: plain circles and text at cx/cy, no transform, no pointer.
+//
+// pinScale (default 1) applies only to the upright count pin drawn under tilt, never to the
+// disc or the chips: `dpr` alone drives every geometry size below (R, chipR, ringR, outerR),
+// matching the plain `pixelRatio()` findClusterHit (js/inspector.js) already hit-tests and
+// culls against, so the disc's size depends only on the badge's item count, never on where it
+// sits relative to the user's heading. The pointer is the one part of the badge allowed to
+// shrink as it swings behind the user (tiltPinScale, the same near-heading collapse every other
+// pin already gets) so it stops obscuring pins ahead of it -- the disc itself is an area
+// indicator ("this cluster covers roughly this much ground") and has no business changing size
+// just because the badge happens to be behind you at the moment.
+function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, groundCenterFlat, pinScale = 1) {
   const R = megaClusterRadius(totalItems, dpr);
   const chipR = megaClusterChipRadius(R, dpr);
   const ringR = megaClusterChipRingRadius(R, chipR);
@@ -1446,30 +1549,46 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   // than sitting inside it. Matches megaClusterOuterRadius exactly, so the hit-test/cull region
   // and the drawn disc never disagree about where the badge's edge actually is.
   const outerR = (ringR + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
-  ctx.save();
 
-  // Two circles, not a circle plus a separate border: a paler, semi-opaque outer disc sized to
-  // actually contain the chip ring (outerR, the same reach megaClusterOuterRadius already uses
-  // for hit-testing and culling), with the smaller, solid-coloured inner circle sitting on top
-  // of it holding just the count. The two golds read as one badge with an inner and an outer
-  // zone, not a filled shape plus a stroke drawn round it.
+  // Translucent white outer disc sized to actually contain the chip ring (outerR, the same
+  // reach megaClusterOuterRadius already uses for hit-testing and culling) -- a flat wash
+  // rather than the inner circle's gold sphere gradient, so it reads as a ground-area
+  // highlight (like the walking-radius ring's own clear interior) rather than a second,
+  // competing "raised" surface.
   ctx.beginPath();
-  ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-  ctx.fillStyle = MEGA_CLUSTER_OUTER_COLOR;
+  if (groundCenterFlat) traceGroundCirclePath(ctx, groundCenterFlat, outerR);
+  else ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+  ctx.fillStyle = MEGA_CLUSTER_OUTER_DISC_FILL;
   ctx.fill();
 
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx.fillStyle = MEGA_CLUSTER_INNER_COLOR;
-  ctx.fill();
+  // Outside tilt the count still sits as a flat inner circle on top of the outer disc, exactly
+  // as before -- only under tilt does it move out to the upright pin drawn below.
+  if (!groundCenterFlat) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = megaSphereGradient(ctx, cx, cy, R, MEGA_CLUSTER_INNER_HIGHLIGHT, MEGA_CLUSTER_INNER_SHADOW);
+    ctx.fill();
 
-  const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = `700 ${fontSize}px system-ui`;
-  ctx.fillStyle = "#3a2c10";
-  ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
+    const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `700 ${fontSize}px system-ui`;
+    ctx.fillStyle = "#3a2c10";
+    ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
+  } else {
+    drawMegaBadgeCountPin(ctx, cx, cy, R * pinScale, totalItems, dpr * pinScale);
+  }
 
+  // Icon chips are small artwork, not text -- unlike the count they read fine lying flat on the
+  // outer disc when it is ground-projected under tilt -- but the request was for them to stand
+  // up and face the camera. They're fanned around `cx`/`cy` -- the disc's own ground anchor, the
+  // point the pin's own pointer touches down on -- rather than around the pin's head: an earlier
+  // pass tried the head instead, on the theory that chips should stay visually attached to the
+  // one circle you can actually read, but that put them floating up near the pin, well clear of
+  // the disc they're meant to sit on top of. Anchoring on the ground point instead keeps them
+  // sitting on the disc, exactly where the bus/plate/cart icons in a screenshot showed them
+  // adrift from it.
+  //
   // Chips sit mostly outside the (now much smaller) inner circle, centred on ringR rather than
   // R itself, and reach exactly to outerR, so they land inside the pale outer disc above rather
   // than floating past it.
@@ -1491,18 +1610,46 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr) {
   // more chips fan further round from the bottom, with no overlap, rather than crowding closer
   // together. Only once a full turn genuinely isn't enough room does it fall back to the
   // original fixed, intentionally-overlapping step.
-  const noOverlapStep = ringR > 0 ? 2 * Math.asin(Math.min(1, chipR / ringR)) : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
+  // touchStep alone lands chips exactly tangent to each other -- zero gap, which at a glance
+  // read as crowded/overlapping even though no two chips actually overlapped. Adding a fixed
+  // angular margin here gives every pair of neighbouring chips visible daylight between them
+  // whenever there's room on the ring for it, without touching the tighter fallback step below
+  // (still used once a badge has so many chips that even the bare touching angle would run past
+  // a full turn).
+  const touchStep = ringR > 0 ? 2 * Math.asin(Math.min(1, chipR / ringR)) : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
+  const noOverlapStep = touchStep + MEGA_CLUSTER_CHIP_GAP_RADIANS;
   const step = noOverlapStep * (n - 1) <= Math.PI * 2 ? noOverlapStep : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
   const arcSpan = step * (n - 1);
+  // Under tilt, a chip's position (never its own artwork -- that stays a plain undistorted
+  // icon) is worked out on the *ground* plane, at the same ringR distance from
+  // groundCenterFlat the disc's own points are, and only then projected with
+  // tiltProjectScreenPoint -- exactly how the disc's boundary itself is built
+  // (traceGroundCirclePath). Offsetting the already-projected `cx`/`cy` by `ringR` in plain
+  // screen space (the flat-map approach, reused here first) instead traces a circle in screen
+  // space while the disc under it is a foreshortened ellipse, so a chip positioned that way
+  // could land outside the ellipse's actual edge even though the same `ringR` comfortably fits
+  // inside the disc on the flat map -- exactly the "not sitting on the circle" gap a screenshot
+  // showed under real tilt.
+  // Under tilt, chips sit noticeably closer in than ringR -- tighter around the disc's own
+  // centre rather than out near its rim -- so the whole badge reads as one compact group instead
+  // of chips scattered toward the edge of a foreshortened ellipse. The disc itself (outerR) is
+  // untouched, so it stays exactly as large as the badge's item count says it should.
+  const tiltRingR = ringR * 0.62;
   const positioned = types.map(([key, info], i) => {
     const angle = (Math.PI / 2 - arcSpan / 2) + i * step;
+    if (groundCenterFlat) {
+      const p = tiltProjectScreenPoint({
+        x: groundCenterFlat.x + Math.cos(angle) * tiltRingR,
+        y: groundCenterFlat.y + Math.sin(angle) * tiltRingR,
+      });
+      return { key, info, x: p.x, y: p.y };
+    }
     return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
   });
   for (let i = positioned.length - 1; i >= 0; i--) {
     const { key, x, y } = positioned[i];
     drawMegaClusterIconChip(ctx, x, y, byTypeIconSrc.get(key), chipR);
   }
-  ctx.restore();
 }
 
 function drawMegaClusters(ctx, megaGroups) {
@@ -2212,9 +2359,22 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const target = clusterFocusTarget(allItems);
     const visibleCount = target ? clusterVisibleItemCount(target.center, target.targetMinutes) : totalItems;
     const badgeCount = Math.max(visibleCount, totalItems);
+    // Ground-space centre for the outer disc's tilt-projected footprint (drawMegaBadge) --
+    // null outside active tilt, where the badge stays a plain camera-facing circle. Also null
+    // when the badge's own centre falls in tiltProjectScreenPoint's near-camera clip band
+    // (its `clipped` flag) -- a badge sitting almost on top of the camera pivot has its ground
+    // ellipse pinned against that clip, and as the badge (or the user) moves the clip regime can
+    // flip within a frame or two, which read as the disc suddenly jumping and detaching from the
+    // terrain under it. Falling back to the plain camera-facing circle in that narrow band avoids
+    // the instability; it only affects a badge essentially on top of the user, where the walking
+    // radius ring dominates the screen anyway.
+    const groundCenterFlatRaw = tiltActive() ? worldToScreenFlat(worldPt) : null;
+    const groundCenterFlat = groundCenterFlatRaw && !tiltProjectScreenPoint(groundCenterFlatRaw).clipped
+      ? groundCenterFlatRaw
+      : null;
     calls.push({ y: cy, fn(c) {
       c.globalAlpha = reveal;
-      drawMegaBadge(c, cx, cy, badgeCount, byType, byTypeIconSrc, dpr * pinScale);
+      drawMegaBadge(c, cx, cy, badgeCount, byType, byTypeIconSrc, dpr, groundCenterFlat, pinScale);
     }});
   }
 
