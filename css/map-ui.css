@@ -192,7 +192,7 @@
   .inspector-back { top: 30px; }
 
   .inspector-header {
-    min-height: calc(36px * var(--icon-scale) + 44px);
+    min-height: calc(44px * var(--icon-scale) + 44px);
     padding-top: 42px;
   }
 
@@ -231,7 +231,7 @@
   }
 
   .inspector-header {
-    min-height: calc(36px * var(--icon-scale) + 44px);
+    min-height: calc(44px * var(--icon-scale) + 44px);
     padding-top: 42px;
   }
 

@@ -274,13 +274,19 @@ icons have transparent space around the artwork; check them at 28px as well
 as at full size. `data/icons/src/prompts.json` records the built-in ImageGen
 prompts for the app-wide illustration pass.
 
-The Nearby mark is an emerald location beacon with a gold centre and two gold
-arcs. The same artwork is used for the loading/onboarding brand mark and the
-homepage's independent location illustration. A gold compass-pin alternative
-is retained in `docs/icon-review/` for brand exploration, not loaded by the app.
+The Nearby navigation mark is a yellow/gold location beacon with an empty shaded
+emerald centre and two green arcs, without a compass star. The loading/onboarding
+brand mark and homepage's independent location illustration retain the emerald
+beacon with a gold centre. The earlier gold compass-pin concept is retained in
+`docs/icon-review/` for reference, not loaded by the app.
 The folded map and compass illustrations replace their flat or platform-specific
 counterparts in the location fallback and compass calibration prompt. Review
 decisions and generation prompts are recorded in `docs/icon-review/`.
+
+Road and railway search results and detail headings use matching transparent
+illustrations: a winding grey road with UK white markings, and a simple section
+of railway track. Route types stay explicit in their text labels; no platform
+car or train emoji are used for these line features.
 
 ## Drawing an icon
 
