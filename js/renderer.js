@@ -1452,20 +1452,23 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
 // the rim -- one per distinct category present, largest group first, capped at 6 -- so tapping
 // isn't the only way to tell *what* is grouped here, only *how many* of each.
 // The gold the app's own home-screen icon (assets/home/favicon.png) uses behind its oak leaf --
-// reused here instead of a flat colour so a mega badge reads as "part of this app's identity",
-// not an unrelated warning-style marker.
+// reused here instead of a flat colour so the inner count circle/pin reads as "part of this
+// app's identity", not an unrelated warning-style marker.
 //
-// Brighter and darker ends of the same two golds, used only as radial-gradient stops (see
-// megaSphereGradient) -- never as flat fills on their own, so a badge still reads as "two golds"
-// at a glance, just each one now domed instead of flat. Kept close either side of the brand
-// gold -- a first pass ranged much further apart (a near-white highlight, a near-brown shadow)
-// and read as a different, duller colour rather than the same brand gold with shading on it; a
-// later, deeper bronze pass with edge strokes and a drop shadow was also tried and reverted --
-// it read as less polished, not more.
+// Brighter and darker ends of the same gold, used only as radial-gradient stops (see
+// megaSphereGradient) -- never as a flat fill on its own, so the inner circle/pin still reads
+// as "the brand gold" at a glance, just domed instead of flat. Kept close either side of the
+// brand gold -- a first pass ranged much further apart (a near-white highlight, a near-brown
+// shadow) and read as a different, duller colour rather than the same brand gold with shading
+// on it; a later, deeper bronze pass with edge strokes and a drop shadow was also tried and
+// reverted -- it read as less polished, not more.
 const MEGA_CLUSTER_INNER_HIGHLIGHT = "#f8d989";
 const MEGA_CLUSTER_INNER_SHADOW = "#dba63f";
-const MEGA_CLUSTER_OUTER_HIGHLIGHT = "rgba(229, 175, 92, 0.88)";
-const MEGA_CLUSTER_OUTER_SHADOW = "rgba(198, 133, 44, 0.88)";
+
+// The outer disc's own fill -- a translucent white wash rather than a gold gradient, so it
+// reads as a ground-area highlight (the same language the walking-radius ring's clear interior
+// already uses) instead of competing with the inner gold circle/pin for "the badge's colour".
+const MEGA_CLUSTER_OUTER_DISC_FILL = "rgba(255, 255, 255, 0.4)";
 
 // A top-left-lit radial gradient standing in for each disc's former flat fill, so the badge
 // reads as a raised sphere rather than a flat coin -- the same top-lit shading language the
@@ -1547,12 +1550,15 @@ function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, grou
   // and the drawn disc never disagree about where the badge's edge actually is.
   const outerR = (ringR + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
 
-  // Paler, semi-opaque outer disc sized to actually contain the chip ring (outerR, the same
-  // reach megaClusterOuterRadius already uses for hit-testing and culling).
+  // Translucent white outer disc sized to actually contain the chip ring (outerR, the same
+  // reach megaClusterOuterRadius already uses for hit-testing and culling) -- a flat wash
+  // rather than the inner circle's gold sphere gradient, so it reads as a ground-area
+  // highlight (like the walking-radius ring's own clear interior) rather than a second,
+  // competing "raised" surface.
   ctx.beginPath();
   if (groundCenterFlat) traceGroundCirclePath(ctx, groundCenterFlat, outerR);
   else ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-  ctx.fillStyle = megaSphereGradient(ctx, cx, cy, outerR, MEGA_CLUSTER_OUTER_HIGHLIGHT, MEGA_CLUSTER_OUTER_SHADOW);
+  ctx.fillStyle = MEGA_CLUSTER_OUTER_DISC_FILL;
   ctx.fill();
 
   // Outside tilt the count still sits as a flat inner circle on top of the outer disc, exactly
