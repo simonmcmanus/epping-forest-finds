@@ -6,7 +6,8 @@ are recorded in `prompts.json` and production masters live in `data/icons/src/`.
 
 | Family | Decision |
 | --- | --- |
-| Nearby and loading/onboarding location mark | Vibrant emerald beacon with gold centre and arcs. Gold compass-pin alternative retained here for brand exploration. |
+| Nearby navigation | Yellow/gold beacon with an empty emerald centre and green arcs; star removed. Illustrated navigation artwork enlarged to 44px with 44px buttons; search uses 30px linework. |
+| Loading/onboarding location mark | Retain the emerald beacon with gold centre and arcs. Homepage keeps its independent matching copy. |
 | Loading progress and completion | New gold/emerald ring and bold green tick; transparent backgrounds and reduced-motion support. |
 | Walking, folded map and compass | Refined dimensional artwork with simple silhouettes; folded map also updated on homepage. |
 | Transport, facilities, food, heritage, culture and nature | Retain the approved illustrated set; review found it consistent at small sizes. |

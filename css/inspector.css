@@ -83,7 +83,7 @@
 .inspector-header {
   display: flex;
   align-items: center;
-  min-height: calc(36px * var(--icon-scale) + 24px);
+  min-height: calc(44px * var(--icon-scale) + 24px);
   padding: 12px 16px;
 }
 
@@ -125,7 +125,7 @@
   top: 12px;
   right: 14px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   z-index: 3;
 }
@@ -313,6 +313,37 @@ button.settings-toggle.has-update::after {
   background: #b34733;
   border-radius: 50%;
   border: 1.5px solid #fff;
+}
+
+.inspector-actions > button {
+  width: calc(44px * var(--icon-scale));
+  min-width: calc(44px * var(--icon-scale));
+  height: calc(44px * var(--icon-scale));
+  padding: 0;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+.inspector-actions .nav-icon {
+  width: calc(44px * var(--icon-scale));
+  height: calc(44px * var(--icon-scale));
+}
+
+.inspector-actions svg.nav-icon {
+  width: calc(30px * var(--icon-scale));
+  height: calc(30px * var(--icon-scale));
+}
+
+.inspector-actions .filter-count {
+  position: absolute;
+  top: -4px;
+  right: -3px;
+  pointer-events: none;
+}
+
+@media (max-width: 380px) {
+  .inspector-actions { gap: 2px; }
 }
 
 button.filter-toggle[aria-expanded="true"]:not(.active) {

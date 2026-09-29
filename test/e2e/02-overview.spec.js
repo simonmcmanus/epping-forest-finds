@@ -41,6 +41,25 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
   });
 
+  test("panel navigation has large clear icons without overlapping controls", async ({ page }) => {
+    for (const width of [320, 390, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      const layout = await page.locator('.inspector-actions').evaluate(nav => {
+        const buttons = [...nav.querySelectorAll('button')];
+        const panel = nav.closest('.inspector').getBoundingClientRect();
+        return buttons.map((button, i) => {
+          const box = button.getBoundingClientRect();
+          const icon = button.querySelector('.nav-icon').getBoundingClientRect();
+          return { target: box.width >= 44 && box.height >= 44,
+            artwork: icon.width >= (button.querySelector('img') ? 40 : 28),
+            fits: box.left >= panel.left && box.right <= panel.right,
+            separate: !i || buttons[i - 1].getBoundingClientRect().right <= box.left };
+        });
+      });
+      expect(layout).toEqual(Array(5).fill({ target: true, artwork: true, fits: true, separate: true }));
+    }
+  });
+
   test("inspector body prompts for location when GPS is not available", async ({ page }) => {
     // Without geolocation, overviewNearestHtml() returns an empty-state message
     await expect(page.locator("#inspectorBody .empty")).toBeVisible();
