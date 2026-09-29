@@ -210,8 +210,8 @@
   position: absolute;
   top: 12px;
   left: 14px;
-  width: calc(36px * var(--icon-scale));
-  height: calc(36px * var(--icon-scale));
+  width: calc(44px * var(--icon-scale));
+  height: calc(44px * var(--icon-scale));
   border-radius: 999px;
   border: 1px solid var(--line);
   background: #fff;
@@ -335,6 +335,11 @@ button.settings-toggle.has-update::after {
   height: calc(30px * var(--icon-scale));
 }
 
+.inspector-back .nav-icon {
+  width: calc(30px * var(--icon-scale));
+  height: calc(30px * var(--icon-scale));
+}
+
 .inspector-actions .filter-count {
   position: absolute;
   top: -4px;
@@ -344,6 +349,7 @@ button.settings-toggle.has-update::after {
 
 @media (max-width: 380px) {
   .inspector-actions { gap: 2px; }
+  .inspector-back { left: 8px; }
 }
 
 button.filter-toggle[aria-expanded="true"]:not(.active) {

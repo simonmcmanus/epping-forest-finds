@@ -47,13 +47,16 @@ test.describe("Overview / Nearby screen", () => {
       const layout = await page.locator('.inspector-actions').evaluate(nav => {
         const buttons = [...nav.querySelectorAll('button')];
         const panel = nav.closest('.inspector').getBoundingClientRect();
+        const back = document.querySelector('#inspectorBack');
+        back.hidden = false;
+        const backBox = back.getBoundingClientRect();
         return buttons.map((button, i) => {
           const box = button.getBoundingClientRect();
           const icon = button.querySelector('.nav-icon').getBoundingClientRect();
           return { target: box.width >= 44 && box.height >= 44,
             artwork: icon.width >= (button.querySelector('img') ? 40 : 28),
             fits: box.left >= panel.left && box.right <= panel.right,
-            separate: !i || buttons[i - 1].getBoundingClientRect().right <= box.left };
+            separate: i ? buttons[i - 1].getBoundingClientRect().right <= box.left : backBox.right <= box.left };
         });
       });
       expect(layout).toEqual(Array(5).fill({ target: true, artwork: true, fits: true, separate: true }));
