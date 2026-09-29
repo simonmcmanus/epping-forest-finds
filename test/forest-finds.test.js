@@ -199,6 +199,14 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
 globalThis.__forestFindsTest = {
   state,
   els,
+  // Replaces a top-level app function (a global in this sandbox) and returns the original, so a
+  // test can count how often a hot path reaches an expensive helper. Restore it with the return.
+  swapGlobalFunction(name, fn) { const previous = globalThis[name]; globalThis[name] = fn; return previous; },
+  megaBadgeVisibleCount,
+  drawEnvironment,
+  drawLayer,
+  clusterFocusTarget,
+  clusterVisibleItemCount,
   // The sandbox's own clock object, so a test can freeze what the app reads from
   // performance.now() -- see withFrozenAppClock. Exported as the object, not as now(),
   // because the app looks the method up on it at every call.
@@ -736,6 +744,53 @@ async function runRegisteredTests() {
 }
 
 const app = loadAppForTests();
+
+test("a mega badge's count is computed once per group, not on every frame the camera moves", () => {
+  resetData(app);
+  app.state.trees.push(
+    { id: "mb-1", commonName: "Oak", ...makePoint(app, 51.665, 0.045) },
+    { id: "mb-2", commonName: "Oak", ...makePoint(app, 51.6651, 0.0451) },
+    { id: "mb-3", commonName: "Oak", ...makePoint(app, 51.6652, 0.0449) },
+  );
+  app.state.landmarks.push({ id: "mb-pub", name: "Pub", category: "pub", ...makePoint(app, 51.6649, 0.0452) });
+  const group = [...app.state.trees.slice(-3), app.state.landmarks[app.state.landmarks.length - 1]];
+
+  const target = app.clusterFocusTarget(group);
+  const expected = Math.max(app.clusterVisibleItemCount(target.center, target.targetMinutes), group.length);
+
+  let scans = 0;
+  const original = app.swapGlobalFunction("clusterVisibleItemCount", function (...args) {
+    scans += 1;
+    return original.apply(this, args);
+  });
+  try {
+    // Many frames of pan/zoom/heading re-form the same group (in a new array, possibly reordered).
+    for (let frame = 0; frame < 30; frame += 1) {
+      const sameMembers = frame % 2 ? [...group].reverse() : [...group];
+      assert.equal(app.megaBadgeVisibleCount(sameMembers), expected, "the badge shows what a tap would open");
+    }
+    assert.equal(scans, 1, "the full-dataset scan runs once for the group, not once per frame");
+
+    app.megaBadgeVisibleCount(group.slice(0, 3));
+    assert.equal(scans, 2, "a group with different members is its own entry");
+
+    app.state.overviewFilters = ["pubs"];
+    app.megaBadgeVisibleCount(group);
+    assert.equal(scans, 3, "changing the active filters recomputes (the radius floor respects them)");
+
+    app.state.overviewFilters = [];
+    app.state.trees = [...app.state.trees];
+    app.megaBadgeVisibleCount(group);
+    assert.equal(scans, 4, "a replaced dataset recomputes");
+
+    app.state.cowLastUpdatedAt = (app.state.cowLastUpdatedAt || 0) + 1;
+    app.megaBadgeVisibleCount(group);
+    assert.equal(scans, 5, "a live cow refresh recomputes, since cows are part of the count");
+  } finally {
+    app.swapGlobalFunction("clusterVisibleItemCount", original);
+    app.state.overviewFilters = [];
+  }
+});
 
 test("ICON_PATHS is the single registry for all icon slugs", () => {
   const { ICON_PATHS: icons } = app;
@@ -8193,6 +8248,65 @@ test("a pin hidden behind a selection is no longer tappable, so the tap is open 
   app.state.selected = { type: "tree", item: selected };
 
   assert.equal(app.findHit(tap, world).type, "none");
+});
+
+// A 2D-context stand-in that records the path it is given, so a test can see what was drawn.
+function recordingContext() {
+  const calls = { moveTo: [], lineTo: 0 };
+  const ctx = new Proxy({}, {
+    get(target, key) {
+      if (key === "moveTo") return (x, y) => calls.moveTo.push({ x, y });
+      if (key === "lineTo") return () => { calls.lineTo += 1; };
+      if (key in target) return target[key];
+      return () => {};
+    },
+    set(target, key, value) { target[key] = value; return true; },
+  });
+  return { ctx, calls };
+}
+
+test("the environment and forest layers project each vertex once, not on every frame, and skip what is off screen", () => {
+  resetData(app);
+  const square = (lon, lat, d) => ({ type: "Polygon", coordinates: [[[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]]] });
+  const onScreen = { properties: { featureType: "garden" }, geometry: square(0.049, 51.649, 0.002) };
+  const farAway = { properties: { featureType: "garden" }, geometry: square(1.5, 52.5, 0.002) };
+  app.state.environmentFeatures = [onScreen, farAway];
+  const layer = { key: "forest", data: { features: [{ geometry: square(0.048, 51.648, 0.004) }, { geometry: square(-1.5, 50.5, 0.004) }] } };
+  const centre = app.projectLonLat(0.05, 51.65);
+  const scale = 200000;
+  app.state.viewport = { scale, tx: 500 - centre.x * scale, ty: 400 - centre.y * scale };
+
+  let projections = 0;
+  const originalProject = app.swapGlobalFunction("projectLonLat", function (...args) {
+    projections += 1;
+    return originalProject.apply(this, args);
+  });
+  const originalLoadBuildings = app.swapGlobalFunction("loadBuildingsIfNeeded", () => {});
+  try {
+    const first = recordingContext();
+    app.drawEnvironment(first.ctx);
+    app.drawLayer(first.ctx, layer);
+    assert.equal(first.calls.moveTo.length, 2, "only the on-screen garden and forest polygon are drawn");
+    const firstFrameProjections = projections;
+    assert.ok(firstFrameProjections >= 20, "the first frame projects the geometry");
+
+    const second = recordingContext();
+    app.drawEnvironment(second.ctx);
+    app.drawLayer(second.ctx, layer);
+    assert.equal(projections - firstFrameProjections, 0, "a later frame re-projects no vertices");
+    assert.deepEqual(second.calls.moveTo, first.calls.moveTo, "and draws exactly the same path");
+    assert.equal(second.calls.lineTo, first.calls.lineTo);
+
+    // The cache holds world points, so moving the camera still moves the drawing.
+    app.state.viewport = { ...app.state.viewport, tx: app.state.viewport.tx + 30 };
+    const panned = recordingContext();
+    app.drawEnvironment(panned.ctx);
+    assert.equal(panned.calls.moveTo[0].x, first.calls.moveTo[0].x + 30, "a pan shifts the cached geometry on screen");
+  } finally {
+    app.swapGlobalFunction("projectLonLat", originalProject);
+    app.swapGlobalFunction("loadBuildingsIfNeeded", originalLoadBuildings);
+    app.state.environmentFeatures = [];
+  }
 });
 
 test("tapping inside a forest polygon is open ground, not a selectable area", () => {
