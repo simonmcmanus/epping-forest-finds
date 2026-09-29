@@ -6,9 +6,11 @@ are recorded in `prompts.json` and production masters live in `data/icons/src/`.
 
 | Family | Decision |
 | --- | --- |
-| Nearby and loading/onboarding location mark | Vibrant emerald beacon with gold centre and arcs. Gold compass-pin alternative retained here for brand exploration. |
+| Nearby navigation | Yellow/gold beacon with an empty emerald centre and green arcs; star removed. All five navigation icons use equal 36px square boxes and 44px buttons. |
+| Loading/onboarding location mark | Retain the emerald beacon with gold centre and arcs. Homepage keeps its independent matching copy. |
 | Loading progress and completion | New gold/emerald ring and bold green tick; transparent backgrounds and reduced-motion support. |
 | Walking, folded map and compass | Refined dimensional artwork with simple silhouettes; folded map also updated on homepage. |
+| Road and railway search/details | Replace platform emoji with a UK road with white markings and a simple rail-track illustration; use the same artwork in both surfaces. |
 | Transport, facilities, food, heritage, culture and nature | Retain the approved illustrated set; review found it consistent at small sizes. |
 | Original tent and cream parking car | Preserve the explicitly approved silhouettes. |
 | Medical cross, rail symbols, search/back, close and directional controls | Preserve familiar simple geometry for immediate recognition at small sizes. |

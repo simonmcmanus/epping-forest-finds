@@ -11,6 +11,19 @@ test.describe("Map pins", () => {
     await setup(page);
   });
 
+  test("roads and railway lines use the same illustrated icons in search and details", async ({ page }) => {
+    for (const type of ["road", "railway"]) {
+      const searchIcon = await page.evaluate(type => {
+        const item = type === "road" ? { name: "Forest Road", roadType: "primary" } : { properties: { name: "Forest railway", railway: "rail" } };
+        if (type === "road") showRoadDetails(item, 100);
+        else showRailwayDetails(item);
+        return searchResultIconHtml(type, item);
+      }, type);
+      await expect(page.locator('#inspectorTitleEmoji img')).toHaveAttribute('src', `data/icons/${type}.png`);
+      expect(searchIcon).toContain(`data/icons/${type}.png`);
+    }
+  });
+
   test("home artwork has transparent surroundings rather than a square background", async ({ page }) => {
     const transparentFraction = await page.evaluate(async () => {
       const image = new Image();

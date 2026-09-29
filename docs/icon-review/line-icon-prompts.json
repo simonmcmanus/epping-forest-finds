@@ -1,0 +1,10 @@
+[
+  {
+    "name": "road",
+    "prompt": "Create a single polished illustrated app icon for Epping Forest Finds, matching the supplied STYLE reference only: dark forest-green outlines, muted sage, cream highlights, gentle dimensional shading. Simple clear silhouette readable at 24px. Centred on square canvas, about 80% coverage. Genuine transparent alpha background. No text, backdrop, cast shadow, checkerboard or extra props. Subject: one short gently curving British road in perspective, dark slate-grey surface, white dashed centre line, two cream-white edge lines and narrow sage grass verges. No yellow centre lines, cars, signs, bridge or buildings."
+  },
+  {
+    "name": "railway",
+    "prompt": "Create a single polished illustrated app icon for Epping Forest Finds, matching the supplied STYLE reference only: dark forest-green outlines, muted sage, cream highlights, gentle dimensional shading. Simple clear silhouette readable at 24px. Centred on square canvas, about 80% coverage. Genuine transparent alpha background. No text, backdrop, cast shadow, checkerboard or extra props. Subject: one short section of railway track receding into the distance, two parallel silver-grey rails joined by five broad warm brown timber sleepers, dark green outlines, restrained golden highlights. No train, scenery, station, badge or electric cables. Single compact track silhouette."
+  }
+]
