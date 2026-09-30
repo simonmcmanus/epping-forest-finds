@@ -16,6 +16,17 @@ name: Bump SW app cache version on the pull request
 # merge. Nothing pushes to main, there is no protection to bypass, and the
 # version lands in the same commit range as the code it belongs to.
 #
+# The commit is pushed as WEEKLY_LEDGER_PAT, not this job's own GITHUB_TOKEN --
+# same reason and same fix as weekly-ledger.yml's own PAT (see its header).
+# GitHub never fires a pull_request/push event for anything GITHUB_TOKEN did,
+# so a bump commit authored by it would sit there as the PR's new head with no
+# check ever run against it -- CI would show whatever it showed before the
+# bump, which looks green but tested a different commit than the one about to
+# merge. A PAT is an ordinary user credential, so this push triggers a normal
+# `synchronize` event: ci.yml runs again for real, against the exact commit
+# that ends up on main. Expect two CI runs on a pull request that touches
+# these paths -- that second run is the point, not a redundancy to trim.
+#
 # Data is versioned separately by data-bump.yml, so a data-only merge does not
 # invalidate the app shell and an app-only merge does not re-download the maps.
 # Both edit sw.js on the same branch, so they share a per-pull-request
@@ -51,7 +62,9 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # See the header: this has to be a PAT, not the default token, or
+          # the commit below triggers no CI run at all.
+          token: ${{ secrets.WEEKLY_LEDGER_PAT }}
 
       - name: Set APP_CACHE_NAME to one past the base branch
         run: |
@@ -81,11 +94,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add sw.js js/app.js
-          git commit -m "chore: bump SW app cache version [skip ci]"
-          # Pushed with GITHUB_TOKEN, so GitHub fires no further events for it
-          # and this cannot re-trigger itself. The cost is that CI does not
-          # re-run on the bump commit; it only ever changes a version string,
-          # and ci.yml already commits snapshot baselines the same way.
+          git commit -m "chore: bump SW app cache version"
+          # Pushed as the PAT (see checkout step above), so this is an
+          # ordinary user push: GitHub fires a real synchronize event and
+          # ci.yml runs against this exact commit, which is what ends up on
+          # main. The second run's own bump step below finds nothing left to
+          # do (already one past base) and exits without pushing again, so
+          # this does not loop.
           for attempt in 1 2 3; do
             git push origin "HEAD:${{ github.head_ref }}" && exit 0
             echo "push rejected (attempt $attempt), rebasing on the branch"
