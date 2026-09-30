@@ -432,6 +432,36 @@ target on its own row. The Search heading retains `searchIconHtml()` in
 unused. General `.nav-icon` and `.title-icon` sizes remain 22px and 23px;
 the main navigation and Back override their glyph sizes as described above.
 
+The Filters screen has its own two sizes, each reusing a size already
+established elsewhere rather than a new number: a `44px` icon
+(`.app-icon.filter-group-icon`, matching `.nearest-icon`'s own "enlarged"
+size, `css/map-ui.css`) beside each group header (Nature, Food, …) and a
+smaller `36px` icon (`.app-icon.filter-chip-icon`, matching `.close`'s size,
+`css/inspector.css`) inside each subfilter chip — the category reads as the
+bigger of the two, its subfilters as the lesser. Both selectors are compound
+(`.app-icon.X`, not bare `.X`) on purpose: `.app-icon`'s own `width/height:
+1em` lives in `css/inspector.css`, which loads after `css/filter.css` in
+`app.html`, so a bare `.filter-group-icon`/`.filter-chip-icon` tied on
+specificity with `.app-icon` and lost on load order — every filter icon
+rendered at its label's own font-size (13–15px) instead, reading as barely
+visible next to the label it sits beside. Matching `.app-icon` onto the
+selector settles it on specificity instead. An earlier pass at 64px/56px
+technically fixed that bug but, being bigger than either row's own compact
+padding expected, dwarfed the header and chip they sit in instead of
+sitting comfortably inside them.
+
+The main navigation row's labels (`.inspector-actions .nav-label`) used to
+overflow at the narrowest tested width (320px): a column-direction flex item
+is sized to its own content on the cross axis regardless of `flex-shrink`
+(that only governs the main axis), so "Feedback" and "Settings" — wider than
+their own fifth of a five-across row — spilled a few pixels past both edges
+of their own button and crowded into the next one, rather than being clipped
+by it. Sized down to `0.625rem` with `-0.2px` letter-spacing instead (see
+"Navigation" in `spec-data-rendering.md`), which fits every label inside its
+own column at 320px without truncating any of them; `test/e2e/02-overview.spec.js`'s
+"labelled charcoal navigation stays readable and separate from Back at narrow
+widths" test checks each label stays inside its own button at 320/390/1280px.
+
 The Nearby list's own per-row icon (`.nearest-icon`/`.nearest-icon .app-icon`,
 `css/map-ui.css`) is enlarged instead, to `44px` (up from 20px) — that row has
 no such fixed-width neighbours to overrun. It sits in its own grid column
