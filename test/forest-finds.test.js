@@ -237,6 +237,7 @@ globalThis.__forestFindsTest = {
   formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
+  overviewHeadingText,
   normalizeSearchText,
   searchQueryTokens,
   searchFieldRank,
@@ -1619,11 +1620,9 @@ test("generated UI icon classes render at the enlarged sizes", () => {
   // [^}]* (not [\s\S]*) deliberately bounds each match inside its own rule's braces -- an
   // unbounded match here previously let a later, unrelated selector's "width: 32px;" satisfy
   // the assertion even while the rule actually named kept its original, smaller size. The nav
-  // row and screen-title icons stay at their original, small size: a pass that enlarged them
-  // (and their .close/.inspector-back buttons) made the row inconsistent width and overran its
-  // container. Only the Nearby list's own per-row icon is enlarged, and it now spans both the
-  // name and meta/distance lines beside it (see .nearest-item's grid layout) rather than being
-  // sized to just the first line.
+  // glyphs keep their compact size; screen-title artwork matches the 44px Back target.
+  // Nearby list icons also span both the name and meta/distance lines beside them
+  // (see .nearest-item's grid layout), rather than just the first line.
   assert.match(inspectorCss, /\.nav-icon\s*\{[^}]*width:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);/);
   assert.match(inspectorCss, /\.title-icon\s*\{[^}]*width:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);/);
   assert.match(mapUiCss, /\.nearest-icon\s+\.app-icon\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/);
@@ -3206,14 +3205,15 @@ test("the nearby heading names the walking radius, not just the filter", () => {
   app.state.overviewFilters = ["trees"];
   app.state.trees.push({ id: "near-tree", recordNumber: 910, commonName: "Near Oak", ...makePoint(app, 0.001, 0) });
 
-  const html = app.overviewNearestHtml();
+  const html = app.overviewHeadingText();
+  assert.ok(!app.overviewNearestHtml().includes("nearby-heading"), "the subtitle is not duplicated in the list");
   assert.match(html, /Trees within 5 min walk/, "the heading answers how far the list is reaching");
   assert.ok(!html.includes("around you"), "the vaguer wording is gone");
 
   // With the radius toggled off there is no radius to name, so the heading says so instead of
   // claiming a reach the list is not applying.
   app.state.showAllOutsideRadius = true;
-  assert.match(app.overviewNearestHtml(), /Nearest Trees around you/);
+  assert.match(app.overviewHeadingText(), /Nearest Trees around you/);
   app.state.showAllOutsideRadius = false;
 });
 

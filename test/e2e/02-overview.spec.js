@@ -44,7 +44,7 @@ test.describe("Overview / Nearby screen", () => {
   test("labelled navigation stays readable and separate from the inspector panel at narrow widths", async ({ page }) => {
     await page.click("#settingsToggle");
     await expect(page.locator("#inspectorBack")).toBeVisible();
-    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Nearby", "Search", "Filters", "Feedback", "Settings"]);
+    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Search", "Nearby", "Filters", "Feedback", "Settings"]);
     await page.locator(".inspector-actions").evaluate(nav => nav.getAnimations({ subtree: true }).forEach(animation => animation.finish()));
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
@@ -152,7 +152,7 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
     });
 
-    test("the list heading says how far it is reaching, not just what it is listing", async ({ page }) => {
+    test("Nearby shows its walking scope directly beneath the screen title", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
@@ -164,8 +164,9 @@ test.describe("Overview / Nearby screen", () => {
         selectOverview();
       });
 
-      await expect(page.locator("#inspectorBody .nearby-heading strong"))
+      await expect(page.locator(".inspector-title-copy #inspectorType").last())
         .toHaveText(/Trees within 5 min walk/i);
+      await expect(page.locator("#inspectorBody .nearby-heading")).toHaveCount(0);
     });
 
     test("nearby entries show a combined distance and walk-time chip", async ({ page }) => {
@@ -236,9 +237,9 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#reportToggle")).toBeVisible();
   });
 
-  test("nav buttons read left to right: nearby, search, filters, feedback, settings", async ({ page }) => {
+  test("nav buttons read left to right: search, nearby, filters, feedback, settings", async ({ page }) => {
     const ids = await page.locator(".inspector-actions button").evaluateAll((els) => els.map((el) => el.id));
-    expect(ids).toEqual(["nearbyToggle", "searchToggle", "filterToggle", "reportToggle", "settingsToggle"]);
+    expect(ids).toEqual(["searchToggle", "nearbyToggle", "filterToggle", "reportToggle", "settingsToggle"]);
   });
 
   test("snapshot: overview state", async ({ page }, testInfo) => {

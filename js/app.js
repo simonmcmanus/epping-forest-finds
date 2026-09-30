@@ -2017,7 +2017,7 @@ function openFiltersScreen() {
   setNavScreenActive(els.filterToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Filters";
-  els.inspectorType.textContent = "";
+  els.inspectorType.textContent = "Choose what appears on the map";
   transitionInspectorBody(renderFilterBodyHtml(), "forward");
   updateFilterUi();
   setInspectorMinimized(false);
@@ -2954,6 +2954,29 @@ function headsUpSortedEntries(entries) {
     .map((scored) => scored.entry);
 }
 
+function overviewHeadingText() {
+  if (!state.userLocation) return "";
+  const activePointFilters = getActivePointFilterKeys();
+  // The radius is the whole premise of this list, so the heading names it rather than the
+  // vaguer "around you" -- "Trees within 5 min walk" answers "how far is this list reaching?"
+  // without the user having to go and read the walk chip. The radius chip can be toggled off
+  // (showAllOutsideRadius), in which case there is no radius to name and the heading says so.
+  const radiusLabel = state.showAllOutsideRadius
+    ? null
+    : `${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
+  // Filter titles are stored lower case ("trees", "pubs and bars") because they read as a
+  // fragment everywhere else they are used; at the head of a sentence they need a capital.
+  const rawTitle = activePointFilters.length === 1
+    ? (filterMeta(activePointFilters[0])?.title || "items")
+    : null;
+  const singleFilterTitle = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : null;
+  return singleFilterTitle
+    ? (radiusLabel ? `${singleFilterTitle} within ${radiusLabel}` : `Nearest ${singleFilterTitle} around you`)
+    : state.overviewFilters.length > 0
+      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : "Nearest selected filters around you")
+      : (radiusLabel ? `Nearest within ${radiusLabel}` : "Nearest around you");
+}
+
 function overviewNearestHtml() {
   if (!state.userLocation) {
     return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
@@ -2990,26 +3013,6 @@ function overviewNearestHtml() {
     return `<p class="empty">No nearby places found.</p>`;
   }
 
-  // The radius is the whole premise of this list, so the heading names it rather than the
-  // vaguer "around you" -- "Trees within 5 min walk" answers "how far is this list reaching?"
-  // without the user having to go and read the walk chip. The radius chip can be toggled off
-  // (showAllOutsideRadius), in which case there is no radius to name and the heading says so.
-  const radiusLabel = state.showAllOutsideRadius
-    ? null
-    : `${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
-  // Filter titles are stored lower case ("trees", "pubs and bars") because they read as a
-  // fragment everywhere else they are used; at the head of a sentence they need a capital.
-  // .nearby-heading uppercases the whole thing visually, but the underlying text is what a
-  // screen reader announces.
-  const rawTitle = activePointFilters.length === 1
-    ? (filterMeta(activePointFilters[0])?.title || "items")
-    : null;
-  const singleFilterTitle = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : null;
-  const heading = singleFilterTitle
-    ? (radiusLabel ? `${singleFilterTitle} within ${radiusLabel}` : `Nearest ${singleFilterTitle} around you`)
-    : state.overviewFilters.length > 0
-      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : "Nearest selected filters around you")
-      : (radiusLabel ? `Nearest within ${radiusLabel}` : "Nearest around you");
 
   const itemsHtml = entries.map((entry) => {
     const name = entry.type === "tree"
@@ -3058,7 +3061,7 @@ function overviewNearestHtml() {
     : `Showing all distances — tap to filter to ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
   const chipLabel = radiusActive ? formatWalkingRadius(state.walkingDistanceMinutes) : "All";
   const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
-  return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+  return `${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
 }
 
 // The icon the Nearby list, search results and cluster detail show for a
