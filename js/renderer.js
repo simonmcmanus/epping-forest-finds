@@ -5,7 +5,6 @@ const MAP_PNG_ICON_SIZE = 30;
 // it with MAP_PNG_ICON_SIZE so bigger pins merge into a count badge sooner instead of just
 // overlapping each other when a lot of them fall close together.
 const CLUSTER_RADIUS_ICON_SIZE_REF = 16;
-const BEER_ICON_SCALE = 1.15;
 const MAX_MAP_TREES = 60;
 const SELECTED_OVERLAY_PULSE_PERIOD_MS = 380;  // Shared pulse period for smooth animation
 const LANDMARK_CULL_MARGIN_PX = 24;  // Consistent culling margin for all landmark types
@@ -1849,10 +1848,14 @@ function getMarkerPulseOpacity(minOpacity = 0.3, maxOpacity = 0.8) {
   return minOpacity + (maxOpacity - minOpacity) * pulse;
 }
 
-function drawUndergroundRoundel(ctx, x, y, sizePx) {
+// Draws just the operator's glyph, centred at (cx, cy) and sized sizePx wide/tall -- the shared
+// white teardrop pointer these sit inside (see below) already supplies the circular backing every
+// other map icon has, so National Rail's own white disc (this used to draw one) would only be a
+// redundant second background on top of the pin's own head.
+function drawUndergroundGlyph(ctx, cx, cy, sizePx) {
   const scale = sizePx / 24;
   ctx.save();
-  ctx.translate(x - 12 * scale, y - 12 * scale);
+  ctx.translate(cx - 12 * scale, cy - 12 * scale);
   ctx.scale(scale, scale);
 
   ctx.fillStyle = "#C9181E";
@@ -1862,21 +1865,36 @@ function drawUndergroundRoundel(ctx, x, y, sizePx) {
   ctx.restore();
 }
 
-function drawNationalRailLogo(ctx, x, y, sizePx) {
+function drawNationalRailGlyph(ctx, cx, cy, sizePx) {
   const scale = sizePx / 24;
   ctx.save();
-  ctx.translate(x - 12 * scale, y - 12 * scale);
+  ctx.translate(cx - 12 * scale, cy - 12 * scale);
   ctx.scale(scale, scale);
-
-  ctx.fillStyle = "#FFFFFF";
-  ctx.beginPath();
-  ctx.arc(12, 12, 12, 0, Math.PI * 2);
-  ctx.fill();
 
   ctx.fillStyle = "#C9181E";
   const path = new Path2D("M0 12C0 5.373 5.372 0 12 0c6.627 0 11.999 5.373 11.999 12 0 6.628-5.372 12-11.999 12-6.628 0-12-5.372-12-12Zm6.195-5.842 6.076 2.794H2.835v1.884h9.499l-4.616 2.246H2.835v1.868h4.883l5.778 2.795h4.333l-6.092-2.795h9.469v-1.868h-9.453l4.616-2.246h4.837V8.952h-4.868l-5.777-2.794H6.195");
   ctx.fill(path);
 
+  ctx.restore();
+}
+
+// These two used to draw their glyph bare, at a fixed 8px (or, for the selected rail logo, a
+// mismatched 26px), with no pointer behind it -- a quarter the size of every other pin and the
+// only markers on the map without the white teardrop every other one sits in. `size` is now the
+// same full pin size every drawPngMapIcon call already receives, so a station reads as the same
+// kind of marker as its neighbours: same pointer, same standard/selected size tier, just its own
+// glyph instead of a PNG inside the head.
+function drawUndergroundRoundel(ctx, x, y, size) {
+  ctx.save();
+  const { cx, cy, R } = drawMapPinShape(ctx, x, y, size);
+  drawUndergroundGlyph(ctx, cx, cy, R * 1.85);
+  ctx.restore();
+}
+
+function drawNationalRailLogo(ctx, x, y, size) {
+  ctx.save();
+  const { cx, cy, R } = drawMapPinShape(ctx, x, y, size);
+  drawNationalRailGlyph(ctx, cx, cy, R * 1.85);
   ctx.restore();
 }
 
@@ -2114,7 +2132,7 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
     let drawnAsPng = false;
 
     if (isPub) {
-      drawnAsPng = drawPngMapIcon(ctx, iconPath("beer"), screenPt.x, screenPt.y, iconSize * BEER_ICON_SCALE);
+      drawnAsPng = drawPngMapIcon(ctx, iconPath("beer"), screenPt.x, screenPt.y, iconSize);
     } else if (isCafe) {
       drawnAsPng = drawPngMapIcon(ctx, iconPath("cafe"), screenPt.x, screenPt.y, iconSize);
     } else if (isShopCategory(place)) {
@@ -2122,9 +2140,9 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
     } else if (isTransport) {
       const transportType = getTransportType(place);
       if (transportType === "underground") {
-        drawUndergroundRoundel(ctx, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale);
+        drawUndergroundRoundel(ctx, screenPt.x, screenPt.y, iconSize);
       } else if (transportType === "national_rail") {
-        drawNationalRailLogo(ctx, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale);
+        drawNationalRailLogo(ctx, screenPt.x, screenPt.y, iconSize);
       } else if (transportType === "parking") {
         drawnAsPng = drawPngMapIcon(ctx, iconPath("landmark-parking"), screenPt.x, screenPt.y, iconSize);
       } else {
@@ -2475,16 +2493,16 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
       let drawnAsPng = false;
       const scaledIconSize = iconSize * pinScale;
       if (isPub) {
-        drawnAsPng = drawPngMapIcon(c, iconPath("beer"), screenPt.x, screenPt.y, scaledIconSize * BEER_ICON_SCALE);
+        drawnAsPng = drawPngMapIcon(c, iconPath("beer"), screenPt.x, screenPt.y, scaledIconSize);
       } else if (isCafe) {
         drawnAsPng = drawPngMapIcon(c, iconPath("cafe"), screenPt.x, screenPt.y, scaledIconSize);
       } else if (isShop) {
         drawnAsPng = drawPngMapIcon(c, iconPath("shop"), screenPt.x, screenPt.y, scaledIconSize);
       } else if (isTransport) {
         if (transportType === "underground") {
-          drawUndergroundRoundel(c, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale * pinScale);
+          drawUndergroundRoundel(c, screenPt.x, screenPt.y, scaledIconSize);
         } else if (transportType === "national_rail") {
-          drawNationalRailLogo(c, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale * pinScale);
+          drawNationalRailLogo(c, screenPt.x, screenPt.y, scaledIconSize);
         } else if (transportType === "parking") {
           drawnAsPng = drawPngMapIcon(c, iconPath("landmark-parking"), screenPt.x, screenPt.y, scaledIconSize);
         } else {
@@ -2622,7 +2640,7 @@ function drawSelectedOverlay(ctx, toScreen) {
       // Generic landmark with PNG icon
       drawPngMapIcon(ctx, iconPath(iconSlug), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     } else if (isPubCategory(selectedPlace)) {
-      drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale * BEER_ICON_SCALE);
+      drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     } else if (isCafeCategory(selectedPlace)) {
       drawPngMapIcon(ctx, iconPath("cafe"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     } else if (isShopCategory(selectedPlace)) {
@@ -2630,9 +2648,9 @@ function drawSelectedOverlay(ctx, toScreen) {
     } else if (isTransportCategory(selectedPlace)) {
       const transportType = getTransportType(selectedPlace);
       if (transportType === "underground") {
-        drawUndergroundRoundel(ctx, point.x, point.y, 8 * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+        drawUndergroundRoundel(ctx, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       } else if (transportType === "national_rail") {
-        drawNationalRailLogo(ctx, point.x, point.y, 26 * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+        drawNationalRailLogo(ctx, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       } else if (transportType === "parking") {
         drawPngMapIcon(ctx, iconPath("landmark-parking"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       } else {
