@@ -488,9 +488,10 @@ invisible control.
 - `{distance}` is formatted by `formatDistance()`: whole metres below 1km (`850 m`); above 1km, kilometres to 1 decimal place below 10km and to a whole number at 10km+, with a trailing `.0` trimmed (`1.5 km`, `5 km`, `12 km`) — this keeps the unit and precision human-readable at both close and far range.
 - Nearby bus-stop entries progressively append live stop-direction context to the stop name when available, so opposite-direction stops can be distinguished from the overview list before opening the detail view.
 - The directional arrow element stores the item's fixed coordinates (`data-item-lat`, `data-item-lon`); bearing is computed live in `updateOverviewDirectionArrows()` from `state.userLocation` — never baked into the HTML template. This keeps the `listKey` stable across GPS updates, preventing unnecessary full re-renders and icon flash.
-- Overview chrome uses generated PNG assets from `data/icons/` for the nearby title, walking-time chip, bus entries, and inspector header nav buttons; these generated UI icons render at enlarged sizes after tight-cropping.
+- Overview chrome uses generated PNG assets from `data/icons/` for the nearby title, walking-time chip and bus entries; these generated UI icons render at enlarged sizes after tight-cropping.
 - All icon paths are declared in a single `ICON_PATHS` registry in `js/categories.js`. Adding an icon requires one line there; no other file needs editing. Tree species leaf icons use `treeSpeciesIconHtml(commonName, latinName)` for fuzzy name-to-icon matching.
-- All five panel navigation icons, including Search, use equal 36px square boxes within 44px square button targets. The back symbol is 30px with a 44px target. Spacing tightens on narrow phones, the filter count overlays its button, and the header reserves the taller row so content does not overlap it. These dimensions follow the existing icon scale.
+- The main navigation is a full-width, five-column row in this order: Nearby, Search, Filters, Feedback, Settings. Each button has a persistent text label and a simple 24px outline SVG (pin, magnifier, sliders, speech bubble, cog). Icons and labels are charcoal (`#263345`); the current screen uses a solid charcoal tile with white content and `aria-current="page"`. Hover uses a neutral grey surface; selected tiles have no drop shadow. Filter counts remain separate badges and do not make Filters look like the current screen. Its accessible name starts with “Filters” and includes the active group count.
+- Navigation targets are at least 44px wide and 60px tall, sharing the available width even at 320px. Icon size and minimum height follow the existing icon scale. The row stays in normal layout flow; on phones it sits below the resize handle. Back retains its 30px glyph and 44px target on a separate row below navigation when needed. A collapsed inspector hides that Back row and its content while retaining the entire labelled navigation.
 - All `<img>` icons in the inspector panel use `loading="eager" decoding="sync"` so they render immediately on DOM insertion without a visible flash.
 - Count controlled by `nearestItemsCount` dropdown (3/5/10/15/20/25)
 - Filter panel toggle visible in overview mode
@@ -1082,7 +1083,7 @@ already documented for Nearby/Search result rows under Overview Content and Seco
   wherever it last was, which is the skip link's position from this same boot-time call, so the
   very next Tab reaches the nav row directly rather than restarting the whole document from the
   top.
-- **The nav row is always reachable.** `#nearbyToggle`/`#filterToggle`/`#searchToggle`/
+- **The nav row is always reachable.** `#nearbyToggle`/`#searchToggle`/`#filterToggle`/
   `#reportToggle`/`#settingsToggle` sit at the top of `#inspector`, ahead of any per-screen
   content — Nearby's list, a selected tree/place/cow's detail view, and the Search/Filter/
   Settings/Report screens all render below the nav row rather than replacing it. So Tab always

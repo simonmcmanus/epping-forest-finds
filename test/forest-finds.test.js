@@ -1539,13 +1539,12 @@ test("nearby filter updates trigger a heading-up refit that keeps the radius cir
   );
 });
 
-test("nav controls use generated image assets instead of text glyphs", () => {
+test("navigation has labelled outline glyphs that inherit the selected colour", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-
-  assert.match(html, /id="inspectorBack"[\s\S]*<svg[\s\S]*polyline/);
-  assert.match(html, /id="filterToggle"[\s\S]*data\/icons\/filter\.png/);
-  assert.match(html, /id="reportToggle"[\s\S]*data\/icons\/feedback\.png/);
-  assert.match(html, /id="settingsToggle"[\s\S]*data\/icons\/settings\.png/);
+  const nav = html.match(/<nav class="inspector-actions"[\s\S]*?<\/nav>/)[0];
+  assert.equal((nav.match(/stroke="currentColor"/g) || []).length, 5);
+  assert.equal((nav.match(/class="nav-label"/g) || []).length, 5);
+  assert.ok(!nav.includes("<img"), "navigation must not retain fixed-colour PNG icons");
 });
 
 test("tree loading uses chunked register before full-file fallbacks", () => {

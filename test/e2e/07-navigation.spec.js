@@ -165,7 +165,7 @@ test.describe("URL navigation", () => {
       await expect(page.locator("#inspector")).toBeFocused();
     });
 
-    test("Nearby, Filters, Search, Report and Settings are always reachable by Tab", async ({ page }) => {
+    test("Nearby, Search, Filters, Feedback and Settings are always reachable by Tab", async ({ page }) => {
       // The nav row (#nearbyToggle/#filterToggle/#searchToggle/#reportToggle/#settingsToggle)
       // sits at the top of #inspector, before any per-screen content, so it is the first thing
       // Tab reaches after the skip link on every screen -- Nearby, a selected tree/place/cow, and
@@ -173,7 +173,7 @@ test.describe("URL navigation", () => {
       // than replacing it.
       await setup(page);
       await page.locator("body").evaluate((el) => el.focus());
-      const order = ["nearbyToggle", "filterToggle", "searchToggle", "reportToggle", "settingsToggle"];
+      const order = ["nearbyToggle", "searchToggle", "filterToggle", "reportToggle", "settingsToggle"];
       for (const id of order) {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();
@@ -183,7 +183,7 @@ test.describe("URL navigation", () => {
     test("the nav row stays reachable with a place selected", async ({ page }) => {
       await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
       await page.locator("body").evaluate((el) => el.focus());
-      const order = ["nearbyToggle", "filterToggle", "searchToggle", "reportToggle", "settingsToggle", "inspectorBack"];
+      const order = ["nearbyToggle", "searchToggle", "filterToggle", "reportToggle", "settingsToggle", "inspectorBack"];
       for (const id of order) {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();
@@ -225,7 +225,7 @@ test.describe("URL navigation", () => {
         const box = await page.locator("#mapCanvas").boundingBox();
         await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 
-        const order = ["nearbyToggle", "filterToggle", "searchToggle", "reportToggle", "settingsToggle"];
+        const order = ["nearbyToggle", "searchToggle", "filterToggle", "reportToggle", "settingsToggle"];
         for (const id of order) {
           await page.keyboard.press("Tab");
           await expect(page.locator(`#${id}`)).toBeFocused();

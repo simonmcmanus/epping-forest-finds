@@ -1960,8 +1960,8 @@ function updateFilterUi() {
     els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
     els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
     els.filterToggle.setAttribute("aria-label", hasActiveFilter
-      ? `${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
-      : "Show filters");
+      ? `Filters: ${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
+      : "Filters");
     if (els.filterCount) {
       els.filterCount.hidden = !hasActiveFilter;
       els.filterCount.textContent = String(activeGroupCount);
@@ -1973,9 +1973,13 @@ function filterMeta(filterKey) {
   return FILTER_SUBFILTERS_BY_KEY.get(filterKey) || null;
 }
 
-function clearNavScreenActive() {
+function setNavScreenActive(current = null) {
   [els.nearbyToggle, els.searchToggle, els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
-    if (el) el.classList.remove("screen-active", "active");
+    if (!el) return;
+    el.classList.toggle("screen-active", el === current);
+    el.classList.remove("active");
+    if (el === current) el.setAttribute("aria-current", "page");
+    else el.setAttribute("aria-current", "false");
   });
 }
 
@@ -1984,8 +1988,7 @@ function openFiltersScreen() {
   state.selected = null;
   setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: false });
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
-  clearNavScreenActive();
-  if (els.filterToggle) els.filterToggle.classList.add("screen-active");
+  setNavScreenActive(els.filterToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Filters";
   els.inspectorType.textContent = "";
@@ -2002,8 +2005,7 @@ function openFiltersScreen() {
 function openSettings() {
   state.selected = { type: "settings", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true });
-  clearNavScreenActive();
-  els.settingsToggle.classList.add("screen-active");
+  setNavScreenActive(els.settingsToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Settings";
   els.inspectorType.textContent = "App preferences";
@@ -2122,8 +2124,7 @@ function bindSettingsHandlers() {
 function openReportModal() {
   state.selected = { type: "report", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
-  clearNavScreenActive();
-  els.reportToggle.classList.add("screen-active");
+  setNavScreenActive(els.reportToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Report";
   els.inspectorType.textContent = "Missing data / feature request";
@@ -6481,8 +6482,7 @@ function openSearchScreen() {
   setInspectorSelectionChrome({ emoji: searchIconHtml(), showBack: false });
   state.searchScreenOpen = true;
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
-  clearNavScreenActive();
-  if (els.searchToggle) els.searchToggle.classList.add("screen-active");
+  setNavScreenActive(els.searchToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Search";
   els.inspectorType.textContent = "Find anything on the map";

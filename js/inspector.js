@@ -555,12 +555,9 @@ let _overviewListKey;
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
   if (state.clusterExpanded) return;
-  [els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
-    if (el) el.classList.remove("screen-active", "active");
-  });
   const previousNearestPositions = captureNearestItemPositions();
   setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false, captureSnapshot: animate });
-  if (els.nearbyToggle) els.nearbyToggle.classList.add("screen-active");
+  setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
   els.inspectorTitle.textContent = "Nearby";
   els.inspectorType.textContent = "";
@@ -748,7 +745,7 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
   } else {
     els.inspectorTitleEmoji.textContent = emoji || "";
   }
-  if (els.nearbyToggle) els.nearbyToggle.classList.remove("screen-active");
+  setNavScreenActive();
   // Every screen entry point routes through here, so this is where Search stands down;
   // openSearchScreen sets the flag again straight after its own call.
   state.searchScreenOpen = false;
