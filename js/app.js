@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v57"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v58"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -2197,6 +2197,12 @@ function bindReportFormHandlers() {
   }
   const detailsInput = document.getElementById("reportDetails");
   if (detailsInput) detailsInput.addEventListener("input", saveDraft);
+  // A browser's own scroll-into-view-on-focus is free to pick an odd ancestor/offset in the
+  // cramped landscape keyboard-avoiding layout; re-assert our own nearest-both-axes scroll
+  // whenever the field is (re)focused, however that focus happened, so it's deterministic.
+  if (detailsInput) detailsInput.addEventListener("focus", () => {
+    detailsInput.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
 
   // Disable/enable submit when connectivity changes
   function updateOnlineState() {
