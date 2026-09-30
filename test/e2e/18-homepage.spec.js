@@ -18,9 +18,10 @@ test.describe("the marketing homepage", () => {
 
     await expect(page.locator("h1")).toHaveText("Your guide to Epping Forest.No Signal Necessary.");
     await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
+    await expect(page.locator(".hero-sub")).toHaveText("A free, offline map of Epping Forest. Find 24,906 veteran trees, forest paths, pubs and grazing cattle.");
     await expect(page.locator("#signupForm")).toBeVisible();
-    await expect(page.locator("#find-trees")).toContainText("Pop in the tag number.");
-    await expect(page.locator(".signup-intro")).toContainText("Sign up now to be an early tester");
+    await expect(page.locator("#find-trees")).toContainText("Search its tag number.");
+    await expect(page.locator(".signup-intro")).toContainText("early testing opens");
 
     await context.close();
   });
@@ -101,14 +102,14 @@ test.describe("the marketing homepage", () => {
     await page.goto("/");
     const trees = page.locator("#find-trees");
     await expect(trees.getByRole("heading", { name: "What’s with the tree tags?" })).toBeVisible();
-    await expect(trees).toContainText("Pop in the tag number.");
-    await expect(trees).toContainText("Take the scenic route.");
+    await expect(trees).toContainText("Search its tag number.");
+    await expect(trees).toContainText("Find your way there.");
     await expect(trees).toContainText("recorded girth and species");
     await expect(trees).toContainText("not an exact birthday");
     await expect(trees.locator(".tag-story figcaption")).toHaveText([
-      "1. Pop in the tag number. See that little number on the tree? Type it in and its record comes up on the map.",
-      "2. Take the scenic route. Pick the tree for a route from where you are. We’ll try to take you through forest paths and alleyways — the nice way round. Check the tag when you get there.",
-      "3. See how old it might be. We use the recorded girth and species for an educated guess, where we’ve got the data. It’s not an exact birthday, so hold off on the candles."
+      "1. Search its tag number. Find its record on the map.",
+      "2. Find your way there. Get a route that aims to favour forest paths and alleyways. Check the tag when you arrive.",
+      "3. See its estimated age. An estimate from recorded girth and species, where available — not an exact birthday."
     ]);
     await expect(trees.locator(".app-shot img")).toHaveCount(3);
     const shots = await trees.locator(".app-shot img").evaluateAll(images => images.map(img => img.getAttribute("src")));
@@ -164,8 +165,8 @@ test.describe("the marketing homepage", () => {
   test("invites early testers to sign up and offers weekly ledger updates", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Keep me in the loop", exact: true }).click();
-    await expect(page.locator(".cta-note")).toContainText("Sign up now to be an early tester");
-    await expect(page.locator(".signup-intro")).toContainText("Sign up now to be an early tester");
+    await expect(page.locator(".cta-note")).toContainText("early testing opens");
+    await expect(page.locator(".signup-intro")).toContainText("early testing opens");
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates");
     await expect(page.getByRole("button", { name: "Keep me posted" })).toBeVisible();
     await expect(page.locator(".consent")).toContainText("Email me when it’s ready, plus weekly Epping Forest Ledger updates");
@@ -198,7 +199,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("main > section:last-child")).toHaveClass(/\bledger\b/);
     await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
     await expect(page.locator(".site-foot")).not.toContainText("Map data ©");
-    await expect(page.locator(".offline-note")).toContainText("A note on the moving herd");
+    await expect(page.locator(".offline-note")).toContainText("Cattle locations offline");
     await expect(page.locator(".signup")).toHaveCSS("border-left-color", "rgb(243, 211, 107)");
     await expect(page.locator(".signup")).toHaveCSS("border-top-width", "1px");
     const signupWidths = await page.locator(".signup").evaluate(el => {
@@ -289,7 +290,7 @@ test.describe("the marketing homepage", () => {
   test("explains periodic network requests and stale offline cow positions in copy and search data", async ({ page }) => {
     await page.goto("/");
     const cattle = page.locator(".pillars article").filter({ hasText: "Follow the longhorns" });
-    await expect(cattle).toContainText("online for updates now and then");
+    await expect(cattle).toContainText("Positions refresh while online");
     await expect(cattle).toContainText("last saved positions");
     await expect(page.locator(".how").filter({ hasText: "No signal? Here’s the plan" })).toContainText("offline positions may be out of date");
     const faqs = await page.locator('script[type="application/ld+json"]').textContent();
