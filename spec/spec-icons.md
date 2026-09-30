@@ -443,14 +443,15 @@ icon rendered at its label's own font-size (13–15px) instead of 56/64px,
 reading as barely visible next to the label it sits beside. Matching
 `.app-icon` onto the selector settles it on specificity instead.
 
-The main navigation row's labels (`.inspector-actions .nav-label`) truncate
-with an ellipsis (`max-width: 100%; overflow: hidden; text-overflow: ellipsis;
-white-space: nowrap`) rather than overflow. A column-direction flex item is
-sized to its own content on the cross axis regardless of `flex-shrink` (that
-only governs the main axis), so at the narrowest tested width (320px)
-"Feedback" and "Settings" — wider than their own fifth of a five-across row —
-spilled a few pixels past both edges of their own button and crowded into the
-next one, rather than being clipped by it; `test/e2e/02-overview.spec.js`'s
+The main navigation row's labels (`.inspector-actions .nav-label`) used to
+overflow at the narrowest tested width (320px): a column-direction flex item
+is sized to its own content on the cross axis regardless of `flex-shrink`
+(that only governs the main axis), so "Feedback" and "Settings" — wider than
+their own fifth of a five-across row — spilled a few pixels past both edges
+of their own button and crowded into the next one, rather than being clipped
+by it. Sized down to `0.625rem` with `-0.2px` letter-spacing instead (see
+"Navigation" in `spec-data-rendering.md`), which fits every label inside its
+own column at 320px without truncating any of them; `test/e2e/02-overview.spec.js`'s
 "labelled charcoal navigation stays readable and separate from Back at narrow
 widths" test checks each label stays inside its own button at 320/390/1280px.
 

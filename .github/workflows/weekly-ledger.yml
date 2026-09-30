@@ -47,9 +47,18 @@ name: Weekly Epping Forest Ledger
 # in-process. A past run backgrounded the slow e2e suite, said it would
 # "resume once notified", and the job just ended there with nothing committed
 # -- there is no "later" in a single unattended Actions run.
+#
+# NOTE on cadence: running nightly rather than weekly (2026-09-30, temporary)
+# while the business-detection data is being brought up to scratch --
+# nightly runs escalate a repeating signal (business_watch's
+# CONFIDENT_AFTER_RUNS_BY_SOURCE patience) in days rather than weeks, and
+# surface data-quality issues faster while they're being actively worked. Both
+# the report file name and the weekly-data-report/<date>-$RUN_NUMBER branch
+# are already keyed by calendar date, not ISO week, so a run most nights
+# needs no other change here. Revert to a weekly cron once the data settles.
 on:
   schedule:
-    - cron: "0 1 * * 1"
+    - cron: "0 1 * * *"
   workflow_dispatch: {}
 
 permissions:
