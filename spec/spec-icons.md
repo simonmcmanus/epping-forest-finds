@@ -432,14 +432,15 @@ target on its own row. The Search heading retains `searchIconHtml()` in
 unused. General `.nav-icon` and `.title-icon` sizes remain 22px and 23px;
 the main navigation and Back override their glyph sizes as described above.
 
-The Filters screen has its own two sizes: a `56px` icon (`.app-icon.filter-group-icon`)
-beside each group header (Nature, Food, …) and a `64px` icon
-(`.app-icon.filter-chip-icon`) inside each subfilter chip. Both selectors are
-compound (`.app-icon.X`, not bare `.X`) on purpose: `.app-icon`'s own
+The Filters screen has its own two sizes: a `64px` icon (`.app-icon.filter-group-icon`)
+beside each group header (Nature, Food, …) and a smaller `56px` icon
+(`.app-icon.filter-chip-icon`) inside each subfilter chip — the category
+reads as the bigger of the two, its subfilters as the lesser. Both selectors
+are compound (`.app-icon.X`, not bare `.X`) on purpose: `.app-icon`'s own
 `width/height: 1em` lives in `css/inspector.css`, which loads after
 `css/filter.css` in `app.html`, so a bare `.filter-group-icon`/`.filter-chip-icon`
 tied on specificity with `.app-icon` and lost on load order — every filter
-icon rendered at its label's own font-size (13–15px) instead of 56/64px,
+icon rendered at its label's own font-size (13–15px) instead of 64/56px,
 reading as barely visible next to the label it sits beside. Matching
 `.app-icon` onto the selector settles it on specificity instead.
 
