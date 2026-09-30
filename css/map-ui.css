@@ -198,13 +198,7 @@
   }
 
   .inspector-drag-handle { display: flex; }
-  .inspector-actions { top: 30px; }
-  .inspector-back { top: 30px; }
-
-  .inspector-header {
-    min-height: calc(44px * var(--icon-scale) + 44px);
-    padding-top: 42px;
-  }
+  .inspector-actions { margin-top: 26px; }
 
   .row { grid-template-columns: 1fr; gap: 3px; }
 }
@@ -233,16 +227,7 @@
   }
 
   .inspector-actions {
-    top: 30px;
-  }
-
-  .inspector-back {
-    top: 30px;
-  }
-
-  .inspector-header {
-    min-height: calc(44px * var(--icon-scale) + 44px);
-    padding-top: 42px;
+    margin-top: 26px;
   }
 
   .toolbar {

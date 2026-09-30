@@ -14,25 +14,6 @@
   justify-content: center;
 }
 
-/* Active page state: currently viewing this screen */
-.nearby-toggle.screen-active,
-.search-screen-toggle.screen-active,
-.filter-toggle.screen-active,
-.report-toggle.screen-active,
-.settings-toggle.screen-active {
-  background: var(--nav);
-  border-color: var(--nav);
-  color: #fff;
-  box-shadow: 0 10px 20px rgba(20, 30, 55, 0.22);
-}
-
-/* Filter enabled but NOT viewing the filter screen — subtle tint */
-.filter-toggle.active:not(.screen-active) {
-  background: #dde7f5;
-  border-color: rgba(44, 79, 133, 0.45);
-  color: var(--nav);
-}
-
 .filter-count {
   min-width: 18px;
   height: 18px;
@@ -57,8 +38,8 @@
 
 /* Badge when filter enabled but not on filter screen — make it pop */
 .filter-toggle.active:not(.screen-active) .filter-count {
-  background: var(--nav);
-  border-color: var(--nav);
+  background: #263345;
+  border-color: #263345;
   color: #fff;
 }
 

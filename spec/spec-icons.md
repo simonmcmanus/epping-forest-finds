@@ -257,7 +257,7 @@ existing subjects.
 
 ## App-wide illustration style
 
-Place, filter and navigation illustrations share forest-green contours,
+Place, filter and screen-heading illustrations share forest-green contours,
 soft cream highlights and gentle dimensional shading. Use warm gold and tan,
 terracotta, natural greens and water blue to distinguish subjects without
 adding decorative objects. Food and restaurant icons share the same plate
@@ -274,7 +274,7 @@ icons have transparent space around the artwork; check them at 28px as well
 as at full size. `data/icons/src/prompts.json` records the built-in ImageGen
 prompts for the app-wide illustration pass.
 
-The Nearby navigation mark is a yellow/gold location beacon with an empty shaded
+The Nearby screen-heading mark is a yellow/gold location beacon with an empty shaded
 emerald centre and two green arcs, without a compass star. The loading/onboarding
 brand mark and homepage's independent location illustration retain the emerald
 beacon with a gold centre. The earlier gold compass-pin concept is retained in
@@ -416,24 +416,22 @@ describing the real map.
 
 ## Inline UI glyphs
 
-Two navigation glyphs are drawn as inline SVG rather than shipped as registry
-assets: the inspector's back arrow (`#inspectorBack` in `app.html`) and the
-search magnifier, which appears both as the main-navigation button
-(`#searchToggle` in `app.html`) and as the Search screen's title icon
-(`searchIconHtml()` in `js/app.js` — `app.html` carries its own copy because
-that file holds no logic). Both take `class="app-icon nav-icon"` so they size
-and sit exactly like the PNG nav icons around them, and both stroke in
-`currentColor` so the `screen-active` state recolours them for free. The
-`ui-search` prompt above is unused and stays listed only so the set is
-complete if the glyph is ever drawn as an asset.
+The five main-navigation buttons in `app.html` use consistent inline SVG outline
+glyphs: a pin for Nearby, magnifier for Search, sliders for Filters, speech
+bubble for Feedback and cog for Settings. They use `currentColor`, 2px strokes
+on a 24px viewBox, and persistent text labels. The navigation row uses 24px
+icons and minimum 60px-tall targets, scaled by `--icon-scale`; equal-width
+columns keep all five labels visible on narrow phones. Charcoal icons become
+white on the solid charcoal current-screen tile. These navigation glyphs do
+not use the illustrated PNG registry assets; screen headings retain those
+illustrations. No external icon library is loaded.
 
-`.nav-icon` (main navigation row and the inspector back arrow) and `.title-icon`
-(the emoji/icon beside a screen's heading, e.g. Filters/Settings/Report) stay
-at their original `22px`/`23px * var(--icon-scale)` (`css/inspector.css`), in
-their original `36px * var(--icon-scale)` `.close`/`.inspector-back` buttons
-— a pass that enlarged all four to 40px/64px made the row read as
-inconsistent width and overrun its own container, since the five buttons no
-longer shared a comfortable fit against the icons and badges inside them.
+The inspector's Back arrow remains inline SVG, with a 30px glyph in a 44px
+target on its own row. The Search heading retains `searchIconHtml()` in
+`js/app.js`; `app.html` contains markup only. The `ui-search` prompt remains
+unused. General `.nav-icon` and `.title-icon` sizes remain 22px and 23px;
+the main navigation and Back override their glyph sizes as described above.
+
 The Nearby list's own per-row icon (`.nearest-icon`/`.nearest-icon .app-icon`,
 `css/map-ui.css`) is enlarged instead, to `44px` (up from 20px) — that row has
 no such fixed-width neighbours to overrun. It sits in its own grid column
