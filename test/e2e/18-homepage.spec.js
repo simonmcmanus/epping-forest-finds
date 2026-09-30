@@ -67,8 +67,8 @@ test.describe("the marketing homepage", () => {
     const headerOnOneLine = await page.locator(".site-head").evaluate(head =>
       [...head.querySelectorAll(".brand span, .head-link")].every(el => el.getClientRects().length === 1 && el.getBoundingClientRect().height < 32));
     expect(headerOnOneLine).toBe(true);
-    await expect(page.locator(".hero-eyebrow .hero-leaf")).toHaveAttribute("src", "assets/home/map-icons/oak.png");
-    await expect(page.locator(".hero-eyebrow")).toHaveText("Epping Forest, offline");
+    await expect(page.locator(".hero-copy > :first-child")).toHaveJSProperty("tagName", "H1");
+    await expect(page.locator(".hero .eyebrow")).toHaveCount(0);
     // Counts come from the data, as the sync script writes them, so a data
     // change does not need this spec edited by hand.
     const inventory = buildInventory();

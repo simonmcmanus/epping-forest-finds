@@ -102,7 +102,6 @@ Epping Forest." so the first line leads.
 
 ### 3.5 Short forms
 
-- Tagline: **Epping Forest, offline.**
 - Social/sharing line: **Find Epping Forest’s veteran trees by tag number, navigate to them and discover their estimated ages on an offline map.**
 - Free/access line: **Free. No account needed. No signal needed.**
 
@@ -212,8 +211,8 @@ Sections, in order:
    in the same 38px column, with aligned category and subcategory labels. The
    header brand mark is the transparent oak leaf from the app icon, without
    the app icon's yellow background, shown at 44px (36px on phones), with the
-   brand name and Ledger link each kept to one line. The same leaf sits in a
-   34px cream circle before the hero eyebrow ("Epping Forest, offline").
+   brand name and Ledger link each kept to one line. The hero starts directly
+   with its headline; there is no eyebrow repeating the offline promise.
 3. **Three feature cards** — offline, veteran trees and cattle (§3.4). White
    cards have rounded borders, shadows and 80px centred independent brand
    icons from `assets/home/`, with centred headings. Use three equal columns
