@@ -48,7 +48,7 @@ test.describe("Overview / Nearby screen", () => {
     await page.locator(".inspector-actions").evaluate(nav => nav.getAnimations({ subtree: true }).forEach(animation => animation.finish()));
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
-      const layout = await page.locator(".inspector-actions").evaluate(nav => {
+      await expect.poll(async () => page.locator(".inspector-actions").evaluate(nav => {
         const buttons = [...nav.querySelectorAll("button")];
         const navBox = nav.getBoundingClientRect();
         // The nav bar is its own card now (see app.html), not part of #inspector -- above the
@@ -65,8 +65,7 @@ test.describe("Overview / Nearby screen", () => {
             separate: (!i || buttons[i - 1].getBoundingClientRect().right <= box.left)
               && (navBox.bottom <= panel.top || navBox.top >= panel.bottom) };
         });
-      });
-      expect(layout).toEqual(Array(5).fill({ target: true, artwork: true, fits: true, separate: true }));
+      })).toEqual(Array(5).fill({ target: true, artwork: true, fits: true, separate: true }));
     }
   });
 
@@ -87,6 +86,20 @@ test.describe("Overview / Nearby screen", () => {
     })).toBe(10);
     await session.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 0 } });
     await expect(nav).toHaveCSS("bottom", "10px");
+  });
+
+  test("screen title icons match the back button size even when Back is hidden", async ({ page }) => {
+    for (const id of ["settingsToggle", "searchToggle", "filterToggle", "reportToggle", "nearbyToggle"]) {
+      await page.locator(`#${id}`).click();
+      const icon = page.locator("#inspectorTitleEmoji .title-icon").last();
+      await expect(icon).toBeVisible();
+      await expect.poll(async () => icon.evaluate(el => {
+        const iconStyle = getComputedStyle(el);
+        const backStyle = getComputedStyle(document.getElementById("inspectorBack"));
+        return { width: iconStyle.width, height: iconStyle.height,
+          backWidth: backStyle.width, backHeight: backStyle.height };
+      })).toEqual({ width: "44px", height: "44px", backWidth: "44px", backHeight: "44px" });
+    }
   });
 
   test("navigation announces the current screen with a gold highlight and keeps filter status separate", async ({ page }) => {

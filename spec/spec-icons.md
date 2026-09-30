@@ -427,9 +427,9 @@ not use the illustrated PNG registry assets; screen headings retain those
 illustrations. No external icon library is loaded.
 
 The inspector's Back arrow remains inline SVG, with a 30px glyph in a 44px
-target on its own row. The Search heading retains `searchIconHtml()` in
+target beside the title. The Search heading retains `searchIconHtml()` in
 `js/app.js`; `app.html` contains markup only. The `ui-search` prompt remains
-unused. General `.nav-icon` and `.title-icon` sizes remain 22px and 23px;
+unused. General `.nav-icon` glyphs remain 22px. Screen heading `.title-icon` artwork is 44px square, matching the Back button target even when Back is hidden; both scale with `--icon-scale`. Text emoji headings use the same 44px font size;
 the main navigation and Back override their glyph sizes as described above.
 
 The Filters screen has its own two sizes, each reusing a size already
