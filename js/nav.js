@@ -427,9 +427,16 @@ function setupInteractions() {
 // iOS Safari doesn't shrink the layout viewport when the on-screen keyboard opens, so the
 // `position: absolute; bottom: 10px` mobile inspector sheet (see css/map-ui.css) stays pinned
 // behind the keyboard instead of moving with it. VisualViewport reports the actually-visible
-// area, so we use it to shift/shrink the sheet above the keyboard. Scoped to the screens with a
-// text input that can summon a keyboard: the Report screen and the Search screen (Settings uses
-// a <select>, Filter has no text input).
+// area, so we use it to shift the sheet above the keyboard. Scoped to the screens with a text
+// input that can summon a keyboard: the Report screen and the Search screen (Settings uses a
+// <select>, Filter has no text input).
+//
+// Report and Search only share the shift, not the rest: Report also grows the sheet to (almost)
+// fill the space above the keyboard, since the form has nothing else to show and benefits from
+// the room. Search does not -- its sheet keeps its normal size so the map stays visible behind
+// it, which is also why the nav bar (separate from the sheet, see app.html) is left alone rather
+// than made to fight the keyboard for space; it simply goes under the keyboard, the same as any
+// bottom tab bar does while a field above it is focused.
 const REPORT_KEYBOARD_INSET_MIN_PX = 40; // ignore sub-keyboard-sized viewport jitter (e.g. browser chrome show/hide)
 
 function setupReportKeyboardAvoidance() {
@@ -440,7 +447,8 @@ function setupReportKeyboardAvoidance() {
 
 function handleReportViewportChange() {
   if (!els.inspector) return;
-  if (state.selected?.type !== "report" && !state.searchScreenOpen) {
+  const isReport = state.selected?.type === "report";
+  if (!isReport && !state.searchScreenOpen) {
     clearReportKeyboardInset();
     return;
   }
@@ -452,6 +460,12 @@ function handleReportViewportChange() {
   }
   els.inspector.style.setProperty("--keyboard-inset", `${inset}px`);
   els.inspector.classList.add("keyboard-avoiding");
+  els.inspector.classList.toggle("keyboard-avoiding-expand", isReport);
+  // In the cramped landscape bottom-sheet layout, Report's expanded sheet leaves the nav bar
+  // nothing to sit in front of -- hidden there the same way it always was; Search never expands,
+  // so the nav bar (now its own fixed bar, see app.html) is simply left in place for it, and the
+  // keyboard is free to cover it the way any bottom tab bar gets covered while typing.
+  if (els.inspectorActions) els.inspectorActions.classList.toggle("keyboard-avoiding-hide", isReport);
   const detailsInput = document.getElementById("reportDetails");
   if (detailsInput && document.activeElement === detailsInput) {
     detailsInput.scrollIntoView({ block: "nearest" });
@@ -459,8 +473,9 @@ function handleReportViewportChange() {
 }
 
 function clearReportKeyboardInset() {
+  if (els.inspectorActions) els.inspectorActions.classList.remove("keyboard-avoiding-hide");
   if (!els.inspector || !els.inspector.classList.contains("keyboard-avoiding")) return;
-  els.inspector.classList.remove("keyboard-avoiding");
+  els.inspector.classList.remove("keyboard-avoiding", "keyboard-avoiding-expand");
   els.inspector.style.removeProperty("--keyboard-inset");
 }
 
@@ -685,8 +700,6 @@ function setupSearchAndNavHandlers() {
     els.searchToggle.addEventListener("click", () => {
       if (els.searchToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.searchToggle);
-        const input = document.getElementById("mapSearchInput");
-        if (input) input.focus();
         return;
       }
       openSearchScreen();

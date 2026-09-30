@@ -41,7 +41,7 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
   });
 
-  test("labelled charcoal navigation stays readable and separate from Back at narrow widths", async ({ page }) => {
+  test("labelled navigation stays readable and separate from the inspector panel at narrow widths", async ({ page }) => {
     await page.click("#settingsToggle");
     await expect(page.locator("#inspectorBack")).toBeVisible();
     await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Nearby", "Search", "Filters", "Feedback", "Settings"]);
@@ -50,31 +50,35 @@ test.describe("Overview / Nearby screen", () => {
       await page.setViewportSize({ width, height: 844 });
       const layout = await page.locator(".inspector-actions").evaluate(nav => {
         const buttons = [...nav.querySelectorAll("button")];
-        const panel = nav.closest(".inspector").getBoundingClientRect();
-        const backBox = document.querySelector("#inspectorBack").getBoundingClientRect();
+        const navBox = nav.getBoundingClientRect();
+        // The nav bar is its own card now (see app.html), not part of #inspector -- above the
+        // panel on desktop, below it (pinned to the bottom of the screen) on mobile. Either way
+        // the two must never overlap, which is the whole point of separating them.
+        const panel = document.getElementById("inspector").getBoundingClientRect();
         return buttons.map((button, i) => {
           const box = button.getBoundingClientRect();
           const label = button.querySelector(".nav-label").getBoundingClientRect();
           const icon = button.querySelector(".nav-icon").getBoundingClientRect();
           return { target: box.width >= 44 && box.height >= 44,
             artwork: icon.width === 24 && icon.height === 24,
-            fits: box.left >= panel.left && box.right <= panel.right && label.left >= box.left && label.right <= box.right,
-            separate: (!i || buttons[i - 1].getBoundingClientRect().right <= box.left) && box.bottom <= backBox.top };
+            fits: box.left >= navBox.left && box.right <= navBox.right && label.left >= box.left && label.right <= box.right,
+            separate: (!i || buttons[i - 1].getBoundingClientRect().right <= box.left)
+              && (navBox.bottom <= panel.top || navBox.top >= panel.bottom) };
         });
       });
       expect(layout).toEqual(Array(5).fill({ target: true, artwork: true, fits: true, separate: true }));
     }
   });
 
-  test("navigation announces the current screen and keeps filter status separate", async ({ page }) => {
+  test("navigation announces the current screen with a gold highlight and keeps filter status separate", async ({ page }) => {
     const nav = page.getByRole("navigation", { name: "Main navigation" });
     for (const [id, title] of [["searchToggle", "Search"], ["filterToggle", "Filters"], ["reportToggle", "Report"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
       await page.locator(`#${id}`).click();
       await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
       await expect(page.locator(`#${id}`)).toHaveAttribute("aria-current", "page");
       await expect(page.locator("#inspectorTitle").last()).toContainText(title);
-      await expect(page.locator(`#${id}`)).toHaveCSS("background-color", "rgb(38, 51, 69)");
-      await expect(page.locator(`#${id} svg`)).toHaveCSS("stroke", "rgb(255, 255, 255)");
+      await expect(page.locator(`#${id}`)).toHaveCSS("background-color", "rgba(240, 180, 41, 0.16)");
+      await expect(page.locator(`#${id} svg`)).toHaveCSS("stroke", "rgb(138, 106, 0)");
     }
     await page.click("#filterToggle");
     await page.locator(".filter-chip").first().click();
@@ -84,13 +88,15 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#filterToggle")).toHaveAccessibleName(/^Filters/);
   });
 
-  test("collapsed navigation keeps every label and target inside the panel", async ({ page }) => {
+  test("the nav bar stays usable regardless of the inspector sheet's minimized state", async ({ page }) => {
+    // The nav bar is no longer part of #inspector (see app.html), so minimizing the sheet must
+    // not affect it at all -- unlike the sheet's own chrome (header, body), which does hide.
     await page.evaluate(() => setInspectorMinimized(true));
     await expect(page.locator("#inspector")).toHaveClass(/minimized/);
     const fits = await page.locator(".inspector-actions button").evaluateAll(buttons => buttons.every(button => {
-      const panel = button.closest(".inspector").getBoundingClientRect();
+      const nav = button.closest(".inspector-actions").getBoundingClientRect();
       const box = button.getBoundingClientRect();
-      return box.top >= panel.top && box.bottom <= panel.bottom && box.height >= 44;
+      return box.top >= nav.top && box.bottom <= nav.bottom && box.height >= 44;
     }));
     expect(fits).toBe(true);
     await page.click("#settingsToggle");

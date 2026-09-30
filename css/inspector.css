@@ -1,8 +1,10 @@
 .inspector {
-  top: 14px;
+  /* Below the nav bar (.inspector-actions), with a gap, so the two read as separate cards
+     rather than one tall panel -- see spec-data-rendering.md. */
+  top: calc(14px + var(--nav-bar-h) + 10px);
   right: 14px;
   width: min(390px, calc(100vw - 28px));
-  max-height: calc(100% - 28px);
+  max-height: calc(100% - 28px - var(--nav-bar-h) - 10px);
   border-radius: 8px;
   overflow: hidden;
   display: flex;
@@ -70,23 +72,14 @@
   overflow: hidden;
 }
 
-.inspector.minimized .inspector-header {
-  display: none;
-}
-
 .inspector.minimized .inspector-body {
   display: none;
 }
 
-.inspector-header {
+/* Collapsed to the title pill, there's nowhere for Back to lead that isn't already one tap
+   (expand) away, so it's hidden rather than left dangling above the collapsed content. */
+.inspector.minimized .inspector-back {
   display: none;
-  flex: 0 0 auto;
-}
-
-.inspector-header.has-back {
-  display: flex;
-  padding: 0 12px 8px;
-  border-bottom: 1px solid var(--line);
 }
 
 /* The persistent way back from a browsed spot (#nearbyAnchorBar, index.html). Sits in the
@@ -118,13 +111,25 @@
   display: none;
 }
 
+/* The main nav bar: a card of its own (see app.html), not part of #inspector, so it stays put
+   and reachable whatever the inspector sheet is doing -- open, minimized, or pushed around by
+   the on-screen keyboard. Positioned to sit just above the panel by default (desktop); the
+   mobile breakpoints in css/map-ui.css pin it to the bottom of the screen instead. */
 .inspector-actions {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: min(390px, calc(100vw - 28px));
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 2px;
-  margin: 12px 8px;
-  flex: 0 0 auto;
-  z-index: 3;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid rgba(36, 56, 47, 0.15);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  z-index: 4;
 }
 
 .inspector-tools {
@@ -178,6 +183,12 @@
   gap: 10px;
   position: relative;
   padding: 16px 48px 12px 16px;
+}
+
+/* Back sits to the left of the emoji/title, in the same row, rather than on a header row of
+   its own above it -- the button's own inset replaces the section's left padding. */
+.inspector-title-section.has-back {
+  padding-left: 12px;
 }
 
 .inspector-title-copy {
@@ -334,8 +345,8 @@ button.settings-toggle.has-update::after {
 }
 
 .inspector-actions > button.screen-active {
-  background: #263345;
-  color: #fff;
+  background: var(--gold-tint);
+  color: var(--gold-ink);
 }
 
 .inspector-actions .nav-label {
