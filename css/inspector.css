@@ -339,9 +339,10 @@ button.settings-toggle.has-update::after {
 }
 
 .inspector-actions .nav-label {
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
   font-weight: 600;
   line-height: 1.3;
+  letter-spacing: -0.2px;
 }
 
 .inspector-actions .nav-icon {

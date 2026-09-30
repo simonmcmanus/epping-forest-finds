@@ -2197,6 +2197,12 @@ function bindReportFormHandlers() {
   }
   const detailsInput = document.getElementById("reportDetails");
   if (detailsInput) detailsInput.addEventListener("input", saveDraft);
+  // A browser's own scroll-into-view-on-focus is free to pick an odd ancestor/offset in the
+  // cramped landscape keyboard-avoiding layout; re-assert our own nearest-both-axes scroll
+  // whenever the field is (re)focused, however that focus happened, so it's deterministic.
+  if (detailsInput) detailsInput.addEventListener("focus", () => {
+    detailsInput.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
 
   // Disable/enable submit when connectivity changes
   function updateOnlineState() {
