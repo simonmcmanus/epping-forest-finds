@@ -2065,7 +2065,7 @@ function settingsFormHtml() {
     <section class="settings-section">
       <h3 class="settings-section-title">Privacy</h3>
       <p class="settings-description">Location &amp; usage tracking: <strong id="privacyConsentStatus">${hasTrackingConsent() ? "enabled" : "not enabled"}</strong>. We collect anonymous GPS position, navigation and interaction data to improve the app. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
-      <button id="privacyConsentToggle" class="settings-refresh-btn" type="button">${hasTrackingConsent() ? "Withdraw consent" : "Enable location & tracking"}</button>
+      <button id="privacyConsentToggle" class="settings-refresh-btn" type="button">${hasTrackingConsent() ? "Withdraw consent" : "Enable location &amp; tracking"}</button>
     </section>
     <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
