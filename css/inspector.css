@@ -234,7 +234,7 @@
 }
 
 .inspector-title-emoji {
-  font-size: calc(2.4rem * var(--icon-scale));
+  font-size: calc(44px * var(--icon-scale));
   line-height: 1;
   flex: 0 0 auto;
 }
@@ -253,8 +253,8 @@
 }
 
 .title-icon {
-  width: calc(23px * var(--icon-scale));
-  height: calc(23px * var(--icon-scale));
+  width: calc(44px * var(--icon-scale));
+  height: calc(44px * var(--icon-scale));
 }
 
 .inspector .type {

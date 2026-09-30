@@ -44,11 +44,11 @@ test.describe("Overview / Nearby screen", () => {
   test("labelled navigation stays readable and separate from the inspector panel at narrow widths", async ({ page }) => {
     await page.click("#settingsToggle");
     await expect(page.locator("#inspectorBack")).toBeVisible();
-    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Nearby", "Search", "Filters", "Feedback", "Settings"]);
+    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Search", "Nearby", "Filters", "Feedback", "Settings"]);
     await page.locator(".inspector-actions").evaluate(nav => nav.getAnimations({ subtree: true }).forEach(animation => animation.finish()));
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
-      const layout = await page.locator(".inspector-actions").evaluate(nav => {
+      await expect.poll(async () => page.locator(".inspector-actions").evaluate(nav => {
         const buttons = [...nav.querySelectorAll("button")];
         const navBox = nav.getBoundingClientRect();
         // The nav bar is its own card now (see app.html), not part of #inspector -- above the
@@ -65,8 +65,40 @@ test.describe("Overview / Nearby screen", () => {
             separate: (!i || buttons[i - 1].getBoundingClientRect().right <= box.left)
               && (navBox.bottom <= panel.top || navBox.top >= panel.bottom) };
         });
-      });
-      expect(layout).toEqual(Array(5).fill({ target: true, artwork: true, fits: true, separate: true }));
+      })).toEqual(Array(5).fill({ target: true, artwork: true, fits: true, separate: true }));
+    }
+  });
+
+  test("mobile navigation clears the device safe area and keeps its sheet separated", async ({ page }) => {
+    const session = await page.context().newCDPSession(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await session.send("Emulation.setSafeAreaInsetsOverride", {
+      insets: { top: 0, left: 0, right: 0, bottom: 34 },
+    });
+    const nav = page.locator(".inspector-actions");
+    await expect(nav).toHaveCSS("bottom", "44px");
+    await expect(nav).toHaveCSS("border-bottom-left-radius", "20px");
+    await expect(nav).toHaveCSS("border-bottom-right-radius", "20px");
+    await expect.poll(async () => page.evaluate(() => {
+      const nav = document.querySelector(".inspector-actions").getBoundingClientRect();
+      const sheet = document.getElementById("inspector").getBoundingClientRect();
+      return Math.round(nav.top - sheet.bottom);
+    })).toBe(10);
+    await session.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 0 } });
+    await expect(nav).toHaveCSS("bottom", "10px");
+  });
+
+  test("screen title icons match the back button size even when Back is hidden", async ({ page }) => {
+    for (const id of ["settingsToggle", "searchToggle", "filterToggle", "reportToggle", "nearbyToggle"]) {
+      await page.locator(`#${id}`).click();
+      const icon = page.locator("#inspectorTitleEmoji .title-icon").last();
+      await expect(icon).toBeVisible();
+      await expect.poll(async () => icon.evaluate(el => {
+        const iconStyle = getComputedStyle(el);
+        const backStyle = getComputedStyle(document.getElementById("inspectorBack"));
+        return { width: iconStyle.width, height: iconStyle.height,
+          backWidth: backStyle.width, backHeight: backStyle.height };
+      })).toEqual({ width: "44px", height: "44px", backWidth: "44px", backHeight: "44px" });
     }
   });
 
@@ -120,7 +152,7 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
     });
 
-    test("the list heading says how far it is reaching, not just what it is listing", async ({ page }) => {
+    test("Nearby shows its walking scope directly beneath the screen title", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
@@ -132,8 +164,9 @@ test.describe("Overview / Nearby screen", () => {
         selectOverview();
       });
 
-      await expect(page.locator("#inspectorBody .nearby-heading strong"))
+      await expect(page.locator(".inspector-title-copy #inspectorType").last())
         .toHaveText(/Trees within 5 min walk/i);
+      await expect(page.locator("#inspectorBody .nearby-heading")).toHaveCount(0);
     });
 
     test("nearby entries show a combined distance and walk-time chip", async ({ page }) => {
@@ -204,9 +237,9 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#reportToggle")).toBeVisible();
   });
 
-  test("nav buttons read left to right: nearby, search, filters, feedback, settings", async ({ page }) => {
+  test("nav buttons read left to right: search, nearby, filters, feedback, settings", async ({ page }) => {
     const ids = await page.locator(".inspector-actions button").evaluateAll((els) => els.map((el) => el.id));
-    expect(ids).toEqual(["nearbyToggle", "searchToggle", "filterToggle", "reportToggle", "settingsToggle"]);
+    expect(ids).toEqual(["searchToggle", "nearbyToggle", "filterToggle", "reportToggle", "settingsToggle"]);
   });
 
   test("snapshot: overview state", async ({ page }, testInfo) => {

@@ -12,6 +12,12 @@ test.describe("Filter panel", () => {
     await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
   });
 
+  test("Filters explains its purpose directly beneath the screen title", async ({ page }) => {
+    await page.click("#filterToggle");
+    await expect(page.locator(".inspector-title-copy #inspectorType").last())
+      .toHaveText("Choose what appears on the map");
+  });
+
   test("URL hash becomes #filters when the filter screen opens", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page).toHaveURL(/#filters$/);

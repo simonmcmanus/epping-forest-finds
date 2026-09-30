@@ -562,8 +562,8 @@ function selectOverview(animate = false) {
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
   els.inspectorTitle.textContent = "Nearby";
-  els.inspectorType.textContent = "";
   const nearestSummary = overviewNearestHtml();
+  els.inspectorType.textContent = overviewHeadingText();
   const listKey = nearestSummary.replace(/<span class="walk-time">[^<]*<\/span>/, "");
 
   if (!animate && listKey === _overviewListKey && els.inspectorBody?.querySelector(".walk-time")) {
