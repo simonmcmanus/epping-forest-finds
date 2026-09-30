@@ -8,7 +8,11 @@ name: Bump data cache version on the pull request
 # Like sw-release.yml, this used to push the bump to main after the merge and
 # stopped working when main became protected ("Changes must be made through a
 # pull request"). It now bumps on the pull request and rides in with the
-# merge. See sw-release.yml's header for the full account.
+# merge. See sw-release.yml's header for the full account -- including why
+# the commit below is pushed as WEEKLY_LEDGER_PAT rather than this job's own
+# GITHUB_TOKEN: a GITHUB_TOKEN push fires no new CI run, so the bump commit
+# would become the PR's head with no check ever run against it. The PAT push
+# is a normal user push, so ci.yml runs again for real on the bumped commit.
 #
 # Both workflows edit sw.js on the same branch, so they share a per-pull-request
 # concurrency group rather than racing each other.
@@ -36,7 +40,9 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # See the header: this has to be a PAT, not the default token, or
+          # the commit below triggers no CI run at all.
+          token: ${{ secrets.WEEKLY_LEDGER_PAT }}
 
       - name: Set DATA_CACHE_NAME to one past the base branch
         run: |
@@ -64,7 +70,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add sw.js
-          git commit -m "chore: bump data cache version [skip ci]"
+          git commit -m "chore: bump data cache version"
+          # Pushed as the PAT (see checkout step above), so this triggers a
+          # real synchronize event and CI runs again on this exact commit --
+          # see sw-release.yml's header for the full account.
           for attempt in 1 2 3; do
             git push origin "HEAD:${{ github.head_ref }}" && exit 0
             echo "push rejected (attempt $attempt), rebasing on the branch"
