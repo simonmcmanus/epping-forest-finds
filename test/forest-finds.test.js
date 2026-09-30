@@ -439,6 +439,7 @@ globalThis.__forestFindsTest = {
   refitSelectionAfterRoutingGraphReady,
   settingsFormHtml,
   reportFormHtml,
+  reportIssueHtml,
   openFiltersScreen,
   openSettings,
   openReportModal,
@@ -4058,6 +4059,44 @@ test("report submission includes the app version", () => {
 
   assert.ok(!html.includes("App version:"), "report form should not display the app version");
   assert.match(source, /appVersion:\s*state\.swVersion \|\| APP_VERSION/, "submitted report payload should include the live service worker version, falling back to APP_VERSION");
+});
+
+test("a submitted report's issue URL renders as a real clickable link, not plain text", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+  // Both the full Report screen and the inline per-location form route their success message
+  // through applyReportStatusContent, which builds the link with document.createElement
+  // rather than interpolating the URL into a template string.
+  assert.match(source, /setReportStatus\("Report submitted successfully\.", "success", data && data\.issueUrl\)/);
+  assert.match(source, /applyReportStatusContent\(statusEl, "Report submitted successfully\.", "success", data && data\.issueUrl\)/);
+  assert.match(source, /function applyReportStatusContent[\s\S]*?document\.createElement\("a"\)/);
+  assert.match(source, /link\.href = issueUrl/);
+});
+
+test("a tree or landmark's detail view offers to report a problem with its own coordinates", () => {
+  const withPoint = app.reportIssueHtml({ type: "Veteran tree", name: "Hangman's Oak", latitude: 51.65, longitude: 0.03 });
+  assert.match(withPoint, /Noticed a problem with this location\?/);
+  assert.match(withPoint, /data-report-type="Veteran tree"/);
+  assert.match(withPoint, /data-report-name="Hangman&#039;s Oak"/);
+  assert.match(withPoint, /data-report-lat="51.65"/);
+  assert.match(withPoint, /data-report-lon="0.03"/);
+});
+
+test("reportIssueHtml renders nothing for a line/area feature with no single coordinate", () => {
+  assert.equal(app.reportIssueHtml({ type: "Road", name: "Forest Road", latitude: null, longitude: null }), "");
+  assert.equal(app.reportIssueHtml(null), "");
+});
+
+test("the tree and landmark detail screens both offer the report-a-problem link", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "js", "inspector.js"), "utf8");
+  assert.match(source, /function showTreeDetails[\s\S]*?reportIssueHtml\(/, "tree detail view should render the report-issue link");
+  assert.match(source, /function showLandmarkDetails[\s\S]*?reportIssueHtml\(/, "landmark detail view should render the report-issue link");
+});
+
+test("submitting a location-issue report sends the flagged item's own coordinates, not the reporter's GPS fix", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+  assert.match(source, /reportType:\s*"location-issue"/, "location-issue reports should be distinguishable from general feedback");
+  assert.match(source, /locationContext:\s*{\s*type:\s*wrapper\.dataset\.reportType/, "payload should carry which item was flagged");
+  assert.match(source, /latitude:\s*Number\(Number\(wrapper\.dataset\.reportLat\)\.toFixed\(6\)\)/, "location sent should come from the flagged item, not state.userLocation");
 });
 
 test("walking radius circle is always fully visible on screen after centering", () => {

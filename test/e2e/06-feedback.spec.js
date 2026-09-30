@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup } = require("./helpers");
+const { setup, FIXTURE_TREE } = require("./helpers");
 
 test.describe("Feedback / Report screen", () => {
   test.beforeEach(async ({ page }) => {
@@ -71,6 +71,23 @@ test.describe("Feedback / Report screen", () => {
 
     await expect(page.locator("#reportStatus")).toContainText("submitted successfully");
     expect(requestCount).toBe(1);
+  });
+
+  test("a submitted report's filed issue is a real clickable link", async ({ page }) => {
+    await page.route("**/.netlify/functions/report-missing-data", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, issueNumber: 7, issueUrl: "https://github.com/simonmcmanus/epping-forest-finds/issues/7" }),
+      })
+    );
+
+    await page.fill("#reportDetails", "Link should be clickable");
+    await page.click("#reportSubmit");
+
+    const issueLink = page.locator("#reportStatus a");
+    await expect(issueLink).toHaveAttribute("href", "https://github.com/simonmcmanus/epping-forest-finds/issues/7");
+    await expect(issueLink).toHaveAttribute("target", "_blank");
   });
 
   test("a failed submission keeps the same request id for a safe retry", async ({ page }) => {
@@ -262,5 +279,82 @@ test.describe("Reporting a mistake from a weekly report", () => {
     });
     await setup(page, "/app#report=Mistake%20in%20the%20ledger");
     await expect(page.locator("#reportDetails")).toHaveValue("Half-written note I came back to");
+  });
+});
+
+test.describe("Reporting a problem with a selected location", () => {
+  test.beforeEach(async ({ page }) => {
+    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+  });
+
+  test("a tree's detail view offers to report a problem with it", async ({ page }) => {
+    await expect(page.locator("[data-action='report-issue']")).toContainText("Noticed a problem with this location?");
+  });
+
+  test("clicking it opens an inline form without leaving the tree's detail screen", async ({ page }) => {
+    await page.click("[data-action='report-issue']");
+    await expect(page.locator(".report-issue textarea")).toBeVisible();
+    // Still the tree's own detail screen -- this isn't the full Report screen.
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    await expect(page.locator("#reportToggle")).not.toHaveClass(/screen-active/);
+  });
+
+  test("Cancel collapses the inline form back to the link", async ({ page }) => {
+    await page.click("[data-action='report-issue']");
+    await page.fill(".report-issue textarea", "Some notes I changed my mind about");
+    await page.click("[data-action='cancel-location-issue']");
+    await expect(page.locator("[data-action='report-issue']")).toBeVisible();
+    await expect(page.locator(".report-issue textarea")).toHaveCount(0);
+  });
+
+  test("submitting sends the flagged tree's own coordinates and identity, not the reporter's GPS fix", async ({ page }) => {
+    let postedPayload = null;
+    await page.route("**/.netlify/functions/report-missing-data", async (route) => {
+      postedPayload = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, issueNumber: 1, issueUrl: "https://github.com/simonmcmanus/epping-forest-finds/issues/1" }),
+      });
+    });
+
+    await page.click("[data-action='report-issue']");
+    await page.fill(".report-issue textarea", "This tree is shown in the wrong spot");
+    await page.click("[data-action='submit-location-issue']");
+
+    await expect(page.locator(".report-issue .report-status")).toContainText("submitted successfully");
+    expect(postedPayload.reportType).toBe("location-issue");
+    expect(postedPayload.details).toBe("This tree is shown in the wrong spot");
+    expect(postedPayload.locationContext).toMatchObject({ type: "Veteran tree", name: FIXTURE_TREE.commonName });
+    expect(postedPayload.location.latitude).toEqual(expect.any(Number));
+    expect(postedPayload.location.longitude).toEqual(expect.any(Number));
+
+    // The filed issue's URL is a real link, not text the user has to select and copy.
+    const issueLink = page.locator(".report-issue .report-status a");
+    await expect(issueLink).toHaveAttribute("href", "https://github.com/simonmcmanus/epping-forest-finds/issues/1");
+    await expect(issueLink).toHaveAttribute("target", "_blank");
+  });
+
+  test("an empty submission is rejected without a network request", async ({ page }) => {
+    let requestSent = false;
+    await page.route("**/.netlify/functions/report-missing-data", async (route) => {
+      requestSent = true;
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+    });
+
+    await page.click("[data-action='report-issue']");
+    await page.click("[data-action='submit-location-issue']");
+    await expect(page.locator(".report-issue .report-status")).toContainText("describe the problem");
+    expect(requestSent).toBe(false);
+  });
+});
+
+test.describe("Reporting a problem with a landmark", () => {
+  test("a landmark's detail view also offers the report-a-problem link", async ({ page }) => {
+    await setup(page);
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", "Railway Bell");
+    await page.locator("#mapSearchResults .nearest-item").first().click();
+    await expect(page.locator("[data-action='report-issue']")).toContainText("Noticed a problem with this location?");
   });
 });

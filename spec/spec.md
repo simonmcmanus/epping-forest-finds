@@ -395,6 +395,13 @@ the only one.
 - On iOS Safari, the on-screen keyboard opening over the report textarea does not obscure it — the inspector sheet repositions using the `VisualViewport` API to keep the focused field visible above the keyboard, in both portrait and landscape (see "Keyboard avoidance" under Inspector Panel in `spec-data-rendering.md`).
 - Opening Feedback shows the same map view as the Filter and Settings screens (see below).
 
+### Reporting a problem with a specific location
+
+- A tree's or landmark's detail view offers a "Noticed a problem with this location?" link (e.g. below its details), letting a user flag that item's own data as wrong — a mis-plotted landmark, a tree in the wrong spot — without leaving the detail screen or losing their place.
+- Tapping it expands an inline form in place: a textarea and Submit/Cancel buttons, styled and behaving like the full Feedback form but never navigating away from the selected item. Cancel collapses it back to the link.
+- Submission goes to the same `report-missing-data` Netlify function as the Feedback form, as `reportType: "location-issue"`: the `location` sent is the flagged item's own coordinates, not the reporter's GPS fix, and the payload also carries a `locationContext` (the item's type and name) so the filed GitHub issue names exactly what was flagged. Double-tap/retry protection matches the Feedback form's mechanism (disabled Submit button, in-flight guard, stable `requestId` reused on retry) but the ID is not persisted to `localStorage` — this form is opened, filled and submitted (or abandoned) in one sitting, unlike the Feedback form's saved draft.
+- Only offered for point-feature, curated-data items with a fixed position to be wrong about — veteran trees and landmarks. Not offered for cows (a live GPS position, not curated data) or line/area features without a single point (paths, roads, railways, water).
+
 ## Secondary Screen Map Consistency
 
 The Search, Filter, Settings, and Feedback screens all display the same fixed map view in the background, so switching between them never changes what's shown:

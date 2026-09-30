@@ -2227,12 +2227,30 @@ function bindReportFormHandlers() {
   window.addEventListener("offline", updateOnlineState);
 }
 
-function setReportStatus(message, tone = "") {
+function setReportStatus(message, tone = "", issueUrl = null) {
   const statusEl = document.getElementById("reportStatus");
   if (!statusEl) return;
+  applyReportStatusContent(statusEl, message, tone, issueUrl);
+}
+
+// Shared by the full Report screen (setReportStatus) and the inline per-location form
+// (submitLocationIssueReport): builds the status line via DOM APIs rather than a template
+// string, so the filed GitHub issue's URL renders as a real clickable link instead of dead
+// text the user has to select and copy, while everything else in the message stays plain
+// text -- .textContent/.createElement escape it automatically, no innerHTML involved.
+function applyReportStatusContent(statusEl, message, tone, issueUrl) {
   statusEl.textContent = message || "";
   statusEl.classList.remove("error", "success");
   if (tone) statusEl.classList.add(tone);
+  if (issueUrl && /^https:\/\//.test(issueUrl)) {
+    statusEl.append(" ");
+    const link = document.createElement("a");
+    link.href = issueUrl;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = "View issue";
+    statusEl.append(link);
+  }
 }
 
 function currentReportLocation() {
@@ -2270,14 +2288,18 @@ async function populateReportLocation() {
   });
 }
 
+function generateRequestId() {
+  return (window.crypto && window.crypto.randomUUID)
+    ? window.crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function getOrCreateReportRequestId() {
   try {
     const existing = localStorage.getItem(REPORT_REQUEST_ID_KEY);
     if (existing) return existing;
   } catch {}
-  const id = (window.crypto && window.crypto.randomUUID)
-    ? window.crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const id = generateRequestId();
   try { localStorage.setItem(REPORT_REQUEST_ID_KEY, id); } catch {}
   return id;
 }
@@ -2334,8 +2356,7 @@ async function submitReportForm() {
       return;
     }
 
-    const issueText = data && data.issueUrl ? ` Issue: ${data.issueUrl}` : "";
-    setReportStatus(`Report submitted successfully.${issueText}`, "success");
+    setReportStatus("Report submitted successfully.", "success", data && data.issueUrl);
     reportDetailsInput.value = "";
     try {
       localStorage.removeItem(REPORT_DRAFT_KEY);
@@ -2345,6 +2366,118 @@ async function submitReportForm() {
     setReportStatus("Could not submit report. Please try again.", "error");
   } finally {
     state.reportSubmitting = false;
+    if (submitButton) submitButton.disabled = !navigator.onLine;
+  }
+}
+
+// The inline "Noticed a problem with this location?" form on a tree/landmark detail screen
+// (reportIssueHtml, js/inspector.js). Expands in place rather than navigating to the full
+// Report screen, and posts the flagged item's own coordinates (carried on the wrapper's
+// dataset) instead of the reporter's GPS fix, plus a locationContext identifying which item
+// it was. There is no persisted draft here -- unlike the full Report screen's form, this one
+// is opened, filled and submitted (or abandoned) in one sitting, so a fresh request ID per
+// open is enough for double-tap/retry safety without localStorage.
+function locationIssueFormHtml() {
+  const online = navigator.onLine;
+  // Wrapped in .report-form (display:grid; gap:10px, same as the full Report screen's own
+  // form) rather than left as bare stacked elements -- without that gap the textarea's
+  // focus-visible outline (base.css, 3px solid + 2px offset) had nothing to clear and bled
+  // up over the question text sitting flush above it.
+  return `<div class="report-form">
+      <p class="report-issue-question">What's wrong with this location?</p>
+      <textarea class="report-textarea" placeholder="Describe the problem…"></textarea>
+      <p class="report-status" aria-live="polite"></p>
+      <p class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Try again once you\'re back online.</p>
+      <div class="report-form-actions">
+        <button class="button button-ghost" type="button" data-action="cancel-location-issue">Cancel</button>
+        <button class="button" type="button" data-action="submit-location-issue"${online ? "" : " disabled"}>Submit</button>
+      </div>
+    </div>`;
+}
+
+function toggleLocationIssueForm(toggleButton) {
+  const wrapper = toggleButton.closest(".report-issue");
+  if (!wrapper) return;
+  wrapper.innerHTML = locationIssueFormHtml();
+  const textarea = wrapper.querySelector(".report-textarea");
+  if (textarea) {
+    textarea.focus();
+    textarea.scrollIntoView({ block: "nearest" });
+  }
+}
+
+function cancelLocationIssueForm(wrapper) {
+  if (!wrapper) return;
+  wrapper.innerHTML = `<button class="report-issue-toggle" type="button" data-action="report-issue">Noticed a problem with this location?</button>`;
+}
+
+async function submitLocationIssueReport(wrapper) {
+  if (!wrapper || wrapper.dataset.submitting === "true") return;
+
+  const textarea = wrapper.querySelector(".report-textarea");
+  const statusEl = wrapper.querySelector(".report-status");
+  const submitButton = wrapper.querySelector("[data-action='submit-location-issue']");
+  if (!textarea || !statusEl) return;
+
+  if (!navigator.onLine) {
+    statusEl.textContent = "No internet connection. Try again once you\'re back online.";
+    statusEl.className = "report-status error";
+    return;
+  }
+
+  const details = String(textarea.value || "").trim();
+  if (!details) {
+    statusEl.textContent = "Please describe the problem before submitting.";
+    statusEl.className = "report-status error";
+    return;
+  }
+
+  if (!wrapper.dataset.requestId) wrapper.dataset.requestId = generateRequestId();
+
+  const payload = {
+    reportType: "location-issue",
+    details,
+    location: {
+      latitude: Number(Number(wrapper.dataset.reportLat).toFixed(6)),
+      longitude: Number(Number(wrapper.dataset.reportLon).toFixed(6)),
+    },
+    locationContext: {
+      type: wrapper.dataset.reportType || "",
+      name: wrapper.dataset.reportName || "",
+    },
+    appVersion: state.swVersion || APP_VERSION,
+    userAgent: navigator.userAgent,
+    pageUrl: window.location.href,
+    requestId: wrapper.dataset.requestId,
+  };
+
+  wrapper.dataset.submitting = "true";
+  if (submitButton) submitButton.disabled = true;
+  statusEl.textContent = "Submitting report…";
+  statusEl.className = "report-status";
+
+  try {
+    const response = await fetch("/.netlify/functions/report-missing-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const errorText = data && data.error ? data.error : `Request failed (${response.status})`;
+      statusEl.textContent = errorText;
+      statusEl.className = "report-status error";
+      return;
+    }
+
+    applyReportStatusContent(statusEl, "Report submitted successfully.", "success", data && data.issueUrl);
+    textarea.value = "";
+  } catch (error) {
+    statusEl.textContent = "Could not submit report. Please try again.";
+    statusEl.className = "report-status error";
+  } finally {
+    wrapper.dataset.submitting = "false";
     if (submitButton) submitButton.disabled = !navigator.onLine;
   }
 }
