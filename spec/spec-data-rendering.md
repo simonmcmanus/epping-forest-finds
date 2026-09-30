@@ -232,6 +232,7 @@ The teardrop pin uses a compact layout with a large icon:
 - Border opacity: `rgba(0,0,0,0.25)`; border width `size × 0.04` (kept thin
   deliberately, to leave less chrome around a marker)
 - Unselected scale: `MAP_ICON_SCALE_UNSELECTED = 2.2`; selected scale: `MAP_ICON_SCALE = 2` (plus animated pulse ×1.05–1.17)
+- **Exactly three map icon size tiers exist, and every icon uses one of them**: the standard unselected pin (`MAP_ICON_SCALE_UNSELECTED`, every category, no per-category bump), the single selected/focused pin (`MAP_ICON_SCALE`, pulsing), and the mega-cluster badge's own icon chip (`megaClusterChipRadius`-derived, deliberately smaller — it sits inside a count badge, not a standalone pin; see "Cross-category (\"mega\") clusters" below). Zoom (`mapEmojiScale()`) and tilt (`tiltPinScale`, below) both scale continuously from whichever base tier applies, exactly like the rest of a pin's size math — that continuous shrink/grow is not a fourth tier. Pubs used to draw 15% larger than every other pin (`BEER_ICON_SCALE`) and the Underground/National Rail marks used to draw at a bare, pointer-less 8px (26px for the selected rail logo) — a quarter the size of a neighbouring pin and the only markers with no teardrop behind them. Both were one-off deviations from the two pin tiers above, not a deliberate size class, and both are gone: every landmark, pub included, now sizes off the same unselected/selected tier as its neighbours, and the station marks (below) draw inside the ordinary `drawMapPinShape` pointer like everything else.
 - All pins additionally scale with zoom via `mapEmojiScale()`/`zoomEmojiScaleTarget()`: `(viewport.scale / baseFitScale) ^ 0.35`, clamped to `[0.3, 1.15]`. Lowering the floor from `0.45` to `0.3` lets markers keep shrinking at extreme zoom-out instead of bottoming out at 45% size — same-category clustering (below) still applies on top of this, independently.
 - Hit detection (`findHit`, `findClusterHit`) is derived from `MAP_ICON_SCALE_UNSELECTED`: `pinR = iconSize × 0.52` (×1.3 visual R), `pinYOffset = iconSize × 0.64` (exact circle centre), giving an accurately-centred tap target slightly larger than the visual pin
 - Because the artwork is drawn at `R × 1.85` inside a head of radius `R`, an
@@ -299,8 +300,8 @@ Category-specific rendering:
 | Restaurants | `restaurant` | Standard |
 | Shops | `shop` | Standard |
 | Bus stops | `bus` | Pulsing radial orange gradient |
-| Underground | SVG roundel | Custom SVG rendering |
-| National Rail | SVG logo | Custom SVG rendering |
+| Underground | SVG roundel | Standard pointer, vector glyph instead of a PNG |
+| National Rail | SVG logo | Standard pointer, vector glyph instead of a PNG |
 | Blue plaques | `blue-plaques` | Standard |
 | Plaques | `plaques` | Standard |
 | Memorials | `landmark-memorial` | Standard |
