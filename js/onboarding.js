@@ -126,7 +126,6 @@ function showOnboarding() {
           <img class="onboarding-step-icon" src="data/icons/pin.png" alt="">
           <h2 class="onboarding-step-title">Your location${needsCompassPrompt ? " & compass" : ""}</h2>
           <p class="onboarding-step-subtitle">Enable location to centre the map on you, see distances to each find, and get heading-up compass navigation.</p>
-          <p class="onboarding-privacy-note">We collect anonymous usage data (GPS position, navigation, interactions) to improve the app. You can withdraw at any time via Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
         `;
         actionsEl.innerHTML = `
           <button class="button ob-location" type="button">Enable${needsCompassPrompt ? " location &amp; compass" : " location"}</button>
@@ -156,22 +155,9 @@ function showOnboarding() {
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
       actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish());
       actionsEl.querySelector(".ob-location")?.addEventListener("click", async () => {
-        // Consent is given by tapping this button — privacy details are shown above.
-        if (typeof setTrackingConsent === "function") setTrackingConsent(true);
-
-        // Start location request — browser dialog fires from this tap.
-        if (navigator.geolocation) {
-          locationPromise = new Promise((res) => {
-            navigator.geolocation.getCurrentPosition(
-              (pos) => res({ ok: true, position: pos }),
-              () => res({ ok: false }),
-              { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-            );
-          });
-        }
-
-        // Request compass in the same tap handler — iOS requires requestPermission()
-        // to be called within a user-gesture call stack, which this still satisfies.
+        // Request compass first, still synchronously within this tap's gesture — iOS requires
+        // requestPermission() to be called directly from a user gesture, and the consent modal
+        // below introduces an await that would break that chain if it came first.
         if (canRequestCompassPermission()) {
           try {
             const permission = await DeviceOrientationEvent.requestPermission();
@@ -181,6 +167,21 @@ function showOnboarding() {
           }
         } else {
           setImplicitCompassPermission();
+        }
+
+        // Same tracking consent modal as the in-map location gate, so location consent is
+        // always the same explicit accept/decline screen regardless of when it's asked.
+        const consented = typeof ensureTrackingConsent === "function"
+          ? await ensureTrackingConsent()
+          : false;
+        if (consented && navigator.geolocation) {
+          locationPromise = new Promise((res) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => res({ ok: true, position: pos }),
+              () => res({ ok: false }),
+              { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+            );
+          });
         }
 
         // Location is now the first step — continue to welcome + filter personalisation.

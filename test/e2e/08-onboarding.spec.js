@@ -41,6 +41,24 @@ test.describe("Onboarding", () => {
       // Just verify the location-only prompt is gone and onboarding continues
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
     });
+
+    test("tapping 'Enable location' shows the same tracking consent modal as the in-map location gate", async ({ page }) => {
+      await page.goto("/app");
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await page.locator("#onboardingOverlay .ob-location").click();
+      await expect(page.locator("#trackingConsentModal")).toBeVisible();
+      await expect(page.locator("#trackingConsentModal")).toContainText("Privacy & Location Data");
+    });
+
+    test("declining the tracking consent modal skips location and continues onboarding", async ({ page }) => {
+      await page.goto("/app");
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await page.locator("#onboardingOverlay .ob-location").click();
+      await expect(page.locator("#trackingConsentModal")).toBeVisible();
+      await page.locator("#trackingConsentModal .tc-decline").click();
+      await expect(page.locator("#trackingConsentModal")).toBeHidden();
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    });
   });
 
   test.describe("returning visit", () => {
