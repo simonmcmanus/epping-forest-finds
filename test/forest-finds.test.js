@@ -188,6 +188,12 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     cancelAnimationFrame(id) { clearTimeout(id); },
     performance: { now: () => Date.now() },
     Element: function Element() {},
+    // Map icon artwork (getMapImage, js/renderer.js) is real Image objects in a browser, which
+    // never finish loading in this sandbox -- no network fetch runs here. A plain stub keeps
+    // `img.complete`/`naturalWidth` falsy exactly the way a not-yet-loaded image reads, so any
+    // draw path touching it (e.g. a mega badge's icon chips) skips the artwork rather than
+    // throwing on a missing global.
+    Image: function Image() { this.complete = false; this.naturalWidth = 0; },
     URLSearchParams,
     localStorage,
   };
@@ -202,11 +208,9 @@ globalThis.__forestFindsTest = {
   // Replaces a top-level app function (a global in this sandbox) and returns the original, so a
   // test can count how often a hot path reaches an expensive helper. Restore it with the return.
   swapGlobalFunction(name, fn) { const previous = globalThis[name]; globalThis[name] = fn; return previous; },
-  megaBadgeVisibleCount,
   drawEnvironment,
   drawLayer,
   clusterFocusTarget,
-  clusterVisibleItemCount,
   // The sandbox's own clock object, so a test can freeze what the app reads from
   // performance.now() -- see withFrozenAppClock. Exported as the object, not as now(),
   // because the app looks the method up on it at every call.
@@ -418,6 +422,11 @@ globalThis.__forestFindsTest = {
   mapEmojiScale,
   MAP_PNG_ICON_SIZE,
   MAP_ICON_SCALE_UNSELECTED,
+  CLUSTER_RADIUS_ICON_SIZE_REF,
+  MEGA_CLUSTER_MERGE_RADIUS_CSS_PX,
+  buildTypeClusters,
+  buildSuperClusters,
+  drawMegaClusters,
   cacheVersionLabel,
   selectedNavigationTargetPoints,
   balancedNavigationAnchorY,
@@ -745,51 +754,51 @@ async function runRegisteredTests() {
 
 const app = loadAppForTests();
 
-test("a mega badge's count is computed once per group, not on every frame the camera moves", () => {
-  resetData(app);
-  app.state.trees.push(
-    { id: "mb-1", commonName: "Oak", ...makePoint(app, 51.665, 0.045) },
-    { id: "mb-2", commonName: "Oak", ...makePoint(app, 51.6651, 0.0451) },
-    { id: "mb-3", commonName: "Oak", ...makePoint(app, 51.6652, 0.0449) },
-  );
-  app.state.landmarks.push({ id: "mb-pub", name: "Pub", category: "pub", ...makePoint(app, 51.6649, 0.0452) });
-  const group = [...app.state.trees.slice(-3), app.state.landmarks[app.state.landmarks.length - 1]];
-
-  const target = app.clusterFocusTarget(group);
-  const expected = Math.max(app.clusterVisibleItemCount(target.center, target.targetMinutes), group.length);
-
-  let scans = 0;
-  const original = app.swapGlobalFunction("clusterVisibleItemCount", function (...args) {
-    scans += 1;
-    return original.apply(this, args);
+test("a mega badge's displayed count is exactly what was merged into it, not a separate radius scan", () => {
+  const fakeCluster = (id, x, n) => ({
+    items: Array.from({ length: n }, (_, i) => ({ id: `${id}-${i}` })),
+    screenPt: { x, y: 0 },
+    worldPt: { x: 0, y: 0 },
   });
-  try {
-    // Many frames of pan/zoom/heading re-form the same group (in a new array, possibly reordered).
-    for (let frame = 0; frame < 30; frame += 1) {
-      const sameMembers = frame % 2 ? [...group].reverse() : [...group];
-      assert.equal(app.megaBadgeVisibleCount(sameMembers), expected, "the badge shows what a tap would open");
-    }
-    assert.equal(scans, 1, "the full-dataset scan runs once for the group, not once per frame");
+  // Two clusters close enough to merge into one mega badge -- 3 trees and 2 landmarks, so the
+  // badge should read "5", never some other number from an unrelated nearby-list scan.
+  const megaGroups = app.buildSuperClusters([
+    { itemType: "tree", clusters: [fakeCluster("tree", 0, 3)] },
+    { itemType: "landmark", clusters: [fakeCluster("landmark", 1, 2)] },
+  ]);
+  assert.equal(megaGroups.length, 1, "the two clusters merge into a single mega group");
+  assert.equal(megaGroups[0].reduce((n, m) => n + m.cluster.items.length, 0), 5);
 
-    app.megaBadgeVisibleCount(group.slice(0, 3));
-    assert.equal(scans, 2, "a group with different members is its own entry");
+  const texts = [];
+  const ctx = {
+    save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {},
+    arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() {},
+    createRadialGradient() { return { addColorStop() {} }; },
+    fillText(text) { texts.push(text); },
+  };
+  app.drawMegaClusters(ctx, megaGroups);
+  assert.deepEqual(texts, ["5"], "the badge shows the raw number of items merged into it");
+});
 
-    app.state.overviewFilters = ["pubs"];
-    app.megaBadgeVisibleCount(group);
-    assert.equal(scans, 3, "changing the active filters recomputes (the radius floor respects them)");
+test("buildSuperClusters does not chain far-apart clusters into one mega cluster", () => {
+  const dpr = app.pixelRatio();
+  const radius = app.MEGA_CLUSTER_MERGE_RADIUS_CSS_PX * dpr * (app.MAP_PNG_ICON_SIZE / app.CLUSTER_RADIUS_ICON_SIZE_REF);
+  const fakeCluster = (id, x) => ({ items: [{ id }], screenPt: { x, y: 0 }, worldPt: { x: 0, y: 0 } });
+  // Four single-item clusters in a line, each just inside merge radius of its
+  // immediate neighbour (0.6 * radius apart) but the first and last four times
+  // that -- far outside the merge radius of one another.
+  const a = fakeCluster("a", 0);
+  const b = fakeCluster("b", radius * 0.6);
+  const c = fakeCluster("c", radius * 1.2);
+  const d = fakeCluster("d", radius * 1.8);
 
-    app.state.overviewFilters = [];
-    app.state.trees = [...app.state.trees];
-    app.megaBadgeVisibleCount(group);
-    assert.equal(scans, 4, "a replaced dataset recomputes");
+  const superClusters = app.buildSuperClusters([{ itemType: "tree", clusters: [a, b, c, d] }]);
 
-    app.state.cowLastUpdatedAt = (app.state.cowLastUpdatedAt || 0) + 1;
-    app.megaBadgeVisibleCount(group);
-    assert.equal(scans, 5, "a live cow refresh recomputes, since cows are part of the count");
-  } finally {
-    app.swapGlobalFunction("clusterVisibleItemCount", original);
-    app.state.overviewFilters = [];
-  }
+  const groupOf = (cluster) => superClusters.find(group => group.some(member => member.cluster === cluster));
+  assert.notEqual(groupOf(a), groupOf(d), "the first and last cluster in the chain must not end up merged together");
+  assert.ok(superClusters.length > 1, "a long, roughly-uniform run of clusters must not collapse into a single mega cluster");
+  // Directly-close pairs still merge: this isn't a regression to "never merge anything".
+  assert.equal(groupOf(a), groupOf(b), "clusters within the merge radius of each other still merge");
 });
 
 test("ICON_PATHS is the single registry for all icon slugs", () => {
