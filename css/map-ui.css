@@ -215,7 +215,12 @@
     right: 10px;
     bottom: calc(10px + var(--nav-bar-h) + 10px);
     width: auto;
-    max-height: var(--inspector-height, 48%);
+    /* Subtract the same nav-bar-plus-gap reservation the bottom offset above adds, so the
+       sheet's total footprint (sheet + gap + nav bar) matches what it was when the nav row
+       lived inside the sheet's own --inspector-height budget -- otherwise the sheet doesn't
+       get shorter when the nav row moves out, it just shifts up and claims that much extra
+       map area on top of what it already had. */
+    max-height: calc(var(--inspector-height, 48%) - var(--nav-bar-h) - 10px);
     transition: max-height 120ms ease-out;
   }
 
