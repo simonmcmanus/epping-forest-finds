@@ -479,6 +479,8 @@ globalThis.__forestFindsTest = {
   reattachCompassListeners,
   compassSensorStalled,
   recoverStalledCompass,
+  hasMovedSinceBackgrounding,
+  pauseBackgroundedTracking,
   orientationHeadingSource,
   animationLoopsWedged,
   recoverWedgedAnimationFrames,
@@ -598,6 +600,12 @@ function resetData(app) {
   app.state.selectionViewportTransitionPending = false;
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
+  // resetData simulates an app already well past first load, so heading-up activations here
+  // animate in as normal; the "very first activation this session snaps instead" behaviour
+  // (see animateToHeadingUpNavigationViewport) gets its own dedicated tests that set this back
+  // to false.
+  app.state.headingUpEverEntered = true;
+  app.state.backgroundedUserLocation = null;
   app.state.compassHeading = null;
   app.state.compassHeadingTarget = null;
   app.state.nearbyListHeading = null;
@@ -2271,6 +2279,46 @@ test("heading-up viewport alignment preserves animation target when rotation sta
   assert.equal(app.state.viewport.scale, 1000);
   assert.equal(app.state.viewport.tx, 123);
   assert.equal(app.state.viewport.ty, 456);
+});
+
+test("the very first heading-up activation this session shows the heading directly instead of spinning in from north", () => {
+  resetData(app);
+  app.state.headingUpEverEntered = false;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "near-tree", ...makePoint(app, 0.001, 0) } };
+  app.state.compassHeading = 90;
+
+  app.animateToHeadingUpNavigationViewport(500);
+
+  assert.equal(app.state.headingUpEntryAnim, null, "boot already waited for a trusted heading, so there is nothing to animate from");
+  assert.equal(app.state.renderedNavigationHeading, 90, "the map should simply show the heading it already has");
+  assert.equal(app.state.headingUpEverEntered, true);
+});
+
+test("a later heading-up activation still spins in from north as before", () => {
+  resetData(app);
+  app.state.headingUpEverEntered = true; // set by the first activation earlier this session
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "near-tree", ...makePoint(app, 0.001, 0) } };
+  app.state.compassHeading = 90;
+
+  app.animateToHeadingUpNavigationViewport(500);
+
+  assert.ok(app.state.headingUpEntryAnim, "a re-activation (e.g. a new destination) still animates in");
+  assert.equal(app.state.renderedNavigationHeading, 0);
+});
+
+test("the very first nearby heading-up activation this session shows the heading directly", () => {
+  resetData(app);
+  app.state.headingUpEverEntered = false;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // no selection -> nearbyHeadingUpActive()
+
+  app.prepareCanvasForDraw();
+
+  assert.equal(app.state.headingUpEntryAnim, null);
+  assert.equal(app.state.renderedNavigationHeading, 90);
+  assert.equal(app.state.headingUpEverEntered, true);
 });
 
 test("heading-up nearby zoom changes wait for compass settle before applying", () => {
@@ -7328,6 +7376,81 @@ test("recoverStalledCompass does nothing while the page is hidden", () => {
   } finally {
     app.documentStub.visibilityState = "visible";
   }
+});
+
+test("hasMovedSinceBackgrounding treats no baseline as movement", () => {
+  resetData(app);
+  app.state.backgroundedUserLocation = null;
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  assert.equal(app.hasMovedSinceBackgrounding(), true, "nothing to compare against -- assume the heading may no longer be trusted");
+});
+
+test("hasMovedSinceBackgrounding treats no current fix as movement", () => {
+  resetData(app);
+  app.state.backgroundedUserLocation = { latitude: 51.665, longitude: 0.045 };
+  app.state.userLocation = null;
+  assert.equal(app.hasMovedSinceBackgrounding(), true);
+});
+
+test("hasMovedSinceBackgrounding is false for the same spot the tab was backgrounded at", () => {
+  resetData(app);
+  app.state.backgroundedUserLocation = { latitude: 51.665, longitude: 0.045 };
+  // A few metres of GPS wander, well under LOCATION_SMOOTHING_SNAP_METRES.
+  app.state.userLocation = makePoint(app, 51.66501, 0.04501);
+  assert.equal(app.hasMovedSinceBackgrounding(), false);
+});
+
+test("hasMovedSinceBackgrounding is true once the walker has genuinely relocated", () => {
+  resetData(app);
+  app.state.backgroundedUserLocation = { latitude: 51.665, longitude: 0.045 };
+  app.state.userLocation = makePoint(app, 51.667, 0.045); // roughly 220m north
+  assert.equal(app.hasMovedSinceBackgrounding(), true);
+});
+
+test("pauseBackgroundedTracking snapshots the current fix for hasMovedSinceBackgrounding", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.pauseBackgroundedTracking();
+  // Compared field by field, not with deepEqual: the snapshot object is created inside the vm
+  // context the app runs in, so it has that realm's Object.prototype and deepStrictEqual
+  // rejects it as not reference-equal even when the contents match (see the cache-version-label
+  // test above for the same issue).
+  assert.equal(app.state.backgroundedUserLocation.latitude, 51.665);
+  assert.equal(app.state.backgroundedUserLocation.longitude, 0.045);
+});
+
+test("recoverStalledCompass keeps a heading that is still good when the walker has not moved", () => {
+  resetData(app);
+  const now = Date.now();
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.backgroundedUserLocation = { latitude: 51.665, longitude: 0.045 };
+  app.state.compassHeading = 90;
+  app.state.compassHeadingTarget = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.compassLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+  app.state.orientationLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+
+  app.recoverStalledCompass(now);
+
+  assert.equal(app.state.compassHeading, 90, "a heading the walker has not moved away from is still a good guess");
+  assert.equal(app.state.renderedNavigationHeading, 90, "so the map must not spin back to north with nothing having changed");
+});
+
+test("recoverStalledCompass still drops the heading once the walker has actually moved", () => {
+  resetData(app);
+  const now = Date.now();
+  app.state.userLocation = makePoint(app, 51.667, 0.045);
+  app.state.backgroundedUserLocation = { latitude: 51.665, longitude: 0.045 }; // ~220m away
+  app.state.compassHeading = 90;
+  app.state.compassHeadingTarget = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.compassLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+  app.state.orientationLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+
+  app.recoverStalledCompass(now);
+
+  assert.equal(app.state.compassHeading, null, "a real relocation makes the old heading untrustworthy");
+  assert.equal(app.state.renderedNavigationHeading, null);
 });
 
 test("a beta-only orientation event restarts the smoothing loop so 3D keeps responding", () => {

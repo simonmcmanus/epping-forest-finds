@@ -178,4 +178,70 @@ test.describe("compass reliability", () => {
       "a stranded camera animation keeps alignHeadingUpNavigationViewport bailing on every call"
     ).toBe(false);
   });
+
+  test("returning to the app in the same spot keeps the heading instead of spinning back to north", async ({ page }) => {
+    // Reported from the field: putting the phone down (sensor goes stale) and picking it back
+    // up re-rotated the map from north even though the walker had not moved an inch.
+    const result = await page.evaluate(async () => {
+      state.compassHeading = 90;
+      state.compassHeadingTarget = 90;
+      state.renderedNavigationHeading = 90;
+      const staleAt = performance.now() - (COMPASS_STALE_MS + 1000);
+      state.compassLastEventAt = staleAt;
+      state.orientationLastEventAt = staleAt;
+      // pauseBackgroundedTracking snapshots this on the way out; simulate the walker having
+      // stayed exactly where they were the whole time.
+      state.backgroundedUserLocation = { latitude: state.userLocation.latitude, longitude: state.userLocation.longitude };
+
+      recoverStalledCompass();
+      return { heading: state.compassHeading, rendered: state.renderedNavigationHeading };
+    });
+
+    expect(result.heading, "an unchanged position means the last heading is still a good guess").toBe(90);
+    expect(result.rendered, "so nothing should spin back to north with no movement to justify it").toBe(90);
+  });
+
+  test("returning to the app after genuinely moving still resets the heading", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      state.compassHeading = 90;
+      state.compassHeadingTarget = 90;
+      state.renderedNavigationHeading = 90;
+      const staleAt = performance.now() - (COMPASS_STALE_MS + 1000);
+      state.compassLastEventAt = staleAt;
+      state.orientationLastEventAt = staleAt;
+      // Roughly 200m south of where the app actually is now -- a real relocation, not GPS wander.
+      state.backgroundedUserLocation = { latitude: state.userLocation.latitude - 0.0018, longitude: state.userLocation.longitude };
+
+      recoverStalledCompass();
+      return { heading: state.compassHeading, rendered: state.renderedNavigationHeading };
+    });
+
+    expect(result.heading, "a real relocation makes the old heading untrustworthy").toBeNull();
+    expect(result.rendered).toBeNull();
+  });
+
+  test("the first heading-up activation of a session shows the heading directly instead of spinning in from north", async ({ page }) => {
+    // Boot already waits for a trusted heading before heading-up can activate at all
+    // (headingUpActive() requires Number.isFinite(state.compassHeading)), so the very first
+    // activation has nothing sensible to animate from -- it should just show it.
+    const result = await page.evaluate(async () => {
+      state.headingUpEverEntered = false;
+      state.renderedNavigationHeading = null;
+      state.headingUpEntryAnim = null;
+      state.compassHeading = 90;
+      state.compassHeadingTarget = 90;
+      state.selected = null; // nearby overview, not a selected destination
+
+      prepareCanvasForDraw();
+      return {
+        entryAnim: state.headingUpEntryAnim,
+        rendered: state.renderedNavigationHeading,
+        everEntered: state.headingUpEverEntered,
+      };
+    });
+
+    expect(result.entryAnim, "nothing to animate from on the very first activation").toBeNull();
+    expect(result.rendered).toBe(90);
+    expect(result.everEntered).toBe(true);
+  });
 });

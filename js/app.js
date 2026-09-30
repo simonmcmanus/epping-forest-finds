@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v60"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v61"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -300,6 +300,16 @@ const state = {
   navigationHeadingUp: false,
   renderedNavigationHeading: null,
   headingUpEntryAnim: null,
+  // Set true the first time heading-up actually renders a heading this session -- see
+  // animateToHeadingUpNavigationViewport/prepareCanvasForDraw. That first activation is
+  // never animated in from north: the map simply waits until a trusted heading exists
+  // (headingUpActive() already gates on one) and then shows it, so nothing appears to
+  // spin on first load. Every later (re-)activation still animates, as before.
+  headingUpEverEntered: false,
+  // GPS fix recorded the moment the tab was last hidden, so recoverStalledCompass can tell
+  // a phone that was actually carried somewhere from one that was simply put down --
+  // see hasMovedSinceBackgrounding().
+  backgroundedUserLocation: null,
   tiltBetaTarget: 0,
   tiltBetaSmoothed: 0,
   // rotateX angle baked into the main canvas by the last draw() -- see tiltRenderStale().
@@ -3182,6 +3192,20 @@ function compassSensorStalled(now = performance.now()) {
   return compassEventAgeMs(now) > COMPASS_STALE_MS;
 }
 
+// Whether the walker has actually gone anywhere since the tab was last backgrounded
+// (pauseBackgroundedTracking snapshots the fix at that moment). Compared against the
+// same real-movement-vs-GPS-noise threshold ingestLocationFix uses to decide a fix is a
+// genuine relocation rather than wander (LOCATION_SMOOTHING_SNAP_METRES). No baseline or
+// no current fix -- e.g. location was never granted -- is treated as "can't tell", which
+// falls back to the old, safer assumption that the heading may no longer be trustworthy.
+function hasMovedSinceBackgrounding() {
+  const before = state.backgroundedUserLocation;
+  const current = state.userLocation;
+  if (!before || !current) return true;
+  const movedMetres = distanceMetres(before.latitude, before.longitude, current.latitude, current.longitude);
+  return !Number.isFinite(movedMetres) || movedMetres >= LOCATION_SMOOTHING_SNAP_METRES;
+}
+
 // Single recovery path, shared by the foreground-resume hooks and the watchdog below.
 // This logic used to live inline in the visibilitychange handler, which gave it exactly
 // one chance per return to the foreground -- so if the sensor came back later than that
@@ -3197,7 +3221,15 @@ function recoverStalledCompass(now = performance.now()) {
   // rendering a frozen rotation as if it were live. New readings go back through the
   // calibration gate before rotation (and with it tilt, which headingUpActive() gates)
   // resumes.
-  if (Number.isFinite(state.compassHeading)) {
+  //
+  // Only when the walker has actually moved, though (hasMovedSinceBackgrounding): a phone
+  // that was simply put down for a while has a stalled sensor but an unchanged position, and
+  // the last heading is still a perfectly good guess -- clearing it anyway was what made
+  // returning to the app spin the map back to north and re-rotate to the same heading it
+  // already had, with no movement to justify it. Left alone, later orientation events still
+  // ease the heading toward the truth via the ordinary smoothing tick (startCompassSmoothing),
+  // just without the jarring reset in between.
+  if (Number.isFinite(state.compassHeading) && hasMovedSinceBackgrounding()) {
     state.compassHeading = null;
     state.compassHeadingTarget = null;
     state.nearbyListHeading = null;
@@ -3347,6 +3379,12 @@ function setupVisibilityRecovery() {
 // the tab/screen is not visible, so the app doesn't keep draining battery in the
 // background. Both are restarted from setupVisibilityRecovery on return to visible.
 function pauseBackgroundedTracking() {
+  // Snapshot where we were right before going away, so recoverStalledCompass can tell a
+  // phone that was actually carried somewhere from one that was simply put down -- see
+  // hasMovedSinceBackgrounding().
+  state.backgroundedUserLocation = state.userLocation
+    ? { latitude: state.userLocation.latitude, longitude: state.userLocation.longitude }
+    : null;
   if (navigator.geolocation && state.locationWatchId != null) {
     navigator.geolocation.clearWatch(state.locationWatchId);
     state.locationWatchId = null;
@@ -5228,18 +5266,27 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
   state.selectionViewportTransitionPending = false;
   const safeDuration = Math.max(MIN_HEADING_UP_ANIMATION_MS, Number(durationMs) || HEADING_UP_NAV_ANIMATION_MS);
   if (state.renderedNavigationHeading == null) {
-    // Entering heading-up for the first time: animate renderedNavigationHeading
-    // from north-up (0) toward the current compass heading, baked into each
-    // canvas draw so pins always point down during the transition.
-    state.renderedNavigationHeading = 0;
     const targetHeading = normalizeDegrees(state.compassHeading);
-    if (Math.abs(shortestCompassDelta(0, targetHeading)) > 0.5) {
-      state.headingUpEntryAnim = {
-        from: 0,
-        to: targetHeading,
-        startTime: performance.now(),
-        duration: safeDuration,
-      };
+    if (!state.headingUpEverEntered) {
+      // The very first activation this session: headingUpActive() already held off until a
+      // trusted heading existed, so there is nothing to animate from -- just show it. Without
+      // this, the reveal itself (which happens before calibration finishes) was immediately
+      // followed by a 0-to-heading spin the user never asked for and had not moved to cause.
+      state.renderedNavigationHeading = targetHeading;
+      state.headingUpEverEntered = true;
+    } else {
+      // A later (re-)activation -- e.g. selecting a new destination -- animate
+      // renderedNavigationHeading from north-up (0) toward the current compass heading, baked
+      // into each canvas draw so pins always point down during the transition.
+      state.renderedNavigationHeading = 0;
+      if (Math.abs(shortestCompassDelta(0, targetHeading)) > 0.5) {
+        state.headingUpEntryAnim = {
+          from: 0,
+          to: targetHeading,
+          startTime: performance.now(),
+          duration: safeDuration,
+        };
+      }
     }
   }
   const focusRect = bestVisibleCanvasRect();
@@ -5313,10 +5360,16 @@ function prepareCanvasForDraw() {
         requestDraw();
       }
     } else if (state.renderedNavigationHeading === null && !selectedNavigationHeadingUpActive()) {
-      // Nearby heading-up first activation: animate in from north-up to current heading
-      state.renderedNavigationHeading = 0;
       const targetHeading = normalizeDegrees(state.compassHeading);
-      if (Math.abs(shortestCompassDelta(0, targetHeading)) > 0.5) {
+      if (!state.headingUpEverEntered) {
+        // The very first activation this session -- see the matching comment in
+        // animateToHeadingUpNavigationViewport. Show the trusted heading directly rather than
+        // spinning in from north.
+        state.renderedNavigationHeading = targetHeading;
+        state.headingUpEverEntered = true;
+      } else if (Math.abs(shortestCompassDelta(0, targetHeading)) > 0.5) {
+        // Nearby heading-up re-activation: animate in from north-up to current heading
+        state.renderedNavigationHeading = 0;
         state.headingUpEntryAnim = {
           from: 0,
           to: targetHeading,
