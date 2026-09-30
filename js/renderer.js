@@ -1368,25 +1368,30 @@ function buildSuperClusters(taggedGroups) {
     if (assigned.has(first)) continue;
     const members = [first];
     assigned.add(first);
-    // BFS so a chain of nearby clusters (A close to B, B close to C) merges into one region
-    // even when A and C themselves are too far apart to merge directly.
-    for (let i = 0; i < members.length; i++) {
-      const m = members[i];
-      const found = [];
-      forEachNearbyGridPoint(grid, radius, (n) => n.cluster.screenPt, m.cluster.screenPt, (other) => {
-        if (assigned.has(other)) return;
-        if (Math.hypot(m.cluster.screenPt.x - other.cluster.screenPt.x, m.cluster.screenPt.y - other.cluster.screenPt.y) < radius) {
-          found.push(other);
-        }
-      });
-      // Same order restoration as buildTypeClusters -- a grid scan of the 9 nearby cells doesn't
-      // come out in the original nodes-array order that consumers keying off first-occurrence
-      // (the byTypeIconSrc/byDisplayKey maps in drawMegaClusters) depend on.
-      found.sort((a, b) => a.idx - b.idx);
-      for (const other of found) {
-        members.push(other);
-        assigned.add(other);
+    // Only merges nodes directly within `radius` of `first` -- deliberately not transitive
+    // (used to BFS from every newly-added member too, chaining A-close-to-B-close-to-C into one
+    // region even when A and C were far apart). On a dense, roughly-uniform spread of pins --
+    // exactly what a zoomed-out forest view is -- that chain rarely stops: it walks neighbour to
+    // neighbour across most of what's on screen and merges the lot into one "super" cluster,
+    // whose badge then draws at the screen-space average of everything it absorbed. That average
+    // lands near the middle of the merged area, not on top of any real content, so the fix here
+    // trades "one mega badge sitting in the middle of the map, having swallowed pins nowhere near
+    // it" for several smaller, correctly-placed ones -- each still exactly big enough to cover
+    // one genuine same-spot pile-up, which is the only thing mega clustering exists to fix.
+    const found = [];
+    forEachNearbyGridPoint(grid, radius, (n) => n.cluster.screenPt, first.cluster.screenPt, (other) => {
+      if (assigned.has(other)) return;
+      if (Math.hypot(first.cluster.screenPt.x - other.cluster.screenPt.x, first.cluster.screenPt.y - other.cluster.screenPt.y) < radius) {
+        found.push(other);
       }
+    });
+    // Same order restoration as buildTypeClusters -- a grid scan of the 9 nearby cells doesn't
+    // come out in the original nodes-array order that consumers keying off first-occurrence
+    // (the byTypeIconSrc/byDisplayKey maps in drawMegaClusters) depend on.
+    found.sort((a, b) => a.idx - b.idx);
+    for (const other of found) {
+      members.push(other);
+      assigned.add(other);
     }
     superClusters.push(members);
   }

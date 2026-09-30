@@ -418,6 +418,10 @@ globalThis.__forestFindsTest = {
   mapEmojiScale,
   MAP_PNG_ICON_SIZE,
   MAP_ICON_SCALE_UNSELECTED,
+  CLUSTER_RADIUS_ICON_SIZE_REF,
+  MEGA_CLUSTER_MERGE_RADIUS_CSS_PX,
+  buildTypeClusters,
+  buildSuperClusters,
   cacheVersionLabel,
   selectedNavigationTargetPoints,
   balancedNavigationAnchorY,
@@ -790,6 +794,27 @@ test("a mega badge's count is computed once per group, not on every frame the ca
     app.swapGlobalFunction("clusterVisibleItemCount", original);
     app.state.overviewFilters = [];
   }
+});
+
+test("buildSuperClusters does not chain far-apart clusters into one mega cluster", () => {
+  const dpr = app.pixelRatio();
+  const radius = app.MEGA_CLUSTER_MERGE_RADIUS_CSS_PX * dpr * (app.MAP_PNG_ICON_SIZE / app.CLUSTER_RADIUS_ICON_SIZE_REF);
+  const fakeCluster = (id, x) => ({ items: [{ id }], screenPt: { x, y: 0 }, worldPt: { x: 0, y: 0 } });
+  // Four single-item clusters in a line, each just inside merge radius of its
+  // immediate neighbour (0.6 * radius apart) but the first and last four times
+  // that -- far outside the merge radius of one another.
+  const a = fakeCluster("a", 0);
+  const b = fakeCluster("b", radius * 0.6);
+  const c = fakeCluster("c", radius * 1.2);
+  const d = fakeCluster("d", radius * 1.8);
+
+  const superClusters = app.buildSuperClusters([{ itemType: "tree", clusters: [a, b, c, d] }]);
+
+  const groupOf = (cluster) => superClusters.find(group => group.some(member => member.cluster === cluster));
+  assert.notEqual(groupOf(a), groupOf(d), "the first and last cluster in the chain must not end up merged together");
+  assert.ok(superClusters.length > 1, "a long, roughly-uniform run of clusters must not collapse into a single mega cluster");
+  // Directly-close pairs still merge: this isn't a regression to "never merge anything".
+  assert.equal(groupOf(a), groupOf(b), "clusters within the merge radius of each other still merge");
 });
 
 test("ICON_PATHS is the single registry for all icon slugs", () => {
