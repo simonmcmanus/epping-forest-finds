@@ -430,6 +430,7 @@ globalThis.__forestFindsTest = {
   clusterJoinAnimationState,
   CLUSTER_JOIN_ANIMATION_MS,
   CLUSTER_JOIN_COOLDOWN_MS,
+  CLUSTER_JOIN_MIN_SCALE,
   cacheVersionLabel,
   selectedNavigationTargetPoints,
   balancedNavigationAnchorY,
@@ -807,35 +808,34 @@ test("buildSuperClusters does not chain far-apart clusters into one mega cluster
 test("clusterJoinAnimationState leaves a lone pin undisturbed", () => {
   const lone = { point: { x: 0, y: 0 } };
   const cluster = { items: [lone], screenPt: { x: 0, y: 0 } };
-  assert.equal(app.clusterJoinAnimationState(cluster, (p) => p, 1000), null,
+  assert.equal(app.clusterJoinAnimationState(cluster, 1000), null,
     "a single-item cluster never animates -- there is nothing merging into it");
 });
 
-test("clusterJoinAnimationState slides two newly-merged pins toward the cluster centroid, then settles", () => {
+test("clusterJoinAnimationState shrinks two newly-merged pins away while the badge grows in, then settles", () => {
   const first = { point: { x: -10, y: 0 } };
   const second = { point: { x: 10, y: 0 } };
-  const toScreen = (worldPoint) => worldPoint; // identity: world == screen for this test
   // Both items must first be seen as lone pins (cluster size 1) before a merge into them counts
-  // as a join -- otherwise their very first frame would look like an animation with no "from".
-  app.clusterJoinAnimationState({ items: [first], screenPt: first.point }, toScreen, 0);
-  app.clusterJoinAnimationState({ items: [second], screenPt: second.point }, toScreen, 0);
+  // as a join -- otherwise their very first frame would look like an animation with nothing to
+  // shrink away from.
+  app.clusterJoinAnimationState({ items: [first], screenPt: first.point }, 0);
+  app.clusterJoinAnimationState({ items: [second], screenPt: second.point }, 0);
 
   const merged = { items: [first, second], screenPt: { x: 0, y: 0 } };
-  const atStart = app.clusterJoinAnimationState(merged, toScreen, 0);
-  assert.ok(atStart, "two pins that just merged animate rather than snapping straight to the centroid");
-  assert.equal(atStart.renders.length, 2, "both newly-joined items are still converging");
-  assert.equal(atStart.badgeAlpha, 0, "a cluster forming from scratch starts with its badge invisible, not popped in");
-  const firstRender = atStart.renders.find(r => r.item === first);
-  assert.equal(firstRender.x, first.point.x, "at t=0 the animating pin is still at its own, pre-merge position");
-  assert.equal(firstRender.alpha, 1, "at t=0 the animating pin is fully opaque, the badge fully transparent");
+  const atStart = app.clusterJoinAnimationState(merged, 0);
+  assert.ok(atStart, "two pins that just merged animate rather than snapping straight to a settled badge");
+  assert.equal(atStart.shrinking.length, 2, "both newly-joined items are still shrinking away");
+  assert.equal(atStart.badgeScale, app.CLUSTER_JOIN_MIN_SCALE,
+    "a cluster forming from scratch starts its badge at the floor scale, not popped in at full size");
+  const firstShrink = atStart.shrinking.find(r => r.item === first);
+  assert.equal(firstShrink.scale, 1, "at t=0 the shrinking pin is still drawn at its own, full, pre-merge size");
 
-  const halfway = app.clusterJoinAnimationState(merged, toScreen, app.CLUSTER_JOIN_ANIMATION_MS / 2);
-  const halfwayRender = halfway.renders.find(r => r.item === first);
-  assert.ok(halfwayRender.x > first.point.x && halfwayRender.x < merged.screenPt.x,
-    "midway through, the pin has moved partway from its own position toward the centroid");
-  assert.ok(halfway.badgeAlpha > 0 && halfway.badgeAlpha < 1, "the badge is partway through fading in");
+  const halfway = app.clusterJoinAnimationState(merged, app.CLUSTER_JOIN_ANIMATION_MS / 2);
+  const halfwayShrink = halfway.shrinking.find(r => r.item === first);
+  assert.ok(halfwayShrink.scale > 0 && halfwayShrink.scale < 1, "midway through, the pin has shrunk partway toward nothing");
+  assert.ok(halfway.badgeScale > 0 && halfway.badgeScale < 1, "the badge is partway through growing in");
 
-  const settled = app.clusterJoinAnimationState(merged, toScreen, app.CLUSTER_JOIN_ANIMATION_MS + 1);
+  const settled = app.clusterJoinAnimationState(merged, app.CLUSTER_JOIN_ANIMATION_MS + 1);
   assert.equal(settled, null, "once the animation finishes, the cluster draws as an ordinary settled badge");
 });
 
@@ -843,44 +843,19 @@ test("clusterJoinAnimationState only animates the item that's actually joining a
   const veteran1 = { point: { x: -10, y: 0 } };
   const veteran2 = { point: { x: 10, y: 0 } };
   const newcomer = { point: { x: 0, y: 10 } };
-  const toScreen = (worldPoint) => worldPoint;
   const pairCluster = { items: [veteran1, veteran2], screenPt: { x: 0, y: 0 } };
   // Settle the pair into an established, non-animating cluster first.
-  app.clusterJoinAnimationState(pairCluster, toScreen, 0);
-  app.clusterJoinAnimationState(pairCluster, toScreen, app.CLUSTER_JOIN_ANIMATION_MS + 1);
-  app.clusterJoinAnimationState({ items: [newcomer], screenPt: newcomer.point }, toScreen, app.CLUSTER_JOIN_ANIMATION_MS + 1);
+  app.clusterJoinAnimationState(pairCluster, 0);
+  app.clusterJoinAnimationState(pairCluster, app.CLUSTER_JOIN_ANIMATION_MS + 1);
+  app.clusterJoinAnimationState({ items: [newcomer], screenPt: newcomer.point }, app.CLUSTER_JOIN_ANIMATION_MS + 1);
 
   const grown = { items: [veteran1, veteran2, newcomer], screenPt: { x: 0, y: 3 } };
-  const state = app.clusterJoinAnimationState(grown, toScreen, app.CLUSTER_JOIN_ANIMATION_MS + 2);
+  const state = app.clusterJoinAnimationState(grown, app.CLUSTER_JOIN_ANIMATION_MS + 2);
   assert.ok(state, "the newcomer joining triggers an animation");
-  assert.equal(state.renders.length, 1, "only the newly-joined item animates, not the two already-settled members");
-  assert.equal(state.renders[0].item, newcomer);
-  assert.equal(state.badgeAlpha, 1,
-    "an existing cluster's badge stays fully visible while a new member slides in -- it doesn't refade");
-});
-
-test("clusterJoinAnimationState rides along with camera motion instead of animating from a point frozen at join start", () => {
-  let cameraScale = 1;
-  const toScreen = (worldPoint) => ({ x: worldPoint.x * cameraScale, y: worldPoint.y * cameraScale });
-  const a = { point: { x: -10, y: 0 } };
-  const b = { point: { x: 10, y: 0 } };
-
-  app.clusterJoinAnimationState({ items: [a], screenPt: toScreen(a.point) }, toScreen, 0);
-  app.clusterJoinAnimationState({ items: [b], screenPt: toScreen(b.point) }, toScreen, 0);
-  const merged = { items: [a, b], screenPt: { x: 0, y: 0 } };
-  app.clusterJoinAnimationState(merged, toScreen, 0);
-
-  // A zoom happens *during* the join -- the ordinary way a merge is actually seen -- taking the
-  // camera scale down by 10x before the next frame. If the animation interpolated from a screen
-  // point captured once at join start, that starting point would now be miles from where the
-  // item's own (unclustered) pin would actually be drawn this frame under the new scale.
-  cameraScale = 0.1;
-  const state = app.clusterJoinAnimationState(merged, toScreen, app.CLUSTER_JOIN_ANIMATION_MS / 2);
-  const renderA = state.renders.find(r => r.item === a);
-  const liveOwnPosition = toScreen(a.point).x;
-  const staleOwnPosition = -10; // what toScreen(a.point) would have given under the old scale
-  assert.ok(Math.abs(renderA.x - liveOwnPosition) < Math.abs(renderA.x - staleOwnPosition),
-    "the animating pin's path is recomputed from the camera's current transform every frame, not fixed at whatever it was when the join started");
+  assert.equal(state.shrinking.length, 1, "only the newly-joined item animates, not the two already-settled members");
+  assert.equal(state.shrinking[0].item, newcomer);
+  assert.equal(state.badgeScale, 1,
+    "an existing cluster's badge stays at full size while a new member shrinks away into it -- it doesn't regrow");
 });
 
 test("ICON_PATHS is the single registry for all icon slugs", () => {

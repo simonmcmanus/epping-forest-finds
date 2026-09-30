@@ -1288,12 +1288,23 @@ function buildTypeClusters(itemSet, toScreen) {
 // persistent cluster identity to animate between frames -- only the underlying items (the same
 // tree/place/cow objects every frame, drawn fresh each time) have one. This tracks, per item,
 // the cluster size it was drawn in last frame; when that jumps from a lone pin (1) to a group
-// (>1) it's a genuine merge, and the item slides from its own pin position into the new
-// cluster's centroid instead of just vanishing there. A cooldown after each animation finishes
-// stops a item sitting right on the clustering radius boundary from restarting the slide every
-// time a pan/zoom nudges it in and out of range.
+// (>1) it's a genuine merge, and rather than just vanishing there, the item's own pin shrinks
+// away to nothing while the cluster's pin grows in. Deliberately a size change, not a slide to
+// the centroid (tried first, then dropped): a slide has to interpolate a screen *position*
+// across frames, and the ordinary way a merge actually happens is mid pan/zoom, where the
+// camera transform itself changes every frame -- a slide either has to fight that motion from a
+// position frozen at join start, or constantly re-derive it, and either way reads as nothing at
+// all or a glitch right when the zoom that caused the merge is what you're looking at. A pure
+// size change has no such problem: every pin, shrinking or not, is always drawn at wherever
+// *this* frame's camera already puts it -- only how big it's drawn changes. A cooldown after
+// each animation finishes stops an item sitting right on the clustering radius boundary from
+// restarting the shrink every time a pan/zoom nudges it in and out of range.
 const CLUSTER_JOIN_ANIMATION_MS = 260;
 const CLUSTER_JOIN_COOLDOWN_MS = 400;
+// A pin scaled to exactly 0 hits drawImage's zero-size edge case in some engines and is
+// pointless to attempt anyway (nothing would be visible); this floor keeps it a real, if tiny,
+// draw for the first frame of a shrink or grow.
+const CLUSTER_JOIN_MIN_SCALE = 0.05;
 const _prevClusterSizeByItem = new Map();
 const _clusterJoinAnimations = new Map();
 const _clusterJoinCooldownUntil = new Map();
@@ -1303,13 +1314,14 @@ function easeOutCubic(t) {
 }
 
 // Returns null when a cluster's items should draw exactly as they always have (a lone pin, or
-// a group with no merge in flight). Otherwise returns { renders, badgeAlpha }: renders is one
-// { item, x, y, alpha } per item still converging on the cluster's centroid, for the caller to
-// draw with that item's own icon in place of (or alongside) the merged pin; badgeAlpha is how
-// much of the merged pin/count-badge to show under them -- full strength unless every member is
-// newly joining (a brand-new cluster forming from scratch), in which case the badge fades in
-// with the same motion so it doesn't just pop in the instant the last pin arrives.
-function clusterJoinAnimationState(cluster, toScreen, now = performance.now()) {
+// a group with no merge in flight). Otherwise returns { shrinking, badgeScale }: shrinking is
+// one { item, scale } per item still shrinking away at its own pin position, for the caller to
+// draw with that item's own icon at `iconSize * scale` in place of (or alongside) the merged
+// pin; badgeScale is how large to draw the merged pin/count-badge -- full size unless every
+// member is newly joining (a brand-new cluster forming from scratch), in which case the badge
+// grows in with the same motion so it doesn't just pop in at full size the instant the last pin
+// arrives.
+function clusterJoinAnimationState(cluster, now = performance.now()) {
   const items = cluster.items;
   if (items.length <= 1) {
     const only = items[0];
@@ -1320,22 +1332,22 @@ function clusterJoinAnimationState(cluster, toScreen, now = performance.now()) {
     return null;
   }
 
-  const renders = [];
+  const shrinking = [];
   let maxEased = 0;
-  // A cluster is "forming from scratch" -- and so gets its badge faded in alongside the
-  // converging pins -- only while every single member is still mid-join. The moment any member
+  // A cluster is "forming from scratch" -- and so gets its badge growing in alongside the
+  // shrinking pins -- only while every single member is still mid-join. The moment any member
   // has no active join (it was already a settled part of a bigger cluster, or its join just
-  // finished), the badge itself already exists and must stay at full strength: only wasLone,
-  // captured once when each item's own animation was created, decides this, never a fresh
-  // per-frame lookup -- by the second frame _prevClusterSizeByItem already reads the merged
-  // size for every member, which would otherwise make a long-settled cluster look "new" again.
+  // finished), the badge itself already exists at full size: only wasLone, captured once when
+  // each item's own animation was created, decides this, never a fresh per-frame lookup -- by
+  // the second frame _prevClusterSizeByItem already reads the merged size for every member,
+  // which would otherwise make a long-settled cluster look "new" again.
   let allStillJoiningFromScratch = true;
   for (const item of items) {
     let anim = _clusterJoinAnimations.get(item);
     if (!anim) {
       // Strictly "was drawn alone last frame", not merely "never tracked" -- the latter is also
       // true the first time an item is ever seen at all (page load, entering the nearby set),
-      // when it was never actually visible as a separate pin for this animation to slide it in
+      // when it was never actually visible as a separate pin for this animation to shrink away
       // from.
       const wasLone = _prevClusterSizeByItem.get(item) === 1;
       if (wasLone && !(_clusterJoinCooldownUntil.get(item) > now)) {
@@ -1353,19 +1365,7 @@ function clusterJoinAnimationState(cluster, toScreen, now = performance.now()) {
         if (!anim.wasLone) allStillJoiningFromScratch = false;
         const eased = easeOutCubic(t);
         maxEased = Math.max(maxEased, eased);
-        // Recomputed every frame, not cached from animation start: while a pan/zoom is what's
-        // actually driving the merge (the common case -- see the animation's own comment above),
-        // both this item's own unclustered position and the cluster's centroid move with the
-        // camera every frame. Interpolating from a screen point frozen at t=0 would fight that
-        // motion instead of riding along with it, and could make the slide look like nothing at
-        // all, or a glitch, right when a zoom is what triggered it.
-        const from = toScreen(item.point);
-        renders.push({
-          item,
-          x: from.x + (cluster.screenPt.x - from.x) * eased,
-          y: from.y + (cluster.screenPt.y - from.y) * eased,
-          alpha: 1 - eased,
-        });
+        shrinking.push({ item, scale: Math.max(CLUSTER_JOIN_MIN_SCALE, 1 - eased) });
       }
     } else {
       allStillJoiningFromScratch = false;
@@ -1373,9 +1373,10 @@ function clusterJoinAnimationState(cluster, toScreen, now = performance.now()) {
     _prevClusterSizeByItem.set(item, items.length);
   }
 
-  if (!renders.length) return null;
+  if (!shrinking.length) return null;
   if (typeof requestDraw === "function") requestDraw();
-  return { renders, badgeAlpha: allStillJoiningFromScratch ? maxEased : 1 };
+  const badgeScale = allStillJoiningFromScratch ? Math.max(CLUSTER_JOIN_MIN_SCALE, maxEased) : 1;
+  return { shrinking, badgeScale };
 }
 
 function landmarkClusterKey(place) {
@@ -1909,20 +1910,21 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
 
-    const joinState = clusterJoinAnimationState(cluster, resolvedToScreen);
+    const joinState = clusterJoinAnimationState(cluster);
+    const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
 
-    ctx.globalAlpha = reveal * (joinState ? joinState.badgeAlpha : 1);
+    ctx.globalAlpha = reveal;
 
     const repr = items[0];
     const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
-    const drawn = drawPngMapIcon(ctx, src, screenPt.x, screenPt.y, iconSize);
-    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    const drawn = drawPngMapIcon(ctx, src, screenPt.x, screenPt.y, badgeSize);
+    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, badgeSize, dpr);
 
     if (joinState) {
-      for (const r of joinState.renders) {
+      for (const r of joinState.shrinking) {
+        const p = resolvedToScreen(r.item.point);
         const rSrc = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(r.item.commonName, r.item.latinName)) || iconPath("tree");
-        ctx.globalAlpha = reveal * r.alpha;
-        drawPngMapIcon(ctx, rSrc, r.x, r.y, iconSize);
+        drawPngMapIcon(ctx, rSrc, p.x, p.y, iconSize * r.scale);
       }
     }
   }
@@ -2245,17 +2247,19 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
 
     const place = items[0];
     const baseOpacity = markerOpacityFor("landmark", place);
-    const joinState = clusterJoinAnimationState(cluster, resolvedToScreen);
-    ctx.globalAlpha = baseOpacity * reveal * (joinState ? joinState.badgeAlpha : 1);
+    const joinState = clusterJoinAnimationState(cluster);
+    const badgeScale = joinState ? joinState.badgeScale : 1;
+    ctx.globalAlpha = baseOpacity * reveal;
 
-    const drawnAsPng = drawLandmarkIcon(ctx, place, screenPt.x, screenPt.y, iconSize, dpr, mapScale, uScale);
+    const drawnAsPng = drawLandmarkIcon(ctx, place, screenPt.x, screenPt.y, iconSize * badgeScale, dpr, mapScale, uScale * badgeScale);
 
-    if (drawnAsPng && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    if (drawnAsPng && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize * badgeScale, dpr);
 
     if (joinState) {
-      for (const r of joinState.renders) {
-        ctx.globalAlpha = markerOpacityFor("landmark", r.item) * reveal * r.alpha;
-        drawLandmarkIcon(ctx, r.item, r.x, r.y, iconSize, dpr, mapScale, uScale);
+      for (const r of joinState.shrinking) {
+        const p = resolvedToScreen(r.item.point);
+        ctx.globalAlpha = markerOpacityFor("landmark", r.item) * reveal;
+        drawLandmarkIcon(ctx, r.item, p.x, p.y, iconSize * r.scale, dpr, mapScale, uScale * r.scale);
       }
     }
   }
@@ -2279,14 +2283,15 @@ function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    const joinState = clusterJoinAnimationState(cluster, resolvedToScreen);
-    ctx.globalAlpha = reveal * (joinState ? joinState.badgeAlpha : 1);
-    const drawn = drawPngMapIcon(ctx, iconPath("waymarked"), screenPt.x, screenPt.y, iconSize);
-    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    const joinState = clusterJoinAnimationState(cluster);
+    const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
+    ctx.globalAlpha = reveal;
+    const drawn = drawPngMapIcon(ctx, iconPath("waymarked"), screenPt.x, screenPt.y, badgeSize);
+    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, badgeSize, dpr);
     if (joinState) {
-      for (const r of joinState.renders) {
-        ctx.globalAlpha = reveal * r.alpha;
-        drawPngMapIcon(ctx, iconPath("waymarked"), r.x, r.y, iconSize);
+      for (const r of joinState.shrinking) {
+        const p = resolvedToScreen(r.item.point);
+        drawPngMapIcon(ctx, iconPath("waymarked"), p.x, p.y, iconSize * r.scale);
       }
     }
   }
@@ -2310,14 +2315,15 @@ function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    const joinState = clusterJoinAnimationState(cluster, resolvedToScreen);
-    ctx.globalAlpha = reveal * (joinState ? joinState.badgeAlpha : 1);
-    const drawn = drawPngMapIcon(ctx, iconPath("ponds"), screenPt.x, screenPt.y, iconSize);
-    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    const joinState = clusterJoinAnimationState(cluster);
+    const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
+    ctx.globalAlpha = reveal;
+    const drawn = drawPngMapIcon(ctx, iconPath("ponds"), screenPt.x, screenPt.y, badgeSize);
+    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, badgeSize, dpr);
     if (joinState) {
-      for (const r of joinState.renders) {
-        ctx.globalAlpha = reveal * r.alpha;
-        drawPngMapIcon(ctx, iconPath("ponds"), r.x, r.y, iconSize);
+      for (const r of joinState.shrinking) {
+        const p = resolvedToScreen(r.item.point);
+        drawPngMapIcon(ctx, iconPath("ponds"), p.x, p.y, iconSize * r.scale);
       }
     }
   }
@@ -2342,14 +2348,16 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const baseOpacity = markerOpacityFor("cow", items[0]);
-    const joinState = clusterJoinAnimationState(cluster, resolvedToScreen);
-    ctx.globalAlpha = baseOpacity * reveal * (joinState ? joinState.badgeAlpha : 1);
-    const drawn = drawPngMapIcon(ctx, iconPath("cow"), screenPt.x, screenPt.y, iconSize);
-    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    const joinState = clusterJoinAnimationState(cluster);
+    const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
+    ctx.globalAlpha = baseOpacity * reveal;
+    const drawn = drawPngMapIcon(ctx, iconPath("cow"), screenPt.x, screenPt.y, badgeSize);
+    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, badgeSize, dpr);
     if (joinState) {
-      for (const r of joinState.renders) {
-        ctx.globalAlpha = markerOpacityFor("cow", r.item) * reveal * r.alpha;
-        drawPngMapIcon(ctx, iconPath("cow"), r.x, r.y, iconSize);
+      for (const r of joinState.shrinking) {
+        const p = resolvedToScreen(r.item.point);
+        ctx.globalAlpha = markerOpacityFor("cow", r.item) * reveal;
+        drawPngMapIcon(ctx, iconPath("cow"), p.x, p.y, iconSize * r.scale);
       }
     }
   }
