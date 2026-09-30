@@ -78,10 +78,14 @@ test.describe("Location and GPS — happy path", () => {
       await expect(gate).toHaveAttribute("aria-modal", "true");
       await expect(gate).toHaveAttribute("aria-labelledby", "locationGateTitle");
 
-      // Opening the gate should have moved focus into it, onto its one control.
+      // Opening the gate should have moved focus into it, onto its first control.
       await expect(page.locator("#locationGateButton")).toBeFocused();
 
-      // Tab should cycle back to the same button rather than escaping to the map behind it.
+      // Tab moves to the privacy note's policy link, the dialog's only other control...
+      await page.keyboard.press("Tab");
+      await expect(gate.locator(".privacy-note a")).toBeFocused();
+
+      // ...and a further Tab cycles back to the button rather than escaping to the map behind it.
       await page.keyboard.press("Tab");
       await expect(page.locator("#locationGateButton")).toBeFocused();
     });

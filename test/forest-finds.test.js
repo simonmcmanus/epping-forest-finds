@@ -438,6 +438,9 @@ globalThis.__forestFindsTest = {
   ensureUserAndSelectionVisible,
   refitSelectionAfterRoutingGraphReady,
   settingsFormHtml,
+  hasTrackingConsent,
+  setTrackingConsent,
+  ensureTrackingConsent,
   reportFormHtml,
   reportIssueHtml,
   openFiltersScreen,
@@ -502,7 +505,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/categories.js", "js/normalize.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/categories.js", "js/normalize.js", "js/tracker.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -3735,6 +3738,49 @@ test("settings form shows the app version", () => {
   assert.match(html, /v157/, "settings form should include the app version number");
   assert.match(html, /App version/, "settings form should label the app version");
   assert.match(html, /appVersionDisplay/, "settings form should include the version span for dynamic updates");
+});
+
+test("settings form's Privacy section reflects and toggles tracking consent", () => {
+  const original = app.hasTrackingConsent();
+
+  app.setTrackingConsent(false);
+  let html = app.settingsFormHtml();
+  assert.match(html, /id="privacyConsentStatus">not enabled</, "should report consent as not enabled");
+  assert.match(html, /id="privacyConsentToggle"[^>]*>Enable location &amp; tracking</, "toggle should offer to grant consent");
+
+  app.setTrackingConsent(true);
+  html = app.settingsFormHtml();
+  assert.match(html, /id="privacyConsentStatus">enabled</, "should report consent as enabled");
+  assert.match(html, /id="privacyConsentToggle"[^>]*>Withdraw consent</, "toggle should offer to withdraw consent");
+
+  app.setTrackingConsent(original);
+});
+
+test("ensureTrackingConsent grants consent implicitly, with no separate accept/decline screen", () => {
+  const original = app.hasTrackingConsent();
+
+  app.setTrackingConsent(false);
+  const result = app.ensureTrackingConsent();
+  assert.equal(result, true, "tapping 'Enable location' should itself count as consent");
+  assert.equal(app.hasTrackingConsent(), true, "consent should be recorded immediately, synchronously");
+
+  app.setTrackingConsent(original);
+});
+
+test("the location gate and onboarding's location step show the exact same privacy disclosure", () => {
+  const appHtml = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
+  const onboardingSource = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
+
+  const gateNoteMatch = appHtml.match(/<p class="privacy-note">([\s\S]*?)<\/p>/);
+  const onboardingNoteMatch = onboardingSource.match(/<p class="privacy-note">([\s\S]*?)<\/p>/);
+
+  assert.ok(gateNoteMatch, "the location gate should show a .privacy-note disclosure");
+  assert.ok(onboardingNoteMatch, "the onboarding location step should show a .privacy-note disclosure");
+  assert.equal(
+    onboardingNoteMatch[1],
+    gateNoteMatch[1],
+    "onboarding and the location gate must show identical consent wording, not two different screens"
+  );
 });
 
 test("settings form offers separate data, app and combined refresh buttons", () => {
@@ -8701,7 +8747,6 @@ test("the app's modal overlays declare dialog role, modal state and an accessibl
 
   assert.match(html, /id="locationGate"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="locationGateTitle"/);
   assert.match(html, /id="distanceWarning"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="distanceWarningTitle"/);
-  assert.match(html, /id="trackingConsentModal"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="trackingConsentTitle"/);
   assert.match(html, /id="onboardingOverlay"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-label="[^"]+"/);
 });
 

@@ -41,6 +41,23 @@ test.describe("Onboarding", () => {
       // Just verify the location-only prompt is gone and onboarding continues
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
     });
+
+    test("the location step shows the same privacy disclosure the in-map location gate uses", async ({ page }) => {
+      await page.goto("/app");
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("We collect anonymous usage data");
+      await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("Settings → Privacy");
+    });
+
+    test("tapping 'Enable location' grants consent immediately and advances onboarding with no second screen", async ({ page }) => {
+      await page.goto("/app");
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await page.locator("#onboardingOverlay .ob-location").click();
+      // No separate accept/decline screen — onboarding moves straight to the next step.
+      await expect(page.locator("#onboardingOverlay .ob-location")).toHaveCount(0);
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBe("1");
+    });
   });
 
   test.describe("returning visit", () => {

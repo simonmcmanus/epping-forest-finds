@@ -1,5 +1,5 @@
 // User analytics & location tracking module.
-// Consent must be given (see showTrackingConsent) before any data is sent.
+// Consent must be given (see setTrackingConsent) before any data is sent.
 
 const TRACKER_UID_KEY = "ff-uid";
 const TRACKER_CONSENT_KEY = "ff-track-v1";
@@ -33,9 +33,12 @@ function hasTrackingConsent() {
   }
 }
 
-async function ensureTrackingConsent() {
-  if (hasTrackingConsent()) return true;
-  return showTrackingConsent();
+// Consent is implicit: tapping whichever "Enable location" button is on screen (the
+// location gate or the onboarding location step) both grants consent and starts the
+// location request — see the shared .privacy-note text next to each of those buttons.
+function ensureTrackingConsent() {
+  setTrackingConsent(true);
+  return true;
 }
 
 function setTrackingConsent(value) {
@@ -46,39 +49,6 @@ function setTrackingConsent(value) {
       localStorage.removeItem(TRACKER_CONSENT_KEY);
     }
   } catch {}
-}
-
-// Show the T&C/consent modal. Returns Promise<boolean> — true if accepted.
-function showTrackingConsent() {
-  return new Promise((resolve) => {
-    const modal = document.getElementById("trackingConsentModal");
-    if (!modal) { resolve(false); return; }
-
-    modal.hidden = false;
-    modal.classList.remove("tc-fading-out");
-    const deactivateFocus = typeof activateModalFocus === "function" ? activateModalFocus(modal, { onEscape: () => onDecline() }) : null;
-
-    const acceptBtn = modal.querySelector(".tc-accept");
-    const declineBtn = modal.querySelector(".tc-decline");
-
-    function done(accepted) {
-      acceptBtn.removeEventListener("click", onAccept);
-      declineBtn.removeEventListener("click", onDecline);
-      if (deactivateFocus) deactivateFocus();
-      modal.classList.add("tc-fading-out");
-      modal.addEventListener("transitionend", () => {
-        modal.hidden = true;
-        modal.classList.remove("tc-fading-out");
-      }, { once: true });
-      resolve(accepted);
-    }
-
-    function onAccept() { setTrackingConsent(true); done(true); }
-    function onDecline() { done(false); }
-
-    acceptBtn.addEventListener("click", onAccept);
-    declineBtn.addEventListener("click", onDecline);
-  });
 }
 
 // --- Offline queue ---
