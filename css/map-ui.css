@@ -200,6 +200,11 @@
   .inspector-drag-handle { display: flex; }
   .inspector-actions { margin-top: 26px; }
 
+  /* The labelled nav bar's in-flow height (unlike the old icon-only overlay) eats most of
+     the ~180px this layout has left once the keyboard is up, starving the textarea. Hide it
+     while typing -- there's nothing to navigate to mid-entry -- so the form gets that space back. */
+  .inspector.keyboard-avoiding .inspector-actions { display: none; }
+
   .row { grid-template-columns: 1fr; gap: 3px; }
 }
 
@@ -252,7 +257,26 @@
 (orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
   .inspector.keyboard-avoiding {
     bottom: calc(10px + var(--keyboard-inset, 0px));
+    /* `height`, not just `max-height`: with only a cap, the sheet's auto height is resolved by
+       shrink-to-fit *before* the flex column's children get to flex-shrink into the space that
+       cap allows, so the form was landing far shorter than the keyboard actually leaves free.
+       An explicit height makes that space definite, so the column really gets to use it. */
+    height: calc(100% - 20px - var(--keyboard-inset, 0px));
     max-height: calc(100% - 20px - var(--keyboard-inset, 0px));
+    /* The keyboard's own slide-in is already animated; racing our height/max-height transition
+       against it left the sheet's height transiently interpolating from its pre-keyboard
+       value (e.g. the landscape default 48%) right when scroll-into-view measured it,
+       intermittently starving the textarea. Snap instead of tweening here. */
+    transition: max-height 0s;
+  }
+
+  /* With an explicit (not just max-) height on the sheet, .inspector-scroll's default
+     flex: 0 1 auto leaves it sized to content instead of the space that height actually
+     grants -- it only *shrinks* to fit, never grows into slack the column isn't using.
+     Grow it here so the scrollable body claims all of the keyboard-avoiding sheet the
+     fixed-size header doesn't need. */
+  .inspector.keyboard-avoiding .inspector-scroll {
+    flex-grow: 1;
   }
 }
 
