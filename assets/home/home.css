@@ -129,7 +129,6 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .signup { margin-bottom: 52px; padding: clamp(22px, 4vw, 36px); border: 1px solid var(--gold-line); border-left: 5px solid var(--gold); border-radius: 14px; background: #fff6d8; box-shadow: var(--shadow); }
 
 .signup-intro { max-width: none; margin: 0 0 20px; }
-.signup .eyebrow { color: var(--tree); }
 .card-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
 .card-icon { flex: 0 0 44px; width: 44px; height: 44px; }
 .card-head h2 { margin: 0; }

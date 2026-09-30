@@ -183,18 +183,22 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator(".tag-copy .card-icon")).toHaveAttribute("src", "assets/home/tree-tag.png");
     await expect(page.locator(".offline-how .card-icon")).toHaveAttribute("src", "assets/home/offline.png");
     await expect(page.locator(".faq .card-icon")).toHaveAttribute("src", "assets/home/faq.png");
-    // The eyebrow sits above, flush with the icon; the icon is centred on the title beside it.
+    await expect(page.locator(".signup .eyebrow")).toHaveCount(0);
+    // Icons remain centred beside their headings; only the Ledger has an eyebrow.
     const iconAlignment = await page.locator(".signup .card-head, .ledger .card-head").evaluateAll(heads => heads.map(head => {
       const icon = head.querySelector(".card-icon").getBoundingClientRect();
       const heading = head.querySelector("h2").getBoundingClientRect();
-      const eyebrow = head.previousElementSibling.getBoundingClientRect();
+      const eyebrow = head.previousElementSibling?.getBoundingClientRect();
       return {
         besideTitle: icon.right <= heading.left,
         centredOnTitle: Math.abs(icon.top + icon.height / 2 - (heading.top + heading.height / 2)) < 1,
-        flushWithEyebrow: Math.abs(icon.left - eyebrow.left) < 1 && eyebrow.bottom <= icon.top
+        flushWithEyebrow: eyebrow ? Math.abs(icon.left - eyebrow.left) < 1 && eyebrow.bottom <= icon.top : null
       };
     }));
-    expect(iconAlignment).toEqual(Array(2).fill({ besideTitle: true, centredOnTitle: true, flushWithEyebrow: true }));
+    expect(iconAlignment).toEqual([
+      { besideTitle: true, centredOnTitle: true, flushWithEyebrow: null },
+      { besideTitle: true, centredOnTitle: true, flushWithEyebrow: true }
+    ]);
     await expect(page.locator(".ledger").getByRole("link", { name: "Read the Ledger →" })).toHaveCSS("background-color", "rgb(46, 107, 68)");
     await expect(page.locator("main > section:last-child")).toHaveClass(/\bledger\b/);
     await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");

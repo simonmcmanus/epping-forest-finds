@@ -246,8 +246,8 @@ Sections, in order:
    Ledger card's accent placement. A 52px envelope icon
    (`assets/home/mail.png`, shaded cream and gold with dark-green outline, in the style of
    the homepage map pin), 44px, sits on the heading's line, vertically centred
-   on it, never on a line of its own. The eyebrow runs above, its left edge
-   flush with the icon. The layout is tight: email field and button share one row on wide
+   on it, never on a line of its own. The section starts with this heading,
+   without a repeated signup eyebrow. The layout is tight: email field and button share one row on wide
    screens (stacked on mobile), with the consent checkbox and privacy line
    directly beneath. Introduction, consent and supporting text
    use the full card content width; only the email-and-button row has a narrower cap. Both introduction and
