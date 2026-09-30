@@ -1740,13 +1740,11 @@ function drawMegaClusters(ctx, megaGroups) {
     let totalItems = 0, sx = 0, sy = 0;
     const byType = new Map();
     const byTypeIconSrc = new Map();
-    let allItems = [];
     for (const { itemType, cluster } of group) {
       const n = cluster.items.length;
       totalItems += n;
       sx += cluster.screenPt.x * n;
       sy += cluster.screenPt.y * n;
-      allItems = allItems.concat(cluster.items);
       const key = megaClusterDisplayKey(itemType, cluster);
       const existing = byType.get(key);
       byType.set(key, { count: (existing ? existing.count : 0) + n, itemType });
@@ -1755,15 +1753,11 @@ function drawMegaClusters(ctx, megaGroups) {
     const cx = sx / totalItems;
     const cy = sy / totalItems;
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
-    // The badge's count (and, following from it, its size) reflects what a tap here will
-    // actually show in the Nearby list -- clusterFocusTarget/clusterVisibleItemCount (js/nav.js)
-    // replicate focusNearbyOnClusterGroup's own centre+radius math exactly, so the two can never
-    // disagree. Often larger than totalItems (the raw count buildSuperClusters merged into this
-    // one badge): the tap's eventual walking radius commonly reaches past this group's own
-    // members into neighbouring ground.
-    // Memoized per group (megaBadgeVisibleCount, js/nav.js): six full-dataset scans per badge
-    // per frame is what stalled the UI once mega clustering shipped.
-    drawMegaBadge(ctx, cx, cy, megaBadgeVisibleCount(allItems), byType, byTypeIconSrc, dpr);
+    // The badge's count is exactly what buildSuperClusters merged into it -- what a tap here
+    // expands into can reach further (the eventual walking radius commonly covers more than
+    // just this group's own members), but the badge itself should only ever promise what it
+    // visibly swallowed, not a number from a separate, unrelated radius scan.
+    drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr);
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -2414,7 +2408,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     let totalItems = 0, sx = 0, sy = 0, swx = 0, swy = 0;
     const byType = new Map();
     const byTypeIconSrc = new Map();
-    let allItems = [];
     for (const { itemType, cluster } of group) {
       const n = cluster.items.length;
       totalItems += n;
@@ -2422,7 +2415,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
       sy += cluster.screenPt.y * n;
       swx += cluster.worldPt.x * n;
       swy += cluster.worldPt.y * n;
-      allItems = allItems.concat(cluster.items);
       const key = megaClusterDisplayKey(itemType, cluster);
       const existing = byType.get(key);
       byType.set(key, { count: (existing ? existing.count : 0) + n, itemType });
@@ -2433,8 +2425,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const worldPt = { x: swx / totalItems, y: swy / totalItems };
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
-    // See the flat-path drawMegaClusters (above) for why this differs from the raw merged count.
-    const badgeCount = megaBadgeVisibleCount(allItems);
+    const badgeCount = totalItems;
     // Ground-space centre for the outer disc's tilt-projected footprint (drawMegaBadge) --
     // null outside active tilt, where the badge stays a plain camera-facing circle. Also null
     // when the badge's own centre falls in tiltProjectScreenPoint's near-camera clip band
