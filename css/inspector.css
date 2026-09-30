@@ -342,6 +342,17 @@ button.settings-toggle.has-update::after {
   font-size: 0.6875rem;
   font-weight: 600;
   line-height: 1.3;
+  /* A column flex item is sized to its own content on the cross (horizontal) axis by default --
+     align-items: center never shrinks it to the button's own width the way flex-shrink would on
+     the main axis. At the narrowest tested width (320px) "Feedback" and "Settings" are wider
+     than their 5-across button, so with nothing capping the label it overflowed a few pixels
+     past both edges of its own button instead of stopping at them, crowding into its neighbours.
+     max-width ties it back to the button's actual width so the truncation below has something to
+     truncate against. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inspector-actions .nav-icon {
