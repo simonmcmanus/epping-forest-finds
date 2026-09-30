@@ -198,7 +198,8 @@
     top: auto;
     left: 10px;
     right: 10px;
-    bottom: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    border-radius: 20px;
     width: auto;
   }
 
@@ -213,14 +214,14 @@
     top: auto;
     left: 10px;
     right: 10px;
-    bottom: calc(10px + var(--nav-bar-h) + 10px);
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px) + var(--nav-bar-h) + 10px);
     width: auto;
     /* Subtract the same nav-bar-plus-gap reservation the bottom offset above adds, so the
        sheet's total footprint (sheet + gap + nav bar) matches what it was when the nav row
        lived inside the sheet's own --inspector-height budget -- otherwise the sheet doesn't
        get shorter when the nav row moves out, it just shifts up and claims that much extra
        map area on top of what it already had. */
-    max-height: calc(var(--inspector-height, 48%) - var(--nav-bar-h) - 10px);
+    max-height: calc(var(--inspector-height, 48%) - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
     transition: max-height 120ms ease-out;
   }
 
@@ -257,7 +258,7 @@
     /* Search: the sheet keeps its normal size (below) and just shifts up by the keyboard inset,
        carrying forward the same gap it always leaves above the nav bar -- which is fine to cover
        with the keyboard here, since the sheet itself no longer needs the room. */
-    bottom: calc(10px + var(--nav-bar-h) + 10px + var(--keyboard-inset, 0px));
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px) + var(--nav-bar-h) + 10px + var(--keyboard-inset, 0px));
     /* The keyboard's own slide-in is already animated; racing our own transition against it
        left values transiently interpolating from the pre-keyboard offset right when
        scroll-into-view measured them. Snap instead of tweening here. */

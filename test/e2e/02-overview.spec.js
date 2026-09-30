@@ -70,6 +70,25 @@ test.describe("Overview / Nearby screen", () => {
     }
   });
 
+  test("mobile navigation clears the device safe area and keeps its sheet separated", async ({ page }) => {
+    const session = await page.context().newCDPSession(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await session.send("Emulation.setSafeAreaInsetsOverride", {
+      insets: { top: 0, left: 0, right: 0, bottom: 34 },
+    });
+    const nav = page.locator(".inspector-actions");
+    await expect(nav).toHaveCSS("bottom", "44px");
+    await expect(nav).toHaveCSS("border-bottom-left-radius", "20px");
+    await expect(nav).toHaveCSS("border-bottom-right-radius", "20px");
+    await expect.poll(async () => page.evaluate(() => {
+      const nav = document.querySelector(".inspector-actions").getBoundingClientRect();
+      const sheet = document.getElementById("inspector").getBoundingClientRect();
+      return Math.round(nav.top - sheet.bottom);
+    })).toBe(10);
+    await session.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 0 } });
+    await expect(nav).toHaveCSS("bottom", "10px");
+  });
+
   test("navigation announces the current screen with a gold highlight and keeps filter status separate", async ({ page }) => {
     const nav = page.getByRole("navigation", { name: "Main navigation" });
     for (const [id, title] of [["searchToggle", "Search"], ["filterToggle", "Filters"], ["reportToggle", "Report"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
