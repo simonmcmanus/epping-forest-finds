@@ -73,6 +73,23 @@ test.describe("Feedback / Report screen", () => {
     expect(requestCount).toBe(1);
   });
 
+  test("a submitted report's filed issue is a real clickable link", async ({ page }) => {
+    await page.route("**/.netlify/functions/report-missing-data", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, issueNumber: 7, issueUrl: "https://github.com/simonmcmanus/epping-forest-finds/issues/7" }),
+      })
+    );
+
+    await page.fill("#reportDetails", "Link should be clickable");
+    await page.click("#reportSubmit");
+
+    const issueLink = page.locator("#reportStatus a");
+    await expect(issueLink).toHaveAttribute("href", "https://github.com/simonmcmanus/epping-forest-finds/issues/7");
+    await expect(issueLink).toHaveAttribute("target", "_blank");
+  });
+
   test("a failed submission keeps the same request id for a safe retry", async ({ page }) => {
     await page.route("**/.netlify/functions/report-missing-data", (route) =>
       route.fulfill({
@@ -311,6 +328,11 @@ test.describe("Reporting a problem with a selected location", () => {
     expect(postedPayload.locationContext).toMatchObject({ type: "Veteran tree", name: FIXTURE_TREE.commonName });
     expect(postedPayload.location.latitude).toEqual(expect.any(Number));
     expect(postedPayload.location.longitude).toEqual(expect.any(Number));
+
+    // The filed issue's URL is a real link, not text the user has to select and copy.
+    const issueLink = page.locator(".report-issue .report-status a");
+    await expect(issueLink).toHaveAttribute("href", "https://github.com/simonmcmanus/epping-forest-finds/issues/1");
+    await expect(issueLink).toHaveAttribute("target", "_blank");
   });
 
   test("an empty submission is rejected without a network request", async ({ page }) => {

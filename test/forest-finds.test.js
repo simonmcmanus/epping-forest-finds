@@ -4013,6 +4013,17 @@ test("report submission includes the app version", () => {
   assert.match(source, /appVersion:\s*state\.swVersion \|\| APP_VERSION/, "submitted report payload should include the live service worker version, falling back to APP_VERSION");
 });
 
+test("a submitted report's issue URL renders as a real clickable link, not plain text", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+  // Both the full Report screen and the inline per-location form route their success message
+  // through applyReportStatusContent, which builds the link with document.createElement
+  // rather than interpolating the URL into a template string.
+  assert.match(source, /setReportStatus\("Report submitted successfully\.", "success", data && data\.issueUrl\)/);
+  assert.match(source, /applyReportStatusContent\(statusEl, "Report submitted successfully\.", "success", data && data\.issueUrl\)/);
+  assert.match(source, /function applyReportStatusContent[\s\S]*?document\.createElement\("a"\)/);
+  assert.match(source, /link\.href = issueUrl/);
+});
+
 test("a tree or landmark's detail view offers to report a problem with its own coordinates", () => {
   const withPoint = app.reportIssueHtml({ type: "Veteran tree", name: "Hangman's Oak", latitude: 51.65, longitude: 0.03 });
   assert.match(withPoint, /Noticed a problem with this location\?/);

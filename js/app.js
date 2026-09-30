@@ -2217,12 +2217,30 @@ function bindReportFormHandlers() {
   window.addEventListener("offline", updateOnlineState);
 }
 
-function setReportStatus(message, tone = "") {
+function setReportStatus(message, tone = "", issueUrl = null) {
   const statusEl = document.getElementById("reportStatus");
   if (!statusEl) return;
+  applyReportStatusContent(statusEl, message, tone, issueUrl);
+}
+
+// Shared by the full Report screen (setReportStatus) and the inline per-location form
+// (submitLocationIssueReport): builds the status line via DOM APIs rather than a template
+// string, so the filed GitHub issue's URL renders as a real clickable link instead of dead
+// text the user has to select and copy, while everything else in the message stays plain
+// text -- .textContent/.createElement escape it automatically, no innerHTML involved.
+function applyReportStatusContent(statusEl, message, tone, issueUrl) {
   statusEl.textContent = message || "";
   statusEl.classList.remove("error", "success");
   if (tone) statusEl.classList.add(tone);
+  if (issueUrl && /^https:\/\//.test(issueUrl)) {
+    statusEl.append(" ");
+    const link = document.createElement("a");
+    link.href = issueUrl;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = "View issue";
+    statusEl.append(link);
+  }
 }
 
 function currentReportLocation() {
@@ -2328,8 +2346,7 @@ async function submitReportForm() {
       return;
     }
 
-    const issueText = data && data.issueUrl ? ` Issue: ${data.issueUrl}` : "";
-    setReportStatus(`Report submitted successfully.${issueText}`, "success");
+    setReportStatus("Report submitted successfully.", "success", data && data.issueUrl);
     reportDetailsInput.value = "";
     try {
       localStorage.removeItem(REPORT_DRAFT_KEY);
@@ -2444,9 +2461,7 @@ async function submitLocationIssueReport(wrapper) {
       return;
     }
 
-    const issueText = data && data.issueUrl ? ` Issue: ${data.issueUrl}` : "";
-    statusEl.textContent = `Report submitted successfully.${issueText}`;
-    statusEl.className = "report-status success";
+    applyReportStatusContent(statusEl, "Report submitted successfully.", "success", data && data.issueUrl);
     textarea.value = "";
   } catch (error) {
     statusEl.textContent = "Could not submit report. Please try again.";
