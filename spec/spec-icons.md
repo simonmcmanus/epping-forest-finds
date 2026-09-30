@@ -5,7 +5,7 @@ filter-food
 A plate with fork and knife
 
 filter-transport
-A front-facing bus
+A red London double-decker in side profile, with two rows of windows and visible wheels
 
 filter-history
 A rolled historical scroll
@@ -14,7 +14,7 @@ filter-locations
 A map pin
 
 filter-stories
-Three sparkles
+An open cream storybook with a terracotta cover and a star on its page
 
 filter-trees
 A veteran ancient oak tree with a broad canopy
@@ -23,13 +23,13 @@ filter-cows
 A grazing cow in side profile
 
 filter-waymarked-trails
-A hiking boot
+A timber waymarker post with a single arrow plaque
 
 filter-ponds-streams
-A single water droplet
+A blue woodland pool edged with a few reeds
 
 filter-pubs
-A beer mug
+A British nonic pint glass with a curved rim, tapered body and creamy head, without a handle
 
 filter-restaurants
 A plate with fork and knife
@@ -38,13 +38,13 @@ filter-cafes
 A coffee cup
 
 filter-shops
-A shopping basket
+A supermarket trolley with an open metal cart, gold handle and two wheels
 
 filter-bus
-A front-facing bus
+A red London double-decker in side profile, with two rows of windows and visible wheels
 
 filter-parking
-A parked car
+The original-style cream car in side profile, isolated without its P badge or map pin
 
 filter-historic-places
 A classical building with columns
@@ -53,10 +53,10 @@ filter-royal
 A crown
 
 filter-ww2
-A military helmet
+A British Brodie helmet, without a star or crossed weapons
 
 filter-social-history
-A woven basket
+A historical scroll
 
 filter-plaques
 A bronze wall plaque with an engraved inscription and corner fixings
@@ -68,7 +68,7 @@ filter-celebrity
 A five-point star
 
 filter-science
-A telescope
+A glass laboratory flask with golden liquid
 
 filter-education
 A graduation cap
@@ -77,13 +77,13 @@ filter-medicine
 A medical cross
 
 filter-literature
-A stack of books
+A single open book, without a map pin
 
 filter-theatre
 Comedy and tragedy masks
 
 filter-politics
-A civic building with columns
+The Elizabeth Tower clock tower
 
 filter-art
 An artist palette
@@ -92,7 +92,7 @@ filter-church
 A church with a steeple
 
 filter-legends
-Three magical sparkles
+A golden trophy cup with a single star
 
 filter-film-tv
 A film clapperboard
@@ -128,16 +128,16 @@ inspector-railway
 A railway train
 
 landmark-parking
-A parked car
+The original-style cream car in side profile, isolated without its P badge or map pin
 
 landmark-bicycle-parking
-A bicycle with the P badge the car-park icon carries
+A single bicycle, without a P badge
 
 landmark-bench
 A park bench
 
 landmark-toilets
-A public toilet facility
+A single cream toilet in side view, without a building or extra signage
 
 landmark-drinking-water
 A water tap
@@ -167,7 +167,7 @@ landmark-viewpoint
 A spotting telescope on a tripod
 
 landmark-taxi
-A taxi cab
+A London black cab in side view, with a squared passenger cabin and distinct bonnet
 
 landmark-telephone
 A K6 telephone box
@@ -237,10 +237,63 @@ A single field maple leaf with five compact lobes
 
 tree-ash
 A single ash compound leaf with paired leaflets
+## UK setting and small-size legibility
+
+Map artwork uses one recognisable subject, with no additional location pins,
+parking badges or decorative props. Bus, pub, taxi and WWII artwork uses a
+London double-decker, British nonic pint glass, London black cab and Brodie
+helmet respectively. Parking uses a car; bicycle parking uses a bicycle;
+medical sites use a single cross; literature uses an open book; campsites use
+the original tent artwork. Keep the forest-green outlines and house palette, using heritage red
+for the bus. Illustrated subjects share restrained shading, cream highlights
+and forest-green outlines. The cab uses a recognisable side silhouette; the
+pint has glass highlights and a curved creamy head. Toilets use a single
+toilet silhouette rather than a detailed building. Every map icon has a
+transparent background, with no opaque square or baked-in checkerboard.
+Check silhouettes at map size as well as the 256px original.
+The remaining map artwork was reviewed: UK rail symbols, the K6 telephone
+box, heritage buildings, local nature and generic facilities retain their
+existing subjects.
+
+## App-wide illustration style
+
+Place, filter and navigation illustrations share forest-green contours,
+soft cream highlights and gentle dimensional shading. Use warm gold and tan,
+terracotta, natural greens and water blue to distinguish subjects without
+adding decorative objects. Food and restaurant icons share the same plate
+artwork; the campsite filter reuses the original tent silhouette. The home
+icon is an isolated cream lodge with a sage roof and transparent surroundings.
+Tree-species leaves retain their distinct outlines and veins, with tonal
+greens; the cow has English Longhorn horns curving down beside its face.
+
+The rail symbols, medical cross and inline search/back controls retain their
+familiar simple shapes. The walking figure and completion tick use softly
+shaded illustrations while preserving their recognisable silhouettes. Launcher
+tiles keep their separate platform backgrounds. All registered in-app PNG
+icons have transparent space around the artwork; check them at 28px as well
+as at full size. `data/icons/src/prompts.json` records the built-in ImageGen
+prompts for the app-wide illustration pass.
+
+The Nearby navigation mark is a yellow/gold location beacon with an empty shaded
+emerald centre and two green arcs, without a compass star. The loading/onboarding
+brand mark and homepage's independent location illustration retain the emerald
+beacon with a gold centre. The earlier gold compass-pin concept is retained in
+`docs/icon-review/` for reference, not loaded by the app.
+The folded map and compass illustrations replace their flat or platform-specific
+counterparts in the location fallback and compass calibration prompt. Review
+decisions and generation prompts are recorded in `docs/icon-review/`.
+
+Road and railway search results and detail headings use matching transparent
+illustrations: a winding grey road with UK white markings, and a simple section
+of railway track. Route types stay explicit in their text labels; no platform
+car or train emoji are used for these line features.
+
 ## Drawing an icon
 
-`data/icons/src/*.svg` is the editable original for every icon added since the
-set was first drawn; the PNGs beside them in `data/icons/` are build output.
+`data/icons/src/` holds SVG or transparent PNG masters, with exactly one
+source per icon. The 256px PNGs in `data/icons/` are committed build output.
+Raster masters retain the approved illustrations; the generator fits their
+visible artwork to a consistent 0.48 content radius while preserving alpha.
 `npm run gen:icons` (`scripts/generate-map-icons.js`) rasterises the sources to
 256x256 through headless Chromium, and takes a name fragment to do one at a
 time. `data/icons/src/_palette.md` holds the house palette, sampled from the
@@ -250,8 +303,8 @@ poppy red `#b23a2e`.
 
 **Every drawing sits inside a circle of radius 128 on the 256 viewBox**, and
 the generator fails rather than writing a PNG that does not. The renderer
-paints artwork at 1.75x the pin head's radius (`drawPngMapIcon`), so content
-past `1/1.75 = 0.571` of its own half-width reaches outside the white pointer,
+paints artwork at 1.85x the pin head's radius (`drawPngMapIcon`), so content
+past `1/1.85 = 0.541` of its own half-width reaches outside the white pointer,
 which is what made the old full-width plaque rectangle sit wrong among the
 others. `scripts/lib/icon-fit.js` holds that rule and the 0.52 ceiling both
 scripts measure against — under the spill point, with room for the
@@ -374,6 +427,27 @@ and sit exactly like the PNG nav icons around them, and both stroke in
 `ui-search` prompt above is unused and stays listed only so the set is
 complete if the glyph is ever drawn as an asset.
 
+`.nav-icon` (main navigation row and the inspector back arrow) and `.title-icon`
+(the emoji/icon beside a screen's heading, e.g. Filters/Settings/Report) stay
+at their original `22px`/`23px * var(--icon-scale)` (`css/inspector.css`), in
+their original `36px * var(--icon-scale)` `.close`/`.inspector-back` buttons
+— a pass that enlarged all four to 40px/64px made the row read as
+inconsistent width and overrun its own container, since the five buttons no
+longer shared a comfortable fit against the icons and badges inside them.
+The Nearby list's own per-row icon (`.nearest-icon`/`.nearest-icon .app-icon`,
+`css/map-ui.css`) is enlarged instead, to `44px` (up from 20px) — that row has
+no such fixed-width neighbours to overrun. It sits in its own grid column
+(`.nearest-item`'s `grid-template-columns: auto 1fr`) spanning the full
+height of both the name row and the meta/distance row beside it
+(`.nearest-content`, holding `.nearest-header`/`.nearest-footer` stacked),
+rather than being sized to just the first line the way a flex-row icon would
+be. `test/forest-finds.test.js`'s "generated UI icon classes render at the
+enlarged sizes" test locks all four sizes in place; its regexes deliberately
+bound each match inside `[^}]*` rather than `[\s\S]*` so a later, unrelated
+selector's own "width: 44px;" can't vacuously satisfy an assertion about a
+rule higher up the file — an earlier, unbounded version of that regex did
+exactly that and stayed green through a size that had quietly reverted.
+
 ## Generated app icon assets
 
 `scripts/generate-app-icon.py` composites `trees/oak.png` — the English oak
@@ -390,5 +464,5 @@ and writes:
 - `favicon.png` — 128px, square, leaf at 72% so it still reads at 16px. Linked
   from `index.html`, `admin.html`, `terms.html` and the generated reports index.
 
-`trees/logo.png` is not part of this set. It stays the location pin, and is
+`trees/logo.png` is not part of this set. It uses the emerald Nearby beacon, and is
 used by the onboarding welcome step and the loading screen.

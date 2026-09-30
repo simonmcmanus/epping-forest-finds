@@ -8,13 +8,18 @@ test.describe("Map interaction", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 
   test.describe("Selecting a group", () => {
-    test("tapping a group of trees shows only that group on the map", async ({ page }) => {
+    test("tapping a group of trees browses the Nearby view to that group", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       // Find a real multi-item tree cluster at the current camera and tap its pin. Which pins
       // cluster together depends on the live dataset and the settled camera, so the target is
       // read from the same clustering the renderer draws from rather than guessed at in pixels.
+      // The expected anchor/radius are computed here the same way focusNearbyOnClusterGroup
+      // (js/nav.js) does, so the assertions below check that function's actual contract --
+      // covering the group's own footprint -- rather than exact list membership, which the
+      // Nearby list's existing nearest-N cap (state.nearestItemsCount) can still trim in a
+      // register this dense, same as it does for any other browsed spot.
       const target = await page.evaluate(() => {
         stopViewportAnimation();
         const lookup = buildNearbyIconLookup();
@@ -22,32 +27,130 @@ test.describe("Map interaction", () => {
         const cluster = clusters.find((c) => c.items.length > 1);
         if (!cluster) return null;
         const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const item of cluster.items) {
+          minX = Math.min(minX, item.point.x);
+          maxX = Math.max(maxX, item.point.x);
+          minY = Math.min(minY, item.point.y);
+          maxY = Math.max(maxY, item.point.y);
+        }
+        const center = unprojectPoint({ x: (minX + maxX) / 2, y: (minY + maxY) / 2 });
+        let maxMetres = 0;
+        for (const item of cluster.items) {
+          maxMetres = Math.max(maxMetres, distanceMetres(center.latitude, center.longitude, item.latitude, item.longitude));
+        }
         return {
           point: { x: cluster.screenPt.x, y: cluster.screenPt.y - iconSize * 0.64 },
-          otherHighlightedCount: lookup.landmark.size + lookup.cow.size + lookup.path.size + lookup.water.size,
+          center,
+          maxMetres,
         };
       });
       test.skip(!target, "no multi-item tree cluster on screen at this camera");
 
       await tapCanvasPoint(page, target.point);
 
-      const after = await page.evaluate(() => {
-        const lookup = buildNearbyIconLookup();
-        const group = state.clusterExpanded;
-        return {
-          expanded: Boolean(group),
-          groupSize: group ? group.items.length : 0,
-          treesShown: lookup.tree.size,
-          everyShownTreeIsInTheGroup: group ? [...lookup.tree].every((t) => group.items.includes(t)) : false,
-          otherTypesShown: lookup.landmark.size + lookup.cow.size + lookup.path.size + lookup.water.size,
-        };
-      });
+      // The state change (anchor, radius, list) lands at the start of the tour's pan phase, not
+      // instantly on tap -- see focusNearbyOnClusterGroup's three-phase camera tour (js/nav.js)
+      // -- so wait for it rather than asserting immediately after the tap.
+      await page.waitForFunction(() => Boolean(state.nearbyAnchor));
 
-      expect(after.expanded, "tapping a cluster pin should expand the group").toBe(true);
-      expect(after.treesShown).toBe(after.groupSize);
-      expect(after.everyShownTreeIsInTheGroup, "only the group's own trees stay on the map").toBe(true);
-      expect(after.otherTypesShown, "highlighted locations from the previous view are hidden").toBe(0);
-      await expect(page.locator("#inspectorTitle")).toContainText("Trees");
+      // Tapping a group behaves like tapping open ground on that spot: the Nearby browse anchor
+      // moves to the group's centre and the radius grows to cover it, so the Nearby list -- the
+      // same screen, no separate cluster-detail screen -- now reads as "what's around here".
+      const after = await page.evaluate((center) => ({
+        hasAnchor: Boolean(state.nearbyAnchor),
+        anchorDistanceFromGroupCentre: state.nearbyAnchor
+          ? distanceMetres(state.nearbyAnchor.latitude, state.nearbyAnchor.longitude, center.latitude, center.longitude)
+          : null,
+        radiusMetres: walkingDistanceToMetres(state.walkingDistanceMinutes),
+        hasListedItems: document.querySelectorAll("#inspectorBody .nearest-item").length > 0,
+      }), target.center);
+
+      expect(after.hasAnchor, "tapping a group sets a browse anchor, same as tapping open ground").toBe(true);
+      expect(after.anchorDistanceFromGroupCentre, "the anchor sits at the group's own centre").toBeLessThan(1);
+      expect(after.radiusMetres, "the walking radius grows to cover the group's farthest member").toBeGreaterThanOrEqual(target.maxMetres);
+      expect(after.hasListedItems, "the Nearby list is populated around the new anchor").toBe(true);
+      await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
+    });
+
+    test("the browser back button undoes a cluster tap and returns to the previous anchor", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      const anchorBefore = await page.evaluate(() => state.nearbyAnchor);
+
+      const target = await page.evaluate(() => {
+        stopViewportAnimation();
+        const lookup = buildNearbyIconLookup();
+        const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+        const cluster = clusters.find((c) => c.items.length > 1);
+        if (!cluster) return null;
+        const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
+        return { point: { x: cluster.screenPt.x, y: cluster.screenPt.y - iconSize * 0.64 } };
+      });
+      test.skip(!target, "no multi-item tree cluster on screen at this camera");
+
+      await tapCanvasPoint(page, target.point);
+      await page.waitForFunction(() => Boolean(state.nearbyAnchor));
+      const anchorAfterTap = await page.evaluate(() => state.nearbyAnchor);
+
+      // The browser back button retraces the cluster tap the same way it retraces a selection
+      // (see pushNearbyAnchorHistory/restoreNearbyAnchorFromHistory, js/app.js and js/nav.js).
+      // The restored anchor is re-derived from a lat/lon snapshot (history.state has no room for
+      // live object references), so it is compared by value rather than by exact float equality.
+      await page.goBack();
+      await expect.poll(() => page.evaluate(() => state.nearbyAnchor)).toEqual(anchorBefore);
+
+      // And forward replays it, landing back on the cluster's own anchor.
+      await page.goForward();
+      await expect.poll(() => page.evaluate(() => {
+        const a = state.nearbyAnchor;
+        return a ? { latitude: a.latitude, longitude: a.longitude } : null;
+      })).toEqual(anchorAfterTap ? { latitude: anchorAfterTap.latitude, longitude: anchorAfterTap.longitude } : null);
+    });
+
+    test("tapping a cluster while something is selected expands the cluster, not the pin behind it", async ({ page }) => {
+      await setup(page);
+
+      // Select a tree first -- mirrors viewing one tree, then tapping a nearby cluster to browse
+      // the rest. Cluster hit-testing used to be skipped whenever state.selected was set, so a
+      // tap here fell straight through to findHit and picked up whatever individual pin sat
+      // behind the badge instead of expanding it.
+      await page.evaluate(() => {
+        stopViewportAnimation();
+        const lookup = buildNearbyIconLookup();
+        state.selected = { type: "tree", item: [...lookup.tree][0] };
+        requestDraw();
+      });
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
+
+      // Find a cluster whose hit-test circle overlaps an individual pin's own hit region -- the
+      // exact overlap the old code got wrong.
+      const clusterScreen = await page.evaluate(() => {
+        const dpr = pixelRatio();
+        const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
+        const pinYOffset = iconSize * 0.64;
+        const lookup = buildNearbyIconLookup();
+        const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+        for (const cluster of clusters) {
+          if (cluster.items.length <= 1) continue;
+          const screen = { x: cluster.screenPt.x, y: cluster.screenPt.y - pinYOffset };
+          if (!findClusterHit(screen)) continue;
+          const world = screenToWorld(screen.x, screen.y);
+          if (findHit(screen, world).type !== "none") return screen;
+        }
+        return null;
+      });
+      test.skip(!clusterScreen, "no multi-item tree cluster overlapping an individual pin at this camera");
+
+      const dpr = await page.evaluate(() => pixelRatio());
+      const { insetX, insetY, left, top } = await page.evaluate(() => {
+        const r = (document.querySelector(".map-stage") || document.getElementById("mapCanvas")).getBoundingClientRect();
+        return { insetX: state.canvasInsetX, insetY: state.canvasInsetY, left: r.left, top: r.top };
+      });
+      await page.mouse.click(left + (clusterScreen.x - insetX) / dpr, top + (clusterScreen.y - insetY) / dpr);
+
+      await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+      await expect.poll(() => page.evaluate(() => Boolean(state.nearbyAnchor))).toBe(true);
     });
   });
 

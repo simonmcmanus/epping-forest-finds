@@ -5,9 +5,9 @@
  * to check it.
  *
  * drawPngMapIcon() (js/renderer.js) draws a white pointer whose head has
- * radius R, then paints the artwork centred in that head at 1.75R across. So
+ * radius R, then paints the artwork centred in that head at 1.85R across. So
  * a pixel at normalised radius p -- its distance from the image centre over
- * the image width -- lands at 1.75pR, and anything past p = 1/1.75 spills out
+ * the image width -- lands at 1.85pR, and anything past p = 1/1.85 spills out
  * of the pointer. Both scripts/generate-map-icons.js (new artwork, from SVG)
  * and scripts/refit-map-icons.js (the original PNGs) measure against that.
  */
@@ -16,8 +16,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
 
-// Where the artwork actually overflows the pointer.
-const SPILL_POINT = 1 / 1.75;
+// Where the artwork actually overflows the pointer. Keep in sync with the
+// draw multiplier in drawPngMapIcon() (js/renderer.js) -- this is
+// documentation only, not read by that code, so a change there needs the
+// same change here.
+const SPILL_POINT = 1 / 1.85;
 
 // What both scripts hold icons to, leaving room for the antialiased edge.
 const FIT_LIMIT = 0.52;

@@ -54,8 +54,11 @@ function walkingMinutesStep(minutes) {
 }
 
 // Rounds a continuous walking-radius value onto that grid: fine enough to feel stepless while
-// dragging, coarse enough to avoid floating-point noise in the displayed label and in the
-// overview cache key (see overviewItemsForActiveFilter, index.html).
+// dragging the Settings slider (a native `<input type="range">`, which needs a `step`), coarse
+// enough to avoid floating-point noise in the overview cache key (see
+// overviewItemsForActiveFilter, index.html). The pinch/wheel gesture applies its raw value
+// directly instead (see applyWalkingRadiusGesture) so the ring itself is never snapped to this
+// grid.
 function roundWalkingMinutes(minutes) {
   const step = walkingMinutesStep(minutes);
   return Math.round(minutes / step) * step;
@@ -70,18 +73,16 @@ function ceilWalkingMinutes(minutes) {
   return Math.ceil(minutes / step - 1e-9) * step;
 }
 
-// Formats a (possibly fractional) walking-time value for display: whole minutes as "5",
-// half-minutes as "5.5".
-function formatWalkingMinutes(minutes) {
-  return Number.isInteger(minutes) ? String(minutes) : minutes.toFixed(1);
-}
-
+// The radius itself stays a continuous value (see applyWalkingRadiusGesture) so the ring tracks
+// a pinch or wheel gesture smoothly; only the label rounds, to the nearest whole minute, so the
+// displayed number doesn't twitch between fractions as the gesture moves.
+//
 // The same value with its unit, for anywhere the radius is shown to the user. Sub-minute radii
 // (reachable since the floor started tracking finds closer than a minute's walk) read as
 // seconds: "15 sec" is how anyone describes that walk, "0.3 min" is not.
 function formatWalkingRadius(minutes) {
   if (minutes < 1) return `${Math.round(minutes * 60)} sec`;
-  return `${formatWalkingMinutes(minutes)} min`;
+  return `${Math.round(minutes)} min`;
 }
 
 // The effective centre for everything the Nearby view shows (walking-radius circle, nearest-
@@ -91,6 +92,31 @@ function formatWalkingRadius(minutes) {
 // user actually is.
 function nearbyOrigin() {
   return state.nearbyAnchor || state.userLocation;
+}
+
+// A real GPS fix never holds perfectly still -- even standing on one spot, especially under
+// forest canopy, consecutive fixes wander by a few metres. overviewItemsForActiveFilter caches
+// on the origin's raw coordinates and re-sorts/re-samples its candidate lists (sampleSpread's
+// tree cap in particular) whenever they change, so every such wobble could swap which items
+// landed in a capped sample -- visible as map pins jumping while the phone sat still. This holds
+// the origin used for that candidate selection fixed until the live fix has moved further than a
+// real, deliberate distance away from it, so imperceptible GPS noise no longer reaches the
+// pin/list selection at all.
+let _stableNearbyOrigin = null;
+const STABLE_NEARBY_ORIGIN_HYSTERESIS_METRES = 15;
+
+function stableNearbyOrigin() {
+  const origin = nearbyOrigin();
+  if (!origin) {
+    _stableNearbyOrigin = null;
+    return null;
+  }
+  if (origin === _stableNearbyOrigin) return _stableNearbyOrigin;
+  if (!_stableNearbyOrigin
+      || distanceMetres(_stableNearbyOrigin.latitude, _stableNearbyOrigin.longitude, origin.latitude, origin.longitude) > STABLE_NEARBY_ORIGIN_HYSTERESIS_METRES) {
+    _stableNearbyOrigin = origin;
+  }
+  return _stableNearbyOrigin;
 }
 
 // Search, Filter, Settings, and Report screens all show the map in the background and must
@@ -401,9 +427,9 @@ function setupInteractions() {
 // iOS Safari doesn't shrink the layout viewport when the on-screen keyboard opens, so the
 // `position: absolute; bottom: 10px` mobile inspector sheet (see css/map-ui.css) stays pinned
 // behind the keyboard instead of moving with it. VisualViewport reports the actually-visible
-// area, so we use it to shift/shrink the sheet above the keyboard. Scoped to the Report screen —
-// the only screen with a text input that can summon a keyboard (Settings uses a <select>, Filter
-// has no text input).
+// area, so we use it to shift/shrink the sheet above the keyboard. Scoped to the screens with a
+// text input that can summon a keyboard: the Report screen and the Search screen (Settings uses
+// a <select>, Filter has no text input).
 const REPORT_KEYBOARD_INSET_MIN_PX = 40; // ignore sub-keyboard-sized viewport jitter (e.g. browser chrome show/hide)
 
 function setupReportKeyboardAvoidance() {
@@ -414,7 +440,7 @@ function setupReportKeyboardAvoidance() {
 
 function handleReportViewportChange() {
   if (!els.inspector) return;
-  if (state.selected?.type !== "report") {
+  if (state.selected?.type !== "report" && !state.searchScreenOpen) {
     clearReportKeyboardInset();
     return;
   }
@@ -706,6 +732,7 @@ function setupSearchAndNavHandlers() {
   // fragment fires hashchange alone; applyRouteFromUrl no-ops when the app is already on the
   // screen the URL names, so being called twice for one change costs nothing.
   window.addEventListener("popstate", () => {
+    restoreNearbyAnchorFromHistory();
     applyRouteFromUrl();
   });
   window.addEventListener("hashchange", () => {
@@ -875,6 +902,244 @@ function setNearbyAnchor(latitude, longitude, point) {
   // what the camera should be looking at.
   state.outOfRadiusRevealFilters = [];
   refreshNearbyRadiusView({ animate: false });
+  pushNearbyAnchorHistory();
+}
+
+// The counterpart to pushNearbyAnchorHistory (js/app.js), run on every popstate before the URL
+// itself is re-applied: puts state.nearbyAnchor back to whatever it was on the history entry
+// just landed on, so moving between clusters undoes on the browser back button and the
+// inspector's own back arrow exactly like a selection does, instead of leaving the ring wherever
+// the last cluster tap left it.
+function restoreNearbyAnchorFromHistory() {
+  const entry = history.state;
+  const snapshot = entry ? entry[NEARBY_ANCHOR_KEY] : null;
+  const current = state.nearbyAnchor;
+  const unchanged = current && snapshot
+    ? current.latitude === snapshot.latitude && current.longitude === snapshot.longitude
+    : !current && !snapshot;
+  if (unchanged) return;
+  stopViewportAnimation();
+  state.clusterZoomed = false;
+  startNearbyOriginTransition(nearbyRenderOriginPoint());
+  state.nearbyAnchor = snapshot
+    ? { latitude: snapshot.latitude, longitude: snapshot.longitude, point: projectLonLat(snapshot.longitude, snapshot.latitude) }
+    : null;
+  state.outOfRadiusRevealFilters = [];
+  updateNearbyAnchorBar();
+  refreshNearbyRadiusView({ animate: true });
+}
+
+// Tapping a grouped set of pins -- a same-category cluster or a cross-category "mega" badge
+// (buildSuperClusters, js/renderer.js) alike -- moves the Nearby browse anchor to the group's
+// centre and grows the walking radius just far enough to keep every member inside the ring, the
+// same way a tap on open ground does (focusNearbyOnMapPoint). The Nearby list then reads "what's
+// in this group" on its own, with no separate cluster-list screen to learn -- one interaction
+// covers both kinds of group, which is the point: fewer states for the user to hold in mind.
+//
+// A cluster tap can jump a long way (a mega badge across the ring from a browse anchor set by an
+// earlier tap, say), so it narrates the move in three beats rather than one plain ease: zoom out
+// far enough to show both where the view is and where it's going, pan across at that width (the
+// ring itself lands at its new spot for this whole beat, so it visibly travels rather than
+// teleporting), then zoom in to the new ring. See the phase functions below.
+const CLUSTER_TOUR_ZOOM_OUT_MS = 350;
+const CLUSTER_TOUR_PAN_MS = 450;
+const CLUSTER_TOUR_ZOOM_IN_MS = 450;
+
+// Shared by focusNearbyOnClusterGroup (the real camera tour, below) and the mega badge's own
+// count display (drawMegaClusters, js/renderer.js), so the two can never disagree: the centre
+// and walking radius a tap on this group will actually land on, computed once.
+function clusterFocusTarget(items) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const item of items) {
+    minX = Math.min(minX, item.point.x);
+    maxX = Math.max(maxX, item.point.x);
+    minY = Math.min(minY, item.point.y);
+    maxY = Math.max(maxY, item.point.y);
+  }
+  const centerPoint = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  const center = unprojectPoint(centerPoint);
+
+  let maxMetres = 0;
+  for (const item of items) {
+    maxMetres = Math.max(maxMetres, distanceMetres(center.latitude, center.longitude, item.latitude, item.longitude));
+  }
+  // Same buffer walkingRadiusFloorMinutes uses to settle its nearest item clearly inside the
+  // ring rather than right on its edge -- here it keeps the group's farthest member off the
+  // rim too.
+  // ceilWalkingMinutes, not roundWalkingMinutes: rounding to the nearest grid point can round
+  // down, shrinking the ring back inside the group it was just sized to cover.
+  const rawMinutes = metresToWalkingMinutes(maxMetres * WALKING_RADIUS_FLOOR_BUFFER);
+  const floorMinutes = walkingRadiusFloorMinutes(center);
+  const targetMinutes = ceilWalkingMinutes(clamp(rawMinutes, floorMinutes, WALKING_RADIUS_MAX_MINUTES));
+  return { centerPoint, center, targetMinutes };
+}
+
+// Counts every real item (all types, unfiltered -- matching the unfiltered branch of
+// overviewItemsForActiveFilter, js/app.js) within a cluster's eventual walking radius. Used to
+// show a mega badge's true count: the raw number of items buildSuperClusters happened to merge
+// into one badge is often smaller, since the final radius (walkingRadiusFloorMinutes' own
+// minimum, plus the walking-radius grid ceilWalkingMinutes rounds up to) commonly reaches past
+// a tight cluster's own members into neighbouring ground -- a badge that said "7" opened onto a
+// Nearby list of 20 because of exactly that gap.
+function clusterVisibleItemCount(center, targetMinutes) {
+  const maxMetres = walkingDistanceToMetres(targetMinutes);
+  const { latitude, longitude } = center;
+  return nearbyTreesWithinDistance(latitude, longitude, maxMetres).length
+    + nearbyCowsWithinDistance(latitude, longitude, maxMetres).length
+    + nearbyWaymarkedPathsWithinDistance(latitude, longitude, maxMetres).length
+    + nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres).length
+    + nearbyPlacesByFilterWithinDistance(latitude, longitude, () => true, maxMetres).length;
+}
+
+// The mega badge's displayed count, memoized. clusterFocusTarget + clusterVisibleItemCount are
+// six full-dataset scans (walkingRadiusFloorMinutes' nearest-item search plus one scan per item
+// type, ~25k trees and ~9k path polylines among them) -- about 12 ms per badge on a desktop CPU,
+// several times that on a phone. drawMegaClusters and drawAllPinsSorted ran them for every badge
+// on every frame, and in heading-up/tilt the overlay redraws on every compass tick, so a handful
+// of badges on screen saturated the main thread and the whole UI stalled.
+//
+// None of it depends on the camera: a badge's answer is a function of which items it merged and
+// of the datasets/filters, not of pan, zoom or heading. So it is keyed on the members (a count
+// plus coordinate sums and bounds -- two different groups would have to agree on all seven)
+// and the cache is dropped whenever anything that changes the answer does.
+// While the camera moves, a group re-forms only when its membership actually changes.
+const MEGA_BADGE_COUNT_CACHE_LIMIT = 512;
+let _megaBadgeCountCache = null;
+
+function megaBadgeCountCacheValid(cache) {
+  return cache
+    && cache.filters === state.overviewFilters.join(",")
+    && cache.cowLastUpdatedAt === state.cowLastUpdatedAt
+    && cache.trees === state.trees
+    && cache.cows === state.cows
+    && cache.landmarks === state.landmarks
+    && cache.paths === state.paths
+    && cache.waterFeatures === state.waterFeatures;
+}
+
+function megaBadgeMembersKey(items) {
+  let sx = 0, sy = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const item of items) {
+    const { x, y } = item.point;
+    sx += x; sy += y;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  // Sums are rounded (1e-9 degrees, well under a millimetre) because float addition is
+  // order-dependent and buildSuperClusters can hand back the same members in a new order.
+  return `${items.length}|${sx.toFixed(9)}|${sy.toFixed(9)}|${minX}|${maxX}|${minY}|${maxY}`;
+}
+
+// Returns the count a tap on this group will open onto (never less than the group's own size).
+function megaBadgeVisibleCount(items) {
+  if (!items.length) return 0;
+  if (!megaBadgeCountCacheValid(_megaBadgeCountCache)) {
+    _megaBadgeCountCache = {
+      entries: new Map(),
+      filters: state.overviewFilters.join(","),
+      cowLastUpdatedAt: state.cowLastUpdatedAt,
+      trees: state.trees,
+      cows: state.cows,
+      landmarks: state.landmarks,
+      paths: state.paths,
+      waterFeatures: state.waterFeatures,
+    };
+  }
+  const { entries } = _megaBadgeCountCache;
+  const key = megaBadgeMembersKey(items);
+  let count = entries.get(key);
+  if (count === undefined) {
+    const target = clusterFocusTarget(items);
+    count = Math.max(target ? clusterVisibleItemCount(target.center, target.targetMinutes) : 0, items.length);
+    // Bounded: a long session of zooming creates new groupings indefinitely.
+    if (entries.size >= MEGA_BADGE_COUNT_CACHE_LIMIT) entries.clear();
+    entries.set(key, count);
+  }
+  return count;
+}
+
+function focusNearbyOnClusterGroup(cluster) {
+  const items = (cluster.items || []).filter(item => item && item.point
+    && Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+  if (!items.length) return false;
+
+  const { centerPoint, center, targetMinutes } = clusterFocusTarget(items);
+
+  const fromPoint = nearbyRenderOriginPoint() || (nearbyOrigin() && nearbyOrigin().point);
+  if (!fromPoint) return false;
+
+  setInspectorMinimized(false);
+  stopViewportAnimation();
+  // Borrowed from the old cluster-zoom flow: blocks every GPS/compass-driven refit
+  // (ensureOverviewTargetsVisible, alignHeadingUpNavigationViewport, the walking-radius
+  // grow-back) for as long as it's set, so a fix or a heading tick landing mid-tour cannot
+  // stomp the sequence below -- the same reason it existed before this tap stopped opening a
+  // separate cluster-detail screen. Cleared once the tour's own final zoom lands.
+  state.clusterZoomed = true;
+
+  const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+  const focusCx = focusRect.x + focusRect.width / 2;
+  const focusCy = focusRect.y + focusRect.height / 2;
+
+  // Phase 1's scale: whatever fitting both the current spot and the new one needs, but never
+  // wider than the current view already is -- a short hop (the new group already on screen)
+  // should not zoom out just to zoom straight back in.
+  const savedViewport = { ...state.viewport };
+  fitToPoints([fromPoint, centerPoint], false, { focusVisibleArea: true, assumeInspectorOpen: true, animate: false });
+  const wideScale = Math.min(state.viewport.scale, savedViewport.scale);
+  state.viewport = savedViewport;
+  const wideViewport = {
+    scale: wideScale,
+    tx: focusCx - ((fromPoint.x + centerPoint.x) / 2) * wideScale,
+    ty: focusCy - ((fromPoint.y + centerPoint.y) / 2) * wideScale,
+  };
+  const panViewport = {
+    scale: wideScale,
+    tx: focusCx - centerPoint.x * wideScale,
+    ty: focusCy - centerPoint.y * wideScale,
+  };
+
+  // Phase 3: the real final framing (ring + list's own camera fit), computed the normal way
+  // once the state below is final -- captured via a direct (animate: false) call and then
+  // undone, so it can be eased into from wherever phase 2 actually landed instead of snapping
+  // there first and animating away from the snap.
+  function zoomInToFinal() {
+    const settledViewport = { ...state.viewport };
+    // ensureOverviewTargetsVisible (and alignHeadingUpNavigationViewport under it) both refuse
+    // to run at all while state.clusterZoomed is set -- the same guard that is deliberately
+    // keeping every *other* GPS/compass-driven refit out of this tour would otherwise also
+    // block the one call inside it that needs to compute where the tour itself is going.
+    // Cleared only for this synchronous computation, restored immediately after.
+    state.clusterZoomed = false;
+    ensureOverviewTargetsVisible({ animate: false, force: true });
+    const finalViewport = { ...state.viewport };
+    state.viewport = settledViewport;
+    state.clusterZoomed = true;
+    animateViewportTo(finalViewport, CLUSTER_TOUR_ZOOM_IN_MS, () => {
+      state.clusterZoomed = false;
+    });
+  }
+
+  // Phase 2: apply the real state change -- the ring, the list and the anchor bar all land on
+  // the new group immediately (nothing here is itself animated; only the camera is) -- then pan
+  // the camera across to it at the wide scale phase 1 settled on.
+  function moveAndSettle() {
+    state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
+    state.walkingDistanceMinutes = targetMinutes;
+    state.outOfRadiusRevealFilters = [];
+    state.clusterExpanded = null;
+    refreshNearestTreeForNearbyOrigin();
+    if (!secondaryScreenActive()) selectOverview();
+    updateNearbyAnchorBar();
+    syncSettingsWalkSlider();
+    pushNearbyAnchorHistory();
+    animateViewportTo(panViewport, CLUSTER_TOUR_PAN_MS, zoomInToFinal);
+  }
+
+  animateViewportTo(wideViewport, CLUSTER_TOUR_ZOOM_OUT_MS, moveAndSettle);
+  return true;
 }
 
 function clearNearbyAnchor() {
@@ -883,6 +1148,7 @@ function clearNearbyAnchor() {
   state.nearbyAnchor = null;
   state.outOfRadiusRevealFilters = [];
   refreshNearbyRadiusView({ animate: false });
+  pushNearbyAnchorHistory();
 }
 
 // Shows/hides #nearbyAnchorBar, the way back from a browsed spot. It lives in the inspector
@@ -919,6 +1185,15 @@ function isOutsideNearestArea(lonLat) {
 // is set *before* goToInitialView() so its single re-fit already frames the tapped spot,
 // rather than fitting the old origin and then animating a second time.
 function focusNearbyOnMapPoint(lonLat, worldPoint) {
+  // Interrupts a cluster tap's own multi-phase camera tour (focusNearbyOnClusterGroup) if one
+  // is still running: that tour drives state.viewport with its own chained animateViewportTo
+  // calls and leaves state.clusterZoomed set between phases (to keep GPS/compass refits out of
+  // its way) until its own final phase clears it. Without this, a plain open-ground tap mid-tour
+  // -- the common case here, and the one branch below that does not already route through
+  // goToInitialView (which does clear it) -- left clusterZoomed stuck true, silently blocking
+  // every later GPS/compass-driven refit until some other interaction happened to reset it.
+  state.clusterZoomed = false;
+  stopViewportAnimation();
   if (!state.userLocation) {
     // No GPS fix yet, so there is no Nearby view to move. On the Nearby screen itself, keep the
     // long-standing reset-to-the-whole-forest behaviour rather than anchoring a radius nothing
@@ -965,12 +1240,6 @@ function startNearbyRadiusPinch() {
 // direction. Clamped to walkingRadiusFloorMinutes()..WALKING_RADIUS_MAX_MINUTES so the user
 // feels the limit (state.walkingRadiusAtFloor drives the "nothing closer to show" notice in
 // overviewNearestHtml, index.html) rather than the radius silently refusing to shrink further.
-// pointermove can fire far faster than applyWalkingRadiusChange's real work (a nearest-item
-// rescan plus a list re-render) can usefully keep up with on a phone, so values are rounded to
-// the nearest half-minute (roundWalkingMinutes) before being applied -- applyWalkingRadiusChange
-// already no-ops when that rounded value hasn't moved, so a run of pointermove events landing in
-// the same half-minute bucket costs only this arithmetic, same as the old stepped version's
-// between-step moves did.
 function updateNearbyRadiusPinch() {
   const distance = currentPinchDistance();
   if (distance == null || !state.pinchBaseDistance) return;
@@ -985,24 +1254,42 @@ function updateNearbyRadiusPinch() {
 //
 // Clamped to walkingRadiusFloorMinutes()..WALKING_RADIUS_MAX_MINUTES so the user feels the limit
 // (state.walkingRadiusAtFloor drives the "nothing closer to show" notice in overviewNearestHtml,
-// index.html) rather than the radius silently refusing to shrink further. Gesture events fire far
-// faster than applyWalkingRadiusChange's real work (a nearest-item rescan plus a list re-render)
-// can usefully keep up with on a phone, so values are rounded to the value grid
-// (roundWalkingMinutes) before being applied -- applyWalkingRadiusChange already no-ops when that
-// rounded value hasn't moved, so a run of events landing in the same bucket costs only this
-// arithmetic, same as the old stepped version's between-step moves did.
+// index.html) rather than the radius silently refusing to shrink further. The applied value stays
+// continuous -- no snapping to a value grid -- so the ring tracks the gesture smoothly; only the
+// displayed label (formatWalkingRadius) rounds to a whole minute.
+//
+// The ring and the camera framing it (state.walkingDistanceMinutes plus an instant, unanimated
+// ensureOverviewTargetsVisible) are updated on every call, so both track the gesture at full
+// pointer rate -- canvas-only work, cheap regardless of how often it happens, now that clustering
+// is O(n) rather than all-pairs (see buildScreenPointGrid, js/renderer.js). What is not cheap is
+// the Nearby list's own HTML re-render and the nearest-item rescan (selectOverview,
+// refreshNearestTreeForNearbyOrigin) -- a pinch or trackpad pinch can fire many pointermove events
+// inside a single animation frame, and rebuilding the list on every one of them (rather than the
+// coarse value-grid steps this used to be rounded to, which throttled it as a side effect) is what
+// made zooming out feel jittery once the radius stopped snapping. So only that part is coalesced,
+// to at most once per animation frame (the same pattern the inspector drag handle uses for
+// recentreMapForInspectorChange, above): the ring and camera keep moving smoothly under the finger
+// every tick, and the list catches up a frame behind rather than being rebuilt on every one of
+// them and falling behind the input instead.
+let _radiusGestureListRefreshFrame = null;
+
+// Called by every gesture-end handler before it runs its own final refreshNearbyRadiusView() --
+// otherwise a coalesced list refresh already queued for the next frame (above) could land right
+// after it and redo the same work a second time for nothing.
+function cancelPendingRadiusGestureRefresh() {
+  if (_radiusGestureListRefreshFrame == null) return;
+  cancelAnimationFrame(_radiusGestureListRefreshFrame);
+  _radiusGestureListRefreshFrame = null;
+}
+
 function applyWalkingRadiusGesture(rawMinutes) {
   const floor = walkingRadiusFloorMinutes(nearbyOrigin());
-  const clamped = clamp(rawMinutes, floor, WALKING_RADIUS_MAX_MINUTES);
   const atFloor = rawMinutes < floor;
   const flagChanged = atFloor !== state.walkingRadiusAtFloor;
   state.walkingRadiusAtFloor = atFloor;
-  // Snapping to the value grid can land just under the floor the value was clamped to, which
-  // would put the nearest item back outside the ring the floor exists to keep it inside (and
-  // leave the next GPS fix to grow the radius straight back). At the floor, snap up instead.
-  const minutes = Math.max(roundWalkingMinutes(clamped), ceilWalkingMinutes(floor));
+  const minutes = clamp(rawMinutes, floor, WALKING_RADIUS_MAX_MINUTES);
   if (minutes === state.walkingDistanceMinutes) {
-    // Rounding can pin the applied value at the floor while rawMinutes keeps drifting below (or
+    // Clamping can pin the applied value at the floor while rawMinutes keeps drifting below (or
     // recovers back above) it -- applyWalkingRadiusChange would no-op here since the minutes
     // value itself hasn't moved, so the floor notice needs its own lightweight refresh to stay
     // in sync with the flag instead of going stale.
@@ -1014,7 +1301,18 @@ function applyWalkingRadiusGesture(rawMinutes) {
     }
     return floor;
   }
-  applyWalkingRadiusChange(minutes, { animate: false });
+  state.walkingDistanceMinutes = minutes;
+  state.outOfRadiusRevealFilters = [];
+  ensureOverviewTargetsVisible({ animate: false, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
+  requestDraw();
+  if (_radiusGestureListRefreshFrame == null) {
+    _radiusGestureListRefreshFrame = requestAnimationFrame(() => {
+      _radiusGestureListRefreshFrame = null;
+      refreshNearestTreeForNearbyOrigin();
+      if (!secondaryScreenActive()) selectOverview();
+      updateNearbyAnchorBar();
+    });
+  }
   return floor;
 }
 
@@ -1081,6 +1379,7 @@ function endNearbyRadiusWheel() {
   state.wheelRadiusSettleTimer = null;
   state.wheelRadiusMinutes = null;
   state.walkingRadiusAtFloor = false;
+  cancelPendingRadiusGestureRefresh();
   refreshNearbyRadiusView();
   syncSettingsWalkSlider();
 }
@@ -1106,6 +1405,7 @@ function endNearbyRadiusGesture() {
   if (!Number.isFinite(state.gestureRadiusBaseMinutes)) return;
   state.gestureRadiusBaseMinutes = null;
   state.walkingRadiusAtFloor = false;
+  cancelPendingRadiusGestureRefresh();
   refreshNearbyRadiusView();
   syncSettingsWalkSlider();
 }
@@ -1129,6 +1429,7 @@ function endNearbyRadiusPinch() {
   state.walkingRadiusAtFloor = false;
   // One smooth settling animation now that the gesture has ended, mirroring the single
   // animated re-fit a Settings-slider release triggers (bindSettingsHandlers, index.html).
+  cancelPendingRadiusGestureRefresh();
   refreshNearbyRadiusView();
   // The gesture runs over the Settings screen too, where its own slider must not be left
   // showing the radius the ring had before the pinch.
@@ -1328,6 +1629,46 @@ function setupMapCanvasHandlers() {
     event.preventDefault();
     endNearbyRadiusGesture();
   }, { passive: false });
+
+  setupMapHoverHandlers();
+}
+
+// Desktop-only: a mouse can rest on a spot without pressing, which is a hover, not a drag --
+// something touch has no equivalent of, so this is entirely separate from the drag/pinch
+// handling above. Drives the cursor only (pointer over anything tappable, so a click reads as a
+// distinct action from a drag before the click even lands -- the OS-level affordance for "this
+// is clickable" that canvas content gets none of for free).
+function setupMapHoverHandlers() {
+  let pendingScreen = null;
+  let scheduled = false;
+
+  els.canvas.addEventListener("pointermove", (event) => {
+    if (event.pointerType !== "mouse") return;
+    if (state.dragging || state.pinchActive) return;
+    // findClusterHit rebuilds every cluster from scratch (see its own comment), and the browser
+    // can fire mousemove far faster than that is worth paying for. Coalesced to at most once per
+    // animation frame -- only the latest position by the time the frame runs actually matters.
+    pendingScreen = canvasPoint(event);
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      if (pendingScreen) updateMapHoverState(pendingScreen);
+    });
+  });
+
+  els.canvas.addEventListener("pointerleave", (event) => {
+    if (event.pointerType !== "mouse") return;
+    pendingScreen = null;
+    els.canvas.style.cursor = "";
+  });
+}
+
+function updateMapHoverState(screen) {
+  const cluster = findClusterHit(screen);
+  const world = screenToWorld(screen.x, screen.y);
+  const hit = cluster ? { type: cluster.itemType } : findHit(screen, world);
+  els.canvas.style.cursor = (cluster || hit.type !== "none") ? "pointer" : "";
 }
 
 function setInspectorMinimized(minimized) {

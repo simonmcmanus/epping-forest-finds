@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v45"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v55"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -422,6 +422,19 @@ const ROUTE_REPORT = "report";
 // the in-app back arrow must return to Nearby itself rather than leaving the site.
 const NAV_DEPTH_KEY = "forestNavDepth";
 
+// Carries the Nearby browse anchor (state.nearbyAnchor) on every history entry, so moving
+// between clusters -- which has no URL of its own, unlike a selection -- still retraces on the
+// browser back button and the inspector's own back arrow. Every entry snapshots the anchor in
+// effect *when that entry was created*, so landing back on it (in either direction) restores
+// exactly that anchor. Absent (older entries, or the initial boot entry before this existed)
+// reads as "no anchor" via nearbyAnchorSnapshot's own null default.
+const NEARBY_ANCHOR_KEY = "forestNearbyAnchor";
+
+function nearbyAnchorSnapshot() {
+  const anchor = state.nearbyAnchor;
+  return anchor ? { latitude: anchor.latitude, longitude: anchor.longitude } : null;
+}
+
 // Every selectable thing, with the URL parameter that names it, the key it is written as and
 // how it is resolved and shown again. Trees and places were the only two with a URL before
 // the router; the rest are here so that a screen change can never leave the URL describing a
@@ -493,7 +506,7 @@ function routerBootFinished() {
 function initRouter() {
   if (navDepthOf(history.state) !== null) return;
   history.replaceState(
-    { [NAV_DEPTH_KEY]: 0 },
+    { [NAV_DEPTH_KEY]: 0, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
     "",
     `${window.location.pathname}${window.location.search}${window.location.hash}`
   );
@@ -575,7 +588,25 @@ function setHashFromSelection(value, { force = false } = {}) {
   const nextHash = value ? `#${value}` : "";
   if (!force && window.location.hash === nextHash) return;
   const url = `${window.location.pathname}${window.location.search}${nextHash}`;
-  history.pushState({ [NAV_DEPTH_KEY]: navDepth() + 1 }, "", url);
+  history.pushState(
+    { [NAV_DEPTH_KEY]: navDepth() + 1, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
+    "",
+    url
+  );
+}
+
+// The anchor-only counterpart to setHashFromSelection, for a Nearby browse move (a cluster tap
+// or a tap on open ground moving state.nearbyAnchor): the hash never changes, so it always
+// pushes rather than relying on setHashFromSelection's "hash unchanged" short-circuit, which
+// would otherwise skip it entirely.
+function pushNearbyAnchorHistory() {
+  if (routeApplyDepth > 0 || routerBooting) return;
+  const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  history.pushState(
+    { [NAV_DEPTH_KEY]: navDepth() + 1, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
+    "",
+    url
+  );
 }
 
 // Corrects the current entry's URL without adding one, keeping the entry's depth.
@@ -1377,11 +1408,24 @@ function applyBoundsToViewport(bounds, options = {}) {
       : defaultRect);
   const viewportWidth = Math.max(1, focusRect.width);
   const viewportHeight = Math.max(1, focusRect.height);
+  // A bounding box for points that are all genuinely near-coincident in world space -- a mega
+  // cluster's members, say, tight enough together that they read as one pile on screen -- has a
+  // near-zero range on one or both axes. The 0.0001 floor below stops that from being a literal
+  // division by zero, but a floor that small still asks for a scale in the tens of thousands:
+  // effectively "zoom in until this one spot fills the screen", which pins/text/everything else
+  // render at nonsensical size under, or off-screen entirely. Captured before this function
+  // overwrites state.fitScale itself, so the cap is relative to the real, whole-dataset fit.
+  const baseFitScaleForCap = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
   const rangeX = Math.max(0.0001, bounds.maxX - bounds.minX);
   const rangeY = Math.max(0.0001, bounds.maxY - bounds.minY);
   state.fitScale = Math.min((viewportWidth - padding * 2) / rangeX, (viewportHeight - padding * 2) / rangeY);
   if (options.minScale > 0) {
     state.fitScale = Math.max(state.fitScale, options.minScale);
+  }
+  // Same ceiling the manual pinch-to-zoom gesture already enforces (state.fitScale * 220 there),
+  // so a fit never asks for more zoom than a user could reach by hand.
+  if (baseFitScaleForCap > 0) {
+    state.fitScale = Math.min(state.fitScale, baseFitScaleForCap * 220);
   }
 
   const targetScale = state.fitScale;
@@ -1434,7 +1478,7 @@ function viewportAnimationAlreadyHeadedTo(targetViewport) {
     && Math.abs(inFlight.ty - targetViewport.ty) < VIEWPORT_ANIMATION_SAME_TARGET_PX;
 }
 
-function animateViewportTo(targetViewport, durationMs) {
+function animateViewportTo(targetViewport, durationMs, onComplete) {
   const safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
   if (viewportAnimationAlreadyHeadedTo(targetViewport)) return;
   stopViewportAnimation();
@@ -1454,6 +1498,7 @@ function animateViewportTo(targetViewport, durationMs) {
     state.viewport.tx = targetViewport.tx;
     state.viewport.ty = targetViewport.ty;
     requestDraw();
+    if (typeof onComplete === "function") onComplete();
     return;
   }
 
@@ -1490,6 +1535,7 @@ function animateViewportTo(targetViewport, durationMs) {
       state.viewport.ty = state.viewportAnimationTo.ty;
       stopViewportAnimation();
       requestDraw();
+      if (typeof onComplete === "function") onComplete();
       return;
     }
 
@@ -2508,7 +2554,10 @@ function overviewItemsForActiveFilter() {
   // Pinch, js/nav.js). Reading the raw GPS fix here instead left the ring centred on the
   // browsed spot while the matches inside it were still scanned from wherever the user
   // actually stood. With no anchor set -- the usual case -- this is the GPS fix as before.
-  const origin = nearbyOrigin();
+  // stableNearbyOrigin() (not the raw fix) because this candidate scan feeds sampleSpread's
+  // capped tree sample -- a few-metre GPS wobble reordering "nearest 60" was visible as pins
+  // jumping while the phone sat still (see its own comment, js/nav.js).
+  const origin = stableNearbyOrigin();
   if (!origin) return [];
   const { latitude, longitude } = origin;
 
@@ -2805,13 +2854,15 @@ function overviewNearestHtml() {
     const treeTagChip = treeTag ? ` · #${escapeHtml(treeTag)}` : "";
     const outOfRadiusClass = entry.outOfRadius ? " out-of-radius" : "";
     return `<li><button class="nearest-item${outOfRadiusClass}" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}">
-      <div class="nearest-header">
-        <span class="nearest-icon" aria-hidden="true">${emoji}</span>
-        <span class="nearest-name">${escapeHtml(name)}</span>
-      </div>
-      <div class="nearest-footer">
-        <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
-        <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true">↑</span>
+      <span class="nearest-icon" aria-hidden="true">${emoji}</span>
+      <div class="nearest-content">
+        <div class="nearest-header">
+          <span class="nearest-name">${escapeHtml(name)}</span>
+        </div>
+        <div class="nearest-footer">
+          <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
+          <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true">↑</span>
+        </div>
       </div>
     </button></li>`;
   }).join("");
@@ -6200,10 +6251,10 @@ function searchResultIconHtml(type, item) {
     case "landmark": return landmarkEmoji(item);
     case "cow": return appIconHtml("cow");
     case "path": return appIconHtml("waymarked");
-    case "road": return roadEmoji(item);
+    case "road": return roadIconHtml();
     case "water": return appIconHtml("ponds");
-    case "railway": return "🚆";
-    default: return "📍";
+    case "railway": return appIconHtml("railway");
+    default: return appIconHtml("pin");
   }
 }
 

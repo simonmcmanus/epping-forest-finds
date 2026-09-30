@@ -41,9 +41,11 @@ function getMapImage(src) {
 // drawn down to the place's own point. Returns the head's centre and radius
 // so the caller can put artwork or a glyph inside it.
 //
-// Artwork is drawn at 1.75x the head radius, so anything reaching past
-// 1/1.75 of its own half-width pokes out of the pointer. The generator
-// (scripts/generate-map-icons.js) holds new icons to that.
+// Artwork is drawn at 1.85x the head radius, so anything reaching past
+// 1/1.85 of its own half-width pokes out of the pointer. The generator
+// (scripts/generate-map-icons.js) holds new icons well inside that via
+// FIT_LIMIT (scripts/lib/icon-fit.js), which is independent of this
+// multiplier, so raising it here is safe without touching icon assets.
 function drawMapPinShape(ctx, x, y, size) {
   const R = size * 0.4;
   const pH = R * 0.6;
@@ -58,7 +60,7 @@ function drawMapPinShape(ctx, x, y, size) {
   ctx.fillStyle = "white";
   ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.25)";
-  ctx.lineWidth = Math.max(1, size * 0.055);
+  ctx.lineWidth = Math.max(1, size * 0.04);
   ctx.stroke();
 
   return { cx, cy, R };
@@ -71,7 +73,7 @@ function drawPngMapIcon(ctx, src, x, y, size) {
 
   ctx.save();
   const { cx, cy, R } = drawMapPinShape(ctx, x, y, size);
-  const iconSize = R * 1.75;
+  const iconSize = R * 1.85;
   ctx.drawImage(img, cx - iconSize / 2, cy - iconSize / 2, iconSize, iconSize);
   ctx.restore();
   return true;
@@ -108,7 +110,7 @@ function drawEmojiMapPin(ctx, emoji, x, y, size) {
     return true;
   }
 
-  ctx.font = `${R * 1.15}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
+  ctx.font = `${R * 1.2}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#111";
@@ -169,11 +171,34 @@ function draw() {
   const height = els.canvas.height;
   const animatedEmojiScale = updateAnimatedEmojiScale();
   const nearbyIconLookup = activeIconLookup();
-  const treeClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, worldToScreen), worldToScreen);
-  const landmarkClusters = applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen), worldToScreen);
-  const cowClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, worldToScreen), worldToScreen);
-  const pathClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, worldToScreen), worldToScreen);
-  const waterClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, worldToScreen), worldToScreen);
+  const treeClusters = buildTypeClusters(nearbyIconLookup.tree, worldToScreen);
+  const landmarkClusters = buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen);
+  const cowClusters = buildTypeClusters(nearbyIconLookup.cow, worldToScreen);
+  const pathClusters = buildTypeClusters(nearbyIconLookup.path, worldToScreen);
+  const waterClusters = buildTypeClusters(nearbyIconLookup.water, worldToScreen);
+  // Expanding a cluster narrows nearbyIconLookup (buildNearbyIconLookup, above) down to that
+  // group's own items and nothing else -- but it deliberately does *not* force every one of them
+  // into its own singleton pin any more. A tap that zoomed into, say, 100 items piled at one spot
+  // used to unconditionally flatten all 100 into individual pins regardless of how much screen
+  // space the zoom actually bought them, which was just as dense and just as hard to use as the
+  // pile-up it replaced. Re-running the ordinary clustering passes on the narrowed set instead
+  // lets it re-cluster naturally at the new zoom: items that spread apart on screen become
+  // individual pins, items still close together become a smaller sub-cluster (mega or
+  // same-category) the user can tap into again, one level deeper, the same way they got here.
+  const megaGroups = buildSuperClusters([
+    { itemType: "tree", clusters: treeClusters },
+    { itemType: "landmark", clusters: landmarkClusters },
+    { itemType: "cow", clusters: cowClusters },
+    { itemType: "path", clusters: pathClusters },
+    { itemType: "water", clusters: waterClusters },
+  ]).filter(group => group.length >= megaClusterMinMembersFor(group));
+  const megaClusterSet = new Set();
+  for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
+  const filteredTreeClusters = treeClusters.filter(c => !megaClusterSet.has(c));
+  const filteredLandmarkClusters = landmarkClusters.filter(c => !megaClusterSet.has(c));
+  const filteredCowClusters = cowClusters.filter(c => !megaClusterSet.has(c));
+  const filteredPathClusters = pathClusters.filter(c => !megaClusterSet.has(c));
+  const filteredWaterClusters = waterClusters.filter(c => !megaClusterSet.has(c));
   ctx.clearRect(0, 0, width, height);
   drawBase(ctx, width, height);
 
@@ -193,11 +218,12 @@ function draw() {
   const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
     || (typeof tiltActive === "function" && tiltActive());
   if (!useOverlayForPins) {
-    drawTrees(ctx, nearbyIconLookup, undefined, treeClusters);
-    drawLandmarks(ctx, nearbyIconLookup, undefined, landmarkClusters);
-    drawCows(ctx, nearbyIconLookup, undefined, cowClusters);
-    drawPathPins(ctx, nearbyIconLookup, undefined, pathClusters);
-    drawWaterPins(ctx, nearbyIconLookup, undefined, waterClusters);
+    drawTrees(ctx, nearbyIconLookup, undefined, filteredTreeClusters);
+    drawLandmarks(ctx, nearbyIconLookup, undefined, filteredLandmarkClusters);
+    drawCows(ctx, nearbyIconLookup, undefined, filteredCowClusters);
+    drawPathPins(ctx, nearbyIconLookup, undefined, filteredPathClusters);
+    drawWaterPins(ctx, nearbyIconLookup, undefined, filteredWaterClusters);
+    drawMegaClusters(ctx, megaGroups);
   }
   drawSelectedRoadOverlay(ctx);
   drawSelectedPathOverlay(ctx);
@@ -277,6 +303,13 @@ function drawNearbyAnchorMarker(ctx, toScreen) {
 // because the always-on flat 2D footprint layer below still uses it.
 const BUILDING_FILL_RGB = [152, 152, 152];
 const BUILDING_FILL = `rgb(${BUILDING_FILL_RGB[0]}, ${BUILDING_FILL_RGB[1]}, ${BUILDING_FILL_RGB[2]})`;
+// Building footprints never set an outline of their own, so for as long as the map has had them
+// they were stroked with whatever style the last environment feature left on the context -- a
+// garden's, since gardens come last in local-environment.geojson. That is the look every screenshot
+// baseline records. Culling off-screen features changes which feature draws last, so the outline
+// is now stated rather than inherited.
+const BUILDING_OUTLINE = "rgba(90, 140, 70, 0.45)";
+const BUILDING_OUTLINE_WIDTH = 1.2;
 
 function drawCowPastures(ctx) {
   if (!state.cowPastures.length) return;
@@ -517,6 +550,7 @@ function drawEnvironment(ctx) {
 
   const dpr = pixelRatio();
   const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
+  const view = environmentViewWorldBounds();
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -524,6 +558,7 @@ function drawEnvironment(ctx) {
   for (const feature of state.environmentFeatures) {
     const geometry = feature.geometry || {};
     const type = feature.properties && feature.properties.featureType;
+    if (!environmentGeometryInView(geometry, view)) continue;
 
     if (type === "hydrology_area") {
       drawEnvironmentPolygon(ctx, geometry, {
@@ -562,6 +597,8 @@ function drawEnvironment(ctx) {
     if (type === "building") {
       drawEnvironmentPolygon(ctx, geometry, {
         fill: BUILDING_FILL,
+        stroke: BUILDING_OUTLINE,
+        width: BUILDING_OUTLINE_WIDTH * dpr,
       });
     }
 
@@ -581,32 +618,17 @@ function drawEnvironment(ctx) {
       ? Math.min(1, (performance.now() - state.buildingsRevealStartTime) / BUILDINGS_FADE_MS)
       : 1;
 
-    const bw = els.canvas.width, bh = els.canvas.height;
-    const bCorners = [screenToWorld(0, 0), screenToWorld(bw, 0), screenToWorld(0, bh), screenToWorld(bw, bh)];
-    const wMinX = Math.min(...bCorners.map(c => c.x));
-    const wMaxX = Math.max(...bCorners.map(c => c.x));
-    const wMinY = Math.min(...bCorners.map(c => c.y));
-    const wMaxY = Math.max(...bCorners.map(c => c.y));
-    const marginX = (wMaxX - wMinX) * 0.05;
-    const marginY = (wMaxY - wMinY) * 0.05;
-
     ctx.save();
     ctx.globalAlpha = fadeAlpha;
     for (const feature of state.buildingFeatures) {
       const geom = feature.geometry || {};
-      const coords = geom.type === "Polygon" ? geom.coordinates
-        : geom.type === "MultiPolygon" ? geom.coordinates[0]
-        : null;
-      if (coords) {
-        const ring = coords[0];
-        if (ring && ring[0]) {
-          const pt = projectLonLat(Number(ring[0][0]), Number(ring[0][1]));
-          if (pt.x < wMinX - marginX || pt.x > wMaxX + marginX ||
-              pt.y < wMinY - marginY || pt.y > wMaxY + marginY) continue;
-        }
-      }
+      // Whole-footprint bbox rather than the first vertex alone: never culls a building that
+      // pokes into view, and reads a cached bbox instead of re-projecting ~20k vertices a frame.
+      if (!environmentGeometryInView(geom, view)) continue;
       drawEnvironmentPolygon(ctx, geom, {
         fill: BUILDING_FILL,
+        stroke: BUILDING_OUTLINE,
+        width: BUILDING_OUTLINE_WIDTH * dpr,
       });
     }
     ctx.restore();
@@ -617,13 +639,84 @@ function drawEnvironment(ctx) {
   ctx.restore();
 }
 
+// The environment layer is ~130k vertices (gardens, water, railways) plus ~130k more in
+// buildings. It used to run projectLonLat -- a log and a tan -- on every one of them on every
+// frame, and draw every feature whether or not it was on screen: around 70 ms a frame on a
+// desktop CPU, several hundred on a phone, which is most of what a pan, zoom or compass tick
+// cost. The lon/lat -> world projection never changes, so it is done once per geometry and
+// kept alongside the geometry's world-space bbox; each frame then only runs worldToScreen for
+// features whose bbox overlaps the view. Output is pixel-identical: the same world points go
+// through the same worldToScreen, and a feature whose bbox misses the (5%-padded) view cannot
+// put a pixel on the canvas.
+const _projectedEnvironmentGeometry = new WeakMap();
+
+function projectedEnvironmentGeometry(geometry) {
+  let cached = _projectedEnvironmentGeometry.get(geometry);
+  if (cached) return cached;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  // Flat [x0, y0, x1, y1, ...] typed arrays rather than {x, y} objects: a quarter of a million
+  // points is several megabytes less heap this way, which matters on the phones this is for.
+  const projectLine = (line) => {
+    const coordinates = Array.isArray(line) ? line : [];
+    const flat = new Float64Array(coordinates.length * 2);
+    for (let i = 0; i < coordinates.length; i += 1) {
+      const point = projectLonLat(Number(coordinates[i][0]), Number(coordinates[i][1]));
+      flat[i * 2] = point.x;
+      flat[i * 2 + 1] = point.y;
+      if (point.x < minX) minX = point.x;
+      if (point.x > maxX) maxX = point.x;
+      if (point.y < minY) minY = point.y;
+      if (point.y > maxY) maxY = point.y;
+    }
+    return flat;
+  };
+  cached = {
+    polygons: polygonRingsFromGeometry(geometry).map((polygon) => (Array.isArray(polygon) ? polygon : []).map(projectLine)),
+    segments: lineSegmentsFromGeometry(geometry).map(projectLine),
+    minX, maxX, minY, maxY,
+  };
+  _projectedEnvironmentGeometry.set(geometry, cached);
+  return cached;
+}
+
+// World-space bounds of the whole canvas bitmap (overscan included), padded 5% -- the same
+// corner test drawPaths already culls with, including under tilt, where screenToWorld clamps to
+// the far clip. Null when the corners do not unproject to finite points: then nothing is culled.
+function environmentViewWorldBounds() {
+  const w = els.canvas.width, h = els.canvas.height;
+  const corners = [screenToWorld(0, 0), screenToWorld(w, 0), screenToWorld(0, h), screenToWorld(w, h)];
+  if (!corners.every((c) => c && Number.isFinite(c.x) && Number.isFinite(c.y))) return null;
+  const minX = Math.min(...corners.map((c) => c.x));
+  const maxX = Math.max(...corners.map((c) => c.x));
+  const minY = Math.min(...corners.map((c) => c.y));
+  const maxY = Math.max(...corners.map((c) => c.y));
+  const marginX = (maxX - minX) * 0.05;
+  const marginY = (maxY - minY) * 0.05;
+  return { minX: minX - marginX, maxX: maxX + marginX, minY: minY - marginY, maxY: maxY + marginY };
+}
+
+// worldToScreen reads x/y and never keeps its argument, so one scratch point serves every vertex.
+const _environmentScratchPoint = { x: 0, y: 0 };
+function environmentVertexToScreen(flat, index) {
+  _environmentScratchPoint.x = flat[index * 2];
+  _environmentScratchPoint.y = flat[index * 2 + 1];
+  return worldToScreen(_environmentScratchPoint);
+}
+
+function environmentGeometryInView(geometry, view) {
+  if (!view) return true;
+  const g = projectedEnvironmentGeometry(geometry);
+  return !(g.maxX < view.minX || g.minX > view.maxX || g.maxY < view.minY || g.minY > view.maxY);
+}
+
 function drawEnvironmentLines(ctx, geometry, style) {
-  const segments = lineSegmentsFromGeometry(geometry);
+  const segments = projectedEnvironmentGeometry(geometry).segments;
   for (const segment of segments) {
-    if (!Array.isArray(segment) || segment.length < 2) continue;
+    const count = segment.length / 2;
+    if (count < 2) continue;
     ctx.beginPath();
-    for (let i = 0; i < segment.length; i += 1) {
-      const point = worldToScreen(projectLonLat(Number(segment[i][0]), Number(segment[i][1])));
+    for (let i = 0; i < count; i += 1) {
+      const point = environmentVertexToScreen(segment, i);
       if (i === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
     }
@@ -636,14 +729,15 @@ function drawEnvironmentLines(ctx, geometry, style) {
 }
 
 function drawEnvironmentPolygon(ctx, geometry, style) {
-  const polygons = polygonRingsFromGeometry(geometry);
+  const polygons = projectedEnvironmentGeometry(geometry).polygons;
   for (const polygon of polygons) {
-    if (!Array.isArray(polygon) || !polygon.length) continue;
+    if (!polygon.length) continue;
     ctx.beginPath();
     for (const ring of polygon) {
-      if (!Array.isArray(ring) || ring.length < 3) continue;
-      for (let i = 0; i < ring.length; i += 1) {
-        const point = worldToScreen(projectLonLat(Number(ring[i][0]), Number(ring[i][1])));
+      const count = ring.length / 2;
+      if (count < 3) continue;
+      for (let i = 0; i < count; i += 1) {
+        const point = environmentVertexToScreen(ring, i);
         if (i === 0) ctx.moveTo(point.x, point.y);
         else ctx.lineTo(point.x, point.y);
       }
@@ -657,15 +751,16 @@ function drawEnvironmentPolygon(ctx, geometry, style) {
 }
 
 function drawRailwayLines(ctx, geometry, properties, style) {
-  const segments = lineSegmentsFromGeometry(geometry);
+  const segments = projectedEnvironmentGeometry(geometry).segments;
   const railwayType = properties && properties.railway;
 
   for (const segment of segments) {
-    if (!Array.isArray(segment) || segment.length < 2) continue;
+    const count = segment.length / 2;
+    if (count < 2) continue;
 
     ctx.beginPath();
-    for (let i = 0; i < segment.length; i += 1) {
-      const point = worldToScreen(projectLonLat(Number(segment[i][0]), Number(segment[i][1])));
+    for (let i = 0; i < count; i += 1) {
+      const point = environmentVertexToScreen(segment, i);
       if (i === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
     }
@@ -760,6 +855,32 @@ function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, cone) {
   ctx.restore();
 }
 
+// A faint top-left-lit rim on the *inside* of the clear circle's edge -- same light direction as
+// megaSphereGradient's badge shading, so a mega badge zooming in to become this circle
+// (focusNearbyOnClusterGroup, js/nav.js) reads as the same lit dome growing, not a flat gold
+// coin dissolving into a flat gap. Stroked, not filled: the circle's interior must stay fully
+// clear so the map underneath is untouched, exactly as the surrounding comment on
+// drawWalkingRadiusDimming requires.
+const NEARBY_RIM_HIGHLIGHT = "rgba(255, 250, 235, 0.55)";
+const NEARBY_RIM_SHADOW = "rgba(20, 30, 24, 0.16)";
+
+function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
+  const lineWidth = Math.max(1.5 * dpr, radiusPx * 0.012);
+  const inset = lineWidth * 1.2;
+  ctx.save();
+  ctx.beginPath();
+  if (tilted) traceGroundCirclePath(ctx, center, radiusPx - inset);
+  else ctx.arc(center.x, center.y, radiusPx - inset, 0, Math.PI * 2);
+  const gradient = ctx.createLinearGradient(center.x - radiusPx, center.y - radiusPx, center.x + radiusPx, center.y + radiusPx);
+  gradient.addColorStop(0, NEARBY_RIM_HIGHLIGHT);
+  gradient.addColorStop(0.55, "rgba(255, 250, 235, 0)");
+  gradient.addColorStop(1, NEARBY_RIM_SHADOW);
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawWalkingRadius(ctx) {
   // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
   // the map behind it (nearbyRenderOriginPoint, index.html).
@@ -776,6 +897,7 @@ function drawWalkingRadius(ctx) {
   const tilted = typeof tiltActive === "function" && tiltActive();
 
   drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, nearbyUserCone(center, radiusPx, tilted));
+  drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr);
 }
 
 // Screen-space geometry for the wedge that ties the "You" dot to the walking-radius ring while
@@ -1063,18 +1185,22 @@ function drawLayer(ctx, layer) {
   ctx.strokeStyle = style.stroke;
   ctx.lineWidth = style.width * pixelRatio();
 
+  // Same cached projection as the environment layer (projectedEnvironmentGeometry): the forest
+  // boundary is detailed enough that re-projecting it every frame was the single largest piece
+  // of script time in a pan.
+  const view = environmentViewWorldBounds();
   for (const feature of layer.data.features) {
     const geometry = feature.geometry;
-    if (!geometry) continue;
-    const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
-    for (const polygon of polygons) {
+    if (!geometry || !environmentGeometryInView(geometry, view)) continue;
+    for (const polygon of projectedEnvironmentGeometry(geometry).polygons) {
       ctx.beginPath();
       for (const ring of polygon) {
-        ring.forEach(([longitude, latitude], index) => {
-          const point = worldToScreen(projectLonLat(longitude, latitude));
+        const count = ring.length / 2;
+        for (let index = 0; index < count; index += 1) {
+          const point = environmentVertexToScreen(ring, index);
           if (index === 0) ctx.moveTo(point.x, point.y);
           else ctx.lineTo(point.x, point.y);
-        });
+        }
       }
       ctx.fill("evenodd");
       ctx.stroke();
@@ -1083,26 +1209,39 @@ function drawLayer(ctx, layer) {
   ctx.restore();
 }
 
-// When a cluster is expanded via state.clusterExpanded, split any cluster that
-// contains one of the expanded items into individual 1-item clusters so each
-// member is always tappable regardless of screen proximity.
-function applySingletonExpansion(clusters, toScreen) {
-  if (!state.clusterExpanded) return clusters;
-  const expandedSet = new Set(state.clusterExpanded.items);
-  const result = [];
-  for (const cluster of clusters) {
-    if (cluster.items.some(item => expandedSet.has(item))) {
-      for (const item of cluster.items) {
-        if (item.point) {
-          const sp = toScreen(item.point);
-          result.push({ items: [item], screenPt: sp, worldPt: item.point });
-        }
-      }
-    } else {
-      result.push(cluster);
+// Buckets points into cells the size of the clustering radius, so a neighbour search only has to
+// look at the 3x3 block of cells around a point instead of every other point on the map. A cell
+// edge equal to the radius guarantees that: two points within `radius` of each other can never be
+// more than one cell apart on either axis, so the 3x3 block never misses a real neighbour. This is
+// what turns clustering from an all-pairs O(n^2) scan into one bounded by how many points actually
+// land near each other -- the difference that matters once a fully zoomed-out view puts every item
+// in the forest on screen (and therefore "eligible") at once, redone on every animation frame of a
+// pan or zoom.
+function buildScreenPointGrid(points, cellSize, screenPointOf) {
+  const grid = new Map();
+  for (const point of points) {
+    const { x, y } = screenPointOf(point);
+    const key = `${Math.floor(x / cellSize)},${Math.floor(y / cellSize)}`;
+    let bucket = grid.get(key);
+    if (!bucket) {
+      bucket = [];
+      grid.set(key, bucket);
+    }
+    bucket.push(point);
+  }
+  return grid;
+}
+
+function forEachNearbyGridPoint(grid, cellSize, screenPointOf, origin, visit) {
+  const cx = Math.floor(origin.x / cellSize);
+  const cy = Math.floor(origin.y / cellSize);
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      const bucket = grid.get(`${cx + dx},${cy + dy}`);
+      if (!bucket) continue;
+      for (const point of bucket) visit(point);
     }
   }
-  return result;
 }
 
 function buildTypeClusters(itemSet, toScreen) {
@@ -1114,18 +1253,26 @@ function buildTypeClusters(itemSet, toScreen) {
   const eligible = [];
   for (const item of (itemSet || [])) {
     if (!item.point) continue;
-    eligible.push({ item, sp: toScreen(item.point) });
+    eligible.push({ item, sp: toScreen(item.point), idx: eligible.length });
   }
+  if (!eligible.length) return clusters;
+
+  const grid = buildScreenPointGrid(eligible, clusterRadius, (p) => p.sp);
 
   for (const first of eligible) {
     if (assigned.has(first.item)) continue;
     const members = [];
-    for (const other of eligible) {
-      if (assigned.has(other.item)) continue;
+    forEachNearbyGridPoint(grid, clusterRadius, (p) => p.sp, first.sp, (other) => {
+      if (assigned.has(other.item)) return;
       if (Math.hypot(first.sp.x - other.sp.x, first.sp.y - other.sp.y) < clusterRadius) {
         members.push(other);
       }
-    }
+    });
+    // The grid visits its 9 cells in a fixed order, not the original eligible-array order that
+    // the old all-pairs scan produced (and that cluster.items[0] consumers -- see
+    // megaClusterMemberIconSrc/megaClusterDisplayKey -- rely on for a stable representative
+    // item). Restoring that order is one cheap sort over a small member list.
+    members.sort((a, b) => a.idx - b.idx);
     for (const m of members) assigned.add(m.item);
     const sx = members.reduce((s, m) => s + m.sp.x, 0) / members.length;
     const sy = members.reduce((s, m) => s + m.sp.y, 0) / members.length;
@@ -1160,6 +1307,461 @@ function buildLandmarkClusters(landmarkSet, toScreen) {
     clusters.push(...buildTypeClusters(group, toScreen));
   }
   return clusters;
+}
+
+// Individual per-type clustering (buildTypeClusters/buildLandmarkClusters) only merges pins of
+// the same kind, so at a low zoom level -- lots of different categories sharing one patch of
+// forest -- their badges still pile on top of each other: a dozen overlapping white teardrops
+// with no way to tell what's underneath. This second pass runs across every category's
+// already-built clusters and merges any that are still screen-close into one cross-category
+// "mega cluster", drawn as a single badge (see drawMegaClusters) instead of N overlapping pins.
+// Reuses the same radius buildTypeClusters uses, since that's the distance already tuned to
+// avoid icon overlap -- anything still closer than that once every category is on the table is
+// exactly the overlap this exists to fix.
+// Deliberately tighter than buildTypeClusters' own 30 CSS-px radius: that spacing already keeps
+// same-category badges from overlapping, so two *different* categories placed that far apart
+// are just neighbours, not the pile-up mega clustering exists to fix. Merging them there anyway
+// made mega badges appear far more readily than the density actually warranted; going too far
+// the other way (16px, tried briefly) left it barely merging anything, back to overlapping
+// individual pins with no group affordance to tap. 22px sits between the two.
+const MEGA_CLUSTER_MERGE_RADIUS_CSS_PX = 22;
+
+// A mega badge replaces genuinely crowded ground, not just two neighbours sharing a spot -- but
+// requiring three (tried briefly) left plenty of two-category overlaps as bare stacked pins with
+// no way to tap "both of these", which is exactly the confusing case mega clustering exists to
+// fix. Two is the right floor away from the user: buildSuperClusters' merge result is left as
+// individual pins only below that.
+const MEGA_CLUSTER_MIN_MEMBERS = 2;
+
+// Close to the user -- inside the distance a 5-minute walk covers -- is exactly where the extra
+// tap a mega badge costs matters most: it's the ground being actively navigated, where seeing
+// each pin without opening anything is the point. A merge that would happily declutter the far
+// side of the walking radius reads as unhelpful right next to "You", collapsing detail the
+// walker is standing in. Requiring more piled-up categories there means a badge only replaces
+// individual pins nearby when it's genuinely necessary, not merely possible.
+const MEGA_CLUSTER_MIN_MEMBERS_NEAR_USER = 4;
+
+// Picks MEGA_CLUSTER_MIN_MEMBERS or the stricter *_NEAR_USER floor for one candidate group,
+// based on how far its own spot is from nearbyOrigin() (GPS fix or browse anchor, matching the
+// walking-radius ring itself). Falls back to the ordinary floor with no origin to measure from.
+function megaClusterMinMembersFor(group) {
+  const origin = typeof nearbyOrigin === "function" ? nearbyOrigin() : null;
+  if (!origin) return MEGA_CLUSTER_MIN_MEMBERS;
+  const repr = group[0].cluster;
+  const lonLat = unprojectPoint(repr.worldPt);
+  const metres = distanceMetres(origin.latitude, origin.longitude, lonLat.latitude, lonLat.longitude);
+  return metres <= walkingDistanceToMetres(5) ? MEGA_CLUSTER_MIN_MEMBERS_NEAR_USER : MEGA_CLUSTER_MIN_MEMBERS;
+}
+
+function buildSuperClusters(taggedGroups) {
+  const dpr = pixelRatio();
+  const radius = MEGA_CLUSTER_MERGE_RADIUS_CSS_PX * dpr * (MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF);
+  const nodes = [];
+  for (const { itemType, clusters } of taggedGroups) {
+    for (const cluster of clusters) nodes.push({ itemType, cluster, idx: nodes.length });
+  }
+  if (!nodes.length) return [];
+  const grid = buildScreenPointGrid(nodes, radius, (n) => n.cluster.screenPt);
+  const assigned = new Set();
+  const superClusters = [];
+  for (const first of nodes) {
+    if (assigned.has(first)) continue;
+    const members = [first];
+    assigned.add(first);
+    // BFS so a chain of nearby clusters (A close to B, B close to C) merges into one region
+    // even when A and C themselves are too far apart to merge directly.
+    for (let i = 0; i < members.length; i++) {
+      const m = members[i];
+      const found = [];
+      forEachNearbyGridPoint(grid, radius, (n) => n.cluster.screenPt, m.cluster.screenPt, (other) => {
+        if (assigned.has(other)) return;
+        if (Math.hypot(m.cluster.screenPt.x - other.cluster.screenPt.x, m.cluster.screenPt.y - other.cluster.screenPt.y) < radius) {
+          found.push(other);
+        }
+      });
+      // Same order restoration as buildTypeClusters -- a grid scan of the 9 nearby cells doesn't
+      // come out in the original nodes-array order that consumers keying off first-occurrence
+      // (the byTypeIconSrc/byDisplayKey maps in drawMegaClusters) depend on.
+      found.sort((a, b) => a.idx - b.idx);
+      for (const other of found) {
+        members.push(other);
+        assigned.add(other);
+      }
+    }
+    superClusters.push(members);
+  }
+  return superClusters;
+}
+
+// Smaller than the badge's real on-screen reach (megaClusterOuterRadius) on purpose: this is
+// just the solid centre circle holding the count, with the outer disc and the chip ring around
+// it (see drawMegaBadge) doing the rest of the footprint.
+function megaClusterRadius(totalItems, dpr) {
+  return clamp(12 * dpr + Math.sqrt(totalItems) * 2 * dpr, 15 * dpr, 26 * dpr);
+}
+
+// The icon chip radius drawMegaBadge places around the rim -- pulled out so the hit-test in
+// findClusterHit (js/inspector.js) and the off-screen cull below can agree on the badge's true
+// on-screen extent, chips included, rather than just its centre circle. Bigger, and a higher
+// floor, than the inner circle's own ratio would suggest: with R shrunk down to make room for
+// the outer disc, a chip sized purely off R read as squashed -- too little room for the icon
+// inside it to read clearly -- so this is sized mostly off its own floor rather than scaling
+// all the way down with R.
+function megaClusterChipRadius(R, dpr) {
+  return Math.max(11.5 * dpr, R * 0.52);
+}
+
+// The badge caps at this many chips (largest group first) -- past this the ring reads as noise
+// rather than a tally of what's here.
+const MEGA_CLUSTER_MAX_CHIPS = 5;
+
+// The angle between adjacent chips, not the arc's total width -- so the gap (and so the amount
+// of overlap) between any two neighbouring chips stays the same small amount regardless of how
+// many chips there are, rather than shrinking (and the overlap growing) as more get packed into
+// a fixed-width arc. Tuned against megaClusterChipRadius so two adjacent chips overlap by
+// roughly 15-20% of their own width -- enough to read as "these belong together" without one
+// covering the other's icon.
+const MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS = 0.95;
+
+// Extra angle added on top of the bare "just touching" angle between two neighbouring chips
+// (see noOverlapStep below), so chips read as separate items with a bit of breathing room
+// rather than sitting edge-to-edge.
+const MEGA_CLUSTER_CHIP_GAP_RADIANS = 0.22;
+
+// The ring (distance from the badge's centre) chips sit on -- shared by drawMegaBadge's layout
+// and megaClusterOuterRadius below so neither can drift out of sync with the other. Chips belong
+// in the outer disc's own band, not straddling into the inner circle: at R + half a chip's width
+// (tried first) a chip's inner edge landed *inside* R, so the icon visibly crossed from the outer
+// disc into the inner circle instead of sitting inside the outer one. Pushing the ring out to
+// R + a whole chip's width keeps a chip's inner edge right at the inner circle's own rim --
+// touching it, not overlapping it -- so the whole chip sits in the outer disc's band.
+function megaClusterChipRingRadius(R, chipR) {
+  return R + chipR;
+}
+
+// Extra room the outer disc gives the chips beyond their own exact reach (ringR + chipR) --
+// without it, a chip sat exactly tangent to the disc's edge, which at a glance read as "bursting
+// out of" the disc rather than sitting inside it. This margin is part of the badge's real
+// on-screen reach (used below by both the drawn disc and the hit-test/cull radius), not a purely
+// cosmetic overdraw, so tapping the badge's outer edge and the badge's visual edge always agree.
+const MEGA_CLUSTER_OUTER_DISC_PADDING = 1.06;
+
+// The full on-screen reach of a mega badge, centre circle plus the chip ring around its rim (and
+// the padding above) -- i.e. how far out a tap or an off-screen check needs to look, not just
+// the centre circle's R.
+function megaClusterOuterRadius(totalItems, dpr) {
+  const R = megaClusterRadius(totalItems, dpr);
+  const chipR = megaClusterChipRadius(R, dpr);
+  return (megaClusterChipRingRadius(R, chipR) + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
+}
+
+// The same icon each category's own draw function would put in its pin -- picked from the
+// cluster's first item exactly the way drawTrees/drawLandmarks/drawPathPins/drawWaterPins/
+// drawCows do -- so a mega badge's ring shows the *actual* glyph for what's inside, not just a
+// colour standing in for it. Anything with no PNG of its own (the underground/rail SVG marks)
+// falls back to the generic pin icon.
+function megaClusterMemberIconSrc(itemType, cluster) {
+  const repr = cluster.items[0];
+  switch (itemType) {
+    case "tree":
+      return (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
+    case "cow":
+      return iconPath("cow");
+    case "path":
+      return iconPath("waymarked");
+    case "water":
+      return iconPath("ponds");
+    case "landmark": {
+      if (isPubCategory(repr)) return iconPath("beer");
+      if (isCafeCategory(repr)) return iconPath("cafe");
+      if (isShopCategory(repr)) return iconPath("shop");
+      if (isTransportCategory(repr)) {
+        const transportType = getTransportType(repr);
+        if (transportType === "parking") return iconPath("landmark-parking");
+        if (transportType === "underground" || transportType === "national_rail") return iconPath("pin");
+        return iconPath("bus");
+      }
+      const slug = placeIconSlug(repr);
+      return (slug && iconPath(slug)) || iconPath("pin");
+    }
+    default:
+      return iconPath("pin");
+  }
+}
+
+// Landmarks are one itemType ("landmark") covering many visually distinct pins -- pub, cafe,
+// shop, a dozen monument/history sub-kinds -- already told apart by landmarkClusterKey when
+// buildLandmarkClusters groups them in the first place. Bucketing a mega badge's chips by the
+// coarse itemType alone collapsed every one of those sub-kinds into a single "landmark" bucket,
+// showing only whichever cluster happened to be processed first -- a badge piled with a pub, a
+// bench and a monument read as holding just one thing. This is the finer key the chip grouping
+// actually needs; every other type is already homogeneous enough that itemType alone is fine.
+function megaClusterDisplayKey(itemType, cluster) {
+  if (itemType !== "landmark") return itemType;
+  return `landmark:${landmarkClusterKey(cluster.items[0])}`;
+}
+
+// One category's icon, cropped to a circle, sitting directly on the badge underneath it -- no
+// white disc of its own any more. Each map icon already carries its own coloured circular
+// background baked into the artwork (the same icon appModule/appIconHtml use everywhere else),
+// so a white backing behind it here was a second, redundant background rather than something
+// the icon needed to read clearly -- just one more layer in an already layered badge. The
+// circular clip stays: it is what keeps a square icon image from spilling past chipR at its
+// corners, not what gives it a background. Draws nothing (leans on getMapImage's own redraw
+// once loaded) if the icon image hasn't finished loading yet.
+function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
+  const img = src ? getMapImage(src) : null;
+  if (!(img && img.complete && img.naturalWidth)) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, chipR * 0.9, 0, Math.PI * 2);
+  ctx.clip();
+  const iconSize = chipR * 2.15;
+  ctx.drawImage(img, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize);
+  ctx.restore();
+}
+
+// Drawn as one badge with the total count in the middle and a small ring of icon chips around
+// the rim -- one per distinct category present, largest group first, capped at 6 -- so tapping
+// isn't the only way to tell *what* is grouped here, only *how many* of each.
+// The gold the app's own home-screen icon (assets/home/favicon.png) uses behind its oak leaf --
+// reused here instead of a flat colour so the inner count circle/pin reads as "part of this
+// app's identity", not an unrelated warning-style marker.
+//
+// Brighter and darker ends of the same gold, used only as radial-gradient stops (see
+// megaSphereGradient) -- never as a flat fill on its own, so the inner circle/pin still reads
+// as "the brand gold" at a glance, just domed instead of flat. Kept close either side of the
+// brand gold -- a first pass ranged much further apart (a near-white highlight, a near-brown
+// shadow) and read as a different, duller colour rather than the same brand gold with shading
+// on it; a later, deeper bronze pass with edge strokes and a drop shadow was also tried and
+// reverted -- it read as less polished, not more.
+const MEGA_CLUSTER_INNER_HIGHLIGHT = "#f8d989";
+const MEGA_CLUSTER_INNER_SHADOW = "#dba63f";
+
+// The outer disc's own fill -- a translucent white wash rather than a gold gradient, so it
+// reads as a ground-area highlight (the same language the walking-radius ring's clear interior
+// already uses) instead of competing with the inner gold circle/pin for "the badge's colour".
+const MEGA_CLUSTER_OUTER_DISC_FILL = "rgba(255, 255, 255, 0.4)";
+
+// A top-left-lit radial gradient standing in for each disc's former flat fill, so the badge
+// reads as a raised sphere rather than a flat coin -- the same top-lit shading language the
+// walking-radius circle's own rim highlight (drawWalkingRadiusRimHighlight, below) uses, so a
+// mega badge growing into the walking radius during focusNearbyOnClusterGroup's zoom (js/nav.js)
+// looks like one lit surface expanding rather than a flat badge fading into a flat circle.
+function megaSphereGradient(ctx, cx, cy, r, highlight, shadow) {
+  const lightX = cx - r * 0.32;
+  const lightY = cy - r * 0.38;
+  const gradient = ctx.createRadialGradient(lightX, lightY, r * 0.05, cx, cy, r * 1.05);
+  gradient.addColorStop(0, highlight);
+  gradient.addColorStop(1, shadow);
+  return gradient;
+}
+
+// The count circle drawn as an upright teardrop pin (same construction as drawMapPinShape,
+// just gold-filled and holding a number instead of white with an icon) rather than another flat
+// disc under tilt. A flat number lying on the foreshortened ground the way the disc does is
+// unreadable at any real tilt angle -- exactly what every *other* pin on the map already avoids
+// by standing upright off the ground it points at. tipX/tipY is the ground point the pin points
+// down at (the badge's own projected centre), matching how a normal pin's pointer lands exactly
+// on the spot it marks.
+function drawMegaBadgeCountPin(ctx, tipX, tipY, R, totalItems, dpr) {
+  const pH = R * 0.6;
+  const headY = tipY - R - pH;
+  const halfAngle = Math.PI / 5;
+  ctx.beginPath();
+  ctx.arc(tipX, headY, R, Math.PI / 2 + halfAngle, Math.PI / 2 - halfAngle, false);
+  ctx.lineTo(tipX, tipY);
+  ctx.closePath();
+  ctx.fillStyle = megaSphereGradient(ctx, tipX, headY, R, MEGA_CLUSTER_INNER_HIGHLIGHT, MEGA_CLUSTER_INNER_SHADOW);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.25)";
+  ctx.lineWidth = Math.max(1, R * 0.08);
+  ctx.stroke();
+
+  const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${fontSize}px system-ui`;
+  ctx.fillStyle = "#3a2c10";
+  ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), tipX, headY);
+}
+
+// groundCenterFlat is the badge's centre in *flat* (untilted) screen space -- callers already
+// have it from worldToScreenFlat(worldPt) -- and is null on the non-tilted flat-map draw path.
+// Under tilt (groundCenterFlat set) only the outer disc is ground-painted, traced with
+// traceGroundCirclePath -- the same flat-sample-then-`tiltProjectScreenPoint` per-point
+// resampling the walking-radius ring and the radar cone already use, rather than a cheaper local
+// approximation: the disc sits well off the screen centre for most badges, where an approximation
+// derived at just one point drifted visibly out of step with the true ground ellipse as the view
+// rotated. The count is drawn afterwards, upright and camera-facing, as its own pointer pin
+// (drawMegaBadgeCountPin) anchored at the plain projected `cx`/`cy` -- a flat number lying on the
+// foreshortened ground the way the disc does is unreadable at any real tilt angle. The icon chips
+// stay camera-facing too but are fanned around that same `cx`/`cy` ground point, sitting on the
+// disc, rather than around the pin's own (much higher) head: fanning them around the head instead
+// was tried first, on the theory that they should stay visually attached to the one circle you
+// can actually read, but that left them floating well clear of the disc they are meant to mark
+// the top of -- looking adrift from the badge rather than part of it.
+// Outside tilt the whole badge -- both discs, the count, and the chips -- draws exactly as
+// before: plain circles and text at cx/cy, no transform, no pointer.
+//
+// pinScale (default 1) applies only to the upright count pin drawn under tilt, never to the
+// disc or the chips: `dpr` alone drives every geometry size below (R, chipR, ringR, outerR),
+// matching the plain `pixelRatio()` findClusterHit (js/inspector.js) already hit-tests and
+// culls against, so the disc's size depends only on the badge's item count, never on where it
+// sits relative to the user's heading. The pointer is the one part of the badge allowed to
+// shrink as it swings behind the user (tiltPinScale, the same near-heading collapse every other
+// pin already gets) so it stops obscuring pins ahead of it -- the disc itself is an area
+// indicator ("this cluster covers roughly this much ground") and has no business changing size
+// just because the badge happens to be behind you at the moment.
+function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, groundCenterFlat, pinScale = 1) {
+  const R = megaClusterRadius(totalItems, dpr);
+  const chipR = megaClusterChipRadius(R, dpr);
+  const ringR = megaClusterChipRingRadius(R, chipR);
+  // MEGA_CLUSTER_OUTER_DISC_PADDING beyond the chips' own exact reach (ringR + chipR) -- without
+  // it a chip sat exactly tangent to the disc's edge, which read as bursting out of it rather
+  // than sitting inside it. Matches megaClusterOuterRadius exactly, so the hit-test/cull region
+  // and the drawn disc never disagree about where the badge's edge actually is.
+  const outerR = (ringR + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
+
+  // Translucent white outer disc sized to actually contain the chip ring (outerR, the same
+  // reach megaClusterOuterRadius already uses for hit-testing and culling) -- a flat wash
+  // rather than the inner circle's gold sphere gradient, so it reads as a ground-area
+  // highlight (like the walking-radius ring's own clear interior) rather than a second,
+  // competing "raised" surface.
+  ctx.beginPath();
+  if (groundCenterFlat) traceGroundCirclePath(ctx, groundCenterFlat, outerR);
+  else ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+  ctx.fillStyle = MEGA_CLUSTER_OUTER_DISC_FILL;
+  ctx.fill();
+
+  // Outside tilt the count still sits as a flat inner circle on top of the outer disc, exactly
+  // as before -- only under tilt does it move out to the upright pin drawn below.
+  if (!groundCenterFlat) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = megaSphereGradient(ctx, cx, cy, R, MEGA_CLUSTER_INNER_HIGHLIGHT, MEGA_CLUSTER_INNER_SHADOW);
+    ctx.fill();
+
+    const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `700 ${fontSize}px system-ui`;
+    ctx.fillStyle = "#3a2c10";
+    ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
+  } else {
+    drawMegaBadgeCountPin(ctx, cx, cy, R * pinScale, totalItems, dpr * pinScale);
+  }
+
+  // Icon chips are small artwork, not text -- unlike the count they read fine lying flat on the
+  // outer disc when it is ground-projected under tilt -- but the request was for them to stand
+  // up and face the camera. They're fanned around `cx`/`cy` -- the disc's own ground anchor, the
+  // point the pin's own pointer touches down on -- rather than around the pin's head: an earlier
+  // pass tried the head instead, on the theory that chips should stay visually attached to the
+  // one circle you can actually read, but that put them floating up near the pin, well clear of
+  // the disc they're meant to sit on top of. Anchoring on the ground point instead keeps them
+  // sitting on the disc, exactly where the bus/plate/cart icons in a screenshot showed them
+  // adrift from it.
+  //
+  // Chips sit mostly outside the (now much smaller) inner circle, centred on ringR rather than
+  // R itself, and reach exactly to outerR, so they land inside the pale outer disc above rather
+  // than floating past it.
+  const types = Array.from(byType.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, MEGA_CLUSTER_MAX_CHIPS);
+  const n = types.length;
+  // Position every chip first, then draw largest-group-first last (so it paints on top of its
+  // overlapping neighbours) -- the layout is still ordered largest-to-smallest left to right.
+  // Centred straight down (PI/2, since y grows downward on canvas), spreading out symmetrically
+  // by a fixed angle per chip rather than a fixed total arc -- so the gap between any two
+  // neighbours (and so the slight overlap between them) stays the same regardless of how many
+  // chips there are, instead of tightening as more get packed into one span.
+  //
+  // That fixed step is a deliberate *overlap* though -- the right choice once there genuinely
+  // isn't room to avoid it, but not when there is: two or three chips on a badge this size have
+  // easily enough of the ring to go all the way round without touching. noOverlapStep is the
+  // angle at which two neighbouring chips' discs just touch (chord between centres == 2*chipR,
+  // solved via the chord/radius/angle relationship); if fitting every chip at that angle still
+  // stays within a full turn of the ring, that's used instead of the tighter overlapping step --
+  // more chips fan further round from the bottom, with no overlap, rather than crowding closer
+  // together. Only once a full turn genuinely isn't enough room does it fall back to the
+  // original fixed, intentionally-overlapping step.
+  // touchStep alone lands chips exactly tangent to each other -- zero gap, which at a glance
+  // read as crowded/overlapping even though no two chips actually overlapped. Adding a fixed
+  // angular margin here gives every pair of neighbouring chips visible daylight between them
+  // whenever there's room on the ring for it, without touching the tighter fallback step below
+  // (still used once a badge has so many chips that even the bare touching angle would run past
+  // a full turn).
+  const touchStep = ringR > 0 ? 2 * Math.asin(Math.min(1, chipR / ringR)) : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
+  const noOverlapStep = touchStep + MEGA_CLUSTER_CHIP_GAP_RADIANS;
+  const step = noOverlapStep * (n - 1) <= Math.PI * 2 ? noOverlapStep : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
+  const arcSpan = step * (n - 1);
+  // Under tilt, a chip's position (never its own artwork -- that stays a plain undistorted
+  // icon) is worked out on the *ground* plane, at the same ringR distance from
+  // groundCenterFlat the disc's own points are, and only then projected with
+  // tiltProjectScreenPoint -- exactly how the disc's boundary itself is built
+  // (traceGroundCirclePath). Offsetting the already-projected `cx`/`cy` by `ringR` in plain
+  // screen space (the flat-map approach, reused here first) instead traces a circle in screen
+  // space while the disc under it is a foreshortened ellipse, so a chip positioned that way
+  // could land outside the ellipse's actual edge even though the same `ringR` comfortably fits
+  // inside the disc on the flat map -- exactly the "not sitting on the circle" gap a screenshot
+  // showed under real tilt.
+  // Under tilt, chips sit noticeably closer in than ringR -- tighter around the disc's own
+  // centre rather than out near its rim -- so the whole badge reads as one compact group instead
+  // of chips scattered toward the edge of a foreshortened ellipse. The disc itself (outerR) is
+  // untouched, so it stays exactly as large as the badge's item count says it should.
+  const tiltRingR = ringR * 0.62;
+  const positioned = types.map(([key, info], i) => {
+    const angle = (Math.PI / 2 - arcSpan / 2) + i * step;
+    if (groundCenterFlat) {
+      const p = tiltProjectScreenPoint({
+        x: groundCenterFlat.x + Math.cos(angle) * tiltRingR,
+        y: groundCenterFlat.y + Math.sin(angle) * tiltRingR,
+      });
+      return { key, info, x: p.x, y: p.y };
+    }
+    return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
+  });
+  for (let i = positioned.length - 1; i >= 0; i--) {
+    const { key, x, y } = positioned[i];
+    drawMegaClusterIconChip(ctx, x, y, byTypeIconSrc.get(key), chipR);
+  }
+}
+
+function drawMegaClusters(ctx, megaGroups) {
+  if (!megaGroups || !megaGroups.length) return;
+  const dpr = pixelRatio();
+  const reveal = nearbyRevealOpacity();
+  ctx.save();
+  ctx.globalAlpha = reveal;
+  for (const group of megaGroups) {
+    let totalItems = 0, sx = 0, sy = 0;
+    const byType = new Map();
+    const byTypeIconSrc = new Map();
+    let allItems = [];
+    for (const { itemType, cluster } of group) {
+      const n = cluster.items.length;
+      totalItems += n;
+      sx += cluster.screenPt.x * n;
+      sy += cluster.screenPt.y * n;
+      allItems = allItems.concat(cluster.items);
+      const key = megaClusterDisplayKey(itemType, cluster);
+      const existing = byType.get(key);
+      byType.set(key, { count: (existing ? existing.count : 0) + n, itemType });
+      if (!byTypeIconSrc.has(key)) byTypeIconSrc.set(key, megaClusterMemberIconSrc(itemType, cluster));
+    }
+    const cx = sx / totalItems;
+    const cy = sy / totalItems;
+    if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
+    // The badge's count (and, following from it, its size) reflects what a tap here will
+    // actually show in the Nearby list -- clusterFocusTarget/clusterVisibleItemCount (js/nav.js)
+    // replicate focusNearbyOnClusterGroup's own centre+radius math exactly, so the two can never
+    // disagree. Often larger than totalItems (the raw count buildSuperClusters merged into this
+    // one badge): the tap's eventual walking radius commonly reaches past this group's own
+    // members into neighbouring ground.
+    // Memoized per group (megaBadgeVisibleCount, js/nav.js): six full-dataset scans per badge
+    // per frame is what stalled the UI once mega clustering shipped.
+    drawMegaBadge(ctx, cx, cy, megaBadgeVisibleCount(allItems), byType, byTypeIconSrc, dpr);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 function drawClusterBadge(ctx, x, y, count, pinSize, dpr) {
@@ -1202,10 +1804,15 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
   const mapScale = mapEmojiScale();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = treeClusters || buildTypeClusters(nearbyIconLookup.tree, resolvedToScreen);
+  // Sorted ascending by screen Y (painter's algorithm) so a pin lower on
+  // screen -- closer to the viewer in this top-down layout -- always paints
+  // over one further up, instead of drawing in whatever order clusters
+  // happened to be built in.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
 
@@ -1388,7 +1995,18 @@ function buildNearbyIconLookup() {
     water: new Set(),
     outOfRadius: full.outOfRadius,
   };
-  if (result[group.itemType]) result[group.itemType] = new Set(group.items);
+  // A mega cluster's items span several real types (see buildSuperClusters/findClusterHit) --
+  // its own itemType is the synthetic "_mega", which isn't one of the Sets above, so it carries
+  // an itemsByType breakdown instead and every real type gets its own slice restored. Without
+  // this, indexing result["_mega"] silently missed and left every set empty: expanding a mega
+  // cluster narrowed the map down to nothing rather than to its own items.
+  if (group.itemType === "_mega" && group.itemsByType) {
+    for (const [itemType, items] of Object.entries(group.itemsByType)) {
+      if (result[itemType]) result[itemType] = new Set(items);
+    }
+  } else if (result[group.itemType]) {
+    result[group.itemType] = new Set(group.items);
+  }
   _groupIconLookupCache = { group, full, result };
   return result;
 }
@@ -1478,10 +2096,12 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
   const uScale = MAP_ICON_SCALE_UNSELECTED;
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * uScale;
   const clusters = landmarkClusters || buildLandmarkClusters(nearbyIconLookup.landmark, resolvedToScreen);
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, LANDMARK_CULL_MARGIN_PX * dpr)) continue;
 
@@ -1534,10 +2154,12 @@ function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = pathClusters || buildTypeClusters(nearbyIconLookup.path, resolvedToScreen);
   if (!clusters.length) return;
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     ctx.globalAlpha = reveal;
@@ -1556,10 +2178,12 @@ function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = waterClusters || buildTypeClusters(nearbyIconLookup.water, resolvedToScreen);
   if (!clusters.length) return;
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     ctx.globalAlpha = reveal;
@@ -1578,10 +2202,12 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
   const mapScale = mapEmojiScale();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const clusters = cowClusters || buildTypeClusters(nearbyIconLookup.cow, resolvedToScreen);
+  // Painter's algorithm -- see the matching comment in drawTrees.
+  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
 
   const reveal = nearbyRevealOpacity();
   ctx.save();
-  for (const cluster of clusters) {
+  for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const baseOpacity = markerOpacityFor("cow", items[0]);
@@ -1748,7 +2374,81 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
   const reveal = nearbyRevealOpacity();
   const calls = [];
 
-  const treeClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.tree, toScreen), toScreen);
+  const treeClustersAll = buildTypeClusters(nearbyIconLookup.tree, toScreen);
+  const landmarkClustersAll = buildLandmarkClusters(nearbyIconLookup.landmark, toScreen);
+  const cowClustersAll = buildTypeClusters(nearbyIconLookup.cow, toScreen);
+  const pathClustersAll = buildTypeClusters(nearbyIconLookup.path, toScreen);
+  const waterClustersAll = buildTypeClusters(nearbyIconLookup.water, toScreen);
+
+  // Heading-up/tilt draws every pin type through this one sorted-by-depth pass instead of the
+  // five separate drawTrees/drawLandmarks/... calls draw() uses, but it still built its clusters
+  // per type only -- the same cross-category pile-up buildSuperClusters exists to fix on the flat
+  // map (see its own comment) was never applied here, so a phone with a compass (heading-up is
+  // the default there) never saw mega clusters at all. Same merge pass, same exclusion of the
+  // clusters it absorbs from their own type's pins. Also, like the flat path, still runs while a
+  // cluster is expanded -- a still-dense expanded view should offer a next, smaller level of
+  // clustering to tap into, not force every absorbed item into its own singleton pin regardless
+  // of how much screen space the zoom actually bought them.
+  const megaGroups = buildSuperClusters([
+    { itemType: "tree", clusters: treeClustersAll },
+    { itemType: "landmark", clusters: landmarkClustersAll },
+    { itemType: "cow", clusters: cowClustersAll },
+    { itemType: "path", clusters: pathClustersAll },
+    { itemType: "water", clusters: waterClustersAll },
+  ]).filter(group => group.length >= megaClusterMinMembersFor(group));
+  const megaClusterSet = new Set();
+  for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
+
+  const treeClusters = treeClustersAll.filter(c => !megaClusterSet.has(c));
+  const landmarkClusters = landmarkClustersAll.filter(c => !megaClusterSet.has(c));
+  const cowClusters = cowClustersAll.filter(c => !megaClusterSet.has(c));
+  const pathClusters = pathClustersAll.filter(c => !megaClusterSet.has(c));
+  const waterClusters = waterClustersAll.filter(c => !megaClusterSet.has(c));
+
+  for (const group of megaGroups) {
+    let totalItems = 0, sx = 0, sy = 0, swx = 0, swy = 0;
+    const byType = new Map();
+    const byTypeIconSrc = new Map();
+    let allItems = [];
+    for (const { itemType, cluster } of group) {
+      const n = cluster.items.length;
+      totalItems += n;
+      sx += cluster.screenPt.x * n;
+      sy += cluster.screenPt.y * n;
+      swx += cluster.worldPt.x * n;
+      swy += cluster.worldPt.y * n;
+      allItems = allItems.concat(cluster.items);
+      const key = megaClusterDisplayKey(itemType, cluster);
+      const existing = byType.get(key);
+      byType.set(key, { count: (existing ? existing.count : 0) + n, itemType });
+      if (!byTypeIconSrc.has(key)) byTypeIconSrc.set(key, megaClusterMemberIconSrc(itemType, cluster));
+    }
+    const cx = sx / totalItems;
+    const cy = sy / totalItems;
+    const worldPt = { x: swx / totalItems, y: swy / totalItems };
+    if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
+    const pinScale = tiltPinScale(worldPt);
+    // See the flat-path drawMegaClusters (above) for why this differs from the raw merged count.
+    const badgeCount = megaBadgeVisibleCount(allItems);
+    // Ground-space centre for the outer disc's tilt-projected footprint (drawMegaBadge) --
+    // null outside active tilt, where the badge stays a plain camera-facing circle. Also null
+    // when the badge's own centre falls in tiltProjectScreenPoint's near-camera clip band
+    // (its `clipped` flag) -- a badge sitting almost on top of the camera pivot has its ground
+    // ellipse pinned against that clip, and as the badge (or the user) moves the clip regime can
+    // flip within a frame or two, which read as the disc suddenly jumping and detaching from the
+    // terrain under it. Falling back to the plain camera-facing circle in that narrow band avoids
+    // the instability; it only affects a badge essentially on top of the user, where the walking
+    // radius ring dominates the screen anyway.
+    const groundCenterFlatRaw = tiltActive() ? worldToScreenFlat(worldPt) : null;
+    const groundCenterFlat = groundCenterFlatRaw && !tiltProjectScreenPoint(groundCenterFlatRaw).clipped
+      ? groundCenterFlatRaw
+      : null;
+    calls.push({ y: cy, fn(c) {
+      c.globalAlpha = reveal;
+      drawMegaBadge(c, cx, cy, badgeCount, byType, byTypeIconSrc, dpr, groundCenterFlat, pinScale);
+    }});
+  }
+
   for (const cluster of treeClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
@@ -1762,7 +2462,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     }});
   }
 
-  const landmarkClusters = applySingletonExpansion(buildLandmarkClusters(nearbyIconLookup.landmark, toScreen), toScreen);
   for (const cluster of landmarkClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, 16 * dpr * uScale)) continue;
@@ -1804,7 +2503,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     }});
   }
 
-  const cowClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.cow, toScreen), toScreen);
   for (const cluster of cowClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
@@ -1817,7 +2515,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     }});
   }
 
-  const pathClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.path, toScreen), toScreen);
   for (const cluster of pathClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
@@ -1829,7 +2526,6 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     }});
   }
 
-  const waterClusters = applySingletonExpansion(buildTypeClusters(nearbyIconLookup.water, toScreen), toScreen);
   for (const cluster of waterClusters) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
@@ -1981,11 +2677,12 @@ function drawSelectedRoadOverlay(ctx) {
   ctx.lineJoin = "round";
 
   for (const segment of road.segments) {
-    if (segment.length < 2) continue;
+    const count = segment.length / 2;
+    if (count < 2) continue;
 
     ctx.beginPath();
-    for (let i = 0; i < segment.length; i += 1) {
-      const point = worldToScreen(segment[i]);
+    for (let i = 0; i < count; i += 1) {
+      const point = environmentVertexToScreen(segment, i);
       if (i === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
     }
@@ -2017,11 +2714,12 @@ function drawSelectedPathOverlay(ctx) {
   ctx.lineJoin = "round";
 
   for (const segment of path.segments) {
-    if (segment.length < 2) continue;
+    const count = segment.length / 2;
+    if (count < 2) continue;
 
     ctx.beginPath();
-    for (let i = 0; i < segment.length; i += 1) {
-      const point = worldToScreen(segment[i]);
+    for (let i = 0; i < count; i += 1) {
+      const point = environmentVertexToScreen(segment, i);
       if (i === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
     }
@@ -2040,7 +2738,7 @@ function drawSelectedPathOverlay(ctx) {
 function zoomEmojiScaleTarget() {
   const baselineScale = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
   const zoomRatio = baselineScale > 0 ? state.viewport.scale / baselineScale : 1;
-  return clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.35), 0.45, 1.15);
+  return clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.35), 0.3, 1.15);
 }
 
 function updateAnimatedEmojiScale() {

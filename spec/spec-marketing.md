@@ -106,7 +106,7 @@ Epping Forest." so the first line leads.
 > so they might have wandered off since.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 926 pubs, cafés and shops. 1,596 car parks,
+> 9,162 paths and bridleways. 1,005 pubs, cafés and shops. 1,596 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -149,7 +149,7 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 926 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 1,005 food & drink | feature count, `data/local-landmarks-food.geojson` |
 | 1,596 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
@@ -252,7 +252,7 @@ Sections, in order:
 5. **Sign-up** — the mailing-list form (§9), boxed in warm cream with a gold
    left border accent using the app icon's gold (`#f3d36b`), matching the
    Ledger card's accent placement. A 52px envelope icon
-   (`assets/home/mail.svg`, cream fill with dark-green outline, in the style of
+   (`assets/home/mail.png`, shaded cream and gold with dark-green outline, in the style of
    the homepage map pin), 44px, sits on the heading's line, vertically centred
    on it, never on a line of its own. The eyebrow runs above, its left edge
    flush with the icon. The layout is tight: email field and button share one row on wide
@@ -276,7 +276,7 @@ Sections, in order:
    on wide screens the question sits in a left column beside its answer.
 8. **From the Ledger** — the last section before the footer, after the FAQ: an
    inset editorial card matching the sign-up card's layout: responsive padding, a green left border and shadow, the “Round the forest · Every week”
-   eyebrow above a 44px newspaper icon (`assets/home/ledger.svg`, same style as
+   eyebrow above a 44px newspaper icon (`assets/home/ledger.png`, same style as
    the envelope) centred beside the heading, aligned like the sign-up card, and a solid green "Read the Ledger →"
    button linking to `/reports/` (§6.4).
    The index carries individual reports; the homepage remains static.
@@ -288,9 +288,24 @@ Sections, in order:
 
 ### 5.1 Page weight and assets
 
+The walking-distance pillar uses a shaded folded map (`assets/home/distance.png`)
+and the location pillar uses the emerald-and-gold Nearby beacon
+(`assets/home/logo.png`), stored as independent homepage copies.
+
+The email, Ledger, tree-tag, FAQ and offline illustrations use transparent PNGs
+with gentle shading and forest-green contours. “Good to know” uses a question-mark
+speech bubble (`faq.png`); “No signal? Here’s the plan” uses a phone showing a
+saved map (`offline.png`). Both sit beside their headings at 44px. The tree-tag section heading carries a
+numbered metal-tag icon based on the adjacent photograph; the photograph stays
+as the real-world example. Their masters and prompts live in
+`assets/home/icon-sources/`. The reports index reuses the Ledger PNG.
+
 - Homepage CSS, JavaScript and images live together in `assets/home/`.
   `index.html` references only that directory for local runtime assets. Brand
-  icons are independent copies, so app icon changes cannot change the homepage.
+  and map icons are independent copies, so the homepage does not import app
+  code; when the illustrated icon style changes, review and update these
+  copies in the same change, preserving transparent backgrounds and readable
+  small-size silhouettes.
 - The root-scoped app service worker passes `assets/home/` requests directly
   to the browser without reading or writing app/data caches, including for
   returning app users. Marketing releases therefore need no app cache bump.

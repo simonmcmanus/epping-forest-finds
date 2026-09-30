@@ -7,8 +7,8 @@
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v45";
-const DATA_CACHE_NAME = "forest-finds-data-v11";
+const APP_CACHE_NAME = "forest-finds-app-v55";
+const DATA_CACHE_NAME = "forest-finds-data-v15";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
 // "./" is deliberately absent: after the alpha URL split it resolves to the
@@ -166,6 +166,9 @@ const DATA_CACHE_OPPORTUNISTIC = [
   "./data/icons/national-rail.png",
   "./data/icons/nature.png",
   "./data/icons/nearby.png",
+  "./data/icons/loading.png",
+  "./data/icons/road.png",
+  "./data/icons/railway.png",
   "./data/icons/oak.png",
   "./data/icons/pin.png",
   "./data/icons/plaques.png",
