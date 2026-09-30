@@ -6,6 +6,14 @@ generator owns the design, layout, SVG map and every number on the page; the
 research and the written findings come from the weekly workflow
 (`.github/workflows/weekly-ledger.yml`).
 
+The workflow's cron is currently nightly rather than weekly (temporary, from
+2026-09-30) while the business-detection data is being brought up to scratch —
+see the "NOTE on cadence" comment above `on:` in the workflow file. Nothing
+below this changes because of it: the report file name and PR branch are
+already keyed by calendar date, and `business_watch`'s escalation counts runs,
+not weeks, so it just reaches confidence sooner. Revert the cron once the data
+settles.
+
 ## Keeping the map's businesses current
 
 The report is only half the weekly job. The other half is noticing that the
