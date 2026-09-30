@@ -2352,14 +2352,20 @@ async function submitReportForm() {
 // open is enough for double-tap/retry safety without localStorage.
 function locationIssueFormHtml() {
   const online = navigator.onLine;
-  return `<p class="report-issue-question">What's wrong with this location?</p>
+  // Wrapped in .report-form (display:grid; gap:10px, same as the full Report screen's own
+  // form) rather than left as bare stacked elements -- without that gap the textarea's
+  // focus-visible outline (base.css, 3px solid + 2px offset) had nothing to clear and bled
+  // up over the question text sitting flush above it.
+  return `<div class="report-form">
+      <p class="report-issue-question">What's wrong with this location?</p>
       <textarea class="report-textarea" placeholder="Describe the problem…"></textarea>
       <p class="report-status" aria-live="polite"></p>
       <p class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Try again once you\'re back online.</p>
       <div class="report-form-actions">
         <button class="button button-ghost" type="button" data-action="cancel-location-issue">Cancel</button>
         <button class="button" type="button" data-action="submit-location-issue"${online ? "" : " disabled"}>Submit</button>
-      </div>`;
+      </div>
+    </div>`;
 }
 
 function toggleLocationIssueForm(toggleButton) {
