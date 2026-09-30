@@ -1049,11 +1049,7 @@ The location gate (`#locationGate`) must work fully offline:
 Keyboard and screen-reader support for the app shell, on top of the arrow-key/Enter navigation
 already documented for Nearby/Search result rows under Overview Content and Secondary Screens.
 
-- **Skip link.** `app.html` opens with `<a class="skip-link" href="#inspector">Skip to nearby
-  places</a>`, hidden off-screen (`css/base.css` `.skip-link`) until it receives keyboard focus,
-  so a keyboard or screen-reader user can jump straight from page load to the list-based Nearby
-  panel instead of tabbing across the canvas map, which has no keyboard-operable content of its
-  own. `#inspector` carries `tabindex="-1"` so the jump actually lands focus there.
+- **Direct keyboard navigation.** The app has no “Skip to nearby places” link. The first Tab reaches Search in the navigation row.
 - **Modal dialogs.** The three full-screen overlays — `#locationGate`, `#distanceWarning`,
   `#onboardingOverlay` — carry `role="dialog"` and `aria-modal="true"`,
   each labelled via `aria-labelledby` (or `aria-label` for onboarding, whose heading text changes
@@ -1073,7 +1069,7 @@ already documented for Nearby/Search result rows under Overview Content and Seco
   showed it. The walking-radius range input (`css/inspector.css` `.walk-radius-range`) styles its
   `::-webkit-slider-thumb` / `::-moz-range-thumb` on `:focus-visible` specifically, since the
   browser's default outline lands on the track rather than the draggable thumb.
-- **Focus lands on the page without a click.** `boot()` (`js/app.js`) focuses the skip link as
+- **Focus lands on the page without a click.** `boot()` (`js/app.js`) focuses the app container ('.app', with `tabindex="-1"`) as
   soon as the page is interactive, before the location/onboarding checks that may open a modal.
   A full page load doesn't reliably hand keyboard focus to the document — it can sit in the
   browser's own chrome instead — so without this, a keyboard-only visitor's first Tab could go
@@ -1082,13 +1078,13 @@ already documented for Nearby/Search result rows under Overview Content and Seco
   none does. It also means a mouse/touch interaction with the map — panning, tapping a tree —
   which leaves nothing focused (the canvas is never itself a focus target) doesn't cost a
   keyboard user an extra Tab afterward either: browsers resume sequential focus navigation from
-  wherever it last was, which is the skip link's position from this same boot-time call, so the
+  wherever it last was, which is the app container's position from this same boot-time call, so the
   very next Tab reaches the nav row directly rather than restarting the whole document from the
   top.
 - **The nav row is always reachable.** `#nearbyToggle`/`#searchToggle`/`#filterToggle`/
   `#reportToggle`/`#settingsToggle` live in their own `<nav class="inspector-actions">`, a sibling
   of `#inspector` in `app.html` rather than nested inside it, placed immediately before the aside
-  in markup so Tab still reaches it right after the skip link. Being a separate element also means
+  in markup so Tab still reaches it directly. Being a separate element also means
   the bar is unaffected by whatever `#inspector` itself is doing — open, minimized, or pushed
   around by the on-screen keyboard (see "Keyboard avoidance" below) — so it is always reachable
   and visible regardless of which screen (Nearby, a selection, Search/Filter/Settings/Report) is
