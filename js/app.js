@@ -2063,6 +2063,11 @@ function settingsFormHtml() {
       <p class="source-note walk-radius-floor-note" id="settingsWalkMinsFloorNote"${sliderValue > floorMinutes ? " hidden" : ""}>This is as close as it gets — nothing closer to show nearby.</p>
     </section>
     <section class="settings-section">
+      <h3 class="settings-section-title">Privacy</h3>
+      <p class="settings-description">Location &amp; usage tracking: <strong id="privacyConsentStatus">${hasTrackingConsent() ? "enabled" : "not enabled"}</strong>. We collect anonymous GPS position, navigation and interaction data to improve the app. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+      <button id="privacyConsentToggle" class="settings-refresh-btn" type="button">${hasTrackingConsent() ? "Withdraw consent" : "Enable location & tracking"}</button>
+    </section>
+    <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
       <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
@@ -2121,6 +2126,17 @@ function bindSettingsHandlers() {
   for (const scope of Object.keys(REFRESH_SCOPES)) {
     const button = document.getElementById(REFRESH_SCOPES[scope].buttonId);
     if (button) button.addEventListener("click", () => refreshCachedState(scope));
+  }
+
+  const privacyToggle = document.getElementById("privacyConsentToggle");
+  if (privacyToggle) {
+    privacyToggle.addEventListener("click", () => {
+      const granting = !hasTrackingConsent();
+      setTrackingConsent(granting);
+      privacyToggle.textContent = granting ? "Withdraw consent" : "Enable location & tracking";
+      const status = document.getElementById("privacyConsentStatus");
+      if (status) status.textContent = granting ? "enabled" : "not enabled";
+    });
   }
   // Settings HTML is rebuilt fresh every time the screen opens (see openSettings above),
   // so remove before re-adding — otherwise every open leaks another window-level listener.

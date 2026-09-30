@@ -505,8 +505,8 @@ function setupInspectorHandlers() {
     setInspectorMinimized(false);
   });
 
-  els.locateButton.addEventListener("click", async () => {
-    if (!(await ensureTrackingConsent())) return;
+  els.locateButton.addEventListener("click", () => {
+    ensureTrackingConsent();
     locateUser({ initial: false });
   });
 
@@ -514,10 +514,7 @@ function setupInspectorHandlers() {
     els.locationGateButton.addEventListener("click", async () => {
       els.locationGateButton.disabled = true;
       if (!state.userLocation) {
-        if (!(await ensureTrackingConsent())) {
-          els.locationGateButton.disabled = false;
-          return;
-        }
+        ensureTrackingConsent();
         locateUser({ initial: false });
         // Button re-enabled by setLocationGateVisible(true) when locateUser's callbacks
         // re-show the gate (error message or compass prompt), or stays disabled if gate hides.

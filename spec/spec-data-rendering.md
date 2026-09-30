@@ -1035,9 +1035,9 @@ The app must keep location, compass, and nearest-items always current. Several r
 
 ## Location Gate & Tracking Consent (offline-safe)
 
-The location gate (`#locationGate`) and tracking consent modal (`#trackingConsentModal`) must work fully offline:
+The location gate (`#locationGate`) must work fully offline:
 
-- **`css/tracking.css` is in `APP_SHELL`** — the consent modal relies on `position: fixed; z-index: 130` from that file; without it the modal has no positioning and is clipped invisible by `.map-stage`'s `overflow: hidden`, making the location gate button appear completely unresponsive.
+- **`css/tracking.css` is in `APP_SHELL`** — it styles `.privacy-note`, the one-line disclosure shown next to every "Enable location" button (the location gate and the onboarding location step). Losing it offline leaves the note unstyled but does not block the button.
 - **Location gate button gives immediate visual feedback** — the button is disabled as soon as it is tapped (preventing confusion from the geolocation or compass-permission async wait). `setLocationGateVisible(true, ...)` always re-enables the button so it is interactive again whenever the gate re-appears with a new message (error, compass prompt, etc.).
 - **Compass permission (iOS)** — `DeviceOrientationEvent.requestPermission()` is a device API that does not require internet. On failure or denial, `showCompassAccessPrompt()` re-shows the gate; the button is re-enabled by `setLocationGateVisible`.
 - **Geolocation** — GPS works without internet. The `locateUser` callback (success or error) triggers `setLocationGateVisible` which re-enables the gate button.
@@ -1054,14 +1054,14 @@ already documented for Nearby/Search result rows under Overview Content and Seco
   so a keyboard or screen-reader user can jump straight from page load to the list-based Nearby
   panel instead of tabbing across the canvas map, which has no keyboard-operable content of its
   own. `#inspector` carries `tabindex="-1"` so the jump actually lands focus there.
-- **Modal dialogs.** The four full-screen overlays — `#locationGate`, `#distanceWarning`,
-  `#trackingConsentModal`, `#onboardingOverlay` — carry `role="dialog"` and `aria-modal="true"`,
+- **Modal dialogs.** The three full-screen overlays — `#locationGate`, `#distanceWarning`,
+  `#onboardingOverlay` — carry `role="dialog"` and `aria-modal="true"`,
   each labelled via `aria-labelledby` (or `aria-label` for onboarding, whose heading text changes
   per step). Opening one calls `activateModalFocus(container, { onEscape })` (`js/nav.js`), which:
   moves focus to the dialog's first focusable control; traps Tab/Shift+Tab so focus cycles within
   the dialog instead of escaping to the map behind it; closes the dialog on Escape where an
-  `onEscape` handler is supplied (tracking consent treats Escape as decline; the distance warning
-  treats it as dismiss; the location gate has no dismiss action and ignores Escape); and restores
+  `onEscape` handler is supplied (the distance warning treats it as dismiss; the location gate and
+  onboarding have no dismiss action and ignore Escape); and restores
   focus to whatever triggered the dialog once the returned `deactivate()` runs. The onboarding
   overlay additionally moves focus to each step's `<h2>` (given `tabindex="-1"`) as the step's
   content is re-rendered, since replacing `innerHTML` would otherwise drop focus to `<body>`.

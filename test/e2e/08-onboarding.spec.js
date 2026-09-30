@@ -42,22 +42,21 @@ test.describe("Onboarding", () => {
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
     });
 
-    test("tapping 'Enable location' shows the same tracking consent modal as the in-map location gate", async ({ page }) => {
+    test("the location step shows the same privacy disclosure the in-map location gate uses", async ({ page }) => {
       await page.goto("/app");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      await page.locator("#onboardingOverlay .ob-location").click();
-      await expect(page.locator("#trackingConsentModal")).toBeVisible();
-      await expect(page.locator("#trackingConsentModal")).toContainText("Privacy & Location Data");
+      await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("We collect anonymous usage data");
+      await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("Settings → Privacy");
     });
 
-    test("declining the tracking consent modal skips location and continues onboarding", async ({ page }) => {
+    test("tapping 'Enable location' grants consent immediately and advances onboarding with no second screen", async ({ page }) => {
       await page.goto("/app");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await page.locator("#onboardingOverlay .ob-location").click();
-      await expect(page.locator("#trackingConsentModal")).toBeVisible();
-      await page.locator("#trackingConsentModal .tc-decline").click();
-      await expect(page.locator("#trackingConsentModal")).toBeHidden();
+      // No separate accept/decline screen — onboarding moves straight to the next step.
+      await expect(page.locator("#onboardingOverlay .ob-location")).toHaveCount(0);
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBe("1");
     });
   });
 

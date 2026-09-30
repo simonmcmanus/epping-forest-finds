@@ -96,6 +96,24 @@ test.describe("Settings screen", () => {
     );
   });
 
+  test("settings screen lets you withdraw and re-grant location & tracking consent", async ({ page }) => {
+    await page.evaluate(() => setTrackingConsent(true));
+    // Re-open settings so the freshly-rendered form reflects that consent state.
+    await page.click("#nearbyToggle");
+    await page.click("#settingsToggle");
+    await expect(page.locator("#privacyConsentStatus")).toHaveText("enabled");
+    await expect(page.locator("#privacyConsentToggle")).toHaveText("Withdraw consent");
+
+    await page.locator("#privacyConsentToggle").click();
+    await expect(page.locator("#privacyConsentStatus")).toHaveText("not enabled");
+    await expect(page.locator("#privacyConsentToggle")).toHaveText("Enable location & tracking");
+    expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBeNull();
+
+    await page.locator("#privacyConsentToggle").click();
+    await expect(page.locator("#privacyConsentStatus")).toHaveText("enabled");
+    expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBe("1");
+  });
+
   test("settings screen offers separate data, app and combined refresh buttons", async ({ page }) => {
     await expect(page.locator("#refreshDataButton")).toHaveText("Refresh data");
     await expect(page.locator("#refreshAppButton")).toHaveText("Refresh app");
