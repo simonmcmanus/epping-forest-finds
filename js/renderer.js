@@ -1333,11 +1333,13 @@ function clusterJoinAnimationState(cluster, toScreen, now = performance.now()) {
   for (const item of items) {
     let anim = _clusterJoinAnimations.get(item);
     if (!anim) {
-      const prevSize = _prevClusterSizeByItem.get(item);
-      const wasLone = prevSize === undefined || prevSize <= 1;
+      // Strictly "was drawn alone last frame", not merely "never tracked" -- the latter is also
+      // true the first time an item is ever seen at all (page load, entering the nearby set),
+      // when it was never actually visible as a separate pin for this animation to slide it in
+      // from.
+      const wasLone = _prevClusterSizeByItem.get(item) === 1;
       if (wasLone && !(_clusterJoinCooldownUntil.get(item) > now)) {
-        const from = toScreen(item.point);
-        anim = { startedAt: now, fromX: from.x, fromY: from.y, wasLone };
+        anim = { startedAt: now, wasLone };
         _clusterJoinAnimations.set(item, anim);
       }
     }
@@ -1351,10 +1353,17 @@ function clusterJoinAnimationState(cluster, toScreen, now = performance.now()) {
         if (!anim.wasLone) allStillJoiningFromScratch = false;
         const eased = easeOutCubic(t);
         maxEased = Math.max(maxEased, eased);
+        // Recomputed every frame, not cached from animation start: while a pan/zoom is what's
+        // actually driving the merge (the common case -- see the animation's own comment above),
+        // both this item's own unclustered position and the cluster's centroid move with the
+        // camera every frame. Interpolating from a screen point frozen at t=0 would fight that
+        // motion instead of riding along with it, and could make the slide look like nothing at
+        // all, or a glitch, right when a zoom is what triggered it.
+        const from = toScreen(item.point);
         renders.push({
           item,
-          x: anim.fromX + (cluster.screenPt.x - anim.fromX) * eased,
-          y: anim.fromY + (cluster.screenPt.y - anim.fromY) * eased,
+          x: from.x + (cluster.screenPt.x - from.x) * eased,
+          y: from.y + (cluster.screenPt.y - from.y) * eased,
           alpha: 1 - eased,
         });
       }
