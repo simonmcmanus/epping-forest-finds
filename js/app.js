@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v61"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v62"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -389,7 +389,7 @@ const els = {
   inspectorType: document.getElementById("inspectorType"),
   inspectorBody: document.getElementById("inspectorBody"),
   inspectorTools: document.querySelector(".inspector-tools"),
-  inspectorHeader: document.querySelector(".inspector-header"),
+  inspectorTitleSection: document.querySelector(".inspector-title-section"),
   nearbyAnchorBar: document.getElementById("nearbyAnchorBar"),
   closeInspector: document.getElementById("closeInspector"),
   searchToggle: document.getElementById("searchToggle"),
@@ -1590,10 +1590,12 @@ function bestVisibleCanvasRect({ assumeInspectorOpen = false } = {}) {
 }
 
 function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
-  if (!els.inspector || els.inspector.hidden) return null;
+  const inspectorVisible = Boolean(els.inspector) && !els.inspector.hidden;
+  const navVisible = Boolean(els.inspectorActions) && !els.inspectorActions.hidden;
+  if (!inspectorVisible && !navVisible) return null;
   if (!assumeInspectorOpen && _overlapRectCache !== undefined) return _overlapRectCache;
 
-  const wasMinimized = els.inspector.classList.contains("minimized");
+  const wasMinimized = inspectorVisible && els.inspector.classList.contains("minimized");
   if (assumeInspectorOpen && wasMinimized) {
     els.inspector.classList.remove("minimized");
   }
@@ -1605,16 +1607,30 @@ function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
   // bitmap coords and canvasInsetX/Y must not be added again.
   const useMapStage = Boolean(els.mapStage);
   const canvasRect = (els.mapStage || els.canvas).getBoundingClientRect();
-  const inspectorRect = els.inspector.getBoundingClientRect();
+  // The nav bar (js/app.html's <nav class="inspector-actions">) is its own fixed bar, separate
+  // from #inspector, and stays visible whatever the sheet is doing -- so the obstructed area is
+  // the union of both footprints, not just the sheet's. They don't overlap in normal layout, so
+  // this is just the bounding box of whichever of the two is present.
+  const rects = [
+    inspectorVisible ? els.inspector.getBoundingClientRect() : null,
+    navVisible ? els.inspectorActions.getBoundingClientRect() : null,
+  ].filter(Boolean);
 
   if (assumeInspectorOpen && wasMinimized) {
     els.inspector.classList.add("minimized");
   }
 
-  const overlapLeft = Math.max(canvasRect.left, inspectorRect.left);
-  const overlapTop = Math.max(canvasRect.top, inspectorRect.top);
-  const overlapRight = Math.min(canvasRect.right, inspectorRect.right);
-  const overlapBottom = Math.min(canvasRect.bottom, inspectorRect.bottom);
+  const unionRect = {
+    left: Math.min(...rects.map((r) => r.left)),
+    top: Math.min(...rects.map((r) => r.top)),
+    right: Math.max(...rects.map((r) => r.right)),
+    bottom: Math.max(...rects.map((r) => r.bottom)),
+  };
+
+  const overlapLeft = Math.max(canvasRect.left, unionRect.left);
+  const overlapTop = Math.max(canvasRect.top, unionRect.top);
+  const overlapRight = Math.min(canvasRect.right, unionRect.right);
+  const overlapBottom = Math.min(canvasRect.bottom, unionRect.bottom);
 
   if (overlapRight <= overlapLeft || overlapBottom <= overlapTop) {
     if (!assumeInspectorOpen) _overlapRectCache = null;
@@ -6678,12 +6694,9 @@ function openSearchScreen() {
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Search";
   els.inspectorType.textContent = "Find anything on the map";
+  // Not auto-focused: opening the screen from the nav bar should show the field and the map
+  // behind it, not summon the keyboard immediately. The field is focused when the user taps it.
   transitionInspectorBody(searchScreenHtml(), "forward", updateOverviewDirectionArrows);
-  // Focused here rather than when the slide finishes: iOS only raises the keyboard for a
-  // focus() that is still inside the tap that asked for it, and the 310ms transition is long
-  // enough to put it outside.
-  const input = document.getElementById("mapSearchInput");
-  if (input) input.focus();
   setInspectorMinimized(false);
   syncHashFromSelection();
   requestDraw();
