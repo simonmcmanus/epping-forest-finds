@@ -128,10 +128,13 @@
 }
 
 /* Compound selector -- see the matching comment on .app-icon.filter-chip-icon below; the group
-   header icon was shrinking to the group title's own font-size for the same reason. */
+   header icon was shrinking to the group title's own font-size for the same reason. 44px reuses
+   the app's own "enlarged" icon size (.nearest-icon, css/map-ui.css) rather than inventing a new
+   one -- an earlier pass at 64px technically fixed the same bug but dwarfed the compact header
+   row it sits in. */
 .app-icon.filter-group-icon {
-  width: 64px;
-  height: 64px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
 }
 
@@ -204,13 +207,14 @@
 /* Compound selector, not just .filter-chip-icon: css/inspector.css's .app-icon (width/height:
    1em) loads after this file, and with equal specificity the later rule wins regardless of
    which one looks more specific to a reader -- that shrank every filter chip icon down to
-   whatever the chip label's own font-size happened to be (~14px) instead of this 56px. Matching
-   .app-icon's own class onto the selector outranks it on specificity instead of load order.
-   Deliberately smaller than .app-icon.filter-group-icon (64px): a subfilter chip is one of
-   several under a category, not the category itself, so it reads as the lesser of the two. */
+   whatever the chip label's own font-size happened to be (~14px) instead of this 36px (reusing
+   .close's own size, css/inspector.css, rather than a new number). Deliberately smaller than
+   .app-icon.filter-group-icon (44px): a subfilter chip is one of several under a category, not
+   the category itself, so it reads as the lesser of the two. An earlier pass at 56px technically
+   fixed the same bug but dwarfed the 44px-min-height chip it sits in. */
 .app-icon.filter-chip-icon {
-  width: 56px;
-  height: 56px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
 }
 
