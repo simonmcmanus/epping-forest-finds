@@ -356,7 +356,8 @@ function showTreeDetails(tree, distance, label) {
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
   const namedTreeHtml = namedTreeDetailsHtml(tree);
-  transitionInspectorBody(topRow + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml, "forward");
+  const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
+  transitionInspectorBody(topRow + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + issueHtml, "forward");
 }
 
 function showLandmarkDetails(place, distance) {
@@ -379,7 +380,8 @@ function showLandmarkDetails(place, distance) {
   const shareBtn = shareLocationHtml();
   const topRow = (distancePill || mapsLink || shareBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
-  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "");
+  const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
+  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + issueHtml;
   transitionInspectorBody(landmarkHtml, "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
     loadTransportDepartures(place);
@@ -961,6 +963,23 @@ function shareLocationHtml() {
   if (typeof navigator === "undefined") return "";
   if (!("share" in navigator) && !("clipboard" in navigator)) return "";
   return `<button class="detail-map-link" type="button" data-action="share-location">Share link</button>`;
+}
+
+// A "Noticed a problem with this location?" link on point-feature detail screens (trees,
+// landmarks) that expands into an inline report form in place, rather than navigating to the
+// full Report screen. Submission mechanics mirror that screen (js/app.js), but the location
+// sent is the item's own coordinates, not the reporter's GPS fix -- this is for flagging the
+// dataset entry itself as wrong (e.g. a landmark plotted in the wrong spot), which only makes
+// sense for a curated, fixed-position record. Live-tracked items (cows) and line/area
+// features without a single point (paths, roads, railways, water) don't get this link.
+function reportIssueHtml(context) {
+  if (!context || context.latitude == null || context.longitude == null) return "";
+  const lat = Number(context.latitude);
+  const lon = Number(context.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return "";
+  return `<div class="report-issue" data-report-type="${escapeHtml(context.type || "")}" data-report-name="${escapeHtml(context.name || "")}" data-report-lat="${lat}" data-report-lon="${lon}">
+      <button class="report-issue-toggle" type="button" data-action="report-issue">Noticed a problem with this location?</button>
+    </div>`;
 }
 
 async function shareCurrentLocation() {

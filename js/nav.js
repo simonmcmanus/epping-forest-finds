@@ -760,6 +760,12 @@ function setupSearchAndNavHandlers() {
     }
     const shareBtn = event.target.closest("[data-action='share-location']");
     if (shareBtn) { shareCurrentLocation(); return; }
+    const reportIssueToggle = event.target.closest("[data-action='report-issue']");
+    if (reportIssueToggle) { toggleLocationIssueForm(reportIssueToggle); return; }
+    const cancelIssueBtn = event.target.closest("[data-action='cancel-location-issue']");
+    if (cancelIssueBtn) { cancelLocationIssueForm(cancelIssueBtn.closest(".report-issue")); return; }
+    const submitIssueBtn = event.target.closest("[data-action='submit-location-issue']");
+    if (submitIssueBtn) { submitLocationIssueReport(submitIssueBtn.closest(".report-issue")); return; }
     const resetAnchorBtn = event.target.closest("[data-action='reset-nearby-anchor']");
     if (resetAnchorBtn) { clearNearbyAnchor(); return; }
     const radiusToggle = event.target.closest("[data-action='toggle-radius']");
