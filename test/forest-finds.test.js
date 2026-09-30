@@ -427,6 +427,9 @@ globalThis.__forestFindsTest = {
   buildTypeClusters,
   buildSuperClusters,
   drawMegaClusters,
+  clusterJoinAnimationState,
+  CLUSTER_JOIN_ANIMATION_MS,
+  CLUSTER_JOIN_COOLDOWN_MS,
   cacheVersionLabel,
   selectedNavigationTargetPoints,
   balancedNavigationAnchorY,
@@ -799,6 +802,61 @@ test("buildSuperClusters does not chain far-apart clusters into one mega cluster
   assert.ok(superClusters.length > 1, "a long, roughly-uniform run of clusters must not collapse into a single mega cluster");
   // Directly-close pairs still merge: this isn't a regression to "never merge anything".
   assert.equal(groupOf(a), groupOf(b), "clusters within the merge radius of each other still merge");
+});
+
+test("clusterJoinAnimationState leaves a lone pin undisturbed", () => {
+  const lone = { point: { x: 0, y: 0 } };
+  const cluster = { items: [lone], screenPt: { x: 0, y: 0 } };
+  assert.equal(app.clusterJoinAnimationState(cluster, (p) => p, 1000), null,
+    "a single-item cluster never animates -- there is nothing merging into it");
+});
+
+test("clusterJoinAnimationState slides two newly-merged pins toward the cluster centroid, then settles", () => {
+  const first = { point: { x: -10, y: 0 } };
+  const second = { point: { x: 10, y: 0 } };
+  const toScreen = (worldPoint) => worldPoint; // identity: world == screen for this test
+  // Both items must first be seen as lone pins (cluster size 1) before a merge into them counts
+  // as a join -- otherwise their very first frame would look like an animation with no "from".
+  app.clusterJoinAnimationState({ items: [first], screenPt: first.point }, toScreen, 0);
+  app.clusterJoinAnimationState({ items: [second], screenPt: second.point }, toScreen, 0);
+
+  const merged = { items: [first, second], screenPt: { x: 0, y: 0 } };
+  const atStart = app.clusterJoinAnimationState(merged, toScreen, 0);
+  assert.ok(atStart, "two pins that just merged animate rather than snapping straight to the centroid");
+  assert.equal(atStart.renders.length, 2, "both newly-joined items are still converging");
+  assert.equal(atStart.badgeAlpha, 0, "a cluster forming from scratch starts with its badge invisible, not popped in");
+  const firstRender = atStart.renders.find(r => r.item === first);
+  assert.equal(firstRender.x, first.point.x, "at t=0 the animating pin is still at its own, pre-merge position");
+  assert.equal(firstRender.alpha, 1, "at t=0 the animating pin is fully opaque, the badge fully transparent");
+
+  const halfway = app.clusterJoinAnimationState(merged, toScreen, app.CLUSTER_JOIN_ANIMATION_MS / 2);
+  const halfwayRender = halfway.renders.find(r => r.item === first);
+  assert.ok(halfwayRender.x > first.point.x && halfwayRender.x < merged.screenPt.x,
+    "midway through, the pin has moved partway from its own position toward the centroid");
+  assert.ok(halfway.badgeAlpha > 0 && halfway.badgeAlpha < 1, "the badge is partway through fading in");
+
+  const settled = app.clusterJoinAnimationState(merged, toScreen, app.CLUSTER_JOIN_ANIMATION_MS + 1);
+  assert.equal(settled, null, "once the animation finishes, the cluster draws as an ordinary settled badge");
+});
+
+test("clusterJoinAnimationState only animates the item that's actually joining an existing cluster", () => {
+  const veteran1 = { point: { x: -10, y: 0 } };
+  const veteran2 = { point: { x: 10, y: 0 } };
+  const newcomer = { point: { x: 0, y: 10 } };
+  const toScreen = (worldPoint) => worldPoint;
+  const pairCluster = { items: [veteran1, veteran2], screenPt: { x: 0, y: 0 } };
+  // Settle the pair into an established, non-animating cluster first.
+  app.clusterJoinAnimationState(pairCluster, toScreen, 0);
+  app.clusterJoinAnimationState(pairCluster, toScreen, app.CLUSTER_JOIN_ANIMATION_MS + 1);
+  app.clusterJoinAnimationState({ items: [newcomer], screenPt: newcomer.point }, toScreen, app.CLUSTER_JOIN_ANIMATION_MS + 1);
+
+  const grown = { items: [veteran1, veteran2, newcomer], screenPt: { x: 0, y: 3 } };
+  const state = app.clusterJoinAnimationState(grown, toScreen, app.CLUSTER_JOIN_ANIMATION_MS + 2);
+  assert.ok(state, "the newcomer joining triggers an animation");
+  assert.equal(state.renders.length, 1, "only the newly-joined item animates, not the two already-settled members");
+  assert.equal(state.renders[0].item, newcomer);
+  assert.equal(state.badgeAlpha, 1,
+    "an existing cluster's badge stays fully visible while a new member slides in -- it doesn't refade");
 });
 
 test("ICON_PATHS is the single registry for all icon slugs", () => {

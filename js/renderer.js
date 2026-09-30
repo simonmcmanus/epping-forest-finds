@@ -1284,6 +1284,91 @@ function buildTypeClusters(itemSet, toScreen) {
   return clusters;
 }
 
+// Every draw() call rebuilds clusters from scratch (buildTypeClusters above), so there's no
+// persistent cluster identity to animate between frames -- only the underlying items (the same
+// tree/place/cow objects every frame, drawn fresh each time) have one. This tracks, per item,
+// the cluster size it was drawn in last frame; when that jumps from a lone pin (1) to a group
+// (>1) it's a genuine merge, and the item slides from its own pin position into the new
+// cluster's centroid instead of just vanishing there. A cooldown after each animation finishes
+// stops a item sitting right on the clustering radius boundary from restarting the slide every
+// time a pan/zoom nudges it in and out of range.
+const CLUSTER_JOIN_ANIMATION_MS = 260;
+const CLUSTER_JOIN_COOLDOWN_MS = 400;
+const _prevClusterSizeByItem = new Map();
+const _clusterJoinAnimations = new Map();
+const _clusterJoinCooldownUntil = new Map();
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+// Returns null when a cluster's items should draw exactly as they always have (a lone pin, or
+// a group with no merge in flight). Otherwise returns { renders, badgeAlpha }: renders is one
+// { item, x, y, alpha } per item still converging on the cluster's centroid, for the caller to
+// draw with that item's own icon in place of (or alongside) the merged pin; badgeAlpha is how
+// much of the merged pin/count-badge to show under them -- full strength unless every member is
+// newly joining (a brand-new cluster forming from scratch), in which case the badge fades in
+// with the same motion so it doesn't just pop in the instant the last pin arrives.
+function clusterJoinAnimationState(cluster, toScreen, now = performance.now()) {
+  const items = cluster.items;
+  if (items.length <= 1) {
+    const only = items[0];
+    if (only) {
+      _clusterJoinAnimations.delete(only);
+      _prevClusterSizeByItem.set(only, 1);
+    }
+    return null;
+  }
+
+  const renders = [];
+  let maxEased = 0;
+  // A cluster is "forming from scratch" -- and so gets its badge faded in alongside the
+  // converging pins -- only while every single member is still mid-join. The moment any member
+  // has no active join (it was already a settled part of a bigger cluster, or its join just
+  // finished), the badge itself already exists and must stay at full strength: only wasLone,
+  // captured once when each item's own animation was created, decides this, never a fresh
+  // per-frame lookup -- by the second frame _prevClusterSizeByItem already reads the merged
+  // size for every member, which would otherwise make a long-settled cluster look "new" again.
+  let allStillJoiningFromScratch = true;
+  for (const item of items) {
+    let anim = _clusterJoinAnimations.get(item);
+    if (!anim) {
+      const prevSize = _prevClusterSizeByItem.get(item);
+      const wasLone = prevSize === undefined || prevSize <= 1;
+      if (wasLone && !(_clusterJoinCooldownUntil.get(item) > now)) {
+        const from = toScreen(item.point);
+        anim = { startedAt: now, fromX: from.x, fromY: from.y, wasLone };
+        _clusterJoinAnimations.set(item, anim);
+      }
+    }
+    if (anim) {
+      const t = Math.min(1, (now - anim.startedAt) / CLUSTER_JOIN_ANIMATION_MS);
+      if (t >= 1) {
+        _clusterJoinAnimations.delete(item);
+        _clusterJoinCooldownUntil.set(item, now + CLUSTER_JOIN_COOLDOWN_MS);
+        allStillJoiningFromScratch = false;
+      } else {
+        if (!anim.wasLone) allStillJoiningFromScratch = false;
+        const eased = easeOutCubic(t);
+        maxEased = Math.max(maxEased, eased);
+        renders.push({
+          item,
+          x: anim.fromX + (cluster.screenPt.x - anim.fromX) * eased,
+          y: anim.fromY + (cluster.screenPt.y - anim.fromY) * eased,
+          alpha: 1 - eased,
+        });
+      }
+    } else {
+      allStillJoiningFromScratch = false;
+    }
+    _prevClusterSizeByItem.set(item, items.length);
+  }
+
+  if (!renders.length) return null;
+  if (typeof requestDraw === "function") requestDraw();
+  return { renders, badgeAlpha: allStillJoiningFromScratch ? maxEased : 1 };
+}
+
 function landmarkClusterKey(place) {
   if (isPubCategory(place)) return "pub";
   if (isCafeCategory(place)) return "cafe";
@@ -1815,12 +1900,22 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
 
-    ctx.globalAlpha = reveal;
+    const joinState = clusterJoinAnimationState(cluster, resolvedToScreen);
+
+    ctx.globalAlpha = reveal * (joinState ? joinState.badgeAlpha : 1);
 
     const repr = items[0];
     const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
     const drawn = drawPngMapIcon(ctx, src, screenPt.x, screenPt.y, iconSize);
     if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+
+    if (joinState) {
+      for (const r of joinState.renders) {
+        const rSrc = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(r.item.commonName, r.item.latinName)) || iconPath("tree");
+        ctx.globalAlpha = reveal * r.alpha;
+        drawPngMapIcon(ctx, rSrc, r.x, r.y, iconSize);
+      }
+    }
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -2087,6 +2182,41 @@ function shouldDrawMapIcon(type, item, nearbyIconLookup) {
   return Boolean(typeSet && typeSet.has(item));
 }
 
+// The pub/cafe/shop/transport/icon-slug/emoji chain a landmark pin picks its artwork from,
+// factored out so a converging pin mid-merge (drawLandmarks below) can draw the same artwork
+// for its own place at an interpolated position, not just the cluster's representative item.
+function drawLandmarkIcon(ctx, place, x, y, iconSize, dpr, mapScale, uScale) {
+  if (isPubCategory(place)) {
+    return drawPngMapIcon(ctx, iconPath("beer"), x, y, iconSize * BEER_ICON_SCALE);
+  }
+  if (isCafeCategory(place)) {
+    return drawPngMapIcon(ctx, iconPath("cafe"), x, y, iconSize);
+  }
+  if (isShopCategory(place)) {
+    return drawPngMapIcon(ctx, iconPath("shop"), x, y, iconSize);
+  }
+  if (isTransportCategory(place)) {
+    const transportType = getTransportType(place);
+    if (transportType === "underground") {
+      drawUndergroundRoundel(ctx, x, y, 8 * dpr * mapScale * uScale);
+      return false;
+    }
+    if (transportType === "national_rail") {
+      drawNationalRailLogo(ctx, x, y, 8 * dpr * mapScale * uScale);
+      return false;
+    }
+    if (transportType === "parking") {
+      return drawPngMapIcon(ctx, iconPath("landmark-parking"), x, y, iconSize);
+    }
+    return drawPngMapIcon(ctx, iconPath("bus"), x, y, iconSize);
+  }
+  const iconSlug = placeIconSlug(place);
+  if (iconSlug) {
+    return drawPngMapIcon(ctx, iconPath(iconSlug), x, y, iconSize);
+  }
+  return drawEmojiMapPin(ctx, landmarkEmoji(place), x, y, iconSize);
+}
+
 function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
   if (state.selected && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
   const resolvedToScreen = toScreen || worldToScreen;
@@ -2106,40 +2236,19 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
 
     const place = items[0];
     const baseOpacity = markerOpacityFor("landmark", place);
-    ctx.globalAlpha = baseOpacity * reveal;
+    const joinState = clusterJoinAnimationState(cluster, resolvedToScreen);
+    ctx.globalAlpha = baseOpacity * reveal * (joinState ? joinState.badgeAlpha : 1);
 
-    const isPub = isPubCategory(place);
-    const isCafe = isCafeCategory(place);
-    const isTransport = isTransportCategory(place);
-    let drawnAsPng = false;
-
-    if (isPub) {
-      drawnAsPng = drawPngMapIcon(ctx, iconPath("beer"), screenPt.x, screenPt.y, iconSize * BEER_ICON_SCALE);
-    } else if (isCafe) {
-      drawnAsPng = drawPngMapIcon(ctx, iconPath("cafe"), screenPt.x, screenPt.y, iconSize);
-    } else if (isShopCategory(place)) {
-      drawnAsPng = drawPngMapIcon(ctx, iconPath("shop"), screenPt.x, screenPt.y, iconSize);
-    } else if (isTransport) {
-      const transportType = getTransportType(place);
-      if (transportType === "underground") {
-        drawUndergroundRoundel(ctx, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale);
-      } else if (transportType === "national_rail") {
-        drawNationalRailLogo(ctx, screenPt.x, screenPt.y, 8 * dpr * mapScale * uScale);
-      } else if (transportType === "parking") {
-        drawnAsPng = drawPngMapIcon(ctx, iconPath("landmark-parking"), screenPt.x, screenPt.y, iconSize);
-      } else {
-        drawnAsPng = drawPngMapIcon(ctx, iconPath("bus"), screenPt.x, screenPt.y, iconSize);
-      }
-    } else {
-      const iconSlug = placeIconSlug(place);
-      if (iconSlug) {
-        drawnAsPng = drawPngMapIcon(ctx, iconPath(iconSlug), screenPt.x, screenPt.y, iconSize);
-      } else {
-        drawnAsPng = drawEmojiMapPin(ctx, landmarkEmoji(place), screenPt.x, screenPt.y, iconSize);
-      }
-    }
+    const drawnAsPng = drawLandmarkIcon(ctx, place, screenPt.x, screenPt.y, iconSize, dpr, mapScale, uScale);
 
     if (drawnAsPng && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+
+    if (joinState) {
+      for (const r of joinState.renders) {
+        ctx.globalAlpha = markerOpacityFor("landmark", r.item) * reveal * r.alpha;
+        drawLandmarkIcon(ctx, r.item, r.x, r.y, iconSize, dpr, mapScale, uScale);
+      }
+    }
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -2161,9 +2270,16 @@ function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    ctx.globalAlpha = reveal;
+    const joinState = clusterJoinAnimationState(cluster, resolvedToScreen);
+    ctx.globalAlpha = reveal * (joinState ? joinState.badgeAlpha : 1);
     const drawn = drawPngMapIcon(ctx, iconPath("waymarked"), screenPt.x, screenPt.y, iconSize);
     if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    if (joinState) {
+      for (const r of joinState.renders) {
+        ctx.globalAlpha = reveal * r.alpha;
+        drawPngMapIcon(ctx, iconPath("waymarked"), r.x, r.y, iconSize);
+      }
+    }
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -2185,9 +2301,16 @@ function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    ctx.globalAlpha = reveal;
+    const joinState = clusterJoinAnimationState(cluster, resolvedToScreen);
+    ctx.globalAlpha = reveal * (joinState ? joinState.badgeAlpha : 1);
     const drawn = drawPngMapIcon(ctx, iconPath("ponds"), screenPt.x, screenPt.y, iconSize);
     if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    if (joinState) {
+      for (const r of joinState.renders) {
+        ctx.globalAlpha = reveal * r.alpha;
+        drawPngMapIcon(ctx, iconPath("ponds"), r.x, r.y, iconSize);
+      }
+    }
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -2210,9 +2333,16 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const baseOpacity = markerOpacityFor("cow", items[0]);
-    ctx.globalAlpha = baseOpacity * reveal;
+    const joinState = clusterJoinAnimationState(cluster, resolvedToScreen);
+    ctx.globalAlpha = baseOpacity * reveal * (joinState ? joinState.badgeAlpha : 1);
     const drawn = drawPngMapIcon(ctx, iconPath("cow"), screenPt.x, screenPt.y, iconSize);
     if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize, dpr);
+    if (joinState) {
+      for (const r of joinState.renders) {
+        ctx.globalAlpha = markerOpacityFor("cow", r.item) * reveal * r.alpha;
+        drawPngMapIcon(ctx, iconPath("cow"), r.x, r.y, iconSize);
+      }
+    }
   }
   ctx.globalAlpha = 1;
   ctx.restore();
