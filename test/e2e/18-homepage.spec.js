@@ -26,7 +26,7 @@ test.describe("the marketing homepage", () => {
   test("states the offline promise, the trees and the cattle", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Works where your signal doesn't/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Every veteran tree in the register/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
     await expect(page.locator(".hero + .pillars + #find-trees")).toHaveCount(1);
