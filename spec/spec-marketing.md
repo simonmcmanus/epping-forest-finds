@@ -77,10 +77,7 @@ Epping Forest." so the first line leads.
 
 ### 3.2 Hero sub-line
 
-> Fancy a nose round the forest? There are 24,906 veteran trees
-> to get to know. Pop in a tree’s tag number, find your way over and see roughly
-> how old it is. Paths, pubs, loos and the longhorns are on here too.
-> All on a free, offline map. Handy when your signal’s done a runner.
+> A free, offline map of Epping Forest. Find 24,906 veteran trees, forest paths, pubs and grazing cattle.
 
 ### 3.3 One-line description (meta description, manifest, store listings)
 
@@ -90,20 +87,13 @@ Epping Forest." so the first line leads.
 ### 3.4 Pillar headings and bodies
 
 **Works where your phone doesn't**
-> Get the map downloaded while you’ve got wi-fi or a bit of signal.
-> Then off you go. The trees, paths and landmarks stay on your phone,
-> even when the bars disappear. Which, round here, they do.
+> Download once, then explore the trees, paths and landmarks without a signal.
 
 **Get to know the old trees**
-> All 24,906 trees from the Epping Forest Veteran Tree Register, right here
-> on the map with their species and records. Got a tag number? Pop it in
-> to find that tree and see its estimated age. There’s a fair bit of history in those trunks.
+> Look up a tree’s tag number to find its species, record and estimated age.
 
 **Follow the longhorns**
-> The longhorns have got GPS collars. Very high-tech for a bunch that spends
-> most of the day chewing. We show their latest reported positions and check
-> online for updates now and then. Offline, you’ll see the last saved positions,
-> so they might have wandered off since.
+> See the latest reported cattle locations from their GPS collars. Positions refresh while online; offline, you’ll see the last saved positions, which may be out of date.
 
 **Everything else you need out there**
 > 9,162 paths and bridleways. 1,005 pubs, cafés and shops. 1,596 car parks,
@@ -112,7 +102,6 @@ Epping Forest." so the first line leads.
 
 ### 3.5 Short forms
 
-- Tagline: **Epping Forest, offline.**
 - Social/sharing line: **Find Epping Forest’s veteran trees by tag number, navigate to them and discover their estimated ages on an offline map.**
 - Free/access line: **Free. No account needed. No signal needed.**
 
@@ -130,12 +119,9 @@ Each of these contradicts something the project has already published:
 
 ### 3.7 Tone
 
-Warm, chatty and lightly cheeky: a local London/Essex voice with a bit of Cockney
-charm. Use everyday contractions and phrases such as “have a nose”, “give you a
-shout” and “done a runner”. Let the humour come from familiar forest moments:
-patchy signal, a cuppa after a walk, cattle going about their business. Keep facts
-and practical instructions clear. No phonetic accent spelling, forced rhyming
-slang, invented personal anecdotes or claims of local residence.
+Warm, plain and concise. Lead with what the app does. Keep contractions, but cut
+jokes, rhetorical questions and repeated explanations that delay the useful point.
+Keep the age-estimate and offline cattle caveats explicit.
 
 Avoid: exclamation marks, "revolutionise", "seamless", "experience" as a noun,
 "powered by", emoji in body copy, and stacked superlatives. If a sentence would
@@ -188,6 +174,12 @@ rendered with thousands separators.
 
 ## 5. Homepage structure
 
+Copy stays brief: no introductory filler above the inventory or offline steps;
+tree captions give one action each. The signup introduction says “Hear when early
+testing opens, plus weekly Epping Forest Ledger updates once the site launches.”
+FAQ answers match their JSON-LD wording. The veteran-tree card uses the oak-leaf
+brand icon. These edits preserve the signup consent wording and mailing scope.
+
 `/` is plain, static, server-rendered HTML. **All copy is present without
 JavaScript** — a share target that needs JS to say what it is, isn't one. JS is
 permitted only to enhance the sign-up form (inline validation, async submit) and
@@ -219,8 +211,8 @@ Sections, in order:
    in the same 38px column, with aligned category and subcategory labels. The
    header brand mark is the transparent oak leaf from the app icon, without
    the app icon's yellow background, shown at 44px (36px on phones), with the
-   brand name and Ledger link each kept to one line. The same leaf sits in a
-   34px cream circle before the hero eyebrow ("Epping Forest, offline").
+   brand name and Ledger link each kept to one line. The hero starts directly
+   with its headline; there is no eyebrow repeating the offline promise.
 3. **Three feature cards** — offline, veteran trees and cattle (§3.4). White
    cards have rounded borders, shadows and 80px centred independent brand
    icons from `assets/home/`, with centred headings. Use three equal columns
@@ -254,13 +246,13 @@ Sections, in order:
    Ledger card's accent placement. A 52px envelope icon
    (`assets/home/mail.png`, shaded cream and gold with dark-green outline, in the style of
    the homepage map pin), 44px, sits on the heading's line, vertically centred
-   on it, never on a line of its own. The eyebrow runs above, its left edge
-   flush with the icon. The layout is tight: email field and button share one row on wide
+   on it, never on a line of its own. The section starts with this heading,
+   without a repeated signup eyebrow. The layout is tight: email field and button share one row on wide
    screens (stacked on mobile), with the consent checkbox and privacy line
    directly beneath. Introduction, consent and supporting text
    use the full card content width; only the email-and-button row has a narrower cap. Both introduction and
    consent include weekly Epping Forest Ledger updates once the site launches.
-6. **No signal? Here’s the plan** — a one-line intro, then three steps: open it once
+6. **No signal? Here’s the plan** — three steps: open it once
    on signal, it downloads, it then works anywhere in the forest. The steps and
    the cattle note share one white shadowed card (like the map inventory), so
    there are no floating boxes. Each step has a round dark-green number badge
@@ -417,7 +409,7 @@ the site runs in.
 
 | State | CTA | Supporting line |
 | --- | --- | --- |
-| `closed` | Keep me in the loop → sign-up form | "Want to be one of the first to try it? Sign up now to be an early tester, and we’ll give you a shout when it’s ready." |
+| `closed` | Keep me in the loop → sign-up form | "Sign up to hear when early testing opens." |
 | `open` | Open the map → `/app` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
@@ -425,9 +417,9 @@ links — is written to be true in all three states and does not change.
 
 The page must not imply immediate access or invitations already being sent.
 The signup heading is “Be in the know”, the submit button
-is “Keep me posted”, and the introduction repeats that invitations aren’t
-open yet and subscribers will also receive major updates and weekly Ledger updates
-once the site launches. The consent label states the same mailing scope.
+is “Keep me posted”, and the introduction offers news when early testing opens
+and weekly Ledger updates once the site launches. The consent label retains
+the same mailing scope.
 
 ## 9. Mailing list
 

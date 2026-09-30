@@ -547,6 +547,25 @@ globalThis.__forestFindsTest = {
     };
   }
 
+  // The nav bar is its own fixed bottom bar now (see app.html), not part of #inspector, and
+  // stays visible regardless of the sheet's own open/minimized state -- so it always obstructs
+  // a thin strip at the very bottom of the stage. Modelled the same way as the sheet rect above:
+  // without this override the default full-stage stub would make inspectorCanvasOverlapRect's
+  // union cover the whole canvas again (see the comment on els.inspector above).
+  const NAV_BAR_HEIGHT = 74;
+  if (api.els.inspectorActions) {
+    api.els.inspectorActions.getBoundingClientRect = function navRect() {
+      return {
+        left: 0,
+        top: STAGE_HEIGHT - NAV_BAR_HEIGHT,
+        right: STAGE_WIDTH,
+        bottom: STAGE_HEIGHT,
+        width: STAGE_WIDTH,
+        height: NAV_BAR_HEIGHT,
+      };
+    };
+  }
+
   return api;
 }
 
@@ -635,10 +654,11 @@ function resetData(app) {
   app.state.canvasVisibleWidth = 1000;
   app.state.canvasVisibleHeight = 800;
   app.els.inspector.classList.remove("minimized");
-  // Several tests below hide the inspector to take its geometry out of the picture and never
-  // put it back; without this that leaks into every later test, silently removing the
-  // inspector overlap from their fits.
+  // Several tests below hide the inspector (and the nav bar alongside it) to take their geometry
+  // out of the picture and never put it back; without this that leaks into every later test,
+  // silently removing the inspector/nav overlap from their fits.
   app.els.inspector.hidden = false;
+  app.els.inspectorActions.hidden = false;
   app.els.canvas.width = 1000;
   app.els.canvas.height = 800;
   app.location.hash = "";
@@ -5644,6 +5664,7 @@ test("navigationFocusPoint and nearbyHeadingUpFocusY still place the pivot via h
   app.state.compassHeading = 90; // finite heading, no selection -> nearbyHeadingUpActive()
   app.state.tiltBetaSmoothed = 48.5;
   app.els.inspector.hidden = true; // avoid unrelated inspector-overlap geometry in this check
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
 
   const anchor = app.headingUpAnchorFraction(false);
   const focusRect = app.bestVisibleCanvasRect();
@@ -5665,6 +5686,7 @@ test("tiltAvailableAheadCssPx is the visible map height above the pivot, convert
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.tiltBetaSmoothed = 85; // max tilt -> nearby anchor is exactly 0.94
 
   app.state.canvasVisibleHeight = 800;
@@ -5694,6 +5716,7 @@ test("tiltPerspectivePx keeps the ground/sky split at a constant fraction of the
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.tiltBetaSmoothed = 60; // an ordinary mid-range tilt, not max
 
   function groundFraction() {
@@ -5726,6 +5749,7 @@ test("tiltPerspectivePx reaches exactly TILT_HORIZON_GROUND_RATIO ground/sky spl
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> tiltRotateXDeg() === TILT_ROTATEX_MAX exactly
   app.state.canvasVisibleHeight = 800;
 
@@ -5752,6 +5776,7 @@ test("tiltPerspectivePx does not collapse the safe distance-behind-the-user marg
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.canvasVisibleHeight = 800;
 
   for (const beta of [13, 20, 30, 48.5, 60, 75, 85]) {
@@ -5794,6 +5819,7 @@ test("tiltAvailableAheadCssPx / tiltPerspectivePx do not collapse when the desti
   app.state.compassHeading = 90; // facing east
   app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -- mirrored anchor reaches its full 0.12
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.canvasVisibleHeight = 800;
 
   app.state.selected = { type: "tree", item: { id: "ahead", ...makePoint(app, 0, 0.001) } }; // dead ahead
@@ -5842,6 +5868,7 @@ test("tiltAvailableAheadCssPx / tiltPerspectivePx do not dip below the historica
   app.state.compassHeading = 90; // facing east
   app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> tiltRampedAnchor(true) === 0.88 exactly
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.canvasVisibleHeight = 800;
 
   // Due north while facing east: directly to a side (offset exactly +-pi/2).
@@ -5870,6 +5897,7 @@ test("tiltPerspectivePx clamps to a sane range for extreme viewport heights, and
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
 
   app.state.tiltBetaSmoothed = 60;
   app.state.canvasVisibleHeight = 4; // absurdly short viewport
@@ -5888,6 +5916,7 @@ test("worldToScreen, projectCanvasPoint and worldToScreenForOverlayTilted share 
   app.state.compassHeading = 0;
   app.state.userLocation = makePoint(app, 0, 0); // world (0,0) -> rawWorldToScreen -> screen (500, 400) given the default viewport
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.tiltBetaSmoothed = 60;
 
   const origin = { x: 500, y: 400 };

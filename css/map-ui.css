@@ -183,27 +183,48 @@
   }
 }
 
-/* Phones held in landscape hit the ≥761px breakpoint and get the desktop side-panel layout.
-   This overrides that and keeps the portrait bottom-sheet layout on any touch device
-   with a small height (phones in landscape: ~360–430 px; tablets: 768 px+). */
-@media (orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
-  .inspector {
+/* Covers both mobile bottom-sheet layouts: plain portrait, and phones held in landscape, which
+   would otherwise hit the ≥761px breakpoint and get the desktop side-panel layout -- the
+   `(pointer: coarse) and (max-height: 500px)` clause overrides that and keeps the bottom-sheet
+   layout on any touch device with a small height (phones in landscape: ~360-430px; tablets:
+   768px+, unaffected). In both, the nav bar moves from "sits above the panel" (desktop default,
+   css/inspector.css) to a tab bar of its own pinned to the very bottom of the screen -- a card
+   separate from the inspector sheet above it, the common pattern in apps like Monzo. The sheet's
+   own bottom offset leaves a gap above the bar so the two read as distinct panels. */
+@media (orientation: landscape) and (pointer: coarse) and (max-height: 500px),
+(max-width: 760px) {
+  .inspector-actions {
+    position: fixed;
     top: auto;
     left: 10px;
     right: 10px;
     bottom: 10px;
     width: auto;
-    max-height: var(--inspector-height, 48%);
+  }
+
+  /* In-flight keyboard-avoidance only (see the section below): Report's sheet expands to fill
+     the space above the keyboard and has nothing to show behind the bar, so it goes under the
+     keyboard rather than fighting the sheet for room. */
+  .inspector-actions.keyboard-avoiding-hide {
+    display: none;
+  }
+
+  .inspector {
+    top: auto;
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + var(--nav-bar-h) + 10px);
+    width: auto;
+    /* Subtract the same nav-bar-plus-gap reservation the bottom offset above adds, so the
+       sheet's total footprint (sheet + gap + nav bar) matches what it was when the nav row
+       lived inside the sheet's own --inspector-height budget -- otherwise the sheet doesn't
+       get shorter when the nav row moves out, it just shifts up and claims that much extra
+       map area on top of what it already had. */
+    max-height: calc(var(--inspector-height, 48%) - var(--nav-bar-h) - 10px);
     transition: max-height 120ms ease-out;
   }
 
   .inspector-drag-handle { display: flex; }
-  .inspector-actions { margin-top: 26px; }
-
-  /* The labelled nav bar's in-flow height (unlike the old icon-only overlay) eats most of
-     the ~180px this layout has left once the keyboard is up, starving the textarea. Hide it
-     while typing -- there's nothing to navigate to mid-entry -- so the form gets that space back. */
-  .inspector.keyboard-avoiding .inspector-actions { display: none; }
 
   .row { grid-template-columns: 1fr; gap: 3px; }
 }
@@ -217,24 +238,6 @@
     width: 100%;
   }
 
-  .inspector {
-    top: auto;
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
-    width: auto;
-    max-height: var(--inspector-height, 48%);
-    transition: max-height 120ms ease-out;
-  }
-
-  .inspector-drag-handle {
-    display: flex;
-  }
-
-  .inspector-actions {
-    margin-top: 26px;
-  }
-
   .toolbar {
     top: 10px;
     left: 10px;
@@ -243,19 +246,29 @@
   .legend {
     display: none;
   }
-
-  .row {
-    grid-template-columns: 1fr;
-    gap: 3px;
-  }
 }
 
-/* Report screen keyboard avoidance (js/nav.js: handleReportViewportChange). Shifts the bottom
-   sheet up and shrinks it to stay above the on-screen keyboard using the live VisualViewport
-   inset, on both the portrait and landscape bottom-sheet layouts. */
+/* Report and Search keyboard avoidance (js/nav.js: handleReportViewportChange). Shifts the
+   bottom sheet up to stay above the on-screen keyboard using the live VisualViewport inset, on
+   both the portrait and landscape bottom-sheet layouts. */
 @media (max-width: 760px),
 (orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
   .inspector.keyboard-avoiding {
+    /* Search: the sheet keeps its normal size (below) and just shifts up by the keyboard inset,
+       carrying forward the same gap it always leaves above the nav bar -- which is fine to cover
+       with the keyboard here, since the sheet itself no longer needs the room. */
+    bottom: calc(10px + var(--nav-bar-h) + 10px + var(--keyboard-inset, 0px));
+    /* The keyboard's own slide-in is already animated; racing our own transition against it
+       left values transiently interpolating from the pre-keyboard offset right when
+       scroll-into-view measured them. Snap instead of tweening here. */
+    transition: max-height 0s;
+  }
+
+  /* Report only: the form has nothing else to show, so its sheet grows to (almost) fill the
+     space above the keyboard instead of keeping its normal size -- which also means it no
+     longer needs the gap to the (now hidden, see .keyboard-avoiding-hide) nav bar, so its own
+     bottom offset drops the reservation the shared rule above keeps for Search. */
+  .inspector.keyboard-avoiding.keyboard-avoiding-expand {
     bottom: calc(10px + var(--keyboard-inset, 0px));
     /* `height`, not just `max-height`: with only a cap, the sheet's auto height is resolved by
        shrink-to-fit *before* the flex column's children get to flex-shrink into the space that
@@ -263,11 +276,6 @@
        An explicit height makes that space definite, so the column really gets to use it. */
     height: calc(100% - 20px - var(--keyboard-inset, 0px));
     max-height: calc(100% - 20px - var(--keyboard-inset, 0px));
-    /* The keyboard's own slide-in is already animated; racing our height/max-height transition
-       against it left the sheet's height transiently interpolating from its pre-keyboard
-       value (e.g. the landscape default 48%) right when scroll-into-view measured it,
-       intermittently starving the textarea. Snap instead of tweening here. */
-    transition: max-height 0s;
   }
 
   /* With an explicit (not just max-) height on the sheet, .inspector-scroll's default
@@ -275,7 +283,7 @@
      grants -- it only *shrinks* to fit, never grows into slack the column isn't using.
      Grow it here so the scrollable body claims all of the keyboard-avoiding sheet the
      fixed-size header doesn't need. */
-  .inspector.keyboard-avoiding .inspector-scroll {
+  .inspector.keyboard-avoiding.keyboard-avoiding-expand .inspector-scroll {
     flex-grow: 1;
   }
 }

@@ -740,7 +740,7 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
 
   // Apply chrome updates
   els.inspectorBack.hidden = !showBack;
-  if (els.inspectorHeader) els.inspectorHeader.classList.toggle("has-back", Boolean(showBack));
+  if (els.inspectorTitleSection) els.inspectorTitleSection.classList.toggle("has-back", Boolean(showBack));
   els.inspectorTitleEmoji.hidden = !emoji;
   if (emoji && emoji.includes("<")) {
     els.inspectorTitleEmoji.innerHTML = emoji;
