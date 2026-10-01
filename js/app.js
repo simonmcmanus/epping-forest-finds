@@ -2056,9 +2056,21 @@ function settingsFormHtml() {
   // A floor below a minute means something is close enough to be worth the finer step.
   const stepMinutes = floorMinutes < 1 ? WALKING_RADIUS_FINE_STEP_MINUTES : WALKING_RADIUS_STEP_MINUTES;
   const sliderValue = clamp(minutes, floorMinutes, WALKING_RADIUS_MAX_MINUTES);
-  const ticks = WALKING_RADIUS_PRESET_MINUTES
-    .filter((m) => m >= floorMinutes && m <= WALKING_RADIUS_MAX_MINUTES)
-    .map((m) => `<option value="${m}"></option>`)
+  // Reused for the datalist's <option> grid (the slider's real, browser-enforced snap points)
+  // and for the decorative tick marks below the track, which only mirror that grid visually --
+  // native range+datalist tick rendering is lost entirely once appearance:none re-skins the
+  // track and thumb (see .walk-radius-range), so the preset stops need their own markup to be
+  // seen at all.
+  const reachablePresets = WALKING_RADIUS_PRESET_MINUTES.filter(
+    (m) => m >= floorMinutes && m <= WALKING_RADIUS_MAX_MINUTES
+  );
+  const ticks = reachablePresets.map((m) => `<option value="${m}"></option>`).join("");
+  const trackSpan = WALKING_RADIUS_MAX_MINUTES - floorMinutes;
+  const tickMarks = reachablePresets
+    .map((m) => {
+      const pct = trackSpan > 0 ? ((m - floorMinutes) / trackSpan) * 100 : 0;
+      return `<span class="walk-radius-tick" style="left:${pct.toFixed(2)}%"></span>`;
+    })
     .join("");
   return `<div class="settings-form">
     <section class="settings-section">
@@ -2066,34 +2078,37 @@ function settingsFormHtml() {
       <p class="settings-description">How far to walk when listing nearby places. A circle is drawn on the map at this distance.</p>
       <label for="settingsWalkMins" class="settings-label">Walking time
         <span class="walk-radius-row">
-          <input type="range" id="settingsWalkMins" class="walk-radius-range"
-            min="${floorMinutes}" max="${WALKING_RADIUS_MAX_MINUTES}" step="${stepMinutes}"
-            value="${sliderValue}" list="walkRadiusTicks">
-          <span class="walk-radius-value" id="settingsWalkMinsValue">${formatWalkingRadius(sliderValue)}</span>
+          <span class="walk-radius-track-wrap">
+            <input type="range" id="settingsWalkMins" class="walk-radius-range"
+              min="${floorMinutes}" max="${WALKING_RADIUS_MAX_MINUTES}" step="${stepMinutes}"
+              value="${sliderValue}" list="walkRadiusTicks" aria-valuetext="${formatWalkingRadius(sliderValue)}">
+            <span class="walk-radius-ticks" aria-hidden="true">${tickMarks}</span>
+          </span>
+          <span class="walk-radius-value" id="settingsWalkMinsValue" aria-hidden="true">${formatWalkingRadius(sliderValue)}</span>
         </span>
         <datalist id="walkRadiusTicks">${ticks}</datalist>
       </label>
-      <p class="source-note walk-radius-floor-note" id="settingsWalkMinsFloorNote"${sliderValue > floorMinutes ? " hidden" : ""}>This is as close as it gets — nothing closer to show nearby.</p>
-    </section>
-    <section class="settings-section">
-      <h3 class="settings-section-title">Privacy</h3>
-      <p class="settings-description">Location &amp; usage tracking: <strong id="privacyConsentStatus">${hasTrackingConsent() ? "enabled" : "not enabled"}</strong>. We collect anonymous GPS position, navigation and interaction data to improve the app. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
-      <button id="privacyConsentToggle" class="settings-refresh-btn" type="button">${hasTrackingConsent() ? "Withdraw consent" : "Enable location &amp; tracking"}</button>
+      <p class="source-note walk-radius-floor-note" id="settingsWalkMinsFloorNote" aria-live="polite"${sliderValue > floorMinutes ? " hidden" : ""}>This is as close as it gets — nothing closer to show nearby.</p>
     </section>
     <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
       <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
-      <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded — reload to see it.</p>
+      <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded. <button id="dataUpdateReloadButton" class="inline-text-button" type="button">Reload now</button> to see it.</p>
       <div class="settings-refresh">
         <div class="settings-refresh-row">
-          <button id="refreshDataButton" class="settings-refresh-btn" type="button"${online ? "" : " disabled"}>Refresh data</button>
-          <button id="refreshAppButton" class="settings-refresh-btn" type="button"${online ? "" : " disabled"}>Refresh app</button>
-          <button id="refreshAllButton" class="settings-refresh-btn" type="button"${online ? "" : " disabled"}>Refresh both</button>
+          <button id="refreshDataButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh data</button>
+          <button id="refreshAppButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh app</button>
+          <button id="refreshAllButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh both</button>
         </div>
         <p class="settings-description">Map missing or out of date? <strong>Refresh data</strong> re-downloads the trees, paths and places. Not seeing the latest version? <strong>Refresh app</strong> clears the cached app. <strong>Refresh both</strong> starts completely cold.</p>
         <p id="refreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Refreshing needs an internet connection — you\'re offline right now.</p>
       </div>
+    </section>
+    <section class="settings-section">
+      <h3 class="settings-section-title">Privacy</h3>
+      <p class="settings-description">Location &amp; usage tracking: <strong id="privacyConsentStatus">${hasTrackingConsent() ? "enabled" : "not enabled"}</strong>. We collect anonymous GPS position, navigation and interaction data to improve the app. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+      <button id="privacyConsentToggle" class="settings-btn" type="button">${hasTrackingConsent() ? "Withdraw consent" : "Enable location &amp; tracking"}</button>
     </section>
   </div>`;
 }
@@ -2127,7 +2142,9 @@ function bindSettingsHandlers() {
       // when something sits less than a minute away) still lands on whole half-minutes once
       // it is dragged up past a minute.
       const value = roundWalkingMinutes(Number(range.value));
-      if (valueLabel) valueLabel.textContent = formatWalkingRadius(value);
+      const label = formatWalkingRadius(value);
+      if (valueLabel) valueLabel.textContent = label;
+      range.setAttribute("aria-valuetext", label);
       if (floorNote) floorNote.hidden = value > floorMinutes;
       applyWalkingRadiusChange(value, { animate: false });
     });
@@ -2140,6 +2157,9 @@ function bindSettingsHandlers() {
     const button = document.getElementById(REFRESH_SCOPES[scope].buttonId);
     if (button) button.addEventListener("click", () => refreshCachedState(scope));
   }
+
+  const dataReloadButton = document.getElementById("dataUpdateReloadButton");
+  if (dataReloadButton) dataReloadButton.addEventListener("click", () => location.reload());
 
   const privacyToggle = document.getElementById("privacyConsentToggle");
   if (privacyToggle) {

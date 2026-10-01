@@ -3837,6 +3837,17 @@ test("nearby HTML does not contain the app version", () => {
   assert.ok(!html.includes("App version:"), "app version should not appear in the nearby section");
 });
 
+test("settings form puts About (and its refresh buttons) before Privacy, not last", () => {
+  const html = app.settingsFormHtml();
+  const aboutIndex = html.indexOf('<h3 class="settings-section-title">About</h3>');
+  const privacyIndex = html.indexOf('<h3 class="settings-section-title">Privacy</h3>');
+  assert.ok(aboutIndex > -1 && privacyIndex > -1, "both sections should be present");
+  assert.ok(
+    aboutIndex < privacyIndex,
+    "About (with the Refresh buttons people open Settings for) should render before Privacy, so it isn't the last thing scrolled to"
+  );
+});
+
 test("settings form shows the app version", () => {
   app.state.swVersion = "v157";
   const html = app.settingsFormHtml();
@@ -3845,6 +3856,28 @@ test("settings form shows the app version", () => {
   assert.match(html, /v157/, "settings form should include the app version number");
   assert.match(html, /App version/, "settings form should label the app version");
   assert.match(html, /appVersionDisplay/, "settings form should include the version span for dynamic updates");
+});
+
+test("settings form's walking-time value is hidden from assistive tech in favour of the slider's own aria-valuetext", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.walkingDistanceMinutes = 5;
+  const html = app.settingsFormHtml();
+  assert.match(
+    html,
+    /<span class="walk-radius-value" id="settingsWalkMinsValue" aria-hidden="true">5 min<\/span>/,
+    "the visible '5 min' label should not be read out separately from the slider itself"
+  );
+  assert.match(
+    html,
+    /aria-valuetext="5 min"/,
+    "the range input should carry the same value as its own aria-valuetext"
+  );
+});
+
+test("settings form's floor note is an aria-live region, so hitting the floor is announced", () => {
+  const html = app.settingsFormHtml();
+  assert.match(html, /id="settingsWalkMinsFloorNote" aria-live="polite"/);
 });
 
 test("settings form's Privacy section reflects and toggles tracking consent", () => {
@@ -3961,6 +3994,19 @@ test("settings form is a continuous slider spanning every preset tick when there
   assert.match(html, /min="1" max="30" step="0.5"/, "slider should span the full 1-30 min range with no floor constraint");
   for (const mins of [1, 2, 5, 10, 15, 20, 30]) {
     assert.match(html, new RegExp(`<option value="${mins}">`), `missing tick mark: ${mins} min`);
+  }
+});
+
+test("settings form draws its own tick marks for the preset stops, since appearance:none hides the native ones", () => {
+  app.state.userLocation = null;
+  const html = app.settingsFormHtml();
+  // floor=1, max=30 -> trackSpan=29; each preset's tick sits at (preset - floor) / trackSpan.
+  for (const [mins, pct] of [[1, "0.00"], [2, "3.45"], [5, "13.79"], [15, "48.28"], [30, "100.00"]]) {
+    assert.match(
+      html,
+      new RegExp(`<span class="walk-radius-tick" style="left:${pct}%"></span>`),
+      `missing positioned tick mark for ${mins} min`
+    );
   }
 });
 

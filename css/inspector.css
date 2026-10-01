@@ -462,6 +462,13 @@ button.settings-toggle.has-update::after {
   color: var(--tree);
 }
 
+.walk-radius-track-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
 .walk-radius-range {
   flex: 1;
   appearance: none;
@@ -469,6 +476,31 @@ button.settings-toggle.has-update::after {
   height: 4px;
   border-radius: 999px;
   background: var(--line);
+}
+
+/* appearance:none above strips the native datalist tick marks along with the rest of the
+   track/thumb chrome, so the preset stops (WALKING_RADIUS_PRESET_MINUTES) get their own tick
+   marks here, positioned from the same floor-to-max span the slider itself uses. The 11px inset
+   roughly matches half the thumb's own width (22px, see ::-webkit-slider-thumb below), so a tick
+   lines up with where that preset actually sits under the thumb rather than the raw 0-100% of
+   the wrapper. */
+.walk-radius-ticks {
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  top: 50%;
+  height: 0;
+  pointer-events: none;
+}
+
+.walk-radius-tick {
+  position: absolute;
+  top: -1px;
+  width: 2px;
+  height: 6px;
+  margin-left: -1px;
+  background: rgba(47, 111, 78, 0.45);
+  border-radius: 1px;
 }
 
 /* The default outline lands on the track, not the thumb the user is actually dragging — style
@@ -524,7 +556,9 @@ button.settings-toggle.has-update::after {
   gap: 8px;
 }
 
-.settings-refresh-btn {
+/* Shared by the three refresh buttons and the privacy consent toggle — all three are the same
+   "secondary pill" action, not specifically a refresh. */
+.settings-btn {
   padding: 8px 14px;
   border-radius: 8px;
   border: 1px solid rgba(47, 111, 78, 0.25);
@@ -536,13 +570,27 @@ button.settings-toggle.has-update::after {
   transition: all 140ms ease;
 }
 
-.settings-refresh-btn:active {
+.settings-btn:active {
   transform: scale(0.97);
 }
 
-.settings-refresh-btn:disabled {
+.settings-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* A plain inline action within running text (the "reload now" prompt below) -- no border or
+   background, just an underlined, clickable word. */
+.inline-text-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--tree);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .report-form {
@@ -646,6 +694,11 @@ button.settings-toggle.has-update::after {
 }
 
 .sw-update-available {
+  display: inline-block;
+  /* Padding plus a matching negative margin grows the tap target around the small inline
+     version string without shifting the surrounding text (WCAG 2.5.5 target size). */
+  padding: 6px 4px;
+  margin: -6px -4px;
   color: #b34733;
   cursor: pointer;
   font-weight: 700;
