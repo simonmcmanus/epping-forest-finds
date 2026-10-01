@@ -1049,11 +1049,6 @@ The location gate (`#locationGate`) must work fully offline:
 Keyboard and screen-reader support for the app shell, on top of the arrow-key/Enter navigation
 already documented for Nearby/Search result rows under Overview Content and Secondary Screens.
 
-- **Skip link.** `app.html` opens with `<a class="skip-link" href="#inspector">Skip to nearby
-  places</a>`, hidden off-screen (`css/base.css` `.skip-link`) until it receives keyboard focus,
-  so a keyboard or screen-reader user can jump straight from page load to the list-based Nearby
-  panel instead of tabbing across the canvas map, which has no keyboard-operable content of its
-  own. `#inspector` carries `tabindex="-1"` so the jump actually lands focus there.
 - **Modal dialogs.** The three full-screen overlays — `#locationGate`, `#distanceWarning`,
   `#onboardingOverlay` — carry `role="dialog"` and `aria-modal="true"`,
   each labelled via `aria-labelledby` (or `aria-label` for onboarding, whose heading text changes

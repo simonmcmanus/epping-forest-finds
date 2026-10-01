@@ -8750,17 +8750,6 @@ test("the app's modal overlays declare dialog role, modal state and an accessibl
   assert.match(html, /id="onboardingOverlay"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-label="[^"]+"/);
 });
 
-test("a skip link lets keyboard users bypass the canvas map to reach the Nearby panel", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-
-  assert.match(html, /<a class="skip-link" href="#inspector">[^<]*<\/a>/);
-  assert.match(html, /<aside id="inspector"[^>]*tabindex="-1"/, "skip target must be focusable for the jump to land for screen-reader users");
-
-  const css = fs.readFileSync(path.join(__dirname, "..", "css", "base.css"), "utf8");
-  assert.match(css, /\.skip-link\s*\{[^}]*top:\s*-100px/, "skip link should be visually hidden until focused");
-  assert.match(css, /\.skip-link:focus\s*\{[^}]*top:\s*8px/, "skip link should become visible on focus");
-});
-
 test("activateModalFocus traps Tab within the container and restores focus on deactivate", () => {
   // Minimal hand-rolled DOM: just enough real focus()/querySelectorAll()/addEventListener()
   // semantics for js/nav.js's actual activateModalFocus to run against, without pulling in a

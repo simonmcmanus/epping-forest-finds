@@ -150,21 +150,6 @@ test.describe("URL navigation", () => {
   });
 
   test.describe("keyboard accessibility", () => {
-    test("a skip link jumps from the canvas straight to the Nearby panel", async ({ page }) => {
-      // setup() force-hides the location gate JS-side (see helpers.js), which does not itself
-      // move focus, so activating the skip link directly (rather than fighting real browser Tab
-      // order against a gate that already claimed focus on open) is what actually exercises the
-      // feature: that it exists, is reachable, and its target receives focus.
-      await setup(page);
-      const skipLink = page.locator(".skip-link");
-      await expect(skipLink).toHaveAttribute("href", "#inspector");
-      await skipLink.focus();
-      await expect(skipLink).toBeFocused();
-
-      await page.keyboard.press("Enter");
-      await expect(page.locator("#inspector")).toBeFocused();
-    });
-
     test("Search, Nearby, Filters, Feedback and Settings are always reachable by Tab", async ({ page }) => {
       // The nav row (#nearbyToggle/#filterToggle/#searchToggle/#reportToggle/#settingsToggle)
       // sits at the top of #inspector, before any per-screen content, so it is the first thing
@@ -188,49 +173,6 @@ test.describe("URL navigation", () => {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();
       }
-    });
-
-    test.describe("with location already granted", () => {
-      // Geolocation must be granted here: otherwise boot() shows the location gate, which
-      // correctly (and intentionally) traps focus onto itself -- see the "Modal dialogs" section
-      // of spec-data-rendering.md. This test is about the path where no modal opens at all.
-      test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
-
-      test("a keyboard user can reach the nav without clicking first", async ({ page }) => {
-        // A full page load doesn't reliably hand keyboard focus to the document (it can sit in
-        // the browser chrome instead), so without boot() explicitly focusing the skip link, the
-        // first Tab a keyboard-only visitor presses can go nowhere obvious -- indistinguishable
-        // from the nav simply not being keyboard-operable. No setup()/body.focus() here: this
-        // exercises the real boot path, with no modal open to claim focus instead.
-        await skipOnboarding(page);
-        await mockCowApi(page);
-        await gotoAndWaitForMap(page);
-        await expect(page.locator(".skip-link")).toBeFocused();
-
-        await page.keyboard.press("Tab");
-        await expect(page.locator("#searchToggle")).toBeFocused();
-      });
-
-      test("Tab from a map interaction goes straight to the nav row, not back to the skip link", async ({ page }) => {
-        // A pointer interaction with the canvas (panning, tapping a tree) leaves nothing
-        // focused -- the canvas itself is never a focus target (see the skip-link's own note).
-        // The browser still remembers where the sequential-focus-navigation cursor last was
-        // (the skip link, from boot()'s own focus call), so the next Tab resumes from there
-        // rather than restarting the whole document from the top -- a keyboard user who has
-        // already been using the map with a mouse/touch shouldn't have to tab past the skip
-        // link a second time just to reach Filters or Search.
-        await skipOnboarding(page);
-        await mockCowApi(page);
-        await gotoAndWaitForMap(page);
-        const box = await page.locator("#mapCanvas").boundingBox();
-        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-
-        const order = ["searchToggle", "nearbyToggle", "filterToggle", "reportToggle", "settingsToggle"];
-        for (const id of order) {
-          await page.keyboard.press("Tab");
-          await expect(page.locator(`#${id}`)).toBeFocused();
-        }
-      });
     });
 
     test("the focus ring is solid, not the low-contrast translucent one", async ({ page }) => {
