@@ -47,6 +47,11 @@ exports.handler = async (event) => {
   const reportType = String(payload.reportType || "missing-data").trim();
   const details = String(payload.details || "").trim();
   const location = payload.location && typeof payload.location === "object" ? payload.location : null;
+  const locationContextRaw = payload.locationContext && typeof payload.locationContext === "object" ? payload.locationContext : null;
+  const locationContext = locationContextRaw ? {
+    type: String(locationContextRaw.type || "").trim().slice(0, 60),
+    name: String(locationContextRaw.name || "").trim().slice(0, 120),
+  } : null;
   const appVersion = String(payload.appVersion || "unknown").trim();
   const pageUrl = String(payload.pageUrl || "").trim();
   const userAgent = String(payload.userAgent || "").trim();
@@ -72,8 +77,10 @@ exports.handler = async (event) => {
   }
 
   const isFeature = reportType === "feature-request";
-  const titlePrefix = isFeature ? "Feature request" : "Missing map data";
-  const title = `${titlePrefix}: ${details.slice(0, 80)}`;
+  const isLocationIssue = reportType === "location-issue";
+  const titlePrefix = isFeature ? "Feature request" : isLocationIssue ? "Location issue" : "Missing map data";
+  const titleSubject = isLocationIssue && locationContext && locationContext.name ? `${locationContext.name}: ` : "";
+  const title = `${titlePrefix}: ${titleSubject}${details.slice(0, 80)}`;
 
   const issueBodyLines = [
     "## Report",
@@ -81,10 +88,17 @@ exports.handler = async (event) => {
     "",
     "## Metadata",
     `- Type: ${reportType}`,
+  ];
+
+  if (locationContext && (locationContext.type || locationContext.name)) {
+    issueBodyLines.push(`- Reported item: ${[locationContext.type, locationContext.name].filter(Boolean).join(" — ")}`);
+  }
+
+  issueBodyLines.push(
     `- App version: ${appVersion || "unknown"}`,
     `- Page URL: ${pageUrl || "unknown"}`,
-    `- User agent: ${userAgent || "unknown"}`,
-  ];
+    `- User agent: ${userAgent || "unknown"}`
+  );
 
   if (location && Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude))) {
     issueBodyLines.push(`- Reported location: ${Number(location.latitude)}, ${Number(location.longitude)}`);
@@ -98,7 +112,7 @@ exports.handler = async (event) => {
   const issuePayload = {
     title,
     body: issueBodyLines.join("\n"),
-    labels: [isFeature ? "feature-request" : "missing-data", "user-report"],
+    labels: [isFeature ? "feature-request" : isLocationIssue ? "location-issue" : "missing-data", "user-report"],
   };
 
   const apiHeaders = {

@@ -126,7 +126,7 @@ function showOnboarding() {
           <img class="onboarding-step-icon" src="data/icons/pin.png" alt="">
           <h2 class="onboarding-step-title">Your location${needsCompassPrompt ? " & compass" : ""}</h2>
           <p class="onboarding-step-subtitle">Enable location to centre the map on you, see distances to each find, and get heading-up compass navigation.</p>
-          <p class="onboarding-privacy-note">We collect anonymous usage data (GPS position, navigation, interactions) to improve the app. You can withdraw at any time via Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+          <p class="privacy-note">We collect anonymous usage data (GPS position, navigation, interactions) to improve the app. You can withdraw anytime via Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
         `;
         actionsEl.innerHTML = `
           <button class="button ob-location" type="button">Enable${needsCompassPrompt ? " location &amp; compass" : " location"}</button>
@@ -156,7 +156,8 @@ function showOnboarding() {
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
       actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish());
       actionsEl.querySelector(".ob-location")?.addEventListener("click", async () => {
-        // Consent is given by tapping this button — privacy details are shown above.
+        // Consent is given by tapping this button — the privacy note above states what's
+        // collected, same wording as the in-map location gate's .privacy-note (app.html).
         if (typeof setTrackingConsent === "function") setTrackingConsent(true);
 
         // Start location request — browser dialog fires from this tap.

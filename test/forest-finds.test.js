@@ -237,6 +237,7 @@ globalThis.__forestFindsTest = {
   formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
+  overviewHeadingText,
   normalizeSearchText,
   searchQueryTokens,
   searchFieldRank,
@@ -442,7 +443,11 @@ globalThis.__forestFindsTest = {
   ensureUserAndSelectionVisible,
   refitSelectionAfterRoutingGraphReady,
   settingsFormHtml,
+  hasTrackingConsent,
+  setTrackingConsent,
+  ensureTrackingConsent,
   reportFormHtml,
+  reportIssueHtml,
   openFiltersScreen,
   openSettings,
   openReportModal,
@@ -482,6 +487,8 @@ globalThis.__forestFindsTest = {
   reattachCompassListeners,
   compassSensorStalled,
   recoverStalledCompass,
+  hasMovedSinceBackgrounding,
+  pauseBackgroundedTracking,
   orientationHeadingSource,
   animationLoopsWedged,
   recoverWedgedAnimationFrames,
@@ -503,7 +510,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/categories.js", "js/normalize.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/categories.js", "js/normalize.js", "js/tracker.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -541,6 +548,25 @@ globalThis.__forestFindsTest = {
         bottom: STAGE_HEIGHT,
         width: STAGE_WIDTH,
         height,
+      };
+    };
+  }
+
+  // The nav bar is its own fixed bottom bar now (see app.html), not part of #inspector, and
+  // stays visible regardless of the sheet's own open/minimized state -- so it always obstructs
+  // a thin strip at the very bottom of the stage. Modelled the same way as the sheet rect above:
+  // without this override the default full-stage stub would make inspectorCanvasOverlapRect's
+  // union cover the whole canvas again (see the comment on els.inspector above).
+  const NAV_BAR_HEIGHT = 74;
+  if (api.els.inspectorActions) {
+    api.els.inspectorActions.getBoundingClientRect = function navRect() {
+      return {
+        left: 0,
+        top: STAGE_HEIGHT - NAV_BAR_HEIGHT,
+        right: STAGE_WIDTH,
+        bottom: STAGE_HEIGHT,
+        width: STAGE_WIDTH,
+        height: NAV_BAR_HEIGHT,
       };
     };
   }
@@ -601,6 +627,12 @@ function resetData(app) {
   app.state.selectionViewportTransitionPending = false;
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
+  // resetData simulates an app already well past first load, so heading-up activations here
+  // animate in as normal; the "very first activation this session snaps instead" behaviour
+  // (see animateToHeadingUpNavigationViewport) gets its own dedicated tests that set this back
+  // to false.
+  app.state.headingUpEverEntered = true;
+  app.state.backgroundedUserLocation = null;
   app.state.compassHeading = null;
   app.state.compassHeadingTarget = null;
   app.state.nearbyListHeading = null;
@@ -627,10 +659,11 @@ function resetData(app) {
   app.state.canvasVisibleWidth = 1000;
   app.state.canvasVisibleHeight = 800;
   app.els.inspector.classList.remove("minimized");
-  // Several tests below hide the inspector to take its geometry out of the picture and never
-  // put it back; without this that leaks into every later test, silently removing the
-  // inspector overlap from their fits.
+  // Several tests below hide the inspector (and the nav bar alongside it) to take their geometry
+  // out of the picture and never put it back; without this that leaks into every later test,
+  // silently removing the inspector/nav overlap from their fits.
   app.els.inspector.hidden = false;
+  app.els.inspectorActions.hidden = false;
   app.els.canvas.width = 1000;
   app.els.canvas.height = 800;
   app.location.hash = "";
@@ -1644,13 +1677,11 @@ test("generated UI icon classes render at the enlarged sizes", () => {
   // [^}]* (not [\s\S]*) deliberately bounds each match inside its own rule's braces -- an
   // unbounded match here previously let a later, unrelated selector's "width: 32px;" satisfy
   // the assertion even while the rule actually named kept its original, smaller size. The nav
-  // row and screen-title icons stay at their original, small size: a pass that enlarged them
-  // (and their .close/.inspector-back buttons) made the row inconsistent width and overran its
-  // container. Only the Nearby list's own per-row icon is enlarged, and it now spans both the
-  // name and meta/distance lines beside it (see .nearest-item's grid layout) rather than being
-  // sized to just the first line.
+  // glyphs keep their compact size; screen-title artwork matches the 44px Back target.
+  // Nearby list icons also span both the name and meta/distance lines beside them
+  // (see .nearest-item's grid layout), rather than just the first line.
   assert.match(inspectorCss, /\.nav-icon\s*\{[^}]*width:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(inspectorCss, /\.title-icon\s*\{[^}]*width:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(23px\s*\*\s*var\(--icon-scale\)\);/);
+  assert.match(inspectorCss, /\.title-icon\s*\{[^}]*width:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);/);
   assert.match(mapUiCss, /\.nearest-icon\s+\.app-icon\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/);
   assert.match(mapUiCss, /\.walk-icon\s*\{[^}]*width:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);/);
 });
@@ -2327,6 +2358,46 @@ test("heading-up viewport alignment preserves animation target when rotation sta
   assert.equal(app.state.viewport.scale, 1000);
   assert.equal(app.state.viewport.tx, 123);
   assert.equal(app.state.viewport.ty, 456);
+});
+
+test("the very first heading-up activation this session shows the heading directly instead of spinning in from north", () => {
+  resetData(app);
+  app.state.headingUpEverEntered = false;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "near-tree", ...makePoint(app, 0.001, 0) } };
+  app.state.compassHeading = 90;
+
+  app.animateToHeadingUpNavigationViewport(500);
+
+  assert.equal(app.state.headingUpEntryAnim, null, "boot already waited for a trusted heading, so there is nothing to animate from");
+  assert.equal(app.state.renderedNavigationHeading, 90, "the map should simply show the heading it already has");
+  assert.equal(app.state.headingUpEverEntered, true);
+});
+
+test("a later heading-up activation still spins in from north as before", () => {
+  resetData(app);
+  app.state.headingUpEverEntered = true; // set by the first activation earlier this session
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "near-tree", ...makePoint(app, 0.001, 0) } };
+  app.state.compassHeading = 90;
+
+  app.animateToHeadingUpNavigationViewport(500);
+
+  assert.ok(app.state.headingUpEntryAnim, "a re-activation (e.g. a new destination) still animates in");
+  assert.equal(app.state.renderedNavigationHeading, 0);
+});
+
+test("the very first nearby heading-up activation this session shows the heading directly", () => {
+  resetData(app);
+  app.state.headingUpEverEntered = false;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // no selection -> nearbyHeadingUpActive()
+
+  app.prepareCanvasForDraw();
+
+  assert.equal(app.state.headingUpEntryAnim, null);
+  assert.equal(app.state.renderedNavigationHeading, 90);
+  assert.equal(app.state.headingUpEverEntered, true);
 });
 
 test("heading-up nearby zoom changes wait for compass settle before applying", () => {
@@ -3191,14 +3262,15 @@ test("the nearby heading names the walking radius, not just the filter", () => {
   app.state.overviewFilters = ["trees"];
   app.state.trees.push({ id: "near-tree", recordNumber: 910, commonName: "Near Oak", ...makePoint(app, 0.001, 0) });
 
-  const html = app.overviewNearestHtml();
+  const html = app.overviewHeadingText();
+  assert.ok(!app.overviewNearestHtml().includes("nearby-heading"), "the subtitle is not duplicated in the list");
   assert.match(html, /Trees within 5 min walk/, "the heading answers how far the list is reaching");
   assert.ok(!html.includes("around you"), "the vaguer wording is gone");
 
   // With the radius toggled off there is no radius to name, so the heading says so instead of
   // claiming a reach the list is not applying.
   app.state.showAllOutsideRadius = true;
-  assert.match(app.overviewNearestHtml(), /Nearest Trees around you/);
+  assert.match(app.overviewHeadingText(), /Nearest Trees around you/);
   app.state.showAllOutsideRadius = false;
 });
 
@@ -3725,6 +3797,49 @@ test("settings form shows the app version", () => {
   assert.match(html, /appVersionDisplay/, "settings form should include the version span for dynamic updates");
 });
 
+test("settings form's Privacy section reflects and toggles tracking consent", () => {
+  const original = app.hasTrackingConsent();
+
+  app.setTrackingConsent(false);
+  let html = app.settingsFormHtml();
+  assert.match(html, /id="privacyConsentStatus">not enabled</, "should report consent as not enabled");
+  assert.match(html, /id="privacyConsentToggle"[^>]*>Enable location &amp; tracking</, "toggle should offer to grant consent");
+
+  app.setTrackingConsent(true);
+  html = app.settingsFormHtml();
+  assert.match(html, /id="privacyConsentStatus">enabled</, "should report consent as enabled");
+  assert.match(html, /id="privacyConsentToggle"[^>]*>Withdraw consent</, "toggle should offer to withdraw consent");
+
+  app.setTrackingConsent(original);
+});
+
+test("ensureTrackingConsent grants consent implicitly, with no separate accept/decline screen", () => {
+  const original = app.hasTrackingConsent();
+
+  app.setTrackingConsent(false);
+  const result = app.ensureTrackingConsent();
+  assert.equal(result, true, "tapping 'Enable location' should itself count as consent");
+  assert.equal(app.hasTrackingConsent(), true, "consent should be recorded immediately, synchronously");
+
+  app.setTrackingConsent(original);
+});
+
+test("the location gate and onboarding's location step show the exact same privacy disclosure", () => {
+  const appHtml = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
+  const onboardingSource = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
+
+  const gateNoteMatch = appHtml.match(/<p class="privacy-note">([\s\S]*?)<\/p>/);
+  const onboardingNoteMatch = onboardingSource.match(/<p class="privacy-note">([\s\S]*?)<\/p>/);
+
+  assert.ok(gateNoteMatch, "the location gate should show a .privacy-note disclosure");
+  assert.ok(onboardingNoteMatch, "the onboarding location step should show a .privacy-note disclosure");
+  assert.equal(
+    onboardingNoteMatch[1],
+    gateNoteMatch[1],
+    "onboarding and the location gate must show identical consent wording, not two different screens"
+  );
+});
+
 test("settings form offers separate data, app and combined refresh buttons", () => {
   // One "Force refresh" button used to clear everything, so picking up a CSS tweak also meant
   // re-downloading ~67 MB of map data. The scopes are split so each case costs only its own.
@@ -4067,6 +4182,44 @@ test("report submission includes the app version", () => {
 
   assert.ok(!html.includes("App version:"), "report form should not display the app version");
   assert.match(source, /appVersion:\s*state\.swVersion \|\| APP_VERSION/, "submitted report payload should include the live service worker version, falling back to APP_VERSION");
+});
+
+test("a submitted report's issue URL renders as a real clickable link, not plain text", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+  // Both the full Report screen and the inline per-location form route their success message
+  // through applyReportStatusContent, which builds the link with document.createElement
+  // rather than interpolating the URL into a template string.
+  assert.match(source, /setReportStatus\("Report submitted successfully\.", "success", data && data\.issueUrl\)/);
+  assert.match(source, /applyReportStatusContent\(statusEl, "Report submitted successfully\.", "success", data && data\.issueUrl\)/);
+  assert.match(source, /function applyReportStatusContent[\s\S]*?document\.createElement\("a"\)/);
+  assert.match(source, /link\.href = issueUrl/);
+});
+
+test("a tree or landmark's detail view offers to report a problem with its own coordinates", () => {
+  const withPoint = app.reportIssueHtml({ type: "Veteran tree", name: "Hangman's Oak", latitude: 51.65, longitude: 0.03 });
+  assert.match(withPoint, /Noticed a problem with this location\?/);
+  assert.match(withPoint, /data-report-type="Veteran tree"/);
+  assert.match(withPoint, /data-report-name="Hangman&#039;s Oak"/);
+  assert.match(withPoint, /data-report-lat="51.65"/);
+  assert.match(withPoint, /data-report-lon="0.03"/);
+});
+
+test("reportIssueHtml renders nothing for a line/area feature with no single coordinate", () => {
+  assert.equal(app.reportIssueHtml({ type: "Road", name: "Forest Road", latitude: null, longitude: null }), "");
+  assert.equal(app.reportIssueHtml(null), "");
+});
+
+test("the tree and landmark detail screens both offer the report-a-problem link", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "js", "inspector.js"), "utf8");
+  assert.match(source, /function showTreeDetails[\s\S]*?reportIssueHtml\(/, "tree detail view should render the report-issue link");
+  assert.match(source, /function showLandmarkDetails[\s\S]*?reportIssueHtml\(/, "landmark detail view should render the report-issue link");
+});
+
+test("submitting a location-issue report sends the flagged item's own coordinates, not the reporter's GPS fix", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+  assert.match(source, /reportType:\s*"location-issue"/, "location-issue reports should be distinguishable from general feedback");
+  assert.match(source, /locationContext:\s*{\s*type:\s*wrapper\.dataset\.reportType/, "payload should carry which item was flagged");
+  assert.match(source, /latitude:\s*Number\(Number\(wrapper\.dataset\.reportLat\)\.toFixed\(6\)\)/, "location sent should come from the flagged item, not state.userLocation");
 });
 
 test("walking radius circle is always fully visible on screen after centering", () => {
@@ -5568,6 +5721,7 @@ test("navigationFocusPoint and nearbyHeadingUpFocusY still place the pivot via h
   app.state.compassHeading = 90; // finite heading, no selection -> nearbyHeadingUpActive()
   app.state.tiltBetaSmoothed = 48.5;
   app.els.inspector.hidden = true; // avoid unrelated inspector-overlap geometry in this check
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
 
   const anchor = app.headingUpAnchorFraction(false);
   const focusRect = app.bestVisibleCanvasRect();
@@ -5589,6 +5743,7 @@ test("tiltAvailableAheadCssPx is the visible map height above the pivot, convert
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.tiltBetaSmoothed = 85; // max tilt -> nearby anchor is exactly 0.94
 
   app.state.canvasVisibleHeight = 800;
@@ -5618,6 +5773,7 @@ test("tiltPerspectivePx keeps the ground/sky split at a constant fraction of the
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.tiltBetaSmoothed = 60; // an ordinary mid-range tilt, not max
 
   function groundFraction() {
@@ -5650,6 +5806,7 @@ test("tiltPerspectivePx reaches exactly TILT_HORIZON_GROUND_RATIO ground/sky spl
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> tiltRotateXDeg() === TILT_ROTATEX_MAX exactly
   app.state.canvasVisibleHeight = 800;
 
@@ -5676,6 +5833,7 @@ test("tiltPerspectivePx does not collapse the safe distance-behind-the-user marg
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.canvasVisibleHeight = 800;
 
   for (const beta of [13, 20, 30, 48.5, 60, 75, 85]) {
@@ -5718,6 +5876,7 @@ test("tiltAvailableAheadCssPx / tiltPerspectivePx do not collapse when the desti
   app.state.compassHeading = 90; // facing east
   app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -- mirrored anchor reaches its full 0.12
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.canvasVisibleHeight = 800;
 
   app.state.selected = { type: "tree", item: { id: "ahead", ...makePoint(app, 0, 0.001) } }; // dead ahead
@@ -5766,6 +5925,7 @@ test("tiltAvailableAheadCssPx / tiltPerspectivePx do not dip below the historica
   app.state.compassHeading = 90; // facing east
   app.state.tiltBetaSmoothed = 85; // TILT_BETA_MAX -> tiltRampedAnchor(true) === 0.88 exactly
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.canvasVisibleHeight = 800;
 
   // Due north while facing east: directly to a side (offset exactly +-pi/2).
@@ -5794,6 +5954,7 @@ test("tiltPerspectivePx clamps to a sane range for extreme viewport heights, and
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
 
   app.state.tiltBetaSmoothed = 60;
   app.state.canvasVisibleHeight = 4; // absurdly short viewport
@@ -5812,6 +5973,7 @@ test("worldToScreen, projectCanvasPoint and worldToScreenForOverlayTilted share 
   app.state.compassHeading = 0;
   app.state.userLocation = makePoint(app, 0, 0); // world (0,0) -> rawWorldToScreen -> screen (500, 400) given the default viewport
   app.els.inspector.hidden = true;
+  app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.tiltBetaSmoothed = 60;
 
   const origin = { x: 500, y: 400 };
@@ -7348,6 +7510,81 @@ test("recoverStalledCompass does nothing while the page is hidden", () => {
   }
 });
 
+test("hasMovedSinceBackgrounding treats no baseline as movement", () => {
+  resetData(app);
+  app.state.backgroundedUserLocation = null;
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  assert.equal(app.hasMovedSinceBackgrounding(), true, "nothing to compare against -- assume the heading may no longer be trusted");
+});
+
+test("hasMovedSinceBackgrounding treats no current fix as movement", () => {
+  resetData(app);
+  app.state.backgroundedUserLocation = { latitude: 51.665, longitude: 0.045 };
+  app.state.userLocation = null;
+  assert.equal(app.hasMovedSinceBackgrounding(), true);
+});
+
+test("hasMovedSinceBackgrounding is false for the same spot the tab was backgrounded at", () => {
+  resetData(app);
+  app.state.backgroundedUserLocation = { latitude: 51.665, longitude: 0.045 };
+  // A few metres of GPS wander, well under LOCATION_SMOOTHING_SNAP_METRES.
+  app.state.userLocation = makePoint(app, 51.66501, 0.04501);
+  assert.equal(app.hasMovedSinceBackgrounding(), false);
+});
+
+test("hasMovedSinceBackgrounding is true once the walker has genuinely relocated", () => {
+  resetData(app);
+  app.state.backgroundedUserLocation = { latitude: 51.665, longitude: 0.045 };
+  app.state.userLocation = makePoint(app, 51.667, 0.045); // roughly 220m north
+  assert.equal(app.hasMovedSinceBackgrounding(), true);
+});
+
+test("pauseBackgroundedTracking snapshots the current fix for hasMovedSinceBackgrounding", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.pauseBackgroundedTracking();
+  // Compared field by field, not with deepEqual: the snapshot object is created inside the vm
+  // context the app runs in, so it has that realm's Object.prototype and deepStrictEqual
+  // rejects it as not reference-equal even when the contents match (see the cache-version-label
+  // test above for the same issue).
+  assert.equal(app.state.backgroundedUserLocation.latitude, 51.665);
+  assert.equal(app.state.backgroundedUserLocation.longitude, 0.045);
+});
+
+test("recoverStalledCompass keeps a heading that is still good when the walker has not moved", () => {
+  resetData(app);
+  const now = Date.now();
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.backgroundedUserLocation = { latitude: 51.665, longitude: 0.045 };
+  app.state.compassHeading = 90;
+  app.state.compassHeadingTarget = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.compassLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+  app.state.orientationLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+
+  app.recoverStalledCompass(now);
+
+  assert.equal(app.state.compassHeading, 90, "a heading the walker has not moved away from is still a good guess");
+  assert.equal(app.state.renderedNavigationHeading, 90, "so the map must not spin back to north with nothing having changed");
+});
+
+test("recoverStalledCompass still drops the heading once the walker has actually moved", () => {
+  resetData(app);
+  const now = Date.now();
+  app.state.userLocation = makePoint(app, 51.667, 0.045);
+  app.state.backgroundedUserLocation = { latitude: 51.665, longitude: 0.045 }; // ~220m away
+  app.state.compassHeading = 90;
+  app.state.compassHeadingTarget = 90;
+  app.state.renderedNavigationHeading = 90;
+  app.state.compassLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+  app.state.orientationLastEventAt = now - (app.COMPASS_STALE_MS + 1000);
+
+  app.recoverStalledCompass(now);
+
+  assert.equal(app.state.compassHeading, null, "a real relocation makes the old heading untrustworthy");
+  assert.equal(app.state.renderedNavigationHeading, null);
+});
+
 test("a beta-only orientation event restarts the smoothing loop so 3D keeps responding", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
@@ -8567,7 +8804,6 @@ test("the app's modal overlays declare dialog role, modal state and an accessibl
 
   assert.match(html, /id="locationGate"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="locationGateTitle"/);
   assert.match(html, /id="distanceWarning"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="distanceWarningTitle"/);
-  assert.match(html, /id="trackingConsentModal"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="trackingConsentTitle"/);
   assert.match(html, /id="onboardingOverlay"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-label="[^"]+"/);
 });
 

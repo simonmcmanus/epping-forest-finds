@@ -47,8 +47,6 @@ main, .site-head, .site-foot { max-width: 1040px; margin: 0 auto; padding-right:
 .hero { display: grid; overflow: hidden; margin-bottom: 8px; border-radius: 18px; background: var(--tree-deep); color: var(--paper); box-shadow: var(--shadow); }
 .hero-copy { display: flex; position: relative; z-index: 1; flex-direction: column; justify-content: center; padding: 36px 28px 34px; }
 .eyebrow { margin: 0 0 8px; color: #c9dfc9; font-family: "Fraunces", Georgia, serif; font-size: .98rem; font-style: italic; font-weight: 500; letter-spacing: .05em; }
-.hero-eyebrow { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
-.hero-leaf { flex: 0 0 34px; width: 34px; height: 34px; padding: 5px; border-radius: 50%; background: var(--paper); box-shadow: 0 0 0 3px rgba(244, 244, 236, .18); }
 h1, h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; letter-spacing: -.028em; line-height: 1.1; text-wrap: balance; }
 h1 { margin: 0 0 18px; font-size: clamp(2.2rem, 7vw, 4rem); letter-spacing: -.04em; line-height: 1.02; }
 .h1-tagline { display: inline-block; margin-top: .2em; font-size: .6em; letter-spacing: -.03em; }
@@ -131,7 +129,6 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .signup { margin-bottom: 52px; padding: clamp(22px, 4vw, 36px); border: 1px solid var(--gold-line); border-left: 5px solid var(--gold); border-radius: 14px; background: #fff6d8; box-shadow: var(--shadow); }
 
 .signup-intro { max-width: none; margin: 0 0 20px; }
-.signup .eyebrow { color: var(--tree); }
 .card-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
 .card-icon { flex: 0 0 44px; width: 44px; height: 44px; }
 .card-head h2 { margin: 0; }

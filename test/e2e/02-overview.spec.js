@@ -41,40 +41,76 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
   });
 
-  test("labelled charcoal navigation stays readable and separate from Back at narrow widths", async ({ page }) => {
+  test("labelled navigation stays readable and separate from the inspector panel at narrow widths", async ({ page }) => {
     await page.click("#settingsToggle");
     await expect(page.locator("#inspectorBack")).toBeVisible();
-    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Nearby", "Search", "Filters", "Feedback", "Settings"]);
+    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Search", "Nearby", "Filters", "Feedback", "Settings"]);
     await page.locator(".inspector-actions").evaluate(nav => nav.getAnimations({ subtree: true }).forEach(animation => animation.finish()));
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
-      const layout = await page.locator(".inspector-actions").evaluate(nav => {
+      await expect.poll(async () => page.locator(".inspector-actions").evaluate(nav => {
         const buttons = [...nav.querySelectorAll("button")];
-        const panel = nav.closest(".inspector").getBoundingClientRect();
-        const backBox = document.querySelector("#inspectorBack").getBoundingClientRect();
+        const navBox = nav.getBoundingClientRect();
+        // The nav bar is its own card now (see app.html), not part of #inspector -- above the
+        // panel on desktop, below it (pinned to the bottom of the screen) on mobile. Either way
+        // the two must never overlap, which is the whole point of separating them.
+        const panel = document.getElementById("inspector").getBoundingClientRect();
         return buttons.map((button, i) => {
           const box = button.getBoundingClientRect();
           const label = button.querySelector(".nav-label").getBoundingClientRect();
           const icon = button.querySelector(".nav-icon").getBoundingClientRect();
           return { target: box.width >= 44 && box.height >= 44,
             artwork: icon.width === 24 && icon.height === 24,
-            fits: box.left >= panel.left && box.right <= panel.right && label.left >= box.left && label.right <= box.right,
-            separate: (!i || buttons[i - 1].getBoundingClientRect().right <= box.left) && box.bottom <= backBox.top };
+            fits: box.left >= navBox.left && box.right <= navBox.right && label.left >= box.left && label.right <= box.right,
+            separate: (!i || buttons[i - 1].getBoundingClientRect().right <= box.left)
+              && (navBox.bottom <= panel.top || navBox.top >= panel.bottom) };
         });
-      });
-      expect(layout).toEqual(Array(5).fill({ target: true, artwork: true, fits: true, separate: true }));
+      })).toEqual(Array(5).fill({ target: true, artwork: true, fits: true, separate: true }));
     }
   });
 
-  test("navigation announces the current screen and keeps filter status separate", async ({ page }) => {
+  test("mobile navigation clears the device safe area and keeps its sheet separated", async ({ page }) => {
+    const session = await page.context().newCDPSession(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await session.send("Emulation.setSafeAreaInsetsOverride", {
+      insets: { top: 0, left: 0, right: 0, bottom: 34 },
+    });
+    const nav = page.locator(".inspector-actions");
+    await expect(nav).toHaveCSS("bottom", "44px");
+    await expect(nav).toHaveCSS("border-bottom-left-radius", "20px");
+    await expect(nav).toHaveCSS("border-bottom-right-radius", "20px");
+    await expect.poll(async () => page.evaluate(() => {
+      const nav = document.querySelector(".inspector-actions").getBoundingClientRect();
+      const sheet = document.getElementById("inspector").getBoundingClientRect();
+      return Math.round(nav.top - sheet.bottom);
+    })).toBe(10);
+    await session.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 0 } });
+    await expect(nav).toHaveCSS("bottom", "10px");
+  });
+
+  test("screen title icons match the back button size even when Back is hidden", async ({ page }) => {
+    for (const id of ["settingsToggle", "searchToggle", "filterToggle", "reportToggle", "nearbyToggle"]) {
+      await page.locator(`#${id}`).click();
+      const icon = page.locator("#inspectorTitleEmoji .title-icon").last();
+      await expect(icon).toBeVisible();
+      await expect.poll(async () => icon.evaluate(el => {
+        const iconStyle = getComputedStyle(el);
+        const backStyle = getComputedStyle(document.getElementById("inspectorBack"));
+        return { width: iconStyle.width, height: iconStyle.height,
+          backWidth: backStyle.width, backHeight: backStyle.height };
+      })).toEqual({ width: "44px", height: "44px", backWidth: "44px", backHeight: "44px" });
+    }
+  });
+
+  test("navigation announces the current screen with a gold highlight and keeps filter status separate", async ({ page }) => {
     const nav = page.getByRole("navigation", { name: "Main navigation" });
     for (const [id, title] of [["searchToggle", "Search"], ["filterToggle", "Filters"], ["reportToggle", "Report"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
       await page.locator(`#${id}`).click();
       await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
       await expect(page.locator(`#${id}`)).toHaveAttribute("aria-current", "page");
       await expect(page.locator("#inspectorTitle").last()).toContainText(title);
-      await expect(page.locator(`#${id}`)).toHaveCSS("background-color", "rgb(38, 51, 69)");
-      await expect(page.locator(`#${id} svg`)).toHaveCSS("stroke", "rgb(255, 255, 255)");
+      await expect(page.locator(`#${id}`)).toHaveCSS("background-color", "rgba(240, 180, 41, 0.16)");
+      await expect(page.locator(`#${id} svg`)).toHaveCSS("stroke", "rgb(138, 106, 0)");
     }
     await page.click("#filterToggle");
     await page.locator(".filter-chip").first().click();
@@ -84,13 +120,15 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#filterToggle")).toHaveAccessibleName(/^Filters/);
   });
 
-  test("collapsed navigation keeps every label and target inside the panel", async ({ page }) => {
+  test("the nav bar stays usable regardless of the inspector sheet's minimized state", async ({ page }) => {
+    // The nav bar is no longer part of #inspector (see app.html), so minimizing the sheet must
+    // not affect it at all -- unlike the sheet's own chrome (header, body), which does hide.
     await page.evaluate(() => setInspectorMinimized(true));
     await expect(page.locator("#inspector")).toHaveClass(/minimized/);
     const fits = await page.locator(".inspector-actions button").evaluateAll(buttons => buttons.every(button => {
-      const panel = button.closest(".inspector").getBoundingClientRect();
+      const nav = button.closest(".inspector-actions").getBoundingClientRect();
       const box = button.getBoundingClientRect();
-      return box.top >= panel.top && box.bottom <= panel.bottom && box.height >= 44;
+      return box.top >= nav.top && box.bottom <= nav.bottom && box.height >= 44;
     }));
     expect(fits).toBe(true);
     await page.click("#settingsToggle");
@@ -114,7 +152,7 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
     });
 
-    test("the list heading says how far it is reaching, not just what it is listing", async ({ page }) => {
+    test("Nearby shows its walking scope directly beneath the screen title", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
@@ -126,8 +164,9 @@ test.describe("Overview / Nearby screen", () => {
         selectOverview();
       });
 
-      await expect(page.locator("#inspectorBody .nearby-heading strong"))
+      await expect(page.locator(".inspector-title-copy #inspectorType").last())
         .toHaveText(/Trees within 5 min walk/i);
+      await expect(page.locator("#inspectorBody .nearby-heading")).toHaveCount(0);
     });
 
     test("nearby entries show a combined distance and walk-time chip", async ({ page }) => {
@@ -198,9 +237,9 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#reportToggle")).toBeVisible();
   });
 
-  test("nav buttons read left to right: nearby, search, filters, feedback, settings", async ({ page }) => {
+  test("nav buttons read left to right: search, nearby, filters, feedback, settings", async ({ page }) => {
     const ids = await page.locator(".inspector-actions button").evaluateAll((els) => els.map((el) => el.id));
-    expect(ids).toEqual(["nearbyToggle", "searchToggle", "filterToggle", "reportToggle", "settingsToggle"]);
+    expect(ids).toEqual(["searchToggle", "nearbyToggle", "filterToggle", "reportToggle", "settingsToggle"]);
   });
 
   test("snapshot: overview state", async ({ page }, testInfo) => {

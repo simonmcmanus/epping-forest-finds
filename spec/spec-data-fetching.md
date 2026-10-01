@@ -84,7 +84,7 @@ still; labels, counts and the progress bar continue to communicate progress.
 ### Service Worker Caching
 
 - The service worker pre-caches the app shell, smaller static datasets, and `data/trees/index.json` during install.
-- **All CSS files referenced by `index.html` must be in `APP_SHELL`**, including `css/tracking.css`. Without it, the tracking-consent modal has no positioning styles when offline, causing it to be clipped invisible inside `.map-stage`'s `overflow: hidden` — making the location gate button appear unresponsive.
+- **All CSS files referenced by `app.html` must be in `APP_SHELL`**, including `css/tracking.css`. It styles `.privacy-note`, the one-line disclosure next to every "Enable location" button; without it offline the note is just unstyled text.
 - Tree chunks and large legacy veteran tree JSON files are not install pre-cache entries; they are cached opportunistically by the runtime fetch handler after the page successfully downloads them. This avoids duplicate first-load tree downloads on mobile.
 - API routes (`/api/`, `/.netlify/functions/`) are never cached; they are forwarded directly to the network. Callers handle offline failures gracefully (e.g. cow fetch returns `false`, report submit checks `navigator.onLine`).
 

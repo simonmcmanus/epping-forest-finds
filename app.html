@@ -85,6 +85,7 @@
           <h2 id="locationGateTitle" class="location-gate-title">Allow location access</h2>
           <p id="locationGateMessage" class="location-gate-text">Epping Forest Finds uses your location to show nearby trees and point you toward them with compass directions.</p>
           <button id="locationGateButton" class="button" type="button">Enable location to continue</button>
+          <p class="privacy-note">We collect anonymous usage data (GPS position, navigation, interactions) to improve the app. You can withdraw anytime via Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
         </div>
       </div>
 
@@ -94,27 +95,6 @@
           <h2 id="distanceWarningTitle" class="location-gate-title">You're not near the forest yet</h2>
           <p id="distanceWarningMessage" class="location-gate-text">You're more than 15 minutes' walk from Epping Forest. The map is fully loaded and ready to explore — all features will kick in when you visit.</p>
           <button id="distanceWarningButton" class="button" type="button">Explore the map</button>
-        </div>
-      </div>
-
-      <div id="trackingConsentModal" class="tracking-consent-overlay" role="dialog" aria-modal="true" aria-labelledby="trackingConsentTitle" hidden>
-        <div class="tracking-consent-card">
-          <h2 id="trackingConsentTitle" class="tracking-consent-title">Privacy &amp; Location Data</h2>
-          <div class="tracking-consent-body">
-            <p>To enable your location we need your consent to collect anonymous usage data that helps improve the app:</p>
-            <ul>
-              <li><strong>GPS position</strong> — updated roughly once per minute while the app is open</li>
-              <li><strong>Direction &amp; navigation</strong> — which features you navigate toward</li>
-              <li><strong>Interactions</strong> — which trees, paths, and places you tap on</li>
-            </ul>
-            <p>You are identified only by a random anonymous ID — no name, email, or account is required. Your data will never be sold individually.</p>
-            <p>Anonymised data may be used in the future to show relevant suggestions or advertising. You can withdraw consent at any time via <em>Settings → Privacy</em>.</p>
-            <p><a href="/terms.html" target="_blank" rel="noopener">Read full Privacy Policy &amp; Terms</a></p>
-          </div>
-          <div class="tracking-consent-actions">
-            <button class="button tc-accept" type="button">I agree &amp; enable location</button>
-            <button class="onboarding-skip-btn tc-decline" type="button">No thanks, skip location</button>
-          </div>
         </div>
       </div>
 
@@ -154,18 +134,20 @@
         <span style="color: #6f4d8c;">✨ Legends</span>
       </div>
 
+      <!-- A bar of its own, not part of #inspector: it stays visible (and tappable) regardless
+           of the inspector sheet's own open/minimized/keyboard-avoiding state. Sits before the
+           aside in markup so Tab still reaches it immediately after the skip link (see
+           spec-data-rendering.md, "The nav row is always reachable"). -->
+      <nav class="inspector-actions" aria-label="Main navigation">
+        <button id="searchToggle" class="close search-screen-toggle" type="button" aria-label="Search"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg><span class="nav-label">Search</span></button>
+        <button id="nearbyToggle" class="close nearby-toggle" type="button" aria-label="Nearby"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span class="nav-label">Nearby</span></button>
+        <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Filters" aria-pressed="false"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h7m4 0h5M4 12h2m4 0h10M4 18h10m4 0h2M11 3v6M6 9v6m8 0v6"/></svg><span class="nav-label">Filters</span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
+        <button id="reportToggle" class="close report-toggle" type="button" aria-label="Feedback"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3Z"/></svg><span class="nav-label">Feedback</span></button>
+        <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 2-.5 3-2 1-2.8-1-2 3.5L4 10.5v3L1.7 15.5l2 3.5 2.8-1 2 1 .5 3h6l.5-3 2-1 2.8 1 2-3.5-2.3-2v-3l2.3-2-2-3.5-2.8 1-2-1L15 2Z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label">Settings</span></button>
+      </nav>
+
       <aside id="inspector" class="inspector" aria-live="polite" tabindex="-1">
         <div id="inspectorDragHandle" class="inspector-drag-handle" aria-label="Drag to resize"></div>
-        <nav class="inspector-actions" aria-label="Main navigation">
-          <button id="nearbyToggle" class="close nearby-toggle" type="button" aria-label="Nearby"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span class="nav-label">Nearby</span></button>
-          <button id="searchToggle" class="close search-screen-toggle" type="button" aria-label="Search"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg><span class="nav-label">Search</span></button>
-          <button id="filterToggle" class="close filter-toggle" type="button" aria-label="Filters" aria-pressed="false"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h7m4 0h5M4 12h2m4 0h10M4 18h10m4 0h2M11 3v6M6 9v6m8 0v6"/></svg><span class="nav-label">Filters</span><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
-          <button id="reportToggle" class="close report-toggle" type="button" aria-label="Feedback"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3Z"/></svg><span class="nav-label">Feedback</span></button>
-          <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 2-.5 3-2 1-2.8-1-2 3.5L4 10.5v3L1.7 15.5l2 3.5 2.8-1 2 1 .5 3h6l.5-3 2-1 2.8 1 2-3.5-2.3-2v-3l2.3-2-2-3.5-2.8 1-2-1L15 2Z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label">Settings</span></button>
-        </nav>
-        <div class="inspector-header">
-          <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back" hidden><svg class="app-icon nav-icon" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14 4 7 11 14 18"/></svg></button>
-        </div>
         <!-- Lives in the inspector chrome rather than in the Nearby list's own HTML so the way
              back from a browsed spot survives every screen that still draws the walking-radius
              circle behind it (Nearby, Filters, Settings, Report) -- see updateNearbyAnchorBar. -->
@@ -182,6 +164,7 @@
         <div class="inspector-scroll">
           <div class="inspector-screen">
             <div class="inspector-title-section">
+              <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back" hidden><svg class="app-icon nav-icon" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14 4 7 11 14 18"/></svg></button>
               <span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>
               <div class="inspector-title-copy">
                 <h2 id="inspectorTitle">Epping Forest Finds</h2>

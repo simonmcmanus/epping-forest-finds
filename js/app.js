@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v59"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v63"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -300,6 +300,16 @@ const state = {
   navigationHeadingUp: false,
   renderedNavigationHeading: null,
   headingUpEntryAnim: null,
+  // Set true the first time heading-up actually renders a heading this session -- see
+  // animateToHeadingUpNavigationViewport/prepareCanvasForDraw. That first activation is
+  // never animated in from north: the map simply waits until a trusted heading exists
+  // (headingUpActive() already gates on one) and then shows it, so nothing appears to
+  // spin on first load. Every later (re-)activation still animates, as before.
+  headingUpEverEntered: false,
+  // GPS fix recorded the moment the tab was last hidden, so recoverStalledCompass can tell
+  // a phone that was actually carried somewhere from one that was simply put down --
+  // see hasMovedSinceBackgrounding().
+  backgroundedUserLocation: null,
   tiltBetaTarget: 0,
   tiltBetaSmoothed: 0,
   // rotateX angle baked into the main canvas by the last draw() -- see tiltRenderStale().
@@ -379,7 +389,7 @@ const els = {
   inspectorType: document.getElementById("inspectorType"),
   inspectorBody: document.getElementById("inspectorBody"),
   inspectorTools: document.querySelector(".inspector-tools"),
-  inspectorHeader: document.querySelector(".inspector-header"),
+  inspectorTitleSection: document.querySelector(".inspector-title-section"),
   nearbyAnchorBar: document.getElementById("nearbyAnchorBar"),
   closeInspector: document.getElementById("closeInspector"),
   searchToggle: document.getElementById("searchToggle"),
@@ -1580,10 +1590,12 @@ function bestVisibleCanvasRect({ assumeInspectorOpen = false } = {}) {
 }
 
 function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
-  if (!els.inspector || els.inspector.hidden) return null;
+  const inspectorVisible = Boolean(els.inspector) && !els.inspector.hidden;
+  const navVisible = Boolean(els.inspectorActions) && !els.inspectorActions.hidden;
+  if (!inspectorVisible && !navVisible) return null;
   if (!assumeInspectorOpen && _overlapRectCache !== undefined) return _overlapRectCache;
 
-  const wasMinimized = els.inspector.classList.contains("minimized");
+  const wasMinimized = inspectorVisible && els.inspector.classList.contains("minimized");
   if (assumeInspectorOpen && wasMinimized) {
     els.inspector.classList.remove("minimized");
   }
@@ -1595,16 +1607,30 @@ function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
   // bitmap coords and canvasInsetX/Y must not be added again.
   const useMapStage = Boolean(els.mapStage);
   const canvasRect = (els.mapStage || els.canvas).getBoundingClientRect();
-  const inspectorRect = els.inspector.getBoundingClientRect();
+  // The nav bar (js/app.html's <nav class="inspector-actions">) is its own fixed bar, separate
+  // from #inspector, and stays visible whatever the sheet is doing -- so the obstructed area is
+  // the union of both footprints, not just the sheet's. They don't overlap in normal layout, so
+  // this is just the bounding box of whichever of the two is present.
+  const rects = [
+    inspectorVisible ? els.inspector.getBoundingClientRect() : null,
+    navVisible ? els.inspectorActions.getBoundingClientRect() : null,
+  ].filter(Boolean);
 
   if (assumeInspectorOpen && wasMinimized) {
     els.inspector.classList.add("minimized");
   }
 
-  const overlapLeft = Math.max(canvasRect.left, inspectorRect.left);
-  const overlapTop = Math.max(canvasRect.top, inspectorRect.top);
-  const overlapRight = Math.min(canvasRect.right, inspectorRect.right);
-  const overlapBottom = Math.min(canvasRect.bottom, inspectorRect.bottom);
+  const unionRect = {
+    left: Math.min(...rects.map((r) => r.left)),
+    top: Math.min(...rects.map((r) => r.top)),
+    right: Math.max(...rects.map((r) => r.right)),
+    bottom: Math.max(...rects.map((r) => r.bottom)),
+  };
+
+  const overlapLeft = Math.max(canvasRect.left, unionRect.left);
+  const overlapTop = Math.max(canvasRect.top, unionRect.top);
+  const overlapRight = Math.min(canvasRect.right, unionRect.right);
+  const overlapBottom = Math.min(canvasRect.bottom, unionRect.bottom);
 
   if (overlapRight <= overlapLeft || overlapBottom <= overlapTop) {
     if (!assumeInspectorOpen) _overlapRectCache = null;
@@ -1991,7 +2017,7 @@ function openFiltersScreen() {
   setNavScreenActive(els.filterToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Filters";
-  els.inspectorType.textContent = "";
+  els.inspectorType.textContent = "Choose what appears on the map";
   transitionInspectorBody(renderFilterBodyHtml(), "forward");
   updateFilterUi();
   setInspectorMinimized(false);
@@ -2053,6 +2079,11 @@ function settingsFormHtml() {
       <p class="source-note walk-radius-floor-note" id="settingsWalkMinsFloorNote"${sliderValue > floorMinutes ? " hidden" : ""}>This is as close as it gets — nothing closer to show nearby.</p>
     </section>
     <section class="settings-section">
+      <h3 class="settings-section-title">Privacy</h3>
+      <p class="settings-description">Location &amp; usage tracking: <strong id="privacyConsentStatus">${hasTrackingConsent() ? "enabled" : "not enabled"}</strong>. We collect anonymous GPS position, navigation and interaction data to improve the app. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+      <button id="privacyConsentToggle" class="settings-refresh-btn" type="button">${hasTrackingConsent() ? "Withdraw consent" : "Enable location &amp; tracking"}</button>
+    </section>
+    <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
       <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
@@ -2111,6 +2142,17 @@ function bindSettingsHandlers() {
   for (const scope of Object.keys(REFRESH_SCOPES)) {
     const button = document.getElementById(REFRESH_SCOPES[scope].buttonId);
     if (button) button.addEventListener("click", () => refreshCachedState(scope));
+  }
+
+  const privacyToggle = document.getElementById("privacyConsentToggle");
+  if (privacyToggle) {
+    privacyToggle.addEventListener("click", () => {
+      const granting = !hasTrackingConsent();
+      setTrackingConsent(granting);
+      privacyToggle.textContent = granting ? "Withdraw consent" : "Enable location & tracking";
+      const status = document.getElementById("privacyConsentStatus");
+      if (status) status.textContent = granting ? "enabled" : "not enabled";
+    });
   }
   // Settings HTML is rebuilt fresh every time the screen opens (see openSettings above),
   // so remove before re-adding — otherwise every open leaks another window-level listener.
@@ -2217,12 +2259,30 @@ function bindReportFormHandlers() {
   window.addEventListener("offline", updateOnlineState);
 }
 
-function setReportStatus(message, tone = "") {
+function setReportStatus(message, tone = "", issueUrl = null) {
   const statusEl = document.getElementById("reportStatus");
   if (!statusEl) return;
+  applyReportStatusContent(statusEl, message, tone, issueUrl);
+}
+
+// Shared by the full Report screen (setReportStatus) and the inline per-location form
+// (submitLocationIssueReport): builds the status line via DOM APIs rather than a template
+// string, so the filed GitHub issue's URL renders as a real clickable link instead of dead
+// text the user has to select and copy, while everything else in the message stays plain
+// text -- .textContent/.createElement escape it automatically, no innerHTML involved.
+function applyReportStatusContent(statusEl, message, tone, issueUrl) {
   statusEl.textContent = message || "";
   statusEl.classList.remove("error", "success");
   if (tone) statusEl.classList.add(tone);
+  if (issueUrl && /^https:\/\//.test(issueUrl)) {
+    statusEl.append(" ");
+    const link = document.createElement("a");
+    link.href = issueUrl;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = "View issue";
+    statusEl.append(link);
+  }
 }
 
 function currentReportLocation() {
@@ -2260,14 +2320,18 @@ async function populateReportLocation() {
   });
 }
 
+function generateRequestId() {
+  return (window.crypto && window.crypto.randomUUID)
+    ? window.crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function getOrCreateReportRequestId() {
   try {
     const existing = localStorage.getItem(REPORT_REQUEST_ID_KEY);
     if (existing) return existing;
   } catch {}
-  const id = (window.crypto && window.crypto.randomUUID)
-    ? window.crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const id = generateRequestId();
   try { localStorage.setItem(REPORT_REQUEST_ID_KEY, id); } catch {}
   return id;
 }
@@ -2324,8 +2388,7 @@ async function submitReportForm() {
       return;
     }
 
-    const issueText = data && data.issueUrl ? ` Issue: ${data.issueUrl}` : "";
-    setReportStatus(`Report submitted successfully.${issueText}`, "success");
+    setReportStatus("Report submitted successfully.", "success", data && data.issueUrl);
     reportDetailsInput.value = "";
     try {
       localStorage.removeItem(REPORT_DRAFT_KEY);
@@ -2335,6 +2398,118 @@ async function submitReportForm() {
     setReportStatus("Could not submit report. Please try again.", "error");
   } finally {
     state.reportSubmitting = false;
+    if (submitButton) submitButton.disabled = !navigator.onLine;
+  }
+}
+
+// The inline "Noticed a problem with this location?" form on a tree/landmark detail screen
+// (reportIssueHtml, js/inspector.js). Expands in place rather than navigating to the full
+// Report screen, and posts the flagged item's own coordinates (carried on the wrapper's
+// dataset) instead of the reporter's GPS fix, plus a locationContext identifying which item
+// it was. There is no persisted draft here -- unlike the full Report screen's form, this one
+// is opened, filled and submitted (or abandoned) in one sitting, so a fresh request ID per
+// open is enough for double-tap/retry safety without localStorage.
+function locationIssueFormHtml() {
+  const online = navigator.onLine;
+  // Wrapped in .report-form (display:grid; gap:10px, same as the full Report screen's own
+  // form) rather than left as bare stacked elements -- without that gap the textarea's
+  // focus-visible outline (base.css, 3px solid + 2px offset) had nothing to clear and bled
+  // up over the question text sitting flush above it.
+  return `<div class="report-form">
+      <p class="report-issue-question">What's wrong with this location?</p>
+      <textarea class="report-textarea" placeholder="Describe the problem…"></textarea>
+      <p class="report-status" aria-live="polite"></p>
+      <p class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Try again once you\'re back online.</p>
+      <div class="report-form-actions">
+        <button class="button button-ghost" type="button" data-action="cancel-location-issue">Cancel</button>
+        <button class="button" type="button" data-action="submit-location-issue"${online ? "" : " disabled"}>Submit</button>
+      </div>
+    </div>`;
+}
+
+function toggleLocationIssueForm(toggleButton) {
+  const wrapper = toggleButton.closest(".report-issue");
+  if (!wrapper) return;
+  wrapper.innerHTML = locationIssueFormHtml();
+  const textarea = wrapper.querySelector(".report-textarea");
+  if (textarea) {
+    textarea.focus();
+    textarea.scrollIntoView({ block: "nearest" });
+  }
+}
+
+function cancelLocationIssueForm(wrapper) {
+  if (!wrapper) return;
+  wrapper.innerHTML = `<button class="report-issue-toggle" type="button" data-action="report-issue">Noticed a problem with this location?</button>`;
+}
+
+async function submitLocationIssueReport(wrapper) {
+  if (!wrapper || wrapper.dataset.submitting === "true") return;
+
+  const textarea = wrapper.querySelector(".report-textarea");
+  const statusEl = wrapper.querySelector(".report-status");
+  const submitButton = wrapper.querySelector("[data-action='submit-location-issue']");
+  if (!textarea || !statusEl) return;
+
+  if (!navigator.onLine) {
+    statusEl.textContent = "No internet connection. Try again once you\'re back online.";
+    statusEl.className = "report-status error";
+    return;
+  }
+
+  const details = String(textarea.value || "").trim();
+  if (!details) {
+    statusEl.textContent = "Please describe the problem before submitting.";
+    statusEl.className = "report-status error";
+    return;
+  }
+
+  if (!wrapper.dataset.requestId) wrapper.dataset.requestId = generateRequestId();
+
+  const payload = {
+    reportType: "location-issue",
+    details,
+    location: {
+      latitude: Number(Number(wrapper.dataset.reportLat).toFixed(6)),
+      longitude: Number(Number(wrapper.dataset.reportLon).toFixed(6)),
+    },
+    locationContext: {
+      type: wrapper.dataset.reportType || "",
+      name: wrapper.dataset.reportName || "",
+    },
+    appVersion: state.swVersion || APP_VERSION,
+    userAgent: navigator.userAgent,
+    pageUrl: window.location.href,
+    requestId: wrapper.dataset.requestId,
+  };
+
+  wrapper.dataset.submitting = "true";
+  if (submitButton) submitButton.disabled = true;
+  statusEl.textContent = "Submitting report…";
+  statusEl.className = "report-status";
+
+  try {
+    const response = await fetch("/.netlify/functions/report-missing-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const errorText = data && data.error ? data.error : `Request failed (${response.status})`;
+      statusEl.textContent = errorText;
+      statusEl.className = "report-status error";
+      return;
+    }
+
+    applyReportStatusContent(statusEl, "Report submitted successfully.", "success", data && data.issueUrl);
+    textarea.value = "";
+  } catch (error) {
+    statusEl.textContent = "Could not submit report. Please try again.";
+    statusEl.className = "report-status error";
+  } finally {
+    wrapper.dataset.submitting = "false";
     if (submitButton) submitButton.disabled = !navigator.onLine;
   }
 }
@@ -2779,6 +2954,29 @@ function headsUpSortedEntries(entries) {
     .map((scored) => scored.entry);
 }
 
+function overviewHeadingText() {
+  if (!state.userLocation) return "";
+  const activePointFilters = getActivePointFilterKeys();
+  // The radius is the whole premise of this list, so the heading names it rather than the
+  // vaguer "around you" -- "Trees within 5 min walk" answers "how far is this list reaching?"
+  // without the user having to go and read the walk chip. The radius chip can be toggled off
+  // (showAllOutsideRadius), in which case there is no radius to name and the heading says so.
+  const radiusLabel = state.showAllOutsideRadius
+    ? null
+    : `${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
+  // Filter titles are stored lower case ("trees", "pubs and bars") because they read as a
+  // fragment everywhere else they are used; at the head of a sentence they need a capital.
+  const rawTitle = activePointFilters.length === 1
+    ? (filterMeta(activePointFilters[0])?.title || "items")
+    : null;
+  const singleFilterTitle = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : null;
+  return singleFilterTitle
+    ? (radiusLabel ? `${singleFilterTitle} within ${radiusLabel}` : `Nearest ${singleFilterTitle} around you`)
+    : state.overviewFilters.length > 0
+      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : "Nearest selected filters around you")
+      : (radiusLabel ? `Nearest within ${radiusLabel}` : "Nearest around you");
+}
+
 function overviewNearestHtml() {
   if (!state.userLocation) {
     return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
@@ -2815,26 +3013,6 @@ function overviewNearestHtml() {
     return `<p class="empty">No nearby places found.</p>`;
   }
 
-  // The radius is the whole premise of this list, so the heading names it rather than the
-  // vaguer "around you" -- "Trees within 5 min walk" answers "how far is this list reaching?"
-  // without the user having to go and read the walk chip. The radius chip can be toggled off
-  // (showAllOutsideRadius), in which case there is no radius to name and the heading says so.
-  const radiusLabel = state.showAllOutsideRadius
-    ? null
-    : `${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
-  // Filter titles are stored lower case ("trees", "pubs and bars") because they read as a
-  // fragment everywhere else they are used; at the head of a sentence they need a capital.
-  // .nearby-heading uppercases the whole thing visually, but the underlying text is what a
-  // screen reader announces.
-  const rawTitle = activePointFilters.length === 1
-    ? (filterMeta(activePointFilters[0])?.title || "items")
-    : null;
-  const singleFilterTitle = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : null;
-  const heading = singleFilterTitle
-    ? (radiusLabel ? `${singleFilterTitle} within ${radiusLabel}` : `Nearest ${singleFilterTitle} around you`)
-    : state.overviewFilters.length > 0
-      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : "Nearest selected filters around you")
-      : (radiusLabel ? `Nearest within ${radiusLabel}` : "Nearest around you");
 
   const itemsHtml = entries.map((entry) => {
     const name = entry.type === "tree"
@@ -2883,7 +3061,7 @@ function overviewNearestHtml() {
     : `Showing all distances — tap to filter to ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
   const chipLabel = radiusActive ? formatWalkingRadius(state.walkingDistanceMinutes) : "All";
   const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
-  return `<div class="nearby-heading"><strong>${escapeHtml(heading)}</strong></div>${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+  return `${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
 }
 
 // The icon the Nearby list, search results and cluster detail show for a
@@ -3049,6 +3227,20 @@ function compassSensorStalled(now = performance.now()) {
   return compassEventAgeMs(now) > COMPASS_STALE_MS;
 }
 
+// Whether the walker has actually gone anywhere since the tab was last backgrounded
+// (pauseBackgroundedTracking snapshots the fix at that moment). Compared against the
+// same real-movement-vs-GPS-noise threshold ingestLocationFix uses to decide a fix is a
+// genuine relocation rather than wander (LOCATION_SMOOTHING_SNAP_METRES). No baseline or
+// no current fix -- e.g. location was never granted -- is treated as "can't tell", which
+// falls back to the old, safer assumption that the heading may no longer be trustworthy.
+function hasMovedSinceBackgrounding() {
+  const before = state.backgroundedUserLocation;
+  const current = state.userLocation;
+  if (!before || !current) return true;
+  const movedMetres = distanceMetres(before.latitude, before.longitude, current.latitude, current.longitude);
+  return !Number.isFinite(movedMetres) || movedMetres >= LOCATION_SMOOTHING_SNAP_METRES;
+}
+
 // Single recovery path, shared by the foreground-resume hooks and the watchdog below.
 // This logic used to live inline in the visibilitychange handler, which gave it exactly
 // one chance per return to the foreground -- so if the sensor came back later than that
@@ -3064,7 +3256,15 @@ function recoverStalledCompass(now = performance.now()) {
   // rendering a frozen rotation as if it were live. New readings go back through the
   // calibration gate before rotation (and with it tilt, which headingUpActive() gates)
   // resumes.
-  if (Number.isFinite(state.compassHeading)) {
+  //
+  // Only when the walker has actually moved, though (hasMovedSinceBackgrounding): a phone
+  // that was simply put down for a while has a stalled sensor but an unchanged position, and
+  // the last heading is still a perfectly good guess -- clearing it anyway was what made
+  // returning to the app spin the map back to north and re-rotate to the same heading it
+  // already had, with no movement to justify it. Left alone, later orientation events still
+  // ease the heading toward the truth via the ordinary smoothing tick (startCompassSmoothing),
+  // just without the jarring reset in between.
+  if (Number.isFinite(state.compassHeading) && hasMovedSinceBackgrounding()) {
     state.compassHeading = null;
     state.compassHeadingTarget = null;
     state.nearbyListHeading = null;
@@ -3214,6 +3414,12 @@ function setupVisibilityRecovery() {
 // the tab/screen is not visible, so the app doesn't keep draining battery in the
 // background. Both are restarted from setupVisibilityRecovery on return to visible.
 function pauseBackgroundedTracking() {
+  // Snapshot where we were right before going away, so recoverStalledCompass can tell a
+  // phone that was actually carried somewhere from one that was simply put down -- see
+  // hasMovedSinceBackgrounding().
+  state.backgroundedUserLocation = state.userLocation
+    ? { latitude: state.userLocation.latitude, longitude: state.userLocation.longitude }
+    : null;
   if (navigator.geolocation && state.locationWatchId != null) {
     navigator.geolocation.clearWatch(state.locationWatchId);
     state.locationWatchId = null;
@@ -5095,18 +5301,27 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
   state.selectionViewportTransitionPending = false;
   const safeDuration = Math.max(MIN_HEADING_UP_ANIMATION_MS, Number(durationMs) || HEADING_UP_NAV_ANIMATION_MS);
   if (state.renderedNavigationHeading == null) {
-    // Entering heading-up for the first time: animate renderedNavigationHeading
-    // from north-up (0) toward the current compass heading, baked into each
-    // canvas draw so pins always point down during the transition.
-    state.renderedNavigationHeading = 0;
     const targetHeading = normalizeDegrees(state.compassHeading);
-    if (Math.abs(shortestCompassDelta(0, targetHeading)) > 0.5) {
-      state.headingUpEntryAnim = {
-        from: 0,
-        to: targetHeading,
-        startTime: performance.now(),
-        duration: safeDuration,
-      };
+    if (!state.headingUpEverEntered) {
+      // The very first activation this session: headingUpActive() already held off until a
+      // trusted heading existed, so there is nothing to animate from -- just show it. Without
+      // this, the reveal itself (which happens before calibration finishes) was immediately
+      // followed by a 0-to-heading spin the user never asked for and had not moved to cause.
+      state.renderedNavigationHeading = targetHeading;
+      state.headingUpEverEntered = true;
+    } else {
+      // A later (re-)activation -- e.g. selecting a new destination -- animate
+      // renderedNavigationHeading from north-up (0) toward the current compass heading, baked
+      // into each canvas draw so pins always point down during the transition.
+      state.renderedNavigationHeading = 0;
+      if (Math.abs(shortestCompassDelta(0, targetHeading)) > 0.5) {
+        state.headingUpEntryAnim = {
+          from: 0,
+          to: targetHeading,
+          startTime: performance.now(),
+          duration: safeDuration,
+        };
+      }
     }
   }
   const focusRect = bestVisibleCanvasRect();
@@ -5180,10 +5395,16 @@ function prepareCanvasForDraw() {
         requestDraw();
       }
     } else if (state.renderedNavigationHeading === null && !selectedNavigationHeadingUpActive()) {
-      // Nearby heading-up first activation: animate in from north-up to current heading
-      state.renderedNavigationHeading = 0;
       const targetHeading = normalizeDegrees(state.compassHeading);
-      if (Math.abs(shortestCompassDelta(0, targetHeading)) > 0.5) {
+      if (!state.headingUpEverEntered) {
+        // The very first activation this session -- see the matching comment in
+        // animateToHeadingUpNavigationViewport. Show the trusted heading directly rather than
+        // spinning in from north.
+        state.renderedNavigationHeading = targetHeading;
+        state.headingUpEverEntered = true;
+      } else if (Math.abs(shortestCompassDelta(0, targetHeading)) > 0.5) {
+        // Nearby heading-up re-activation: animate in from north-up to current heading
+        state.renderedNavigationHeading = 0;
         state.headingUpEntryAnim = {
           from: 0,
           to: targetHeading,
@@ -6492,12 +6713,9 @@ function openSearchScreen() {
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Search";
   els.inspectorType.textContent = "Find anything on the map";
+  // Not auto-focused: opening the screen from the nav bar should show the field and the map
+  // behind it, not summon the keyboard immediately. The field is focused when the user taps it.
   transitionInspectorBody(searchScreenHtml(), "forward", updateOverviewDirectionArrows);
-  // Focused here rather than when the slide finishes: iOS only raises the keyboard for a
-  // focus() that is still inside the tap that asked for it, and the 310ms transition is long
-  // enough to put it outside.
-  const input = document.getElementById("mapSearchInput");
-  if (input) input.focus();
   setInspectorMinimized(false);
   syncHashFromSelection();
   requestDraw();
