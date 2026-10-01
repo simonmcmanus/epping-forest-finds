@@ -25,6 +25,43 @@ let _overlayWasTilted = false;
 const SELECTED_PULSE_REDRAW_INTERVAL_MS = 50;
 let _selectedPulseTimer = null;
 
+// Navigation owns activation; IconMotion only draws the artwork. Redraw the small
+// overlay rather than rebuilding the map, clustering or route for each frame.
+const SELECTED_ICON_FRAME_MS = 1000 / 15;
+let _selectedIconMotionTimer = null;
+let _selectedIconMotionItem = null;
+let _selectedIconMotionStartedAt = 0;
+let _selectedIconMotionDrawn = false;
+let _iconMotionPreference = null;
+const _iconMotionSlugByPath = new Map(Object.entries(ICON_PATHS).map(([slug, src]) => [src, slug]));
+
+function stopSelectedIconMotion() {
+  clearTimeout(_selectedIconMotionTimer);
+  _selectedIconMotionTimer = null;
+  _selectedIconMotionItem = null;
+}
+
+function initSelectedIconMotion() {
+  _iconMotionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const refresh = () => { stopSelectedIconMotion(); drawOverlay(); };
+  _iconMotionPreference.addEventListener("change", refresh);
+  document.addEventListener("visibilitychange", refresh);
+  window.addEventListener("pagehide", () => { stopSelectedIconMotion(); IconMotion.clear(); });
+  window.addEventListener("pageshow", refresh);
+}
+
+function selectedIconMotionFrame() {
+  if (!_iconMotionPreference || _iconMotionPreference.matches || document.visibilityState === "hidden") return null;
+  const target = selectedCompassTarget();
+  if (!target || target !== state.selected.item || !["tree", "landmark", "cow", "water", "path"].includes(state.selected.type)) return null;
+  const now = performance.now();
+  if (_selectedIconMotionItem !== target) {
+    _selectedIconMotionItem = target;
+    _selectedIconMotionStartedAt = now;
+  }
+  return { elapsed: (now - _selectedIconMotionStartedAt) / 1000 };
+}
+
 function getMapImage(src) {
   if (!mapImageCache.has(src)) {
     const img = new Image();
@@ -65,7 +102,7 @@ function drawMapPinShape(ctx, x, y, size) {
   return { cx, cy, R };
 }
 
-function drawPngMapIcon(ctx, src, x, y, size) {
+function drawPngMapIcon(ctx, src, x, y, size, motion = null) {
   if (!src) return false;
   const img = getMapImage(src);
   if (!img.complete || !img.naturalWidth) return false;
@@ -73,7 +110,17 @@ function drawPngMapIcon(ctx, src, x, y, size) {
   ctx.save();
   const { cx, cy, R } = drawMapPinShape(ctx, x, y, size);
   const iconSize = R * 1.85;
-  ctx.drawImage(img, cx - iconSize / 2, cy - iconSize / 2, iconSize, iconSize);
+  let animated = false;
+  if (motion) {
+    // Moving artwork stays inside the head, leaving the geographic tip fixed.
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 0.96, 0, Math.PI * 2);
+    ctx.clip();
+    animated = IconMotion.draw(ctx, img, _iconMotionSlugByPath.get(src),
+      cx - iconSize / 2, cy - iconSize / 2, iconSize, motion.elapsed);
+    if (animated) _selectedIconMotionDrawn = true;
+  }
+  if (!animated) ctx.drawImage(img, cx - iconSize / 2, cy - iconSize / 2, iconSize, iconSize);
   ctx.restore();
   return true;
 }
@@ -242,6 +289,9 @@ function draw() {
 }
 
 function drawOverlay() {
+  clearTimeout(_selectedIconMotionTimer);
+  _selectedIconMotionTimer = null;
+  _selectedIconMotionDrawn = false;
   const canvas = els.overlayCanvas;
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
@@ -267,6 +317,12 @@ function drawOverlay() {
   drawUser(ctx, toScreen, isTilted);
   drawNearbyAnchorMarker(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
+  if (drawInspectorIconMotion(selectedIconMotionFrame())) _selectedIconMotionDrawn = true;
+  if (_selectedIconMotionDrawn) {
+    _selectedIconMotionTimer = setTimeout(drawOverlay, SELECTED_ICON_FRAME_MS);
+  } else {
+    stopSelectedIconMotion();
+  }
 }
 
 // Marks state.nearbyAnchor (the Nearby view's browse point, set by tapping open ground -- see
@@ -2004,26 +2060,43 @@ function drawNationalRailGlyph(ctx, cx, cy, sizePx) {
 // same full pin size every drawPngMapIcon call already receives, so a station reads as the same
 // kind of marker as its neighbours: same pointer, same standard/selected size tier, just its own
 // glyph instead of a PNG inside the head.
-function drawUndergroundRoundel(ctx, x, y, size) {
+const _stationMotionArt = new Map();
+
+function drawStationMapIcon(ctx, x, y, size, slug, drawGlyph, motion) {
   ctx.save();
   const { cx, cy, R } = drawMapPinShape(ctx, x, y, size);
-  drawUndergroundGlyph(ctx, cx, cy, R * 1.85);
+  const iconSize = R * 1.85;
+  if (motion) {
+    if (!_stationMotionArt.has(slug)) {
+      const artwork = document.createElement("canvas");
+      artwork.width = artwork.height = 256;
+      drawGlyph(artwork.getContext("2d"), 128, 128, 256);
+      _stationMotionArt.set(slug, artwork);
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 0.96, 0, Math.PI * 2);
+    ctx.clip();
+    if (IconMotion.draw(ctx, _stationMotionArt.get(slug), slug,
+      cx - iconSize / 2, cy - iconSize / 2, iconSize, motion.elapsed)) {
+      _selectedIconMotionDrawn = true;
+    }
+  } else {
+    drawGlyph(ctx, cx, cy, iconSize);
+  }
   ctx.restore();
 }
 
-function drawNationalRailLogo(ctx, x, y, size) {
-  ctx.save();
-  const { cx, cy, R } = drawMapPinShape(ctx, x, y, size);
-  drawNationalRailGlyph(ctx, cx, cy, R * 1.85);
-  ctx.restore();
+function drawUndergroundRoundel(ctx, x, y, size, motion = null) {
+  drawStationMapIcon(ctx, x, y, size, "underground-roundel", drawUndergroundGlyph, motion);
 }
 
-function selectedIconScale(minScale = 1.05, maxScale = 1.17, cycleMs = 1200) {
-  if (_animationStartTime === null) _animationStartTime = performance.now();
-  const elapsed = performance.now() - _animationStartTime;
-  const cyclePosition = (elapsed % cycleMs) / cycleMs;
-  const pulse = Math.sin(cyclePosition * Math.PI * 2) * 0.5 + 0.5;
-  const baseScale = minScale + (maxScale - minScale) * pulse;
+function drawNationalRailLogo(ctx, x, y, size, motion = null) {
+  drawStationMapIcon(ctx, x, y, size, "national-rail-logo", drawNationalRailGlyph, motion);
+}
+
+function selectedIconScale(minScale = 1.05, maxScale = 1.17) {
+  // Character motion belongs inside the artwork, never in the pin's geometry.
+  const baseScale = (minScale + maxScale) / 2;
   const zoomScale = mapEmojiScale();
   const zoomFactor = 0.7 + (zoomScale * 0.3);
   return baseScale * zoomFactor;
@@ -2774,13 +2847,15 @@ function drawSelectedOverlay(ctx, toScreen) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
   const selectedScale = selectedIconScale();
+  const motion = selectedIconMotionFrame();
+  const drawDestinationIcon = (context, src, x, y, size) => drawPngMapIcon(context, src, x, y, size, motion);
 
   if (state.selected.type === "tree") {
     const point = toScreen(state.selected.item.point);
     if (isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) {
       const selectedTree = state.selected.item;
       const selectedTreeSrc = treeSpeciesIconPath(selectedTree.commonName, selectedTree.latinName) || iconPath("tree");
-      drawPngMapIcon(ctx, selectedTreeSrc, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+      drawDestinationIcon(ctx, selectedTreeSrc, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     }
     return;
   }
@@ -2789,9 +2864,9 @@ function drawSelectedOverlay(ctx, toScreen) {
   if (!isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) return;
 
   if (state.selected.type === "cow") {
-    drawPngMapIcon(ctx, iconPath("cow"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+    drawDestinationIcon(ctx, iconPath("cow"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
   } else if (state.selected.type === "water") {
-    drawPngMapIcon(ctx, iconPath("ponds"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+    drawDestinationIcon(ctx, iconPath("ponds"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
   } else if (state.selected.type === "landmark") {
     const selectedPlace = state.selected.item;
 
@@ -2799,23 +2874,23 @@ function drawSelectedOverlay(ctx, toScreen) {
 
     if (iconSlug) {
       // Generic landmark with PNG icon
-      drawPngMapIcon(ctx, iconPath(iconSlug), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+      drawDestinationIcon(ctx, iconPath(iconSlug), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     } else if (isPubCategory(selectedPlace)) {
-      drawPngMapIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+      drawDestinationIcon(ctx, iconPath("beer"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     } else if (isCafeCategory(selectedPlace)) {
-      drawPngMapIcon(ctx, iconPath("cafe"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+      drawDestinationIcon(ctx, iconPath("cafe"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     } else if (isShopCategory(selectedPlace)) {
-      drawPngMapIcon(ctx, iconPath("shop"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+      drawDestinationIcon(ctx, iconPath("shop"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     } else if (isTransportCategory(selectedPlace)) {
       const transportType = getTransportType(selectedPlace);
       if (transportType === "underground") {
-        drawUndergroundRoundel(ctx, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+        drawUndergroundRoundel(ctx, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale, motion);
       } else if (transportType === "national_rail") {
-        drawNationalRailLogo(ctx, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+        drawNationalRailLogo(ctx, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale, motion);
       } else if (transportType === "parking") {
-        drawPngMapIcon(ctx, iconPath("landmark-parking"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+        drawDestinationIcon(ctx, iconPath("landmark-parking"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       } else {
-        drawPngMapIcon(ctx, iconPath("bus"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
+        drawDestinationIcon(ctx, iconPath("bus"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
       }
     } else {
       // No artwork for this one: the same pointer, with the glyph inside it.
