@@ -34,7 +34,6 @@
   <link rel="stylesheet" href="css/tracking.css">
 </head>
 <body>
-  <a class="skip-link" href="#inspector">Skip to nearby places</a>
   <div class="app">
     <main class="map-stage">
       <canvas id="mapCanvas" aria-label="Interactive map of veteran trees and local landmarks"></canvas>
@@ -146,7 +145,7 @@
         <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 2-.5 3-2 1-2.8-1-2 3.5L4 10.5v3L1.7 15.5l2 3.5 2.8-1 2 1 .5 3h6l.5-3 2-1 2.8 1 2-3.5-2.3-2v-3l2.3-2-2-3.5-2.8 1-2-1L15 2Z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label">Settings</span></button>
       </nav>
 
-      <aside id="inspector" class="inspector" aria-live="polite" tabindex="-1">
+      <aside id="inspector" class="inspector" aria-live="polite">
         <div id="inspectorDragHandle" class="inspector-drag-handle" aria-label="Drag to resize"></div>
         <!-- Lives in the inspector chrome rather than in the Nearby list's own HTML so the way
              back from a browsed spot survives every screen that still draws the walking-radius

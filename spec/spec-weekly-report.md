@@ -177,6 +177,27 @@ from before that check, bucketing under both keys and measuring only the pairs
 that could be one place. It reports and never deletes: two genuinely different
 shops can share a name and a corner, so the call is a person's.
 
+**Learning from reports, not just acting on them.** Every run also reads the
+week's reports as a set, not just one at a time: `scripts/user_reports.py
+--closed-since-days 7` adds `closed_reports` to its output alongside
+`open_reports` — issues closed in the last week, however they closed,
+including by the issue-fix automation's own pull request
+(`.github/workflows/claude-issue-agent.yml`, see `spec-issue-workflow.md`),
+marked `wasAutoFixed`. A single report never shows a pattern; a week's worth
+can — the same kind of gap recurring, several reports about one settlement, a
+source this project doesn't check at all.
+
+When a real, repeating pattern turns up, the fix for it never rides the
+`weekly-data-report/*` branch, which stays data and the report only. A
+concrete, scoped code or script fix gets its own `weekly-data-quality/*`
+branch and its own pull request, opened and left open the same way as the
+data PR (no auto-merge). Something that needs a person's judgement instead
+becomes a plain GitHub issue — never guessed at as code just to have
+something to push. Either way, the data-update PR's body carries only a
+one-line pointer to what was opened, not the change itself. Finding nothing
+worth generalising is a valid outcome and is stated plainly rather than
+manufacturing a pattern to report.
+
 **Places a person reported.** `data/business-watch.json`'s `reportedMissing`
 list is for gaps somebody spotted by walking past them — better evidence than
 anything the tooling produces on its own, and previously with nowhere to live

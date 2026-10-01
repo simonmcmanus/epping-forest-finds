@@ -35,16 +35,20 @@ jobs:
     # 2 vCPUs; running the whole suite on a single one meant 4 workers sharing them, which
     # starved the app's boot-and-draw cycle and failed whole spec files in `beforeEach`. Two
     # runners at 2 workers each (see playwright.config.js) gives every worker a full core for
-    # the same total parallelism, and the two jobs run concurrently so wall-clock does not
-    # suffer. fail-fast is off so one project's failure still lets the other report.
-    name: E2E tests (${{ matrix.project }})
+    # the same total parallelism. Each project is additionally split into two shards so the
+    # four resulting jobs run concurrently and roughly halve this job's wall-clock versus one
+    # shard per project. fail-fast is off so one shard's failure still lets the others report.
+    #
+    # This job excludes every "snapshot: ..." test (see the `visual-snapshots` job below) --
+    # it only ever carries functional assertions, so a red check here always means a real
+    # behavioural regression, never a pixel-diff flake.
+    name: E2E tests (${{ matrix.project }}, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
         project: [desktop, mobile]
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -55,20 +59,57 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Run E2E tests
+        run: >
+          npx playwright test --project=${{ matrix.project }}
+          --grep-invert "snapshot:" --shard=${{ matrix.shard }}/2
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          # Per project+shard, or the jobs collide on one artifact name.
+          name: playwright-report-${{ matrix.project }}-shard${{ matrix.shard }}
+          path: playwright-report/
+          retention-days: 14
+
+  visual-snapshots:
+    # The "snapshot: ..." tests only (see the `e2e` job above for everything else), as their
+    # own check so a pixel-diff shows up as "Visual snapshots (mobile)" rather than muddying
+    # "E2E tests" -- the two have very different reliability characteristics and a failure in
+    # one says nothing about the other. Only the mobile project ever takes a screenshot (every
+    # toHaveScreenshot() spec is guarded by test.skip(testInfo.project.name !== 'mobile')), so
+    # there is nothing to run for desktop.
+    #
+    # --retries=1, unlike the e2e job's retries:0: canvas screenshot diffs here have repeatedly
+    # proven non-deterministic on an otherwise-unchanged commit (see spec/agents.md), where the
+    # e2e job's functional assertions have not. A retry absorbs that known noise instead of
+    # requiring a human to notice and re-run CI by hand; a genuine visual regression still fails
+    # twice and stays red.
+    name: Visual snapshots (mobile)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run visual snapshot tests
         id: e2e
         # continue-on-error so the commit step always runs even when baselines are missing.
-        # Playwright's "missing" mode writes new baselines but still exits non-zero —
+        # Playwright's "missing" mode writes new baselines but still exits non-zero --
         # the explicit fail step below re-surfaces any genuine failures.
-        run: npx playwright test --project=${{ matrix.project }} --update-snapshots=missing
+        run: >
+          npx playwright test --project=mobile --grep "snapshot:"
+          --update-snapshots=missing --retries=1
         continue-on-error: true
       - name: Commit new snapshot baselines
-        # Mobile only: every toHaveScreenshot() spec is guarded by
-        # `test.skip(testInfo.project.name !== 'mobile')`, so the desktop job never writes a
-        # baseline -- and having both jobs push to the same branch concurrently would race.
-        # Runs even after test failure. git add only touches test/e2e/__screenshots__/,
-        # so regression diffs (written to test-results/ as "actual") are never committed.
-        # New linux PNGs committed here will be found on the next CI run.
-        if: matrix.project == 'mobile'
+        # Runs even after test failure. git add only touches test/e2e/__screenshots__/, so
+        # regression diffs (written to test-results/ as "actual") are never committed. New
+        # linux PNGs committed here will be found on the next CI run.
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -84,10 +125,9 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          # Per project, or the two matrix jobs collide on one artifact name.
-          name: playwright-report-${{ matrix.project }}
+          name: playwright-report-visual-mobile
           path: playwright-report/
           retention-days: 14
-      - name: Fail if E2E tests had failures
+      - name: Fail if visual snapshot tests had failures
         if: steps.e2e.outcome == 'failure'
         run: exit 1

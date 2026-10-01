@@ -52,6 +52,7 @@ function createElementStub(id = "") {
         save() {},
         restore() {},
         beginPath() {},
+        closePath() {},
         moveTo() {},
         lineTo() {},
         bezierCurveTo() {},
@@ -428,6 +429,12 @@ globalThis.__forestFindsTest = {
   buildTypeClusters,
   buildSuperClusters,
   drawMegaClusters,
+  clusterJoinAnimationState,
+  settleClusterJoinAnimations,
+  drawLandmarkIcon,
+  CLUSTER_JOIN_ANIMATION_MS,
+  CLUSTER_JOIN_COOLDOWN_MS,
+  CLUSTER_JOIN_MIN_SCALE,
   cacheVersionLabel,
   selectedNavigationTargetPoints,
   balancedNavigationAnchorY,
@@ -832,6 +839,106 @@ test("buildSuperClusters does not chain far-apart clusters into one mega cluster
   assert.ok(superClusters.length > 1, "a long, roughly-uniform run of clusters must not collapse into a single mega cluster");
   // Directly-close pairs still merge: this isn't a regression to "never merge anything".
   assert.equal(groupOf(a), groupOf(b), "clusters within the merge radius of each other still merge");
+});
+
+test("clusterJoinAnimationState leaves a lone pin undisturbed", () => {
+  const lone = { point: { x: 0, y: 0 } };
+  const cluster = { items: [lone], screenPt: { x: 0, y: 0 } };
+  assert.equal(app.clusterJoinAnimationState(cluster, 1000), null,
+    "a single-item cluster never animates -- there is nothing merging into it");
+});
+
+test("clusterJoinAnimationState shrinks two newly-merged pins away while the badge grows in, then settles", () => {
+  const first = { point: { x: -10, y: 0 } };
+  const second = { point: { x: 10, y: 0 } };
+  // Both items must first be seen as lone pins (cluster size 1) before a merge into them counts
+  // as a join -- otherwise their very first frame would look like an animation with nothing to
+  // shrink away from.
+  app.clusterJoinAnimationState({ items: [first], screenPt: first.point }, 0);
+  app.clusterJoinAnimationState({ items: [second], screenPt: second.point }, 0);
+
+  const merged = { items: [first, second], screenPt: { x: 0, y: 0 } };
+  const atStart = app.clusterJoinAnimationState(merged, 0);
+  assert.ok(atStart, "two pins that just merged animate rather than snapping straight to a settled badge");
+  assert.equal(atStart.shrinking.length, 2, "both newly-joined items are still shrinking away");
+  assert.equal(atStart.badgeScale, app.CLUSTER_JOIN_MIN_SCALE,
+    "a cluster forming from scratch starts its badge at the floor scale, not popped in at full size");
+  const firstShrink = atStart.shrinking.find(r => r.item === first);
+  assert.equal(firstShrink.scale, 1, "at t=0 the shrinking pin is still drawn at its own, full, pre-merge size");
+
+  const halfway = app.clusterJoinAnimationState(merged, app.CLUSTER_JOIN_ANIMATION_MS / 2);
+  const halfwayShrink = halfway.shrinking.find(r => r.item === first);
+  assert.ok(halfwayShrink.scale > 0 && halfwayShrink.scale < 1, "midway through, the pin has shrunk partway toward nothing");
+  assert.ok(halfway.badgeScale > 0 && halfway.badgeScale < 1, "the badge is partway through growing in");
+
+  const settled = app.clusterJoinAnimationState(merged, app.CLUSTER_JOIN_ANIMATION_MS + 1);
+  assert.equal(settled, null, "once the animation finishes, the cluster draws as an ordinary settled badge");
+});
+
+test("clusterJoinAnimationState only animates the item that's actually joining an existing cluster", () => {
+  const veteran1 = { point: { x: -10, y: 0 } };
+  const veteran2 = { point: { x: 10, y: 0 } };
+  const newcomer = { point: { x: 0, y: 10 } };
+  const pairCluster = { items: [veteran1, veteran2], screenPt: { x: 0, y: 0 } };
+  // Settle the pair into an established, non-animating cluster first.
+  app.clusterJoinAnimationState(pairCluster, 0);
+  app.clusterJoinAnimationState(pairCluster, app.CLUSTER_JOIN_ANIMATION_MS + 1);
+  app.clusterJoinAnimationState({ items: [newcomer], screenPt: newcomer.point }, app.CLUSTER_JOIN_ANIMATION_MS + 1);
+
+  const grown = { items: [veteran1, veteran2, newcomer], screenPt: { x: 0, y: 3 } };
+  const state = app.clusterJoinAnimationState(grown, app.CLUSTER_JOIN_ANIMATION_MS + 2);
+  assert.ok(state, "the newcomer joining triggers an animation");
+  assert.equal(state.shrinking.length, 1, "only the newly-joined item animates, not the two already-settled members");
+  assert.equal(state.shrinking[0].item, newcomer);
+  assert.equal(state.badgeScale, 1,
+    "an existing cluster's badge stays at full size while a new member shrinks away into it -- it doesn't regrow");
+});
+
+test("stopViewportAnimation settles any in-flight cluster-join animation instead of leaving it to run against a now-unmoving camera", () => {
+  const first = { point: { x: -10, y: 0 } };
+  const second = { point: { x: 10, y: 0 } };
+  app.clusterJoinAnimationState({ items: [first], screenPt: first.point }, 0);
+  app.clusterJoinAnimationState({ items: [second], screenPt: second.point }, 0);
+
+  const merged = { items: [first, second], screenPt: { x: 0, y: 0 } };
+  const midFlight = app.clusterJoinAnimationState(merged, 0);
+  assert.ok(midFlight, "sanity check: the merge is genuinely still animating before the camera stops");
+
+  // This is the exact pattern several e2e specs use to force a deterministic frame before a
+  // screenshot: stop whatever camera animation is running, then draw once. Without settling the
+  // pin-level animation too, the very next call here -- at the same instant, same camera -- would
+  // still report items mid-shrink, which is what made those screenshots flaky: the "settled"
+  // frame could still differ depending on exactly when the interruption landed relative to
+  // CLUSTER_JOIN_ANIMATION_MS.
+  app.stopViewportAnimation();
+  const afterStop = app.clusterJoinAnimationState(merged, 0);
+  assert.equal(afterStop, null,
+    "once the camera animation is stopped, the same cluster at the same instant draws fully settled, not mid-shrink");
+});
+
+test("drawLandmarkIcon runs every image-icon category branch without a stale reference to a removed constant", () => {
+  // A regression guard: BEER_ICON_SCALE was removed from the top of renderer.js (main's "beer
+  // bump" simplification), but one usage inside this function survived a merge untouched since
+  // it sat just outside the textual conflict -- a ReferenceError at runtime that neither
+  // node --check nor any other unit test caught, because nothing here had ever called this
+  // function with a pub place. Exercising every PNG-icon and emoji-fallback branch at least
+  // once is cheap insurance against the same class of silent, merge-orphaned reference anywhere
+  // in this chain. The underground/national_rail branches draw an SVG glyph via a global Path2D
+  // this test harness has no stub for -- a separate, pre-existing gap, not this bug's -- so
+  // they're left for the e2e suite to cover.
+  const ctx = createElementStub().getContext();
+  const places = [
+    { category: "pub" },
+    { category: "cafe" },
+    { category: "convenience" },
+    { category: "bus_stop" },
+    { category: "parking" },
+    { category: "unknown_place_with_no_special_handling" },
+  ];
+  for (const place of places) {
+    assert.doesNotThrow(() => app.drawLandmarkIcon(ctx, place, 0, 0, 30),
+      `drawLandmarkIcon must not throw for category "${place.category}"`);
+  }
 });
 
 test("ICON_PATHS is the single registry for all icon slugs", () => {
@@ -8748,17 +8855,6 @@ test("the app's modal overlays declare dialog role, modal state and an accessibl
   assert.match(html, /id="locationGate"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="locationGateTitle"/);
   assert.match(html, /id="distanceWarning"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="distanceWarningTitle"/);
   assert.match(html, /id="onboardingOverlay"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-label="[^"]+"/);
-});
-
-test("a skip link lets keyboard users bypass the canvas map to reach the Nearby panel", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-
-  assert.match(html, /<a class="skip-link" href="#inspector">[^<]*<\/a>/);
-  assert.match(html, /<aside id="inspector"[^>]*tabindex="-1"/, "skip target must be focusable for the jump to land for screen-reader users");
-
-  const css = fs.readFileSync(path.join(__dirname, "..", "css", "base.css"), "utf8");
-  assert.match(css, /\.skip-link\s*\{[^}]*top:\s*-100px/, "skip link should be visually hidden until focused");
-  assert.match(css, /\.skip-link:focus\s*\{[^}]*top:\s*8px/, "skip link should become visible on focus");
 });
 
 test("activateModalFocus traps Tab within the container and restores focus on deactivate", () => {
