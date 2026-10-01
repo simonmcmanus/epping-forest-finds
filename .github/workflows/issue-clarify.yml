@@ -27,7 +27,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           track_progress: true
           claude_args: |
-            --allowedTools "mcp__github__update_issue"
+            --allowedTools "mcp__github__update_issue,Read,Grep,Glob"
           prompt: |
             You are grilling a GitHub issue on the Epping Forest Finds project
             before any code gets written against it, using the same discipline as
@@ -36,12 +36,21 @@ jobs:
             any of your own prior clarifying-questions messages) in context — do
             not run any commands to fetch them.
 
-            You always have a fresh tracking comment of your own to work with this
-            run, regardless of whether you were triggered by an issue edit or a
-            new comment — an older tracking comment of yours from a previous run
-            may still be visible for now, but it will be cleaned up automatically
-            once this run finishes, so there is only ever one of your comments
-            left on the issue. Do not worry about it or reference it.
+            Every run posts its own fresh tracking comment, regardless of whether
+            you were triggered by an issue edit or a new comment. Earlier runs'
+            comments are never deleted or edited by you — the full history of
+            questions and answers stays visible on the issue for anyone reviewing
+            it later. Don't reference your own older comments; just write this
+            run's update as a new one.
+
+            You have read-only access to this checkout (Read/Grep/Glob), including
+            everything under `data/`. Use it: when a report makes a factual claim
+            about something on the map (a place has closed, moved, renamed, or is
+            mis-categorised), check it against the actual data file
+            (`data/local-landmarks-food.geojson`, `data/local-landmarks-misc.geojson`,
+            `data/business-watch.json`, `data/verification.json`, etc.) before
+            treating it as settled, and say in your confirmation whether you could
+            confirm it, not just that the reporter said it.
 
             As your very first action, before reading anything else, set your
             tracking comment to just "🤔 Thinking…" — a plain in-progress
@@ -93,32 +102,40 @@ jobs:
             it's fully self-contained. If you switched template from the
             original, say so in one line in your confirmation below.
 
-            Then work out which `spec/*.md` file(s) (per the list in `CLAUDE.md`)
-            would need updating to document this change, per this repo's own
-            spec-sync convention. Read the affected section(s) and draft a
-            suggested diff — do not edit any file on disk, just compose it by
-            hand as a unified diff in a ```diff code block (with `--- a/...` /
-            `+++ b/...` file headers). This is a preview for whoever implements
-            the issue, not a change you're making now.
+            Next decide, now that it's clarified and you've checked it against
+            the data, whether this is a **simple, confirmed data correction**:
+            a factual fix to one existing mapped place (it closed, renamed,
+            moved, or is mis-categorised) that your data check above actually
+            confirmed, with no design decision left for a person to make. If so,
+            use the update_issue tool to add the `claude` label — that hands it
+            straight to this repo's implementation workflow
+            (`claude-issue-agent.yml`), which will fix the data and open a pull
+            request on its own, no human labelling needed. Say so plainly in
+            your confirmation (e.g. "🔧 Confirmed against the data — labelled for
+            an automatic fix."). Do not add the label for anything else: feature
+            work, anything you couldn't confirm, or anything that still needs a
+            person's judgement call — leave those for a human to label.
+
+            Then decide whether this also needs a **spec update**. A data
+            correction like the one above is never a spec change by itself —
+            fixing the place's name/status/location in the data is the whole
+            fix, and a spec file must never carry a specific place's facts as
+            documentation. Only look for a spec change when the clarified issue
+            reveals an actual gap in behaviour, UX, categorisation rules, or
+            architecture. When one applies, work out which `spec/*.md` file(s)
+            (per the list in `CLAUDE.md`) would need updating, read the affected
+            section(s), and draft a suggested diff — do not edit any file on
+            disk, just compose it by hand as a unified diff in a ```diff code
+            block (with `--- a/...` / `+++ b/...` file headers). This is a
+            preview for whoever implements the issue, not a change you're making
+            now.
 
             Post/update a short confirmation (e.g. "✅ All clarified — issue
             description updated.") instead of repeating the question list,
             followed by "**Suggested spec update:**" and the diff block. If no
-            spec change would be needed, say so explicitly instead of a diff.
+            spec change would be needed — including because this is a pure data
+            correction — say so explicitly, and why, instead of a diff.
 
-            Do not create a branch, commit any code, or open a PR — this workflow
-            only clarifies requirements.
-
-      - name: Remove older tracking comments
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -e
-          NUMBER="${{ github.event.issue.number }}"
-          COMMENTS=$(gh api "repos/${{ github.repository }}/issues/$NUMBER/comments" --paginate \
-            --jq '[.[] | select(.user.login == "claude[bot]")] | sort_by(.id) | .[:-1][].id')
-          for id in $COMMENTS; do
-            echo "Deleting older tracking comment $id"
-            gh api -X DELETE "repos/${{ github.repository }}/issues/comments/$id"
-          done
+            Do not create a branch, commit any code, or open a PR yourself —
+            this workflow only clarifies requirements and, where confirmed,
+            hands off via the `claude` label to the workflow that does.
