@@ -1716,6 +1716,8 @@ function goToInitialView(updateHash = true) {
   }
 
   const wasMinimized = els.inspector.classList.contains("minimized");
+  // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
+  startCameraOriginTransition();
   state.selected = null;
   clearManualCameraOverride();
   state.clusterZoomed = false;

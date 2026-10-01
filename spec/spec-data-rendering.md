@@ -746,6 +746,21 @@ moving the real GPS fix:
   the fit, the rotation pivot and the tilt projection stayed on the GPS fix, so the ring was
   fitted as if it sat far off to one side, rotation swung it across the screen as the compass
   moved, and in 3D it was projected around a pivot that had itself gone off screen.
+  - **The basis itself can flip between two calls** — a selection is made or cleared, switching
+    `cameraOriginPoint()` outright from `nearbyOrigin().point` to `state.userLocation.point` or
+    back — with no slide of its own the way a browse-anchor move already gets from
+    `nearbyRenderOriginPoint()`. Left alone, the rotation pivot and tilt projection jump straight
+    to the new basis on the very next frame, before the selection's own camera ease even starts
+    (`zoomToSelection` is often still waiting on the inspector to minimize) — most visible
+    selecting an item while browsing a nearby area that is not nearby, since that is exactly when
+    the two bases sit furthest apart: reported as "very jumpy". `state.cameraOriginTransition`
+    smooths this the same way, over the same `NEARBY_ORIGIN_TRANSITION_MS`: `cameraOriginPoint()`
+    eases in from wherever the pivot was last actually drawn rather than returning the new basis
+    outright, and `startCameraOriginTransition()` (js/app.js) captures that "last drawn" point and
+    starts the slide. It is called, before `state.selected` changes, from `handleMapClick` and
+    `focusOverviewItem` (js/inspector.js), `openSearchResult` (entering a selection) and
+    `goToInitialView` (js/nav.js, leaving one back to Nearby) — the same place in each flow
+    `startNearbyOriginTransition` is called before `state.nearbyAnchor` changes.
 - **Browsing is not a first-person view.** Three tilt behaviours exist to model standing
   somewhere and facing forward, and all three are suspended while a browse anchor is set, via
   the shared `tiltHidesWhatIsBehind()` (`!state.nearbyAnchor`):
