@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE } = require("./helpers");
+const { setup, FIXTURE_TREE, settleMapIconsAndDraw } = require("./helpers");
 
 test.describe("Selection and Inspector", () => {
   test.describe("tree selected via URL hash", () => {
@@ -45,12 +45,7 @@ test.describe("Selection and Inspector", () => {
       // Two sources of ongoing redraws after boot: (1) viewport animation (triggerMapRevealZoom
       // runs 700ms, overlay hides at 420ms, so 280ms spill into the test), (2) emoji-scale
       // exponential smoother (calls requestDraw until settled, ~28 more frames).
-      await page.evaluate(() => {
-        stopViewportAnimation();
-        state.emojiScaleAnimated = zoomEmojiScaleTarget();
-        draw();
-      });
-      await page.waitForTimeout(50);
+      await settleMapIconsAndDraw(page);
       await expect(page).toHaveScreenshot("tree-detail.png", {
         fullPage: false,
         mask: [page.locator("#mapCanvas")],

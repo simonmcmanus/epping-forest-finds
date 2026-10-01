@@ -35,20 +35,32 @@ jobs:
     # 2 vCPUs; running the whole suite on a single one meant 4 workers sharing them, which
     # starved the app's boot-and-draw cycle and failed whole spec files in `beforeEach`. Two
     # runners at 2 workers each (see playwright.config.js) gives every worker a full core for
-    # the same total parallelism. Each project is additionally split into two shards so the
-    # four resulting jobs run concurrently and roughly halve this job's wall-clock versus one
-    # shard per project. fail-fast is off so one shard's failure still lets the others report.
+    # the same total parallelism. Each project is additionally split into three shards so the
+    # six resulting jobs run concurrently and cut this job's wall-clock well below one shard
+    # per project -- a public repo on the free plan has no Actions-minutes cost and a generous
+    # concurrent-job budget, so there is no reason to leave this parallelism on the table.
+    # fail-fast is off so one shard's failure still lets the others report.
     #
     # This job excludes every "snapshot: ..." test (see the `visual-snapshots` job below) --
     # it only ever carries functional assertions, so a red check here always means a real
     # behavioural regression, never a pixel-diff flake.
+    #
+    # container pins the exact image Playwright publishes for this repo's own
+    # @playwright/test version and ubuntu-latest's codename (noble/24.04), with Chromium and
+    # every OS dependency already baked in. That replaces the separate
+    # "npx playwright install --with-deps chromium" step -- which re-downloaded the browser and
+    # apt-installed fonts/libs from scratch on every job, ~25-30s of setup and a network
+    # dependency on cdn.playwright.dev/the apt mirrors that added nothing but risk. Bump this
+    # tag only in lockstep with the @playwright/test version in package.json.
     name: E2E tests (${{ matrix.project }}, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
     strategy:
       fail-fast: false
       matrix:
         project: [desktop, mobile]
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -56,12 +68,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
       - name: Run E2E tests
         run: >
           npx playwright test --project=${{ matrix.project }}
-          --grep-invert "snapshot:" --shard=${{ matrix.shard }}/2
+          --grep-invert "snapshot:" --shard=${{ matrix.shard }}/3
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()
@@ -86,6 +96,8 @@ jobs:
     # twice and stays red.
     name: Visual snapshots (mobile)
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
     permissions:
       contents: write
     steps:
@@ -95,8 +107,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
       - name: Run visual snapshot tests
         id: e2e
         # continue-on-error so the commit step always runs even when baselines are missing.

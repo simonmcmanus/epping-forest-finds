@@ -12,6 +12,10 @@ jobs:
   update:
     name: Regenerate snapshot baselines
     runs-on: ubuntu-latest
+    # Pinned to the same image/tag as ci.yml's e2e and visual-snapshots jobs -- see the
+    # comment there. Bump both together with @playwright/test in package.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
     permissions:
       contents: write
     steps:
@@ -23,8 +27,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
       - name: Regenerate all snapshot baselines
         id: e2e
         # Mobile only: every toHaveScreenshot() spec is skipped on desktop (see

@@ -86,6 +86,37 @@ async function denyGeolocationUnlessGranted(page) {
 }
 
 /**
+ * Freeze the camera and settle the canvas for a pixel-exact screenshot.
+ *
+ * `drawPngMapIcon` (js/renderer.js) silently skips an icon whose `Image` hasn't finished
+ * loading yet (`if (!img.complete...) return false`), and its `onload` handler schedules a
+ * *second* draw via requestDraw()/requestAnimationFrame once the icon lands. A screenshot taken
+ * between those two draws depends entirely on how fast that particular icon's fetch happened to
+ * be -- fine on a quiet machine, a real source of the pixel-diff flakiness documented in
+ * spec/agents.md on a contended CI runner. Waiting for every icon already requested to finish
+ * loading (success or error) before the final draw removes that race instead of outrunning it
+ * with a longer timeout.
+ */
+async function settleMapIconsAndDraw(page) {
+  await page.evaluate(async () => {
+    stopViewportAnimation();
+    state.emojiScaleAnimated = zoomEmojiScaleTarget();
+    draw();
+    await Promise.all(
+      [...mapImageCache.values()].map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise((resolve) => {
+              img.addEventListener("load", resolve, { once: true });
+              img.addEventListener("error", resolve, { once: true });
+            })
+      )
+    );
+    draw();
+  });
+}
+
+/**
  * Navigate to the app and wait for the loading overlay to be fully gone.
  *
  * hideWithFade() fades opacity to 0 (CSS) and then sets el.hidden = true after
@@ -152,6 +183,7 @@ module.exports = {
   mockCowApi,
   denyGeolocationUnlessGranted,
   gotoAndWaitForMap,
+  settleMapIconsAndDraw,
   tapCanvasPoint,
   FIXTURE_TREE,
 };

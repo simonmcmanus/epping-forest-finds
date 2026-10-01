@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE } = require("./helpers");
+const { setup, FIXTURE_TREE, settleMapIconsAndDraw } = require("./helpers");
 
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -245,8 +245,7 @@ test.describe("Overview / Nearby screen", () => {
   test("snapshot: overview state", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.waitForTimeout(400);
-    await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
-    await page.waitForTimeout(50);
+    await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("overview.png", { fullPage: false });
   });
 
