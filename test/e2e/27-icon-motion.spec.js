@@ -2,6 +2,24 @@ const { test, expect } = require("@playwright/test");
 const { setup, FIXTURE_TREE } = require("./helpers");
 
 test.describe("Selected destination icon motion", () => {
+  test("the location details title animates and restores its original image for reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    const artwork = page.locator("#inspectorTitleEmoji canvas");
+    const original = page.locator("#inspectorTitleEmoji img");
+    await expect(artwork).toBeVisible();
+    await expect(original).toBeHidden();
+    const frame = await artwork.evaluate(canvas => canvas.toDataURL());
+    await expect.poll(() => artwork.evaluate(canvas => canvas.toDataURL())).not.toBe(frame);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(artwork).toBeHidden();
+    await expect(original).toBeVisible();
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expect(artwork).toBeVisible();
+    await page.click("#nearbyToggle");
+    await expect(artwork).toHaveCount(0);
+  });
+
   test("reduced motion keeps the selected destination still", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);

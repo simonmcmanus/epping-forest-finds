@@ -53,7 +53,7 @@ function initSelectedIconMotion() {
 function selectedIconMotionFrame() {
   if (!_iconMotionPreference || _iconMotionPreference.matches || document.visibilityState === "hidden") return null;
   const target = selectedCompassTarget();
-  if (!target || target !== state.selected.item || !["tree", "landmark", "cow", "water"].includes(state.selected.type)) return null;
+  if (!target || target !== state.selected.item || !["tree", "landmark", "cow", "water", "path"].includes(state.selected.type)) return null;
   const now = performance.now();
   if (_selectedIconMotionItem !== target) {
     _selectedIconMotionItem = target;
@@ -317,6 +317,7 @@ function drawOverlay() {
   drawUser(ctx, toScreen, isTilted);
   drawNearbyAnchorMarker(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
+  if (drawInspectorIconMotion(selectedIconMotionFrame())) _selectedIconMotionDrawn = true;
   if (_selectedIconMotionDrawn) {
     _selectedIconMotionTimer = setTimeout(drawOverlay, SELECTED_ICON_FRAME_MS);
   } else {
