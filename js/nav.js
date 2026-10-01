@@ -952,16 +952,18 @@ function restoreNearbyAnchorFromHistory() {
 // in this group" on its own, with no separate cluster-list screen to learn -- one interaction
 // covers both kinds of group, which is the point: fewer states for the user to hold in mind.
 //
-// A cluster tap can jump a long way (a mega badge across the ring from a browse anchor set by an
-// earlier tap, say), so it narrates the move in three beats rather than one plain ease: zoom out
-// far enough to show both where the view is and where it's going, pan across at that width (the
-// ring itself lands at its new spot for this whole beat, so it visibly travels rather than
-// teleporting), then zoom in to the new ring. See the phase functions below.
-const CLUSTER_TOUR_ZOOM_OUT_MS = 350;
-const CLUSTER_TOUR_PAN_MS = 450;
-const CLUSTER_TOUR_ZOOM_IN_MS = 450;
-
-// Shared by focusNearbyOnClusterGroup (the real camera tour, below) and the mega badge's own
+// The real state change (anchor, radius, list) lands immediately, same as every other way of
+// moving the Nearby view (setNearbyAnchor, restoreNearbyAnchorFromHistory); only the camera
+// eases, in one direct move from wherever it already is to the group's own framing -- the same
+// refreshNearbyRadiusView({ animate: true }) path a browser-back cluster undo already takes.
+// An earlier version zoomed out first to show both the current and destination framing, then
+// panned across, then zoomed in -- three separate tweens stitched together to narrate a long
+// jump (a mega badge across the ring from an earlier browse anchor, say). In practice that read
+// as the view yanking away before coming back, worse than the plain cut it was trying to avoid:
+// a single ease already shows the ring and the terrain moving together, which is its own
+// explanation for where the view went.
+//
+// Shared by focusNearbyOnClusterGroup (below) and the mega badge's own
 // count display (drawMegaClusters, js/renderer.js), so the two can never disagree: the centre
 // and walking radius a tap on this group will actually land on, computed once.
 function clusterFocusTarget(items) {
@@ -997,78 +999,24 @@ function focusNearbyOnClusterGroup(cluster) {
 
   const { centerPoint, center, targetMinutes } = clusterFocusTarget(items);
 
-  const fromPoint = nearbyRenderOriginPoint() || (nearbyOrigin() && nearbyOrigin().point);
-  if (!fromPoint) return false;
-
   setInspectorMinimized(false);
   stopViewportAnimation();
-  // Borrowed from the old cluster-zoom flow: blocks every GPS/compass-driven refit
-  // (ensureOverviewTargetsVisible, alignHeadingUpNavigationViewport, the walking-radius
-  // grow-back) for as long as it's set, so a fix or a heading tick landing mid-tour cannot
-  // stomp the sequence below -- the same reason it existed before this tap stopped opening a
-  // separate cluster-detail screen. Cleared once the tour's own final zoom lands.
-  state.clusterZoomed = true;
-
-  const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-  const focusCx = focusRect.x + focusRect.width / 2;
-  const focusCy = focusRect.y + focusRect.height / 2;
-
-  // Phase 1's scale: whatever fitting both the current spot and the new one needs, but never
-  // wider than the current view already is -- a short hop (the new group already on screen)
-  // should not zoom out just to zoom straight back in.
-  const savedViewport = { ...state.viewport };
-  fitToPoints([fromPoint, centerPoint], false, { focusVisibleArea: true, assumeInspectorOpen: true, animate: false });
-  const wideScale = Math.min(state.viewport.scale, savedViewport.scale);
-  state.viewport = savedViewport;
-  const wideViewport = {
-    scale: wideScale,
-    tx: focusCx - ((fromPoint.x + centerPoint.x) / 2) * wideScale,
-    ty: focusCy - ((fromPoint.y + centerPoint.y) / 2) * wideScale,
-  };
-  const panViewport = {
-    scale: wideScale,
-    tx: focusCx - centerPoint.x * wideScale,
-    ty: focusCy - centerPoint.y * wideScale,
-  };
-
-  // Phase 3: the real final framing (ring + list's own camera fit), computed the normal way
-  // once the state below is final -- captured via a direct (animate: false) call and then
-  // undone, so it can be eased into from wherever phase 2 actually landed instead of snapping
-  // there first and animating away from the snap.
-  function zoomInToFinal() {
-    const settledViewport = { ...state.viewport };
-    // ensureOverviewTargetsVisible (and alignHeadingUpNavigationViewport under it) both refuse
-    // to run at all while state.clusterZoomed is set -- the same guard that is deliberately
-    // keeping every *other* GPS/compass-driven refit out of this tour would otherwise also
-    // block the one call inside it that needs to compute where the tour itself is going.
-    // Cleared only for this synchronous computation, restored immediately after.
-    state.clusterZoomed = false;
-    ensureOverviewTargetsVisible({ animate: false, force: true });
-    const finalViewport = { ...state.viewport };
-    state.viewport = settledViewport;
-    state.clusterZoomed = true;
-    animateViewportTo(finalViewport, CLUSTER_TOUR_ZOOM_IN_MS, () => {
-      state.clusterZoomed = false;
-    });
-  }
-
-  // Phase 2: apply the real state change -- the ring, the list and the anchor bar all land on
-  // the new group immediately (nothing here is itself animated; only the camera is) -- then pan
-  // the camera across to it at the wide scale phase 1 settled on.
-  function moveAndSettle() {
-    state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
-    state.walkingDistanceMinutes = targetMinutes;
-    state.outOfRadiusRevealFilters = [];
-    state.clusterExpanded = null;
-    refreshNearestTreeForNearbyOrigin();
-    if (!secondaryScreenActive()) selectOverview();
-    updateNearbyAnchorBar();
-    syncSettingsWalkSlider();
-    pushNearbyAnchorHistory();
-    animateViewportTo(panViewport, CLUSTER_TOUR_PAN_MS, zoomInToFinal);
-  }
-
-  animateViewportTo(wideViewport, CLUSTER_TOUR_ZOOM_OUT_MS, moveAndSettle);
+  state.clusterZoomed = false;
+  // Same slide restoreNearbyAnchorFromHistory/setNearbyAnchor use for any other anchor move --
+  // started from wherever the ring is currently drawn so it continues smoothly even if this
+  // lands mid an earlier slide, rather than cutting straight to the new centre.
+  startNearbyOriginTransition(nearbyRenderOriginPoint());
+  state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
+  state.walkingDistanceMinutes = targetMinutes;
+  state.outOfRadiusRevealFilters = [];
+  state.clusterExpanded = null;
+  syncSettingsWalkSlider();
+  // Single direct ease to the group's own framing -- same path a browser-back cluster undo
+  // (restoreNearbyAnchorFromHistory) already takes -- rather than the old zoom-out/pan/zoom-in
+  // tour. refreshNearbyRadiusView handles the nearest-tree rescan, the Nearby list, the anchor
+  // bar, and ensureOverviewTargetsVisible's own camera fit.
+  refreshNearbyRadiusView({ animate: true });
+  pushNearbyAnchorHistory();
   return true;
 }
 
@@ -1115,13 +1063,10 @@ function isOutsideNearestArea(lonLat) {
 // is set *before* goToInitialView() so its single re-fit already frames the tapped spot,
 // rather than fitting the old origin and then animating a second time.
 function focusNearbyOnMapPoint(lonLat, worldPoint) {
-  // Interrupts a cluster tap's own multi-phase camera tour (focusNearbyOnClusterGroup) if one
-  // is still running: that tour drives state.viewport with its own chained animateViewportTo
-  // calls and leaves state.clusterZoomed set between phases (to keep GPS/compass refits out of
-  // its way) until its own final phase clears it. Without this, a plain open-ground tap mid-tour
-  // -- the common case here, and the one branch below that does not already route through
-  // goToInitialView (which does clear it) -- left clusterZoomed stuck true, silently blocking
-  // every later GPS/compass-driven refit until some other interaction happened to reset it.
+  // Defensive reset: state.clusterZoomed should already be false by the time any tap lands
+  // (focusNearbyOnClusterGroup clears it itself, synchronously, before its own camera ease
+  // starts), but clearing it here too means a plain open-ground tap can never be silently
+  // blocked by a stale flag left over from some earlier interaction.
   state.clusterZoomed = false;
   stopViewportAnimation();
   if (!state.userLocation) {
