@@ -120,7 +120,15 @@ jobs:
         # Runs even after test failure. git add only touches test/e2e/__screenshots__/, so
         # regression diffs (written to test-results/ as "actual") are never committed. New
         # linux PNGs committed here will be found on the next CI run.
+        #
+        # The explicit cd + safe.directory: actions/checkout's own safe.directory registration
+        # happens to run too late to help a mid-job step in this container image -- without
+        # them this step failed outright with "fatal: not in a git directory" the first time
+        # this job ran containerized, before any of the actual git commands below got a chance
+        # to execute.
         run: |
+          cd "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add test/e2e/__screenshots__/
