@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap } = require("./helpers");
+const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndDraw } = require("./helpers");
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -45,8 +45,7 @@ test.describe("Location and GPS — happy path", () => {
     test("snapshot: map with user location active", async ({ page }, testInfo) => {
       test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
       await page.waitForTimeout(800);
-      await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
-      await page.waitForTimeout(50);
+      await settleMapIconsAndDraw(page);
       await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
     });
   });

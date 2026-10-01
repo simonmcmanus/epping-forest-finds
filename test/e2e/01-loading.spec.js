@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { skipOnboarding, mockCowApi } = require("./helpers");
+const { skipOnboarding, mockCowApi, settleMapIconsAndDraw } = require("./helpers");
 
 test.describe("Loading experience", () => {
   test.beforeEach(async ({ page }) => {
@@ -71,8 +71,7 @@ test.describe("Loading experience", () => {
     await page.goto("/app");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
     await page.waitForTimeout(600);
-    await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
-    await page.waitForTimeout(50);
+    await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("map-ready.png", { fullPage: false });
   });
 });

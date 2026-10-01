@@ -35,20 +35,32 @@ jobs:
     # 2 vCPUs; running the whole suite on a single one meant 4 workers sharing them, which
     # starved the app's boot-and-draw cycle and failed whole spec files in `beforeEach`. Two
     # runners at 2 workers each (see playwright.config.js) gives every worker a full core for
-    # the same total parallelism. Each project is additionally split into two shards so the
-    # four resulting jobs run concurrently and roughly halve this job's wall-clock versus one
-    # shard per project. fail-fast is off so one shard's failure still lets the others report.
+    # the same total parallelism. Each project is additionally split into three shards so the
+    # six resulting jobs run concurrently and cut this job's wall-clock well below one shard
+    # per project -- a public repo on the free plan has no Actions-minutes cost and a generous
+    # concurrent-job budget, so there is no reason to leave this parallelism on the table.
+    # fail-fast is off so one shard's failure still lets the others report.
     #
     # This job excludes every "snapshot: ..." test (see the `visual-snapshots` job below) --
     # it only ever carries functional assertions, so a red check here always means a real
     # behavioural regression, never a pixel-diff flake.
+    #
+    # container pins the exact image Playwright publishes for this repo's own
+    # @playwright/test version and ubuntu-latest's codename (noble/24.04), with Chromium and
+    # every OS dependency already baked in. That replaces the separate
+    # "npx playwright install --with-deps chromium" step -- which re-downloaded the browser and
+    # apt-installed fonts/libs from scratch on every job, ~25-30s of setup and a network
+    # dependency on cdn.playwright.dev/the apt mirrors that added nothing but risk. Bump this
+    # tag only in lockstep with the @playwright/test version in package.json.
     name: E2E tests (${{ matrix.project }}, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
     strategy:
       fail-fast: false
       matrix:
         project: [desktop, mobile]
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -56,12 +68,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
       - name: Run E2E tests
         run: >
           npx playwright test --project=${{ matrix.project }}
-          --grep-invert "snapshot:" --shard=${{ matrix.shard }}/2
+          --grep-invert "snapshot:" --shard=${{ matrix.shard }}/3
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()
@@ -86,17 +96,26 @@ jobs:
     # twice and stays red.
     name: Visual snapshots (mobile)
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Must be a PAT, not this job's own GITHUB_TOKEN -- same reason, same fix, as
+          # sw-release.yml's and data-bump.yml's own bump commits (see either header).
+          # GitHub fires no pull_request/push event for anything GITHUB_TOKEN pushed, so a
+          # baseline commit authored by it would become the PR's new head with no CI run ever
+          # against it: this check would read green while having tested a now-stale commit. A
+          # PAT is an ordinary user credential, so this push triggers a real `synchronize`
+          # event and ci.yml runs again against the exact commit that ends up on main.
+          token: ${{ secrets.WEEKLY_LEDGER_PAT }}
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
       - name: Run visual snapshot tests
         id: e2e
         # continue-on-error so the commit step always runs even when baselines are missing.
@@ -108,14 +127,26 @@ jobs:
         continue-on-error: true
       - name: Commit new snapshot baselines
         # Runs even after test failure. git add only touches test/e2e/__screenshots__/, so
-        # regression diffs (written to test-results/ as "actual") are never committed. New
-        # linux PNGs committed here will be found on the next CI run.
+        # regression diffs (written to test-results/ as "actual") are never committed.
+        #
+        # No [skip ci]: a push to a PR branch should always get a real CI run against the exact
+        # commit that ends up on main, same reasoning as sw-release.yml/data-bump.yml. The PAT
+        # above is what actually makes that push fire a `synchronize` event in the first place;
+        # without it this commit would sit as the PR's new head completely unchecked.
+        #
+        # The explicit cd + safe.directory: actions/checkout's own safe.directory registration
+        # happens to run too late to help a mid-job step in this container image -- without
+        # them this step failed outright with "fatal: not in a git directory" the first time
+        # this job ran containerized, before any of the actual git commands below got a chance
+        # to execute.
         run: |
+          cd "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add test/e2e/__screenshots__/
           if ! git diff --staged --quiet; then
-            git commit -m "chore: add CI snapshot baselines [skip ci]"
+            git commit -m "chore: add CI snapshot baselines"
             git checkout -- .
             git clean -fd
             git pull --rebase origin ${{ github.head_ref || github.ref_name }}

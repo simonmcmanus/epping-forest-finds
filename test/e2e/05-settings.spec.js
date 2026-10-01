@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup } = require("./helpers");
+const { setup, settleMapIconsAndDraw } = require("./helpers");
 
 test.describe("Settings screen", () => {
   test.beforeEach(async ({ page }) => {
@@ -212,8 +212,7 @@ test.describe("Settings screen", () => {
   test("snapshot: settings screen", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.waitForTimeout(300);
-    await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
-    await page.waitForTimeout(50);
+    await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("settings-screen.png", { fullPage: false });
   });
 });

@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup } = require("./helpers");
+const { setup, settleMapIconsAndDraw } = require("./helpers");
 
 test.describe("Filter panel", () => {
   test.beforeEach(async ({ page }) => {
@@ -121,8 +121,7 @@ test.describe("Filter panel", () => {
     await page.click("#filterToggle");
     await expect(page).toHaveURL(/#filters$/);
     await page.waitForTimeout(300);
-    await page.evaluate(() => { stopViewportAnimation(); state.emojiScaleAnimated = zoomEmojiScaleTarget(); draw(); });
-    await page.waitForTimeout(50);
+    await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("filter-screen.png", { fullPage: false });
   });
 });

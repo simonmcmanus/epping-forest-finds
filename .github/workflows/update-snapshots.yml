@@ -12,19 +12,25 @@ jobs:
   update:
     name: Regenerate snapshot baselines
     runs-on: ubuntu-latest
+    # Pinned to the same image/tag as ci.yml's e2e and visual-snapshots jobs -- see the
+    # comment there. Bump both together with @playwright/test in package.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.inputs.branch }}
+          # Must be a PAT, not this job's own GITHUB_TOKEN -- see the matching comment in
+          # ci.yml's visual-snapshots job. Without it this commit triggers no CI run at all,
+          # same failure mode as sw-release.yml/data-bump.yml before they made the same fix.
+          token: ${{ secrets.WEEKLY_LEDGER_PAT }}
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
       - name: Regenerate all snapshot baselines
         id: e2e
         # Mobile only: every toHaveScreenshot() spec is skipped on desktop (see
@@ -33,12 +39,18 @@ jobs:
         run: npx playwright test --project=mobile --update-snapshots=all
         continue-on-error: true
       - name: Commit updated baselines
+        # See the matching comments in ci.yml's visual-snapshots job: no [skip ci] (a regenerated
+        # baseline needs a real CI run to confirm it actually matches before anyone trusts it),
+        # and the explicit cd + safe.directory (without them git fails outright with "fatal: not
+        # in a git directory" in this container image).
         run: |
+          cd "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add test/e2e/__screenshots__/
           if ! git diff --staged --quiet; then
-            git commit -m "chore: update CI snapshot baselines [skip ci]"
+            git commit -m "chore: update CI snapshot baselines"
             git push origin HEAD:${{ github.event.inputs.branch }}
           fi
       - name: Fail if any test had a non-screenshot failure
