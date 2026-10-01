@@ -3,6 +3,7 @@
 import os
 import sys
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -11,7 +12,8 @@ from scripts import user_reports as ur  # noqa: E402
 
 
 def issue(number=77, title="Missing map data: Tree 04406 is missing", body=None,
-          labels=("missing-data", "user-report"), created="2026-09-18T07:52:06Z"):
+          labels=("missing-data", "user-report"), created="2026-09-18T07:52:06Z",
+          closed=None):
     # The shape netlify/functions/report-missing-data.js actually writes.
     if body is None:
         body = (
@@ -26,7 +28,7 @@ def issue(number=77, title="Missing map data: Tree 04406 is missing", body=None,
             "- Reported location: 51.6486863, 0.056709\n"
             "- Google Maps: https://maps.google.com/?q=51.6486863,0.056709\n"
         )
-    return {
+    result = {
         "number": number,
         "title": title,
         "body": body,
@@ -34,6 +36,9 @@ def issue(number=77, title="Missing map data: Tree 04406 is missing", body=None,
         "created_at": created,
         "html_url": f"https://github.com/simonmcmanus/epping-forest-finds/issues/{number}",
     }
+    if closed is not None:
+        result["closed_at"] = closed
+    return result
 
 
 class SelectionTests(unittest.TestCase):
@@ -164,6 +169,40 @@ class MergeTests(unittest.TestCase):
         ur.merge_into_ledger(ledger, [ur.parse_report(issue(number=77))])
         bw.record_run(ledger, [], "2026-09-21", sources={"osm"})
         self.assertEqual(len(bw.reported_missing(ledger)), 1)
+
+
+class ClosedReportTests(unittest.TestCase):
+    """The weekly ledger reviews reports closed this week for a pattern that
+    no single report shows -- but only ever for things that actually closed
+    recently, and only as information, never folded back into the watchlist."""
+
+    def test_an_issue_closed_today_is_within_seven_days(self):
+        now = datetime(2026, 9, 25, tzinfo=timezone.utc)
+        closed_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.assertTrue(ur.closed_within(issue(closed=closed_at), since_days=7, now=now))
+
+    def test_an_issue_closed_eight_days_ago_is_not_within_seven_days(self):
+        now = datetime(2026, 9, 25, tzinfo=timezone.utc)
+        closed_at = (now - timedelta(days=8)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.assertFalse(ur.closed_within(issue(closed=closed_at), since_days=7, now=now))
+
+    def test_an_issue_still_open_is_never_within_the_window(self):
+        self.assertFalse(ur.closed_within(issue(closed=None), since_days=30))
+
+    def test_a_parsed_closed_report_carries_when_it_closed(self):
+        parsed = ur.parse_report(issue(closed="2026-09-24T10:00:00Z"))
+        self.assertEqual(parsed["closedAt"], "2026-09-24")
+
+    def test_a_parsed_closed_report_says_whether_it_was_auto_fixed(self):
+        by_hand = ur.parse_report(issue(closed="2026-09-24T10:00:00Z", labels=("user-report",)))
+        self.assertFalse(by_hand["wasAutoFixed"])
+        auto_fixed = ur.parse_report(issue(closed="2026-09-24T10:00:00Z", labels=("user-report", "claude")))
+        self.assertTrue(auto_fixed["wasAutoFixed"])
+
+    def test_an_open_reports_parse_carries_no_closed_fields(self):
+        parsed = ur.parse_report(issue())
+        self.assertNotIn("closedAt", parsed)
+        self.assertNotIn("wasAutoFixed", parsed)
 
 
 if __name__ == "__main__":

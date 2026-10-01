@@ -23,9 +23,18 @@ category and a position, and guessing at those is how a map fills up with
 things that are not there. The run reads the report, does the lookup, and
 proposes a change a person can review.
 
+This also, optionally, looks back over reports that were already closed this
+week (--closed-since-days). Those are not folded into the watchlist -- they
+are done -- but reading them as a set is how a pattern shows up that no single
+report does: several closures the OpenStreetMap check never caught, several
+reports about the same settlement, the same kind of gap recurring. That is a
+job for the human/AI reading the weekly run's findings, not this script --
+it only fetches and parses them.
+
 Usage:
     python3 scripts/user_reports.py [--ledger PATH] [--out PATH]
                                     [--repo owner/name] [--no-record]
+                                    [--closed-since-days N]
 
 Network: the GitHub REST API. This repository is public, so its issues read
 without a token at all; GITHUB_TOKEN or GH_TOKEN is used when present, and is
@@ -88,6 +97,30 @@ def fetch_open_reports(repo=DEFAULT_REPO, timeout=REQUEST_TIMEOUT_S):
         return json.loads(response.read().decode("utf-8"))
 
 
+def fetch_closed_reports(repo=DEFAULT_REPO, timeout=REQUEST_TIMEOUT_S):
+    """Network call. Closed issues carrying the app's report label, newest
+    first -- however they were closed (by hand, or by the issue-fix
+    automation's own pull request)."""
+    url = (
+        f"{API_BASE}/repos/{repo}/issues?state=closed&labels={REPORT_LABEL}"
+        "&per_page=100&sort=updated&direction=desc"
+    )
+    request = urllib.request.Request(url, headers=_auth_headers())
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def closed_within(issue, since_days, now=None):
+    """True if the issue was closed in the last `since_days` days. An issue
+    with no closed_at (shouldn't happen for a closed issue, but a defensive
+    check costs nothing) never counts."""
+    closed_at = issue.get("closed_at")
+    if not closed_at:
+        return False
+    closed_dt = datetime.strptime(closed_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return ((now or datetime.now(timezone.utc)) - closed_dt).days <= since_days
+
+
 def _labels_of(issue):
     return {
         (label.get("name") if isinstance(label, dict) else label)
@@ -122,6 +155,9 @@ def parse_report(issue):
     if match:
         entry["lat"] = float(match.group(1))
         entry["lon"] = float(match.group(2))
+    if issue.get("closed_at"):
+        entry["closedAt"] = issue["closed_at"][:10]
+        entry["wasAutoFixed"] = "claude" in _labels_of(issue)
     return entry
 
 
@@ -147,6 +183,11 @@ def main():
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY") or DEFAULT_REPO)
     parser.add_argument("--out", default=None, help="Write JSON here instead of stdout")
     parser.add_argument("--no-record", action="store_true", help="Report only; leave the watchlist untouched")
+    parser.add_argument(
+        "--closed-since-days", type=int, default=None,
+        help="Also include reports closed in the last N days, for spotting a pattern across the week's "
+             "reports. Best-effort: a failure here is noted and does not fail the run.",
+    )
     args = parser.parse_args()
 
     try:
@@ -187,6 +228,21 @@ def main():
         "open_reports": reports,
         "with_location": sum(1 for r in reports if r.get("lat") is not None),
     }
+
+    if args.closed_since_days is not None:
+        try:
+            closed_issues = fetch_closed_reports(args.repo)
+            closed_reports = [
+                parse_report(i) for i in closed_issues
+                if is_map_data_report(i) and closed_within(i, args.closed_since_days)
+            ]
+            result["closed_reports"] = closed_reports
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            # Best-effort and additive only -- it never gates the open-reports
+            # watchlist above. Say so rather than silently reporting zero
+            # closed reports, which would read as "nothing to learn from".
+            result["closed_reports_error"] = str(exc)
+            print(f"Could not read recently-closed reports ({exc}). Continuing without them.", file=sys.stderr)
 
     if not args.no_record:
         ledger = business_watch.load_ledger(args.ledger)

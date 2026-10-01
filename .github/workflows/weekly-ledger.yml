@@ -23,22 +23,29 @@ name: Weekly Epping Forest Ledger
 # a human-opened PR.
 #
 # The secret is a fine-grained PAT scoped to this repository with:
-#   Contents: Read and write     (push the weekly-data-report/* branch)
-#   Pull requests: Read and write (open and edit the PR)
+#   Contents: Read and write      (push the weekly-data-report/* and
+#                                  weekly-data-quality/* branches)
+#   Pull requests: Read and write (open and edit PRs)
 #   Workflows: Read and write     (only if a run ever touches .github/workflows)
-#   Issues: Read                  (read what people reported from inside the
-#                                  app -- scripts/user_reports.py. Not
-#                                  strictly required while this repository is
-#                                  public, since public issues read without a
-#                                  token at all; worth granting anyway,
-#                                  because unauthenticated requests are rate
-#                                  limited per IP and a runner's IP is shared,
-#                                  and because it becomes mandatory the day
-#                                  the repository goes private. A token that
-#                                  cannot see issues now gets a loud 403
-#                                  rather than an empty list. Write is NOT
-#                                  needed: the PR body says `Closes #<n>` and
-#                                  merging does the rest.)
+#   Issues: Read and write        (read what people reported from inside the
+#                                  app -- scripts/user_reports.py -- and, per
+#                                  the pattern-review step, open a standalone
+#                                  issue when a recurring data gap needs a
+#                                  person's judgement rather than a code fix.
+#                                  Read alone is not strictly required while
+#                                  this repository is public, since public
+#                                  issues read without a token at all; worth
+#                                  granting anyway, because unauthenticated
+#                                  requests are rate limited per IP and a
+#                                  runner's IP is shared, and because it
+#                                  becomes mandatory the day the repository
+#                                  goes private. A token that cannot see
+#                                  issues now gets a loud 403 rather than an
+#                                  empty list. Write is now needed for the
+#                                  pattern-review step's `gh issue create`;
+#                                  it still isn't needed to close a reporter's
+#                                  own issue -- the PR body's `Closes #<n>`
+#                                  and merging does that.)
 # Fine-grained PATs expire -- if this job starts failing to push or open PRs,
 # check the token's expiry date first. Claude itself still authenticates with
 # claude_code_oauth_token; the PAT only covers git/gh operations.
@@ -285,7 +292,7 @@ jobs:
                   IS NOT ADVISORY. Run, in this order:
 
                     python3 scripts/data_quality.py --json > /tmp/quality-before.json
-                    python3 scripts/user_reports.py --out /tmp/reports.json || true
+                    python3 scripts/user_reports.py --out /tmp/reports.json --closed-since-days 7 || true
                     python3 scripts/fsa_business_diff.py --out /tmp/fsa-diff.json || true
                     python3 scripts/osm_business_diff.py \
                       --out /tmp/osm-diff.json \
@@ -377,6 +384,49 @@ jobs:
                   have moved paddocks since last run and it names roughly
                   where; use its output directly as report-data.json's
                   "grazing" field either way (moved or not).
+               i. Learn from the week's reports as a set, not just one at a
+                  time. Read /tmp/reports.json's "closed_reports" -- issues
+                  closed in the last 7 days, whether by a human or by the
+                  separate issue-fix automation (a `wasAutoFixed: true` entry
+                  closed itself via its own pull request, outside this
+                  workflow entirely; still read it, it's still evidence) --
+                  alongside this week's "open_reports". Look for a pattern a
+                  single report never shows on its own: several reports about
+                  the same kind of gap, the same settlement, a source this
+                  project doesn't check at all. ("closed_reports_error" means
+                  this list could not be read -- say so in the pull request
+                  rather than silently treating an empty list as a quiet
+                  week.)
+
+                  If a real, repeating pattern turns up and you have a
+                  concrete, scoped code or script fix for it (not a data
+                  change -- that's step 3's job), build it on ITS OWN branch,
+                  separate from this week's weekly-data-report/* branch. You
+                  are still on `main` at this point (step 4 hasn't branched
+                  yet), so:
+
+                    git checkout -b weekly-data-quality/<date>-$RUN_NUMBER
+
+                  make the change, run `node --test test/forest-finds.test.js`
+                  if it touches anything under test, then commit (same
+                  `git config user.name "Epping Forest Ledger (weekly report)"`,
+                  `user.email "weekly-report@local"` as step 4c, scoped to this
+                  checkout only), push, and `gh pr create` for it on its own --
+                  never fold it into the data-update branch, which stays data
+                  and the report only. Then `git checkout main` again before
+                  continuing to step 3, so the data changeset still branches
+                  from main in step 4a.
+
+                  If the pattern needs a person's judgement rather than a
+                  confident fix, open a plain `gh issue create` instead
+                  describing the pattern and what you'd suggest -- no branch
+                  needed for that, and never guess at an implementation just
+                  to have something to push. Either way, name what you opened
+                  (PR or issue link) as a one-line reference note in THIS
+                  week's data-update pull request body (step 4d) -- it is a
+                  pointer, not something this PR's diff carries. If nothing
+                  stands out as a genuine repeating pattern, say so plainly
+                  rather than manufacturing one.
 
             3. Build this week's changeset. START FROM
                /tmp/auto-changeset.json as written by step 2g -- do not
@@ -568,11 +618,12 @@ jobs:
                it is wrong" note and its own advert for the app -- do not add
                either by hand.
 
-            7. End with a short plain-text summary in the workflow log:
-               what changed, whether it merged, and anything that needs a
-               human's attention.
+            7. End with a short plain-text summary in the workflow log: what
+               changed, whether it merged, anything that needs a human's
+               attention, and any separate pull request or issue opened from
+               step 2i's pattern review.
           # NOTE: Bash(gh pr merge:*) is deliberately left out of claude_args
           # below -- auto-merge is disabled while Simon tests this workflow.
           # Add it back (and flip the prompt language above) once he is happy.
           claude_args: |
-            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(node:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*)"
+            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(node:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*),Bash(gh issue create:*)"
