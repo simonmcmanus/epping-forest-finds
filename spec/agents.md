@@ -19,6 +19,8 @@ Update the affected section only; do not pad.
 
 Do not consider a behaviour change complete until the matching spec update is included in the same change set. If no spec update is needed, state the reason in the final response.
 
+A correction to a specific place's real-world facts (it closed, renamed, moved, or is mis-categorised) is a data change, not a behaviour change: fix the data file directly and leave the spec alone. Only touch a spec file when the change alters what the app does or how it is structured — a spec file must never carry a specific place's name, status, or coordinates as documentation. When addressing a reported issue, fix the underlying cause (the data, the code) rather than writing the specific detail into a spec file.
+
 Before finishing any implementation task:
 - Check `git diff --name-only`.
 - Map changed files to the relevant `spec/` document.
