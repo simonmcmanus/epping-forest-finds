@@ -61,6 +61,8 @@ function handleMapClick(event) {
   state.clusterZoomed = false;
   state.clusterExpanded = null;
   setInspectorMinimized(false);
+  // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
+  startCameraOriginTransition();
   if (hit.type === "tree") {
     state.selected = { type: "tree", item: hit.item };
     syncHashFromSelection();
@@ -833,6 +835,8 @@ function focusOverviewItem(type, key) {
   }
   state.clusterZoomed = false;
   state.clusterExpanded = null;
+  // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
+  startCameraOriginTransition();
 
   if (type === "tree") {
     const tree = findTreeByHashKey(key);

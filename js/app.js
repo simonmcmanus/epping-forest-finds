@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v68"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v69"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -185,6 +185,9 @@ const state = {
   nearbyAnchor: null,
   // In-flight slide between two browse origins -- see nearbyRenderOriginPoint().
   nearbyOriginTransition: null,
+  // In-flight slide of cameraOriginPoint()'s own pivot across the moment it switches *basis* --
+  // nearby browsing to selected navigation, or back -- see cameraOriginPoint().
+  cameraOriginTransition: null,
   activePointers: new Map(),
   pinchActive: false,
   pinchBaseDistance: null,
@@ -4075,11 +4078,58 @@ function navigationAnchorActive() {
 // the ring ended up drawn through a perspective solved for somewhere the camera was not
 // looking. Any new consumer of "where is the camera" belongs here too rather than reaching
 // for state.userLocation.point directly.
+//
+// The *basis* above (selected-navigation vs nearby) can itself flip between two calls -- a
+// selection is made or cleared -- which switches this function from one of those sources to
+// the other outright, with no slide of its own the way nearbyRenderOriginPoint() already gives
+// a browse-anchor move. Left alone, the heading-up rotation and 3D tilt -- everything
+// worldToScreen() projects around -- jump straight to the new basis on the very next frame,
+// well before the selection's own camera ease even starts (it is still waiting on the inspector
+// to settle): reported as "very jumpy" selecting an item while browsing a nearby area that is
+// not nearby, since that is exactly when the two bases (the browsed anchor and the real GPS fix)
+// sit furthest apart. state.cameraOriginTransition, started by startCameraOriginTransition()
+// just before a caller flips the basis, smooths this the same way: this function eases the
+// logical point in from wherever it was last actually drawn rather than returning it outright.
 function cameraOriginPoint() {
-  if (selectedNavigationHeadingUpActive()) return state.userLocation.point;
-  const rendered = nearbyRenderOriginPoint();
-  if (rendered) return rendered;
-  return state.userLocation ? state.userLocation.point : null;
+  const logical = selectedNavigationHeadingUpActive()
+    ? state.userLocation.point
+    : (nearbyRenderOriginPoint() || (state.userLocation ? state.userLocation.point : null));
+  if (!logical) return logical;
+  const transition = state.cameraOriginTransition;
+  if (!transition) return logical;
+  const progress = clamp((performance.now() - transition.startedAt) / transition.durationMs, 0, 1);
+  if (progress >= 1) {
+    state.cameraOriginTransition = null;
+    return logical;
+  }
+  // Same cubic ease-in-out animateViewportTo and nearbyRenderOriginPoint use, so this reads as
+  // the same family of motion as every other camera move in the app.
+  const eased = progress < 0.5
+    ? 4 * progress * progress * progress
+    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+  return {
+    x: transition.fromX + (logical.x - transition.fromX) * eased,
+    y: transition.fromY + (logical.y - transition.fromY) * eased,
+  };
+}
+
+// Captures cameraOriginPoint()'s current pivot and schedules a slide from it, for a caller
+// that is about to flip the basis above -- making a selection, or clearing one -- partway
+// through its own body. Call this before state.selected changes (and before any other state
+// that feeds selectedNavigationHeadingUpActive()/nearbyOrigin() does), mirroring how
+// startNearbyOriginTransition is called before state.nearbyAnchor changes.
+function startCameraOriginTransition() {
+  const fromPoint = cameraOriginPoint();
+  if (!fromPoint) {
+    state.cameraOriginTransition = null;
+    return;
+  }
+  state.cameraOriginTransition = {
+    fromX: fromPoint.x,
+    fromY: fromPoint.y,
+    startedAt: performance.now(),
+    durationMs: NEARBY_ORIGIN_TRANSITION_MS,
+  };
 }
 
 // Where the Nearby view's origin is *drawn* this frame, which is not always where it
@@ -6753,6 +6803,8 @@ function openSearchResult(type, key) {
   state.clusterZoomed = false;
   state.clusterExpanded = null;
   state.searchScreenOpen = false;
+  // Before state.selected changes below -- see startCameraOriginTransition.
+  startCameraOriginTransition();
   state.selected = { type, item };
   route.show(item);
   syncHashFromSelection();

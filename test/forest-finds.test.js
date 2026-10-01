@@ -393,6 +393,7 @@ globalThis.__forestFindsTest = {
   worldToScreenFlat,
   projectCanvasPoint,
   handleMapClick,
+  startCameraOriginTransition,
   distanceFromUserToRoad,
   nearbyOrigin,
   setNearbyAnchor,
@@ -603,6 +604,7 @@ function resetData(app) {
   app.state.roads = [];
   app.state.nearbyAnchor = null;
   app.state.nearbyOriginTransition = null;
+  app.state.cameraOriginTransition = null;
   app.state.clusterExpanded = null;
   app.state.clusterZoomed = false;
   app.state.overviewFilters = [];
@@ -8198,6 +8200,36 @@ test("the camera origin, the scale fit and the 3D projection all pivot on the sa
   const anchorRaw = app.rawWorldToScreen(app.state.nearbyAnchor.point);
   assert.ok(Math.abs(projection.originX - anchorRaw.x) < 0.001, "the 3D projection pivots on the anchor too");
   assert.ok(Math.abs(projection.originY - anchorRaw.y) < 0.001, "the 3D projection pivots on the anchor too");
+});
+
+test("selecting an item while browsing a distant anchor slides the camera origin to the GPS fix instead of jumping to it", () => {
+  // The bug this covers: cameraOriginPoint() switches outright from the browsed anchor to the
+  // real GPS fix the instant a selection is made (selectedNavigationHeadingUpActive() flips),
+  // with no slide of its own -- unlike a plain anchor-to-anchor move, which nearbyRenderOriginPoint
+  // already smooths. Reported as "very jumpy" selecting an item while browsing a nearby area that
+  // is not nearby, since that is exactly when the two points sit furthest apart.
+  enterNearby3D(app);
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  settleNearbySlide(app);
+  assert.equal(app.cameraOriginPoint(), app.state.nearbyAnchor.point, "sanity: settled on the browsed anchor");
+
+  const userPoint = app.state.userLocation.point;
+  // Mirrors the real sequence (handleMapClick/focusOverviewItem/openSearchResult): capture the
+  // pivot, then flip the basis by selecting something with a real compass target.
+  app.startCameraOriginTransition();
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+
+  const midSlide = app.cameraOriginPoint();
+  assert.notEqual(midSlide, userPoint, "selecting does not jump the pivot to the GPS fix on the same frame");
+  assert.notEqual(midSlide, anchor.point, "nor does it stay frozen on the old anchor");
+  assert.ok(
+    midSlide.x >= Math.min(anchor.point.x, userPoint.x) - 1e-6 && midSlide.x <= Math.max(anchor.point.x, userPoint.x) + 1e-6,
+    "and it is somewhere between the browsed anchor and the real GPS fix"
+  );
+
+  app.state.cameraOriginTransition.startedAt -= app.state.cameraOriginTransition.durationMs + 1;
+  assert.equal(app.cameraOriginPoint(), userPoint, "settled: the camera is back on the real GPS fix, as selected navigation requires");
 });
 
 // Records the path each draw walks, so a marker's actual drawn geometry can be asserted rather

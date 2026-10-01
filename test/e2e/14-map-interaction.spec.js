@@ -49,9 +49,9 @@ test.describe("Map interaction", () => {
 
       await tapCanvasPoint(page, target.point);
 
-      // The state change (anchor, radius, list) lands at the start of the tour's pan phase, not
-      // instantly on tap -- see focusNearbyOnClusterGroup's three-phase camera tour (js/nav.js)
-      // -- so wait for it rather than asserting immediately after the tap.
+      // The state change (anchor, radius, list) lands synchronously on tap, but the camera eases
+      // to its new framing afterwards (focusNearbyOnClusterGroup, js/nav.js) -- wait for the
+      // state rather than asserting before the draw that reflects it has had a chance to run.
       await page.waitForFunction(() => Boolean(state.nearbyAnchor));
 
       // Tapping a group behaves like tapping open ground on that spot: the Nearby browse anchor
