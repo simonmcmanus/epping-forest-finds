@@ -226,14 +226,18 @@
        map re-fit (ensureOverviewTargetsVisible) on every switch even though nothing the user did
        asked the map to move. A definite height keeps the footprint -- and the map -- stable
        across tabs; only a manual drag (setInspectorHeight, below) changes it, same as
-       --inspector-height already did for the resize handle before this. min-height is the floor
-       for short viewports -- mainly landscape phones, where 48% of a ~360-430px-tall screen
-       would otherwise be too cramped for Settings/Filters content -- picked low enough (200px)
-       that it stays out of the way on an ordinary portrait phone, where 48% minus the nav-bar
-       reservation already clears it; clamped against the same available-space cap as max-height
-       so it can never push the sheet taller than the screen has room for. */
+       --inspector-height already did for the resize handle before this. min-height is only a
+       backstop against the title section itself clipping on a pathologically short viewport --
+       90px is below what 48% minus the nav-bar reservation already yields on every real landscape
+       phone (~360-430px tall gives ~90-125px), so it stays out of the way there. It has to stay
+       low: Report's keyboard-avoiding-expand state (below) sizes itself off of how tall this
+       default state actually is (test/e2e/06-feedback.spec.js's landscape keyboard-avoidance
+       case measures the jump between them), and a floor high enough to dominate the default would
+       make that jump collapse or invert when the keyboard opens. Clamped against the same
+       available-space cap as max-height, so it can never push the sheet taller than the screen
+       has room for either way. */
     height: calc(var(--inspector-height, 48%) - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
-    min-height: min(200px, calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px)));
+    min-height: min(90px, calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px)));
     max-height: calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
     transition: height 120ms ease-out;
   }
