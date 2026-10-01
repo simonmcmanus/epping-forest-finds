@@ -221,11 +221,31 @@
        lived inside the sheet's own --inspector-height budget -- otherwise the sheet doesn't
        get shorter when the nav row moves out, it just shifts up and claims that much extra
        map area on top of what it already had. */
-    max-height: calc(var(--inspector-height, 48%) - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
-    transition: max-height 120ms ease-out;
+    /* `height`, not just `max-height`: a shrink-to-fit sheet takes on a different footprint for
+       every nav tab's content (Nearby vs Filters vs Settings vs a selection), which forced a
+       map re-fit (ensureOverviewTargetsVisible) on every switch even though nothing the user did
+       asked the map to move. A definite height keeps the footprint -- and the map -- stable
+       across tabs; only a manual drag (setInspectorHeight, below) changes it, same as
+       --inspector-height already did for the resize handle before this. min-height is the floor
+       for short viewports -- mainly landscape phones, where 40% of a ~360-430px-tall screen
+       would otherwise be too cramped for Settings/Filters content -- picked low enough (200px)
+       that it stays out of the way on an ordinary portrait phone, where 40% minus the nav-bar
+       reservation already clears it; clamped against the same available-space cap as max-height
+       so it can never push the sheet taller than the screen has room for. */
+    height: calc(var(--inspector-height, 40%) - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
+    min-height: min(200px, calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px)));
+    max-height: calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
+    transition: height 120ms ease-out;
   }
 
   .inspector-drag-handle { display: flex; }
+
+  /* With an explicit (not just max-) height on the sheet, .inspector-scroll's default
+     flex: 0 1 auto leaves it sized to content instead of the space that height actually grants
+     -- it only *shrinks* to fit, never grows into slack the column isn't using. Grow it so the
+     scrollable body claims whatever the fixed-size header doesn't need, the same fix already
+     applied to the keyboard-avoiding-expand case below. */
+  .inspector-scroll { flex-grow: 1; }
 
   .row { grid-template-columns: 1fr; gap: 3px; }
 }
@@ -279,14 +299,9 @@
     max-height: calc(100% - 20px - var(--keyboard-inset, 0px));
   }
 
-  /* With an explicit (not just max-) height on the sheet, .inspector-scroll's default
-     flex: 0 1 auto leaves it sized to content instead of the space that height actually
-     grants -- it only *shrinks* to fit, never grows into slack the column isn't using.
-     Grow it here so the scrollable body claims all of the keyboard-avoiding sheet the
-     fixed-size header doesn't need. */
-  .inspector.keyboard-avoiding.keyboard-avoiding-expand .inspector-scroll {
-    flex-grow: 1;
-  }
+  /* .inspector-scroll's flex-grow (above, applied to every state of this bottom-sheet layout
+     now that the sheet always has a definite height) already covers this case -- no
+     keyboard-avoiding-expand-specific rule needed. */
 }
 
 /* "Move your phone to help find your direction" nudge -- shown by

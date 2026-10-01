@@ -13,7 +13,9 @@
 }
 
 .inspector.is-dragging {
-  transition: max-height 0s;
+  /* Mobile's sheet now animates `height`, not `max-height` (css/map-ui.css) -- snap both so a
+     live drag never fights a queued transition on either property. */
+  transition: max-height 0s, height 0s;
 }
 
 @keyframes inspector-slide-in-right {
