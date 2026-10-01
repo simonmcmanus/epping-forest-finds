@@ -714,6 +714,37 @@ function transitionInspectorBody(newHtml, direction, onDone) {
   applyScreenTransition(direction, onDone);
 }
 
+let _inspectorMotionImage = null;
+let _inspectorMotionCanvas = null;
+
+// The location title opts into the same artwork renderer as the map pin. Keep
+// its original image in place as the static/reduced-motion fallback.
+function drawInspectorIconMotion(motion) {
+  const image = _inspectorMotionImage;
+  if (!image || !image.isConnected) return false;
+  const slug = _iconMotionSlugByPath.get(image.getAttribute("src"));
+  if (!motion || !image.complete || !image.naturalWidth || !IconMotion.has(slug)) {
+    image.style.display = "";
+    if (_inspectorMotionCanvas) _inspectorMotionCanvas.style.display = "none";
+    return false;
+  }
+  if (!_inspectorMotionCanvas) {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 256;
+    canvas.className = image.className;
+    canvas.setAttribute("aria-hidden", "true");
+    image.after(canvas);
+    _inspectorMotionCanvas = canvas;
+  }
+  const canvas = _inspectorMotionCanvas;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, 256, 256);
+  IconMotion.draw(ctx, image, slug, 0, 0, 256, motion.elapsed);
+  image.style.display = "none";
+  canvas.style.display = "";
+  return true;
+}
+
 function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }) {
   // Cancel any in-flight transition and capture a fresh snapshot before DOM changes
   if (_transitionAnimation) {
@@ -747,6 +778,8 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
   } else {
     els.inspectorTitleEmoji.textContent = emoji || "";
   }
+  _inspectorMotionImage = showBack ? els.inspectorTitleEmoji.querySelector("img") : null;
+  _inspectorMotionCanvas = null;
   setNavScreenActive();
   // Every screen entry point routes through here, so this is where Search stands down;
   // openSearchScreen sets the flag again straight after its own call.

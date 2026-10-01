@@ -7,7 +7,7 @@
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v66";
+const APP_CACHE_NAME = "forest-finds-app-v67";
 const DATA_CACHE_NAME = "forest-finds-data-v15";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
@@ -29,6 +29,7 @@ const APP_SHELL = [
   "./js/normalize.js",
   "./js/loader.js",
   "./js/routing.js",
+  "./js/icon-motion.js",
   "./js/renderer.js",
   "./js/inspector.js",
   "./js/nav.js",

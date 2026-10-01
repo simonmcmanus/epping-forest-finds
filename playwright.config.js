@@ -65,6 +65,9 @@ module.exports = defineConfig({
 
   use: {
     baseURL,
+    // Animation-specific scenarios explicitly opt back in. Keep ordinary UI
+    // assertions and screenshots on the accessible stationary artwork path.
+    reducedMotion: "reduce",
     trace: "on-first-retry",
     // Suppress service-worker registration so tests always hit real routes
     serviceWorkers: "block",
@@ -83,7 +86,7 @@ module.exports = defineConfig({
       // 13 (3D tilt) is included because tilt is driven by device orientation and only
       // ever happens on a phone — the desktop profile would exercise it at a viewport
       // shape it never actually sees.
-      testMatch: ["**/0[12345]-*.spec.js", "**/09-*.spec.js", "**/13-*.spec.js", "**/18-*.spec.js"],
+      testMatch: ["**/0[12345]-*.spec.js", "**/09-*.spec.js", "**/13-*.spec.js", "**/18-*.spec.js", "**/27-*.spec.js"],
     },
   ],
 
