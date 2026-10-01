@@ -1693,6 +1693,8 @@ function setupInspectorDragResize() {
     els.inspector.classList.add("is-dragging");
     state.inspectorDragStart = {
       y: event.clientY,
+      // 48: the CSS fallback (css/map-ui.css, var(--inspector-height, 48%)) for a sheet that
+      // hasn't been manually resized yet.
       heightPercent: state.inspectorHeightPercent || 48,
     };
     dragHandle.classList.add("dragging");
