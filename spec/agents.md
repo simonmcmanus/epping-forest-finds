@@ -94,21 +94,23 @@ Before finishing any implementation task:
 - Every new user-facing behaviour or spec change needs a matching BDD test in `test/e2e/`.
 - If a behaviour change is implementation-only with no user-visible effect, state this explicitly.
 - Snapshots live in the flat `test/e2e/__screenshots__/` directory (per `snapshotPathTemplate` in `playwright.config.js`, keyed only on the `toHaveScreenshot()` name so a real visual diff stays a reviewable update instead of a delete+create pair). Regenerate with `npm run test:e2e:update` locally, or trigger the `Update Snapshots` GitHub Action for a Linux-matching baseline, when intentional visual changes are made.
-- **`02-overview.spec.js`'s snapshot has failed non-deterministically on CI — re-run before you believe it.** On 2026-09-21 it reported a *stable* 17,206-pixel difference (ratio 0.07, seventy times the tolerance) on one run, then passed on the next two with byte-identical data and a byte-identical baseline. Playwright's own retry called the bad frame stable, so "it settled" is not evidence. Something in the Nearby screen's content resolves differently under load, and a 7% difference is a region of the screen rather than antialiasing. A data change near Loughton High Road *can* also legitimately change that image — the weekly ledger edits exactly there — so the two look alike and only a re-run tells them apart. Re-run first; regenerate the baseline (**Update Snapshots** workflow, Linux runner only, never locally) only once the difference proves repeatable.
+- **Canvas screenshot diffs are non-deterministic on CI — re-run before you believe one.** On 2026-09-21, `02-overview.spec.js`'s snapshot reported a *stable* 17,206-pixel difference (ratio 0.07, seventy times the tolerance) on one run, then passed on the next two with byte-identical data and a byte-identical baseline. Playwright's own retry called the bad frame stable, so "it settled" is not evidence. The same class of flake recurred on 2026-10-01: two runs of one unchanged commit each failed exactly one of the six `snapshot: ...` tests, at a different pixel count each time, and a third run failed a *different* one of the six — while the other 104+ functional assertions in the same suite passed all three times. A data change near Loughton High Road *can* also legitimately change the overview image — the weekly ledger edits exactly there — so a real diff and a flake look alike and only a re-run tells them apart. This is why the six `snapshot: ...` tests run as their own `Visual snapshots (mobile)` CI check with a one-time retry (see below) rather than inside `E2E tests`: re-run first; regenerate the baseline (**Update Snapshots** workflow, Linux runner only, never locally) only once the difference proves repeatable across a retry.
 - `/api/cows` is always mocked via `test/e2e/fixtures/cows.json` — never hit the live Nofence API in tests.
 - **Geolocation is always answered, one way or the other.** A spec that wants a position says so with `test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] })`; every other spec gets an immediate `PERMISSION_DENIED` from `denyGeolocationUnlessGranted` in `test/e2e/helpers.js`. Chromium answers an ungranted `getCurrentPosition` neither way — no success callback, no error callback, and the request's own `timeout` option does not start until the permission decision is made — so without this a spec that does not grant location sat through the app's whole boot-location bound on every page load, and whether it beat the test timeout depended on how loaded the machine was. That is what used to make whole spec files fail together on CI. The stub only replaces `getCurrentPosition`, and only when the permission has not been granted, so a granting spec keeps the real API and Playwright's mock position.
 - `PLAYWRIGHT_CHROMIUM_EXECUTABLE` (optional, unset by default) points Playwright at an existing Chromium binary instead of the one it downloads. It exists only for sandboxes that cannot reach `cdn.playwright.dev` and so cannot run `npx playwright install`; local Macs and CI are unaffected and keep using Playwright's own pinned browser. A mismatched Chromium build renders text differently, so `toHaveScreenshot()` failures under this var are environmental and must never be used to regenerate the committed snapshots.
-- **One Playwright project per CI runner, two workers each.** A GitHub-hosted runner has 2 vCPUs. Running the whole suite on one of them at `workers: 4` gave every worker half a core, which stretched the app's boot-and-draw cycle past the waits the specs bound it with and failed whole spec files together in `beforeEach` — around 20 failures a run, while the same suite showed 3-4 on a 4-core dev box. That was starvation, not flakiness. `.github/workflows/ci.yml` now runs the `E2E tests` job as a `project: [desktop, mobile]` matrix, and `playwright.config.js` sets `workers: process.env.CI ? 2 : 4`: two runners, two workers each, a full core per worker, the same total parallelism, and both jobs concurrent so wall-clock does not suffer. The snapshot-baseline commit step is `if: matrix.project == 'mobile'` — every `toHaveScreenshot()` spec is skipped outside mobile, and two jobs pushing to one branch would race.
+- **One Playwright project per CI runner, two workers each, two shards per project.** A GitHub-hosted runner has 2 vCPUs. Running the whole suite on one of them at `workers: 4` gave every worker half a core, which stretched the app's boot-and-draw cycle past the waits the specs bound it with and failed whole spec files together in `beforeEach` — around 20 failures a run, while the same suite showed 3-4 on a 4-core dev box. That was starvation, not flakiness. `.github/workflows/ci.yml` runs the `E2E tests` job as a `project: [desktop, mobile]` × `shard: [1, 2]` matrix (`--shard=N/2`), and `playwright.config.js` sets `workers: process.env.CI ? 2 : 4`: four runners, two workers each, a full core per worker, the same total parallelism as before per job, and all four jobs concurrent — each one now covers about half a project's specs, roughly halving this check's wall-clock versus one shard per project.
+- **`E2E tests` never takes a screenshot.** Every `"snapshot: ..."` test is excluded from it with `--grep-invert "snapshot:"` and instead runs as its own `Visual snapshots (mobile)` job, `--grep "snapshot:"` on the mobile project only (every `toHaveScreenshot()` spec is skipped outside mobile anyway). This keeps the two check names meaningfully different: a red `E2E tests (<project>, shard <n>)` is always a functional regression, and a red `Visual snapshots (mobile)` is always a pixel diff — never a mix a reviewer has to untangle by reading logs. The snapshot-baseline commit step lives only in `visual-snapshots`, since that is now the only job that ever writes a baseline; `E2E tests` has nothing to commit and runs with ordinary fail-on-error (no `continue-on-error` hack).
 - **To reproduce a CI-only failure locally, constrain the CPU:** `CI=1 taskset -c 0,1 npx playwright test --project=mobile`. Two cores and `CI=1` is what the runner actually gives a job, and it reproduces starvation failures that a 4-core box hides completely. Do this before concluding a CI failure is "environmental".
 - **Specs say *what* they wait for; `playwright.config.js` says how long.** `expect.timeout` is 20s under CI and 5s elsewhere, so don't pass `{ timeout: N }` to an `expect()` assertion. An assertion's timeout bounds how long the UI may take to get somewhere — it is not a behaviour under test, and a genuinely broken UI still fails on the 60s test timeout. Roughly a hundred hard-coded few-second bounds were what turned a slow runner into a red suite; they are gone, and new ones should not appear. A deliberately long bound for something genuinely slow (the boot-location tests in `09-location`) is fine and stays explicit.
 - `toHaveScreenshot()` allows `maxDiffPixelRatio: 0.001`. Even comparing against baselines CI generated itself on the same runner image, canvas antialiasing and font hinting came back ~28 pixels apart on a ~334k-pixel screenshot under load. 0.1% is ten times the headroom that noise needs and still catches any diff big enough to see. The `toHaveScreenshot()` stability timeout is 15s under CI (5s elsewhere) for the same reason.
 
 ### CI is the verdict, and the PR is how you get it
 
-**Open the PR as soon as the work is pushed, and let its `E2E tests` job be the one full run of
-the suite.** CI only fires on `pull_request` (plus a push to `main` and a manual dispatch), so a
-branch pushed without a PR gets no checks at all — and reaching for `workflow_dispatch` to fix
-that just means two runs of the same suite on the same SHA. Open the PR instead.
+**Open the PR as soon as the work is pushed, and let its `E2E tests` shards and `Visual
+snapshots (mobile)` be the one full run of the suite.** CI only fires on `pull_request` (plus a
+push to `main` and a manual dispatch), so a branch pushed without a PR gets no checks at all —
+and reaching for `workflow_dispatch` to fix that just means two runs of the same suite on the
+same SHA. Open the PR instead.
 
 **Do not run the full `npm run test:e2e` locally as well.** It is ~10-27 minutes that CI is
 already going to spend, and it does not settle anything: the two disagree badly and routinely.
@@ -128,8 +130,12 @@ So, before a PR is done — every time, no exceptions:
 
 1. **Push, open the PR, then read the CI run for your head SHA.** `actions_list` →
    `list_workflow_runs` filtered to your branch, then `list_workflow_jobs`, then `get_job_logs`
-   on the `E2E tests` job. Read the `N failed / N passed` line and the failure list under it.
-2. **The job must be green.** Not "green apart from the environmental ones" — green.
+   on each `E2E tests (<project>, shard <n>)` job and on `Visual snapshots (mobile)`. Read the
+   `N failed / N passed` line and the failure list under it.
+2. **Every `E2E tests` shard must be green.** Not "green apart from the environmental ones" —
+   green. A red `Visual snapshots (mobile)` is a separate, narrower signal (see below) — it never
+   excuses a red `E2E tests` shard, and a red `E2E tests` shard is never explained away as "just
+   a snapshot issue".
 3. **Never call a failure pre-existing on the basis of a local run.** Establish it CI-to-CI:
    pull the CI failure list for your merge-base commit (the run on `main` for the SHA you
    branched from) and diff the two lists by test name. A failure on your branch that is not on
@@ -137,10 +143,17 @@ So, before a PR is done — every time, no exceptions:
 4. **Never write "passes locally" as evidence in a commit message, PR body, or hand-off.** State
    what CI said: the run URL, the pass/fail counts, and — if anything is still red — exactly
    which tests and why they are not yours, with the merge-base run that proves it.
+5. **A red `Visual snapshots (mobile)` is a pixel diff, not a functional regression — but it still
+   needs a decision, not a shrug.** It already retried once on CI before failing. Open the
+   artifact's diff image: a real visual change (yours, or a data change landing where the diff
+   is) means regenerate the baseline (**Update Snapshots** workflow); anything else matches the
+   known canvas flakiness above and justifies re-running just that job.
 
-If a wait is unavoidable, wait: the e2e job takes ~27 minutes. Reporting a task finished before
-its CI run exists is reporting a guess. Two consecutive PRs were once handed over as done on the
-strength of a green-ish local run while their CI job was red the whole time.
+If a wait is unavoidable, wait: each `E2E tests` shard takes a few minutes less than the old
+single-project run; `Visual snapshots (mobile)` is a handful of tests and finishes quickly, but
+CI's queueing and setup time still applies. Reporting a task finished before its CI run exists is
+reporting a guess. Two consecutive PRs were once handed over as done on the strength of a
+green-ish local run while their CI job was red the whole time.
 
 ### If the suite is already red when you arrive
 
@@ -166,10 +179,10 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
    reproduces the runner's 2 vCPUs.
 3. Relevant `spec/` file is updated, or reason documented.
 4. Create a commit with a good concise description summarising the change.
-5. Push and open the PR, then confirm its `E2E tests` job is **green on your branch** — per "CI
-   is the verdict" above. That PR run is the full sweep; do not also run the suite locally or
-   dispatch CI by hand. The task is not finished until the job is green, and the report says
-   what CI said.
+5. Push and open the PR, then confirm every `E2E tests (<project>, shard <n>)` job is **green on
+   your branch**, and triage `Visual snapshots (mobile)` if it's red — per "CI is the verdict"
+   above. That PR run is the full sweep; do not also run the suite locally or dispatch CI by
+   hand. The task is not finished until `E2E tests` is green, and the report says what CI said.
 
 ## Code Quality
 - Separate concerns strictly per the project structure above.
