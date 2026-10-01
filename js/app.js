@@ -734,6 +734,7 @@ function showRoutedSelection(route, item) {
 boot();
 
 async function boot() {
+  initSelectedIconMotion();
   initRouter();
   initTracker();
   setupPwa();

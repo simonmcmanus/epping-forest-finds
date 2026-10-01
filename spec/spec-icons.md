@@ -314,6 +314,15 @@ Two shapes read at the 35 CSS pixels a pin actually occupies; four do not.
 The memorial went through a wreath-and-cross version that closed into a dark
 blob at map size before settling on cross, plinth and poppy.
 
+## Optional destination motion
+
+The original PNG remains canonical and is always the fallback. When an item is
+selected for navigation, `js/icon-motion.js` draws subject-specific motion
+inside the selected pin through `IconMotion.draw(ctx, image, slug, x, y, size,
+elapsed)`. Other surfaces can opt in through the same interface. Ordinary pins
+remain stationary; reduced motion, hidden pages and cleared selections stop
+the animation. Neither the PNG nor its registry entry is rewritten.
+
 ## Fitting the original artwork
 
 The set the app shipped with was drawn without the pointer rule, and 18 of its

@@ -506,7 +506,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/categories.js", "js/normalize.js", "js/tracker.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/categories.js", "js/normalize.js", "js/tracker.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
