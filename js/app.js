@@ -1463,6 +1463,10 @@ function stopViewportAnimation() {
   state.viewportAnimationTo = null;
   state.viewportAnimationStartTime = null;
   state.viewportAnimationDuration = 0;
+  // The camera has just been told "stop, you're done" -- a pin-level cluster-join animation
+  // still running against a now-unmoving view is the same kind of stale motion, so it settles
+  // too. See settleClusterJoinAnimations (js/renderer.js).
+  if (typeof settleClusterJoinAnimations === "function") settleClusterJoinAnimations();
 }
 
 // How close a newly-requested animation target has to be to the one already in flight to be

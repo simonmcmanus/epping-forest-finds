@@ -1312,6 +1312,20 @@ function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
+// Resolves every in-flight cluster-join animation to its settled end state immediately, with
+// no further frames of shrinking/growing. stopViewportAnimation() (js/app.js) calls this: that
+// function already means "abruptly snap to now, no animation in flight" for the *camera*, and a
+// pin-level animation left running past that point is the same kind of staleness -- the camera
+// has stopped changing, so a merge that was genuinely still converging a moment ago has nothing
+// left to converge *toward* that isn't already on screen. Without this, an animation that
+// started during whatever camera motion just got interrupted keeps running for up to
+// CLUSTER_JOIN_ANIMATION_MS afterwards against an unmoving view, which is exactly what made the
+// "settle the camera, draw once, screenshot" pattern several e2e specs use flaky: the settled
+// frame could still catch pins mid-shrink depending on exactly when the interruption landed.
+function settleClusterJoinAnimations() {
+  _clusterJoinAnimations.clear();
+}
+
 // Returns null when a cluster's items should draw exactly as they always have (a lone pin, or
 // a group with no merge in flight). Otherwise returns { shrinking, badgeScale }: shrinking is
 // one { item, scale } per item still shrinking away at its own pin position, for the caller to

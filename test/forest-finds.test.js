@@ -429,6 +429,7 @@ globalThis.__forestFindsTest = {
   buildSuperClusters,
   drawMegaClusters,
   clusterJoinAnimationState,
+  settleClusterJoinAnimations,
   CLUSTER_JOIN_ANIMATION_MS,
   CLUSTER_JOIN_COOLDOWN_MS,
   CLUSTER_JOIN_MIN_SCALE,
@@ -889,6 +890,28 @@ test("clusterJoinAnimationState only animates the item that's actually joining a
   assert.equal(state.shrinking[0].item, newcomer);
   assert.equal(state.badgeScale, 1,
     "an existing cluster's badge stays at full size while a new member shrinks away into it -- it doesn't regrow");
+});
+
+test("stopViewportAnimation settles any in-flight cluster-join animation instead of leaving it to run against a now-unmoving camera", () => {
+  const first = { point: { x: -10, y: 0 } };
+  const second = { point: { x: 10, y: 0 } };
+  app.clusterJoinAnimationState({ items: [first], screenPt: first.point }, 0);
+  app.clusterJoinAnimationState({ items: [second], screenPt: second.point }, 0);
+
+  const merged = { items: [first, second], screenPt: { x: 0, y: 0 } };
+  const midFlight = app.clusterJoinAnimationState(merged, 0);
+  assert.ok(midFlight, "sanity check: the merge is genuinely still animating before the camera stops");
+
+  // This is the exact pattern several e2e specs use to force a deterministic frame before a
+  // screenshot: stop whatever camera animation is running, then draw once. Without settling the
+  // pin-level animation too, the very next call here -- at the same instant, same camera -- would
+  // still report items mid-shrink, which is what made those screenshots flaky: the "settled"
+  // frame could still differ depending on exactly when the interruption landed relative to
+  // CLUSTER_JOIN_ANIMATION_MS.
+  app.stopViewportAnimation();
+  const afterStop = app.clusterJoinAnimationState(merged, 0);
+  assert.equal(afterStop, null,
+    "once the camera animation is stopped, the same cluster at the same instant draws fully settled, not mid-shrink");
 });
 
 test("ICON_PATHS is the single registry for all icon slugs", () => {
