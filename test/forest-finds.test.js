@@ -52,6 +52,7 @@ function createElementStub(id = "") {
         save() {},
         restore() {},
         beginPath() {},
+        closePath() {},
         moveTo() {},
         lineTo() {},
         bezierCurveTo() {},
@@ -430,6 +431,7 @@ globalThis.__forestFindsTest = {
   drawMegaClusters,
   clusterJoinAnimationState,
   settleClusterJoinAnimations,
+  drawLandmarkIcon,
   CLUSTER_JOIN_ANIMATION_MS,
   CLUSTER_JOIN_COOLDOWN_MS,
   CLUSTER_JOIN_MIN_SCALE,
@@ -912,6 +914,31 @@ test("stopViewportAnimation settles any in-flight cluster-join animation instead
   const afterStop = app.clusterJoinAnimationState(merged, 0);
   assert.equal(afterStop, null,
     "once the camera animation is stopped, the same cluster at the same instant draws fully settled, not mid-shrink");
+});
+
+test("drawLandmarkIcon runs every image-icon category branch without a stale reference to a removed constant", () => {
+  // A regression guard: BEER_ICON_SCALE was removed from the top of renderer.js (main's "beer
+  // bump" simplification), but one usage inside this function survived a merge untouched since
+  // it sat just outside the textual conflict -- a ReferenceError at runtime that neither
+  // node --check nor any other unit test caught, because nothing here had ever called this
+  // function with a pub place. Exercising every PNG-icon and emoji-fallback branch at least
+  // once is cheap insurance against the same class of silent, merge-orphaned reference anywhere
+  // in this chain. The underground/national_rail branches draw an SVG glyph via a global Path2D
+  // this test harness has no stub for -- a separate, pre-existing gap, not this bug's -- so
+  // they're left for the e2e suite to cover.
+  const ctx = createElementStub().getContext();
+  const places = [
+    { category: "pub" },
+    { category: "cafe" },
+    { category: "convenience" },
+    { category: "bus_stop" },
+    { category: "parking" },
+    { category: "unknown_place_with_no_special_handling" },
+  ];
+  for (const place of places) {
+    assert.doesNotThrow(() => app.drawLandmarkIcon(ctx, place, 0, 0, 30),
+      `drawLandmarkIcon must not throw for category "${place.category}"`);
+  }
 });
 
 test("ICON_PATHS is the single registry for all icon slugs", () => {

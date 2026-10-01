@@ -2226,11 +2226,11 @@ function shouldDrawMapIcon(type, item, nearbyIconLookup) {
 }
 
 // The pub/cafe/shop/transport/icon-slug/emoji chain a landmark pin picks its artwork from,
-// factored out so a converging pin mid-merge (drawLandmarks below) can draw the same artwork
-// for its own place at an interpolated position, not just the cluster's representative item.
+// factored out so a shrinking pin mid-merge (drawLandmarks below) can draw the same artwork
+// for its own place at its own size, not just the cluster's representative item.
 function drawLandmarkIcon(ctx, place, x, y, iconSize) {
   if (isPubCategory(place)) {
-    return drawPngMapIcon(ctx, iconPath("beer"), x, y, iconSize * BEER_ICON_SCALE);
+    return drawPngMapIcon(ctx, iconPath("beer"), x, y, iconSize);
   }
   if (isCafeCategory(place)) {
     return drawPngMapIcon(ctx, iconPath("cafe"), x, y, iconSize);
