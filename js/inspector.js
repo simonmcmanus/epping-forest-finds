@@ -794,6 +794,11 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
   }
   if (els.reportToggle) els.reportToggle.classList.remove("active");
   if (els.settingsToggle) els.settingsToggle.classList.remove("active");
+  // Every screen entry point routes through here, so this is also where the inline filter
+  // toggle next to the Nearby/Filters heading hides itself for every other screen (a selected
+  // place, Settings, Report) -- openSearchScreen re-derives it again once searchScreenOpen
+  // itself is set, just after its own call into this function.
+  updateFilterUi();
   // Every screen change routes through here, so this is the one place the browse-anchor bar
   // needs re-evaluating as the user moves between Nearby, Filters, Settings, Report and a
   // selection (js/nav.js).

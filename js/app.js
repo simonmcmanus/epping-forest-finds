@@ -1981,7 +1981,10 @@ function updateFilterUi() {
     const activeGroupCount = getActiveGroupKeys(currentSet).length;
     const hasActiveFilter = activeGroupCount > 0;
     const locationSelected = Boolean(state.selected);
-    els.filterToggle.hidden = locationSelected;
+    // Filters only ever changes what Nearby shows, so its inline toggle (next to the Nearby
+    // heading -- see app.html) only appears on the Nearby and Filters screens themselves, not
+    // Search/Settings/Report/a selected place.
+    els.filterToggle.hidden = locationSelected || state.searchScreenOpen;
     els.filterToggle.classList.toggle("active", hasActiveFilter);
     els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
     els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
@@ -6757,6 +6760,10 @@ function openSearchScreen() {
   state.searchScreenOpen = true;
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
   setNavScreenActive(els.searchToggle);
+  // Hides the inline filter toggle next to the Nearby/Filters heading -- Search has its own
+  // "clear all filters" row instead (searchClearFiltersHtml) since it deliberately ignores
+  // the active filters.
+  updateFilterUi();
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Search";
   els.inspectorType.textContent = "Find anything on the map";

@@ -876,7 +876,20 @@ Search, Filter, Settings, and Report share identical navigation behaviour, gated
 
 ### Filter Panel (Overview mode only)
 
-- Hidden when in selected-detail mode
+- **Filters is reached from Nearby, not a nav peer.** `#filterToggle` only ever changes what the
+  Nearby list and map show, so instead of sitting in `.inspector-actions` alongside Search/Nearby/
+  Feedback/Settings as a fifth co-equal tab, it sits inline inside `.inspector-title-section`, next
+  to the Nearby/Filters heading itself (`app.html`) — sharing the title section's reserved
+  top-right corner with `#compassArrow`, which the two screens never show at the same time, so it
+  costs no extra vertical space over a nav-bar tab. `updateFilterUi()` (`js/app.js`) hides it on
+  every other screen (a selected place, Settings, Report, and Search — which deliberately ignores
+  the active filters and offers its own "Clear all filters" row instead, see "Secondary Screens"
+  above) and shows it on Nearby and on the Filter screen itself, where tapping it again closes
+  nothing (Filters is left the same way as any other screen, via Nearby/Back/the URL). This hide
+  check runs from `setInspectorSelectionChrome()`, the shared chokepoint every screen entry routes
+  through, so it never goes stale across a navigation; Search is the one exception, where the flag
+  it depends on (`state.searchScreenOpen`) is only set true just after that chokepoint runs, so
+  `openSearchScreen()` re-derives it once more immediately afterward.
 - Toggle button shows active filter count badge
 
 Filter groups (defined by `FILTER_GROUPS` in `js/categories.js`, the single source of truth):
@@ -1095,14 +1108,15 @@ already documented for Nearby/Search result rows under Overview Content and Seco
   wherever it last was, which is the skip link's position from this same boot-time call, so the
   very next Tab reaches the nav row directly rather than restarting the whole document from the
   top.
-- **The nav row is always reachable.** `#nearbyToggle`/`#searchToggle`/`#filterToggle`/
-  `#reportToggle`/`#settingsToggle` live in their own `<nav class="inspector-actions">`, a sibling
+- **The nav row is always reachable.** `#nearbyToggle`/`#searchToggle`/`#reportToggle`/
+  `#settingsToggle` live in their own `<nav class="inspector-actions">`, a sibling
   of `#inspector` in `app.html` rather than nested inside it, placed immediately before the aside
   in markup so Tab still reaches it right after the skip link. Being a separate element also means
   the bar is unaffected by whatever `#inspector` itself is doing — open, minimized, or pushed
   around by the on-screen keyboard (see "Keyboard avoidance" below) — so it is always reachable
   and visible regardless of which screen (Nearby, a selection, Search/Filter/Settings/Report) is
-  currently shown below it.
+  currently shown below it. `#filterToggle` is not part of this row — see "Filters is reached from
+  Nearby, not a nav peer" below.
 - **Keeping keyboard focus in view.** The Nearby/Search results list (`.nearest-list`) scrolls
   inside `#inspectorBody`, so moving focus through it — with the arrow-key handler
   (`handleNearestListArrowKey`, `js/nav.js`) or with plain Tab, which uses the browser's own

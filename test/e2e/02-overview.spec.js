@@ -44,7 +44,7 @@ test.describe("Overview / Nearby screen", () => {
   test("labelled navigation stays readable and separate from the inspector panel at narrow widths", async ({ page }) => {
     await page.click("#settingsToggle");
     await expect(page.locator("#inspectorBack")).toBeVisible();
-    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Search", "Nearby", "Filters", "Feedback", "Settings"]);
+    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Search", "Nearby", "Feedback", "Settings"]);
     await page.locator(".inspector-actions").evaluate(nav => nav.getAnimations({ subtree: true }).forEach(animation => animation.finish()));
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
@@ -65,7 +65,7 @@ test.describe("Overview / Nearby screen", () => {
             separate: (!i || buttons[i - 1].getBoundingClientRect().right <= box.left)
               && (navBox.bottom <= panel.top || navBox.top >= panel.bottom) };
         });
-      })).toEqual(Array(5).fill({ target: true, artwork: true, fits: true, separate: true }));
+      })).toEqual(Array(4).fill({ target: true, artwork: true, fits: true, separate: true }));
     }
   });
 
@@ -89,7 +89,7 @@ test.describe("Overview / Nearby screen", () => {
   });
 
   test("screen title icons match the back button size even when Back is hidden", async ({ page }) => {
-    for (const id of ["settingsToggle", "searchToggle", "filterToggle", "reportToggle", "nearbyToggle"]) {
+    for (const id of ["settingsToggle", "searchToggle", "nearbyToggle", "filterToggle", "reportToggle"]) {
       await page.locator(`#${id}`).click();
       const icon = page.locator("#inspectorTitleEmoji .title-icon").last();
       await expect(icon).toBeVisible();
@@ -104,7 +104,7 @@ test.describe("Overview / Nearby screen", () => {
 
   test("navigation announces the current screen with a gold highlight and keeps filter status separate", async ({ page }) => {
     const nav = page.getByRole("navigation", { name: "Main navigation" });
-    for (const [id, title] of [["searchToggle", "Search"], ["filterToggle", "Filters"], ["reportToggle", "Report"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
+    for (const [id, title] of [["searchToggle", "Search"], ["reportToggle", "Report"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
       await page.locator(`#${id}`).click();
       await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
       await expect(page.locator(`#${id}`)).toHaveAttribute("aria-current", "page");
@@ -112,7 +112,15 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator(`#${id}`)).toHaveCSS("background-color", "rgba(240, 180, 41, 0.16)");
       await expect(page.locator(`#${id} svg`)).toHaveCSS("stroke", "rgb(138, 106, 0)");
     }
+
+    // #filterToggle sits inline next to the Nearby heading, not in the nav row -- same gold
+    // highlight when it is the current screen, but outside the nav landmark's own bookkeeping.
     await page.click("#filterToggle");
+    await expect(page.locator("#filterToggle")).toHaveAttribute("aria-current", "page");
+    await expect(page.locator("#inspectorTitle").last()).toContainText("Filters");
+    await expect(page.locator("#filterToggle")).toHaveCSS("background-color", "rgba(240, 180, 41, 0.16)");
+    await expect(page.locator("#filterToggle svg")).toHaveCSS("stroke", "rgb(138, 106, 0)");
+
     await page.locator(".filter-chip").first().click();
     await page.click("#nearbyToggle");
     await expect(page.locator("#filterCount")).toBeVisible();
@@ -229,6 +237,30 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#filterToggle")).toBeVisible();
   });
 
+  test("the filter toggle sits inline with the Nearby heading, adding no extra row", async ({ page }) => {
+    // It only ever changes what this screen shows, so it lives next to the heading itself
+    // instead of as a fifth nav-bar tab -- see spec-data-rendering.md, "Filters is reached
+    // from Nearby, not a nav peer".
+    const titleSection = page.locator(".inspector-title-section");
+    await expect(page.locator("#filterToggle")).toBeVisible();
+    const toggleBox = await page.locator("#filterToggle").boundingBox();
+    const sectionBox = await titleSection.boundingBox();
+    expect(toggleBox.y).toBeGreaterThanOrEqual(sectionBox.y - 1);
+    expect(toggleBox.y + toggleBox.height).toBeLessThanOrEqual(sectionBox.y + sectionBox.height + 1);
+
+    await page.click("#searchToggle");
+    await expect(page.locator("#filterToggle")).toBeHidden();
+    await page.click("#settingsToggle");
+    await expect(page.locator("#filterToggle")).toBeHidden();
+    await page.click("#reportToggle");
+    await expect(page.locator("#filterToggle")).toBeHidden();
+
+    await page.click("#nearbyToggle");
+    await expect(page.locator("#filterToggle")).toBeVisible();
+    await page.click("#filterToggle");
+    await expect(page.locator(".filter-chip").first()).toBeVisible();
+  });
+
   test("settings button is visible in overview mode", async ({ page }) => {
     await expect(page.locator("#settingsToggle")).toBeVisible();
   });
@@ -237,9 +269,9 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#reportToggle")).toBeVisible();
   });
 
-  test("nav buttons read left to right: search, nearby, filters, feedback, settings", async ({ page }) => {
+  test("nav buttons read left to right: search, nearby, feedback, settings", async ({ page }) => {
     const ids = await page.locator(".inspector-actions button").evaluateAll((els) => els.map((el) => el.id));
-    expect(ids).toEqual(["searchToggle", "nearbyToggle", "filterToggle", "reportToggle", "settingsToggle"]);
+    expect(ids).toEqual(["searchToggle", "nearbyToggle", "reportToggle", "settingsToggle"]);
   });
 
   test("snapshot: overview state", async ({ page }, testInfo) => {

@@ -1684,8 +1684,10 @@ test("nearby filter updates trigger a heading-up refit that keeps the radius cir
 test("navigation has labelled outline glyphs that inherit the selected colour", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
   const nav = html.match(/<nav class="inspector-actions"[\s\S]*?<\/nav>/)[0];
-  assert.equal((nav.match(/stroke="currentColor"/g) || []).length, 5);
-  assert.equal((nav.match(/class="nav-label"/g) || []).length, 5);
+  // Filters is reached inline from the Nearby heading, not a fifth nav-bar tab -- see
+  // spec-data-rendering.md, "Filters is reached from Nearby, not a nav peer".
+  assert.equal((nav.match(/stroke="currentColor"/g) || []).length, 4);
+  assert.equal((nav.match(/class="nav-label"/g) || []).length, 4);
   assert.ok(!nav.includes("<img"), "navigation must not retain fixed-colour PNG icons");
 });
 
