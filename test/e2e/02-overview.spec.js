@@ -274,6 +274,26 @@ test.describe("Overview / Nearby screen", () => {
 
       await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
       await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+      await expect(page.locator("#inspectorBack")).toBeVisible();
+    });
+
+    test("the inspector back arrow appears once the Nearby view is moved, and undoes the move", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      await expect(page.locator("#inspectorBack")).toBeHidden();
+
+      const originalAnchor = await page.evaluate(() => {
+        const origin = nearbyOrigin();
+        const lonLat = { latitude: origin.latitude + 0.002, longitude: origin.longitude + 0.002 };
+        focusNearbyOnMapPoint(lonLat, projectLonLat(lonLat.longitude, lonLat.latitude));
+        return state.nearbyAnchor;
+      });
+      expect(originalAnchor).not.toBeNull();
+      await expect(page.locator("#inspectorBack")).toBeVisible();
+
+      await page.click("#inspectorBack");
+      await expect.poll(() => page.evaluate(() => state.nearbyAnchor)).toBeNull();
+      await expect(page.locator("#inspectorBack")).toBeHidden();
     });
 
     test("tapping open map ground while a tree is selected returns to nearby, focused on that spot", async ({ page }) => {

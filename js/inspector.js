@@ -559,7 +559,11 @@ let _overviewListKey;
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
   const previousNearestPositions = captureNearestItemPositions();
-  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false, captureSnapshot: animate });
+  // A browse anchor (tap-to-relocate, or an expanded cluster) means the Nearby view is no
+  // longer centred on the real GPS fix -- showing the back arrow here, same as every other
+  // screen, gives that moved view a visible, working way back (navigateBack() retraces the
+  // anchor push from pushNearbyAnchorHistory, same as the browser's own back button).
+  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor), captureSnapshot: animate });
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
   els.inspectorTitle.textContent = "Nearby";

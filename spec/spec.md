@@ -236,6 +236,11 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
   one-tap way home. With nothing of this app's own behind the current screen — a link opened in
   a fresh tab, where `history.state` carries depth 0 — it returns to Nearby rather than leaving
   the site.
+- **The hash stays `/app` while browsing a different spot, but the back arrow still appears.**
+  Moving the Nearby view's browse anchor (tap-to-relocate, or expanding a cluster) pushes a
+  history entry without changing the route, so there is nothing in the table above to show it —
+  `selectOverview()` instead shows `#inspectorBack` whenever `state.nearbyAnchor` is set, giving
+  that moved view the same back arrow as every other screen (see "Browsing Another Spot" above).
 - **`popstate` and `hashchange` both apply whatever the URL now says** (`applyRouteFromUrl`).
   A history traversal fires `popstate` (and `hashchange` too when the fragment differs), while a
   fragment edited by hand fires `hashchange` alone; applying a route the app is already on is a
