@@ -5136,7 +5136,31 @@ function nearestSelectedFilterPoints() {
 // filter whose nearest match is beyond the ring -- Underground stations from inside the forest,
 // say -- changed the list and left the map framed on a ring with nothing new in it, so the
 // station the list had just named was nowhere to be seen.
+// While a cluster is expanded (state.clusterExpanded), the camera fits the group's own member
+// points instead of the ring. This is not the "fit the item cluster" design the comment above
+// warns against reverting to: that one re-solved every frame against whichever matches
+// happened to be nearest, which chased and re-zoomed as the set or the compass heading changed.
+// This point set is a fixed snapshot -- exactly the items a deliberate tap just expanded, never
+// recomputed until the next tap -- so there is nothing to chase.
+//
+// Without this, the ring's own floor (WALKING_RADIUS_TIGHT_MIN_MINUTES, js/nav.js, ~21m) capped
+// how far in the camera could ever zoom for *any* expanded group, ring-sized or not. A group
+// tighter than that floor -- two veteran trees a couple of metres apart, not unusual in a dense
+// patch of forest -- never actually separated on screen no matter how many times its badge was
+// tapped: each tap re-narrowed state.clusterExpanded correctly, but the camera kept framing the
+// same floor-sized ring, so the same unsplit badge just redrew in the same spot. Reported as
+// "I get down to a cluster that does not expand". Fitting the group's own points instead lets
+// the camera zoom in exactly as far as separating them needs, capped at the same 220x-of-base
+// ceiling applyBoundsToViewport already enforces for the pinch gesture.
+function expandedClusterFitPoints(group) {
+  const items = group.itemType === "_mega" && group.itemsByType
+    ? Object.values(group.itemsByType).flat()
+    : (group.items || []);
+  return items.map((item) => item.point).filter(Boolean);
+}
+
 function nearbyCameraFitPoints() {
+  if (state.clusterExpanded) return expandedClusterFitPoints(state.clusterExpanded);
   const ring = walkingRadiusCirclePoints();
   const reach = ring.concat(outOfRadiusFitPoints());
   if (!secondaryScreenActive()) return reach;
