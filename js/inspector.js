@@ -558,7 +558,6 @@ let _overviewListKey;
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
-  if (state.clusterExpanded) return;
   const previousNearestPositions = captureNearestItemPositions();
   setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false, captureSnapshot: animate });
   setNavScreenActive(els.nearbyToggle);

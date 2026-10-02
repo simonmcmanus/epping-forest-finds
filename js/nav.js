@@ -1009,6 +1009,19 @@ function focusNearbyOnClusterGroup(cluster) {
   setInspectorMinimized(false);
   stopViewportAnimation();
   state.clusterZoomed = false;
+  // Expanding a cluster always surfaces the Nearby list with its members, even when the tap
+  // landed on the map behind a secondary screen (Filter/Settings/Report/Search) -- unlike a tap
+  // on open ground, which deliberately leaves those screens open (see handleMapClick's own
+  // comment: "Neither ever dismisses the screen itself"), a cluster tap has one specific thing
+  // to show right now, the group it just expanded, and that has nowhere to go but the Nearby
+  // list. Mirrors the real-selection branch of focusNearbyOnMapPoint, which closes the same
+  // screens for the same reason. Clearing these before refreshNearbyRadiusView runs below is
+  // what lets its own `if (!secondaryScreenActive()) selectOverview()` actually fire.
+  state.filterScreenOpen = false;
+  state.searchScreenOpen = false;
+  if (state.selected && (state.selected.type === "settings" || state.selected.type === "report")) {
+    state.selected = null;
+  }
   // Same slide restoreNearbyAnchorFromHistory/setNearbyAnchor use for any other anchor move --
   // started from wherever the ring is currently drawn so it continues smoothly even if this
   // lands mid an earlier slide, rather than cutting straight to the new centre.

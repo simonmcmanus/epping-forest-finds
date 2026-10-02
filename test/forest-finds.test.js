@@ -8025,6 +8025,63 @@ test("the Nearby list and the map's highlighted pins agree on an expanded cluste
     "the list and the map agree on membership -- same two trees, outsider excluded from both");
 });
 
+test("tapping a cluster while already on Nearby actually refreshes the rendered list, not just the underlying data", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  const outsider = { id: "outsider", commonName: "Beech", ...makePoint(app, 51.6501347, 0.0500) };
+  app.state.trees.push(oak1, oak2, outsider);
+  app.selectOverview();
+  // Sanity: before the tap, the rendered list is the plain, unexpanded view -- the outsider is
+  // in it. els.inspectorBody is a hand-rolled test stub with no real HTML parsing
+  // (querySelectorAll() always returns []), so the rendered markup is checked as a string.
+  const outsiderKey = app.treeHashKey(outsider);
+  assert.ok(app.els.inspectorBody.innerHTML.includes(outsiderKey), "sanity: the outsider starts out listed");
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  const rendered = app.els.inspectorBody.innerHTML;
+  assert.equal(rendered, app.overviewNearestHtml(),
+    "the rendered markup was actually replaced, not left showing whatever was there before the tap");
+  assert.ok(rendered.includes(app.treeHashKey(oak1)) && rendered.includes(app.treeHashKey(oak2)),
+    "the rendered list includes both tapped trees");
+  assert.ok(!rendered.includes(outsiderKey), "the rendered list no longer includes the outsider");
+});
+
+test("tapping a cluster behind the Filter screen switches to Nearby to show the expanded group", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+  app.openFiltersScreen();
+  assert.equal(app.state.filterScreenOpen, true, "sanity: the Filter screen is open");
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  assert.equal(app.state.filterScreenOpen, false, "the Filter screen closes for the tap");
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby", "Nearby opens to show the expanded group");
+});
+
+test("tapping a cluster behind the Settings screen switches to Nearby to show the expanded group", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+  app.openSettings();
+  assert.equal(app.state.selected?.type, "settings", "sanity: Settings is open");
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  assert.equal(app.state.selected, null, "the Settings pseudo-selection clears for the tap");
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby", "Nearby opens to show the expanded group");
+});
+
 test("the browser back button drops an expanded cluster, not just the anchor it moved", () => {
   resetData(app);
   resetRouter(app);
