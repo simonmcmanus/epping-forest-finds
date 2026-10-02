@@ -831,7 +831,14 @@ function applyWalkingRadiusChange(minutes, options = {}) {
   state.walkingDistanceMinutes = minutes;
   // Resizing the ring is the user taking the camera back: whatever out-of-radius match a
   // just-added filter had the fit reaching for (outOfRadiusFitPoints, js/app.js), the ring they
-  // are now dragging is the thing they want framed.
+  // are now dragging is the thing they want framed. Same reasoning drops an expanded cluster:
+  // deliberately asking for a different-sized ring (the Settings slider, the pinch gesture) is
+  // the user choosing to see more or less ground than the tapped group's own extent, which an
+  // exact-membership view can no longer promise once that choice is made. The one caller that
+  // could reach here while a cluster is expanded (the automatic grow-back,
+  // ensureWalkingRadiusCoversNearest) already refuses to run in that case, so this never fires
+  // mid-expansion on its own.
+  state.clusterExpanded = null;
   state.outOfRadiusRevealFilters = [];
   refreshNearbyRadiusView(options);
 }
@@ -1009,7 +1016,18 @@ function focusNearbyOnClusterGroup(cluster) {
   state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
   state.walkingDistanceMinutes = targetMinutes;
   state.outOfRadiusRevealFilters = [];
-  state.clusterExpanded = null;
+  // Narrows the map and the Nearby list to exactly this group's own members (see
+  // buildNearbyIconLookup, js/renderer.js, and expandedClusterOverviewEntries, js/app.js) --
+  // not a fresh within-radius scan from the new anchor. A scan can't promise the count the
+  // badge just showed: the radius above routinely reaches past the group's own farthest member
+  // into whatever else is standing nearby in a dense patch of forest (its own floor and grid
+  // rounding alone can double it), and a large candidate pool resamples differently after the
+  // anchor/radius change this tap just made (MAX_MAP_TREES, js/renderer.js). Reading the group's
+  // own items directly is the only way the list and the badge that opened it can agree. Items
+  // may still re-cluster into smaller badges at the new zoom -- that's the recursive
+  // drill-down findClusterHit's own comments already describe -- but the *underlying* item
+  // count never grows or shrinks on the way in.
+  state.clusterExpanded = cluster;
   syncSettingsWalkSlider();
   // Single direct ease to the group's own framing -- same path a browser-back cluster undo
   // (restoreNearbyAnchorFromHistory) already takes -- rather than the old zoom-out/pan/zoom-in
@@ -1025,6 +1043,10 @@ function clearNearbyAnchor() {
   startNearbyOriginTransition(nearbyRenderOriginPoint());
   state.nearbyAnchor = null;
   state.outOfRadiusRevealFilters = [];
+  // Dismissing the anchor bar is as much an exit from an expanded cluster as tapping open
+  // ground is (focusNearbyOnMapPoint) -- left set, the list/map stayed narrowed to a group with
+  // no relation to wherever GPS-based browsing resumes.
+  state.clusterExpanded = null;
   refreshNearbyRadiusView({ animate: false });
   pushNearbyAnchorHistory();
 }

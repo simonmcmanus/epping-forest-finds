@@ -2729,6 +2729,35 @@ function storeOverviewItemsCache(cacheKey, result) {
   return result;
 }
 
+// While a cluster is expanded (state.clusterExpanded, set by focusNearbyOnClusterGroup on a map
+// tap), the Nearby list reads straight from the tapped group's own items rather than running
+// the ordinary within-radius scan below -- see that function's own comment for why a scan can't
+// promise the list agrees with the badge's count. Builds the same {kind, type, item, metres}
+// shape every other branch of overviewItemsForActiveFilter produces, so every downstream
+// consumer (heads-up sort, the nearest-item cap, route targets) handles it exactly the same way.
+function expandedClusterOverviewEntries(group, latitude, longitude) {
+  const entries = [];
+  const pushEntry = (itemType, item) => {
+    if (itemType === "path") {
+      entries.push({ kind: "waymarked_trails", type: "path", item, metres: distanceFromPointToPath(latitude, longitude, item) });
+      return;
+    }
+    const metres = distanceMetres(latitude, longitude, item.latitude, item.longitude);
+    if (itemType === "tree") entries.push({ kind: "tree", type: "tree", item, metres });
+    else if (itemType === "cow") entries.push({ kind: "cow", type: "cow", item, metres });
+    else if (itemType === "water") entries.push({ kind: "ponds_streams", type: "water", item, metres });
+    else entries.push({ kind: resolvePlaceKind(item), type: "landmark", item, metres });
+  };
+  if (group.itemType === "_mega" && group.itemsByType) {
+    for (const [itemType, items] of Object.entries(group.itemsByType)) {
+      for (const item of items) pushEntry(itemType, item);
+    }
+  } else {
+    for (const item of (group.items || [])) pushEntry(group.itemType, item);
+  }
+  return entries.filter(entry => Number.isFinite(entry.metres)).sort((a, b) => a.metres - b.metres);
+}
+
 function overviewItemsForActiveFilter() {
   // nearbyOrigin() everywhere, Filter/Settings/Report included: those screens draw the
   // walking-radius ring around the browse anchor like the Nearby screen does, and the anchor
@@ -2742,6 +2771,11 @@ function overviewItemsForActiveFilter() {
   const origin = stableNearbyOrigin();
   if (!origin) return [];
   const { latitude, longitude } = origin;
+
+  if (state.clusterExpanded) {
+    state.overviewOutsideRadiusFallback = false;
+    return expandedClusterOverviewEntries(state.clusterExpanded, latitude, longitude);
+  }
 
   if (state.showAllOutsideRadius) {
     state.overviewOutsideRadiusFallback = false;

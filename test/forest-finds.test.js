@@ -212,6 +212,8 @@ globalThis.__forestFindsTest = {
   drawEnvironment,
   drawLayer,
   clusterFocusTarget,
+  focusNearbyOnClusterGroup,
+  expandedClusterOverviewEntries,
   // The sandbox's own clock object, so a test can freeze what the app reads from
   // performance.now() -- see withFrozenAppClock. Exported as the object, not as now(),
   // because the app looks the method up on it at every call.
@@ -7950,6 +7952,89 @@ test("tapping open ground while a group is expanded returns to nearby mode ancho
   assert.equal(app.state.clusterExpanded, null, "the group detail is dropped for nearby mode");
   assert.equal(app.state.nearbyAnchor.latitude, lonLat.latitude);
   assert.equal(app.els.inspectorTitle.textContent, "Nearby");
+});
+
+test("tapping a cluster shows exactly that cluster's own members, not every tree the walking-radius floor also reaches", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.64, 0.04);
+
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  const oak3 = { id: "oak3", commonName: "Oak", ...makePoint(app, 51.6500, 0.05002894) };
+  // ~15m from the cluster's centre each -- inside the walking-radius floor a tiny 3-tree
+  // cluster's own few-metre extent still rounds up to (see focusNearbyOnClusterGroup's own
+  // comment), so a plain within-radius scan from the new anchor would have swept all four of
+  // these different-species trees in too.
+  const beechNorth = { id: "beechN", commonName: "Beech", ...makePoint(app, 51.6501347, 0.0500) };
+  const beechEast = { id: "beechE", commonName: "Beech", ...makePoint(app, 51.6500, 0.0502169) };
+  const beechSouth = { id: "beechS", commonName: "Beech", ...makePoint(app, 51.6498653, 0.0500) };
+  const beechWest = { id: "beechW", commonName: "Beech", ...makePoint(app, 51.6500, 0.0497831) };
+  app.state.trees.push(oak1, oak2, oak3, beechNorth, beechEast, beechSouth, beechWest);
+
+  const cluster = { itemType: "tree", items: [oak1, oak2, oak3] };
+  const handled = app.focusNearbyOnClusterGroup(cluster);
+  assert.equal(handled, true);
+  assert.equal(app.state.clusterExpanded, cluster, "the tapped cluster stays the expanded group");
+
+  // Sanity: the ring this tap actually settled on reaches past the 3-tree cluster to where the
+  // beeches stand -- otherwise this test would not be exercising the bug it's named for.
+  const ringMetres = app.walkingDistanceToMetres(app.state.walkingDistanceMinutes);
+  const beechDistance = app.distanceMetres(app.state.nearbyAnchor.latitude, app.state.nearbyAnchor.longitude, beechNorth.latitude, beechNorth.longitude);
+  assert.ok(beechDistance < ringMetres, "sanity: the walking ring reaches past the tapped cluster to where the beeches stand");
+
+  // .join, not deepEqual: arrays mapped from the vm sandbox carry the sandbox's Array prototype.
+  const ids = app.overviewItemsForActiveFilter().map((entry) => entry.item.id).sort().join(",");
+  assert.equal(ids, "oak1,oak2,oak3", "the Nearby list shows exactly the tapped cluster's own members, no more");
+});
+
+test("the browser back button drops an expanded cluster, not just the anchor it moved", () => {
+  resetData(app);
+  resetRouter(app);
+  app.setupSearchAndNavHandlers();
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+  assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
+
+  // history.state has no room for a live cluster-item reference (pushNearbyAnchorHistory only
+  // snapshots the anchor's lat/lon), so a stale state.clusterExpanded left set after the anchor
+  // moves back would narrow the map/list to a group unrelated to where the ring now sits.
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "going back drops the expanded group, not just the anchor it moved");
+});
+
+test("resizing the walking radius drops an expanded cluster", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+  assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
+
+  app.applyWalkingRadiusChange(10, { animate: false });
+  assert.equal(app.state.clusterExpanded, null, "dragging the radius to a size of its own choosing exits the group's exact-membership view");
+});
+
+test("dismissing the anchor bar drops an expanded cluster", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+  assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
+
+  app.clearNearbyAnchor();
+  assert.equal(app.state.clusterExpanded, null, "returning to GPS-based browsing exits the group's exact-membership view too");
 });
 
 test("moving the nearby browse anchor reframes the same view instead of zooming out", () => {
