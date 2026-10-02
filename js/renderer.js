@@ -1624,6 +1624,23 @@ function megaClusterOuterRadius(totalItems, dpr) {
   return (megaClusterChipRingRadius(R, chipR) + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
 }
 
+// A tree cluster groups by screen proximity only, not by species, so a cluster can (and often
+// does) hold more than one kind of tree standing close together. Picking the first item's own
+// species icon for the whole group -- the old behaviour -- made a mixed cluster of, say, two
+// oaks and a beech draw as a plain oak badge: the icon implied every member was the same species
+// the count badge next to it was adding up, which wasn't true. Only draws a species icon when
+// every member would independently draw that exact same icon; any disagreement falls back to the
+// generic tree icon, the same fallback already used for a species with no icon of its own, so an
+// ambiguous cluster reads as "trees", not as a specific (and wrong) kind.
+function clusterTreeIconSrc(items) {
+  const iconFor = (item) => (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(item.commonName, item.latinName)) || iconPath("tree");
+  const first = iconFor(items[0]);
+  for (let i = 1; i < items.length; i++) {
+    if (iconFor(items[i]) !== first) return iconPath("tree");
+  }
+  return first;
+}
+
 // The same icon each category's own draw function would put in its pin -- picked from the
 // cluster's first item exactly the way drawTrees/drawLandmarks/drawPathPins/drawWaterPins/
 // drawCows do -- so a mega badge's ring shows the *actual* glyph for what's inside, not just a
@@ -1633,7 +1650,7 @@ function megaClusterMemberIconSrc(itemType, cluster) {
   const repr = cluster.items[0];
   switch (itemType) {
     case "tree":
-      return (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
+      return clusterTreeIconSrc(cluster.items);
     case "cow":
       return iconPath("cow");
     case "path":
@@ -1984,8 +2001,7 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
 
     ctx.globalAlpha = reveal;
 
-    const repr = items[0];
-    const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
+    const src = clusterTreeIconSrc(items);
     const drawn = drawPngMapIcon(ctx, src, screenPt.x, screenPt.y, badgeSize);
     if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, badgeSize, dpr);
 
@@ -2701,8 +2717,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
-    const repr = items[0];
-    const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(repr.commonName, repr.latinName)) || iconPath("tree");
+    const src = clusterTreeIconSrc(items);
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = reveal;
       const drawn = drawPngMapIcon(c, src, screenPt.x, screenPt.y, iconSize * pinScale);

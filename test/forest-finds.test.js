@@ -428,6 +428,7 @@ globalThis.__forestFindsTest = {
   CLUSTER_RADIUS_ICON_SIZE_REF,
   MEGA_CLUSTER_MERGE_RADIUS_CSS_PX,
   buildTypeClusters,
+  clusterTreeIconSrc,
   buildSuperClusters,
   drawMegaClusters,
   clusterJoinAnimationState,
@@ -820,6 +821,16 @@ test("a mega badge's displayed count is exactly what was merged into it, not a s
   };
   app.drawMegaClusters(ctx, megaGroups);
   assert.deepEqual(texts, ["5"], "the badge shows the raw number of items merged into it");
+});
+
+test("a tree cluster's icon is the shared species only when every member agrees", () => {
+  const oak = { commonName: "English oak", latinName: "Quercus robur" };
+  const anotherOak = { commonName: "Pedunculate oak", latinName: "Quercus robur" };
+  const beech = { commonName: "Common beech", latinName: "Fagus sylvatica" };
+  assert.equal(app.clusterTreeIconSrc([oak, anotherOak]), app.ICON_PATHS["tree-english-oak"],
+    "a cluster of same-species trees still shows that species' own icon");
+  assert.equal(app.clusterTreeIconSrc([oak, oak, beech]), app.ICON_PATHS["tree"],
+    "a cluster mixing oaks and a beech must not draw as a plain oak -- the generic tree icon doesn't claim a species the cluster isn't");
 });
 
 test("buildSuperClusters does not chain far-apart clusters into one mega cluster", () => {
