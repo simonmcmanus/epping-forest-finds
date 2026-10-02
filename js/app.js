@@ -2736,6 +2736,35 @@ function storeOverviewItemsCache(cacheKey, result) {
   return result;
 }
 
+// While a cluster is expanded (state.clusterExpanded, set by focusNearbyOnClusterGroup on a map
+// tap), the Nearby list reads straight from the tapped group's own items rather than running
+// the ordinary within-radius scan below -- see that function's own comment for why a scan can't
+// promise the list agrees with the badge's count. Builds the same {kind, type, item, metres}
+// shape every other branch of overviewItemsForActiveFilter produces, so every downstream
+// consumer (heads-up sort, the nearest-item cap, route targets) handles it exactly the same way.
+function expandedClusterOverviewEntries(group, latitude, longitude) {
+  const entries = [];
+  const pushEntry = (itemType, item) => {
+    if (itemType === "path") {
+      entries.push({ kind: "waymarked_trails", type: "path", item, metres: distanceFromPointToPath(latitude, longitude, item) });
+      return;
+    }
+    const metres = distanceMetres(latitude, longitude, item.latitude, item.longitude);
+    if (itemType === "tree") entries.push({ kind: "tree", type: "tree", item, metres });
+    else if (itemType === "cow") entries.push({ kind: "cow", type: "cow", item, metres });
+    else if (itemType === "water") entries.push({ kind: "ponds_streams", type: "water", item, metres });
+    else entries.push({ kind: resolvePlaceKind(item), type: "landmark", item, metres });
+  };
+  if (group.itemType === "_mega" && group.itemsByType) {
+    for (const [itemType, items] of Object.entries(group.itemsByType)) {
+      for (const item of items) pushEntry(itemType, item);
+    }
+  } else {
+    for (const item of (group.items || [])) pushEntry(group.itemType, item);
+  }
+  return entries.filter(entry => Number.isFinite(entry.metres)).sort((a, b) => a.metres - b.metres);
+}
+
 function overviewItemsForActiveFilter() {
   // nearbyOrigin() everywhere, Filter/Settings/Report included: those screens draw the
   // walking-radius ring around the browse anchor like the Nearby screen does, and the anchor
@@ -2749,6 +2778,11 @@ function overviewItemsForActiveFilter() {
   const origin = stableNearbyOrigin();
   if (!origin) return [];
   const { latitude, longitude } = origin;
+
+  if (state.clusterExpanded) {
+    state.overviewOutsideRadiusFallback = false;
+    return expandedClusterOverviewEntries(state.clusterExpanded, latitude, longitude);
+  }
 
   if (state.showAllOutsideRadius) {
     state.overviewOutsideRadiusFallback = false;
@@ -5109,7 +5143,31 @@ function nearestSelectedFilterPoints() {
 // filter whose nearest match is beyond the ring -- Underground stations from inside the forest,
 // say -- changed the list and left the map framed on a ring with nothing new in it, so the
 // station the list had just named was nowhere to be seen.
+// While a cluster is expanded (state.clusterExpanded), the camera fits the group's own member
+// points instead of the ring. This is not the "fit the item cluster" design the comment above
+// warns against reverting to: that one re-solved every frame against whichever matches
+// happened to be nearest, which chased and re-zoomed as the set or the compass heading changed.
+// This point set is a fixed snapshot -- exactly the items a deliberate tap just expanded, never
+// recomputed until the next tap -- so there is nothing to chase.
+//
+// Without this, the ring's own floor (WALKING_RADIUS_TIGHT_MIN_MINUTES, js/nav.js, ~21m) capped
+// how far in the camera could ever zoom for *any* expanded group, ring-sized or not. A group
+// tighter than that floor -- two veteran trees a couple of metres apart, not unusual in a dense
+// patch of forest -- never actually separated on screen no matter how many times its badge was
+// tapped: each tap re-narrowed state.clusterExpanded correctly, but the camera kept framing the
+// same floor-sized ring, so the same unsplit badge just redrew in the same spot. Reported as
+// "I get down to a cluster that does not expand". Fitting the group's own points instead lets
+// the camera zoom in exactly as far as separating them needs, capped at the same 220x-of-base
+// ceiling applyBoundsToViewport already enforces for the pinch gesture.
+function expandedClusterFitPoints(group) {
+  const items = group.itemType === "_mega" && group.itemsByType
+    ? Object.values(group.itemsByType).flat()
+    : (group.items || []);
+  return items.map((item) => item.point).filter(Boolean);
+}
+
 function nearbyCameraFitPoints() {
+  if (state.clusterExpanded) return expandedClusterFitPoints(state.clusterExpanded);
   const ring = walkingRadiusCirclePoints();
   const reach = ring.concat(outOfRadiusFitPoints());
   if (!secondaryScreenActive()) return reach;

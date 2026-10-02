@@ -23,7 +23,7 @@ Inspector state when a specific tree, landmark, cow, path, street, or railway is
 Inspector state when the search magnifier is open (`state.searchScreenOpen = true`). A query field over the whole dataset — trees by species or tag, places, roads, trails, water, railway lines and cows — listing matches as Nearby-style rows that open the location when chosen (`openSearchScreen()`, `searchMapFeatures()`, `openSearchResult()`). One of the four secondary screens; shares `secondaryScreenActive()` navigation behaviour with Filter, Settings and Feedback.
 
 **Filter screen / Filters screen**
-Inspector state when the filter toggle panel is open (`state.filterScreenOpen = true`). Shows filter group chips. GPS updates, cow refreshes, and back-button presses do not close it — only explicit navigation away does.
+Inspector state when the filter toggle panel is open (`state.filterScreenOpen = true`). Shows filter group chips. GPS updates and cow refreshes do not close it — only explicit navigation away does, including its own back arrow (`#inspectorBack`, shown here the same as on Settings/Feedback) or the Nearby nav button.
 
 **Minimized mode**
 Inspector collapsed to a header strip only. Auto-reposition is paused; user can pan and zoom freely. Tapping the header restores the previous mode.
@@ -31,8 +31,8 @@ Inspector collapsed to a header strip only. Auto-reposition is paused; user can 
 **Navigation mode**
 When a user has selected a location and is being shown directions to it. A route line is drawn and the compass arrow appears in the inspector title row.
 
-**Cluster detail mode**
-Inspector state after tapping a multi-item cluster pin (`state.clusterExpanded` set, `state.selected` null). Shows a back button, an item-count title (e.g. "4 Trees"), and a nearest-item list of the cluster's members. While it is open the map shows only that group's items — every other highlighted location is hidden. Tapping a member opens full selected-detail via `focusOverviewItem`; tapping back returns to nearby mode, and tapping open map ground returns to nearby mode focused on the tapped spot.
+**Expanded cluster**
+Nearby mode after tapping a multi-item cluster pin (`state.clusterExpanded` set to the tapped group). Not a separate screen — the inspector still reads "Nearby" — but the walking-radius ring moves to cover the group and both the map and the Nearby list narrow to exactly that group's own members, not a fresh within-radius scan (see "Cluster tap interaction", spec-data-rendering.md). Tapping a member opens full selected-detail; tapping open map ground, dragging/zooming the map, or going back clears `state.clusterExpanded` and returns to plain nearby mode.
 
 **Feedback / Report screen**
 One of the four secondary screens (alongside Search, Filter and Settings). "Feedback" is the user-facing nav button label; "report" is the code term (`state.selected?.type === "report"`, `openReportModal()`, the Report form). Shares `secondaryScreenActive()` navigation behaviour with Search, Filter and Settings.
