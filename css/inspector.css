@@ -184,7 +184,9 @@
   align-items: flex-start;
   gap: 10px;
   position: relative;
-  padding: 16px 48px 12px 16px;
+  /* Right padding reserves room for the absolutely-positioned #compassArrow/#filterToggle
+     corner -- sized to the larger of the two (filterToggle, a 44px circle at right:12px). */
+  padding: 16px 60px 12px 16px;
 }
 
 /* Back sits to the left of the emoji/title, in the same row, rather than on a header row of
@@ -223,8 +225,8 @@
   position: absolute;
   top: 12px;
   right: 12px;
-  width: calc(36px * var(--icon-scale));
-  height: calc(36px * var(--icon-scale));
+  width: calc(44px * var(--icon-scale));
+  height: calc(44px * var(--icon-scale));
   padding: 0;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -246,14 +248,14 @@
 }
 
 .inspector-filter-toggle .nav-icon {
-  width: calc(20px * var(--icon-scale));
-  height: calc(20px * var(--icon-scale));
+  width: calc(30px * var(--icon-scale));
+  height: calc(30px * var(--icon-scale));
 }
 
 .inspector-filter-toggle .filter-count {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  top: -6px;
+  right: -6px;
   pointer-events: none;
 }
 

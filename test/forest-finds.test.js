@@ -266,7 +266,6 @@ globalThis.__forestFindsTest = {
   buildSearchIconLookup,
   activeIconLookup,
   markerOpacityFor,
-  searchClearFiltersHtml,
   treeHashKey,
   findTreeByHashKey,
   treeDisplayName,
@@ -3624,21 +3623,16 @@ test("search results are never dimmed by the active category filters", () => {
   assert.equal(app.markerOpacityFor("cow", { id: "any-cow" }), 1);
 });
 
-test("a \"Clear all filters\" row appears in Search whenever filters are active, on every state of the results pane", () => {
+test("Search never offers a \"Clear all filters\" row, on any state of the results pane -- that control lives on the Filters screen", () => {
   resetSearchData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   addSearchFixtures(app);
 
-  assert.doesNotMatch(app.searchResultsHtml(""), /data-filter-clear-all/, "nothing to clear yet");
-
   app.setOverviewFilters(["cows"]);
-  assert.match(app.searchResultsHtml(""), /data-filter-clear-all/, "empty prompt");
-  assert.match(app.searchResultsHtml("a"), /data-filter-clear-all/, "too-short prompt");
-  assert.match(app.searchResultsHtml("zzzznothing"), /data-filter-clear-all/, "no-matches state");
-  assert.match(app.searchResultsHtml("royal forest"), /data-filter-clear-all/, "results list");
-
-  app.setOverviewFilters([]);
-  assert.doesNotMatch(app.searchResultsHtml("royal forest"), /data-filter-clear-all/, "hidden again once cleared");
+  assert.doesNotMatch(app.searchResultsHtml(""), /data-filter-clear-all/, "empty prompt");
+  assert.doesNotMatch(app.searchResultsHtml("a"), /data-filter-clear-all/, "too-short prompt");
+  assert.doesNotMatch(app.searchResultsHtml("zzzznothing"), /data-filter-clear-all/, "no-matches state");
+  assert.doesNotMatch(app.searchResultsHtml("royal forest"), /data-filter-clear-all/, "results list");
 });
 
 test("searching a tree species by itself finds every matching tree, nearest first", () => {

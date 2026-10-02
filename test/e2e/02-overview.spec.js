@@ -44,7 +44,7 @@ test.describe("Overview / Nearby screen", () => {
   test("labelled navigation stays readable and separate from the inspector panel at narrow widths", async ({ page }) => {
     await page.click("#settingsToggle");
     await expect(page.locator("#inspectorBack")).toBeVisible();
-    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Search", "Nearby", "Feedback", "Settings"]);
+    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Nearby", "Search", "Feedback", "Settings"]);
     await page.locator(".inspector-actions").evaluate(nav => nav.getAnimations({ subtree: true }).forEach(animation => animation.finish()));
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
@@ -261,6 +261,18 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator(".filter-chip").first()).toBeVisible();
   });
 
+  test("the Filter screen shows a back arrow instead of the (now inert) filter toggle", async ({ page }) => {
+    // Previously the toggle stayed on screen in its "current" state once Filters opened --
+    // visibly highlighted, but doing nothing when tapped again. The ordinary back arrow is the
+    // way out instead, exactly as on Settings/Report.
+    await page.click("#filterToggle");
+    await expect(page.locator("#filterToggle")).toBeHidden();
+    await expect(page.locator("#inspectorBack")).toBeVisible();
+    await page.click("#inspectorBack");
+    await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
+    await expect(page.locator("#filterToggle")).toBeVisible();
+  });
+
   test("settings button is visible in overview mode", async ({ page }) => {
     await expect(page.locator("#settingsToggle")).toBeVisible();
   });
@@ -269,9 +281,9 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#reportToggle")).toBeVisible();
   });
 
-  test("nav buttons read left to right: search, nearby, feedback, settings", async ({ page }) => {
+  test("nav buttons read left to right: nearby, search, feedback, settings", async ({ page }) => {
     const ids = await page.locator(".inspector-actions button").evaluateAll((els) => els.map((el) => el.id));
-    expect(ids).toEqual(["searchToggle", "nearbyToggle", "reportToggle", "settingsToggle"]);
+    expect(ids).toEqual(["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle"]);
   });
 
   test("snapshot: overview state", async ({ page }, testInfo) => {

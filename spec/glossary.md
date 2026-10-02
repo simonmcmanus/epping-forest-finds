@@ -7,7 +7,7 @@ The panel that sits above the map. Called "modal" in user-facing language and "i
 The map canvas in the background, visible in the area not covered by the inspector.
 
 **Navigation buttons**
-The icon buttons in the nav bar, a fixed bottom tab bar separate from the Modal/Inspector (above it as its own card on desktop, pinned to the bottom of the screen on mobile) — in left-to-right order: Search, Nearby, Filters, Feedback, Settings. The active button is highlighted gold.
+The icon buttons in the nav bar, a fixed bottom tab bar separate from the Modal/Inspector (above it as its own card on desktop, pinned to the bottom of the screen on mobile) — in left-to-right order: Nearby, Search, Feedback, Settings. The active button is highlighted gold. Filters is not part of this row — its own icon button sits inline with the Nearby/Filters heading instead (see "Filter Panel" in `spec-data-rendering.md`).
 
 ---
 
