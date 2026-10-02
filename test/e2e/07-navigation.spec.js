@@ -155,10 +155,13 @@ test.describe("URL navigation", () => {
       // of #inspector, before any per-screen content, so it is the first thing Tab reaches after
       // the skip link on every screen. #filterToggle is not part of that row -- it sits inline
       // with the Nearby heading (see spec-data-rendering.md, "Filters is reached from Nearby, not
-      // a nav peer"), so on Nearby it is reachable right after the row instead of inside it.
+      // a nav peer") -- but #locateButton (".inspector-tools", also always ahead of per-screen
+      // content) comes first: with no GPS fix yet (geolocation is denied by default -- see
+      // "Geolocation is always answered" in spec/agents.md) it is shown and enabled, offering a
+      // manual retry, so it reaches it before filterToggle does.
       await setup(page);
       await page.locator("body").evaluate((el) => el.focus());
-      const order = ["searchToggle", "nearbyToggle", "reportToggle", "settingsToggle", "filterToggle"];
+      const order = ["searchToggle", "nearbyToggle", "reportToggle", "settingsToggle", "locateButton", "filterToggle"];
       for (const id of order) {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();
