@@ -123,7 +123,7 @@
   right: 14px;
   width: min(390px, calc(100vw - 28px));
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 2px;
   padding: 6px;
   background: var(--panel);
@@ -184,7 +184,9 @@
   align-items: flex-start;
   gap: 10px;
   position: relative;
-  padding: 16px 48px 12px 16px;
+  /* Right padding reserves room for the absolutely-positioned #compassArrow/#filterToggle
+     corner -- sized to the larger of the two (filterToggle, a 44px circle at right:12px). */
+  padding: 16px 60px 12px 16px;
 }
 
 /* Back sits to the left of the emoji/title, in the same row, rather than on a header row of
@@ -213,6 +215,51 @@
 }
 
 .title-compass-arrow[hidden] {
+  display: none;
+}
+
+/* Inline Filters entry point, next to the Nearby/Filters heading -- shares the title section's
+   reserved top-right corner with #compassArrow (the two never show together), so it costs no
+   extra vertical space over the old fifth nav tab. */
+.inspector-filter-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: calc(44px * var(--icon-scale));
+  height: calc(44px * var(--icon-scale));
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  display: inline-grid;
+  place-items: center;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.inspector-filter-toggle:hover {
+  background: #f5f5f0;
+}
+
+.inspector-filter-toggle.screen-active {
+  background: var(--gold-tint);
+  color: var(--gold-ink);
+  border-color: transparent;
+}
+
+.inspector-filter-toggle .nav-icon {
+  width: calc(30px * var(--icon-scale));
+  height: calc(30px * var(--icon-scale));
+}
+
+.inspector-filter-toggle .filter-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  pointer-events: none;
+}
+
+.inspector-filter-toggle[hidden] {
   display: none;
 }
 
@@ -283,12 +330,6 @@
 
 .close:hover {
   background: #deeadc;
-}
-
-button.filter-toggle {
-  width: auto;
-  min-width: calc(36px * var(--icon-scale));
-  padding: 0 8px;
 }
 
 button.report-toggle,
@@ -367,13 +408,6 @@ button.settings-toggle.has-update::after {
 .inspector-back .nav-icon {
   width: calc(30px * var(--icon-scale));
   height: calc(30px * var(--icon-scale));
-}
-
-.inspector-actions .filter-count {
-  position: absolute;
-  top: 3px;
-  right: 2px;
-  pointer-events: none;
 }
 
 /* Search screen. The query field is rendered once when the screen opens and only

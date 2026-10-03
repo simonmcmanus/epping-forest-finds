@@ -253,14 +253,18 @@ test.describe("Searching the map", () => {
     expect(lookup.landmarkCount).toBe(1);
     expect(lookup.treeCount).toBe(0);
     expect(lookup.opacity).toBe(1);
+  });
 
-    // The active filter is still there to clear.
-    const clearButton = page.locator("#mapSearchResults [data-filter-clear-all]");
-    await expect(clearButton).toBeVisible();
-    await clearButton.click();
-    await expect(clearButton).toHaveCount(0);
-    const filtersAfter = await page.evaluate(() => state.overviewFilters.length);
-    expect(filtersAfter).toBe(0);
+  test("search offers no way to clear filters -- that control lives on the Filters screen now", async ({ page }) => {
+    await page.click("#filterToggle");
+    await page.click('[data-filter-subfilter="cows"]');
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", FIXTURE_PLACE);
+    await page.waitForFunction(
+      (name) => state.searchHighlightResults.some((r) => r.item?.name === name),
+      FIXTURE_PLACE
+    );
+    await expect(page.locator("#mapSearchResults [data-filter-clear-all]")).toHaveCount(0);
   });
 
   test("the nearby button is the way back out of search", async ({ page }) => {

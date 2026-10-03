@@ -47,8 +47,11 @@ test.describe("Filter panel", () => {
     // Click a subfilter chip to activate it
     const firstChip = page.locator(".filter-chip").first();
     await firstChip.click();
+    // The toggle (and its badge) is the way in from Nearby, so it hides while Filters itself
+    // is open in favour of the ordinary back arrow -- the badge only has to be visible again
+    // once back on Nearby.
+    await page.click("#nearbyToggle");
     const badge = page.locator("#filterCount");
-    // Badge should be visible with a non-zero count
     await expect(badge).toBeVisible();
   });
 

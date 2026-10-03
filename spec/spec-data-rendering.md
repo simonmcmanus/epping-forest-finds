@@ -489,7 +489,7 @@ invisible control.
 - The directional arrow element stores the item's fixed coordinates (`data-item-lat`, `data-item-lon`); bearing is computed live in `updateOverviewDirectionArrows()` from `state.userLocation` — never baked into the HTML template. This keeps the `listKey` stable across GPS updates, preventing unnecessary full re-renders and icon flash.
 - Overview chrome uses generated PNG assets from `data/icons/` for the nearby title, walking-time chip and bus entries; these generated UI icons render at enlarged sizes after tight-cropping.
 - All icon paths are declared in a single `ICON_PATHS` registry in `js/categories.js`. Adding an icon requires one line there; no other file needs editing. Tree species leaf icons use `treeSpeciesIconHtml(commonName, latinName)` for fuzzy name-to-icon matching.
-- The main navigation is a full-width, five-column row in this order: Search, Nearby, Filters, Feedback, Settings. Each button has a persistent text label and a simple 24px outline SVG (magnifier, pin, sliders, speech bubble, cog). Icons and labels are charcoal (`#263345`); the current screen uses a solid charcoal tile with white content and `aria-current="page"`. Hover uses a neutral grey surface; selected tiles have no drop shadow. Filter counts remain separate badges and do not make Filters look like the current screen. Its accessible name starts with “Filters” and includes the active group count.
+- The main navigation is a full-width, four-column row in this order: Nearby, Search, Feedback, Settings. Each button has a persistent text label and a simple 24px outline SVG (pin, magnifier, speech bubble, cog). Icons and labels are charcoal (`#263345`); the current screen uses a solid charcoal tile with white content and `aria-current="page"`. Hover uses a neutral grey surface; selected tiles have no drop shadow. Filters is not one of these four — see "Filter Panel" below for its own inline button and badge, next to the Nearby heading instead of this row.
 - Navigation targets are at least 44px wide and 60px tall, sharing the available width even at 320px. Icon size and minimum height follow the existing icon scale. Labels are 0.625rem with -0.2px letter-spacing, sized to fit inside the narrowest (320px) column including the widest label ("Feedback"), so no label bleeds outside its own button. The row stays in normal layout flow; on phones it sits below the resize handle. Back retains its 30px glyph and 44px target on a separate row below navigation when needed. A collapsed inspector hides that Back row and its content while retaining the entire labelled navigation.
 - All `<img>` icons in the inspector panel use `loading="eager" decoding="sync"` so they render immediately on DOM insertion without a visible flash.
 - Count controlled by `nearestItemsCount` dropdown (3/5/10/15/20/25)
@@ -870,13 +870,33 @@ Search, Filter, Settings, and Report share identical navigation behaviour, gated
   - Opening Search with a query already in `state.searchQuery` (returning from a result) frames that query's matches immediately, the same as the first-match case above, instead of falling back to the walking-radius "survey mode" fit the other three screens use.
 - **Search has no highlight styling of its own — it draws the map's ordinary pins, just narrowed to the matches.** `activeIconLookup()` (`js/renderer.js`) is what every pin-drawing pass and hit-test (`findHit`/`findClusterHit`, `js/inspector.js`) now call instead of `buildNearbyIconLookup()` directly: while Search is open with matches to show, it returns `buildSearchIconLookup()` — `state.searchHighlightResults` regrouped into the same `{tree, landmark, cow, path, water}` shape the Nearby lookup has — so a tree renders with its species icon, a pub with the beer glyph, exactly as anywhere else on the map, but *only* the matches are drawn; everything else in those categories is left out entirely rather than dimmed or ringed. Roads and railways aren't in this lookup — they're line features (`drawRoads`/`drawPaths`) drawn unconditionally regardless of screen, so a road or railway match is already on the map without needing one. With no query yet (or too short a query), `activeIconLookup()` falls back to the ordinary Nearby/Filter set, matching the "camera stays put" fallback above.
 - **A GPS fix or compass tick can't pull the camera back to the Nearby ring while Search is showing results.** `alignHeadingUpNavigationViewport()` is the walking-radius ring's own framing, applied directly (no animation, so it reads as a snap rather than a move) and reached two ways: directly, from every `watchPosition` fix, whenever `nearbyNavigationAnchorActive()` is true — which it is throughout Search, same as plain Nearby, since neither has a real selection — and indirectly, from `ensureOverviewTargetsVisible()`, which every one of the function's other callers (compass ticks, filter changes, more GPS fixes) routes through under the same condition. It now bails immediately (`return false`) whenever `state.searchScreenOpen && state.searchHighlightResults.length` — leaving the camera exactly where `fitSearchCameraToHighlight()` last put it rather than reasserting the ring on top of it. Without this, the ring reappeared on the next fix or tick regardless of how the search fit had just settled, which read as the map jumping back to Nearby a moment or two after correctly framing a search.
-- **Search's matches ignore the active category filters, on the map and in the list alike.** `buildSearchIconLookup()` bypasses `overviewItemsForActiveFilter()` (and so the walking radius) entirely, and `markerOpacityFor()` (`js/inspector.js`) returns full opacity for every kind while `state.searchScreenOpen` is true — a landmark or cow match is never dimmed to 0.3 for falling outside `state.overviewFilters`, the way it would be on Nearby. Because those filters still govern Nearby underneath, `searchResultsHtml` prepends a "Clear all filters" row (`searchClearFiltersHtml()`, the same `data-filter-clear-all` control and `setOverviewFilters([])` handler the Filter screen uses) whenever `state.overviewFilters.length > 0`, visible on every state of the results pane — the empty prompt, the "keep typing" prompt, no-matches, and the results list alike — so filters set earlier can be cleared without leaving Search. Clearing them re-renders the results pane (`renderSearchResults()`, called from the shared click handler in `js/nav.js` because `setOverviewFilters()` itself only knows about the Filter screen) so the row disappears immediately.
+- **Search's matches ignore the active category filters, on the map and in the list alike.** `buildSearchIconLookup()` bypasses `overviewItemsForActiveFilter()` (and so the walking radius) entirely, and `markerOpacityFor()` (`js/inspector.js`) returns full opacity for every kind while `state.searchScreenOpen` is true — a landmark or cow match is never dimmed to 0.3 for falling outside `state.overviewFilters`, the way it would be on Nearby. Search offers no control of its own to clear those filters — the inline filter toggle next to the Nearby heading (see "Filter Panel" below) is reachable in one tap from there instead, so Search no longer carries its own duplicate "Clear all filters" row.
 - **Search results reuse the Nearby row markup** (`.nearest-item`, `searchResultsHtml`) but carry `data-search-type`/`data-search-key` rather than `data-overview-type`/`data-overview-key`, so they route through `openSearchResult()` and the shared `SELECTION_ROUTES` table instead of `focusOverviewItem()`. That is what lets a road or a railway line — neither of which the Nearby list can contain — be opened from a result, and what lets a result be opened with no location fix at all.
 - **Full 3D tilt is available on all three screens**, exactly as on the nearby overview (see "3D tilt available on every screen" under Camera Behavior below) — the "identical view" invariant above covers pan/zoom framing only; the live tilt angle tracks phone orientation the same way it does everywhere else and is not held fixed across screen switches.
 
 ### Filter Panel (Overview mode only)
 
-- Hidden when in selected-detail mode
+- **Filters is reached from Nearby, not a nav peer.** `#filterToggle` only ever changes what the
+  Nearby list and map show, so instead of sitting in `.inspector-actions` alongside Search/Nearby/
+  Feedback/Settings as a fifth co-equal tab, it sits inline inside `.inspector-title-section`, next
+  to the Nearby/Filters heading itself (`app.html`) — sharing the title section's reserved
+  top-right corner with `#compassArrow`, which the two screens never show at the same time, so it
+  costs no extra vertical space over a nav-bar tab. It is sized to match `#inspectorBack` (a 44px
+  circle, `.inspector-filter-toggle`/`.inspector-back` in `css/inspector.css`) rather than the
+  smaller nav-bar icon buttons it replaced. `updateFilterUi()` (`js/app.js`) shows it on Nearby
+  only, as the way *in* — it hides on every other screen, Filters itself included, rather than
+  sitting there in its active state doing nothing when tapped again; `#inspectorBack` (below) is
+  the way out instead. This hide check runs from `setInspectorSelectionChrome()`, the shared
+  chokepoint every screen entry routes through, so it never goes stale across a navigation; Search
+  is the one exception, where the flag it depends on (`state.searchScreenOpen`) is only set true
+  just after that chokepoint runs, so `openSearchScreen()` re-derives it once more immediately
+  afterward.
+- **Filters has its own back arrow, like Settings and Report.** `openFiltersScreen()` passes
+  `showBack: true` to `setInspectorSelectionChrome()`, so `#inspectorBack` now shows on Filters too
+  and steps back through the trail the same way it does from any other screen. That chokepoint
+  clears `state.filterScreenOpen` for every `showBack: true` screen (so a selected place or
+  Settings correctly stands Filters down on the way in) — `openFiltersScreen()` sets it `true`
+  again immediately afterward, now that Filters is the screen being entered rather than left.
 - Toggle button shows active filter count badge
 
 Filter groups (defined by `FILTER_GROUPS` in `js/categories.js`, the single source of truth):
@@ -1095,14 +1115,15 @@ already documented for Nearby/Search result rows under Overview Content and Seco
   wherever it last was, which is the skip link's position from this same boot-time call, so the
   very next Tab reaches the nav row directly rather than restarting the whole document from the
   top.
-- **The nav row is always reachable.** `#nearbyToggle`/`#searchToggle`/`#filterToggle`/
-  `#reportToggle`/`#settingsToggle` live in their own `<nav class="inspector-actions">`, a sibling
+- **The nav row is always reachable.** `#nearbyToggle`/`#searchToggle`/`#reportToggle`/
+  `#settingsToggle` live in their own `<nav class="inspector-actions">`, a sibling
   of `#inspector` in `app.html` rather than nested inside it, placed immediately before the aside
   in markup so Tab still reaches it right after the skip link. Being a separate element also means
   the bar is unaffected by whatever `#inspector` itself is doing — open, minimized, or pushed
   around by the on-screen keyboard (see "Keyboard avoidance" below) — so it is always reachable
   and visible regardless of which screen (Nearby, a selection, Search/Filter/Settings/Report) is
-  currently shown below it.
+  currently shown below it. `#filterToggle` is not part of this row — see "Filters is reached from
+  Nearby, not a nav peer" below.
 - **Keeping keyboard focus in view.** The Nearby/Search results list (`.nearest-list`) scrolls
   inside `#inspectorBody`, so moving focus through it — with the arrow-key handler
   (`handleNearestListArrowKey`, `js/nav.js`) or with plain Tab, which uses the browser's own

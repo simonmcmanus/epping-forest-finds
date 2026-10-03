@@ -369,7 +369,7 @@ the only one.
   on-screen keyboard on a phone. <kbd>↓</kbd> from the field moves focus into the list instead,
   for stepping to a result other than the first — see "Keyboard navigation" above, which this
   shares with the Nearby list.
-- **The map highlights the results, not just the list.** The top 10 matches (nearest first) are drawn with their ordinary map pins — no separate ring or highlight styling, and not dimmed or hidden by whatever category filters are active — while everything else in those categories is left off the map; a "Clear all filters" control is offered from within Search whenever filters are active, so they don't have to be left to see every match. The camera fits itself to those matches plus the user's own position, live as the query changes, rather than showing the same fixed view as the Filter, Settings and Feedback screens. See "Search's camera and highlighting" in `spec/spec-data-rendering.md` for the mechanics.
+- **The map highlights the results, not just the list.** The top 10 matches (nearest first) are drawn with their ordinary map pins — no separate ring or highlight styling, and not dimmed or hidden by whatever category filters are active — while everything else in those categories is left off the map. Search offers no control of its own to clear those filters; the Filters icon next to the Nearby heading is one tap away instead. The camera fits itself to those matches plus the user's own position, live as the query changes, rather than showing the same fixed view as the Filter, Settings and Feedback screens. See "Search's camera and highlighting" in `spec/spec-data-rendering.md` for the mechanics.
 
 ## Settings Screen
 

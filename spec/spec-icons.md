@@ -466,7 +466,7 @@ The main navigation row's labels (`.inspector-actions .nav-label`) used to
 overflow at the narrowest tested width (320px): a column-direction flex item
 is sized to its own content on the cross axis regardless of `flex-shrink`
 (that only governs the main axis), so "Feedback" and "Settings" — wider than
-their own fifth of a five-across row — spilled a few pixels past both edges
+their own share of the row — spilled a few pixels past both edges
 of their own button and crowded into the next one, rather than being clipped
 by it. Sized down to `0.625rem` with `-0.2px` letter-spacing instead (see
 "Navigation" in `spec-data-rendering.md`), which fits every label inside its

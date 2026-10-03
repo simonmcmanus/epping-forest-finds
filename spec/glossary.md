@@ -7,7 +7,7 @@ The panel that sits above the map. Called "modal" in user-facing language and "i
 The map canvas in the background, visible in the area not covered by the inspector.
 
 **Navigation buttons**
-The icon buttons in the nav bar, a fixed bottom tab bar separate from the Modal/Inspector (above it as its own card on desktop, pinned to the bottom of the screen on mobile) — in left-to-right order: Search, Nearby, Filters, Feedback, Settings. The active button is highlighted gold.
+The icon buttons in the nav bar, a fixed bottom tab bar separate from the Modal/Inspector (above it as its own card on desktop, pinned to the bottom of the screen on mobile) — in left-to-right order: Nearby, Search, Feedback, Settings. The active button is highlighted gold. Filters is not part of this row — its own icon button sits inline with the Nearby/Filters heading instead (see "Filter Panel" in `spec-data-rendering.md`).
 
 ---
 
@@ -23,7 +23,7 @@ Inspector state when a specific tree, landmark, cow, path, street, or railway is
 Inspector state when the search magnifier is open (`state.searchScreenOpen = true`). A query field over the whole dataset — trees by species or tag, places, roads, trails, water, railway lines and cows — listing matches as Nearby-style rows that open the location when chosen (`openSearchScreen()`, `searchMapFeatures()`, `openSearchResult()`). One of the four secondary screens; shares `secondaryScreenActive()` navigation behaviour with Filter, Settings and Feedback.
 
 **Filter screen / Filters screen**
-Inspector state when the filter toggle panel is open (`state.filterScreenOpen = true`). Shows filter group chips. GPS updates, cow refreshes, and back-button presses do not close it — only explicit navigation away does.
+Inspector state when the filter toggle panel is open (`state.filterScreenOpen = true`). Shows filter group chips. GPS updates and cow refreshes do not close it — only explicit navigation away does, including its own back arrow (`#inspectorBack`, shown here the same as on Settings/Feedback) or the Nearby nav button.
 
 **Minimized mode**
 Inspector collapsed to a header strip only. Auto-reposition is paused; user can pan and zoom freely. Tapping the header restores the previous mode.

@@ -98,7 +98,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v70"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v71"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -1981,7 +1981,11 @@ function updateFilterUi() {
     const activeGroupCount = getActiveGroupKeys(currentSet).length;
     const hasActiveFilter = activeGroupCount > 0;
     const locationSelected = Boolean(state.selected);
-    els.filterToggle.hidden = locationSelected;
+    // Filters only ever changes what Nearby shows, so its inline toggle (next to the Nearby
+    // heading -- see app.html) is the way *in* from Nearby, and only shows there. On the Filter
+    // screen itself it would just sit in its active state doing nothing when tapped, so it hides
+    // in favour of the ordinary #inspectorBack arrow -- the way out, same as any other screen.
+    els.filterToggle.hidden = locationSelected || state.searchScreenOpen || state.filterScreenOpen;
     els.filterToggle.classList.toggle("active", hasActiveFilter);
     els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
     els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
@@ -2010,9 +2014,12 @@ function setNavScreenActive(current = null) {
 }
 
 function openFiltersScreen() {
-  state.filterScreenOpen = true;
   state.selected = null;
-  setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: false });
+  // showBack:true clears state.filterScreenOpen inside setInspectorSelectionChrome (the shared
+  // chokepoint every other showBack:true screen relies on to stand Filters down) -- set it again
+  // immediately after, now that Filters is the screen being entered rather than left.
+  setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: true });
+  state.filterScreenOpen = true;
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
   setNavScreenActive(els.filterToggle);
   els.inspectorTools.hidden = true;
@@ -6719,35 +6726,21 @@ function updateSearchHighlight(results) {
   }, SEARCH_CAMERA_FIT_DEBOUNCE_MS);
 }
 
-// Search's own matches are never dimmed or hidden by the active category filters (see
-// markerOpacityFor's search bypass, js/inspector.js, and buildSearchIconLookup, js/renderer.js)
-// -- but the filters set on the Filter screen stay in effect for Nearby underneath, so this row
-// offers the same one-click reset the Filter screen has, without leaving Search to reach it.
-function searchClearFiltersHtml() {
-  if (!state.overviewFilters.length) return "";
-  return `<div class="filter-actions search-clear-filters">
-    <button class="filter-action-btn filter-clear-all" type="button" data-filter-clear-all>
-      Clear all filters
-    </button>
-  </div>`;
-}
-
 function searchResultsHtml(query) {
-  const clearFiltersHtml = searchClearFiltersHtml();
   const needle = normalizeSearchText(query);
   if (!needle) {
     updateSearchHighlight([]);
-    return `${clearFiltersHtml}<p class="empty">Search for a tree tag or species, a shop, pub or café, a road, a trail, or anywhere else on the map.</p>`;
+    return `<p class="empty">Search for a tree tag or species, a shop, pub or café, a road, a trail, or anywhere else on the map.</p>`;
   }
   if (needle.length < SEARCH_MIN_QUERY_LENGTH) {
     updateSearchHighlight([]);
-    return `${clearFiltersHtml}<p class="empty">Keep typing — search needs at least ${SEARCH_MIN_QUERY_LENGTH} characters.</p>`;
+    return `<p class="empty">Keep typing — search needs at least ${SEARCH_MIN_QUERY_LENGTH} characters.</p>`;
   }
 
   const results = searchMapFeatures(query);
   updateSearchHighlight(results);
   if (!results.length) {
-    return `${clearFiltersHtml}<p class="empty">Nothing on the map matches “${escapeHtml(query.trim())}”.</p>`;
+    return `<p class="empty">Nothing on the map matches “${escapeHtml(query.trim())}”.</p>`;
   }
 
   const itemsHtml = results.map((result) => {
@@ -6771,7 +6764,7 @@ function searchResultsHtml(query) {
   const countLabel = results.length >= SEARCH_RESULT_LIMIT
     ? `Closest ${SEARCH_RESULT_LIMIT} matches`
     : `${results.length} match${results.length === 1 ? "" : "es"}`;
-  return `${clearFiltersHtml}<div class="nearby-heading"><strong>${escapeHtml(countLabel)}</strong></div><ul class="nearest-list">${itemsHtml}</ul>`;
+  return `<div class="nearby-heading"><strong>${escapeHtml(countLabel)}</strong></div><ul class="nearest-list">${itemsHtml}</ul>`;
 }
 
 // The nav button's magnifier again, at title size. There is no search PNG in the icon
@@ -6815,6 +6808,9 @@ function openSearchScreen() {
   state.searchScreenOpen = true;
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
   setNavScreenActive(els.searchToggle);
+  // Hides the inline filter toggle next to the Nearby/Filters heading -- Filters is reached
+  // from Nearby, not from Search, which deliberately ignores the active filters regardless.
+  updateFilterUi();
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Search";
   els.inspectorType.textContent = "Find anything on the map";

@@ -150,25 +150,30 @@ test.describe("URL navigation", () => {
   });
 
   test.describe("keyboard accessibility", () => {
-    test("Search, Nearby, Filters, Feedback and Settings are always reachable by Tab", async ({ page }) => {
-      // The nav row (#nearbyToggle/#filterToggle/#searchToggle/#reportToggle/#settingsToggle)
-      // sits at the top of #inspector, before any per-screen content, so it is the first thing
-      // Tab reaches after the skip link on every screen -- Nearby, a selected tree/place/cow, and
-      // the Search/Filter/Settings/Report screens all render their own content below it rather
-      // than replacing it.
+    test("Nearby, Search, Feedback, Settings and Filters are always reachable by Tab", async ({ page }) => {
+      // The nav row (#nearbyToggle/#searchToggle/#reportToggle/#settingsToggle) sits at the top
+      // of #inspector, before any per-screen content, so it is the first thing Tab reaches after
+      // the skip link on every screen. #filterToggle is not part of that row -- it sits inline
+      // with the Nearby heading (see spec-data-rendering.md, "Filters is reached from Nearby, not
+      // a nav peer") -- but #locateButton (".inspector-tools", also always ahead of per-screen
+      // content) comes first: with no GPS fix yet (geolocation is denied by default -- see
+      // "Geolocation is always answered" in spec/agents.md) it is shown and enabled, offering a
+      // manual retry, so it reaches it before filterToggle does.
       await setup(page);
       await page.locator("body").evaluate((el) => el.focus());
-      const order = ["searchToggle", "nearbyToggle", "filterToggle", "reportToggle", "settingsToggle"];
+      const order = ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle", "locateButton", "filterToggle"];
       for (const id of order) {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();
       }
     });
 
-    test("the nav row stays reachable with a place selected", async ({ page }) => {
+    test("the nav row stays reachable with a place selected, and the filter toggle drops out of the order", async ({ page }) => {
+      // #filterToggle only ever changes what Nearby/Filters show, so it is hidden -- and so
+      // skipped by Tab -- whenever a place is selected.
       await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
       await page.locator("body").evaluate((el) => el.focus());
-      const order = ["searchToggle", "nearbyToggle", "filterToggle", "reportToggle", "settingsToggle", "inspectorBack"];
+      const order = ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle", "inspectorBack"];
       for (const id of order) {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();
