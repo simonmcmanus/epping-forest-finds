@@ -733,7 +733,12 @@ moving the real GPS fix:
   `updateNearbyAnchorBar()` (js/nav.js) is called from `setInspectorSelectionChrome` (every
   screen change routes through it), from `refreshNearbyRadiusView` (every anchor/radius change)
   and from `focusNearbyOnMapPoint`'s exit-a-selection branch; it hides the bar only for a real
-  selection (`hasRealSelection`), which replaces the whole map view anyway.
+  selection (`hasRealSelection`), which replaces the whole map view anyway. The plain Nearby
+  screen also shows the inspector's own back arrow (`#inspectorBack`) whenever
+  `state.nearbyAnchor` is set (`selectOverview`'s `showBack` argument) — the same chevron every
+  other screen uses, wired to the same `navigateBack()`, so it retraces the anchor move
+  (`pushNearbyAnchorHistory`) exactly like the browser's own back button does. It disappears
+  again once the anchor clears, whether via **Use my location** or the arrow itself.
 - **One camera origin (`cameraOriginPoint`, js/app.js).** The point the camera anchors at its
   focus, the point the scale fit measures its points from, the pivot the heading-up rotation
   turns about, and the pivot the 3D perspective projects around are all the same point:
