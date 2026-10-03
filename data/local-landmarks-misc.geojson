@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-09-28T06:22:07.419320Z",
+  "generatedAt": "2026-10-03T06:11:25.661747Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -2616,7 +2616,7 @@
         "website": null,
         "phone": null,
         "address": "Church Lane London E11 1HG",
-        "openingHours": null,
+        "openingHours": "Mo-Fr 09:00-19:00; Sa 09:00-18:00; Su 12:00-16:00",
         "distanceToForestBoundaryMetres": 397.2,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
@@ -2788,6 +2788,244 @@
         "address": "83 Marlborough Road London",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 412.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mornington-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0010946,
+          51.6318028
+        ]
+      },
+      "properties": {
+        "id": "manual/mornington-hall",
+        "osmType": "way",
+        "osmId": 329373050,
+        "name": "Mornington Hall",
+        "category": "social_centre",
+        "categoryLabel": "Social Club",
+        "amenity": "social_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 21.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/north-chingford-library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0028565,
+          51.6316221
+        ]
+      },
+      "properties": {
+        "id": "manual/north-chingford-library",
+        "osmType": "way",
+        "osmId": 928846348,
+        "name": "North Chingford Library",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 31.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/odeon-south-woodford",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0229997,
+          51.5944972
+        ]
+      },
+      "properties": {
+        "id": "manual/odeon-south-woodford",
+        "osmType": "way",
+        "osmId": 91275364,
+        "name": "Odeon South Woodford",
+        "category": "cinema",
+        "categoryLabel": "Cinema",
+        "amenity": "cinema",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.odeon.co.uk/cinemas/south-woodford/",
+        "phone": null,
+        "address": "High Road London E18 2QL",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 299.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/orchard-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0391239,
+          51.601608
+        ]
+      },
+      "properties": {
+        "id": "manual/orchard-hall",
+        "osmType": "way",
+        "osmId": 220254289,
+        "name": "Orchard Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Woodford Green IG8 7BN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 265.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/our-lady-of-lourdes-pastoral-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0244219,
+          51.5745997
+        ]
+      },
+      "properties": {
+        "id": "manual/our-lady-of-lourdes-pastoral-centre",
+        "osmType": "way",
+        "osmId": 990173421,
+        "name": "Our Lady of Lourdes Pastoral Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 110.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/paradox-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0251737,
+          51.6081221
+        ]
+      },
+      "properties": {
+        "id": "manual/paradox-centre",
+        "osmType": "node",
+        "osmId": 8693867436,
+        "name": "Paradox Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 314.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/pastures-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.011981,
+          51.5639625
+        ]
+      },
+      "properties": {
+        "id": "manual/pastures-centre",
+        "osmType": "way",
+        "osmId": 1182024959,
+        "name": "Pastures Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "15 Davies Lane London E11 3DR",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 158.9,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }

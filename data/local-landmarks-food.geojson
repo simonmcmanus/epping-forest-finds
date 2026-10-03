@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-09-28T06:22:07.398600Z",
+  "generatedAt": "2026-10-03T06:11:25.634366Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -33591,6 +33591,2590 @@
         "address": "347 Chigwell Road, Woodford Green, IG8 8PL",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 10.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/may-chinese",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.113469,
+          51.7008972
+        ]
+      },
+      "properties": {
+        "id": "manual/may-chinese",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "May Chinese",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "319A High Street, Epping, Essex, CM16 4DA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 72.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mcdonald-s",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.013293,
+          51.5701169
+        ]
+      },
+      "properties": {
+        "id": "manual/mcdonald-s",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "McDonald's",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "865 - 873 High Road Leytonstone, Leytonstone, London, E11 1HR",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 196.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mcdonalds",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0420045,
+          51.591244
+        ]
+      },
+      "properties": {
+        "id": "manual/mcdonalds",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "McDonalds",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Unit 9 Woodford Trading Estate, Southend Road, Woodford Green, IG8 8HF",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 450.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/meg-s-news",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0008393,
+          51.6072619
+        ]
+      },
+      "properties": {
+        "id": "manual/meg-s-news",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Meg's News",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "416 Hale End Road, Chingford, London, E4 9PB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 206.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/meraj-pharmacy",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0082167,
+          51.5715635
+        ]
+      },
+      "properties": {
+        "id": "manual/meraj-pharmacy",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Meraj Pharmacy",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor 694 High Road Leyton, Leyton, London, E10 6JP",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 239.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mess-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1340186,
+          51.7172738
+        ]
+      },
+      "properties": {
+        "id": "manual/mess-hall",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mess Hall",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "The Forest Cafe Unit 14C, Woodside Industrial Estate, Woodside, Epping, CM16 6LJ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 46.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/metros-fried-chicken",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0119157,
+          51.5764192
+        ]
+      },
+      "properties": {
+        "id": "manual/metros-fried-chicken",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Metros Fried Chicken",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor 611A Lea Bridge Road, Leyton, London, E10 6AJ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 279.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mezze-on-the-green",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.022282,
+          51.60934
+        ]
+      },
+      "properties": {
+        "id": "manual/mezze-on-the-green",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mezze on the Green",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "2 Johnston Road, Woodford Green, IG8 0XA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 19.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/midland-news",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0082141,
+          51.5709609
+        ]
+      },
+      "properties": {
+        "id": "manual/midland-news",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Midland News",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Post Office 674 High Road Leyton, Leyton, London, E10 6JP",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 305.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/milano-pizza",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0101774,
+          51.5639295
+        ]
+      },
+      "properties": {
+        "id": "manual/milano-pizza",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Milano Pizza",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "550 High Road Leytonstone, Leytonstone, London, E11 3DH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 282.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/millennium-news",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0090869,
+          51.5735613
+        ]
+      },
+      "properties": {
+        "id": "manual/millennium-news",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Millennium News",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "85 Colworth Road, Leytonstone, London, E11 1JA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 259.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/miller-carter",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.021055,
+          51.60937
+        ]
+      },
+      "properties": {
+        "id": "manual/miller-carter",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Miller & Carter",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "393-395 High Road, Woodford Green, IG8 0XG",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 58.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mirella",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0120352,
+          51.5694101
+        ]
+      },
+      "properties": {
+        "id": "manual/mirella",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mirella",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor 839 High Road Leytonstone, Leytonstone, London, E11 1HH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 302.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mixture-for-health",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0265403,
+          51.5926933
+        ]
+      },
+      "properties": {
+        "id": "manual/mixture-for-health",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mixture For Health",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "117 George Lane, South Woodford, E18 1AN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 301.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mobeen",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0086325,
+          51.5726137
+        ]
+      },
+      "properties": {
+        "id": "manual/mobeen",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mobeen",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "725 High Road Leyton, Leyton, London, E10 5AB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 119.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mojos-brasserie",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0212816,
+          51.6095145
+        ]
+      },
+      "properties": {
+        "id": "manual/mojos-brasserie",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mojos Brasserie",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "421-423 High Road, Woodford Green, IG8 0XG",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 38.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mooboo-chingford",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0044461,
+          51.6314352
+        ]
+      },
+      "properties": {
+        "id": "manual/mooboo-chingford",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mooboo Chingford",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "55 Station Road, Chingford, London, E4 7BJ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 109.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mooboo-south-woodford",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0260389,
+          51.5933749
+        ]
+      },
+      "properties": {
+        "id": "manual/mooboo-south-woodford",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mooboo South Woodford",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "147 George Lane, South Woodford, E18 1AN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 304.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/morley-s",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0565863,
+          51.6491475
+        ]
+      },
+      "properties": {
+        "id": "manual/morley-s",
+        "osmType": "node",
+        "osmId": 14087202227,
+        "name": "Morley's",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "252B High Road IG10 1AH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 152.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/morley-s-fried-chicken",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0009524,
+          51.607206
+        ]
+      },
+      "properties": {
+        "id": "manual/morley-s-fried-chicken",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Morley's Fried Chicken",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "412A Hale End Road, Chingford, London, E4 9PB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 198.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/morleys-fried-chicken",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0564452,
+          51.6491873
+        ]
+      },
+      "properties": {
+        "id": "manual/morleys-fried-chicken",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Morleys fried chicken",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Morley's Fried Chicken, 252B High Road, Loughton, Essex, IG10 1RB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 154.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/morrison-s-supermarket",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0172519,
+          51.6080276
+        ]
+      },
+      "properties": {
+        "id": "manual/morrison-s-supermarket",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Morrison's Supermarket",
+        "category": "supermarket",
+        "categoryLabel": "Supermarket",
+        "amenity": null,
+        "shop": "supermarket",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "6 Salisbury Hall Gardens Chingford Road, Chingford, London, E4 8SA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 354.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mother-hubbard-s",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.022084,
+          51.594173
+        ]
+      },
+      "properties": {
+        "id": "manual/mother-hubbard-s",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mother Hubbard\u2019s",
+        "category": "bar",
+        "categoryLabel": "Bar",
+        "amenity": "bar",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "65-67 High Road, South Woodford, E18 2QP",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 258.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mr-chans-chinese-takeaway",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.021697,
+          51.61015
+        ]
+      },
+      "properties": {
+        "id": "manual/mr-chans-chinese-takeaway",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mr Chans Chinese Takeaway",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "437 High Road, Woodford Green, IG8 0XE",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 26.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mr-chippy",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0053633,
+          51.5555139
+        ]
+      },
+      "properties": {
+        "id": "manual/mr-chippy",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mr Chippy",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor 353 High Road Leytonstone, Leytonstone, London, E11 4JT",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 277.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/muncheez",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0124844,
+          51.5759522
+        ]
+      },
+      "properties": {
+        "id": "manual/muncheez",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Muncheez",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "589 Lea Bridge Road, Leyton, London, E10 6AJ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 305.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/murk",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.001304,
+          51.6064711
+        ]
+      },
+      "properties": {
+        "id": "manual/murk",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Murk",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "33 Winchester Road, Chingford, London, E4 9LH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 241.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/my-cafe-368",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.021636,
+          51.609108
+        ]
+      },
+      "properties": {
+        "id": "manual/my-cafe-368",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "My Cafe 368",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "368 High Road, Woodford Green, IG8 0XQ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 56.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nox-smokehouse",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0145285,
+          51.5703205
+        ]
+      },
+      "properties": {
+        "id": "manual/nox-smokehouse",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "NOx smokehouse",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "748 High Road Leytonstone, Leytonstone, London, E11 3AW",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 108.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/namak",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.020089,
+          51.599324
+        ]
+      },
+      "properties": {
+        "id": "manual/namak",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Namak",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "219 High Road, South Woodford, E18 2PB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 436.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nasi-isda",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.026477,
+          51.5927307
+        ]
+      },
+      "properties": {
+        "id": "manual/nasi-isda",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nasi Isda",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "119 George Lane, South Woodford",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 298.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/naya-kitchen",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0111818,
+          51.5674014
+        ]
+      },
+      "properties": {
+        "id": "manual/naya-kitchen",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Naya Kitchen",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "First Floor 628 - 632 High Road Leytonstone, Leytonstone, London, E11 3DA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 300.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/neelam-fruit-veg",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0139843,
+          51.5756449
+        ]
+      },
+      "properties": {
+        "id": "manual/neelam-fruit-veg",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Neelam Fruit & Veg",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "486 Hoe Street, Walthamstow, London, E17 9AH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 361.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/new-hong-kong",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.066493,
+          51.656123
+        ]
+      },
+      "properties": {
+        "id": "manual/new-hong-kong",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "New Hong Kong",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "158 Church Hill, Loughton, Essex, IG10 1LJ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 79.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/new-china-chinese-takeaway",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1072554,
+          51.696534
+        ]
+      },
+      "properties": {
+        "id": "manual/new-china-chinese-takeaway",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "New china chinese takeaway",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "New China Chinese Takeaway, 57 High Street, Epping, Essex, CM16 4BA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 248.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/newsbox",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.066493,
+          51.656123
+        ]
+      },
+      "properties": {
+        "id": "manual/newsbox",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Newsbox",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "152 Church Hill, Loughton, Essex, IG10 1LJ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 79.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nightingale-on-the-green",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.02805,
+          51.582235
+        ]
+      },
+      "properties": {
+        "id": "manual/nightingale-on-the-green",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nightingale on the Green",
+        "category": "pub",
+        "categoryLabel": "Pub",
+        "amenity": "pub",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "51 Nightingale Lane, Wanstead, E11 2EY",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 83.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nilam-s-news",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0115991,
+          51.5767286
+        ]
+      },
+      "properties": {
+        "id": "manual/nilam-s-news",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nilam's News",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "617 Lea Bridge Road, Leyton, London, E10 6AJ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 246.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nina-s-cafe",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.035834,
+          51.594924
+        ]
+      },
+      "properties": {
+        "id": "manual/nina-s-cafe",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nina's Cafe",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "16b Raven Road, South Woodford, E18 1HB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 139.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/ninos-cucina-italiana",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.023193,
+          51.595071
+        ]
+      },
+      "properties": {
+        "id": "manual/ninos-cucina-italiana",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Ninos Cucina Italiana",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "18 Electric Parade, George Lane, South Woodford, E18 2LY",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 364.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nirala-sweets",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0113677,
+          51.5744226
+        ]
+      },
+      "properties": {
+        "id": "manual/nirala-sweets",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nirala Sweets",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor 817 High Road Leyton, Leyton, London, E10 7AA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 136.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nisa-express",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0102262,
+          51.5640546
+        ]
+      },
+      "properties": {
+        "id": "manual/nisa-express",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nisa Express",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor 556 High Road Leytonstone, Leytonstone, London, E11 3DH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 280.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nish-convenience-store",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0015524,
+          51.6096946
+        ]
+      },
+      "properties": {
+        "id": "manual/nish-convenience-store",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nish Convenience Store",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor Shop 450 - 452 Larkshall Road, Chingford, London, E4 9HH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 333.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nonna-zenone",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0725117,
+          51.6588332
+        ]
+      },
+      "properties": {
+        "id": "manual/nonna-zenone",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nonna Zenone",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Nonna Zenone Pizza, 13 Goldings Road, Loughton, Essex, IG10 2QR",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 220.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nook-speciality-coffee",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.021408,
+          51.581541
+        ]
+      },
+      "properties": {
+        "id": "manual/nook-speciality-coffee",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nook Speciality Coffee",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "5 Station Parade, High Street, Wanstead, E11 1QF",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 146.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/noted-eel-pie-house",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0068314,
+          51.5587171
+        ]
+      },
+      "properties": {
+        "id": "manual/noted-eel-pie-house",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Noted Eel & Pie House",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "481A High Road Leytonstone, Leytonstone, London, E11 4JU",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 36.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nowvit",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0269987,
+          51.6174155
+        ]
+      },
+      "properties": {
+        "id": "manual/nowvit",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nowvit",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "600 High Road, Woodford Green",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 16.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nuffield-health-chingford",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0056496,
+          51.6170482
+        ]
+      },
+      "properties": {
+        "id": "manual/nuffield-health-chingford",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nuffield Health Chingford",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Greens Health And Fitness 3 Larkswood Leisure Park 175 New Road, Chingford, London, E4 9EY",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 257.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nuts-bazaar-dry-fruits",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0112293,
+          51.5762727
+        ]
+      },
+      "properties": {
+        "id": "manual/nuts-bazaar-dry-fruits",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nuts Bazaar/Dry Fruits",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "666 Lea Bridge Road, Leyton, London, E10 6AP",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 238.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/o42",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0146798,
+          51.5708035
+        ]
+      },
+      "properties": {
+        "id": "manual/o42",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "O42",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "885 High Road Leytonstone, Leytonstone, London, E11 1HR",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 90.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/og-babs",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0081782,
+          51.633161
+        ]
+      },
+      "properties": {
+        "id": "manual/og-babs",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "OG BABS",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "102 Station Road, Chingford, London, E4 7BA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 246.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/oakhill-service-station",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0133428,
+          51.6003306
+        ]
+      },
+      "properties": {
+        "id": "manual/oakhill-service-station",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Oakhill Service Station",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "32 - 34 Woodford New Road, Woodford Green, London, IG8 9DH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 27.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/ocean-delight",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.050786,
+          51.605698
+        ]
+      },
+      "properties": {
+        "id": "manual/ocean-delight",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Ocean Delight",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "620 Chigwell Road, Woodford Green, IG8 8AA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 75.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/odeon-cinema",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.022655,
+          51.593371
+        ]
+      },
+      "properties": {
+        "id": "manual/odeon-cinema",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Odeon Cinema",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "58-66 High Road, South Woodford, E18 2QL",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 172.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/ohba-leaf-walthamstow",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.009605,
+          51.5793105
+        ]
+      },
+      "properties": {
+        "id": "manual/ohba-leaf-walthamstow",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Ohba Leaf Walthamstow",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor 125 Grove Road, Walthamstow, London, E17 9BU",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 201.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/oishi-don-chez-sando",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0092958,
+          51.5703138
+        ]
+      },
+      "properties": {
+        "id": "manual/oishi-don-chez-sando",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Oishi Don/Chez Sando",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Arch 143 Tilbury Road, Leyton, London, E10 6RE",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 371.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/okan-s-kitchen",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0097739,
+          51.5652494
+        ]
+      },
+      "properties": {
+        "id": "manual/okan-s-kitchen",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Okan\u2019s Kitchen",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "721 High Road Leytonstone, Leytonstone, London, E11 4RD",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 323.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/one-planet",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.023838,
+          51.5943265
+        ]
+      },
+      "properties": {
+        "id": "manual/one-planet",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "One Planet",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Unit 1 The Galleria, 180-182 George Lane, South Woodford, E18 1AY",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 295.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/one-station-way",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0444658,
+          51.6174724
+        ]
+      },
+      "properties": {
+        "id": "manual/one-station-way",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "One station way",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Premier Post Office, 38 Station Way, Buckhurst Hill, Essex, IG9 6LN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 297.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/onest",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0657308,
+          51.6552041
+        ]
+      },
+      "properties": {
+        "id": "manual/onest",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Onest",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "We Are Onest Ltd, 134 Church Hill, Loughton, Essex, IG10 1LH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 194.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/oodles-sizzle-bites",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0137567,
+          51.5755691
+        ]
+      },
+      "properties": {
+        "id": "manual/oodles-sizzle-bites",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Oodles/Sizzle Bites",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "492 Hoe Street, Walthamstow, London, E17 9AH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 343.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/ookii-sushi",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0276897,
+          51.587539
+        ]
+      },
+      "properties": {
+        "id": "manual/ookii-sushi",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Ookii Sushi",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "132 Hermon Hill, London, E18 1QH",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 425.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/orchard-food-store",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.039092,
+          51.601585
+        ]
+      },
+      "properties": {
+        "id": "manual/orchard-food-store",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Orchard Food Store",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "154 Broadmead Road, Woodford Green, IG8 0AG",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 265.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/oriental-chef",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.006027,
+          51.6191245
+        ]
+      },
+      "properties": {
+        "id": "manual/oriental-chef",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Oriental Chef",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "26 Hatch Lane, Chingford, London, E4 6LQ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 138.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/oriental-chef",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.020089,
+          51.599324
+        ]
+      },
+      "properties": {
+        "id": "manual/oriental-chef",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Oriental Chef",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "235 High Road, South Woodford, E18 2PB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 436.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/ouna",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0004643,
+          51.6305949
+        ]
+      },
+      "properties": {
+        "id": "manual/ouna",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Ouna",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "5 Crown Buildings The Green, Chingford, London, E4 7EX",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 60.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/out-of-the-woods",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0091142,
+          51.5735249
+        ]
+      },
+      "properties": {
+        "id": "manual/out-of-the-woods",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Out of the Woods",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor 83 Colworth Road, Leytonstone, London, E11 1JA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 263.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/oxfam-books-music",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1127124,
+          51.6996734
+        ]
+      },
+      "properties": {
+        "id": "manual/oxfam-books-music",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Oxfam Books & Music",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Oxfam Books and Music, 214 High Street, Epping, Essex, CM16 4AQ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 195.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/oxfam-wanstead",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.026611,
+          51.577817
+        ]
+      },
+      "properties": {
+        "id": "manual/oxfam-wanstead",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Oxfam Wanstead",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "1 Clock House Parade, High Street, Wanstead, E11 2AG",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 229.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/paca-vibezz",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0146055,
+          51.5762939
+        ]
+      },
+      "properties": {
+        "id": "manual/paca-vibezz",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "PACA VIBEZZ",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "375A Hoe Street, Walthamstow, London, E17 9AP",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 438.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/primo-piatto-ristorante-pizzeria",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0423027,
+          51.6786627
+        ]
+      },
+      "properties": {
+        "id": "manual/primo-piatto-ristorante-pizzeria",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "PRIMO PIATTO RISTORANTE & PIZZERIA",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Primo Piatto Ristorante & Pizzeria The Volunteer, Honey Lane, Waltham Abbey, Essex, EN9 3QT",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 17.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/palace-fish-bar",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0520004,
+          51.6449719
+        ]
+      },
+      "properties": {
+        "id": "manual/palace-fish-bar",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Palace fish bar",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Palace Fish Bar The Palace Fish Bar, 122 High Road, Loughton, Essex, IG10 4HJ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 48.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/panda-dim-sum",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0100375,
+          51.5666477
+        ]
+      },
+      "properties": {
+        "id": "manual/panda-dim-sum",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Panda Dim Sum",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "767 High Road Leytonstone, Leytonstone, London, E11 4QS",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 324.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/papa-johns",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0243,
+          51.579701
+        ]
+      },
+      "properties": {
+        "id": "manual/papa-johns",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Papa Johns",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "35 High Street, Wanstead, E11 2AA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 23.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/pasha-s",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0247355,
+          51.6083067
+        ]
+      },
+      "properties": {
+        "id": "manual/pasha-s",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Pasha's",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "10 Burnside Avenue, Chingford, London, E4 8YJ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 349.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/pepe-piri-piri",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.052605,
+          51.60599
+        ]
+      },
+      "properties": {
+        "id": "manual/pepe-piri-piri",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Pepe Piri Piri",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "638 Chigwell Road, Woodford Green, IG8 8AF",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 201.7,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
