@@ -720,6 +720,10 @@ function applyRouteToScreen(raw, announceMissing) {
 }
 
 function showRoutedSelection(route, item) {
+  // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
+  // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
+  // rather than lingering for whenever Nearby is next shown.
+  state.nearbyAnchor = null;
   state.selected = { type: route.type, item };
   route.show(item);
   // Deep-linked selections behave like a map-tap selection: the inspector opens expanded
@@ -6857,6 +6861,10 @@ function openSearchResult(type, key) {
   state.clusterZoomed = false;
   state.clusterExpanded = null;
   state.searchScreenOpen = false;
+  // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
+  // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
+  // rather than lingering for whenever Nearby is next shown.
+  state.nearbyAnchor = null;
   // Before state.selected changes below -- see startCameraOriginTransition.
   startCameraOriginTransition();
   state.selected = { type, item };
