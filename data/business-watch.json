@@ -1,45 +1,5 @@
 {
   "entries": {
-    "fsa/1012483": {
-      "confident": true,
-      "detail": {
-        "address": "319A High Street, Epping, Essex, CM16 4DA",
-        "authority": "Epping Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1012483,
-        "lat": 51.7008972,
-        "lon": 0.113469,
-        "name": "May Chinese",
-        "ratingDate": "2025-04-17T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "May Chinese",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1012900": {
-      "confident": true,
-      "detail": {
-        "address": "Ground Floor 817 High Road Leyton, Leyton, London, E10 7AA",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 1012900,
-        "lat": 51.5744226,
-        "lon": -0.0113677,
-        "name": "Nirala Sweets",
-        "ratingDate": "2026-08-25T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nirala Sweets",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
     "fsa/1015143": {
       "confident": true,
       "detail": {
@@ -54,9 +14,9 @@
         "ratingDate": "2025-05-20T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sakura Sushi & Bao Buns",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -74,9 +34,9 @@
         "ratingDate": "2026-03-12T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Still Waters Cafe",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -94,9 +54,9 @@
         "ratingDate": "2025-05-06T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Superdrug Stores",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -114,9 +74,9 @@
         "ratingDate": "2026-01-21T00:00:00"
       },
       "firstSeen": "2026-09-28",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wagon Boulangerie",
-      "runs": 2,
+      "runs": 3,
       "signal": "new",
       "source": "fsa"
     },
@@ -134,9 +94,9 @@
         "ratingDate": "2025-03-24T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Yard Sale Pizza/Centre Prep Kitchen",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -154,9 +114,9 @@
         "ratingDate": "2025-11-19T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Highams Park Food & Wine",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -174,9 +134,9 @@
         "ratingDate": "2024-11-08T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Zest Salad & Juice Bar",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -194,9 +154,9 @@
         "ratingDate": "2024-06-26T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Taylorshaw at Highams Park School",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -214,9 +174,9 @@
         "ratingDate": "2025-03-14T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Quore Matto",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -234,9 +194,9 @@
         "ratingDate": "2024-08-02T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Subway",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -254,9 +214,9 @@
         "ratingDate": "2025-02-17T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Waltham Wines",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -274,29 +234,9 @@
         "ratingDate": "2026-07-28T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Food 4 All",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1071127": {
-      "confident": true,
-      "detail": {
-        "address": "Greens Health And Fitness 3 Larkswood Leisure Park 175 New Road, Chingford, London, E4 9EY",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1071127,
-        "lat": 51.6170482,
-        "lon": -0.0056496,
-        "name": "Nuffield Health Chingford",
-        "ratingDate": "2025-07-07T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nuffield Health Chingford",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -314,9 +254,9 @@
         "ratingDate": "2025-08-05T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Theydon Bois Fish and Chips",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -334,9 +274,9 @@
         "ratingDate": "2026-01-06T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Rebel Coffee",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -354,9 +294,9 @@
         "ratingDate": "2026-07-13T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Cartshed restaurant",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -374,9 +314,9 @@
         "ratingDate": "2025-07-07T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "SHELL WAITROSE CHING",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -394,9 +334,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Eclipse Pharmacy",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -414,29 +354,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodside Pharmacy",
-      "runs": 4,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1106162": {
-      "confident": true,
-      "detail": {
-        "address": "Ground Floor Shop 450 - 452 Larkshall Road, Chingford, London, E4 9HH",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 1106162,
-        "lat": 51.6096946,
-        "lon": -0.0015524,
-        "name": "Nish Convenience Store",
-        "ratingDate": "2025-02-13T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nish Convenience Store",
-      "runs": 6,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -454,9 +374,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Boots",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -474,29 +394,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Lea Bridge Pharmacy",
-      "runs": 4,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1126971": {
-      "confident": true,
-      "detail": {
-        "address": "421-423 High Road, Woodford Green, IG8 0XG",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1126971,
-        "lat": 51.6095145,
-        "lon": 0.0212816,
-        "name": "Mojos Brasserie",
-        "ratingDate": "2026-05-06T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mojos Brasserie",
-      "runs": 6,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -514,9 +414,9 @@
         "ratingDate": "2026-06-27T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pizza Academy Prestige",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -534,9 +434,9 @@
         "ratingDate": "2024-08-07T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Stag & Lantern",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -554,49 +454,9 @@
         "ratingDate": "2025-12-03T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Zest Salad Bar",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1177888": {
-      "confident": true,
-      "detail": {
-        "address": "492 Hoe Street, Walthamstow, London, E17 9AH",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1177888,
-        "lat": 51.5755691,
-        "lon": -0.0137567,
-        "name": "Oodles/Sizzle Bites",
-        "ratingDate": "2025-07-08T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Oodles/Sizzle Bites",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1178093": {
-      "confident": true,
-      "detail": {
-        "address": "368 High Road, Woodford Green, IG8 0XQ",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "cafe",
-        "fhrsId": 1178093,
-        "lat": 51.609108,
-        "lon": 0.021636,
-        "name": "My Cafe 368",
-        "ratingDate": "2025-10-06T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "My Cafe 368",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -614,9 +474,9 @@
         "ratingDate": "2026-01-19T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Rosina Makes",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -634,9 +494,9 @@
         "ratingDate": "2025-05-08T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodstock Foods",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -654,9 +514,9 @@
         "ratingDate": "2026-01-21T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Gleaners Cafe at Hornbeam Centre",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -674,29 +534,9 @@
         "ratingDate": "2025-07-07T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sushi Monster at The Rusty Bike",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1277160": {
-      "confident": true,
-      "detail": {
-        "address": "Arch 143 Tilbury Road, Leyton, London, E10 6RE",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1277160,
-        "lat": 51.5703138,
-        "lon": -0.0092958,
-        "name": "Oishi Don/Chez Sando",
-        "ratingDate": "2026-03-04T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Oishi Don/Chez Sando",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -714,9 +554,9 @@
         "ratingDate": "2025-09-10T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Treat by Kayleigh",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -734,9 +574,9 @@
         "ratingDate": "2026-06-02T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Spice Hut",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -754,9 +594,9 @@
         "ratingDate": "2025-09-29T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Premier Express",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -774,9 +614,9 @@
         "ratingDate": "2026-05-15T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Station Food & Wine",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -794,9 +634,9 @@
         "ratingDate": "2025-05-10T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tipi Coffee Co",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -814,9 +654,9 @@
         "ratingDate": "2026-02-28T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tesco",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -834,9 +674,9 @@
         "ratingDate": "2025-04-15T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wenzels the Bakers",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -854,9 +694,9 @@
         "ratingDate": "2024-07-19T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Starbucks",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -874,9 +714,9 @@
         "ratingDate": "2025-07-02T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Salash Kitchen",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -894,9 +734,9 @@
         "ratingDate": "2025-12-04T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Whole Foods Centre",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -914,9 +754,9 @@
         "ratingDate": "2026-01-09T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wings Hut",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -934,9 +774,9 @@
         "ratingDate": "2026-02-10T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sunshiine",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -954,9 +794,9 @@
         "ratingDate": "2026-05-02T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wlliam Webb Supermarket",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -974,89 +814,9 @@
         "ratingDate": "2025-03-24T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodies Spice/Woodies Grill/The Sultan/Curry On",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1412704": {
-      "confident": true,
-      "detail": {
-        "address": "The Forest Cafe Unit 14C, Woodside Industrial Estate, Woodside, Epping, CM16 6LJ",
-        "authority": "Epping Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1412704,
-        "lat": 51.7172738,
-        "lon": 0.1340186,
-        "name": "Mess Hall",
-        "ratingDate": "2024-08-15T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mess Hall",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1412708": {
-      "confident": true,
-      "detail": {
-        "address": "Morley's Fried Chicken, 252B High Road, Loughton, Essex, IG10 1RB",
-        "authority": "Epping Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1412708,
-        "lat": 51.6491873,
-        "lon": 0.0564452,
-        "name": "Morleys fried chicken",
-        "ratingDate": "2026-01-28T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Morleys fried chicken",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1415946": {
-      "confident": true,
-      "detail": {
-        "address": "132 Hermon Hill, London, E18 1QH",
-        "authority": "Redbridge",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1415946,
-        "lat": 51.587539,
-        "lon": 0.0276897,
-        "name": "Ookii Sushi",
-        "ratingDate": "2026-06-24T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Ookii Sushi",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1419089": {
-      "confident": true,
-      "detail": {
-        "address": "Unit 9 Woodford Trading Estate, Southend Road, Woodford Green, IG8 8HF",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1419089,
-        "lat": 51.591244,
-        "lon": 0.0420045,
-        "name": "McDonalds",
-        "ratingDate": "2025-11-24T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "McDonalds",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1074,9 +834,9 @@
         "ratingDate": "2025-11-11T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "V's Lounge/Twisted London",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1094,69 +854,9 @@
         "ratingDate": "2025-08-19T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Zambrero",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1488133": {
-      "confident": true,
-      "detail": {
-        "address": "550 High Road Leytonstone, Leytonstone, London, E11 3DH",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1488133,
-        "lat": 51.5639295,
-        "lon": 0.0101774,
-        "name": "Milano Pizza",
-        "ratingDate": "2026-08-19T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Milano Pizza",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1492682": {
-      "confident": true,
-      "detail": {
-        "address": "486 Hoe Street, Walthamstow, London, E17 9AH",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 1492682,
-        "lat": 51.5756449,
-        "lon": -0.0139843,
-        "name": "Neelam Fruit & Veg",
-        "ratingDate": "2026-02-21T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Neelam Fruit & Veg",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1492686": {
-      "confident": true,
-      "detail": {
-        "address": "Ground Floor 125 Grove Road, Walthamstow, London, E17 9BU",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1492686,
-        "lat": 51.5793105,
-        "lon": -0.009605,
-        "name": "Ohba Leaf Walthamstow",
-        "ratingDate": "2026-07-15T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Ohba Leaf Walthamstow",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1174,29 +874,9 @@
         "ratingDate": "2019-12-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodford Green Post Office",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1497451": {
-      "confident": true,
-      "detail": {
-        "address": "147 George Lane, South Woodford, E18 1AN",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1497451,
-        "lat": 51.5933749,
-        "lon": 0.0260389,
-        "name": "Mooboo South Woodford",
-        "ratingDate": "2025-07-14T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mooboo South Woodford",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1214,9 +894,9 @@
         "ratingDate": "2024-11-11T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pret A Manger ( K & M Redbridge ltd)",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1234,69 +914,9 @@
         "ratingDate": "2026-08-11T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sushi Hut",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1519355": {
-      "confident": true,
-      "detail": {
-        "address": "119 George Lane, South Woodford",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1519355,
-        "lat": 51.5927307,
-        "lon": 0.026477,
-        "name": "Nasi Isda",
-        "ratingDate": "2025-01-06T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nasi Isda",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1524590": {
-      "confident": true,
-      "detail": {
-        "address": "55 Station Road, Chingford, London, E4 7BJ",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1524590,
-        "lat": 51.6314352,
-        "lon": 0.0044461,
-        "name": "Mooboo Chingford",
-        "ratingDate": "2026-02-10T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mooboo Chingford",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1532718": {
-      "confident": true,
-      "detail": {
-        "address": "Unit 1 The Galleria, 180-182 George Lane, South Woodford, E18 1AY",
-        "authority": "Redbridge",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1532718,
-        "lat": 51.5943265,
-        "lon": 0.023838,
-        "name": "One Planet",
-        "ratingDate": "2025-09-30T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "One Planet",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1314,9 +934,9 @@
         "ratingDate": "2025-02-21T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Vapempire Leytonstone",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1334,9 +954,9 @@
         "ratingDate": "2024-08-05T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Smile Avenue Cafe",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1354,9 +974,9 @@
         "ratingDate": "2025-10-15T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sam's Fish & Chips",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1374,9 +994,9 @@
         "ratingDate": "2025-10-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Mattcup Roastery",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1394,9 +1014,9 @@
         "ratingDate": "2022-10-11T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Naked Sausage",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1414,9 +1034,9 @@
         "ratingDate": "2024-10-11T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "QM trust Food bank",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1434,9 +1054,9 @@
         "ratingDate": "2022-12-13T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Redbridge Foodbank",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1454,29 +1074,9 @@
         "ratingDate": "2026-08-03T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "YMCA SPG",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1604096": {
-      "confident": true,
-      "detail": {
-        "address": "Nonna Zenone Pizza, 13 Goldings Road, Loughton, Essex, IG10 2QR",
-        "authority": "Epping Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1604096,
-        "lat": 51.6588332,
-        "lon": 0.0725117,
-        "name": "Nonna Zenone",
-        "ratingDate": "2025-03-26T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nonna Zenone",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1494,29 +1094,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Card Factory",
-      "runs": 4,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1631176": {
-      "confident": true,
-      "detail": {
-        "address": "5 Station Parade, High Street, Wanstead, E11 1QF",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "cafe",
-        "fhrsId": 1631176,
-        "lat": 51.581541,
-        "lon": 0.021408,
-        "name": "Nook Speciality Coffee",
-        "ratingDate": "2025-10-21T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nook Speciality Coffee",
-      "runs": 6,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -1534,9 +1114,9 @@
         "ratingDate": "2025-09-30T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sweet House Ana",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1554,9 +1134,9 @@
         "ratingDate": "2025-10-15T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Reesa London",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1574,9 +1154,9 @@
         "ratingDate": "2025-12-04T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Vaper Leyton",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1594,9 +1174,9 @@
         "ratingDate": "2024-12-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Storia",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1614,9 +1194,9 @@
         "ratingDate": "2025-09-11T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tz peri peri",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1634,9 +1214,9 @@
         "ratingDate": "2025-10-27T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woopi Cone 'n Roll Co",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1654,29 +1234,9 @@
         "ratingDate": "2026-05-09T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Ranna \u2013 Southwoodford",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1663910": {
-      "confident": true,
-      "detail": {
-        "address": "26 Hatch Lane, Chingford, London, E4 6LQ",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1663910,
-        "lat": 51.6191245,
-        "lon": 0.006027,
-        "name": "Oriental Chef",
-        "ratingDate": "2026-04-02T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Oriental Chef",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1694,49 +1254,9 @@
         "ratingDate": "2025-06-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pink Garlic and Yummy Thai",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1673021": {
-      "confident": true,
-      "detail": {
-        "address": "375A Hoe Street, Walthamstow, London, E17 9AP",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1673021,
-        "lat": 51.5762939,
-        "lon": -0.0146055,
-        "name": "PACA VIBEZZ",
-        "ratingDate": "2025-06-14T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "PACA VIBEZZ",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1679430": {
-      "confident": true,
-      "detail": {
-        "address": "First Floor 628 - 632 High Road Leytonstone, Leytonstone, London, E11 3DA",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1679430,
-        "lat": 51.5674014,
-        "lon": 0.0111818,
-        "name": "Naya Kitchen",
-        "ratingDate": "2025-02-25T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Naya Kitchen",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1754,9 +1274,9 @@
         "ratingDate": "2025-10-22T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Survivor Caribbean Restaurant",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1774,29 +1294,9 @@
         "ratingDate": "2025-03-06T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Vape Underground",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1684197": {
-      "confident": true,
-      "detail": {
-        "address": "219 High Road, South Woodford, E18 2PB",
-        "authority": "Redbridge",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1684197,
-        "lat": 51.599324,
-        "lon": 0.020089,
-        "name": "Namak",
-        "ratingDate": "2025-11-25T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Namak",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1814,9 +1314,9 @@
         "ratingDate": "2026-07-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Side Street",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1834,9 +1334,9 @@
         "ratingDate": "2026-06-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sirac Kebab House",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1854,9 +1354,9 @@
         "ratingDate": "2025-06-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Texbbqz",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1874,9 +1374,9 @@
         "ratingDate": "2026-01-10T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Top's Pizza Walthamstow",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1894,29 +1394,9 @@
         "ratingDate": "2026-04-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Hobo Club",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1723362": {
-      "confident": true,
-      "detail": {
-        "address": "Ground Floor 83 Colworth Road, Leytonstone, London, E11 1JA",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1723362,
-        "lat": 51.5735249,
-        "lon": 0.0091142,
-        "name": "Out of the Woods",
-        "ratingDate": "2025-10-08T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Out of the Woods",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1934,9 +1414,9 @@
         "ratingDate": "2026-06-26T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Valley House Food & Wine",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1954,9 +1434,9 @@
         "ratingDate": "2025-09-10T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Coriander",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1974,9 +1454,9 @@
         "ratingDate": "2026-09-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "papa john's",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -1994,29 +1474,9 @@
         "ratingDate": "2026-08-17T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sainsburys Loughton Church Hill Local",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1744340": {
-      "confident": true,
-      "detail": {
-        "address": "Ground Floor 839 High Road Leytonstone, Leytonstone, London, E11 1HH",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1744340,
-        "lat": 51.5694101,
-        "lon": 0.0120352,
-        "name": "Mirella",
-        "ratingDate": "2026-01-03T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mirella",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2034,9 +1494,9 @@
         "ratingDate": "2025-03-07T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Hive (LBWF)",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2054,9 +1514,9 @@
         "ratingDate": "2024-08-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "R Thompson Ice Cream Sales Mr Whippy",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2074,9 +1534,9 @@
         "ratingDate": "2024-08-31T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Phijith Thai Kitchen",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2094,29 +1554,9 @@
         "ratingDate": "2024-08-22T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Spin And Shake",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1756204": {
-      "confident": true,
-      "detail": {
-        "address": "589 Lea Bridge Road, Leyton, London, E10 6AJ",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1756204,
-        "lat": 51.5759522,
-        "lon": -0.0124844,
-        "name": "Muncheez",
-        "ratingDate": "2026-08-08T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Muncheez",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2134,9 +1574,9 @@
         "ratingDate": "2024-12-09T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Summer Cafe",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2154,29 +1594,9 @@
         "ratingDate": "2024-11-07T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "WO Sports",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1779459": {
-      "confident": true,
-      "detail": {
-        "address": "33 Winchester Road, Chingford, London, E4 9LH",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1779459,
-        "lat": 51.6064711,
-        "lon": -0.001304,
-        "name": "Murk",
-        "ratingDate": "2025-10-28T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Murk",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2194,9 +1614,9 @@
         "ratingDate": "2025-09-06T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Taj Grill Leyton",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2214,9 +1634,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Organic Bargains",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -2234,9 +1654,9 @@
         "ratingDate": "2025-03-25T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Yummy Doner Kebab Time",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2254,9 +1674,9 @@
         "ratingDate": "2025-01-31T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodford Market",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2274,9 +1694,9 @@
         "ratingDate": "2025-04-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Skipper fishmonger",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2294,29 +1714,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Rosewood Pharmacy Chingford",
-      "runs": 4,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1808764": {
-      "confident": true,
-      "detail": {
-        "address": "Oxfam Books and Music, 214 High Street, Epping, Essex, CM16 4AQ",
-        "authority": "Epping Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 1808764,
-        "lat": 51.6996734,
-        "lon": 0.1127124,
-        "name": "Oxfam Books & Music",
-        "ratingDate": "2025-03-14T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Oxfam Books & Music",
-      "runs": 6,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -2334,9 +1734,9 @@
         "ratingDate": "2025-06-04T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Uzbegim",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2354,9 +1754,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Phoenix House",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2374,9 +1774,9 @@
         "ratingDate": "2025-10-28T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Upfull Foodzone & Juice Bar",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2394,9 +1794,9 @@
         "ratingDate": "2025-05-08T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Power up",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2414,9 +1814,9 @@
         "ratingDate": "2025-05-19T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Chai Station",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2434,49 +1834,9 @@
         "ratingDate": "2026-06-22T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Royal Spice Hut",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1834630": {
-      "confident": true,
-      "detail": {
-        "address": "Ground Floor 353 High Road Leytonstone, Leytonstone, London, E11 4JT",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1834630,
-        "lat": 51.5555139,
-        "lon": 0.0053633,
-        "name": "Mr Chippy",
-        "ratingDate": "2025-06-28T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mr Chippy",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1834745": {
-      "confident": true,
-      "detail": {
-        "address": "65-67 High Road, South Woodford, E18 2QP",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "bar",
-        "fhrsId": 1834745,
-        "lat": 51.594173,
-        "lon": 0.022084,
-        "name": "Mother Hubbard\u2019s",
-        "ratingDate": "2025-09-23T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mother Hubbard\u2019s",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2494,9 +1854,9 @@
         "ratingDate": "2025-06-14T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sofra Bakery",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2514,9 +1874,9 @@
         "ratingDate": "2025-07-05T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "SHORT ROAD PIZZA at William the Fourth Public House",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2534,9 +1894,9 @@
         "ratingDate": "2025-07-04T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Shah's Halal Food",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2554,9 +1914,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Redbridge Foodbank",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2574,9 +1934,9 @@
         "ratingDate": "2025-06-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Warren wood kitchen",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2594,9 +1954,9 @@
         "ratingDate": "2025-07-05T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "William The Fourth",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2614,9 +1974,9 @@
         "ratingDate": "2025-07-12T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Vizyon Patisserie",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2634,9 +1994,9 @@
         "ratingDate": "2025-08-02T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Proper Pizza Leytonstone",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2654,9 +2014,9 @@
         "ratingDate": "2026-02-14T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Roosters",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2674,9 +2034,9 @@
         "ratingDate": "2025-08-11T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Epping Forest Cafe",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2694,29 +2054,9 @@
         "ratingDate": "2025-09-17T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Solaris Juice Bar",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1862587": {
-      "confident": true,
-      "detail": {
-        "address": "666 Lea Bridge Road, Leyton, London, E10 6AP",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 1862587,
-        "lat": 51.5762727,
-        "lon": -0.0112293,
-        "name": "Nuts Bazaar/Dry Fruits",
-        "ratingDate": "2025-08-23T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nuts Bazaar/Dry Fruits",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2734,49 +2074,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sushi Daily",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1867010": {
-      "confident": true,
-      "detail": {
-        "address": "Ground Floor 611A Lea Bridge Road, Leyton, London, E10 6AJ",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1867010,
-        "lat": 51.5764192,
-        "lon": -0.0119157,
-        "name": "Metros Fried Chicken",
-        "ratingDate": "2025-08-23T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Metros Fried Chicken",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1867017": {
-      "confident": true,
-      "detail": {
-        "address": "102 Station Road, Chingford, London, E4 7BA",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1867017,
-        "lat": 51.633161,
-        "lon": 0.0081782,
-        "name": "OG BABS",
-        "ratingDate": "2026-02-16T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "OG BABS",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2794,9 +2094,9 @@
         "ratingDate": "2026-02-03T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Soul Bowl Cafe",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa",
       "supersededBy": "node/14241803101"
@@ -2815,9 +2115,9 @@
         "ratingDate": "2026-01-13T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Triobite",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2835,9 +2135,9 @@
         "ratingDate": "2025-11-24T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Smokey Republic",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2855,9 +2155,9 @@
         "ratingDate": "2025-09-26T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The 71 Grill & Lounge",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2875,9 +2175,9 @@
         "ratingDate": "2025-03-17T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pepper Dosa",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2895,29 +2195,9 @@
         "ratingDate": "2026-03-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Spice Hut South Woodford",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1896057": {
-      "confident": true,
-      "detail": {
-        "address": "Premier Post Office, 38 Station Way, Buckhurst Hill, Essex, IG9 6LN",
-        "authority": "Epping Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 1896057,
-        "lat": 51.6174724,
-        "lon": 0.0444658,
-        "name": "One station way",
-        "ratingDate": "2025-07-17T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "One station way",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2935,29 +2215,9 @@
         "ratingDate": "2025-11-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Family Butchers",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1898903": {
-      "confident": true,
-      "detail": {
-        "address": "Palace Fish Bar The Palace Fish Bar, 122 High Road, Loughton, Essex, IG10 4HJ",
-        "authority": "Epping Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1898903,
-        "lat": 51.6449719,
-        "lon": 0.0520004,
-        "name": "Palace fish bar",
-        "ratingDate": "2025-12-01T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Palace fish bar",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2975,9 +2235,9 @@
         "ratingDate": "2025-12-27T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Baklava Company Walthamstow",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -2995,9 +2255,9 @@
         "ratingDate": "2025-12-27T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Urban Chocolatier Walthamstow",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3015,9 +2275,9 @@
         "ratingDate": "2025-12-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Taru",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3035,9 +2295,9 @@
         "ratingDate": "2026-01-06T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Yo! To Go!",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3055,9 +2315,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Rio\u2019s Peri Peri",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3075,29 +2335,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tikka Nation Express",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1911788": {
-      "confident": true,
-      "detail": {
-        "address": "117 George Lane, South Woodford, E18 1AN",
-        "authority": "Redbridge",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 1911788,
-        "lat": 51.5926933,
-        "lon": 0.0265403,
-        "name": "Mixture For Health",
-        "ratingDate": "1901-01-01T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mixture For Health",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3115,9 +2355,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Punjabi Lounge t/a Woodford Bar & grill & Aunty Jis & Pizza Lounge",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3135,9 +2375,9 @@
         "ratingDate": "2026-02-14T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pizza Tow",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3155,9 +2395,9 @@
         "ratingDate": "2026-02-27T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Hyderabad Kadai",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3175,29 +2415,9 @@
         "ratingDate": "2026-05-14T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Scran Cocktail Bar and World Cuisine",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1924898": {
-      "confident": true,
-      "detail": {
-        "address": "We Are Onest Ltd, 134 Church Hill, Loughton, Essex, IG10 1LH",
-        "authority": "Epping Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 1924898,
-        "lat": 51.6552041,
-        "lon": 0.0657308,
-        "name": "Onest",
-        "ratingDate": "2026-03-18T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Onest",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3215,9 +2435,9 @@
         "ratingDate": "2026-03-10T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Piggy's Gammon Shack",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3235,29 +2455,9 @@
         "ratingDate": "2026-04-09T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sufi Turkish Kitchen",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1930005": {
-      "confident": true,
-      "detail": {
-        "address": "748 High Road Leytonstone, Leytonstone, London, E11 3AW",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1930005,
-        "lat": 51.5703205,
-        "lon": 0.0145285,
-        "name": "NOx smokehouse",
-        "ratingDate": "2026-04-13T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "NOx smokehouse",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3275,29 +2475,9 @@
         "ratingDate": "2026-06-16T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Cake By Slice",
-      "runs": 4,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1933835": {
-      "confident": true,
-      "detail": {
-        "address": "5 Crown Buildings The Green, Chingford, London, E4 7EX",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1933835,
-        "lat": 51.6305949,
-        "lon": 0.0004643,
-        "name": "Ouna",
-        "ratingDate": "2026-04-20T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Ouna",
-      "runs": 6,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -3315,29 +2495,9 @@
         "ratingDate": "2026-04-28T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "CHAPTER 21",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1937071": {
-      "confident": true,
-      "detail": {
-        "address": "Ground Floor 556 High Road Leytonstone, Leytonstone, London, E11 3DH",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 1937071,
-        "lat": 51.5640546,
-        "lon": 0.0102262,
-        "name": "Nisa Express",
-        "ratingDate": "2026-04-14T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nisa Express",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3355,29 +2515,9 @@
         "ratingDate": "2026-04-20T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Yo! To Go! Highams Park at Tesco",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1939777": {
-      "confident": true,
-      "detail": {
-        "address": "600 High Road, Woodford Green",
-        "authority": "Redbridge",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 1939777,
-        "lat": 51.6174155,
-        "lon": 0.0269987,
-        "name": "Nowvit",
-        "ratingDate": "1901-01-01T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nowvit",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3395,9 +2535,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "n/a \u2013 Scout leaders will run",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3415,9 +2555,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Seymour House",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3435,9 +2575,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Oriental",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa",
       "supersededBy": "node/5814050156"
@@ -3456,9 +2596,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wild and worthy",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3476,9 +2616,9 @@
         "ratingDate": "2026-06-24T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Yellowstone Pizza",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3496,9 +2636,9 @@
         "ratingDate": "2026-07-28T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Victoria Restaurant",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3516,9 +2656,9 @@
         "ratingDate": "2026-08-27T00:00:00"
       },
       "firstSeen": "2026-10-03",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Gilded Lounge",
-      "runs": 1,
+      "runs": 2,
       "signal": "new",
       "source": "fsa"
     },
@@ -3536,9 +2676,9 @@
         "ratingDate": "2026-09-25T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Roost",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa",
       "supersededBy": "node/14002164552"
@@ -3557,9 +2697,9 @@
         "ratingDate": "2026-06-20T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "RESTAURANT ACASA",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3577,9 +2717,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Vibes and Spice Lounge",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3597,9 +2737,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Taru on the Hill",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3617,9 +2757,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Hungry Kitchen",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3637,9 +2777,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Sushi Co",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3657,9 +2797,9 @@
         "ratingDate": "2025-12-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Warren Wood Service Station",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3677,29 +2817,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sobe Burger",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1984331": {
-      "confident": true,
-      "detail": {
-        "address": "721 High Road Leytonstone, Leytonstone, London, E11 4RD",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1984331,
-        "lat": 51.5652494,
-        "lon": 0.0097739,
-        "name": "Okan\u2019s Kitchen",
-        "ratingDate": "2026-08-19T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Okan\u2019s Kitchen",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3717,9 +2837,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Syed's Kitchen & grill",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3737,9 +2857,9 @@
         "ratingDate": "2026-09-23T00:00:00"
       },
       "firstSeen": "2026-10-03",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Highams Park Butchers",
-      "runs": 1,
+      "runs": 2,
       "signal": "new",
       "source": "fsa"
     },
@@ -3757,9 +2877,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-10-03",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Melo Coffee House Co",
-      "runs": 1,
+      "runs": 2,
       "signal": "new",
       "source": "fsa"
     },
@@ -3777,29 +2897,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-10-03",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Krystal Lounge",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/442877": {
-      "confident": true,
-      "detail": {
-        "address": "154 Broadmead Road, Woodford Green, IG8 0AG",
-        "authority": "Redbridge",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 442877,
-        "lat": 51.601585,
-        "lon": 0.039092,
-        "name": "Orchard Food Store",
-        "ratingDate": "2025-05-15T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Orchard Food Store",
-      "runs": 6,
+      "runs": 2,
       "signal": "new",
       "source": "fsa"
     },
@@ -3817,9 +2917,9 @@
         "ratingDate": "2024-09-05T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woods Fish Bar",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3837,29 +2937,9 @@
         "ratingDate": "2025-09-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Snaresbrook Crown Court",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/442964": {
-      "confident": true,
-      "detail": {
-        "address": "51 Nightingale Lane, Wanstead, E11 2EY",
-        "authority": "Redbridge",
-        "businessType": "Pub/bar/nightclub",
-        "category": "pub",
-        "fhrsId": 442964,
-        "lat": 51.582235,
-        "lon": 0.02805,
-        "name": "Nightingale on the Green",
-        "ratingDate": "2025-03-17T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nightingale on the Green",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3877,9 +2957,9 @@
         "ratingDate": "2026-06-10T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "W D Chapman",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3897,9 +2977,9 @@
         "ratingDate": "2025-06-20T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Toby Carvery (Eagle)",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3917,9 +2997,9 @@
         "ratingDate": "2026-04-14T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Saif Halal Meat",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3937,9 +3017,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Osbon Pharmacy",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -3957,9 +3037,9 @@
         "ratingDate": "2026-08-03T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wing Sing (2015)",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3977,9 +3057,9 @@
         "ratingDate": "2018-10-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Snaresbrook News",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -3997,9 +3077,9 @@
         "ratingDate": "2024-11-11T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Lighthouse Fish Bar",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4017,29 +3097,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Boots",
-      "runs": 4,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/443083": {
-      "confident": true,
-      "detail": {
-        "address": "393-395 High Road, Woodford Green, IG8 0XG",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 443083,
-        "lat": 51.60937,
-        "lon": 0.021055,
-        "name": "Miller & Carter",
-        "ratingDate": "2024-11-09T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Miller & Carter",
-      "runs": 6,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -4057,9 +3117,9 @@
         "ratingDate": "2024-12-10T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodford Wells Cricket and Lawn Tennis Club",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4077,9 +3137,9 @@
         "ratingDate": "2025-10-08T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wanstead Park Kiosk",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4097,9 +3157,9 @@
         "ratingDate": "2025-03-14T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tesco Stores",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4117,9 +3177,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Boots",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -4137,29 +3197,9 @@
         "ratingDate": "2026-08-26T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pizza Express",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/443358": {
-      "confident": true,
-      "detail": {
-        "address": "58-66 High Road, South Woodford, E18 2QL",
-        "authority": "Redbridge",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 443358,
-        "lat": 51.593371,
-        "lon": 0.022655,
-        "name": "Odeon Cinema",
-        "ratingDate": "2021-08-12T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Odeon Cinema",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4177,9 +3217,9 @@
         "ratingDate": "2024-12-17T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tonis Fish Bar",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4197,9 +3237,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "William Webb Supermarket",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -4217,29 +3257,9 @@
         "ratingDate": "2026-08-05T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The George & Dragon",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/443378": {
-      "confident": true,
-      "detail": {
-        "address": "35 High Street, Wanstead, E11 2AA",
-        "authority": "Redbridge",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 443378,
-        "lat": 51.579701,
-        "lon": 0.0243,
-        "name": "Papa Johns",
-        "ratingDate": "2025-05-19T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Papa Johns",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4257,9 +3277,9 @@
         "ratingDate": "2024-08-22T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodford Service Station",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4277,9 +3297,9 @@
         "ratingDate": "2025-10-22T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Purbani Tandoori Restaurant",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4297,9 +3317,9 @@
         "ratingDate": "2025-06-11T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Bobo and Wild",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4317,9 +3337,9 @@
         "ratingDate": "2018-10-29T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wanstead Leisure Centre",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4337,9 +3357,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Bridge Pharmacy",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -4357,9 +3377,9 @@
         "ratingDate": "2026-05-02T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tesco",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4377,9 +3397,9 @@
         "ratingDate": "2025-03-25T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wood Oven BBQ and Pizzeria",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4397,9 +3417,9 @@
         "ratingDate": "2025-07-22T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Robins",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4417,9 +3437,9 @@
         "ratingDate": "2025-02-27T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Ray Park Cafe",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4437,9 +3457,9 @@
         "ratingDate": "2026-02-06T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodford Green Minimarket",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4457,49 +3477,9 @@
         "ratingDate": "2026-01-12T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Village Indiya",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/443781": {
-      "confident": true,
-      "detail": {
-        "address": "16b Raven Road, South Woodford, E18 1HB",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "cafe",
-        "fhrsId": 443781,
-        "lat": 51.594924,
-        "lon": 0.035834,
-        "name": "Nina's Cafe",
-        "ratingDate": "2025-03-18T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nina's Cafe",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/443782": {
-      "confident": true,
-      "detail": {
-        "address": "437 High Road, Woodford Green, IG8 0XE",
-        "authority": "Redbridge",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 443782,
-        "lat": 51.61015,
-        "lon": 0.021697,
-        "name": "Mr Chans Chinese Takeaway",
-        "ratingDate": "2026-06-10T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mr Chans Chinese Takeaway",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4517,9 +3497,9 @@
         "ratingDate": "2026-05-05T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "TG Food Market",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4537,9 +3517,9 @@
         "ratingDate": "2024-09-23T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Tiffin Tin",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4557,29 +3537,9 @@
         "ratingDate": "2025-01-08T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pizzeria Belsit",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/443964": {
-      "confident": true,
-      "detail": {
-        "address": "18 Electric Parade, George Lane, South Woodford, E18 2LY",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 443964,
-        "lat": 51.595071,
-        "lon": 0.023193,
-        "name": "Ninos Cucina Italiana",
-        "ratingDate": "2025-10-23T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Ninos Cucina Italiana",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4597,9 +3557,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Roding Pharmacy",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -4617,29 +3577,9 @@
         "ratingDate": "2018-10-03T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodford Green Service Station",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/444263": {
-      "confident": true,
-      "detail": {
-        "address": "620 Chigwell Road, Woodford Green, IG8 8AA",
-        "authority": "Redbridge",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 444263,
-        "lat": 51.605698,
-        "lon": 0.050786,
-        "name": "Ocean Delight",
-        "ratingDate": "2023-11-07T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Ocean Delight",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4657,9 +3597,9 @@
         "ratingDate": "2025-01-06T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodford Express",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4677,29 +3617,9 @@
         "ratingDate": "2026-05-13T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wanstead House Community Assoc",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/514000": {
-      "confident": true,
-      "detail": {
-        "address": "32 - 34 Woodford New Road, Woodford Green, London, IG8 9DH",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 514000,
-        "lat": 51.6003306,
-        "lon": 0.0133428,
-        "name": "Oakhill Service Station",
-        "ratingDate": "2026-03-04T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Oakhill Service Station",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4717,9 +3637,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Hatch Pharmacy",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -4737,9 +3657,9 @@
         "ratingDate": "2024-02-06T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Premier Hatch",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4757,29 +3677,9 @@
         "ratingDate": "2025-02-13T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Shell Larkshall Road",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/514134": {
-      "confident": true,
-      "detail": {
-        "address": "10 Burnside Avenue, Chingford, London, E4 8YJ",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 514134,
-        "lat": 51.6083067,
-        "lon": -0.0247355,
-        "name": "Pasha's",
-        "ratingDate": "2024-07-08T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Pasha's",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4797,9 +3697,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Superdrug",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -4817,9 +3717,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "E4 Health & Fitness Club",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -4837,9 +3737,9 @@
         "ratingDate": "2025-01-09T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The 800 Club",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4857,29 +3757,9 @@
         "ratingDate": "2025-03-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "UM Store",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/514353": {
-      "confident": true,
-      "detail": {
-        "address": "865 - 873 High Road Leytonstone, Leytonstone, London, E11 1HR",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 514353,
-        "lat": 51.5701169,
-        "lon": 0.013293,
-        "name": "McDonald's",
-        "ratingDate": "2025-09-01T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "McDonald's",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4897,9 +3777,9 @@
         "ratingDate": "2025-10-14T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tesco at Esso Filling Station",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4917,9 +3797,9 @@
         "ratingDate": "2026-03-05T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Wine Factor",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4937,9 +3817,9 @@
         "ratingDate": "2025-01-23T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Dispensary",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4957,9 +3837,9 @@
         "ratingDate": "2025-12-04T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Subway",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4977,9 +3857,9 @@
         "ratingDate": "2026-04-02T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Shack No.14",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -4997,9 +3877,9 @@
         "ratingDate": "2025-11-25T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Purbani Tandoori",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5017,29 +3897,9 @@
         "ratingDate": "2025-11-20T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Shish Mahal",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/514637": {
-      "confident": true,
-      "detail": {
-        "address": "481A High Road Leytonstone, Leytonstone, London, E11 4JU",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 514637,
-        "lat": 51.5587171,
-        "lon": 0.0068314,
-        "name": "Noted Eel & Pie House",
-        "ratingDate": "2025-04-17T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Noted Eel & Pie House",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5057,9 +3917,9 @@
         "ratingDate": "2025-04-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pizza GoGo Chingford",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5077,9 +3937,9 @@
         "ratingDate": "2025-07-25T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wilsons Fish & Chips",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5097,9 +3957,9 @@
         "ratingDate": "2025-01-24T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tesco",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5117,9 +3977,9 @@
         "ratingDate": "2024-12-17T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wine Lodge",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5137,9 +3997,9 @@
         "ratingDate": "2026-02-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "SNS Local",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5157,9 +4017,9 @@
         "ratingDate": "2025-07-25T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Co Operative Food",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5177,9 +4037,9 @@
         "ratingDate": "2025-01-23T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pound Stretcher",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5197,9 +4057,9 @@
         "ratingDate": "2026-03-28T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Zahda Tariq Food Store",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5217,29 +4077,9 @@
         "ratingDate": "2025-01-20T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Sainsbury's",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/515090": {
-      "confident": true,
-      "detail": {
-        "address": "416 Hale End Road, Chingford, London, E4 9PB",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 515090,
-        "lat": 51.6072619,
-        "lon": 0.0008393,
-        "name": "Meg's News",
-        "ratingDate": "2026-05-15T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Meg's News",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5257,29 +4097,9 @@
         "ratingDate": "2025-11-19T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Avenue Food & Wine",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/515130": {
-      "confident": true,
-      "detail": {
-        "address": "Post Office 674 High Road Leyton, Leyton, London, E10 6JP",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 515130,
-        "lat": 51.5709609,
-        "lon": -0.0082141,
-        "name": "Midland News",
-        "ratingDate": "2024-12-17T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Midland News",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5297,9 +4117,9 @@
         "ratingDate": "2026-02-28T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "News Plus Food & Wine",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5317,9 +4137,9 @@
         "ratingDate": "2025-09-15T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Subway",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5337,29 +4157,9 @@
         "ratingDate": "2026-02-24T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Quick Stop",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/515238": {
-      "confident": true,
-      "detail": {
-        "address": "85 Colworth Road, Leytonstone, London, E11 1JA",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 515238,
-        "lat": 51.5735613,
-        "lon": 0.0090869,
-        "name": "Millennium News",
-        "ratingDate": "2026-02-05T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Millennium News",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5377,9 +4177,9 @@
         "ratingDate": "2026-03-13T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Subway",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5397,49 +4197,9 @@
         "ratingDate": "2026-01-21T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Western Fried Chicken",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/515341": {
-      "confident": true,
-      "detail": {
-        "address": "412A Hale End Road, Chingford, London, E4 9PB",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 515341,
-        "lat": 51.607206,
-        "lon": 0.0009524,
-        "name": "Morley's Fried Chicken",
-        "ratingDate": "2025-05-12T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Morley's Fried Chicken",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/515371": {
-      "confident": true,
-      "detail": {
-        "address": "Ground Floor 694 High Road Leyton, Leyton, London, E10 6JP",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 515371,
-        "lat": 51.5715635,
-        "lon": -0.0082167,
-        "name": "Meraj Pharmacy",
-        "ratingDate": "2025-01-22T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Meraj Pharmacy",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5457,9 +4217,9 @@
         "ratingDate": "2025-08-26T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pizza & Chicken House",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5477,9 +4237,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Boots",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -5497,9 +4257,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Kingshead Chemist",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -5517,9 +4277,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Burns Chemist",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -5537,9 +4297,9 @@
         "ratingDate": "2026-08-11T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Indiano Pizza",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -5557,29 +4317,9 @@
         "ratingDate": "2024-02-20T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "United Services (Chingford) Club",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/515531": {
-      "confident": true,
-      "detail": {
-        "address": "6 Salisbury Hall Gardens Chingford Road, Chingford, London, E4 8SA",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - supermarkets/hypermarkets",
-        "category": "supermarket",
-        "fhrsId": 515531,
-        "lat": 51.6080276,
-        "lon": -0.0172519,
-        "name": "Morrison's Supermarket",
-        "ratingDate": "2025-10-07T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Morrison's Supermarket",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5597,89 +4337,9 @@
         "ratingDate": "2026-02-17T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Walthamstow Cricket&LawnTennis Club",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/535451": {
-      "confident": true,
-      "detail": {
-        "address": "617 Lea Bridge Road, Leyton, London, E10 6AJ",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 535451,
-        "lat": 51.5767286,
-        "lon": -0.0115991,
-        "name": "Nilam's News",
-        "ratingDate": "2026-03-03T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Nilam's News",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/552285": {
-      "confident": true,
-      "detail": {
-        "address": "725 High Road Leyton, Leyton, London, E10 5AB",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 552285,
-        "lat": 51.5726137,
-        "lon": -0.0086325,
-        "name": "Mobeen",
-        "ratingDate": "2025-02-10T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mobeen",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/552296": {
-      "confident": true,
-      "detail": {
-        "address": "885 High Road Leytonstone, Leytonstone, London, E11 1HR",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 552296,
-        "lat": 51.5708035,
-        "lon": 0.0146798,
-        "name": "O42",
-        "ratingDate": "2026-04-22T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "O42",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/553596": {
-      "confident": true,
-      "detail": {
-        "address": "New China Chinese Takeaway, 57 High Street, Epping, Essex, CM16 4BA",
-        "authority": "Epping Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 553596,
-        "lat": 51.696534,
-        "lon": 0.1072554,
-        "name": "New china chinese takeaway",
-        "ratingDate": "2026-02-05T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "New china chinese takeaway",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5697,29 +4357,9 @@
         "ratingDate": "2023-09-14T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Valley News",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/553717": {
-      "confident": true,
-      "detail": {
-        "address": "158 Church Hill, Loughton, Essex, IG10 1LJ",
-        "authority": "Epping Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 553717,
-        "lat": 51.656123,
-        "lon": 0.066493,
-        "name": "New Hong Kong",
-        "ratingDate": "2025-04-03T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "New Hong Kong",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5737,9 +4377,9 @@
         "ratingDate": "2025-08-05T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Bull PH",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5757,9 +4397,9 @@
         "ratingDate": "2025-02-24T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wesley Cafe Loughton Methodist Church",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5777,9 +4417,9 @@
         "ratingDate": "2025-09-23T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Upshire Fish Bar",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5797,9 +4437,9 @@
         "ratingDate": "2026-06-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Plough",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5817,9 +4457,9 @@
         "ratingDate": "2026-04-17T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Shell UK Oil Products",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5837,9 +4477,9 @@
         "ratingDate": "2024-09-12T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Toby Carvery",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5857,9 +4497,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Upshire News",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5877,9 +4517,9 @@
         "ratingDate": "2025-12-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "V G Foodstore",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5897,9 +4537,9 @@
         "ratingDate": "2025-06-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "SP Food Mart",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5917,9 +4557,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "S.H Easter Pharmacy",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5937,9 +4577,9 @@
         "ratingDate": "2025-12-11T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Three Colts",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5957,9 +4597,9 @@
         "ratingDate": "2026-04-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Superdrug",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5977,9 +4617,9 @@
         "ratingDate": "2025-06-30T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Theydon Bois Pharmacy",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -5997,9 +4637,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Quix",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6017,9 +4657,9 @@
         "ratingDate": "2024-08-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Duke of Wellington P.H",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6037,9 +4677,9 @@
         "ratingDate": "2025-09-19T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "VILLAGE DELI 2",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6057,9 +4697,9 @@
         "ratingDate": "2025-08-11T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Superdrug Stores",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6077,29 +4717,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Rosewood Pharmacy & Beauty",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/554437": {
-      "confident": true,
-      "detail": {
-        "address": "Primo Piatto Ristorante & Pizzeria The Volunteer, Honey Lane, Waltham Abbey, Essex, EN9 3QT",
-        "authority": "Epping Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 554437,
-        "lat": 51.6786627,
-        "lon": 0.0423027,
-        "name": "PRIMO PIATTO RISTORANTE & PIZZERIA",
-        "ratingDate": "2025-08-11T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "PRIMO PIATTO RISTORANTE & PIZZERIA",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6117,9 +4737,9 @@
         "ratingDate": "2026-08-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "UK Stores (Sidak Ltd)",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6137,9 +4757,9 @@
         "ratingDate": "2023-06-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Queens Food and Wine",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6157,9 +4777,9 @@
         "ratingDate": "2025-07-22T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Subway",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6177,9 +4797,9 @@
         "ratingDate": "2025-01-27T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Poppy's",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6197,29 +4817,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Shiv News",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/570068": {
-      "confident": true,
-      "detail": {
-        "address": "2 Johnston Road, Woodford Green, IG8 0XA",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 570068,
-        "lat": 51.60934,
-        "lon": 0.022282,
-        "name": "Mezze on the Green",
-        "ratingDate": "2025-02-13T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mezze on the Green",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6237,9 +4837,9 @@
         "ratingDate": "2026-06-19T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tariq Halal Meat",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6257,9 +4857,9 @@
         "ratingDate": "2024-08-07T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Swan Chinese Restaurant",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6277,9 +4877,9 @@
         "ratingDate": "2026-04-21T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Smak",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6297,9 +4897,9 @@
         "ratingDate": "2024-11-09T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "TZ Peri-Peri",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6317,9 +4917,9 @@
         "ratingDate": "2025-11-19T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Station Cafe & Sandwich Bar",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6337,9 +4937,9 @@
         "ratingDate": "2026-03-26T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Quickpay Supermarket",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6357,9 +4957,9 @@
         "ratingDate": "2025-03-27T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Perfect Fried Chicken",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6377,9 +4977,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Warren Deer Larder",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6397,9 +4997,9 @@
         "ratingDate": "2025-10-28T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Piccolo Ristorante",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6417,9 +5017,9 @@
         "ratingDate": "2026-04-14T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Subway",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6437,9 +5037,9 @@
         "ratingDate": "2025-03-07T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Holly Bush",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6457,9 +5057,9 @@
         "ratingDate": "2025-12-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Raw Fitness London Cafe",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6477,9 +5077,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Threshers",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6497,9 +5097,9 @@
         "ratingDate": "2025-09-18T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Simply Sea Food",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6517,9 +5117,9 @@
         "ratingDate": "2024-06-08T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wanstead Fish",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6537,9 +5137,9 @@
         "ratingDate": "2025-02-07T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Loughton Club",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6557,9 +5157,9 @@
         "ratingDate": "2026-09-21T00:00:00"
       },
       "firstSeen": "2026-09-28",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Forest tandoori",
-      "runs": 2,
+      "runs": 3,
       "signal": "new",
       "source": "fsa"
     },
@@ -6577,9 +5177,9 @@
         "ratingDate": "2025-05-14T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Sunflower",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6597,29 +5197,9 @@
         "ratingDate": "2025-08-13T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Craft Cabin",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/704555": {
-      "confident": true,
-      "detail": {
-        "address": "152 Church Hill, Loughton, Essex, IG10 1LJ",
-        "authority": "Epping Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 704555,
-        "lat": 51.656123,
-        "lon": 0.066493,
-        "name": "Newsbox",
-        "ratingDate": "2024-08-06T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Newsbox",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6637,29 +5217,9 @@
         "ratingDate": "2024-10-28T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pepe's Piri Piri",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/705022": {
-      "confident": true,
-      "detail": {
-        "address": "767 High Road Leytonstone, Leytonstone, London, E11 4QS",
-        "authority": "Waltham Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 705022,
-        "lat": 51.5666477,
-        "lon": 0.0100375,
-        "name": "Panda Dim Sum",
-        "ratingDate": "2025-02-04T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Panda Dim Sum",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6677,9 +5237,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Grove Pharmacy",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -6697,9 +5257,9 @@
         "ratingDate": "2025-07-22T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Starbucks",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6717,9 +5277,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Medicos Chemist",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -6737,9 +5297,9 @@
         "ratingDate": "2026-01-13T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Yakimono Robata Restaurant",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6757,9 +5317,9 @@
         "ratingDate": "2025-09-12T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pizza Express",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6777,9 +5337,9 @@
         "ratingDate": "2026-05-20T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wesleyan Christian Centre",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6797,49 +5357,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Savers Health & Beauty",
-      "runs": 4,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/765708": {
-      "confident": true,
-      "detail": {
-        "address": "1 Clock House Parade, High Street, Wanstead, E11 2AG",
-        "authority": "Redbridge",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 765708,
-        "lat": 51.577817,
-        "lon": 0.026611,
-        "name": "Oxfam Wanstead",
-        "ratingDate": "2025-09-17T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Oxfam Wanstead",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/773962": {
-      "confident": true,
-      "detail": {
-        "address": "235 High Road, South Woodford, E18 2PB",
-        "authority": "Redbridge",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 773962,
-        "lat": 51.599324,
-        "lon": 0.020089,
-        "name": "Oriental Chef",
-        "ratingDate": "2025-10-23T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Oriental Chef",
-      "runs": 6,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -6857,29 +5377,9 @@
         "ratingDate": "2025-07-17T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tandoor at The Chambers",
-      "runs": 6,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/835333": {
-      "confident": true,
-      "detail": {
-        "address": "638 Chigwell Road, Woodford Green, IG8 8AF",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 835333,
-        "lat": 51.60599,
-        "lon": 0.052605,
-        "name": "Pepe Piri Piri",
-        "ratingDate": "2025-02-05T00:00:00"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Pepe Piri Piri",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6897,9 +5397,9 @@
         "ratingDate": "2026-01-08T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Subway",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6917,9 +5417,9 @@
         "ratingDate": "2025-01-24T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Shazans at Tesco",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6937,9 +5437,9 @@
         "ratingDate": "2026-01-28T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Zefiro",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6957,9 +5457,9 @@
         "ratingDate": "2026-03-09T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Coriander",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6977,9 +5477,9 @@
         "ratingDate": "2026-08-05T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodford BBQ",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -6997,9 +5497,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Well Pharmacy",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -7017,9 +5517,9 @@
         "ratingDate": "2026-08-13T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Uffizzi Pizzeria and Pasta Bar",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -7037,9 +5537,9 @@
         "ratingDate": "2025-11-20T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Scoffs (Essex)",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -7057,9 +5557,9 @@
         "ratingDate": "2024-03-06T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Shazans at Tesco",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -7077,9 +5577,9 @@
         "ratingDate": "1901-01-01T00:00:00"
       },
       "firstSeen": "2026-09-23",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Well Pharmacy",
-      "runs": 4,
+      "runs": 5,
       "signal": "new",
       "source": "fsa"
     },
@@ -7097,9 +5597,9 @@
         "ratingDate": "2024-12-19T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Ziggy Played Guitar",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -7117,9 +5617,9 @@
         "ratingDate": "2026-08-26T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Vujon Indian Takeaway",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -7137,9 +5637,9 @@
         "ratingDate": "2026-06-01T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Box",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -7157,9 +5657,9 @@
         "ratingDate": "2025-06-16T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Piya Kitchen",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -7177,9 +5677,9 @@
         "ratingDate": "2026-04-22T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Perky Blenders @ Project 660",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -7197,9 +5697,9 @@
         "ratingDate": "2025-03-27T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "O'Cha Thai",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -7217,9 +5717,9 @@
         "ratingDate": "2025-02-21T00:00:00"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wine Merchant",
-      "runs": 6,
+      "runs": 7,
       "signal": "new",
       "source": "fsa"
     },
@@ -7236,9 +5736,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Baden-Powell Bust",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7255,9 +5755,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Chief\u2019s Drum",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7274,9 +5774,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Baden-Powell Statue",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7293,9 +5793,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7312,9 +5812,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7338,9 +5838,9 @@
         "website": null
       },
       "firstSeen": "2026-09-28",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Trilobyte",
-      "runs": 2,
+      "runs": 3,
       "signal": "changed",
       "source": "osm"
     },
@@ -7364,9 +5864,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Olive Kitchen",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
       "source": "osm"
     },
@@ -7386,9 +5886,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Wanstead Curtain",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -7405,9 +5905,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7427,9 +5927,9 @@
         "website": "https://masjid-umalqura.com/"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Umm Al-Qura Centre",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -7449,9 +5949,9 @@
         "website": "https://thebakineer.com/"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Bakineer",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -7474,31 +5974,9 @@
         "website": "https://www.roost.london/"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Roost",
-      "runs": 5,
-      "signal": "new",
-      "source": "osm"
-    },
-    "node/14087202227": {
-      "confident": true,
-      "detail": {
-        "address": "252B High Road IG10 1AH",
-        "category": "restaurant",
-        "lat": 51.6491475,
-        "lon": 0.0565863,
-        "name": "Morley's",
-        "openingHours": null,
-        "osmId": 14087202227,
-        "osmType": "node",
-        "phone": null,
-        "status": "open",
-        "website": null
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Morley's",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -7521,9 +5999,9 @@
         "website": "https://www.soulbowl.cafe/home"
       },
       "firstSeen": "2026-10-03",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Soul Bowl",
-      "runs": 1,
+      "runs": 2,
       "signal": "new",
       "source": "osm"
     },
@@ -7540,9 +6018,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7566,9 +6044,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Village Indiya",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
       "source": "osm"
     },
@@ -7592,9 +6070,9 @@
         "website": "https://www.freshasadaisyltd.co.uk/"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Fresh as a Daisy",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
       "source": "osm"
     },
@@ -7618,9 +6096,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Boat House Kiosk",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
       "source": "osm"
     },
@@ -7640,9 +6118,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "St Anne's Parish Centre",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -7659,9 +6137,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7678,9 +6156,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7697,9 +6175,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7716,9 +6194,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Tesco Express",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7742,9 +6220,9 @@
         "website": "https://belgiqueshop.co.uk/"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Belgique",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
       "source": "osm"
     },
@@ -7767,9 +6245,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Oriental",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -7786,9 +6264,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Loughton BBQ",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7833,9 +6311,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Bishops",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7880,32 +6358,10 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "El Cafecito/Belle Juin",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
-      "source": "osm"
-    },
-    "node/8693867436": {
-      "confident": true,
-      "detail": {
-        "address": null,
-        "category": "community_centre",
-        "lat": 51.6081221,
-        "lon": -0.0251737,
-        "name": "Paradox Centre",
-        "openingHours": null,
-        "osmId": 8693867436,
-        "osmType": "node",
-        "phone": null,
-        "status": "open",
-        "website": null
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Paradox Centre",
-      "runs": 5,
-      "signal": "new",
       "source": "osm"
     },
     "node/8937962759": {
@@ -7921,9 +6377,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7940,9 +6396,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7959,9 +6415,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "High Beech Kiosk",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -7985,9 +6441,9 @@
         "website": "https://www.thefarmcommunitykitchen.com/"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Farm Community Kitchen",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
       "source": "osm"
     },
@@ -8004,9 +6460,9 @@
         "osmType": "relation"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8023,9 +6479,9 @@
         "osmType": "relation"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Ripley Grange",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8042,9 +6498,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "City of London Cemetery Church",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8061,9 +6517,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "City of London Cemetery Chapel",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8080,9 +6536,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8113,9 +6569,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8132,9 +6588,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8151,9 +6607,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Drinking Fountain",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8170,9 +6626,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Pigsty",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8189,9 +6645,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Eccles (Baden-Powell\u2019s Caravan)",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8208,32 +6664,10 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Columbarium",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
-      "source": "osm"
-    },
-    "way/1182024959": {
-      "confident": true,
-      "detail": {
-        "address": "15 Davies Lane London E11 3DR",
-        "category": "community_centre",
-        "lat": 51.5639625,
-        "lon": 0.011981,
-        "name": "Pastures Centre",
-        "openingHours": null,
-        "osmId": 1182024959,
-        "osmType": "way",
-        "phone": null,
-        "status": "open",
-        "website": null
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Pastures Centre",
-      "runs": 5,
-      "signal": "new",
       "source": "osm"
     },
     "way/1243885579": {
@@ -8249,9 +6683,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Promise Path",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8271,9 +6705,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wanstead Library",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -8293,31 +6727,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Woodbine Day Centre",
-      "runs": 5,
-      "signal": "new",
-      "source": "osm"
-    },
-    "way/130996193": {
-      "confident": true,
-      "detail": {
-        "address": null,
-        "category": "community_centre",
-        "lat": 51.6081063,
-        "lon": -0.0249482,
-        "name": "Paradox Centre",
-        "openingHours": null,
-        "osmId": 130996193,
-        "osmType": "way",
-        "phone": null,
-        "status": "open",
-        "website": null
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Paradox Centre",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -8334,9 +6746,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "St. Mary the Virgin, Theydon Bois",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8356,9 +6768,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Theydon Bois Village Hall",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -8375,9 +6787,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Holy Innocents, High Beach",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8394,9 +6806,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8416,9 +6828,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "St. Mary's Church Hall",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -8435,32 +6847,10 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
-      "source": "osm"
-    },
-    "way/220254289": {
-      "confident": true,
-      "detail": {
-        "address": "Woodford Green IG8 7BN",
-        "category": "community_centre",
-        "lat": 51.601608,
-        "lon": 0.0391239,
-        "name": "Orchard Hall",
-        "openingHours": null,
-        "osmId": 220254289,
-        "osmType": "way",
-        "phone": null,
-        "status": "open",
-        "website": null
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Orchard Hall",
-      "runs": 5,
-      "signal": "new",
       "source": "osm"
     },
     "way/226296902": {
@@ -8479,9 +6869,9 @@
         "website": "https://www.stpeterintheforest.org/"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Peterhouse Centre",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -8501,9 +6891,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Roding Valley Hall",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -8520,9 +6910,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8563,32 +6953,10 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Larder at the Butler's Retreat",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
-      "source": "osm"
-    },
-    "way/329373050": {
-      "confident": true,
-      "detail": {
-        "address": null,
-        "category": "social_centre",
-        "lat": 51.6318028,
-        "lon": 0.0010946,
-        "name": "Mornington Hall",
-        "openingHours": null,
-        "osmId": 329373050,
-        "osmType": "way",
-        "phone": null,
-        "status": "open",
-        "website": null
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Mornington Hall",
-      "runs": 5,
-      "signal": "new",
       "source": "osm"
     },
     "way/420760390": {
@@ -8604,9 +6972,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Manor House",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8623,9 +6991,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Dower House",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8642,9 +7010,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Arabin House",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8668,9 +7036,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Min Zhong Hoo Oriental Supermarket",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
       "source": "osm"
     },
@@ -8694,9 +7062,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Johnston's Cafe",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
       "source": "osm"
     },
@@ -8716,9 +7084,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Waltham Forest Resource Hub",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -8738,9 +7106,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Thornwood Village Hall",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -8757,9 +7125,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Black Cottage",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8776,9 +7144,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "City of London Cemetery and Crematorium",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8795,9 +7163,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8814,9 +7182,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8840,9 +7208,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Stone Mini Market",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
       "source": "osm"
     },
@@ -8862,9 +7230,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Wanstead House Community Association",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -8881,9 +7249,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "St Nicholas' Chapel",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8900,9 +7268,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Copped Hall Temple",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8922,9 +7290,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Upshire Village Hall",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     },
@@ -8941,9 +7309,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Double Bubble",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -8967,9 +7335,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Afters",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
       "source": "osm"
     },
@@ -8986,9 +7354,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9012,9 +7380,9 @@
         "website": "https://gails.com/pages/loughton"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "GAIL's",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
       "source": "osm"
     },
@@ -9031,9 +7399,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9050,9 +7418,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Warren",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9069,9 +7437,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9088,9 +7456,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Farm",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9203,9 +7571,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9222,9 +7590,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Royal Regency",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9241,9 +7609,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9260,9 +7628,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Ladderstile Farmhouse",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9279,9 +7647,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9298,9 +7666,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Park Cottage",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9317,9 +7685,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9336,9 +7704,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9355,9 +7723,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Pakes Farmhouse",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9374,9 +7742,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "The Cottage",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9393,9 +7761,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Heathfield Cottage",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9412,32 +7780,10 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Baldocks",
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
-      "source": "osm"
-    },
-    "way/91275364": {
-      "confident": true,
-      "detail": {
-        "address": "High Road London E18 2QL",
-        "category": "cinema",
-        "lat": 51.5944972,
-        "lon": 0.0229997,
-        "name": "Odeon South Woodford",
-        "openingHours": null,
-        "osmId": 91275364,
-        "osmType": "way",
-        "phone": null,
-        "status": "open",
-        "website": "https://www.odeon.co.uk/cinemas/south-woodford/"
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Odeon South Woodford",
-      "runs": 5,
-      "signal": "new",
       "source": "osm"
     },
     "way/913318929": {
@@ -9460,32 +7806,10 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Ziggy\u2019s Gift Shop",
-      "runs": 5,
+      "runs": 6,
       "signal": "changed",
-      "source": "osm"
-    },
-    "way/928846348": {
-      "confident": true,
-      "detail": {
-        "address": null,
-        "category": "library",
-        "lat": 51.6316221,
-        "lon": 0.0028565,
-        "name": "North Chingford Library",
-        "openingHours": null,
-        "osmId": 928846348,
-        "osmType": "way",
-        "phone": null,
-        "status": "open",
-        "website": null
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "North Chingford Library",
-      "runs": 5,
-      "signal": "new",
       "source": "osm"
     },
     "way/930420087": {
@@ -9501,9 +7825,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": null,
-      "runs": 5,
+      "runs": 6,
       "signal": "missing",
       "source": "osm"
     },
@@ -9523,31 +7847,9 @@
         "website": null
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
+      "lastSeen": "2026-10-05",
       "name": "Ravidassia Community Centre",
-      "runs": 5,
-      "signal": "new",
-      "source": "osm"
-    },
-    "way/990173421": {
-      "confident": true,
-      "detail": {
-        "address": null,
-        "category": "community_centre",
-        "lat": 51.5745997,
-        "lon": 0.0244219,
-        "name": "Our Lady of Lourdes Pastoral Centre",
-        "openingHours": null,
-        "osmId": 990173421,
-        "osmType": "way",
-        "phone": null,
-        "status": "open",
-        "website": null
-      },
-      "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-03",
-      "name": "Our Lady of Lourdes Pastoral Centre",
-      "runs": 5,
+      "runs": 6,
       "signal": "new",
       "source": "osm"
     }
@@ -9591,18 +7893,28 @@
       "reportedOn": "2026-09-30",
       "source": "report",
       "url": "https://github.com/simonmcmanus/epping-forest-finds/issues/145"
+    },
+    {
+      "issue": 173,
+      "lat": 51.664686,
+      "lon": 0.03975,
+      "name": "There is a missing oak tree there is a tag,  I think the number is 03643 but the",
+      "note": "There is a missing oak tree there is a tag,  I think the number is 03643 but the first digit is obscured,  I'm standing under it currentlt",
+      "reportedOn": "2026-10-04",
+      "source": "report",
+      "url": "https://github.com/simonmcmanus/epping-forest-finds/issues/173"
     }
   ],
   "sources": {
     "fsa": {
-      "checkedAt": "2026-10-03",
+      "checkedAt": "2026-10-05",
       "population": 928
     },
     "osm": {
-      "checkedAt": "2026-10-03",
-      "population": 2238
+      "checkedAt": "2026-10-05",
+      "population": 2240
     }
   },
-  "updatedAt": "2026-10-03",
+  "updatedAt": "2026-10-05",
   "version": 1
 }
