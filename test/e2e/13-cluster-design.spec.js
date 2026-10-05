@@ -1,0 +1,118 @@
+const { test, expect } = require('@playwright/test');
+const { setup, tapCanvasPoint } = require('./helpers');
+
+test.describe('Cluster badges and geographic footprints', () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ['geolocation'] });
+
+  test('both group types show exact counts and a short pointer attached to their badge', async ({ page }) => {
+    await setup(page);
+    const result = await page.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const labels = [];
+      ctx.fillText = text => labels.push(text);
+      drawGroupBadge(ctx, 100, 100, 12, [iconPath('tree')], false, 1);
+      drawGroupBadge(ctx, 100, 100, 12, [iconPath('tree'), iconPath('cafe')], true, 1);
+      drawGroupBadge(ctx, 100, 100, 124, [iconPath('tree')], false, 1);
+      const a = clusterBadgeGeometry(100, 100, 12, false, 1);
+      const b = clusterBadgeGeometry(100, 100, 12, true, 1);
+      return { labels, gaps: [100 - a.bottom, 100 - b.bottom], widths: [a.width, b.width] };
+    });
+    expect(result.labels).toEqual(['12', '12', '99+']);
+    expect(result.gaps).toEqual([7, 7]);
+    expect(Math.max(...result.widths)).toBeLessThanOrEqual(84);
+  });
+
+  test('the shaded area follows member locations rather than the count', async ({ page }) => {
+    await setup(page);
+    const result = await page.evaluate(() => {
+      const p = (x, y) => ({ point: { x, y } });
+      const small = [p(100, 100), p(105, 100)];
+      const spread = [p(100, 100), p(180, 100), p(140, 145)];
+      const hull = items => clusterFootprintPoints(items, p => p, p => p, 10);
+      const bounds = points => ({ left: Math.min(...points.map(p => p.x)), right: Math.max(...points.map(p => p.x)), top: Math.min(...points.map(p => p.y)), bottom: Math.max(...points.map(p => p.y)) });
+      return { small: bounds(hull(small)), spread: bounds(hull(spread)), duplicates: bounds(hull([...small, ...small])), coincident: hull([p(100, 100), p(100, 100)]).length };
+    });
+    expect(result.spread.left).toBeLessThan(100);
+    expect(result.spread.right).toBeGreaterThan(180);
+    expect(result.spread.bottom).toBeGreaterThan(145);
+    expect(result.duplicates).toEqual(result.small);
+    expect(result.spread.right - result.spread.left).toBeGreaterThan(result.small.right - result.small.left);
+    expect(result.coincident).toBeGreaterThan(6);
+  });
+
+  test('a cluster badge opens its members when tapped on either side of the count', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    const target = await page.evaluate(() => {
+      stopViewportAnimation();
+      const lookup = activeIconLookup();
+      const trees = buildTypeClusters(lookup.tree, worldToScreen);
+      for (const cluster of trees) {
+        if (cluster.items.length < 2) continue;
+        const box = clusterBadgeGeometry(cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, pixelRatio());
+        const point = { x: box.left + 8 * pixelRatio(), y: box.top + box.height / 2 };
+        const hit = findClusterHit(point);
+        const countHit = findClusterHit({ x: box.left + box.width - 8 * pixelRatio(), y: point.y });
+        if (hit && countHit && hit.items.includes(cluster.items[0]) && hit.items.length === countHit.items.length) return { point, count: hit.items.length };
+      }
+      return null;
+    });
+    expect(target).not.toBeNull();
+    await tapCanvasPoint(page, target.point);
+    await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(target.count);
+  });
+
+  test('flat and tilted scenes paint geographic footprints beneath their badges', async ({ page }) => {
+    await setup(page);
+    const result = await page.evaluate(() => {
+      stopViewportAnimation();
+      const footprint = drawClusterFootprints, badge = drawGroupBadge;
+      const events = [];
+      drawClusterFootprints = (...args) => { events.push('footprint'); return footprint(...args); };
+      drawGroupBadge = (...args) => { events.push('badge'); return badge(...args); };
+      try {
+        draw();
+        const flat = events.slice();
+        events.length = 0;
+        state.compassHeading = state.compassHeadingTarget = state.renderedNavigationHeading = 0;
+        state.compassLastEventAt = performance.now();
+        state.tiltBetaSmoothed = state.tiltBetaTarget = 65;
+        alignHeadingUpNavigationViewport({ force: true });
+        draw();
+        return { flat, tilted: events.slice() };
+      } finally {
+        drawClusterFootprints = footprint;
+        drawGroupBadge = badge;
+      }
+    });
+    for (const events of [result.flat, result.tilted]) {
+      expect(events[0]).toBe('footprint');
+      expect(events.slice(1)).toContain('badge');
+    }
+  });
+
+  test('tilt projects the footprint onto the ground while the badge remains upright', async ({ page }) => {
+    await setup(page);
+    const result = await page.evaluate(() => {
+      stopViewportAnimation();
+      state.compassHeading = state.compassHeadingTarget = state.renderedNavigationHeading = 0;
+      state.compassLastEventAt = performance.now();
+      state.tiltBetaSmoothed = state.tiltBetaTarget = 65;
+      alignHeadingUpNavigationViewport({ force: true });
+      const centre = worldToScreenForOverlay(state.userLocation.point);
+      const items = [{ point: { x: centre.x - 20, y: centre.y - 100 } }, { point: { x: centre.x + 20, y: centre.y - 80 } }];
+      const flat = clusterFootprintPoints(items, p => p, p => p, 10);
+      const tilted = clusterFootprintPoints(items, p => p, tiltProjectScreenPoint, 10);
+      const projected = flat.map(tiltProjectScreenPoint);
+      const pin = tiltProjectScreenPoint(items[0].point);
+      const badge = clusterBadgeGeometry(pin.x, pin.y, 12, true, 1);
+      return { active: tiltActive(), flat, tilted, projected, height: badge.height, pointer: pin.y - badge.bottom };
+    });
+    expect(result.active).toBe(true);
+    expect(result.tilted).toEqual(result.projected);
+    expect(result.tilted).not.toEqual(result.flat);
+    expect(result.height).toBe(52);
+    expect(result.pointer).toBe(7);
+  });
+});

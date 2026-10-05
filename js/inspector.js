@@ -260,18 +260,15 @@ function findHit(screen, world) {
 
 function findClusterHit(screen) {
   const dpr = pixelRatio();
-  const mapScale = mapEmojiScale();
-  // Matches drawPngMapIcon geometry (R = size*0.4, centre = R*1.6 above tip).
-  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
-  const pinR = iconSize * 0.4 * 1.3;
-  const pinYOffset = iconSize * 0.64;
+  const toScreen = tiltActive() ? worldToScreenForOverlayTilted
+    : nearbyHeadingUpActive() ? worldToScreenForOverlay : worldToScreen;
   const lookup = activeIconLookup();
   const tag = (clusters, itemType) => clusters.map(c => ({ ...c, itemType }));
-  const treeClusters = tag(buildTypeClusters(lookup.tree, worldToScreen), "tree");
-  const landmarkClusters = tag(buildLandmarkClusters(lookup.landmark, worldToScreen), "landmark");
-  const cowClusters = tag(buildTypeClusters(lookup.cow, worldToScreen), "cow");
-  const pathClusters = tag(buildTypeClusters(lookup.path, worldToScreen), "path");
-  const waterClusters = tag(buildTypeClusters(lookup.water, worldToScreen), "water");
+  const treeClusters = tag(buildTypeClusters(lookup.tree, toScreen), "tree");
+  const landmarkClusters = tag(buildLandmarkClusters(lookup.landmark, toScreen), "landmark");
+  const cowClusters = tag(buildTypeClusters(lookup.cow, toScreen), "cow");
+  const pathClusters = tag(buildTypeClusters(lookup.path, toScreen), "path");
+  const waterClusters = tag(buildTypeClusters(lookup.water, toScreen), "water");
 
   // Cross-category mega clusters (see buildSuperClusters, js/renderer.js) draw on top of the
   // per-type badges they absorb, so check those first -- a tap in their radius always means the
@@ -312,15 +309,24 @@ function findClusterHit(screen) {
     const cx = sx / totalItems;
     const cy = sy / totalItems;
     const dpr = pixelRatio();
-    if (Math.hypot(cx - screen.x, cy - screen.y) < megaClusterOuterRadius(totalItems, dpr)) {
+    const worldPt = { x: items.reduce((sum, item) => sum + item.point.x, 0) / totalItems,
+      y: items.reduce((sum, item) => sum + item.point.y, 0) / totalItems };
+    const drawn = group.length >= megaClusterMinMembersFor(group);
+    const hit = drawn
+      ? clusterBadgeContains(screen, cx, cy, totalItems, true, dpr, Math.max(0.65, tiltPinScale(worldPt)))
+      : group.some(({ cluster }) => cluster.items.length > 1
+        ? clusterBadgeContains(screen, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)))
+        : Math.hypot(cluster.screenPt.x - screen.x, cluster.screenPt.y - 20 * dpr - screen.y) < 24 * dpr);
+    if (hit) {
       return { items, itemsByType, itemType: "_mega", screenPt: { x: cx, y: cy } };
     }
   }
 
+  const absorbed = new Set(megaGroups.filter(g => g.length >= megaClusterMinMembersFor(g)).flatMap(g => g.map(m => m.cluster)));
   const allClusters = [...treeClusters, ...landmarkClusters, ...cowClusters, ...pathClusters, ...waterClusters];
   for (const cluster of allClusters) {
-    if (cluster.items.length <= 1) continue;
-    if (Math.hypot(cluster.screenPt.x - screen.x, (cluster.screenPt.y - pinYOffset) - screen.y) < pinR) return cluster;
+    if (cluster.items.length <= 1 || absorbed.has(cluster)) continue;
+    if (clusterBadgeContains(screen, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)))) return cluster;
   }
   return null;
 }

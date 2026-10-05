@@ -264,6 +264,7 @@ function draw() {
   const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
     || (typeof tiltActive === "function" && tiltActive());
   if (!useOverlayForPins) {
+    drawClusterFootprints(ctx, [...filteredTreeClusters, ...filteredLandmarkClusters, ...filteredCowClusters, ...filteredPathClusters, ...filteredWaterClusters], megaGroups);
     drawTrees(ctx, nearbyIconLookup, undefined, filteredTreeClusters);
     drawLandmarks(ctx, nearbyIconLookup, undefined, filteredLandmarkClusters);
     drawCows(ctx, nearbyIconLookup, undefined, filteredCowClusters);
@@ -911,7 +912,7 @@ function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, cone) {
 }
 
 // A faint top-left-lit rim on the *inside* of the clear circle's edge -- same light direction as
-// megaSphereGradient's badge shading, so a mega badge zooming in to become this circle
+// the app's top-lit shading, so a cluster zooming in to become this circle
 // (focusNearbyOnClusterGroup, js/nav.js) reads as the same lit dome growing, not a flat gold
 // coin dissolving into a flat gap. Stroked, not filled: the circle's interior must stay fully
 // clear so the map underneath is untouched, exactly as the surrounding comment on
@@ -1562,66 +1563,10 @@ function buildSuperClusters(taggedGroups) {
   return superClusters;
 }
 
-// Smaller than the badge's real on-screen reach (megaClusterOuterRadius) on purpose: this is
-// just the solid centre circle holding the count, with the outer disc and the chip ring around
-// it (see drawMegaBadge) doing the rest of the footprint.
-function megaClusterRadius(totalItems, dpr) {
-  return clamp(12 * dpr + Math.sqrt(totalItems) * 2 * dpr, 15 * dpr, 26 * dpr);
-}
-
-// The icon chip radius drawMegaBadge places around the rim -- pulled out so the hit-test in
-// findClusterHit (js/inspector.js) and the off-screen cull below can agree on the badge's true
-// on-screen extent, chips included, rather than just its centre circle. Bigger, and a higher
-// floor, than the inner circle's own ratio would suggest: with R shrunk down to make room for
-// the outer disc, a chip sized purely off R read as squashed -- too little room for the icon
-// inside it to read clearly -- so this is sized mostly off its own floor rather than scaling
-// all the way down with R.
-function megaClusterChipRadius(R, dpr) {
-  return Math.max(11.5 * dpr, R * 0.52);
-}
-
-// The badge caps at this many chips (largest group first) -- past this the ring reads as noise
-// rather than a tally of what's here.
-const MEGA_CLUSTER_MAX_CHIPS = 5;
-
-// The angle between adjacent chips, not the arc's total width -- so the gap (and so the amount
-// of overlap) between any two neighbouring chips stays the same small amount regardless of how
-// many chips there are, rather than shrinking (and the overlap growing) as more get packed into
-// a fixed-width arc. Tuned against megaClusterChipRadius so two adjacent chips overlap by
-// roughly 15-20% of their own width -- enough to read as "these belong together" without one
-// covering the other's icon.
-const MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS = 0.95;
-
-// Extra angle added on top of the bare "just touching" angle between two neighbouring chips
-// (see noOverlapStep below), so chips read as separate items with a bit of breathing room
-// rather than sitting edge-to-edge.
-const MEGA_CLUSTER_CHIP_GAP_RADIANS = 0.22;
-
-// The ring (distance from the badge's centre) chips sit on -- shared by drawMegaBadge's layout
-// and megaClusterOuterRadius below so neither can drift out of sync with the other. Chips belong
-// in the outer disc's own band, not straddling into the inner circle: at R + half a chip's width
-// (tried first) a chip's inner edge landed *inside* R, so the icon visibly crossed from the outer
-// disc into the inner circle instead of sitting inside the outer one. Pushing the ring out to
-// R + a whole chip's width keeps a chip's inner edge right at the inner circle's own rim --
-// touching it, not overlapping it -- so the whole chip sits in the outer disc's band.
-function megaClusterChipRingRadius(R, chipR) {
-  return R + chipR;
-}
-
-// Extra room the outer disc gives the chips beyond their own exact reach (ringR + chipR) --
-// without it, a chip sat exactly tangent to the disc's edge, which at a glance read as "bursting
-// out of" the disc rather than sitting inside it. This margin is part of the badge's real
-// on-screen reach (used below by both the drawn disc and the hit-test/cull radius), not a purely
-// cosmetic overdraw, so tapping the badge's outer edge and the badge's visual edge always agree.
-const MEGA_CLUSTER_OUTER_DISC_PADDING = 1.06;
-
-// The full on-screen reach of a mega badge, centre circle plus the chip ring around its rim (and
-// the padding above) -- i.e. how far out a tap or an off-screen check needs to look, not just
-// the centre circle's R.
+// Conservative culling radius; taps use the actual badge rectangle and pointer.
 function megaClusterOuterRadius(totalItems, dpr) {
-  const R = megaClusterRadius(totalItems, dpr);
-  const chipR = megaClusterChipRadius(R, dpr);
-  return (megaClusterChipRingRadius(R, chipR) + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
+  const b = clusterBadgeGeometry(0, 0, totalItems, true, dpr);
+  return Math.hypot(b.width / 2, -b.top);
 }
 
 // A tree cluster groups by screen proximity only, not by species, so a cluster can (and often
@@ -1707,208 +1652,132 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
   ctx.restore();
 }
 
-// Drawn as one badge with the total count in the middle and a small ring of icon chips around
-// the rim -- one per distinct category present, largest group first, capped at 6 -- so tapping
-// isn't the only way to tell *what* is grouped here, only *how many* of each.
-// The gold the app's own home-screen icon (assets/home/favicon.png) uses behind its oak leaf --
-// reused here instead of a flat colour so the inner count circle/pin reads as "part of this
-// app's identity", not an unrelated warning-style marker.
-//
-// Brighter and darker ends of the same gold, used only as radial-gradient stops (see
-// megaSphereGradient) -- never as a flat fill on its own, so the inner circle/pin still reads
-// as "the brand gold" at a glance, just domed instead of flat. Kept close either side of the
-// brand gold -- a first pass ranged much further apart (a near-white highlight, a near-brown
-// shadow) and read as a different, duller colour rather than the same brand gold with shading
-// on it; a later, deeper bronze pass with edge strokes and a drop shadow was also tried and
-// reverted -- it read as less polished, not more.
-const MEGA_CLUSTER_INNER_HIGHLIGHT = "#f8d989";
-const MEGA_CLUSTER_INNER_SHADOW = "#dba63f";
-
-// The outer disc's own fill -- a translucent white wash rather than a gold gradient, so it
-// reads as a ground-area highlight (the same language the walking-radius ring's clear interior
-// already uses) instead of competing with the inner gold circle/pin for "the badge's colour".
-const MEGA_CLUSTER_OUTER_DISC_FILL = "rgba(255, 255, 255, 0.4)";
-
-// A top-left-lit radial gradient standing in for each disc's former flat fill, so the badge
-// reads as a raised sphere rather than a flat coin -- the same top-lit shading language the
-// walking-radius circle's own rim highlight (drawWalkingRadiusRimHighlight, below) uses, so a
-// mega badge growing into the walking radius during focusNearbyOnClusterGroup's zoom (js/nav.js)
-// looks like one lit surface expanding rather than a flat badge fading into a flat circle.
-function megaSphereGradient(ctx, cx, cy, r, highlight, shadow) {
-  const lightX = cx - r * 0.32;
-  const lightY = cy - r * 0.38;
-  const gradient = ctx.createRadialGradient(lightX, lightY, r * 0.05, cx, cy, r * 1.05);
-  gradient.addColorStop(0, highlight);
-  gradient.addColorStop(1, shadow);
-  return gradient;
+// The badge is an upright label; its short pointer anchors it to the group's centroid.
+// Shared geometry keeps the complete icon/count face tappable in flat and tilted views.
+function clusterBadgeGeometry(x, y, count, mixed, dpr, scale = 1) {
+  const unit = dpr * scale;
+  const label = count > 99 ? "99+" : String(count);
+  const width = (mixed ? 78 : 52 + label.length * 9) * unit;
+  const height = (mixed ? 52 : 40) * unit;
+  const bottom = y - 7 * unit;
+  return { left: x - width / 2, top: bottom - height, bottom, width, height, unit, label };
 }
 
-// The count circle drawn as an upright teardrop pin (same construction as drawMapPinShape,
-// just gold-filled and holding a number instead of white with an icon) rather than another flat
-// disc under tilt. A flat number lying on the foreshortened ground the way the disc does is
-// unreadable at any real tilt angle -- exactly what every *other* pin on the map already avoids
-// by standing upright off the ground it points at. tipX/tipY is the ground point the pin points
-// down at (the badge's own projected centre), matching how a normal pin's pointer lands exactly
-// on the spot it marks.
-function drawMegaBadgeCountPin(ctx, tipX, tipY, R, totalItems, dpr) {
-  const pH = R * 0.6;
-  const headY = tipY - R - pH;
-  const halfAngle = Math.PI / 5;
-  ctx.beginPath();
-  ctx.arc(tipX, headY, R, Math.PI / 2 + halfAngle, Math.PI / 2 - halfAngle, false);
-  ctx.lineTo(tipX, tipY);
-  ctx.closePath();
-  ctx.fillStyle = megaSphereGradient(ctx, tipX, headY, R, MEGA_CLUSTER_INNER_HIGHLIGHT, MEGA_CLUSTER_INNER_SHADOW);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.25)";
-  ctx.lineWidth = Math.max(1, R * 0.08);
-  ctx.stroke();
+function clusterBadgeContains(screen, x, y, count, mixed, dpr, scale = 1) {
+  const b = clusterBadgeGeometry(x, y, count, mixed, dpr, scale);
+  const pad = 3 * dpr;
+  return screen.x >= b.left - pad && screen.x <= b.left + b.width + pad
+    && screen.y >= b.top - pad && screen.y <= y + pad;
+}
 
-  const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
+function drawGroupBadge(ctx, x, y, count, iconSources, mixed, dpr, scale = 1) {
+  const b = clusterBadgeGeometry(x, y, count, mixed, dpr, scale);
+  const u = b.unit;
+  ctx.save();
+  ctx.beginPath();
+  const r = 19 * u, right = b.left + b.width;
+  ctx.moveTo(x + 7 * u, b.bottom);
+  ctx.lineTo(right - r, b.bottom);
+  ctx.arc(right - r, b.bottom - r, r, Math.PI / 2, 0, true);
+  ctx.lineTo(right, b.top + r);
+  ctx.arc(right - r, b.top + r, r, 0, -Math.PI / 2, true);
+  ctx.lineTo(b.left + r, b.top);
+  ctx.arc(b.left + r, b.top + r, r, -Math.PI / 2, -Math.PI, true);
+  ctx.lineTo(b.left, b.bottom - r);
+  ctx.arc(b.left + r, b.bottom - r, r, Math.PI, Math.PI / 2, true);
+  ctx.lineTo(x - 7 * u, b.bottom);
+  ctx.lineTo(x, y);
+  ctx.closePath();
+  ctx.fillStyle = mixed ? "#f2d184" : "#2f5a42";
+  ctx.strokeStyle = "#fffef9";
+  ctx.lineWidth = 1.5 * u;
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = mixed ? "#3a2c10" : "#ffffff";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `700 ${fontSize}px system-ui`;
-  ctx.fillStyle = "#3a2c10";
-  ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), tipX, headY);
+  ctx.font = `700 ${18 * u}px system-ui`;
+  ctx.fillText(b.label, mixed ? x : b.left + b.width - (12 + b.label.length * 4.5) * u,
+    b.top + (mixed ? 16 : 20) * u);
+  const sources = iconSources.slice(0, mixed ? 3 : 1);
+  sources.forEach((src, i) => {
+    const chipX = mixed ? x + (i - (sources.length - 1) / 2) * 21 * u : b.left + 23 * u;
+    const chipY = b.top + (mixed ? 37 : 20) * u;
+    drawMegaClusterIconChip(ctx, chipX, chipY, src, (mixed ? 10 : 15) * u);
+  });
+  ctx.restore();
 }
 
-// groundCenterFlat is the badge's centre in *flat* (untilted) screen space -- callers already
-// have it from worldToScreenFlat(worldPt) -- and is null on the non-tilted flat-map draw path.
-// Under tilt (groundCenterFlat set) only the outer disc is ground-painted, traced with
-// traceGroundCirclePath -- the same flat-sample-then-`tiltProjectScreenPoint` per-point
-// resampling the walking-radius ring and the radar cone already use, rather than a cheaper local
-// approximation: the disc sits well off the screen centre for most badges, where an approximation
-// derived at just one point drifted visibly out of step with the true ground ellipse as the view
-// rotated. The count is drawn afterwards, upright and camera-facing, as its own pointer pin
-// (drawMegaBadgeCountPin) anchored at the plain projected `cx`/`cy` -- a flat number lying on the
-// foreshortened ground the way the disc does is unreadable at any real tilt angle. The icon chips
-// stay camera-facing too but are fanned around that same `cx`/`cy` ground point, sitting on the
-// disc, rather than around the pin's own (much higher) head: fanning them around the head instead
-// was tried first, on the theory that they should stay visually attached to the one circle you
-// can actually read, but that left them floating well clear of the disc they are meant to mark
-// the top of -- looking adrift from the badge rather than part of it.
-// Outside tilt the whole badge -- both discs, the count, and the chips -- draws exactly as
-// before: plain circles and text at cx/cy, no transform, no pointer.
-//
-// pinScale (default 1) applies only to the upright count pin drawn under tilt, never to the
-// disc or the chips: `dpr` alone drives every geometry size below (R, chipR, ringR, outerR),
-// matching the plain `pixelRatio()` findClusterHit (js/inspector.js) already hit-tests and
-// culls against, so the disc's size depends only on the badge's item count, never on where it
-// sits relative to the user's heading. The pointer is the one part of the badge allowed to
-// shrink as it swings behind the user (tiltPinScale, the same near-heading collapse every other
-// pin already gets) so it stops obscuring pins ahead of it -- the disc itself is an area
-// indicator ("this cluster covers roughly this much ground") and has no business changing size
-// just because the badge happens to be behind you at the moment.
-function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, groundCenterFlat, pinScale = 1) {
-  const R = megaClusterRadius(totalItems, dpr);
-  const chipR = megaClusterChipRadius(R, dpr);
-  const ringR = megaClusterChipRingRadius(R, chipR);
-  // MEGA_CLUSTER_OUTER_DISC_PADDING beyond the chips' own exact reach (ringR + chipR) -- without
-  // it a chip sat exactly tangent to the disc's edge, which read as bursting out of it rather
-  // than sitting inside it. Matches megaClusterOuterRadius exactly, so the hit-test/cull region
-  // and the drawn disc never disagree about where the badge's edge actually is.
-  const outerR = (ringR + chipR) * MEGA_CLUSTER_OUTER_DISC_PADDING;
+function drawSameCategoryCluster(ctx, cluster, itemType, dpr, scale = 1) {
+  if (cluster.items.length < 2) return false;
+  drawGroupBadge(ctx, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length,
+    [megaClusterMemberIconSrc(itemType, cluster)], false, dpr, scale);
+  return true;
+}
 
-  // Translucent white outer disc sized to actually contain the chip ring (outerR, the same
-  // reach megaClusterOuterRadius already uses for hit-testing and culling) -- a flat wash
-  // rather than the inner circle's gold sphere gradient, so it reads as a ground-area
-  // highlight (like the walking-radius ring's own clear interior) rather than a second,
-  // competing "raised" surface.
-  ctx.beginPath();
-  if (groundCenterFlat) traceGroundCirclePath(ctx, groundCenterFlat, outerR);
-  else ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-  ctx.fillStyle = MEGA_CLUSTER_OUTER_DISC_FILL;
-  ctx.fill();
-
-  // Outside tilt the count still sits as a flat inner circle on top of the outer disc, exactly
-  // as before -- only under tilt does it move out to the upright pin drawn below.
-  if (!groundCenterFlat) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.fillStyle = megaSphereGradient(ctx, cx, cy, R, MEGA_CLUSTER_INNER_HIGHLIGHT, MEGA_CLUSTER_INNER_SHADOW);
-    ctx.fill();
-
-    const fontSize = Math.round(Math.max(12 * dpr, R * 0.62));
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `700 ${fontSize}px system-ui`;
-    ctx.fillStyle = "#3a2c10";
-    ctx.fillText(totalItems > 99 ? "99+" : String(totalItems), cx, cy);
-  } else {
-    drawMegaBadgeCountPin(ctx, cx, cy, R * pinScale, totalItems, dpr * pinScale);
-  }
-
-  // Icon chips are small artwork, not text -- unlike the count they read fine lying flat on the
-  // outer disc when it is ground-projected under tilt -- but the request was for them to stand
-  // up and face the camera. They're fanned around `cx`/`cy` -- the disc's own ground anchor, the
-  // point the pin's own pointer touches down on -- rather than around the pin's head: an earlier
-  // pass tried the head instead, on the theory that chips should stay visually attached to the
-  // one circle you can actually read, but that put them floating up near the pin, well clear of
-  // the disc they're meant to sit on top of. Anchoring on the ground point instead keeps them
-  // sitting on the disc, exactly where the bus/plate/cart icons in a screenshot showed them
-  // adrift from it.
-  //
-  // Chips sit mostly outside the (now much smaller) inner circle, centred on ringR rather than
-  // R itself, and reach exactly to outerR, so they land inside the pale outer disc above rather
-  // than floating past it.
-  const types = Array.from(byType.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, MEGA_CLUSTER_MAX_CHIPS);
-  const n = types.length;
-  // Position every chip first, then draw largest-group-first last (so it paints on top of its
-  // overlapping neighbours) -- the layout is still ordered largest-to-smallest left to right.
-  // Centred straight down (PI/2, since y grows downward on canvas), spreading out symmetrically
-  // by a fixed angle per chip rather than a fixed total arc -- so the gap between any two
-  // neighbours (and so the slight overlap between them) stays the same regardless of how many
-  // chips there are, instead of tightening as more get packed into one span.
-  //
-  // That fixed step is a deliberate *overlap* though -- the right choice once there genuinely
-  // isn't room to avoid it, but not when there is: two or three chips on a badge this size have
-  // easily enough of the ring to go all the way round without touching. noOverlapStep is the
-  // angle at which two neighbouring chips' discs just touch (chord between centres == 2*chipR,
-  // solved via the chord/radius/angle relationship); if fitting every chip at that angle still
-  // stays within a full turn of the ring, that's used instead of the tighter overlapping step --
-  // more chips fan further round from the bottom, with no overlap, rather than crowding closer
-  // together. Only once a full turn genuinely isn't enough room does it fall back to the
-  // original fixed, intentionally-overlapping step.
-  // touchStep alone lands chips exactly tangent to each other -- zero gap, which at a glance
-  // read as crowded/overlapping even though no two chips actually overlapped. Adding a fixed
-  // angular margin here gives every pair of neighbouring chips visible daylight between them
-  // whenever there's room on the ring for it, without touching the tighter fallback step below
-  // (still used once a badge has so many chips that even the bare touching angle would run past
-  // a full turn).
-  const touchStep = ringR > 0 ? 2 * Math.asin(Math.min(1, chipR / ringR)) : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
-  const noOverlapStep = touchStep + MEGA_CLUSTER_CHIP_GAP_RADIANS;
-  const step = noOverlapStep * (n - 1) <= Math.PI * 2 ? noOverlapStep : MEGA_CLUSTER_CHIP_ANGLE_STEP_RADIANS;
-  const arcSpan = step * (n - 1);
-  // Under tilt, a chip's position (never its own artwork -- that stays a plain undistorted
-  // icon) is worked out on the *ground* plane, at the same ringR distance from
-  // groundCenterFlat the disc's own points are, and only then projected with
-  // tiltProjectScreenPoint -- exactly how the disc's boundary itself is built
-  // (traceGroundCirclePath). Offsetting the already-projected `cx`/`cy` by `ringR` in plain
-  // screen space (the flat-map approach, reused here first) instead traces a circle in screen
-  // space while the disc under it is a foreshortened ellipse, so a chip positioned that way
-  // could land outside the ellipse's actual edge even though the same `ringR` comfortably fits
-  // inside the disc on the flat map -- exactly the "not sitting on the circle" gap a screenshot
-  // showed under real tilt.
-  // Under tilt, chips sit noticeably closer in than ringR -- tighter around the disc's own
-  // centre rather than out near its rim -- so the whole badge reads as one compact group instead
-  // of chips scattered toward the edge of a foreshortened ellipse. The disc itself (outerR) is
-  // untouched, so it stays exactly as large as the badge's item count says it should.
-  const tiltRingR = ringR * 0.62;
-  const positioned = types.map(([key, info], i) => {
-    const angle = (Math.PI / 2 - arcSpan / 2) + i * step;
-    if (groundCenterFlat) {
-      const p = tiltProjectScreenPoint({
-        x: groundCenterFlat.x + Math.cos(angle) * tiltRingR,
-        y: groundCenterFlat.y + Math.sin(angle) * tiltRingR,
-      });
-      return { key, info, x: p.x, y: p.y };
+// Monotone-chain hull: bound the actual members, never a radius inferred from count.
+function clusterConvexHull(points) {
+  const sorted = points.slice().sort((a, b) => a.x - b.x || a.y - b.y)
+    .filter((p, i, all) => !i || p.x !== all[i - 1].x || p.y !== all[i - 1].y);
+  if (sorted.length < 3) return sorted;
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const half = list => {
+    const hull = [];
+    for (const p of list) {
+      while (hull.length > 1 && cross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) hull.pop();
+      hull.push(p);
     }
-    return { key, info, x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
-  });
-  for (let i = positioned.length - 1; i >= 0; i--) {
-    const { key, x, y } = positioned[i];
-    drawMegaClusterIconChip(ctx, x, y, byTypeIconSrc.get(key), chipR);
+    return hull;
+  };
+  return half(sorted).slice(0, -1).concat(half(sorted.slice().reverse()).slice(0, -1));
+}
+
+function clusterFootprintPoints(items, toFlat, project, padding) {
+  const points = items.filter(item => item.point).map(item => toFlat(item.point))
+    .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+  const hull = clusterConvexHull(points);
+  // Pad the hull, not every member: bounded work even for a very large group. Sampling
+  // circles also gives coincident/collinear members a visible rounded footprint.
+  const padded = [];
+  for (const p of hull) {
+    for (let i = 0; i < 16; i++) {
+      const angle = i * Math.PI / 8;
+      padded.push({ x: p.x + Math.cos(angle) * padding, y: p.y + Math.sin(angle) * padding });
+    }
   }
+  return clusterConvexHull(padded).map(project);
+}
+
+function drawClusterFootprints(ctx, clusters, megaGroups, overlay = false) {
+  if (hasRealSelection()) return;
+  const tilted = tiltActive();
+  const toFlat = overlay ? worldToScreenForOverlay : worldToScreenFlat;
+  const project = tilted ? tiltProjectScreenPoint : p => p;
+  const groups = clusters.filter(c => c.items.length > 1).map(c => c.items)
+    .concat(megaGroups.map(group => group.flatMap(member => member.cluster.items)));
+  const dpr = pixelRatio();
+  ctx.save();
+  ctx.globalAlpha = nearbyRevealOpacity();
+  ctx.fillStyle = "rgba(225, 238, 217, 0.30)";
+  ctx.strokeStyle = "rgba(47, 90, 66, 0.48)";
+  ctx.lineWidth = dpr;
+  for (const items of groups) {
+    const points = clusterFootprintPoints(items, toFlat, project, 10 * dpr);
+    // Do not bridge the perspective near-plane clip into a screen-filling polygon.
+    if (points.length < 3 || points.some(p => p.clipped)) continue;
+    ctx.beginPath();
+    points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, pinScale = 1) {
+  const sources = Array.from(byType.entries()).sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 3).map(([key]) => byTypeIconSrc.get(key));
+  drawGroupBadge(ctx, cx, cy, totalItems, sources, true, dpr, pinScale);
 }
 
 function drawMegaClusters(ctx, megaGroups) {
@@ -1934,47 +1803,11 @@ function drawMegaClusters(ctx, megaGroups) {
     const cx = sx / totalItems;
     const cy = sy / totalItems;
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
-    // The badge's count is exactly what buildSuperClusters merged into it -- what a tap here
-    // expands into can reach further (the eventual walking radius commonly covers more than
-    // just this group's own members), but the badge itself should only ever promise what it
-    // visibly swallowed, not a number from a separate, unrelated radius scan.
+    // The badge and expanded list describe the same underlying members.
     drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr);
   }
   ctx.globalAlpha = 1;
   ctx.restore();
-}
-
-function drawClusterBadge(ctx, x, y, count, pinSize, dpr) {
-  const R = pinSize * 0.4;
-  const badgeX = x + R * 0.65;
-  const badgeY = y - 2.1 * R;
-  const badgeR = Math.max(8 * dpr, R * 0.56);
-  const fontSize = Math.round(Math.max(10 * dpr, badgeR * 1.3));
-
-  // Check if badge is within visible canvas bounds
-  if (typeof visibleCanvasRect === "function") {
-    const canvasRect = visibleCanvasRect();
-    if (badgeX - badgeR < canvasRect.x || badgeX + badgeR > canvasRect.x + canvasRect.width ||
-        badgeY - badgeR < canvasRect.y || badgeY + badgeR > canvasRect.y + canvasRect.height) {
-      return;  // Badge partially off-screen, skip rendering
-    }
-  }
-
-  ctx.shadowColor = "transparent";
-  ctx.shadowBlur = 0;
-  ctx.beginPath();
-  ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
-  ctx.fillStyle = "#2f5a42";
-  ctx.fill();
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 1.5 * dpr;
-  ctx.stroke();
-
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = `700 ${fontSize}px system-ui`;
-  ctx.fillStyle = "#fff";
-  ctx.fillText(count > 9 ? "9+" : String(count), badgeX, badgeY);
 }
 
 function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
@@ -1996,14 +1829,16 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
 
+    ctx.globalAlpha = reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
 
     ctx.globalAlpha = reveal;
 
     const src = clusterTreeIconSrc(items);
-    const drawn = drawPngMapIcon(ctx, src, screenPt.x, screenPt.y, badgeSize);
-    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, badgeSize, dpr);
+    if (!drawSameCategoryCluster(ctx, cluster, "tree", dpr, joinState ? joinState.badgeScale : 1)) {
+      drawPngMapIcon(ctx, src, screenPt.x, screenPt.y, badgeSize);
+    }
 
     if (joinState) {
       for (const r of joinState.shrinking) {
@@ -2368,13 +2203,15 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
 
     const place = items[0];
     const baseOpacity = markerOpacityFor("landmark", place);
+    ctx.globalAlpha = markerOpacityFor("landmark", items[0]) * reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeScale = joinState ? joinState.badgeScale : 1;
     ctx.globalAlpha = baseOpacity * reveal;
 
-    const drawnAsPng = drawLandmarkIcon(ctx, place, screenPt.x, screenPt.y, iconSize * badgeScale);
+    if (!drawSameCategoryCluster(ctx, cluster, "landmark", dpr, joinState ? joinState.badgeScale : 1)) {
+      drawLandmarkIcon(ctx, place, screenPt.x, screenPt.y, iconSize * badgeScale);
+    }
 
-    if (drawnAsPng && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, iconSize * badgeScale, dpr);
 
     if (joinState) {
       for (const r of joinState.shrinking) {
@@ -2404,11 +2241,13 @@ function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    ctx.globalAlpha = reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
     ctx.globalAlpha = reveal;
-    const drawn = drawPngMapIcon(ctx, iconPath("waymarked"), screenPt.x, screenPt.y, badgeSize);
-    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, badgeSize, dpr);
+    if (!drawSameCategoryCluster(ctx, cluster, "path", dpr, joinState ? joinState.badgeScale : 1)) {
+      drawPngMapIcon(ctx, iconPath("waymarked"), screenPt.x, screenPt.y, badgeSize);
+    }
     if (joinState) {
       for (const r of joinState.shrinking) {
         const p = resolvedToScreen(r.item.point);
@@ -2436,11 +2275,13 @@ function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    ctx.globalAlpha = reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
     ctx.globalAlpha = reveal;
-    const drawn = drawPngMapIcon(ctx, iconPath("ponds"), screenPt.x, screenPt.y, badgeSize);
-    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, badgeSize, dpr);
+    if (!drawSameCategoryCluster(ctx, cluster, "water", dpr, joinState ? joinState.badgeScale : 1)) {
+      drawPngMapIcon(ctx, iconPath("ponds"), screenPt.x, screenPt.y, badgeSize);
+    }
     if (joinState) {
       for (const r of joinState.shrinking) {
         const p = resolvedToScreen(r.item.point);
@@ -2469,11 +2310,13 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const baseOpacity = markerOpacityFor("cow", items[0]);
+    ctx.globalAlpha = markerOpacityFor("cow", items[0]) * reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
     ctx.globalAlpha = baseOpacity * reveal;
-    const drawn = drawPngMapIcon(ctx, iconPath("cow"), screenPt.x, screenPt.y, badgeSize);
-    if (drawn && items.length > 1) drawClusterBadge(ctx, screenPt.x, screenPt.y, items.length, badgeSize, dpr);
+    if (!drawSameCategoryCluster(ctx, cluster, "cow", dpr, joinState ? joinState.badgeScale : 1)) {
+      drawPngMapIcon(ctx, iconPath("cow"), screenPt.x, screenPt.y, badgeSize);
+    }
     if (joinState) {
       for (const r of joinState.shrinking) {
         const p = resolvedToScreen(r.item.point);
@@ -2672,6 +2515,8 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
   const pathClusters = pathClustersAll.filter(c => !megaClusterSet.has(c));
   const waterClusters = waterClustersAll.filter(c => !megaClusterSet.has(c));
 
+  drawClusterFootprints(ctx, [...treeClusters, ...landmarkClusters, ...cowClusters, ...pathClusters, ...waterClusters], megaGroups, true);
+
   for (const group of megaGroups) {
     let totalItems = 0, sx = 0, sy = 0, swx = 0, swy = 0;
     const byType = new Map();
@@ -2692,28 +2537,22 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const cy = sy / totalItems;
     const worldPt = { x: swx / totalItems, y: swy / totalItems };
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
-    const pinScale = tiltPinScale(worldPt);
+    const pinScale = Math.max(0.65, tiltPinScale(worldPt));
     const badgeCount = totalItems;
-    // Ground-space centre for the outer disc's tilt-projected footprint (drawMegaBadge) --
-    // null outside active tilt, where the badge stays a plain camera-facing circle. Also null
-    // when the badge's own centre falls in tiltProjectScreenPoint's near-camera clip band
-    // (its `clipped` flag) -- a badge sitting almost on top of the camera pivot has its ground
-    // ellipse pinned against that clip, and as the badge (or the user) moves the clip regime can
-    // flip within a frame or two, which read as the disc suddenly jumping and detaching from the
-    // terrain under it. Falling back to the plain camera-facing circle in that narrow band avoids
-    // the instability; it only affects a badge essentially on top of the user, where the walking
-    // radius ring dominates the screen anyway.
-    const groundCenterFlatRaw = tiltActive() ? worldToScreenFlat(worldPt) : null;
-    const groundCenterFlat = groundCenterFlatRaw && !tiltProjectScreenPoint(groundCenterFlatRaw).clipped
-      ? groundCenterFlatRaw
-      : null;
     calls.push({ y: cy, fn(c) {
       c.globalAlpha = reveal;
-      drawMegaBadge(c, cx, cy, badgeCount, byType, byTypeIconSrc, dpr, groundCenterFlat, pinScale);
+      drawMegaBadge(c, cx, cy, badgeCount, byType, byTypeIconSrc, dpr, pinScale);
     }});
   }
 
   for (const cluster of treeClusters) {
+    if (cluster.items.length > 1) {
+      calls.push({ y: cluster.screenPt.y, fn(c) {
+        c.globalAlpha = reveal;
+        drawSameCategoryCluster(c, cluster, "tree", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
+      }});
+      continue;
+    }
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
@@ -2721,11 +2560,17 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = reveal;
       const drawn = drawPngMapIcon(c, src, screenPt.x, screenPt.y, iconSize * pinScale);
-      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
   }
 
   for (const cluster of landmarkClusters) {
+    if (cluster.items.length > 1) {
+      calls.push({ y: cluster.screenPt.y, fn(c) {
+        c.globalAlpha = reveal;
+        drawSameCategoryCluster(c, cluster, "landmark", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
+      }});
+      continue;
+    }
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, 16 * dpr * uScale)) continue;
     const pinScale = tiltPinScale(worldPt);
@@ -2762,11 +2607,17 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
       } else {
         drawnAsPng = drawEmojiMapPin(c, landmarkEmoji(place), screenPt.x, screenPt.y, scaledIconSize);
       }
-      if (drawnAsPng && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, scaledIconSize, dpr);
     }});
   }
 
   for (const cluster of cowClusters) {
+    if (cluster.items.length > 1) {
+      calls.push({ y: cluster.screenPt.y, fn(c) {
+        c.globalAlpha = reveal;
+        drawSameCategoryCluster(c, cluster, "cow", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
+      }});
+      continue;
+    }
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
@@ -2774,29 +2625,40 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = reveal * baseOpacity;
       const drawn = drawPngMapIcon(c, iconPath("cow"), screenPt.x, screenPt.y, iconSize * pinScale);
-      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
   }
 
   for (const cluster of pathClusters) {
+    if (cluster.items.length > 1) {
+      calls.push({ y: cluster.screenPt.y, fn(c) {
+        c.globalAlpha = reveal;
+        drawSameCategoryCluster(c, cluster, "path", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
+      }});
+      continue;
+    }
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = reveal;
       const drawn = drawPngMapIcon(c, iconPath("waymarked"), screenPt.x, screenPt.y, iconSize * pinScale);
-      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
   }
 
   for (const cluster of waterClusters) {
+    if (cluster.items.length > 1) {
+      calls.push({ y: cluster.screenPt.y, fn(c) {
+        c.globalAlpha = reveal;
+        drawSameCategoryCluster(c, cluster, "water", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
+      }});
+      continue;
+    }
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
     calls.push({ y: screenPt.y, fn(c) {
       c.globalAlpha = reveal;
       const drawn = drawPngMapIcon(c, iconPath("ponds"), screenPt.x, screenPt.y, iconSize * pinScale);
-      if (drawn && items.length > 1) drawClusterBadge(c, screenPt.x, screenPt.y, items.length, iconSize * pinScale, dpr);
     }});
   }
 
