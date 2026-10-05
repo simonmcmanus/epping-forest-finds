@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-10-03T06:11:25.661747Z",
+  "generatedAt": "2026-10-04T06:42:24.465054Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -3026,6 +3026,108 @@
         "address": "15 Davies Lane London E11 3DR",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 158.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/peterhouse-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.004558,
+          51.5882673
+        ]
+      },
+      "properties": {
+        "id": "manual/peterhouse-centre",
+        "osmType": "way",
+        "osmId": 226296902,
+        "name": "Peterhouse Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.stpeterintheforest.org/",
+        "phone": "+44 20 8509 1811",
+        "address": "122 Forest Rise London E17 3PW",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 11.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/ravidassia-community-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0483719,
+          51.5519119
+        ]
+      },
+      "properties": {
+        "id": "manual/ravidassia-community-centre",
+        "osmType": "way",
+        "osmId": 955328132,
+        "name": "Ravidassia Community Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "26 Carlyle Road London E12 6BN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 150.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/roding-valley-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0447891,
+          51.6180185
+        ]
+      },
+      "properties": {
+        "id": "manual/roding-valley-hall",
+        "osmType": "way",
+        "osmId": 235167206,
+        "name": "Roding Valley Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "IG9 6LN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 259.4,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
