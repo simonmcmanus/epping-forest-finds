@@ -1589,8 +1589,7 @@ function clusterTreeIconSrc(items) {
 // The same icon each category's own draw function would put in its pin -- picked from the
 // cluster's first item exactly the way drawTrees/drawLandmarks/drawPathPins/drawWaterPins/
 // drawCows do -- so a mega badge's ring shows the *actual* glyph for what's inside, not just a
-// colour standing in for it. Anything with no PNG of its own (the underground/rail SVG marks)
-// falls back to the generic pin icon.
+// colour standing in for it. Station groups retain their vector transport glyphs.
 function megaClusterMemberIconSrc(itemType, cluster) {
   const repr = cluster.items[0];
   switch (itemType) {
@@ -1609,7 +1608,7 @@ function megaClusterMemberIconSrc(itemType, cluster) {
       if (isTransportCategory(repr)) {
         const transportType = getTransportType(repr);
         if (transportType === "parking") return iconPath("landmark-parking");
-        if (transportType === "underground" || transportType === "national_rail") return iconPath("pin");
+        if (transportType === "underground" || transportType === "national_rail") return `vector:${transportType}`;
         return iconPath("bus");
       }
       const slug = placeIconSlug(repr);
@@ -1641,6 +1640,17 @@ function megaClusterDisplayKey(itemType, cluster) {
 // corners, not what gives it a background. Draws nothing (leans on getMapImage's own redraw
 // once loaded) if the icon image hasn't finished loading yet.
 function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
+  if (src === "vector:underground" || src === "vector:national_rail") {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, chipR, 0, Math.PI * 2);
+    ctx.fillStyle = "white";
+    ctx.fill();
+    const drawGlyph = src === "vector:underground" ? drawUndergroundGlyph : drawNationalRailGlyph;
+    drawGlyph(ctx, x, y, chipR * 1.65);
+    ctx.restore();
+    return;
+  }
   const img = src ? getMapImage(src) : null;
   if (!(img && img.complete && img.naturalWidth)) return;
   ctx.save();
@@ -1749,11 +1759,13 @@ function clusterFootprintPoints(items, toFlat, project, padding) {
 }
 
 function drawClusterFootprints(ctx, clusters, megaGroups, overlay = false) {
-  if (hasRealSelection()) return;
+  // Match the per-type pin visibility; the flat renderer can still show mixed badges
+  // beside a selected destination, so those retain their footprints too.
+  const hideSameType = state.selected && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type);
   const tilted = tiltActive();
   const toFlat = overlay ? worldToScreenForOverlay : worldToScreenFlat;
   const project = tilted ? tiltProjectScreenPoint : p => p;
-  const groups = clusters.filter(c => c.items.length > 1).map(c => c.items)
+  const groups = clusters.filter(c => !hideSameType && c.items.length > 1).map(c => c.items)
     .concat(megaGroups.map(group => group.flatMap(member => member.cluster.items)));
   const dpr = pixelRatio();
   ctx.save();
@@ -1827,7 +1839,7 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
   ctx.save();
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
-    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    if (!isNearCanvas(screenPt, items.length > 1 ? 84 * dpr : iconSize * 2)) continue;
 
     ctx.globalAlpha = reveal;
     const joinState = clusterJoinAnimationState(cluster);
@@ -2199,7 +2211,7 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
   ctx.save();
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
-    if (!isNearCanvas(screenPt, LANDMARK_CULL_MARGIN_PX * dpr)) continue;
+    if (!isNearCanvas(screenPt, (items.length > 1 ? 84 : LANDMARK_CULL_MARGIN_PX) * dpr)) continue;
 
     const place = items[0];
     const baseOpacity = markerOpacityFor("landmark", place);
@@ -2240,7 +2252,7 @@ function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
   ctx.save();
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
-    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    if (!isNearCanvas(screenPt, items.length > 1 ? 84 * dpr : iconSize * 2)) continue;
     ctx.globalAlpha = reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
@@ -2274,7 +2286,7 @@ function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
   ctx.save();
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
-    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    if (!isNearCanvas(screenPt, items.length > 1 ? 84 * dpr : iconSize * 2)) continue;
     ctx.globalAlpha = reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
@@ -2308,7 +2320,7 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
   ctx.save();
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
-    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
+    if (!isNearCanvas(screenPt, items.length > 1 ? 84 * dpr : iconSize * 2)) continue;
     const baseOpacity = markerOpacityFor("cow", items[0]);
     ctx.globalAlpha = markerOpacityFor("cow", items[0]) * reveal;
     const joinState = clusterJoinAnimationState(cluster);
@@ -2547,6 +2559,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 
   for (const cluster of treeClusters) {
     if (cluster.items.length > 1) {
+      if (!isNearCanvas(cluster.screenPt, 84 * dpr)) continue;
       calls.push({ y: cluster.screenPt.y, fn(c) {
         c.globalAlpha = reveal;
         drawSameCategoryCluster(c, cluster, "tree", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
@@ -2565,6 +2578,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 
   for (const cluster of landmarkClusters) {
     if (cluster.items.length > 1) {
+      if (!isNearCanvas(cluster.screenPt, 84 * dpr)) continue;
       calls.push({ y: cluster.screenPt.y, fn(c) {
         c.globalAlpha = reveal;
         drawSameCategoryCluster(c, cluster, "landmark", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
@@ -2612,6 +2626,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 
   for (const cluster of cowClusters) {
     if (cluster.items.length > 1) {
+      if (!isNearCanvas(cluster.screenPt, 84 * dpr)) continue;
       calls.push({ y: cluster.screenPt.y, fn(c) {
         c.globalAlpha = reveal;
         drawSameCategoryCluster(c, cluster, "cow", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
@@ -2630,6 +2645,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 
   for (const cluster of pathClusters) {
     if (cluster.items.length > 1) {
+      if (!isNearCanvas(cluster.screenPt, 84 * dpr)) continue;
       calls.push({ y: cluster.screenPt.y, fn(c) {
         c.globalAlpha = reveal;
         drawSameCategoryCluster(c, cluster, "path", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
@@ -2647,6 +2663,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 
   for (const cluster of waterClusters) {
     if (cluster.items.length > 1) {
+      if (!isNearCanvas(cluster.screenPt, 84 * dpr)) continue;
       calls.push({ y: cluster.screenPt.y, fn(c) {
         c.globalAlpha = reveal;
         drawSameCategoryCluster(c, cluster, "water", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));

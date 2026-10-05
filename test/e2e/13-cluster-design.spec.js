@@ -23,6 +23,29 @@ test.describe('Cluster badges and geographic footprints', () => {
     expect(Math.max(...result.widths)).toBeLessThanOrEqual(84);
   });
 
+  test('station groups retain their Underground and National Rail symbols', async ({ page }) => {
+    await setup(page);
+    const glyphs = await page.evaluate(() => {
+      const ctx = document.createElement('canvas').getContext('2d');
+      const underground = drawUndergroundGlyph, rail = drawNationalRailGlyph;
+      const calls = [];
+      drawUndergroundGlyph = () => calls.push('underground');
+      drawNationalRailGlyph = () => calls.push('rail');
+      try {
+        for (const name of ['Underground station', 'Railway station']) {
+          const item = { name, category: 'station' };
+          const cluster = { items: [item, item], screenPt: { x: 100, y: 100 } };
+          drawSameCategoryCluster(ctx, cluster, 'landmark', 1);
+        }
+      } finally {
+        drawUndergroundGlyph = underground;
+        drawNationalRailGlyph = rail;
+      }
+      return calls;
+    });
+    expect(glyphs).toEqual(['underground', 'rail']);
+  });
+
   test('the shaded area follows member locations rather than the count', async ({ page }) => {
     await setup(page);
     const result = await page.evaluate(() => {
