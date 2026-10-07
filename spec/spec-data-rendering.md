@@ -537,6 +537,16 @@ moving the real GPS fix:
   that call so its single re-fit already frames the new origin instead of fitting the old one
   and then animating a second time. A map tap never dismisses Filter/Settings/Report (see
   "Secondary Screens" below), but an open-ground tap does move their anchor, as above.
+- **Selecting a real location resets the browse anchor.** Picking an actual tree, place, cow,
+  road, path, railway or water feature — by map tap, from the Nearby list, from a search result,
+  or via a deep link (`handleMapClick`/`focusOverviewItem` in `js/inspector.js`,
+  `openSearchResult`/`showRoutedSelection` in `js/app.js`) — sets `state.nearbyAnchor` back to
+  `null` before the selection is applied. Without this, a browsed spot survived invisibly behind
+  the new selection (its map dot still drawn by `drawNearbyAnchorMarker`, since that function only
+  checks `state.nearbyAnchor`, not `hasRealSelection()`) and Nearby silently reopened on the old
+  browsed spot instead of the user's own location the next time it was shown. Tapping open ground
+  from a selection is unaffected — that is the bullet above, a deliberate re-browse, not a
+  selection.
 - **Pinch-to-resize the radius:** a two-finger pinch on the map canvas while any screen that
   draws the ring is active (Nearby, or Filter/Settings/Report) scales `state.walkingDistanceMinutes` continuously (no fixed stops, and no rounding to a value grid — see "Walking-radius floor"
   above) — spreading fingers apart shrinks the radius (zoom in), pinching together grows it

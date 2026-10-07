@@ -60,6 +60,10 @@ function handleMapClick(event) {
 
   state.clusterZoomed = false;
   state.clusterExpanded = null;
+  // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
+  // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
+  // rather than lingering for whenever Nearby is next shown.
+  state.nearbyAnchor = null;
   setInspectorMinimized(false);
   // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
   startCameraOriginTransition();
@@ -849,6 +853,10 @@ function focusOverviewItem(type, key) {
   }
   state.clusterZoomed = false;
   state.clusterExpanded = null;
+  // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
+  // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
+  // rather than lingering for whenever Nearby is next shown.
+  state.nearbyAnchor = null;
   // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
   startCameraOriginTransition();
 
