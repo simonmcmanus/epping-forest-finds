@@ -130,10 +130,8 @@ Draw order (back to front):
    measured with `worldToScreenFlat()` — measuring them after projection would apply the
    perspective twice. A thin top-left-lit rim highlight (`drawWalkingRadiusRimHighlight`) is
    stroked just inside the clear circle's edge — a linear gradient across the circle's bounding
-   box, pale near the light corner fading to a faint dark shadow at the opposite rim — using the
-   same light direction as the mega-cluster badge's sphere shading below, so a badge zooming in
-   to become this circle (`focusNearbyOnClusterGroup`) reads as one lit dome growing rather than
-   a flat gold coin dissolving into a flat gap. The circle's interior stays fully clear (stroked,
+   box, pale near the light corner fading to a faint dark shadow at the opposite rim. The circle's
+   interior stays fully clear (stroked,
    never filled), so the map underneath is still untouched. When a browse anchor is active, a
    small ring-and-dot marker
    (`drawNearbyAnchorMarker`, drawn on `#overlayCanvas` right after the "You" dot) marks it in
