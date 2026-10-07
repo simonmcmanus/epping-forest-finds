@@ -1667,8 +1667,9 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
 function clusterBadgeGeometry(x, y, count, mixed, dpr, scale = 1) {
   const unit = dpr * scale;
   const label = count > 99 ? "99+" : String(count);
-  const width = (mixed ? 78 : 52 + label.length * 9) * unit;
-  const height = (mixed ? 52 : 40) * unit;
+  // Category composition changes the artwork, never the marker language.
+  const width = 78 * unit;
+  const height = 52 * unit;
   const bottom = y - 7 * unit;
   return { left: x - width / 2, top: bottom - height, bottom, width, height, unit, label };
 }
@@ -1698,22 +1699,21 @@ function drawGroupBadge(ctx, x, y, count, iconSources, mixed, dpr, scale = 1) {
   ctx.lineTo(x - 7 * u, b.bottom);
   ctx.lineTo(x, y);
   ctx.closePath();
-  ctx.fillStyle = mixed ? "#f2d184" : "#2f5a42";
+  ctx.fillStyle = "#f2d184";
   ctx.strokeStyle = "#fffef9";
   ctx.lineWidth = 1.5 * u;
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = mixed ? "#3a2c10" : "#ffffff";
+  ctx.fillStyle = "#3a2c10";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = `700 ${18 * u}px system-ui`;
-  ctx.fillText(b.label, mixed ? x : b.left + b.width - (12 + b.label.length * 4.5) * u,
-    b.top + (mixed ? 16 : 20) * u);
+  ctx.fillText(b.label, x, b.top + 16 * u);
   const sources = iconSources.slice(0, mixed ? 3 : 1);
   sources.forEach((src, i) => {
-    const chipX = mixed ? x + (i - (sources.length - 1) / 2) * 21 * u : b.left + 23 * u;
-    const chipY = b.top + (mixed ? 37 : 20) * u;
-    drawMegaClusterIconChip(ctx, chipX, chipY, src, (mixed ? 10 : 15) * u);
+    const chipX = x + (i - (sources.length - 1) / 2) * 22 * u;
+    const chipY = b.top + 37 * u;
+    drawMegaClusterIconChip(ctx, chipX, chipY, src, 11 * u);
   });
   ctx.restore();
 }
@@ -1770,17 +1770,23 @@ function drawClusterFootprints(ctx, clusters, megaGroups, overlay = false) {
   const dpr = pixelRatio();
   ctx.save();
   ctx.globalAlpha = nearbyRevealOpacity();
-  ctx.fillStyle = "rgba(225, 238, 217, 0.30)";
-  ctx.strokeStyle = "rgba(47, 90, 66, 0.48)";
-  ctx.lineWidth = dpr;
+  ctx.fillStyle = "rgba(242, 209, 132, 0.42)";
+  ctx.lineJoin = "round";
   for (const items of groups) {
-    const points = clusterFootprintPoints(items, toFlat, project, 10 * dpr);
+    const points = clusterFootprintPoints(items, toFlat, project, 18 * dpr);
     // Do not bridge the perspective near-plane clip into a screen-filling polygon.
     if (points.length < 3 || points.some(p => p.clipped)) continue;
     ctx.beginPath();
     points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
     ctx.closePath();
     ctx.fill();
+    // A light casing and dark edge remain legible over both dim forest and pale roads.
+    // This boundary follows the members, not the count badge's screen-space bounds.
+    ctx.strokeStyle = "rgba(255, 254, 249, 0.92)";
+    ctx.lineWidth = 4 * dpr;
+    ctx.stroke();
+    ctx.strokeStyle = "#86621c";
+    ctx.lineWidth = 2 * dpr;
     ctx.stroke();
   }
   ctx.restore();

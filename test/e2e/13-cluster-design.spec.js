@@ -23,6 +23,42 @@ test.describe('Cluster badges and geographic footprints', () => {
     expect(Math.max(...result.widths)).toBeLessThanOrEqual(84);
   });
 
+  test('all clusters share one silhouette, colour and count position', async ({ page }) => {
+    await setup(page);
+    const result = await page.evaluate(() => {
+      const ctx = document.createElement('canvas').getContext('2d');
+      const fills = [], textPositions = [];
+      ctx.fill = () => fills.push(ctx.fillStyle);
+      ctx.stroke = () => {};
+      ctx.fillText = (text, x, y) => textPositions.push({ x, y });
+      drawGroupBadge(ctx, 100, 100, 12, [], false, 1);
+      drawGroupBadge(ctx, 100, 100, 12, [], true, 1);
+      return { fills, textPositions, same: clusterBadgeGeometry(100, 100, 12, false, 1), mixed: clusterBadgeGeometry(100, 100, 12, true, 1) };
+    });
+    expect(result.same).toEqual(result.mixed);
+    expect(result.fills[0]).toBe(result.fills[1]);
+    expect(result.textPositions[0]).toEqual(result.textPositions[1]);
+  });
+
+  test('cluster areas have a contrasting outline and visible fill on the map', async ({ page }) => {
+    await setup(page);
+    const result = await page.evaluate(() => {
+      stopViewportAnimation();
+      const ctx = document.createElement('canvas').getContext('2d');
+      const strokes = [], fills = [];
+      ctx.stroke = () => strokes.push({ colour: ctx.strokeStyle, width: ctx.lineWidth / pixelRatio() });
+      ctx.fill = () => fills.push(ctx.fillStyle);
+      const items = Array.from(activeIconLookup().tree).slice(0, 2);
+      drawClusterFootprints(ctx, [{ items }], []);
+      return { strokes, fills };
+    });
+    expect(result.strokes).toHaveLength(2);
+    expect(result.strokes[0].width).toBeGreaterThanOrEqual(4);
+    expect(result.strokes[1].width).toBeGreaterThanOrEqual(2);
+    expect(result.strokes[0].colour).not.toBe(result.strokes[1].colour);
+    expect(result.fills).toHaveLength(1);
+  });
+
   test('station groups retain their Underground and National Rail symbols', async ({ page }) => {
     await setup(page);
     const glyphs = await page.evaluate(() => {
