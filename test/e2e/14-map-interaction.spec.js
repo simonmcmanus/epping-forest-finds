@@ -298,6 +298,11 @@ test.describe("Map interaction", () => {
         focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
       });
       await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+      // This assertion measures the settled browse view. The anchor bar appears before
+      // the 520ms origin slide finishes, and stopping the camera does not stop that slide.
+      // Measuring mid-slide mixes the moving ring with the destination's camera fit.
+      await page.waitForFunction(() => !state.nearbyOriginTransition);
+
 
       for (const beta of [20, 40, 60, 85]) {
         await tiltTo(page, beta);
