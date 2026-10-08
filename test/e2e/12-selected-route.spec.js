@@ -465,4 +465,44 @@ test.describe("Selected route line follows the road/path network", () => {
     const ratio = result.onFix.mean / Math.max(result.between.mean, 0.01);
     expect(ratio, "movement should be spread across frames, not concentrated on fix frames").toBeLessThan(5);
   });
+
+  test("heading-up selection zoom is capped the same as the flat fit, even for a destination right next to the user", async ({ page }) => {
+    // Field report ("zoom all over the place"): maxHeadingUpNavigationScale had no ceiling of
+    // its own (by design -- see spec-data-rendering.md), unlike the flat fit's own `220x of
+    // base` cap (applyBoundsToViewport). A destination close enough to the user asked for an
+    // arbitrarily large scale, worsening on every subsequent selection, and made the walk back
+    // to the nearby overview look like it zoomed out far more than it needed to.
+    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+
+    const result = await page.evaluate(() => {
+      state.compassHeading = 45;
+      state.compassHeadingTarget = 45;
+      state.renderedNavigationHeading = 45;
+      state.compassLastEventAt = performance.now();
+
+      const userPoint = state.userLocation.point;
+      const o = unprojectPoint(userPoint);
+      const oEast = unprojectPoint({ x: userPoint.x + 1, y: userPoint.y });
+      const metresPerUnit = distanceMetres(o.latitude, o.longitude, oEast.latitude, oEast.longitude);
+      // A destination 2 metres away: close enough that an uncapped fit demands a scale many
+      // times the flat fit's own ceiling.
+      const nearPoint = { x: userPoint.x + 2 / metresPerUnit, y: userPoint.y };
+
+      // routingGraphReady: false keeps selectedRoutePoints() on the straight-line fallback, so
+      // this measures the fit itself rather than depending on pathfinding against a synthetic
+      // destination.
+      state.routingGraphReady = false;
+      state.selected = { type: "tree", item: { point: nearPoint } };
+
+      const rect = bestVisibleCanvasRect();
+      const focus = navigationFocusPoint(rect);
+      return {
+        scale: maxHeadingUpNavigationScale(focus, rect),
+        ceiling: state.baseFitScale * 220,
+      };
+    });
+
+    expect(result.scale).toBeLessThanOrEqual(result.ceiling);
+  });
 });

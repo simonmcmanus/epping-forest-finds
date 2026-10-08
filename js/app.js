@@ -4913,6 +4913,14 @@ function headingUpFitTiltCamera() {
   };
 }
 
+// The ceiling maxHeadingUpNavigationScale/maxNearbyHeadingUpScale clamp their own result
+// to -- the heading-up callers' half of the "no ceiling of its own" split described below.
+// Same ratio as the flat fit's own cap (applyBoundsToViewport's `baseFitScaleForCap * 220`),
+// so heading-up and flat selections agree on the tightest zoom either will ever ask for.
+function headingUpZoomCeiling() {
+  return state.baseFitScale > 0 ? state.baseFitScale * 220 : Infinity;
+}
+
 // Shared bounding-box scale-fit math for both heading-up modes (selected navigation
 // and nearby survey): the maximum scale at which every point in `points` stays inside
 // the rotated focus rect, honouring the tilt behind-heading exclusion. Returns null when
@@ -4921,7 +4929,8 @@ function headingUpFitTiltCamera() {
 // factored out. This is pure fit-to-points geometry with no ceiling of its own: a ceiling
 // baked in here (an arbitrary ratio against an unrelated reference scale) caused more bugs
 // than it fixed, and callers now express what they want by choosing the points they pass --
-// see nearbyCameraFitPoints.
+// see nearbyCameraFitPoints and headingUpZoomCeiling above, where the heading-up callers
+// apply their own.
 function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
   // Nearby mode's item cluster is genuinely hidden behind the user during full tilt
   // (isBehindTiltHeading), so excluding those points from the fit is correct there --
@@ -5059,7 +5068,15 @@ function maxHeadingUpNavigationScale(focus, focusRect) {
     excludeBehindDuringTilt: false,
     projectTilt: true,
   });
-  return maxScale == null ? state.viewport.scale : maxScale;
+  if (maxScale == null) return state.viewport.scale;
+  // Same ceiling the flat fit enforces (applyBoundsToViewport's `baseFitScaleForCap * 220`):
+  // a fit should never ask for more zoom than a user could reach by hand. Without this,
+  // a target close to the user -- or a routed-path point set that, once rotated into
+  // heading-up space, happens to sit tightly around the focus -- had no ceiling at all and
+  // could demand an arbitrarily large scale. Measured in the field as the camera suddenly
+  // zooming in far past anything sensible once the routing graph replaced the straight-line
+  // fallback, and again on the next selection, each one further than the last.
+  return Math.min(maxScale, headingUpZoomCeiling());
 }
 
 // The nearest single match for each filter the user has currently selected, ignoring the
@@ -5307,7 +5324,11 @@ function nearbyPivotFitScale(points, browsing, focusRect, focus) {
     excludeBehindDuringTilt: !browsing,
   });
   if (maxScale == null) return maxScale;
-  return maxScale * nearbyFirstPersonFitZoom(browsing);
+  // See headingUpZoomCeiling: the ring is normally far too big to approach this, but a
+  // browsed spot pinching the radius down to its floor (WALKING_RADIUS_TIGHT_MIN_MINUTES)
+  // is exactly the small-area case the flat fit's own 220x cap exists for, so the nearby
+  // heading-up fit needs the same ceiling for the same reason.
+  return Math.min(maxScale * nearbyFirstPersonFitZoom(browsing), headingUpZoomCeiling());
 }
 
 // How much tighter than "the whole ahead half of the walking-radius ring fits on screen" the
