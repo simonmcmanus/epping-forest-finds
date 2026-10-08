@@ -913,6 +913,15 @@ Search, Filter, Settings, and Report share identical navigation behaviour, gated
   clears `state.filterScreenOpen` for every `showBack: true` screen (so a selected place or
   Settings correctly stands Filters down on the way in) — `openFiltersScreen()` sets it `true`
   again immediately afterward, now that Filters is the screen being entered rather than left.
+- **The Filter screen shows the nearest list too, live.** `filterScreenBodyHtml()` (`js/app.js`)
+  appends the same nearest-list markup the Nearby screen shows (`overviewNearestHtml()`) below the
+  chip groups, with a `Showing N nearby` line next to Clear all at the top of the panel so the
+  count is provable without scrolling even when the groups below fill the sheet. Toggling a chip
+  or a group header only ever replaces the list half (`refreshFilterScreenList()`) — the chip
+  panel above it is never re-rendered, only patched in place by `updateFilterUi()` as before, so a
+  keyboard user's focus stays on the chip they just pressed. This exists so a filter's effect is
+  visible on the screen where you changed it, instead of only being provable by backing out to
+  Nearby again.
 - Toggle button shows active filter count badge
 
 Filter groups (defined by `FILTER_GROUPS` in `js/categories.js`, the single source of truth):

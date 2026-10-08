@@ -1683,6 +1683,7 @@ function zoomAt(factor, screenPoint) {
 function renderFilterBodyHtml() {
   return `<div class="filter-body">
     <div class="filter-actions">
+      <span id="filterResultsCount" class="filter-results-count"></span>
       <button class="filter-action-btn filter-clear-all" type="button" data-filter-clear-all>
         Clear all filters
       </button>
@@ -1711,6 +1712,26 @@ function renderFilterBodyHtml() {
       `).join("")}
     </div>
   </div>`;
+}
+
+// The Filter screen's own body: the chip groups above, exactly as renderFilterBodyHtml() has
+// always built them, plus the same nearest-list markup the plain Nearby screen shows -- so
+// toggling a chip has a visible effect right there instead of only being provable by backing
+// out to Nearby again. refreshFilterScreenList() re-renders just the list half on every filter
+// change; the chip half is only ever patched in place by updateFilterUi(), never rebuilt, so a
+// keyboard user's focus stays on the chip they just pressed.
+function filterScreenBodyHtml() {
+  return `${renderFilterBodyHtml()}<div id="filterNearestListSection" class="filter-nearest-list-section">${overviewNearestHtml()}</div>`;
+}
+
+function refreshFilterScreenList() {
+  const section = document.getElementById("filterNearestListSection");
+  if (!section) return;
+  const previousNearestPositions = captureNearestItemPositions();
+  section.innerHTML = overviewNearestHtml();
+  updateOverviewDirectionArrows();
+  hydrateOverviewBusStopDirections();
+  animateNearestItemReorder(previousNearestPositions);
 }
 
 function attachFilterScrollHints() {
@@ -1899,6 +1920,10 @@ function setOverviewFilters(nextFilters) {
     selectOverview();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
   } else if (state.filterScreenOpen) {
+    // The whole point of the Filter screen showing the nearest list is that a chip tap proves
+    // its own effect right there (see filterScreenBodyHtml()) -- refresh just that list, never
+    // the chip panel above it, which updateFilterUi() patches in place a few lines up.
+    refreshFilterScreenList();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
   }
   requestDraw();
@@ -1980,6 +2005,16 @@ function updateFilterUi() {
     clearAllBtn.hidden = currentSet.size === 0;
   }
 
+  // Live "Showing N nearby" line next to Clear all -- only present while the Filter screen's
+  // own body is on screen (filterScreenBodyHtml()), a no-op everywhere else since the lookup
+  // simply finds nothing.
+  const resultsCountEl = els.inspectorBody.querySelector("#filterResultsCount");
+  if (resultsCountEl) {
+    resultsCountEl.textContent = state.userLocation
+      ? `Showing ${overviewItemsForActiveFilter().length} nearby`
+      : "";
+  }
+
   // Update filter toggle button
   if (els.filterToggle) {
     const activeGroupCount = getActiveGroupKeys(currentSet).length;
@@ -2029,7 +2064,10 @@ function openFiltersScreen() {
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Filters";
   els.inspectorType.textContent = "Choose what appears on the map";
-  transitionInspectorBody(renderFilterBodyHtml(), "forward");
+  transitionInspectorBody(filterScreenBodyHtml(), "forward", () => {
+    updateOverviewDirectionArrows();
+    hydrateOverviewBusStopDirections();
+  });
   updateFilterUi();
   setInspectorMinimized(false);
   syncHashFromSelection();
@@ -7109,7 +7147,9 @@ function overviewLandmarkItemSelector(placeKey) {
 }
 
 function shouldSkipOverviewBusStopHydration() {
-  return !navigator.onLine || !els.inspectorBody || state.selected || state.filterScreenOpen;
+  // The Filter screen's own body now includes the same nearest list (filterScreenBodyHtml()),
+  // so it needs bus-stop hydration exactly like the plain Nearby screen -- no longer excluded.
+  return !navigator.onLine || !els.inspectorBody || state.selected;
 }
 
 function transportCacheKey(place, type) {

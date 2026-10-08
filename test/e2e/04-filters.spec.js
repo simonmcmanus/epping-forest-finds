@@ -55,6 +55,31 @@ test.describe("Filter panel", () => {
     await expect(badge).toBeVisible();
   });
 
+  test.describe("the nearest list updates live on the Filter screen", () => {
+    test.use({
+      geolocation: { latitude: 51.654, longitude: 0.0296, accuracy: 10 },
+      permissions: ["geolocation"],
+    });
+
+    test("toggling a chip changes the results count and the list beneath it, without leaving the screen", async ({ page }) => {
+      await setup(page);
+      await page.click("#filterToggle");
+      const countEl = page.locator("#filterResultsCount");
+      await expect(countEl).toBeVisible();
+      await expect(countEl).toHaveText(/Showing \d+ nearby/);
+
+      const before = await countEl.textContent();
+
+      // Trees is on by default (DEFAULT_FILTERS) -- turning it off removes every tree row and
+      // the count the panel itself reports, proving the connection without backing out to Nearby.
+      await page.locator('.filter-chip[data-filter-subfilter="trees"]').click();
+
+      await expect(countEl).not.toHaveText(before);
+      await expect(page).toHaveURL(/#filters$/);
+      await expect(page.locator("#filterNearestListSection")).toBeVisible();
+    });
+  });
+
   test.describe("adding a filter whose matches are all outside the radius", () => {
     test.use({
       geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 },
