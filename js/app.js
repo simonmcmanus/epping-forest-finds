@@ -4913,10 +4913,13 @@ function headingUpFitTiltCamera() {
   };
 }
 
-// The ceiling maxHeadingUpNavigationScale/maxNearbyHeadingUpScale clamp their own result
-// to -- the heading-up callers' half of the "no ceiling of its own" split described below.
-// Same ratio as the flat fit's own cap (applyBoundsToViewport's `baseFitScaleForCap * 220`),
-// so heading-up and flat selections agree on the tightest zoom either will ever ask for.
+// The ceiling maxHeadingUpNavigationScale clamps its own result to -- the selected-navigation
+// half of the "no ceiling of its own" split described below. Same ratio as the flat fit's own
+// cap (applyBoundsToViewport's `baseFitScaleForCap * 220`), so heading-up and flat selections
+// agree on the tightest zoom either will ever ask for. Deliberately NOT applied to the nearby
+// ring fit (maxNearbyHeadingUpScale): the walking-radius floor's own "zoom in past the one-
+// minute limit for a find that close" behaviour legitimately asks for more than this, and
+// capping it here pinned the ring at the ceiling instead (see WALKING_RADIUS_TIGHT_MIN_MINUTES).
 function headingUpZoomCeiling() {
   return state.baseFitScale > 0 ? state.baseFitScale * 220 : Infinity;
 }
@@ -4929,8 +4932,8 @@ function headingUpZoomCeiling() {
 // factored out. This is pure fit-to-points geometry with no ceiling of its own: a ceiling
 // baked in here (an arbitrary ratio against an unrelated reference scale) caused more bugs
 // than it fixed, and callers now express what they want by choosing the points they pass --
-// see nearbyCameraFitPoints and headingUpZoomCeiling above, where the heading-up callers
-// apply their own.
+// see nearbyCameraFitPoints and headingUpZoomCeiling above, where the selected-navigation
+// caller applies its own.
 function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
   // Nearby mode's item cluster is genuinely hidden behind the user during full tilt
   // (isBehindTiltHeading), so excluding those points from the fit is correct there --
@@ -5324,11 +5327,7 @@ function nearbyPivotFitScale(points, browsing, focusRect, focus) {
     excludeBehindDuringTilt: !browsing,
   });
   if (maxScale == null) return maxScale;
-  // See headingUpZoomCeiling: the ring is normally far too big to approach this, but a
-  // browsed spot pinching the radius down to its floor (WALKING_RADIUS_TIGHT_MIN_MINUTES)
-  // is exactly the small-area case the flat fit's own 220x cap exists for, so the nearby
-  // heading-up fit needs the same ceiling for the same reason.
-  return Math.min(maxScale * nearbyFirstPersonFitZoom(browsing), headingUpZoomCeiling());
+  return maxScale * nearbyFirstPersonFitZoom(browsing);
 }
 
 // How much tighter than "the whole ahead half of the walking-radius ring fits on screen" the
