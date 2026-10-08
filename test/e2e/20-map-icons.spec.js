@@ -145,6 +145,7 @@ test.describe("Map pins", () => {
       const calls = [];
       const ctx = {
         save() {}, restore() {}, beginPath() { calls.push("beginPath"); },
+        moveTo() { calls.push("moveTo"); },
         arc() { calls.push("arc"); }, lineTo() { calls.push("lineTo"); },
         closePath() { calls.push("closePath"); },
         fill() { calls.push(`fill:${this.fillStyle}`); },
