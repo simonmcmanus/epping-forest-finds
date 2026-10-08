@@ -84,18 +84,28 @@
   display: none;
 }
 
-/* The persistent way back from a browsed spot (#nearbyAnchorBar, index.html). Sits in the
+/* The persistent way back from a browsed spot (#nearbyAnchorBar, app.html). Sits in the
    inspector chrome between the header and the tools row so it survives the body swaps that
    Filters/Settings/Report do, and is hidden with the rest of the chrome when minimized. */
 .nearby-anchor-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 8px 16px 10px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(201, 102, 12, 0.07);
+  gap: 8px;
+  /* An inset card rather than a full-width band, so it reads as a temporary notice laid over
+     the sheet instead of part of its permanent chrome. */
+  margin: 12px 12px 0;
+  padding: 8px 8px 8px 10px;
+  border: 1px solid rgba(47, 111, 78, 0.2);
+  border-radius: 12px;
+  background: linear-gradient(120deg, rgba(47, 111, 78, 0.13), rgba(85, 167, 160, 0.1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  animation: nearby-anchor-bar-in 220ms ease-out both;
+}
+
+@keyframes nearby-anchor-bar-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
 }
 
 .nearby-anchor-bar[hidden] {
@@ -103,10 +113,95 @@
 }
 
 .nearby-anchor-bar-text {
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.35;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1 1 auto;
   min-width: 0;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* A badge holding a miniature of the amber browse-anchor marker drawn on the map
+   (drawNearbyAnchorMarker, js/renderer.js), so the notice visibly refers to that dot. The white
+   border is the badge; the outline, pulled inside it, is the marker's ring. The rest of the bar
+   stays in the brand greens. */
+.nearby-anchor-bar-text::before {
+  content: "";
+  flex: 0 0 auto;
+  box-sizing: content-box;
+  width: 6px;
+  height: 6px;
+  border: 8px solid #fff;
+  border-radius: 50%;
+  background: #c9660c;
+  outline: 2px solid #c9660c;
+  outline-offset: -6px;
+  box-shadow: 0 1px 3px rgba(19, 31, 25, 0.18);
+}
+
+/* The bar's one action: a pill-shaped take on the primary .button (css/base.css) rather than
+   the pale .walk-chip it inherits from, with a 38px tap target. */
+.nearby-anchor-bar .walk-chip-btn {
+  flex: 0 0 auto;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 13px 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #3b8460, var(--tree));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 10px rgba(20, 36, 28, 0.22);
+  color: #fff;
+  font-size: 0.82rem;
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.nearby-anchor-bar .walk-chip-btn:hover {
+  background: linear-gradient(180deg, #3b8460, var(--tree));
+  filter: brightness(1.07);
+}
+
+.nearby-anchor-bar .walk-chip-btn:active {
+  transform: scale(0.97);
+  box-shadow: 0 1px 4px rgba(20, 36, 28, 0.25);
+}
+
+.nearby-anchor-bar .walk-chip-btn .app-icon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+}
+
+/* On the mobile sheet the bar is the first thing under the absolutely-positioned drag handle
+   (20px tall, css/map-ui.css), so it needs to start below it or it sits under the grip. */
+@media (max-width: 760px),
+(orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
+  .nearby-anchor-bar {
+    margin-top: 22px;
+  }
+}
+
+/* On the narrowest phones the icon is what gives way, so the notice text keeps its width. */
+@media (max-width: 359px) {
+  .nearby-anchor-bar .walk-chip-btn {
+    padding-left: 13px;
+  }
+
+  .nearby-anchor-bar .walk-chip-btn .app-icon {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nearby-anchor-bar {
+    animation: none;
+  }
+
+  .nearby-anchor-bar .walk-chip-btn {
+    transition: none;
+  }
 }
 
 .inspector.minimized .nearby-anchor-bar {
