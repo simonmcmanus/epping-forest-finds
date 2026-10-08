@@ -231,7 +231,7 @@ The rounded rectangular pin uses a compact layout with a large icon:
 - Border opacity: `rgba(0,0,0,0.25)`; border width `size × 0.04` (kept thin
   deliberately, to leave less chrome around a marker)
 - Unselected scale: `MAP_ICON_SCALE_UNSELECTED = 2.2`; selected scale: `MAP_ICON_SCALE = 2` (fixed ×1.11; only the artwork animates).
-- Individual pins use the shared unselected or selected scale, with no per-category size boost. Cluster artwork is deliberately smaller: an 11 CSS-px chip radius for each preview. Group badges keep a stable size across zoom and scale with tilt only, with a 0.65 readability floor (see Clustering).
+- Individual pins use the shared unselected or selected scale, with no per-category size boost. Single-artwork groups use the individual illustration size; multiple-artwork groups use an 11 CSS-px chip radius for each preview. Group badges keep a stable size across zoom and scale with tilt only, with a 0.65 readability floor (see Clustering).
 - Individual pins additionally scale with zoom via `mapEmojiScale()`/`zoomEmojiScaleTarget()`: `(viewport.scale / baseFitScale) ^ 0.35`, clamped to `[0.3, 1.15]`. Lowering the floor from `0.45` to `0.3` lets markers keep shrinking at extreme zoom-out instead of bottoming out at 45% size — same-category clustering (below) still applies on top of this, independently.
 - Individual hit detection (`findHit`) is derived from `MAP_ICON_SCALE_UNSELECTED`: `pinR = iconSize × 0.52` (×1.3 visual R), `pinYOffset = iconSize × 0.64` (exact circle centre), giving an accurately-centred tap target slightly larger than the visual pin
 - Because the artwork is drawn at `R × 1.85` inside a head of radius `R`, an
