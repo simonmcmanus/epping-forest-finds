@@ -929,6 +929,19 @@ function setNearbyAnchor(latitude, longitude, point) {
 // just landed on, so moving between clusters undoes on the browser back button and the
 // inspector's own back arrow exactly like a selection does, instead of leaving the ring wherever
 // the last cluster tap left it.
+//
+// Wrapped in routeApplyDepth (js/app.js) for the same reason applyRoute() is: refreshNearbyRadiusView
+// below re-renders the Nearby list via selectOverview(), which unconditionally calls
+// syncHashFromSelection() -- harmless once applyRouteFromUrl has already cleared a stale
+// state.selected, but this runs *before* that, while state.selected can still be whatever real
+// selection the popstate is navigating away from. Without the guard, that premature
+// syncHashFromSelection() read the still-live selection, saw it didn't match the URL the browser
+// had just reverted to, and pushed a *new* history entry restoring it -- so the back button landed
+// on a screen showing the Nearby list (selectOverview had already rendered it) while the address
+// bar and state.selected silently snapped back to the selection back was meant to leave, and the
+// next back press had an extra entry to undo before the browser history matched what was on
+// screen. Reported as the back button only updating the map (the anchor/camera) and not the
+// inspector panel.
 function restoreNearbyAnchorFromHistory() {
   const entry = history.state;
   const snapshot = entry ? entry[NEARBY_ANCHOR_KEY] : null;
@@ -937,15 +950,20 @@ function restoreNearbyAnchorFromHistory() {
     ? current.latitude === snapshot.latitude && current.longitude === snapshot.longitude
     : !current && !snapshot;
   if (unchanged) return;
-  stopViewportAnimation();
-  state.clusterZoomed = false;
-  startNearbyOriginTransition(nearbyRenderOriginPoint());
-  state.nearbyAnchor = snapshot
-    ? { latitude: snapshot.latitude, longitude: snapshot.longitude, point: projectLonLat(snapshot.longitude, snapshot.latitude) }
-    : null;
-  state.outOfRadiusRevealFilters = [];
-  updateNearbyAnchorBar();
-  refreshNearbyRadiusView({ animate: true });
+  routeApplyDepth += 1;
+  try {
+    stopViewportAnimation();
+    state.clusterZoomed = false;
+    startNearbyOriginTransition(nearbyRenderOriginPoint());
+    state.nearbyAnchor = snapshot
+      ? { latitude: snapshot.latitude, longitude: snapshot.longitude, point: projectLonLat(snapshot.longitude, snapshot.latitude) }
+      : null;
+    state.outOfRadiusRevealFilters = [];
+    updateNearbyAnchorBar();
+    refreshNearbyRadiusView({ animate: true });
+  } finally {
+    routeApplyDepth -= 1;
+  }
 }
 
 // Tapping a grouped set of pins -- a same-category cluster or a cross-category "mega" badge
