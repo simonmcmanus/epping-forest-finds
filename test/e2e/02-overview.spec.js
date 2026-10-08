@@ -389,6 +389,41 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeHidden();
       expect(await page.evaluate(() => state.nearbyAnchor)).toBeNull();
     });
+
+    test("the browse notice sits clear of the drag handle, with its button beside the text", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      await page.evaluate(() => {
+        const latitude = state.userLocation.latitude + 0.02;
+        const longitude = state.userLocation.longitude;
+        setNearbyAnchor(latitude, longitude, projectLonLat(longitude, latitude));
+      });
+      const button = page.locator("[data-action='reset-nearby-anchor']");
+      await expect(button).toBeVisible();
+
+      // The bar slides in from 6px above; measure where it comes to rest, not a frame mid-slide.
+      await page.evaluate(() => Promise.all(
+        document.getElementById("nearbyAnchorBar").getAnimations().map((animation) => animation.finished)
+      ));
+
+      const boxes = await page.evaluate(() => {
+        const rect = (el) => el.getBoundingClientRect().toJSON();
+        const handle = document.getElementById("inspectorDragHandle");
+        return {
+          // The grip only exists on the mobile sheet; elsewhere there is nothing to clear.
+          handle: getComputedStyle(handle).display === "none" ? null : rect(handle),
+          bar: rect(document.getElementById("nearbyAnchorBar")),
+          text: rect(document.querySelector(".nearby-anchor-bar-text")),
+          button: rect(document.querySelector("[data-action='reset-nearby-anchor']")),
+        };
+      });
+
+      if (boxes.handle) {
+        expect(boxes.bar.top, "the notice starts below the drag handle").toBeGreaterThanOrEqual(boxes.handle.bottom);
+      }
+      expect(boxes.button.left, "the button sits beside the text, not wrapped under it").toBeGreaterThanOrEqual(boxes.text.right);
+      expect(boxes.button.height, "the button is a comfortable tap target").toBeGreaterThanOrEqual(36);
+    });
   });
 
   // Filters, Settings and Report all keep drawing the walking-radius ring around the browse
