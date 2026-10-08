@@ -401,6 +401,11 @@ test.describe("Overview / Nearby screen", () => {
       const button = page.locator("[data-action='reset-nearby-anchor']");
       await expect(button).toBeVisible();
 
+      // The bar slides in from 6px above; measure where it comes to rest, not a frame mid-slide.
+      await page.evaluate(() => Promise.all(
+        document.getElementById("nearbyAnchorBar").getAnimations().map((animation) => animation.finished)
+      ));
+
       const boxes = await page.evaluate(() => {
         const rect = (el) => el.getBoundingClientRect().toJSON();
         const handle = document.getElementById("inspectorDragHandle");
