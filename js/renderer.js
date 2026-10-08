@@ -100,8 +100,8 @@ function roundedPinPath(ctx, x, y, left, top, width, height, radius, pointerHalf
 }
 
 function drawMapPinShape(ctx, x, y, size) {
-  const R = size * 0.4;
-  const pH = R * 0.6;
+  const R = size * 0.32;
+  const pH = R * 0.3;
   const cx = x;
   const cy = y - R - pH;
   roundedPinPath(ctx, x, y, x - R * 1.2, cy - R, R * 2.4, R * 2, R * 0.65, R * 0.3);

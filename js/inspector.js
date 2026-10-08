@@ -123,11 +123,11 @@ function trackSelectionClick(itemType, item, source) {
 function findHit(screen, world) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
-  // Rounded pin head: half-width R*1.2, half-height R; centre R*1.6 above the tip.
+  // Compact pin head: half-width R*1.2, half-height R; centre R*1.3 above the tip.
   // Unselected pins drive overview taps; use MAP_ICON_SCALE_UNSELECTED for accurate centering.
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
-  const pinR = iconSize * 0.4 * 1.3;   // R * 1.3 — slightly larger than visual for easy tapping
-  const pinYOffset = iconSize * 0.64;   // R * 1.6 = center of circle above tip
+  const pinR = iconSize * 0.32 * 1.3;   // R * 1.3 — slightly larger than visual for easy tapping
+  const pinYOffset = iconSize * 0.416;   // R * 1.3 = head centre above tip
 
   function pinDistance(point) {
     return Math.max(Math.abs(point.x - screen.x) / 1.2, Math.abs((point.y - pinYOffset) - screen.y));

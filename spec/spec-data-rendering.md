@@ -225,8 +225,8 @@ artwork of its own. **Nothing is drawn on the map without the pointer behind
 it** — that is what makes the markers read as one family.
 
 The rounded rectangular pin uses a compact layout with a large icon:
-- Artwork radius `R = size × 0.4`; face width `R × 2.4`, height `R × 2`, corner radius `R × 0.65`; tail height `R × 0.6`; icon fills `R × 1.85`
-- Head centre is `R × 1.6` = `size × 0.64` above the tip point
+- Artwork radius `R = size × 0.32`; face width `R × 2.4`, height `R × 2`, corner radius `R × 0.65`; short tail height `R × 0.3`; icon fills `R × 1.85`. Individual faces are 20% smaller than the initial rectangular design; cluster dimensions stay unchanged.
+- Head centre is `R × 1.3` = `size × 0.416` above the tip point
 - Individual-pin hit testing follows the rectangular face with a small touch margin, including its side edges.
 - Border opacity: `rgba(0,0,0,0.25)`; border width `size × 0.04` (kept thin
   deliberately, to leave less chrome around a marker)

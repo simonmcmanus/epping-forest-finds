@@ -80,6 +80,9 @@ test.describe('Cluster badges and geographic footprints', () => {
       expect(new Set(shape.corners.map(p => p.x)).size).toBe(2);
       expect(new Set(shape.corners.map(p => p.y)).size).toBe(2);
     }
+    const width = shape => Math.max(...shape.corners.map(p => p.x + p.radius)) - Math.min(...shape.corners.map(p => p.x - p.radius));
+    expect(width(shapes[0])).toBeLessThan(width(shapes[1]) * 0.7);
+    expect(100 - Math.max(...shapes[0].corners.map(p => p.y + p.radius))).toBeLessThanOrEqual(7);
   });
 
   test('tree clusters preview their distinct species, most common first', async ({ page }) => {
