@@ -298,6 +298,11 @@ test.describe("Map interaction", () => {
         focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
       });
       await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+      // This assertion measures the settled browse view. The anchor bar appears before
+      // the 520ms origin slide finishes, and stopping the camera does not stop that slide.
+      // Measuring mid-slide mixes the moving ring with the destination's camera fit.
+      await page.waitForFunction(() => !state.nearbyOriginTransition);
+
 
       for (const beta of [20, 40, 60, 85]) {
         await tiltTo(page, beta);
@@ -463,17 +468,21 @@ test.describe("Map interaction", () => {
         focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
       });
       await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+      await page.waitForFunction(() => !state.nearbyOriginTransition);
 
       // A single (unclustered) tree pin on screen, found the same way the cluster tests above
       // locate their own target -- which pins exist at this camera depends on the live dataset.
       const target = await page.evaluate(() => {
         stopViewportAnimation();
-        const lookup = buildNearbyIconLookup();
+        const lookup = activeIconLookup();
         const clusters = buildTypeClusters(lookup.tree, worldToScreen);
-        const single = clusters.find((c) => c.items.length === 1);
-        if (!single) return null;
         const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
-        return { point: { x: single.screenPt.x, y: single.screenPt.y - iconSize * 0.64 } };
+        for (const single of clusters.filter(c => c.items.length === 1)) {
+          const point = { x: single.screenPt.x, y: single.screenPt.y - iconSize * 0.416 };
+          const hit = findHit(point, screenToWorld(point.x, point.y));
+          if (!findClusterHit(point) && hit?.type === 'tree' && hit.item === single.items[0]) return { point };
+        }
+        return null;
       });
       test.skip(!target, "no single tree pin on screen at this camera");
 

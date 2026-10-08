@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-10-05T06:40:09.369812Z",
+  "generatedAt": "2026-10-06T07:20:40.219747Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -3128,6 +3128,74 @@
         "address": "IG9 6LN",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 259.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/st-anne-s-parish-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0006652,
+          51.6176518
+        ]
+      },
+      "properties": {
+        "id": "manual/st-anne-s-parish-centre",
+        "osmType": "node",
+        "osmId": 3163720403,
+        "name": "St Anne's Parish Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 41.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/st-mary-s-church-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0954958,
+          51.6728959
+        ]
+      },
+      "properties": {
+        "id": "manual/st-mary-s-church-hall",
+        "osmType": "way",
+        "osmId": 219244508,
+        "name": "St. Mary's Church Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 38.6,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
