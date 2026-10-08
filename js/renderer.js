@@ -1696,9 +1696,18 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
 
 // The badge is an upright label; its short pointer anchors it to the group's centroid.
 // Shared geometry keeps the complete icon/count face tappable in flat and tilted views.
-function clusterBadgeGeometry(x, y, count, mixed, dpr, scale = 1) {
+function clusterBadgeGeometry(x, y, count, mixed, dpr, scale = 1, compact = false) {
   const unit = dpr * scale;
   const label = count > 99 ? "99+" : String(count);
+  if (compact) {
+    const size = MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * unit;
+    const R = size * 0.32;
+    const width = R * 2.4, height = R * 2, bottom = y - R * 0.3;
+    const top = bottom - height;
+    const countWidth = (label.length > 2 ? 28 : 22) * unit;
+    return { left: x - width / 2, top, bottom, width, height, unit, label, size,
+      countX: x + width / 2 - 4 * unit, countY: top + 3 * unit, countWidth, countHeight: 18 * unit };
+  }
   // Category composition changes the artwork, never the marker language.
   const width = 78 * unit;
   const height = 52 * unit;
@@ -1706,17 +1715,39 @@ function clusterBadgeGeometry(x, y, count, mixed, dpr, scale = 1) {
   return { left: x - width / 2, top: bottom - height, bottom, width, height, unit, label };
 }
 
-function clusterBadgeContains(screen, x, y, count, mixed, dpr, scale = 1) {
-  const b = clusterBadgeGeometry(x, y, count, mixed, dpr, scale);
+function clusterBadgeContains(screen, x, y, count, mixed, dpr, scale = 1, compact = false) {
+  const b = clusterBadgeGeometry(x, y, count, mixed, dpr, scale, compact);
   const pad = 3 * dpr;
+  if (compact && Math.abs(screen.x - b.countX) <= b.countWidth / 2 + pad
+    && Math.abs(screen.y - b.countY) <= b.countHeight / 2 + pad) return true;
   return screen.x >= b.left - pad && screen.x <= b.left + b.width + pad
     && screen.y >= b.top - pad && screen.y <= y + pad;
 }
 
 function drawGroupBadge(ctx, x, y, count, iconSources, mixed, dpr, scale = 1) {
-  const b = clusterBadgeGeometry(x, y, count, mixed, dpr, scale);
+  const sources = iconSources.slice(0, 3);
+  const compact = sources.length === 1;
+  const b = clusterBadgeGeometry(x, y, count, mixed, dpr, scale, compact);
   const u = b.unit;
   ctx.save();
+  if (compact) {
+    const { cx, cy, R } = drawMapPinShape(ctx, x, y, b.size);
+    drawMegaClusterIconChip(ctx, cx, cy, sources[0], R * 0.86);
+    ctx.beginPath();
+    ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
+    ctx.fillStyle = "#233d30";
+    ctx.fill();
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 1.5 * u;
+    ctx.stroke();
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `700 ${11 * u}px system-ui`;
+    ctx.fillText(b.label, b.countX, b.countY);
+    ctx.restore();
+    return;
+  }
   roundedPinPath(ctx, x, y, b.left, b.top, b.width, b.height, 19 * u, 7 * u);
   ctx.fillStyle = "white";
   ctx.strokeStyle = "rgba(0,0,0,0.25)";
@@ -1728,7 +1759,6 @@ function drawGroupBadge(ctx, x, y, count, iconSources, mixed, dpr, scale = 1) {
   ctx.textBaseline = "middle";
   ctx.font = `700 ${18 * u}px system-ui`;
   ctx.fillText(b.label, x, b.top + 16 * u);
-  const sources = iconSources.slice(0, 3);
   sources.forEach((src, i) => {
     const chipX = x + (i - (sources.length - 1) / 2) * 22 * u;
     const chipY = b.top + 37 * u;

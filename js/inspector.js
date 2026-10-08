@@ -316,10 +316,11 @@ function findClusterHit(screen) {
     const worldPt = { x: items.reduce((sum, item) => sum + item.point.x, 0) / totalItems,
       y: items.reduce((sum, item) => sum + item.point.y, 0) / totalItems };
     const drawn = group.length >= megaClusterMinMembersFor(group);
+    const compact = new Set(group.flatMap(({ itemType, cluster }) => clusterPreviewEntries(itemType, cluster).map(entry => entry.key))).size === 1;
     const hit = drawn
-      ? clusterBadgeContains(screen, cx, cy, totalItems, true, dpr, Math.max(0.65, tiltPinScale(worldPt)))
-      : group.some(({ cluster }) => cluster.items.length > 1
-        ? clusterBadgeContains(screen, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)))
+      ? clusterBadgeContains(screen, cx, cy, totalItems, true, dpr, Math.max(0.65, tiltPinScale(worldPt)), compact)
+      : group.some(({ itemType, cluster }) => cluster.items.length > 1
+        ? clusterBadgeContains(screen, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)), clusterPreviewEntries(itemType, cluster).length === 1)
         : Math.hypot(cluster.screenPt.x - screen.x, cluster.screenPt.y - 20 * dpr - screen.y) < 24 * dpr);
     if (hit) {
       return { items, itemsByType, itemType: "_mega", screenPt: { x: cx, y: cy } };
@@ -330,7 +331,7 @@ function findClusterHit(screen) {
   const allClusters = [...treeClusters, ...landmarkClusters, ...cowClusters, ...pathClusters, ...waterClusters];
   for (const cluster of allClusters) {
     if (cluster.items.length <= 1 || absorbed.has(cluster)) continue;
-    if (clusterBadgeContains(screen, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)))) return cluster;
+    if (clusterBadgeContains(screen, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)), clusterPreviewEntries(cluster.itemType, cluster).length === 1)) return cluster;
   }
   return null;
 }

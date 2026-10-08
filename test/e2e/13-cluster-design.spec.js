@@ -103,6 +103,26 @@ test.describe('Cluster badges and geographic footprints', () => {
     expect(result.sources).toEqual(result.expected);
   });
 
+  test('one-artwork groups put a tappable count at the top right of a compact location pin', async ({ page }) => {
+    await setup(page);
+    const result = await page.evaluate(() => {
+      const ctx = document.createElement('canvas').getContext('2d');
+      const labels = [], chips = [];
+      const original = drawMegaClusterIconChip;
+      ctx.fillText = (text, x, y) => labels.push({ text, x, y });
+      drawMegaClusterIconChip = (ctx, x, y) => chips.push({ x, y });
+      try { drawGroupBadge(ctx, 100, 100, 12, [iconPath('shop')], false, 1); }
+      finally { drawMegaClusterIconChip = original; }
+      const box = clusterBadgeGeometry(100, 100, 12, false, 1, 1, true);
+      return { labels, chips, width: box.width, hit: clusterBadgeContains(labels[0], 100, 100, 12, false, 1, 1, true) };
+    });
+    expect(result.width).toBeLessThan(60);
+    expect(result.labels[0].text).toBe('12');
+    expect(result.labels[0].x).toBeGreaterThan(result.chips[0].x);
+    expect(result.labels[0].y).toBeLessThan(result.chips[0].y);
+    expect(result.hit).toBe(true);
+  });
+
   test('mixed groups preserve species previews and coalesce duplicate species artwork', async ({ page }) => {
     await setup(page);
     const result = await page.evaluate(() => {
@@ -174,7 +194,7 @@ test.describe('Cluster badges and geographic footprints', () => {
       const trees = buildTypeClusters(lookup.tree, worldToScreen);
       for (const cluster of trees) {
         if (cluster.items.length < 2) continue;
-        const box = clusterBadgeGeometry(cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, pixelRatio());
+        const box = clusterBadgeGeometry(cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, pixelRatio(), 1, clusterPreviewEntries('tree', cluster).length === 1);
         const point = { x: box.left + 8 * pixelRatio(), y: box.top + box.height / 2 };
         const hit = findClusterHit(point);
         const countHit = findClusterHit({ x: box.left + box.width - 8 * pixelRatio(), y: point.y });
