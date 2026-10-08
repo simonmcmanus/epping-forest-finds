@@ -155,9 +155,9 @@ Draw order (back to front):
    nearby match on the Nearby/Filters/Settings/Report screens; they were removed because a fan
    of dotted lines to a dozen pins crowded the map and implied a walk nobody had chosen. A
    drawn route now always means "this is the destination you selected".
-9. **Trees** — teardrop pins
-10. **Landmarks** — teardrop pins with category-specific artwork
-11. **Cows** — teardrop pins
+9. **Trees** — rounded rectangular pins
+10. **Landmarks** — rounded rectangular pins with category-specific artwork
+11. **Cows** — rounded rectangular pins
 12. **User location** — pulsing blue dot
 13. **Selected overlay** — highlight ring on selected item
 14. **Selected road/path overlay** — highlighted road/path segments
@@ -218,19 +218,20 @@ Filtered to major types only. Style varies by `roadType` (motorway thicker/darke
 
 ### Pin geometry (`drawMapPinShape`, `drawPngMapIcon`, `drawEmojiMapPin`)
 
-`drawMapPinShape` draws the white teardrop every marker sits in and returns
+`drawMapPinShape` draws the white rounded rectangular pin every marker sits in and returns
 its head centre and radius; `drawPngMapIcon` then paints the artwork inside
 it, and `drawEmojiMapPin` paints an emoji glyph there for a place with no
 artwork of its own. **Nothing is drawn on the map without the pointer behind
 it** — that is what makes the markers read as one family.
 
-The teardrop pin uses a compact layout with a large icon:
-- Circle radius: `size × 0.4`; tail height: `R × 0.6`; icon fills `R × 1.85`
-- Circle centre is `R × 1.6` = `size × 0.64` above the tip point
+The rounded rectangular pin uses a compact layout with a large icon:
+- Artwork radius `R = size × 0.4`; face width `R × 2.4`, height `R × 2`, corner radius `R × 0.65`; tail height `R × 0.6`; icon fills `R × 1.85`
+- Head centre is `R × 1.6` = `size × 0.64` above the tip point
+- Individual-pin hit testing follows the rectangular face with a small touch margin, including its side edges.
 - Border opacity: `rgba(0,0,0,0.25)`; border width `size × 0.04` (kept thin
   deliberately, to leave less chrome around a marker)
 - Unselected scale: `MAP_ICON_SCALE_UNSELECTED = 2.2`; selected scale: `MAP_ICON_SCALE = 2` (fixed ×1.11; only the artwork animates).
-- Individual pins use the shared unselected or selected scale, with no per-category size boost. Cluster artwork is deliberately smaller: a 14 CSS-px chip radius for one preview, or 10 CSS px each for multiple previews. Group badges keep a stable size across zoom and scale with tilt only, with a 0.65 readability floor (see Clustering).
+- Individual pins use the shared unselected or selected scale, with no per-category size boost. Cluster artwork is deliberately smaller: an 11 CSS-px chip radius for each preview. Group badges keep a stable size across zoom and scale with tilt only, with a 0.65 readability floor (see Clustering).
 - Individual pins additionally scale with zoom via `mapEmojiScale()`/`zoomEmojiScaleTarget()`: `(viewport.scale / baseFitScale) ^ 0.35`, clamped to `[0.3, 1.15]`. Lowering the floor from `0.45` to `0.3` lets markers keep shrinking at extreme zoom-out instead of bottoming out at 45% size — same-category clustering (below) still applies on top of this, independently.
 - Individual hit detection (`findHit`) is derived from `MAP_ICON_SCALE_UNSELECTED`: `pinR = iconSize × 0.52` (×1.3 visual R), `pinYOffset = iconSize × 0.64` (exact circle centre), giving an accurately-centred tap target slightly larger than the visual pin
 - Because the artwork is drawn at `R × 1.85` inside a head of radius `R`, an
@@ -256,7 +257,7 @@ Both `buildTypeClusters` and `buildSuperClusters` (below) find each point's neig
 
 **Paint order within a type.** `drawTrees`, `drawLandmarks`, `drawCows`, `drawPathPins`, and `drawWaterPins` (the plain top-down path, `draw()`) each sort their own clusters ascending by `screenPt.y` before drawing, so a pin lower on screen paints over one further up instead of in whatever order `buildTypeClusters`/`buildLandmarkClusters` happened to build them — otherwise a pin that should read as "in front" could draw behind a farther one from the same layer. `drawAllPinsSorted` (used instead of the five functions above whenever `nearbyHeadingUpActive()` or `tiltActive()`) already did this correctly across *every* type in one combined pass; the fix here brings the plain top-down path in line with it for pins of the same type. Ordering *between* types in the top-down path is still the fixed layer order trees → landmarks → cows → paths → water, not screen depth — a known gap, unlikely to be visible since different-type pins rarely sit close enough to overlap.
 
-Every multi-item cluster uses the same white circular head and fine translucent dark outline as individual pins. Its 64 CSS-px head, dark count above up to three existing artwork previews, and short 7 CSS-px pointer distinguish a group while retaining the same visual family. Previews show the most common categories or tree species first; identical artwork shares one slot. Counts are exact through 99, then `99+`. The pointer anchors to the screen centroid of members, with the gold footprint showing their spread. Individual destinations retain their teardrop pins. `clusterBadgeGeometry` supplies the shared upright geometry for drawing and hit-testing; the whole badge and pointer are tappable, with a small touch margin. Badge sizes are stable across map zoom; heading/tilt scaling has a 0.65 floor so grouped labels remain readable.
+Every multi-item cluster uses the same white rounded rectangular head and fine translucent dark outline as individual pins. Its 78 × 52 CSS-px head, dark count above up to three existing artwork previews, and short 7 CSS-px pointer distinguish a group while retaining the same visual family. Previews show the most common categories or tree species first; identical artwork shares one slot. Counts are exact through 99, then `99+`. The pointer anchors to the screen centroid of members, with the gold footprint showing their spread. Individual destinations retain their rounded rectangular pins. `clusterBadgeGeometry` supplies the shared upright geometry for drawing and hit-testing; the whole badge and pointer are tappable, with a small touch margin. Badge sizes are stable across map zoom; heading/tilt scaling has a 0.65 floor so grouped labels remain readable.
 
 **Geographic footprints.** Both cluster types shade their members' actual spread, independently of item count. `clusterFootprintPoints` takes a convex hull of member positions in the flat ground plane, pads it by 18 CSS px with rounded corners so its edge remains visible below the badge, then projects the boundary through the active tilt. Coincident members get a small round footprint; collinear members get a capsule. Duplicating points never enlarges the footprint. The translucent gold fill (42% opacity), 2 CSS-px dark-gold outline and 4 CSS-px pale casing make the footprint readable over forest and roads while leaving paths visible. This enclosed gold area is distinct from the walking-radius ring, whose interior remains clear. The footprint indicates the extent of grouped members, not membership of every place enclosed. All footprints draw beneath the badges; absorbed same-category clusters do not draw separate footprints. Footprints crossing the near-camera clipping plane are omitted to prevent a screen-filling polygon. Footprints are not tap targets: tapping open ground retains the existing browse-anchor behaviour. Under tilt the footprint follows the ground while the badge and attached icons remain upright. Footprint visibility follows the corresponding badge: hidden per-type pins have no footprint; mixed badges still drawn beside a selected destination retain theirs.
 
@@ -281,11 +282,11 @@ Single-item clusters fall through to the normal `findHit` individual-item select
 
 ### Trees
 
-- Overview trees are **clustered in screen space** (greedy nearest-first, radius scaled by pin size — see "Overview" above) by `buildTreeClusters()`. Singletons use the teardrop PNG pin at `MAP_ICON_SCALE_UNSELECTED` size; groups use the shared white cluster pin at their screen centroid. All map pins share one base size, `MAP_PNG_ICON_SIZE` (30 CSS px before the unselected/selected scale multipliers). Clustering groups by screen proximity, not species. `clusterPreviewEntries` preserves up to three distinct species artwork previews, most common first, in both same-category and mixed groups and both flat and tilted views. Species sharing artwork occupy one slot; species without dedicated artwork use the generic tree icon.
+- Overview trees are **clustered in screen space** (greedy nearest-first, radius scaled by pin size — see "Overview" above) by `buildTreeClusters()`. Singletons use the rounded rectangular PNG pin at `MAP_ICON_SCALE_UNSELECTED` size; groups use the shared white cluster pin at their screen centroid. All map pins share one base size, `MAP_PNG_ICON_SIZE` (30 CSS px before the unselected/selected scale multipliers). Clustering groups by screen proximity, not species. `clusterPreviewEntries` preserves up to three distinct species artwork previews, most common first, in both same-category and mixed groups and both flat and tilted views. Species sharing artwork occupy one slot; species without dedicated artwork use the generic tree icon.
 - When a cluster contains more than one tree, it uses the shared white cluster pin, exact count through 99, short pointer and gold geographic footprint described under Clustering.
 - Only clusters whose members are all in the active overview set are drawn; `shouldDrawMapIcon` selection check applies at the function level (all tree pins hidden when any location is selected).
 - **Out-of-radius clusters render exactly like in-radius ones — no dimming.** They used to be drawn at 0.4 opacity. The walking-radius wash (see "Walking radius" above) already darkens everything beyond the ring, so a pin out there reads as outside it without being faded as well; the dim was a second signal for a fact the map had already made, and it landed on the pin — the one thing the user is trying to read out there. `buildNearbyIconLookup()` still returns the `outOfRadius` set recording the distinction, but nothing in the draw path reads it. Per-marker opacity from `markerOpacityFor()` (a non-matching place, a stale cow, a selection dimming everything else) is unaffected and still applies.
-- Selected tree: full-size teardrop PNG pin rendered by `drawSelectedOverlay` (species leaf icon or generic tree icon).
+- Selected tree: full-size rounded rectangular PNG pin rendered by `drawSelectedOverlay` (species leaf icon or generic tree icon).
 - Route lines go to the **world-space centroid** of each cluster (one line per cluster, not per tree).
 
 ### Landmarks

@@ -73,7 +73,7 @@ function getMapImage(src) {
   return mapImageCache.get(src);
 }
 
-// The white pointer every map pin sits in: a circular head with a wedge
+// The white pointer every map pin sits in: a rounded rectangular head with a wedge
 // drawn down to the place's own point. Returns the head's centre and radius
 // so the caller can put artwork or a glyph inside it.
 //
@@ -82,17 +82,29 @@ function getMapImage(src) {
 // (scripts/generate-map-icons.js) holds new icons well inside that via
 // FIT_LIMIT (scripts/lib/icon-fit.js), which is independent of this
 // multiplier, so raising it here is safe without touching icon assets.
+function roundedPinPath(ctx, x, y, left, top, width, height, radius, pointerHalfWidth) {
+  const right = left + width, bottom = top + height;
+  ctx.beginPath();
+  ctx.moveTo(x + pointerHalfWidth, bottom);
+  ctx.lineTo(right - radius, bottom);
+  ctx.arc(right - radius, bottom - radius, radius, Math.PI / 2, 0, true);
+  ctx.lineTo(right, top + radius);
+  ctx.arc(right - radius, top + radius, radius, 0, -Math.PI / 2, true);
+  ctx.lineTo(left + radius, top);
+  ctx.arc(left + radius, top + radius, radius, -Math.PI / 2, -Math.PI, true);
+  ctx.lineTo(left, bottom - radius);
+  ctx.arc(left + radius, bottom - radius, radius, Math.PI, Math.PI / 2, true);
+  ctx.lineTo(x - pointerHalfWidth, bottom);
+  ctx.lineTo(x, y);
+  ctx.closePath();
+}
+
 function drawMapPinShape(ctx, x, y, size) {
   const R = size * 0.4;
   const pH = R * 0.6;
   const cx = x;
   const cy = y - R - pH;
-  const halfAngle = Math.PI / 5;
-
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, Math.PI / 2 + halfAngle, Math.PI / 2 - halfAngle, false);
-  ctx.lineTo(x, y);
-  ctx.closePath();
+  roundedPinPath(ctx, x, y, x - R * 1.2, cy - R, R * 2.4, R * 2, R * 0.65, R * 0.3);
   ctx.fillStyle = "white";
   ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.25)";
@@ -1688,8 +1700,8 @@ function clusterBadgeGeometry(x, y, count, mixed, dpr, scale = 1) {
   const unit = dpr * scale;
   const label = count > 99 ? "99+" : String(count);
   // Category composition changes the artwork, never the marker language.
-  const width = 64 * unit;
-  const height = 64 * unit;
+  const width = 78 * unit;
+  const height = 52 * unit;
   const bottom = y - 7 * unit;
   return { left: x - width / 2, top: bottom - height, bottom, width, height, unit, label };
 }
@@ -1705,11 +1717,7 @@ function drawGroupBadge(ctx, x, y, count, iconSources, mixed, dpr, scale = 1) {
   const b = clusterBadgeGeometry(x, y, count, mixed, dpr, scale);
   const u = b.unit;
   ctx.save();
-  ctx.beginPath();
-  const r = b.width / 2;
-  ctx.arc(x, b.top + r, r, Math.PI / 2 + Math.PI / 5, Math.PI / 2 - Math.PI / 5);
-  ctx.lineTo(x, y);
-  ctx.closePath();
+  roundedPinPath(ctx, x, y, b.left, b.top, b.width, b.height, 19 * u, 7 * u);
   ctx.fillStyle = "white";
   ctx.strokeStyle = "rgba(0,0,0,0.25)";
   ctx.lineWidth = Math.max(1, 2 * u);
@@ -1719,12 +1727,12 @@ function drawGroupBadge(ctx, x, y, count, iconSources, mixed, dpr, scale = 1) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = `700 ${18 * u}px system-ui`;
-  ctx.fillText(b.label, x, b.top + 18 * u);
+  ctx.fillText(b.label, x, b.top + 16 * u);
   const sources = iconSources.slice(0, 3);
   sources.forEach((src, i) => {
-    const chipX = x + (i - (sources.length - 1) / 2) * 19 * u;
-    const chipY = b.top + 43 * u;
-    drawMegaClusterIconChip(ctx, chipX, chipY, src, (sources.length === 1 ? 14 : 10) * u);
+    const chipX = x + (i - (sources.length - 1) / 2) * 22 * u;
+    const chipY = b.top + 37 * u;
+    drawMegaClusterIconChip(ctx, chipX, chipY, src, 11 * u);
   });
   ctx.restore();
 }

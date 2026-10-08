@@ -123,14 +123,14 @@ function trackSelectionClick(itemType, item, source) {
 function findHit(screen, world) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
-  // drawPngMapIcon geometry: R = size*0.4, circle centre sits R*1.6 above the tip.
+  // Rounded pin head: half-width R*1.2, half-height R; centre R*1.6 above the tip.
   // Unselected pins drive overview taps; use MAP_ICON_SCALE_UNSELECTED for accurate centering.
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
   const pinR = iconSize * 0.4 * 1.3;   // R * 1.3 — slightly larger than visual for easy tapping
   const pinYOffset = iconSize * 0.64;   // R * 1.6 = center of circle above tip
 
   function pinDistance(point) {
-    return Math.hypot(point.x - screen.x, (point.y - pinYOffset) - screen.y);
+    return Math.max(Math.abs(point.x - screen.x) / 1.2, Math.abs((point.y - pinYOffset) - screen.y));
   }
 
   // Only pins that are actually on screen are tappable: hit testing asks the renderer's own

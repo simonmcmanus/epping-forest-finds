@@ -60,6 +60,28 @@ test.describe('Cluster badges and geographic footprints', () => {
     expect(result.fills).toHaveLength(1);
   });
 
+  test('individual and grouped pins use rounded rectangular faces with attached pointers', async ({ page }) => {
+    await setup(page);
+    const shapes = await page.evaluate(() => {
+      const ctx = document.createElement('canvas').getContext('2d');
+      const capture = drawPin => {
+        const corners = [], tips = [];
+        ctx.arc = (x, y, radius) => corners.push({ x, y, radius });
+        ctx.lineTo = (x, y) => tips.push({ x, y });
+        drawPin();
+        return { corners, tips };
+      };
+      return [capture(() => drawMapPinShape(ctx, 100, 100, 60)),
+        capture(() => drawGroupBadge(ctx, 100, 100, 5, [], true, 1))];
+    });
+    for (const shape of shapes) {
+      expect(shape.corners).toHaveLength(4);
+      expect(shape.tips).toContainEqual({ x: 100, y: 100 });
+      expect(new Set(shape.corners.map(p => p.x)).size).toBe(2);
+      expect(new Set(shape.corners.map(p => p.y)).size).toBe(2);
+    }
+  });
+
   test('tree clusters preview their distinct species, most common first', async ({ page }) => {
     await setup(page);
     const result = await page.evaluate(() => {
@@ -211,7 +233,7 @@ test.describe('Cluster badges and geographic footprints', () => {
     expect(result.active).toBe(true);
     expect(result.tilted).toEqual(result.projected);
     expect(result.tilted).not.toEqual(result.flat);
-    expect(result.height).toBe(64);
+    expect(result.height).toBe(52);
     expect(result.pointer).toBe(7);
   });
 });
