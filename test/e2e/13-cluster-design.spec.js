@@ -37,6 +37,7 @@ test.describe('Cluster badges and geographic footprints', () => {
     });
     expect(result.same).toEqual(result.mixed);
     expect(result.fills[0]).toBe(result.fills[1]);
+    expect(result.fills[0]).toBe('#ffffff');
     expect(result.textPositions[0]).toEqual(result.textPositions[1]);
   });
 
@@ -57,6 +58,45 @@ test.describe('Cluster badges and geographic footprints', () => {
     expect(result.strokes[1].width).toBeGreaterThanOrEqual(2);
     expect(result.strokes[0].colour).not.toBe(result.strokes[1].colour);
     expect(result.fills).toHaveLength(1);
+  });
+
+  test('tree clusters preview their distinct species, most common first', async ({ page }) => {
+    await setup(page);
+    const result = await page.evaluate(() => {
+      const oak = { commonName: 'English oak', latinName: 'Quercus robur' };
+      const beech = { commonName: 'Common beech', latinName: 'Fagus sylvatica' };
+      const hornbeam = { commonName: 'Hornbeam', latinName: 'Carpinus betulus' };
+      const cluster = { items: [hornbeam, beech, oak, oak, beech, oak], screenPt: { x: 100, y: 100 }, worldPt: { x: 0, y: 0 } };
+      const ctx = document.createElement('canvas').getContext('2d');
+      const drawChip = drawMegaClusterIconChip;
+      const sources = [];
+      drawMegaClusterIconChip = (ctx, x, y, src) => sources.push(src);
+      try { drawSameCategoryCluster(ctx, cluster, 'tree', 1); }
+      finally { drawMegaClusterIconChip = drawChip; }
+      return { sources, expected: [oak, beech, hornbeam].map(t => treeSpeciesIconPath(t.commonName, t.latinName)) };
+    });
+    expect(result.sources).toEqual(result.expected);
+  });
+
+  test('mixed groups preserve species previews and coalesce duplicate species artwork', async ({ page }) => {
+    await setup(page);
+    const result = await page.evaluate(() => {
+      const oak = { commonName: 'English oak', latinName: 'Quercus robur' };
+      const beech = { commonName: 'Common beech', latinName: 'Fagus sylvatica' };
+      const ctx = document.createElement('canvas').getContext('2d');
+      const group = [{ itemType: 'tree', cluster: { items: [oak, oak, beech], screenPt: { x: 100, y: 100 } } },
+        { itemType: 'tree', cluster: { items: [beech], screenPt: { x: 101, y: 100 } } },
+        { itemType: 'landmark', cluster: { items: [{ category: 'cafe' }], screenPt: { x: 102, y: 100 } } }];
+      const drawChip = drawMegaClusterIconChip;
+      const sources = [], labels = [];
+      ctx.fillText = text => labels.push(text);
+      drawMegaClusterIconChip = (ctx, x, y, src) => sources.push(src);
+      try { drawMegaClusters(ctx, [group]); }
+      finally { drawMegaClusterIconChip = drawChip; }
+      return { sources, labels, expected: [treeSpeciesIconPath(oak.commonName, oak.latinName), treeSpeciesIconPath(beech.commonName, beech.latinName), iconPath('cafe')] };
+    });
+    expect(result.sources).toEqual(result.expected);
+    expect(result.labels).toEqual(['5']);
   });
 
   test('station groups retain their Underground and National Rail symbols', async ({ page }) => {
@@ -171,7 +211,7 @@ test.describe('Cluster badges and geographic footprints', () => {
     expect(result.active).toBe(true);
     expect(result.tilted).toEqual(result.projected);
     expect(result.tilted).not.toEqual(result.flat);
-    expect(result.height).toBe(52);
+    expect(result.height).toBe(64);
     expect(result.pointer).toBe(7);
   });
 });

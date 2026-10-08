@@ -1639,6 +1639,26 @@ function megaClusterDisplayKey(itemType, cluster) {
 // circular clip stays: it is what keeps a square icon image from spilling past chipR at its
 // corners, not what gives it a background. Draws nothing (leans on getMapImage's own redraw
 // once loaded) if the icon image hasn't finished loading yet.
+function clusterPreviewEntries(itemType, cluster) {
+  if (itemType !== "tree") return [{ key: megaClusterDisplayKey(itemType, cluster), src: megaClusterMemberIconSrc(itemType, cluster), count: cluster.items.length, itemType }];
+  const byArtwork = new Map();
+  for (const item of cluster.items) {
+    const src = treeSpeciesIconPath(item.commonName, item.latinName) || iconPath("tree");
+    const entry = byArtwork.get(src);
+    if (entry) entry.count++;
+    else byArtwork.set(src, { key: `tree:${src}`, src, count: 1, itemType });
+  }
+  return Array.from(byArtwork.values());
+}
+
+function addClusterPreviewEntries(byType, byTypeIconSrc, itemType, cluster) {
+  for (const entry of clusterPreviewEntries(itemType, cluster)) {
+    const existing = byType.get(entry.key);
+    byType.set(entry.key, { count: (existing ? existing.count : 0) + entry.count, itemType });
+    byTypeIconSrc.set(entry.key, entry.src);
+  }
+}
+
 function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
   if (src === "vector:underground" || src === "vector:national_rail") {
     ctx.save();
@@ -1668,8 +1688,8 @@ function clusterBadgeGeometry(x, y, count, mixed, dpr, scale = 1) {
   const unit = dpr * scale;
   const label = count > 99 ? "99+" : String(count);
   // Category composition changes the artwork, never the marker language.
-  const width = 78 * unit;
-  const height = 52 * unit;
+  const width = 64 * unit;
+  const height = 64 * unit;
   const bottom = y - 7 * unit;
   return { left: x - width / 2, top: bottom - height, bottom, width, height, unit, label };
 }
@@ -1686,34 +1706,25 @@ function drawGroupBadge(ctx, x, y, count, iconSources, mixed, dpr, scale = 1) {
   const u = b.unit;
   ctx.save();
   ctx.beginPath();
-  const r = 19 * u, right = b.left + b.width;
-  ctx.moveTo(x + 7 * u, b.bottom);
-  ctx.lineTo(right - r, b.bottom);
-  ctx.arc(right - r, b.bottom - r, r, Math.PI / 2, 0, true);
-  ctx.lineTo(right, b.top + r);
-  ctx.arc(right - r, b.top + r, r, 0, -Math.PI / 2, true);
-  ctx.lineTo(b.left + r, b.top);
-  ctx.arc(b.left + r, b.top + r, r, -Math.PI / 2, -Math.PI, true);
-  ctx.lineTo(b.left, b.bottom - r);
-  ctx.arc(b.left + r, b.bottom - r, r, Math.PI, Math.PI / 2, true);
-  ctx.lineTo(x - 7 * u, b.bottom);
+  const r = b.width / 2;
+  ctx.arc(x, b.top + r, r, Math.PI / 2 + Math.PI / 5, Math.PI / 2 - Math.PI / 5);
   ctx.lineTo(x, y);
   ctx.closePath();
-  ctx.fillStyle = "#f2d184";
-  ctx.strokeStyle = "#fffef9";
-  ctx.lineWidth = 1.5 * u;
+  ctx.fillStyle = "white";
+  ctx.strokeStyle = "rgba(0,0,0,0.25)";
+  ctx.lineWidth = Math.max(1, 2 * u);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = "#3a2c10";
+  ctx.fillStyle = "#233d30";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = `700 ${18 * u}px system-ui`;
-  ctx.fillText(b.label, x, b.top + 16 * u);
-  const sources = iconSources.slice(0, mixed ? 3 : 1);
+  ctx.fillText(b.label, x, b.top + 18 * u);
+  const sources = iconSources.slice(0, 3);
   sources.forEach((src, i) => {
-    const chipX = x + (i - (sources.length - 1) / 2) * 22 * u;
-    const chipY = b.top + 37 * u;
-    drawMegaClusterIconChip(ctx, chipX, chipY, src, 11 * u);
+    const chipX = x + (i - (sources.length - 1) / 2) * 19 * u;
+    const chipY = b.top + 43 * u;
+    drawMegaClusterIconChip(ctx, chipX, chipY, src, (sources.length === 1 ? 14 : 10) * u);
   });
   ctx.restore();
 }
@@ -1721,7 +1732,7 @@ function drawGroupBadge(ctx, x, y, count, iconSources, mixed, dpr, scale = 1) {
 function drawSameCategoryCluster(ctx, cluster, itemType, dpr, scale = 1) {
   if (cluster.items.length < 2) return false;
   drawGroupBadge(ctx, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length,
-    [megaClusterMemberIconSrc(itemType, cluster)], false, dpr, scale);
+    clusterPreviewEntries(itemType, cluster).sort((a, b) => b.count - a.count).map(entry => entry.src), false, dpr, scale);
   return true;
 }
 
@@ -1813,10 +1824,7 @@ function drawMegaClusters(ctx, megaGroups) {
       totalItems += n;
       sx += cluster.screenPt.x * n;
       sy += cluster.screenPt.y * n;
-      const key = megaClusterDisplayKey(itemType, cluster);
-      const existing = byType.get(key);
-      byType.set(key, { count: (existing ? existing.count : 0) + n, itemType });
-      if (!byTypeIconSrc.has(key)) byTypeIconSrc.set(key, megaClusterMemberIconSrc(itemType, cluster));
+      addClusterPreviewEntries(byType, byTypeIconSrc, itemType, cluster);
     }
     const cx = sx / totalItems;
     const cy = sy / totalItems;
@@ -2546,10 +2554,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
       sy += cluster.screenPt.y * n;
       swx += cluster.worldPt.x * n;
       swy += cluster.worldPt.y * n;
-      const key = megaClusterDisplayKey(itemType, cluster);
-      const existing = byType.get(key);
-      byType.set(key, { count: (existing ? existing.count : 0) + n, itemType });
-      if (!byTypeIconSrc.has(key)) byTypeIconSrc.set(key, megaClusterMemberIconSrc(itemType, cluster));
+      addClusterPreviewEntries(byType, byTypeIconSrc, itemType, cluster);
     }
     const cx = sx / totalItems;
     const cy = sy / totalItems;
