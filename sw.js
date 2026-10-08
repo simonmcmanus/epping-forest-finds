@@ -8,6 +8,8 @@
 const IS_DEV = self.__DEV__ === true;
 
 const APP_CACHE_NAME = "forest-finds-app-v76";
+const DATA_CACHE_NAME = "forest-finds-data-v19";
+
 const DATA_CACHE_NAME = "forest-finds-data-v18";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
