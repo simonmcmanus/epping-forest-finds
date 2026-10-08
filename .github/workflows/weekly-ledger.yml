@@ -142,20 +142,37 @@ jobs:
             leave it for a human instead of guessing.
 
             HOUSEKEEPING (do this first, before any research): this workflow
-            can be re-run manually the same day (workflow_dispatch), e.g.
-            because an earlier run today was blocked by something unrelated
-            to the actual data (a flaky test, an API outage). Run
-            `gh pr list --state open --json number,headRefName,title` and
-            check any PR whose head branch matches
-            `weekly-data-report/<today's date>*`. If you find one AND its
-            branch's diff against main touches no file under `data/`
-            (i.e. it only carries a report, or nothing at all -- a prior
-            attempt that didn't get as far as a real data change), close it
-            with `gh pr close <number> --comment "Superseded by a re-run of
-            this workflow later the same day."` before continuing. Leave
-            alone any same-day PR that DID change a `data/` file -- that is
-            a real, reviewable proposal and must never be closed
-            automatically just because a newer run exists.
+            runs nightly and auto-merge is disabled, so an earlier run's PR
+            is often still open and unmerged when this run starts -- and
+            because a fresh run otherwise branches from `main` independently
+            of it, the two would edit the same data files on diverging
+            branches and conflict with each other the moment either one is
+            merged. Run `gh pr list --state open --json
+            number,headRefName,title` and look at EVERY open PR whose head
+            branch matches `weekly-data-report/*` (any date, not just
+            today's -- an older unmerged one is exactly the case to avoid
+            conflicting with).
+
+            For each one, check its diff against main:
+            - If it touches no file under `data/` (a prior attempt that
+              never got as far as a real data change, or a report-only PR
+              from an earlier empty-changeset run), close it with `gh pr
+              close <number> --comment "Superseded by a later run of this
+              workflow."` before continuing.
+            - Otherwise it is a real, reviewable ledger proposal -- never
+              close one of these just because a newer run exists. Remember
+              its number and head branch; call it the OPEN LEDGER PR below.
+              (More than one should not normally happen once the closures
+              above run; if it does, pick the most recently updated as the
+              OPEN LEDGER PR and say so in this run's PR body so Simon knows
+              to look at the other one too.)
+
+            If there IS an OPEN LEDGER PR, this run adds tonight's changes
+            to that SAME PR and branch instead of opening a competing one --
+            that is the whole point of this step, so there is only ever one
+            weekly-report PR for Simon to review and merge. Steps 4a, 4c/4d
+            and 5 below say exactly where that changes what you'd otherwise
+            do.
 
             Coverage settlements: Loughton, Chingford, Buckhurst Hill,
             Chigwell, Theydon Bois, Epping, Woodford Green, Waltham Abbey.
@@ -450,11 +467,24 @@ jobs:
                worth a look"), rather than leaving it out or guessing.
 
             4. If the changeset is non-empty:
-               a. Create a branch:
-                  git checkout -b weekly-data-report/<date>-$RUN_NUMBER
-                  (the run-number suffix keeps this collision-free from any
-                  branch a same-day re-run of this workflow already pushed --
-                  see HOUSEKEEPING above)
+               a. Branch:
+                  - OPEN LEDGER PR found in HOUSEKEEPING: check out its head
+                    branch instead of starting fresh --
+                      git fetch origin <branch>
+                      git checkout <branch>
+                      git merge origin/main --no-edit
+                    (picks up anything else merged to main since that branch
+                    was opened; expect a clean merge -- if it genuinely
+                    conflicts, stop and say so in the run's log rather than
+                    guessing at a resolution). Build and apply this run's
+                    changeset on top of whatever that branch already has on
+                    disk -- it already carries the previous run(s)' additions,
+                    so do not re-read main's copy of the data files.
+                  - No OPEN LEDGER PR: git checkout -b
+                    weekly-data-report/<date>-$RUN_NUMBER (the run-number
+                    suffix keeps this collision-free from any branch a
+                    same-day re-run of this workflow already pushed -- see
+                    HOUSEKEEPING above).
                b. Run, in this order:
 
                     python3 scripts/apply_weekly_changeset.py <changeset.json>
@@ -488,11 +518,15 @@ jobs:
                   updated it (see step 6), commit
                   (git config user.name "Epping Forest Ledger (weekly report)",
                   user.email "weekly-report@local", scoped to this checkout
-                  only), and git push -u origin
-                  weekly-data-report/<date>-$RUN_NUMBER.
-               d. Open a PR: gh pr create --title "..." --body "..." listing
-                  exactly what was added/removed and why. Keep it tight -- a
-                  few lines, then two short lists:
+                  only), and push:
+                  - OPEN LEDGER PR found in HOUSEKEEPING: git push (the
+                    branch already tracks origin from when it was first
+                    opened).
+                  - No OPEN LEDGER PR: git push -u origin
+                    weekly-data-report/<date>-$RUN_NUMBER.
+               d. Open or update the PR, listing exactly what was
+                  added/removed and why. Keep it tight -- a few lines, then
+                  two short lists:
 
                     Applied this week: each change, with what it was based on.
                     Reported by people: each open report, what you did about
@@ -504,6 +538,20 @@ jobs:
                     after applying the changeset and paste the first two
                     lines. That is the week's real result -- whether the map
                     got better, not just whether something moved.
+
+                  - OPEN LEDGER PR found in HOUSEKEEPING: do NOT run `gh pr
+                    create` -- that would be exactly the second, conflicting
+                    PR this step exists to avoid. Instead `gh pr edit
+                    <number> --body "..."` rewriting the body to cover the
+                    CUMULATIVE proposal across every run folded into this PR
+                    so far, not just tonight's increment -- a reviewer
+                    opening this PR once should see the whole thing. Add a
+                    short "Updated <date>" line so what was added when stays
+                    visible, and fold tonight's findings into the same
+                    Applied/Reported/Still watching/Data quality lists rather
+                    than appending a second copy of them.
+                  - No OPEN LEDGER PR: gh pr create --title "..." --body
+                    "..." as above.
 
                   The second list is what makes the first trustworthy, and it
                   is how a reviewer sees a real closure sitting one week short
@@ -532,28 +580,42 @@ jobs:
                   Snapshots" workflow, on a Linux runner, never here) once a
                   re-run has shown the difference is real and repeatable.
                f. Do NOT start CI yourself -- there is nothing to start.
-                  This job pushes and opens PRs as a real user credential
-                  (WEEKLY_LEDGER_PAT), so ci.yml's normal pull_request
-                  event fires the instant the PR opens: unit and e2e are
-                  already queued before you finish. Never run `gh workflow
+                  This job pushes and opens/updates PRs as a real user
+                  credential (WEEKLY_LEDGER_PAT), so ci.yml's normal
+                  pull_request event fires the instant the PR opens, and
+                  again (as `synchronize`) the instant you push a new commit
+                  to an already-open PR's branch: unit and e2e are already
+                  queued before you finish either way. Never run `gh workflow
                   run ci.yml`; a duplicate dispatch just puts a second,
                   confusing copy of every check on the PR.
-               g. Add a report preview link to the PR body (see REPORT
-                  PREVIEW LINK below) -- do this for every PR this workflow
-                  opens, this one included. Also mention in the PR body that
-                  CI starts automatically and that Simon should wait for
-                  those checks to go green before merging.
+               g. Add or refresh the report preview link in the PR body (see
+                  REPORT PREVIEW LINK below) -- do this for every PR this
+                  workflow opens or updates, this one included; when
+                  continuing an OPEN LEDGER PR, point it at tonight's new
+                  report file, not the previous run's. Also mention in the
+                  PR body that CI starts automatically and that Simon should
+                  wait for those checks to go green before merging.
                h. Do NOT merge the PR. Auto-merge is temporarily
                   disabled while this workflow is being tested -- leave it
                   open for Simon to review and merge by hand once CI passes.
                   Say so plainly in the PR body and in your final summary.
-            5. If the changeset is empty, skip the data branch/PR/merge
-               entirely and say so in the report -- but still open the
-               small standalone report-only PR described in step 6 (CI
-               attaches to that PR automatically too, same as step 4e), and
-               it still needs the REPORT PREVIEW LINK below.
+            5. If the changeset is empty:
+               - OPEN LEDGER PR found in HOUSEKEEPING: still commit
+                 data/business-watch.json's updated patience count and
+                 tonight's new report (step 6) onto that SAME branch
+                 (following 4a's checkout/merge and 4c's push, since there
+                 is no data-file edit to apply first) and `gh pr edit
+                 <number>` to fold a line into the body noting this run's
+                 changeset was empty and what was banked instead. Do NOT
+                 open a separate standalone PR for it -- that is exactly the
+                 duplicate-PR situation this step exists to prevent.
+               - No OPEN LEDGER PR: skip the data branch/PR/merge entirely
+                 and say so in the report -- but still open the small
+                 standalone report-only PR described in step 6 (CI attaches
+                 to that PR automatically too, same as step 4e), and it
+                 still needs the REPORT PREVIEW LINK below.
 
-               data/business-watch.json still gets committed on that PR. It
+               data/business-watch.json still gets committed either way. It
                will have changed even in a week with nothing to apply --
                that is a week of patience banked towards next time, and
                throwing it away is what kept resetting the count to zero.
@@ -570,7 +632,9 @@ jobs:
             and put it near the top of the PR body with
             `gh pr edit <number> --body "..."` (rewrite the full body: keep
             everything the initial `gh pr create` body had, just add this
-            near the top), roughly:
+            near the top -- and if this PR already had a report preview
+            line from an earlier run, replace it with tonight's report
+            rather than leaving the old one stacked above it), roughly:
               **Report preview:** <url>
               (Netlify usually finishes building the preview within a
               minute or two of the PR opening -- if the link 404s right
@@ -626,4 +690,4 @@ jobs:
           # below -- auto-merge is disabled while Simon tests this workflow.
           # Add it back (and flip the prompt language above) once he is happy.
           claude_args: |
-            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(node:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*),Bash(gh issue create:*)"
+            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git fetch:*),Bash(git merge:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(node:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*),Bash(gh issue create:*)"

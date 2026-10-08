@@ -26,6 +26,23 @@ enough to act on: a restaurant that closed in 2024 and a pub that closed in
 2023 were both still drawn on the map two years later. The detection now has
 memory and an outcome.
 
+**One open ledger PR at a time.** The workflow runs nightly and auto-merge is
+disabled, so a previous run's `weekly-data-report/*` PR is often still open
+when the next run starts. Branching fresh from `main` every night would let
+two open PRs edit the same data files independently, so whichever merged
+second would conflict with the first. Instead, the HOUSEKEEPING step in the
+workflow prompt looks for an already-open PR whose branch changed a `data/`
+file (closing any empty leftover from a prior attempt) and, if one exists,
+checks it out, merges current `main` into it, and applies that night's
+changeset on top of it rather than starting a new branch — pushing to the
+same branch and folding the new findings into the same PR body (via `gh pr
+edit`) rather than opening a second one. A night with no new candidates still
+commits `data/business-watch.json`'s updated patience count and that night's
+report onto the open PR rather than skipping it. Only when no such PR is open
+does a run branch from `main` and call `gh pr create`. This keeps Simon with
+exactly one weekly-report PR to review and merge at any time, however many
+nights it has accumulated changes from.
+
 **The sources.** Three, deliberately unalike, so no one blind spot is the
 system's:
 
