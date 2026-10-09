@@ -333,18 +333,18 @@ class AppPromoTests(unittest.TestCase):
     def test_promo_sells_the_app_rather_than_just_linking_to_it(self):
         html = rr.render_app_promo("https://www.eppingforestfinds.uk/app", {"total": 1130})
         self.assertIn("Works with no signal", html)
-        self.assertIn("1,130", html)
+        self.assertIn("early access", html)
         self.assertIn('href="https://www.eppingforestfinds.uk/app"', html)
 
     def test_promo_copes_without_an_inventory_total(self):
         html = rr.render_app_promo("https://www.eppingforestfinds.uk/app", None)
-        self.assertIn("Everything in this report is on it", html)
+        self.assertIn("free map for your next walk", html)
 
     def test_report_defaults_to_the_app_route(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = make_repo_root(Path(tmp), ["Pub"])
             html = rr.render_report(BASE_REPORT_DATA, root)
-            self.assertIn('class="app-link" href="https://www.eppingforestfinds.uk/app"', html)
+            self.assertIn('href="https://www.eppingforestfinds.uk/app"', html)
 
     def test_promo_sits_after_the_weeks_news_not_in_the_masthead(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -387,7 +387,7 @@ class SearchEngineTests(unittest.TestCase):
     def test_has_a_description_built_from_this_weeks_findings(self):
         html = self.render()
         self.assertIn('<meta name="description"', html)
-        self.assertIn("1 opening", html)
+        self.assertIn("1 local find", html)
 
     def test_description_lists_no_changes_when_the_week_was_quiet(self):
         text = rr.meta_description({}, [], ["Loughton"], "Monday, 15 September 2026")
@@ -418,6 +418,17 @@ class RenderReportEndToEndTests(unittest.TestCase):
             self.assertIn("<svg", html)
             self.assertIn("https://www.eppingforestfinds.uk", html)
             self.assertIn("The Hair of the Dog", html)
+
+    def test_newsletter_leads_with_stories_and_uses_homepage_images(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = make_repo_root(Path(tmp), ["Pub"])
+            html = rr.render_report(BASE_REPORT_DATA, root)
+            self.assertLess(html.index('id="businesses"'), html.index('id="map"'))
+            self.assertLess(html.index('id="map"'), html.index('id="newsletter"'))
+            self.assertNotIn('class="stat-strip', html)
+            self.assertNotIn(">What's on the map</h2>", html)
+            self.assertIn('/assets/home/epping-longhorns.jpg', html)
+            self.assertIn('once the site launches', html)
 
     def test_jargon_in_finding_body_blocks_render(self):
         with tempfile.TemporaryDirectory() as tmp:

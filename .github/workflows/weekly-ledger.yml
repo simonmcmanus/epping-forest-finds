@@ -665,12 +665,25 @@ jobs:
                sentence is about the plumbing, take it out or say it in
                plain English" and try again.
 
-               Auto-merge is temporarily disabled while this workflow is
-               being tested, so phrase anything sitting on the open PR as
-               proposed and pending a quick review -- e.g. "we'd like to
-               remove this" rather than "this has been removed" -- never as
-               already live on the map. Once Simon re-enables auto-merge,
-               switch to describing changes as already made.
+               Write the finished newsletter for publication AFTER this PR is
+               merged. Review status belongs only in the PR body: never say
+               "proposed for the map", "pending review" or "we'd like to add".
+               Lead with forest life and useful local news, not map maintenance.
+               Give each story a place, what happened, and why a visitor or
+               neighbour would care; include dates and practical details when
+               supported by sources. Keep the intro to one or two short sentences
+               highlighting the most useful stories. Do not invent colour,
+               opening dates, recommendations or events to fill a quiet edition.
+               An established business newly discovered in a register is a local
+               find, NOT a new opening. Say "Already trading" unless evidence
+               establishes an opening date. Preserve uncertainty about closures
+               and future events; publication does not make uncertain facts true.
+               Avoid repetitive listings and research diaries. Empty sections
+               must say no updates are included, never imply no events or
+               disruptions exist. Use coverage notes only for useful gaps.
+               Readers should get value without using the app. The generator
+               adds signup and app invitations after the news, with access and
+               email availability matching the homepage. Leave auto-merge off.
 
                report-data.json's "about_note" field is a reader-facing note
                about the report's coverage, in plain language, only if there

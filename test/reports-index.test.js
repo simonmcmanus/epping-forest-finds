@@ -112,7 +112,7 @@ test("the newest edition is listed first, by the week in its name rather than it
   assert.ok(html.indexOf("report-latest") < html.indexOf("14 September 2026"));
 });
 
-test("the listing wears the homepage's look: brand header, green hero and card list", () => {
+test("the listing wears the homepage's look: brand header, forest photograph and card list", () => {
   const html = buildIndexHtml([{ name: "epping-forest-ledger-2026-09-14.html", size: 1, mtimeMs: 0 }]);
   assert.match(html, /<a class="brand" href="\/">/);
   assert.match(html, /src="\/assets\/home\/map-icons\/oak\.png"/);
@@ -180,12 +180,12 @@ test("titleForFile falls back to the file name for anything it does not recognis
   assert.equal(titleForFile("something-else.html"), "something-else.html");
 });
 
-test("the report index invites search engines in and points at the app", () => {
+test("the report index invites search engines in and offers newsletter signup", () => {
   const html = buildIndexHtml([]);
   assert.ok(!html.includes('content="noindex"'));
   assert.match(html, /<meta name="description"/);
   assert.match(html, /rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/reports\/"/);
-  assert.match(html, /href="https:\/\/www\.eppingforestfinds\.uk\/"/);
+  assert.match(html, /href="https:\/\/www\.eppingforestfinds\.uk\/#signup"/);
 });
 
 test("generate() produces valid, non-empty HTML for a directory with no reports yet", () => {

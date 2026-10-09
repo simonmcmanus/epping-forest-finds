@@ -78,20 +78,16 @@ INVENTORY_ICON_SOURCES = {
 }
 INVENTORY_ICON_SIZE_PX = 64
 DEFAULT_ABOUT_NOTE = (
-    "This report is put together each week from council and City of London updates, "
-    "local news, an open map of shops and small businesses (OpenStreetMap), and the "
-    "live tracker for the forest's grazing cattle. It won't catch everything — if "
-    "you spot something wrong or missing, we'd like to know."
+    "A snapshot of the forest and its neighbouring towns at the date above. "
+    "Check organisers’ latest details before setting out."
 )
 AI_DISCLAIMER = (
-    "This report is researched and written automatically by AI. It reads public "
-    "sources each week and it can get things wrong — a date misread, a shop listed "
-    "as closed when it is still trading, or something missed altogether. Please "
-    "check anything important before you rely on it."
+    "Researched and written automatically by AI, which can get things wrong. "
+    "Check the linked sources for details before making a special trip."
 )
 
 SECTION_TITLES = {
-    "business": ("Shops, cafés, restaurants & pubs", "What's opened, closed, or might have."),
+    "business": ("Shops, cafés, restaurants & pubs", "Local finds and changes around the forest."),
     "road": ("Road closures & access", "Things that might affect getting around the forest."),
     "event": ("Events in the forest", "What's on this week."),
 }
@@ -100,9 +96,9 @@ SECTION_TITLES = {
 # shown when the week turned up nothing. A missing section reads as "we forgot
 # to look"; an explicit "nothing this week" reads as "we looked".
 EMPTY_SECTION_NOTES = {
-    "business": ("Nothing to report this week", "No likely openings or closures turned up this week."),
-    "road": ("No closures to report this week", "Nothing new was announced for the roads around the forest this week."),
-    "event": ("No events listed this week", "Nothing had been listed for the forest this week when this report was put together. Organisers often add things at short notice, so it is worth a look closer to the weekend."),
+    "business": ("Nothing to report this week", "No business updates are included in this edition."),
+    "road": ("No closures to report this week", "No new access updates are included in this edition. Check local travel notices before setting out."),
+    "event": ("No events listed this week", "No events are included in this edition. Check organisers’ listings for upcoming dates."),
 }
 
 # Anchor names in the published page. Kept as they were so links people have
@@ -459,7 +455,7 @@ def render_map_section(forest_geojson, findings, cow_icon):
     ) if pinned else "Nothing needed a pin on the map this week."
     return f'''<section id="map">
     <h2 class="section-title">This week on the map</h2>
-    <p class="section-sub">The dashed box is the area this report searches each week. It is a straight-sided box on purpose: the search covers everything inside it, so it takes in the forest itself and all the towns along its edge, not just the woodland.</p>
+    <p class="section-sub">Find the places mentioned in this edition. The outline includes the forest and its neighbouring towns.</p>
     <div class="map-card">
       <div class="map-svg-holder">
         {svg}
@@ -473,35 +469,39 @@ def render_map_section(forest_geojson, findings, cow_icon):
   </section>'''
 
 
-APP_SELLING_POINTS = [
-    ("Works with no signal", "Once it has loaded, the whole map lives on your phone. Deep in the forest, with no bars showing, it still knows exactly where you are."),
-    ("Find what is near you", "Tap anywhere and it lists what is within a walk — pubs, cafés, car parks, toilets, benches, gates and stations — with how long each one takes on foot."),
-    ("Every veteran tree", "Thousands of the forest's ancient and veteran trees, each one findable by its tag number."),
-    ("See where the cattle are", "The forest's grazing cattle wear tracking collars, and the map shows roughly where the herd is right now."),
-]
+def render_brand_header():
+    return '''<a class="skip-link" href="#main">Skip to content</a>
+<nav class="site-head" aria-label="Main navigation">
+  <a class="brand" href="/"><img src="/assets/home/map-icons/oak.png" alt="" width="44" height="44"><span>Epping Forest Finds</span></a>
+  <a href="/reports/">All editions</a>
+</nav>'''
+
+
+def render_hero_photo():
+    return '''<figure class="hero-photo"><img src="/assets/home/epping-longhorns.jpg" width="1600" height="1200" alt="English Longhorn cattle grazing in Epping Forest.">
+    <figcaption>Out among the trees. Epping Forest’s grazing longhorns.</figcaption></figure>'''
+
+
+def render_newsletter_signup():
+    return f'''<section id="newsletter" class="newsletter">
+    <img src="/assets/home/ledger.png" alt="" width="80" height="80" loading="lazy">
+    <div><h2 class="section-title">A little closer to the forest</h2>
+    <p>Local discoveries, things to do and updates for your next visit. You do not need the app to enjoy the Ledger.</p>
+    <p>Join the mailing list for weekly Ledger updates once the site launches, plus news of early app access.</p>
+    <a class="app-link" href="{SITE_BASE}/#signup">Keep me in the loop →</a></div>
+  </section>'''
 
 
 def render_app_promo(app_link, inventory):
-    """The advert for the app itself. Deliberately near the end: someone who
-    has just read the week's news is far likelier to want the map than
-    someone who has only read the headline."""
-    total = (inventory or {}).get("total")
-    total_line = (
-        f"There are {total:,} things on it to find, and it costs nothing to use."
-        if total else "Everything in this report is on it, and it costs nothing to use."
-    )
-    points = "".join(
-        f'<li><strong>{escape(head)}</strong><span>{escape(body)}</span></li>'
-        for head, body in APP_SELLING_POINTS
-    )
     return f'''<section id="app" class="app-promo">
-    <h2 class="section-title">Take Epping Forest with you</h2>
-    <p class="section-sub">Epping Forest Finds is a free map of the forest that works on your phone
-      even when your signal does not. {escape(total_line)}</p>
-    <ul class="promo-points">{points}</ul>
-    <p class="promo-cta"><a class="app-link" href="{escape(app_link)}">Open the map →</a></p>
-    <p class="promo-foot">No app store, no account, nothing to install — it opens in your browser,
-      and your phone will offer to add it to your home screen if you want it there.</p>
+    <h2 class="section-title">Take the forest with you</h2>
+    <p>Epping Forest Finds is a free map for your next walk: find nearby cafés,
+    ancient trees, paths and places to pause.</p>
+    <p><strong>Works with no signal.</strong> Load the map before you leave.
+    Cattle positions update when you are online; offline you see the last saved locations.</p>
+    <p class="promo-cta"><a class="app-link" href="{SITE_BASE}/#signup">Get early access updates →</a></p>
+    <p class="promo-foot">The app is in early testing. Already have access?
+    <a href="{escape(app_link)}">Open the map</a> and add it to your phone’s home screen.</p>
   </section>'''
 
 
@@ -516,8 +516,7 @@ def render_ai_note(app_link, date_display):
         '<h4>Written by AI — please tell us if it is wrong</h4>'
         f'<p>{escape(AI_DISCLAIMER)}</p>'
         f'<p>If you spot a mistake, <a href="{escape(deep_link)}">report it here</a> — '
-        'the link opens the map with a short form already filled in with which report '
-        'you are talking about. Every one gets read, and corrections go into the next week\'s report.</p>'
+        'this opens a short form in the app. You will need early access.</p>'
         '</aside>'
     )
 
@@ -536,7 +535,7 @@ def meta_description(report_data, findings, coverage_area, date_display):
         counts[f.get("category")] = counts.get(f.get("category"), 0) + 1
     parts = []
     for category, singular, plural in (
-        ("opening", "opening", "openings"),
+        ("opening", "local find", "local finds"),
         ("closing", "closure", "closures"),
         ("road", "road or access change", "road and access changes"),
         ("event", "event", "events"),
@@ -633,10 +632,6 @@ def render_sources_footer(findings, grazing):
 def render_report(report_data, repo_root):
     repo_root = Path(repo_root)
     forest_geojson = load_json(repo_root / "data" / "epping-forest-land.geojson")
-    food_geojson = load_json(repo_root / "data" / "local-landmarks-food.geojson")
-    food_stats = compute_food_stats(food_geojson)
-
-    inventory = load_map_inventory(repo_root)
     cow_icon = cow_icon_uri(repo_root)
 
     findings, grazing_pin = normalize_findings(report_data)
@@ -647,18 +642,15 @@ def render_report(report_data, repo_root):
     intro = report_data.get("intro", "")
     app_link = report_data.get("app_link") or DEFAULT_APP_LINK
 
-    stat_strip = render_stat_strip(findings, food_stats["total"], grazing)
-    inventory_section = render_inventory_section(inventory, repo_root)
     map_section = render_map_section(forest_geojson, findings, cow_icon)
     business_section = render_business_section(findings)
     road_section = render_category_section("road", "road", findings)
     event_section = render_category_section("event", "event", findings)
     grazing_section = render_grazing_section(grazing)
-    app_promo = render_app_promo(app_link, inventory)
+    app_promo = render_app_promo(app_link, None)
     about_note = render_about_note(report_data)
     ai_note = render_ai_note(app_link, date_display)
     sources_footer = render_sources_footer(findings, grazing)
-    food_sentence = food_stats_sentence(food_stats)
 
     title = f"Epping Forest Ledger — {date_display}" if date_display else "Epping Forest Ledger"
     description = meta_description(report_data, findings, coverage_area, date_display)
@@ -686,10 +678,10 @@ def render_report(report_data, repo_root):
 </style>
 </head>
 <body>
-
+{render_brand_header()}
 <header class="masthead">
   <div class="inner">
-    <p class="eyebrow">Weekly Epping Forest report</p>
+    <p class="eyebrow">Field notes · Epping Forest &amp; its neighbours</p>
     <h1 class="title">Epping Forest Ledger</h1>
     <div class="meta-row">
       <span>{escape(date_display)}</span>
@@ -697,16 +689,10 @@ def render_report(report_data, repo_root):
     </div>
     {banner_html}
   </div>
+  {render_hero_photo()}
 </header>
 
-<div class="wrap">
-
-  {stat_strip}
-  <p class="section-sub" style="margin-top:-8px;">{escape(food_sentence)}</p>
-
-  {map_section}
-
-  {inventory_section}
+<main class="wrap" id="main">
 
   {business_section}
 
@@ -716,6 +702,10 @@ def render_report(report_data, repo_root):
 
   {grazing_section}
 
+  {map_section}
+
+  {render_newsletter_signup()}
+
   {app_promo}
 
   {about_note}
@@ -724,7 +714,7 @@ def render_report(report_data, repo_root):
 
   {ai_note}
 
-</div>
+</main>
 </body>
 </html>
 '''

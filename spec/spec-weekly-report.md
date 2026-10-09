@@ -2,7 +2,7 @@
 
 The weekly report is a standalone HTML page published under `reports/`, built by
 `scripts/report/render_report.py` from a small structured `report-data.json`. The
-generator owns the design, layout, SVG map and every number on the page; the
+generator owns the design, layout and SVG map; the
 research and the written findings come from the weekly workflow
 (`.github/workflows/weekly-ledger.yml`).
 
@@ -262,8 +262,23 @@ Handy while working: `npm run audit:quality` and `npm run audit:duplicates`.
 
 ## Who the report is for
 
-A reader who has never heard of this project and never will. They want to know
-what is going on in Epping Forest, and nothing else.
+A reader interested in Epping Forest, whether or not they use the app. Each
+edition leads with useful local news: what happened, where, and why it matters
+for a visit. Intros are one or two short sentences; stories keep dates, source
+links and genuine uncertainty, without research diaries or maintenance lists.
+
+Write for publication after the accompanying PR merges. Review status stays in
+the PR body, never the published page; the jargon guard rejects pending-review
+and map-edit proposal wording. A newly discovered established business is a
+local find, not evidence of a new opening. The map legend and search description
+use “local find” for the historical `opening` category.
+
+The report uses a light cream masthead, Fraunces headings and Public Sans body
+text, with the homepage oak brand mark, longhorn photograph and Ledger image
+from `assets/home/`. A split text/photo header stacks on phones. No app CSS or
+JavaScript is loaded. Published editions share this design. Stories precede
+the location map; the dashboard stat strip, food breakdown and full app
+inventory are omitted so the newsletter stays focused on forest news.
 
 Nothing about how the report is produced goes on the page: not which sources
 the tooling reached, not what it checked or what failed, not how the page is
@@ -288,8 +303,8 @@ remain under their public report URLs. These addresses are built from
 Openings/closures, road & access, and events each render whether or not the
 week turned anything up; an empty one says so in plain English
 (`EMPTY_SECTION_NOTES`). A missing "Events" heading reads as "nobody looked";
-an explicit "No events listed this week" reads as "we looked, and there were
-none".
+an explicit empty note says no updates are included in this edition, without
+claiming there are no events or disruptions.
 
 ## Cattle on the map
 
@@ -315,7 +330,12 @@ Both are added by the generator; neither is ever written by hand into
 - **The advert** (`render_app_promo`) sits after the week's news, not in the
   masthead — a reader who has just read what is going on in the forest has a
   reason to want the map; someone who has only read the headline does not. It
-  explains what the app is and what it does, and links to `app_link`.
+  explains what the app is and what it does. Its primary link invites early
+  access updates through the homepage signup; existing testers can use
+  `app_link`. It describes saved cattle locations honestly when offline.
+- **The mailing-list invitation** comes after the news and map, before the app
+  advert. It offers standalone forest updates and uses the existing homepage
+  signup, explicitly saying weekly email updates start once the site launches.
 - **The AI note** (`render_ai_note`) is the last thing on the page: the report
   is researched and written by AI, it can be wrong, and here is how to say so.
   Its link is a deep link into the app's own report-a-problem screen
@@ -337,7 +357,7 @@ is indexable. Both generators run from `npm run build`.
 The listing wears the homepage's look (palette, Fraunces and Public Sans, cards)
 with its styles inlined, loading only the oak leaf and Ledger icon from
 `assets/home/` (including the shaded `ledger.png`) and nothing from the app. It has the homepage's brand header
-(linking to `/`, with a "Get updates" link to `/#signup`), a dark-green hero
+(linking to `/`, with a "Get updates" link to `/#signup`), a cream text-and-photo hero using the homepage longhorn image
 with the "Field notes · Published weekly" eyebrow, then **Every edition**: one
 white card of rows, each reading "Epping Forest Ledger" over the week's date,
 newest first with a **Latest** badge on the top row. Editions are ordered by
@@ -348,51 +368,9 @@ beside an "Open the Epping Forest map →" button, then the homepage footer. It
 is light only, like the homepage, and fits a 390px phone without sideways
 scrolling.
 
-## Stat strip
+## Inventory utilities
 
-One cell per thing that changed this week (openings, closures, road/access, events,
-and the cattle-grazing update when present), plus a count of the food/drink/shop
-dataset labelled **"Places to eat, drink & shop"**. That label is deliberately
-specific: it counts `data/local-landmarks-food.geojson` only. It must never be
-labelled as a total for the map — the whole-map total belongs to the inventory
-section below.
-
-## "What's on the map" section
-
-A running inventory of everything the app can draw: a headline total, then a
-breakdown by the app's own high-level filter groups (Nature, Food, Transport,
-History, Locations, Stories) with each group's subfilter counts underneath, and a
-final full-width row for features that are always shown and have no filter of their
-own (gates, benches, toilets and similar). Each group heading and subcategory
-carries the same icon used by the app; group icons are larger to make the
-hierarchy clear. Those icons are resized and embedded in the report HTML so the
-inventory keeps its meaning when the report is saved or forwarded. When app
-icon artwork changes, regenerate or update the published report embeds in the
-same release so the homepage, ledger and map share the same transparent,
-shaded icon style.
-The public homepage uses this same card format and grouping.
-
-Rules:
-
-- The breakdown must add up to the headline total. A place matching more than one
-  subfilter is counted once, under the filter chip the app lists it under
-  (`placeLabelFilterKey`): the specific filters, then the `monuments`/`historic`
-  fallback tier, with `blue_plaques` counted as Plaques.
-- Counts come from `scripts/report/map-inventory.js`, which loads
-  `js/categories.js` and `js/normalize.js` and classifies places with the app's own
-  `placeLabelFilterKey`. The report must never re-implement classification in
-  Python: the numbers would drift from what the app actually shows, which is the
-  problem this section exists to solve.
-- Trees are counted from `data/trees/index.json`'s `recordCount`; ponds and streams
-  from `extractWaterFeatures` over `data/local-environment.geojson`.
-- Cattle are excluded — they are tracked live from the grazing collars, not stored
-  with the map data — and so are the roads, paths and water drawn as base layers.
-  The section says both in plain English.
-- The inventory is read at render time, after the week's data changes have been
-  applied, so the report always describes the map as it will be once the week's
-  changes are live.
-
-`map-inventory.js` takes an optional `--root <dir>` to read data from a different
-directory (the report's own tests render against a stand-in). The classification
-rules always come from this checkout's `js/`. When the data files are absent the
-inventory is empty and the section is omitted entirely.
+The newsletter no longer displays inventory totals or a stat strip.
+`scripts/report/map-inventory.js` remains available for the homepage and other
+count consumers. It classifies places using the app’s own filter rules; the
+newsletter renderer does not need to load it or food data to publish a report.
