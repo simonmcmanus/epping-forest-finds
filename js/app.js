@@ -1433,8 +1433,14 @@ function applyBoundsToViewport(bounds, options = {}) {
     state.fitScale = Math.max(state.fitScale, options.minScale);
   }
   // Same ceiling the manual pinch-to-zoom gesture already enforces (state.fitScale * 220 there),
-  // so a fit never asks for more zoom than a user could reach by hand.
-  if (baseFitScaleForCap > 0) {
+  // so a fit never asks for more zoom than a user could reach by hand -- unless the caller
+  // passes its own `maxScale` (see MIN_SELECTION_VIEW_METRES), which says explicitly what the
+  // tightest reasonable view for *this* fit is, rather than inheriting a ceiling calibrated
+  // for how far a pinch gesture or a degenerate near-coincident cluster should be allowed to
+  // reach.
+  if (options.maxScale > 0) {
+    state.fitScale = Math.min(state.fitScale, options.maxScale);
+  } else if (baseFitScaleForCap > 0) {
     state.fitScale = Math.min(state.fitScale, baseFitScaleForCap * 220);
   }
 
@@ -4914,15 +4920,11 @@ function headingUpFitTiltCamera() {
 }
 
 // The ceiling maxHeadingUpNavigationScale clamps its own result to -- the selected-navigation
-// half of the "no ceiling of its own" split described below. Same ratio as the flat fit's own
-// cap (applyBoundsToViewport's `baseFitScaleForCap * 220`), so heading-up and flat selections
-// agree on the tightest zoom either will ever ask for. Deliberately NOT applied to the nearby
-// ring fit (maxNearbyHeadingUpScale): the walking-radius floor's own "zoom in past the one-
-// minute limit for a find that close" behaviour legitimately asks for more than this, and
-// capping it here pinned the ring at the ceiling instead (see WALKING_RADIUS_TIGHT_MIN_MINUTES).
-function headingUpZoomCeiling() {
-  return state.baseFitScale > 0 ? state.baseFitScale * 220 : Infinity;
-}
+// half of the "no ceiling of its own" split described below. See minSelectionFitScale
+// (js/app.js) for what it is and why. Deliberately NOT applied to the nearby ring fit
+// (maxNearbyHeadingUpScale): the walking-radius floor's own "zoom in past the one-minute
+// limit for a find that close" behaviour legitimately asks for more than this, and capping it
+// there pinned the ring at the ceiling instead (see WALKING_RADIUS_TIGHT_MIN_MINUTES).
 
 // Shared bounding-box scale-fit math for both heading-up modes (selected navigation
 // and nearby survey): the maximum scale at which every point in `points` stays inside
@@ -5072,14 +5074,15 @@ function maxHeadingUpNavigationScale(focus, focusRect) {
     projectTilt: true,
   });
   if (maxScale == null) return state.viewport.scale;
-  // Same ceiling the flat fit enforces (applyBoundsToViewport's `baseFitScaleForCap * 220`):
-  // a fit should never ask for more zoom than a user could reach by hand. Without this,
-  // a target close to the user -- or a routed-path point set that, once rotated into
-  // heading-up space, happens to sit tightly around the focus -- had no ceiling at all and
-  // could demand an arbitrarily large scale. Measured in the field as the camera suddenly
-  // zooming in far past anything sensible once the routing graph replaced the straight-line
-  // fallback, and again on the next selection, each one further than the last.
-  return Math.min(maxScale, headingUpZoomCeiling());
+  // See minSelectionFitScale: without a ceiling here, a target close to the user -- or a
+  // routed-path point set that, once rotated into heading-up space, happens to sit tightly
+  // around the focus -- had no ceiling at all and could demand an arbitrarily large scale.
+  // Measured in the field as the camera suddenly zooming in far past anything sensible once
+  // the routing graph replaced the straight-line fallback, and again on the next selection,
+  // each one further than the last. Same MIN_SELECTION_VIEW_METRES floor the flat fit uses
+  // (ensureUserAndSelectionVisible), so heading-up and flat selections agree on how tight a
+  // view either will ever settle on.
+  return Math.min(maxScale, minSelectionFitScale(focusRect, state.userLocation.latitude));
 }
 
 // The nearest single match for each filter the user has currently selected, ignoring the
@@ -5697,10 +5700,10 @@ function ensureUserAndSelectionVisible(options = {}) {
   // invisible viewport jumps when points are already comfortably visible.
   // Uses the ACTUAL inspector state (not assumeInspectorOpen) so mobile
   // navigation — where the inspector is collapsed — fills the larger available area.
+  const focusRect = bestVisibleCanvasRect({
+    assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
+  });
   if (!options.force && shouldAnimate) {
-    const focusRect = bestVisibleCanvasRect({
-      assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
-    });
     const edgeMargin = Math.min(focusRect.width, focusRect.height) * 0.14;
 
     // Check if ANY point is near the edge (needs animation) vs ALL points are safe
@@ -5716,11 +5719,16 @@ function ensureUserAndSelectionVisible(options = {}) {
     if (!anyNearEdge) return;  // All points safely visible, no animation needed
   }
 
+  // See minSelectionFitScale: the scale at which MIN_SELECTION_VIEW_METRES fills the shorter
+  // side of the focus rect, overriding fitToPoints' own 220x-of-base ceiling for this fit alone.
+  const maxScale = minSelectionFitScale(focusRect, state.userLocation.latitude, DEFAULT_FIT_PADDING_PX * pixelRatio());
+
   fitToPoints(pointsToFit, false, {
     focusVisibleArea: true,
     animate: shouldAnimate,
     durationMs: options.durationMs || 800,
     minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
+    maxScale: maxScale > 0 ? maxScale : undefined,
     boundsSlack: routeIsFallback ? ROUTE_UNKNOWN_FIT_SLACK : 1,
     // Callers that have just expanded the inspector must opt in: its max-height transition
     // (180ms, css/inspector.css) has not run yet, so measuring now reports the minimized
@@ -5796,6 +5804,32 @@ function metresPerWorldUnit(latitudeDegrees) {
 
 function metresToWorldUnits(metres, latitudeDegrees) {
   return metres / metresPerWorldUnit(latitudeDegrees);
+}
+
+// The tightest view a selected-destination fit (ensureUserAndSelectionVisible, flat; and
+// maxHeadingUpNavigationScale, heading-up) will ever ask for: the scale at which this many
+// real-world metres fill the shorter side of the focus rect. A destination a few metres from
+// the user (reported from the field: "0 m" and "19 m" entries at the top of the Nearby list)
+// has a bounding box small enough that fitToPoints' shared 220x-of-base ceiling
+// (applyBoundsToViewport's baseFitScaleForCap, also the one maxScaleForHeadingUpPoints leaves
+// to its own callers) is the only thing stopping the fit asking for an absurd scale -- but
+// landing on that shared ceiling is itself the bug here: on this dataset it only zooms in
+// enough to show a bit over a kilometre across the screen (baseFitScale is forest-wide), so a
+// 19 m gap rendered as two pins a dozen screen pixels apart in the middle of an otherwise
+// empty, still forest-wide-looking view -- reading as "very zoomed out" despite being at the
+// camera's hardest possible zoom-in, on both the flat and heading-up fits alike. That shared
+// ceiling exists for a different reason (matching what a manual pinch-zoom can reach, and
+// stopping a near-coincident cluster's fit asking for literally infinite scale) and is
+// deliberately left alone for every other caller of fitToPoints/maxScaleForHeadingUpPoints;
+// this override says instead what a selected-destination view should show at minimum,
+// regardless of how close the destination is.
+const MIN_SELECTION_VIEW_METRES = 120;
+
+function minSelectionFitScale(focusRect, latitudeDegrees, paddingPx = 0) {
+  const minViewWorldUnits = metresToWorldUnits(MIN_SELECTION_VIEW_METRES, latitudeDegrees);
+  if (!(minViewWorldUnits > 0)) return Infinity;
+  const availablePx = Math.min(focusRect.width, focusRect.height) - paddingPx * 2;
+  return availablePx > 0 ? availablePx / minViewWorldUnits : Infinity;
 }
 
 // The centred, north-up counterpart to maxNearbyHeadingUpScale: the largest scale that

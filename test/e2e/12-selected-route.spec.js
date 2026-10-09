@@ -466,12 +466,16 @@ test.describe("Selected route line follows the road/path network", () => {
     expect(ratio, "movement should be spread across frames, not concentrated on fix frames").toBeLessThan(5);
   });
 
-  test("heading-up selection zoom is capped the same as the flat fit, even for a destination right next to the user", async ({ page }) => {
+  test("heading-up selection zoom is capped at the same minimum view as the flat fit, even for a destination right next to the user", async ({ page }) => {
     // Field report ("zoom all over the place"): maxHeadingUpNavigationScale had no ceiling of
     // its own (by design -- see spec-data-rendering.md), unlike the flat fit's own `220x of
     // base` cap (applyBoundsToViewport). A destination close enough to the user asked for an
     // arbitrarily large scale, worsening on every subsequent selection, and made the walk back
-    // to the nearby overview look like it zoomed out far more than it needed to.
+    // to the nearby overview look like it zoomed out far more than it needed to. Both fits now
+    // share minSelectionFitScale instead of that flat-only ceiling -- see the second field
+    // report ("very zoomed out ... better slightly zoomed out but its too much") that the flat
+    // 220x cap itself produced for a close selection, fixed by replacing it with a scale tied
+    // to MIN_SELECTION_VIEW_METRES rather than to the whole-forest baseFitScale.
     await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
 
@@ -486,7 +490,7 @@ test.describe("Selected route line follows the road/path network", () => {
       const oEast = unprojectPoint({ x: userPoint.x + 1, y: userPoint.y });
       const metresPerUnit = distanceMetres(o.latitude, o.longitude, oEast.latitude, oEast.longitude);
       // A destination 2 metres away: close enough that an uncapped fit demands a scale many
-      // times the flat fit's own ceiling.
+      // times the ceiling.
       const nearPoint = { x: userPoint.x + 2 / metresPerUnit, y: userPoint.y };
 
       // routingGraphReady: false keeps selectedRoutePoints() on the straight-line fallback, so
@@ -499,10 +503,50 @@ test.describe("Selected route line follows the road/path network", () => {
       const focus = navigationFocusPoint(rect);
       return {
         scale: maxHeadingUpNavigationScale(focus, rect),
-        ceiling: state.baseFitScale * 220,
+        ceiling: minSelectionFitScale(rect, state.userLocation.latitude),
       };
     });
 
     expect(result.scale).toBeLessThanOrEqual(result.ceiling);
+  });
+
+  test("flat selection zoom reaches a usefully close view instead of stalling at the whole-forest-scaled ceiling", async ({ page }) => {
+    // Field report (desktop, no compass): "navigating to a location seems to be very zoomed
+    // out". ensureUserAndSelectionVisible's fit used to be clamped only by fitToPoints' shared
+    // `baseFitScale * 220` ceiling (applyBoundsToViewport) -- on this dataset that only zooms
+    // in enough to show a bit over a kilometre across the screen, so a destination a few
+    // metres from the user rendered as two pins a dozen screen pixels apart in the middle of
+    // an otherwise empty, still forest-wide-looking view: at the camera's hardest possible
+    // zoom-in, yet reading as "very zoomed out". minSelectionFitScale (js/app.js) now gives
+    // this fit its own, much closer ceiling instead.
+    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+
+    const result = await page.evaluate(() => {
+      const userPoint = state.userLocation.point;
+      const o = unprojectPoint(userPoint);
+      const oEast = unprojectPoint({ x: userPoint.x + 1, y: userPoint.y });
+      const metresPerUnit = distanceMetres(o.latitude, o.longitude, oEast.latitude, oEast.longitude);
+      // A destination 19 metres away -- the exact distance reported in the field.
+      const nearPoint = { x: userPoint.x + 19 / metresPerUnit, y: userPoint.y };
+
+      state.routingGraphReady = false;
+      state.selected = { type: "tree", item: { point: nearPoint } };
+      ensureUserAndSelectionVisible({ animate: false, force: true });
+
+      const userScreen = worldToScreen(userPoint);
+      const targetScreen = worldToScreen(nearPoint);
+      return {
+        scale: state.viewport.scale,
+        oldCeiling: state.baseFitScale * 220,
+        spanPx: Math.hypot(targetScreen.x - userScreen.x, targetScreen.y - userScreen.y),
+      };
+    });
+
+    // The old whole-forest-scaled ceiling pinned every close selection to this value
+    // regardless of how close the destination was -- the fit must now ask for more.
+    expect(result.scale).toBeGreaterThan(result.oldCeiling);
+    // And the two pins must land comfortably apart on screen, not compressed into a corner.
+    expect(result.spanPx).toBeGreaterThan(60);
   });
 });
