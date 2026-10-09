@@ -295,6 +295,39 @@
   flex: 1 1 auto;
 }
 
+/* The filter drawer (app.html, toggled by updateFilterUi() in js/app.js). A capped push-down
+   reveal, not a full-screen slide: expanding it visibly shoves #inspectorBody -- the real
+   Nearby list, right below it in markup -- further down the sheet, rather than covering or
+   replacing it. The cap keeps that list from being pushed entirely out of view on a short phone
+   when all six groups are open; the drawer scrolls internally past that point instead. */
+.nearby-filter-panel {
+  margin: 0 16px;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease;
+}
+
+.nearby-filter-panel.open {
+  max-height: min(54vh, 480px);
+  opacity: 1;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(20, 36, 28, 0.12);
+}
+
+.nearby-filter-panel[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nearby-filter-panel {
+    transition: none;
+  }
+}
+
 .title-compass-arrow {
   position: absolute;
   top: 16px;

@@ -374,6 +374,7 @@ const els = {
   compassCalibrationBannerDismiss: document.getElementById("compassCalibrationBannerDismiss"),
   filterToggle: document.getElementById("filterToggle"),
   filterCount: document.getElementById("filterCount"),
+  nearbyFilterPanel: document.getElementById("nearbyFilterPanel"),
   nearbyToggle: document.getElementById("nearbyToggle"),
   locateButton: document.getElementById("locateButton"),
   installButton: document.getElementById("installButton"),
@@ -1153,7 +1154,7 @@ function locateUser({ initial }) {
 
       checkDistanceToForest(latitude, longitude);
 
-      if (isOverviewScreenActive()) selectOverview();
+      if (isNearbyListShowing()) selectOverview();
       if (!previousPoint) {
         setInspectorMinimized(false);
         ensureOverviewTargetsVisible({ animate: true, durationMs: 1000 });
@@ -1711,27 +1712,60 @@ function renderFilterBodyHtml() {
         </section>
       `).join("")}
     </div>
+    <button class="filter-panel-collapse" type="button" data-action="collapse-filters" aria-label="Hide filters, back to Nearby">
+      <span class="filter-panel-collapse-grip" aria-hidden="true"></span>
+      <span class="filter-panel-collapse-label">
+        <svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
+        Hide filters
+      </span>
+    </button>
   </div>`;
 }
 
-// The Filter screen's own body: the chip groups above, exactly as renderFilterBodyHtml() has
-// always built them, plus the same nearest-list markup the plain Nearby screen shows -- so
-// toggling a chip has a visible effect right there instead of only being provable by backing
-// out to Nearby again. refreshFilterScreenList() re-renders just the list half on every filter
-// change; the chip half is only ever patched in place by updateFilterUi(), never rebuilt, so a
-// keyboard user's focus stays on the chip they just pressed.
-function filterScreenBodyHtml() {
-  return `${renderFilterBodyHtml()}<div id="filterNearestListSection" class="filter-nearest-list-section">${overviewNearestHtml()}</div>`;
+// Builds #nearbyFilterPanel's chip markup exactly once (app.html gives it an empty shell) and
+// never again -- chip buttons keep a stable identity for the lifetime of the page, so toggling
+// one never loses keyboard focus the way a full re-render would. updateFilterUi() patches
+// .active classes/counts/the live count in place instead.
+function ensureNearbyFilterPanelMounted() {
+  if (!els.nearbyFilterPanel || els.nearbyFilterPanel.dataset.mounted === "true") return;
+  els.nearbyFilterPanel.innerHTML = renderFilterBodyHtml();
+  els.nearbyFilterPanel.dataset.mounted = "true";
 }
 
-function refreshFilterScreenList() {
-  const section = document.getElementById("filterNearestListSection");
-  if (!section) return;
-  const previousNearestPositions = captureNearestItemPositions();
-  section.innerHTML = overviewNearestHtml();
-  updateOverviewDirectionArrows();
-  hydrateOverviewBusStopDirections();
-  animateNearestItemReorder(previousNearestPositions);
+// The drawer's open/closed animation -- a capped max-height/opacity transition, not the
+// measured-scrollHeight dance setSubfilterPanelExpanded() uses elsewhere, because the cap here
+// is deliberate: it keeps the real nearest list (immediately below #nearbyFilterPanel in
+// app.html) visibly pushed into view rather than buried off-screen behind six chip groups on a
+// short phone -- see spec-data-rendering.md, "Filter Panel".
+function setNearbyFilterPanelOpen(open) {
+  const panel = els.nearbyFilterPanel;
+  if (!panel) return;
+  const wasOpen = panel.classList.contains("open");
+  panel.inert = !open;
+  panel.setAttribute("aria-hidden", open ? "false" : "true");
+
+  if (prefersReducedMotion()) {
+    panel.hidden = !open;
+    panel.classList.toggle("open", open);
+    return;
+  }
+
+  if (open) {
+    panel.hidden = false;
+    requestAnimationFrame(() => panel.classList.add("open"));
+    return;
+  }
+
+  if (!wasOpen) {
+    panel.hidden = true;
+    return;
+  }
+  panel.classList.remove("open");
+  panel.addEventListener("transitionend", function onCollapseDone(event) {
+    if (event.target !== panel || event.propertyName !== "max-height") return;
+    panel.removeEventListener("transitionend", onCollapseDone);
+    panel.hidden = true;
+  });
 }
 
 function attachFilterScrollHints() {
@@ -1916,15 +1950,12 @@ function setOverviewFilters(nextFilters) {
   refreshOutOfRadiusReveal(previousFilters);
   saveFilterState();
   updateFilterUi();
-  if (isOverviewScreenActive() && !state.filterScreenOpen) {
+  // The list under the drawer is the real Nearby list either way now (see selectOverview()), so
+  // a chip tap always refreshes it live, whether the drawer happens to be open or not -- force
+  // the refit while it's open, since that's the moment the user is actively watching for it.
+  if (isNearbyListShowing()) {
     selectOverview();
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
-  } else if (state.filterScreenOpen) {
-    // The whole point of the Filter screen showing the nearest list is that a chip tap proves
-    // its own effect right there (see filterScreenBodyHtml()) -- refresh just that list, never
-    // the chip panel above it, which updateFilterUi() patches in place a few lines up.
-    refreshFilterScreenList();
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
+    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: state.filterScreenOpen });
   }
   requestDraw();
 }
@@ -1963,6 +1994,8 @@ function toggleOverviewSubfilter(filterKey) {
 }
 
 function updateFilterUi() {
+  ensureNearbyFilterPanelMounted();
+  const panel = els.nearbyFilterPanel;
   const currentSet = activeOverviewFilterSet();
 
   // Update group cards - show active state and counts
@@ -1971,18 +2004,18 @@ function updateFilterUi() {
     const activeSubfilters = getActiveSubfiltersForGroup(groupKey, currentSet);
     const groupActive = activeSubfilters.length > 0;
 
-    const groupCard = els.inspectorBody.querySelector(`[data-filter-group-section="${groupKey}"]`);
+    const groupCard = panel.querySelector(`[data-filter-group-section="${groupKey}"]`);
     if (groupCard) {
       groupCard.classList.toggle("active", groupActive);
     }
 
-    const countEl = els.inspectorBody.querySelector(`[data-group-count="${groupKey}"]`);
+    const countEl = panel.querySelector(`[data-group-count="${groupKey}"]`);
     if (countEl) {
       countEl.textContent = `${activeSubfilters.length} of ${group.subfilters.length}`;
       countEl.classList.toggle("has-active", activeSubfilters.length > 0);
     }
 
-    const outsideEl = els.inspectorBody.querySelector(`[data-filter-group-outside="${groupKey}"]`);
+    const outsideEl = panel.querySelector(`[data-filter-group-outside="${groupKey}"]`);
     const outsideRadiusCount = outOfRadiusCountForGroup(groupKey);
     if (outsideEl) {
       outsideEl.hidden = outsideRadiusCount === 0;
@@ -1993,49 +2026,51 @@ function updateFilterUi() {
   }
 
   // Update subfilter chips
-  const subfilterButtons = els.inspectorBody.querySelectorAll("[data-filter-subfilter]");
+  const subfilterButtons = panel.querySelectorAll("[data-filter-subfilter]");
   for (const button of subfilterButtons) {
     const filterKey = button.dataset.filterSubfilter;
     button.classList.toggle("active", currentSet.has(filterKey));
   }
 
   // Update "Clear all" button visibility
-  const clearAllBtn = els.inspectorBody.querySelector("[data-filter-clear-all]");
+  const clearAllBtn = panel.querySelector("[data-filter-clear-all]");
   if (clearAllBtn) {
     clearAllBtn.hidden = currentSet.size === 0;
   }
 
-  // Live "Showing N nearby" line next to Clear all -- only present while the Filter screen's
-  // own body is on screen (filterScreenBodyHtml()), a no-op everywhere else since the lookup
-  // simply finds nothing.
-  const resultsCountEl = els.inspectorBody.querySelector("#filterResultsCount");
+  // Live "Showing N nearby" line next to Clear all -- the real list sits just below the drawer
+  // (see app.html) and updates itself via the ordinary selectOverview()/setOverviewFilters()
+  // path, but this line stays readable even while the drawer covers it on a short phone.
+  const resultsCountEl = panel.querySelector("#filterResultsCount");
   if (resultsCountEl) {
     resultsCountEl.textContent = state.userLocation
       ? `Showing ${overviewItemsForActiveFilter().length} nearby`
       : "";
   }
 
-  // Update filter toggle button
+  // Update filter toggle button -- a disclosure control for the drawer, not a screen-nav
+  // button, so it stays visible and simply flips to its active look while open instead of
+  // hiding in favour of the back arrow: a second, always-visible way to collapse it.
   if (els.filterToggle) {
     const activeGroupCount = getActiveGroupKeys(currentSet).length;
     const hasActiveFilter = activeGroupCount > 0;
     const locationSelected = Boolean(state.selected);
-    // Filters only ever changes what Nearby shows, so its inline toggle (next to the Nearby
-    // heading -- see app.html) is the way *in* from Nearby, and only shows there. On the Filter
-    // screen itself it would just sit in its active state doing nothing when tapped, so it hides
-    // in favour of the ordinary #inspectorBack arrow -- the way out, same as any other screen.
-    els.filterToggle.hidden = locationSelected || state.searchScreenOpen || state.filterScreenOpen;
+    els.filterToggle.hidden = locationSelected || state.searchScreenOpen;
     els.filterToggle.classList.toggle("active", hasActiveFilter);
     els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
-    els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
-    els.filterToggle.setAttribute("aria-label", hasActiveFilter
-      ? `Filters: ${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
-      : "Filters");
+    els.filterToggle.setAttribute("aria-expanded", state.filterScreenOpen ? "true" : "false");
+    els.filterToggle.setAttribute("aria-label", state.filterScreenOpen
+      ? "Hide filters"
+      : hasActiveFilter
+        ? `Filters: ${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
+        : "Filters");
     if (els.filterCount) {
       els.filterCount.hidden = !hasActiveFilter;
       els.filterCount.textContent = String(activeGroupCount);
     }
   }
+
+  setNearbyFilterPanelOpen(isNearbyListShowing() && state.filterScreenOpen);
 }
 
 function filterMeta(filterKey) {
@@ -2043,7 +2078,9 @@ function filterMeta(filterKey) {
 }
 
 function setNavScreenActive(current = null) {
-  [els.nearbyToggle, els.searchToggle, els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
+  // filterToggle is a disclosure control for the drawer, not a nav-bar screen target -- its own
+  // "screen-active"/aria-expanded state is owned entirely by updateFilterUi() now.
+  [els.nearbyToggle, els.searchToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
     if (!el) return;
     el.classList.toggle("screen-active", el === current);
     el.classList.remove("active");
@@ -2052,25 +2089,17 @@ function setNavScreenActive(current = null) {
   });
 }
 
+// Filters is a drawer on the Nearby screen, not a screen of its own: opening it means standing
+// on Nearby with state.filterScreenOpen true, so selectOverview() renders exactly the Nearby
+// body it always does (same title, same list) and updateFilterUi() animates the drawer open on
+// top of it, pushing that list down -- see spec-data-rendering.md, "Filter Panel". The #filters
+// URL, the back arrow and the history trail are untouched; only what's on screen changed.
 function openFiltersScreen() {
   state.selected = null;
-  // showBack:true clears state.filterScreenOpen inside setInspectorSelectionChrome (the shared
-  // chokepoint every other showBack:true screen relies on to stand Filters down) -- set it again
-  // immediately after, now that Filters is the screen being entered rather than left.
-  setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: true });
   state.filterScreenOpen = true;
-  if (els.nearbyToggle) els.nearbyToggle.hidden = false;
-  setNavScreenActive(els.filterToggle);
-  els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = "Filters";
-  els.inspectorType.textContent = "Choose what appears on the map";
-  transitionInspectorBody(filterScreenBodyHtml(), "forward", () => {
-    updateOverviewDirectionArrows();
-    hydrateOverviewBusStopDirections();
-  });
+  selectOverview(true);
   updateFilterUi();
   setInspectorMinimized(false);
-  syncHashFromSelection();
   requestDraw();
   if (state.userLocation) {
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
@@ -3920,7 +3949,7 @@ function ensureLocationWatch() {
       // Walked out of a radius that was framing one nearby find? Grow it back to whatever is
       // still in reach before the list and camera are re-derived below (js/nav.js).
       ensureWalkingRadiusCoversNearest();
-      if (isOverviewScreenActive()) {
+      if (isNearbyListShowing()) {
         selectOverview();
       }
       updateOverviewDirectionArrows();
@@ -6159,7 +6188,7 @@ function updateOverviewDirectionArrows() {
 // re-render when the new heading happens to leave the order alone.
 function refreshNearbyListForHeading() {
   if (!syncNearbyListHeading()) return;
-  if (!isOverviewScreenActive()) return;
+  if (!isNearbyListShowing()) return;
   if (typeof selectOverview !== "function") return;
   selectOverview();
 }
@@ -6257,7 +6286,7 @@ function applyCowData(cows, pastures, updatedAt, { persist } = { persist: true }
     } catch {}
   }
 
-  if (isOverviewScreenActive()) selectOverview();
+  if (isNearbyListShowing()) selectOverview();
   // Refresh the "time ago" display if a cow detail panel is open
   updateCowTimeAgoField();
   requestDraw();
@@ -7147,8 +7176,8 @@ function overviewLandmarkItemSelector(placeKey) {
 }
 
 function shouldSkipOverviewBusStopHydration() {
-  // The Filter screen's own body now includes the same nearest list (filterScreenBodyHtml()),
-  // so it needs bus-stop hydration exactly like the plain Nearby screen -- no longer excluded.
+  // The real Nearby list is what's in #inspectorBody whether or not the filter drawer is open
+  // above it (selectOverview()), so it needs bus-stop hydration the same way either way.
   return !navigator.onLine || !els.inspectorBody || state.selected;
 }
 

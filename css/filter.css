@@ -67,15 +67,6 @@
   color: #2d3b34;
 }
 
-/* The Filter screen's own nearest list (filterScreenBodyHtml(), js/app.js) -- set off from the
-   chip groups above it with a rule rather than extra padding, since #inspectorBody already
-   gives it the same 16px horizontal inset the plain Nearby list uses. */
-.filter-nearest-list-section {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-}
-
 .filter-action-btn {
   padding: 8px 16px;
   border-radius: 8px;
@@ -102,6 +93,52 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* The drawer's own way back to plain Nearby -- a second, unmissable affordance alongside the
+   back arrow and the #filterToggle icon, styled like a drag handle (the grip pill reuses
+   .inspector-drag-handle::before's visual language, css/inspector.css) so it reads as "pull
+   this back down" rather than an ordinary button. Sticky so it survives scrolling the chip
+   groups above it -- it's the thing the thumb reaches for after adjusting a filter. */
+.filter-panel-collapse {
+  position: sticky;
+  bottom: 0;
+  margin: 8px 0 0;
+  padding: 10px 16px 14px;
+  border: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  background: linear-gradient(180deg, rgba(248, 250, 248, 0.85), #f8faf8 35%);
+  backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.filter-panel-collapse-grip {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.filter-panel-collapse-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #2f6f4e;
+}
+
+.filter-panel-collapse-label .app-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.filter-panel-collapse:active .filter-panel-collapse-grip {
+  background: rgba(0, 0, 0, 0.3);
 }
 
 /* Group cards */
