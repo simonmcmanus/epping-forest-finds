@@ -295,6 +295,38 @@
   flex: 1 1 auto;
 }
 
+/* The filter drawer (app.html, toggled by updateFilterUi()/setNearbyFilterPanelOpen() in
+   js/app.js). A push-down reveal, not a full-screen slide or a fade: expanding it visibly shoves
+   #inspectorBody -- the real Nearby list, right below it in markup -- further down the sheet,
+   rather than covering or replacing it.
+
+   This transitions a plain `height`, between 0 and a JS-measured pixel value set as an inline
+   style, not max-height and not a CSS grid's grid-template-rows: 0fr -> 1fr. max-height has to
+   transition toward some guessed cap that is almost always taller than the real content, so the
+   box keeps growing well past where the chips stopped -- that reads as a slow fade-grow, not a
+   push. The grid version tracked the real content height correctly, but animating a track's `fr`
+   size makes the browser re-run grid track-sizing -- re-measuring this drawer's whole nested
+   chip-grid subtree for its intrinsic height -- on every single frame, work a plain `height`
+   transition between two already-known pixel numbers never needs. Measuring once in JS and
+   interpolating a fixed length is the same technique a push-down sheet would use if it were
+   hand-animated, which is also why the easing below is ease-out rather than ease-in-out: a
+   mechanical push responds immediately and decelerates into place, it doesn't ease into motion
+   the way the old curve's slow start did. overflow:hidden still clips the content during the
+   transition, not just at the end. No opacity fade alongside it either -- a drawer doesn't fade
+   in, it slides. */
+.nearby-filter-panel {
+  height: 0;
+  overflow: hidden;
+  margin: 0 16px;
+  transition: height 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nearby-filter-panel {
+    transition: none;
+  }
+}
+
 .title-compass-arrow {
   position: absolute;
   top: 16px;
