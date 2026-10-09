@@ -4378,12 +4378,11 @@ test("hash #filters opens filter screen on load", () => {
   assert.ok(opened, "applySelectionFromHash returns true for #filters");
   assert.ok(app.state.filterScreenOpen, "filter screen is open");
   // Filters is a drawer on Nearby now, not its own screen, so the title never swaps -- the
-  // drawer itself (#nearbyFilterPanel) is what shows the open state. Its "open" class is added
-  // on the next animation frame (the push-down transition), so this checks what toggles
-  // synchronously instead: the stub DOM's setAttribute()/getAttribute() are no-ops (see
-  // createElementStub), so .hidden is the one signal this harness can actually observe.
+  // drawer itself (#nearbyFilterPanel) is what shows the open state, via its "open" class
+  // (setNearbyFilterPanelOpen() toggles it synchronously -- the push animation is pure CSS now,
+  // no requestAnimationFrame/hidden-attribute dance in JS to wait out).
   assert.equal(app.els.inspectorTitle.textContent, "Nearby", "title stays Nearby");
-  assert.equal(app.els.nearbyFilterPanel.hidden, false, "the filter drawer is unhidden");
+  assert.ok(app.els.nearbyFilterPanel.classList.contains("open"), "the filter drawer is open");
 });
 
 test("returning to nearby screen clears the hash", () => {

@@ -1728,44 +1728,34 @@ function renderFilterBodyHtml() {
 // .active classes/counts/the live count in place instead.
 function ensureNearbyFilterPanelMounted() {
   if (!els.nearbyFilterPanel || els.nearbyFilterPanel.dataset.mounted === "true") return;
-  els.nearbyFilterPanel.innerHTML = renderFilterBodyHtml();
+  const inner = els.nearbyFilterPanel.querySelector(".nearby-filter-panel-inner");
+  if (!inner) return;
+  inner.innerHTML = renderFilterBodyHtml();
   els.nearbyFilterPanel.dataset.mounted = "true";
 }
 
-// The drawer's open/closed animation -- a capped max-height/opacity transition, not the
-// measured-scrollHeight dance setSubfilterPanelExpanded() uses elsewhere, because the cap here
-// is deliberate: it keeps the real nearest list (immediately below #nearbyFilterPanel in
-// app.html) visibly pushed into view rather than buried off-screen behind six chip groups on a
-// short phone -- see spec-data-rendering.md, "Filter Panel".
+// The drawer's open/closed state, transitioning a plain `height` between 0 and a JS-measured
+// pixel value (css/inspector.css) rather than a CSS grid's `grid-template-rows: 0fr -> 1fr`.
+// Both track the real content height correctly, but the grid version makes every animation
+// frame re-run grid track-sizing -- re-measuring this drawer's whole nested chip-grid subtree for
+// its intrinsic (max-content) height -- where a plain `height` transition between two
+// already-known pixel numbers only needs an ordinary reflow of what it pushes down. Measuring
+// once here rather than per-frame is what lets the push stay a push instead of degrading into a
+// per-frame re-layout of the drawer's own content on slower devices. This is called again every
+// time updateFilterUi() re-renders the panel's content (a chip toggle, a live count change) to
+// keep the target height current, not just on open/close.
 function setNearbyFilterPanelOpen(open) {
   const panel = els.nearbyFilterPanel;
   if (!panel) return;
-  const wasOpen = panel.classList.contains("open");
+  panel.classList.toggle("open", open);
   panel.inert = !open;
   panel.setAttribute("aria-hidden", open ? "false" : "true");
-
-  if (prefersReducedMotion()) {
-    panel.hidden = !open;
-    panel.classList.toggle("open", open);
-    return;
-  }
-
   if (open) {
-    panel.hidden = false;
-    requestAnimationFrame(() => panel.classList.add("open"));
-    return;
+    const inner = panel.querySelector(".nearby-filter-panel-inner");
+    panel.style.height = `${inner ? inner.scrollHeight : 0}px`;
+  } else {
+    panel.style.height = "0px";
   }
-
-  if (!wasOpen) {
-    panel.hidden = true;
-    return;
-  }
-  panel.classList.remove("open");
-  panel.addEventListener("transitionend", function onCollapseDone(event) {
-    if (event.target !== panel || event.propertyName !== "max-height") return;
-    panel.removeEventListener("transitionend", onCollapseDone);
-    panel.hidden = true;
-  });
 }
 
 function attachFilterScrollHints() {

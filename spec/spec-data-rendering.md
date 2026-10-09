@@ -917,15 +917,27 @@ Search, Filter, Settings, and Report share identical navigation behaviour, gated
   re-render one: `setOverviewFilters()`/`refreshNearbyRadiusView()` etc. already refresh
   `#inspectorBody` on every filter or radius change via the ordinary `isNearbyListShowing()` gate
   (`!state.selected && !state.searchScreenOpen`), with or without the drawer open.
-- **The drawer pushes the list down; it is capped, not full-height.** `setNearbyFilterPanelOpen()`
-  (`js/app.js`) expands `#nearbyFilterPanel` to `min(54vh, 480px)` with a capped `max-height`/
-  `opacity` transition (`.nearby-filter-panel.open`, `css/inspector.css`) rather than measuring
-  natural content height — the cap is deliberate, so six chip groups can never push the real list
-  fully off-screen on a short phone; the drawer scrolls internally past that point instead.
-  `prefersReducedMotion()` skips straight to the end state. `setInspectorSelectionChrome()`
-  empties the ghost-snapshot clone's copy of `#nearbyFilterPanel` (it gets cloned along with the
-  rest of `.inspector-screen` for the outgoing-screen slide) so the chip controls are never
-  briefly duplicated, non-interactively, in the live DOM during a transition.
+- **The drawer pushes the list down by transitioning a measured `height`, not a guessed cap.**
+  `setNearbyFilterPanelOpen()` (`js/app.js`) measures `#nearbyFilterPanel`'s content
+  (`.nearby-filter-panel-inner`'s `scrollHeight`) and sets that exact pixel value as an inline
+  `height` style, animated by a plain CSS `height` transition (`.nearby-filter-panel`,
+  `css/inspector.css`) — not `max-height` toward a guessed cap (which keeps growing past where the
+  content actually stopped) and not a CSS grid's `grid-template-rows: 0fr -> 1fr` (which tracks
+  the real height correctly but makes every animation frame re-run grid track-sizing against the
+  drawer's own nested chip-grid content). Interpolating between two already-known pixel numbers
+  needs only an ordinary reflow of what the height change pushes down. `updateFilterUi()` calls
+  this again on every re-render while the drawer is open (a chip toggle, a live count change), so
+  the measured height stays current rather than being fixed at open time. The easing
+  (`cubic-bezier(0.16, 1, 0.3, 1)`) is ease-out, not ease-in-out, so the push responds immediately
+  and decelerates into place rather than easing into motion. No opacity fade alongside it — a
+  drawer doesn't fade in, it slides. The CSS media query handles `prefers-reduced-motion` by
+  zeroing the transition; nothing in JS branches on it for this panel. It is still effectively
+  capped: `.filter-body` (`css/filter.css`) scrolls internally past `min(54vh, 480px)`, so six chip
+  groups can never push the real list fully off-screen on a short phone, but that cap lives on the
+  inner card, not on the outer height being animated. `setInspectorSelectionChrome()` empties the
+  ghost-snapshot clone's copy of `#nearbyFilterPanel` (it gets cloned along with the rest of
+  `.inspector-screen` for the outgoing-screen slide) so the chip controls are never briefly
+  duplicated, non-interactively, in the live DOM during a transition.
 - **A sticky "Hide filters" bar sits at the drawer's own bottom** (`.filter-panel-collapse`,
   `css/filter.css`) — a drag-handle-styled grip plus a chevron and label, `position: sticky;
   bottom: 0` within the drawer's own scroll so it's reachable without hunting for it, a second

@@ -45,10 +45,20 @@
 
 /* Filter screen layout */
 
+/* The drawer's own card look and internal scroll cap live here, on the actual content box
+   (#nearbyFilterPanel/.nearby-filter-panel-inner in app.html just host the push animation,
+   css/inspector.css) -- capped so six chip groups can never push the real Nearby list fully
+   off-screen on a short phone; past that point this scrolls internally instead. */
 .filter-body {
   padding: 0;
   display: flex;
   flex-direction: column;
+  max-height: min(54vh, 480px);
+  overflow-y: auto;
+  margin-bottom: 10px;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(20, 36, 28, 0.12);
 }
 
 .filter-actions {
