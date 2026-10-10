@@ -242,11 +242,20 @@ reminder rather than remembered automatically. That fixed list covers the
 forest-wide aggregators (City of London's own pages, the EFCC diary) plus,
 as they're found, the own-site events pages of venues that run independently
 of City of London and so never appear in those aggregators — each such site
-has to be checked individually, the same way the aggregators are. Facebook
+has to be checked individually, the same way the aggregators are. It also
+covers the towns and villages around the forest, whose own events (a village
+beer festival, a town council's Christmas market) appear in none of the
+forest-wide aggregators above: Wansteadium's "Wanstead Calendar" is checked
+as a real iCal feed (a public Google Calendar, fetched and parsed directly —
+its own human-facing page renders via JavaScript and returns nothing to a
+plain fetch) and Epping Town Council's events diary is checked as a page,
+the same way Copped Hall's site is. Facebook
 and X/Twitter accounts of forest-adjacent organisations were evaluated and
 excluded: both gate programmatic read access behind paid tiers or app review
 that a page's own website doesn't need, so the run does not spend time on
-them (see the `sourceNotes` in `data/forest-events.json`).
+them (see the `sourceNotes` in `data/forest-events.json`, which also records
+which other town/village sources were checked and found to have no usable
+feed yet).
 
 `data/road-closures.json`, `data/forest-events.json` and
 `data/forest-notices.json` are a first step towards fixing that: real,

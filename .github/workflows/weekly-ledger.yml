@@ -359,6 +359,29 @@ jobs:
                   these organisations' Facebook or X/Twitter accounts --
                   evaluated and rejected as automation sources, see the
                   sourceNotes in data/forest-events.json.
+
+                  None of the above cover events run by the towns and
+                  villages around the forest themselves, which is how the
+                  Wanstead Beer Festival (held at Christchurch Hall,
+                  Wanstead, the southern tip of the forest by Wanstead
+                  Park/Flats) went unnoticed. Fetch and parse
+                  https://calendar.google.com/calendar/ical/f72e699fl27rhe615ltpeqvg7g%40group.calendar.google.com/public/basic.ics
+                  directly (a plain iCal feed, not HTML) -- it's Wansteadium's
+                  community-run "Wanstead Calendar" covering Wanstead and
+                  Wanstead Park; its own https://wansteadium.com/events page
+                  renders via JavaScript and returns nothing to WebFetch, so
+                  use the feed, not the page. Also check Epping Town
+                  Council's own events diary,
+                  https://www.eppingtowncouncil.gov.uk/Events_Diary_35167.aspx
+                  -- a plain page like Copped Hall's, not a feed. Loughton
+                  Town Council, Waltham Abbey Town Council and Waltham
+                  Forest's borough-wide listings (which would cover
+                  Chingford) were evaluated and found to have no feed and no
+                  current, checkable events page as of this evaluation --
+                  still worth a skim each run since any of them could add
+                  one, but don't expect automation there yet; see the
+                  sourceNotes in data/forest-events.json before re-evaluating
+                  the same ground.
                e. For each finding, look up its real coordinates in
                   data/local-roads.geojson or data/local-landmarks-food.geojson
                   rather than guessing -- put them in report-data.json's

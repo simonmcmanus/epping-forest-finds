@@ -88,6 +88,21 @@
       "source": "X/Twitter accounts of forest-adjacent organisations",
       "note": "Not usable for free. X removed free read access in 2023; reading another account's posts (search or timeline) now needs at minimum the paid Basic tier, priced per month rather than per use, which is a standing cost for monitoring accounts that mostly repeat what their own websites or Facebook pages already say. Not worth it unless a specific account turns out to be the only place an event is announced.",
       "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Wansteadium 'Wanstead Calendar' (community-run, covers Wanstead and Wanstead Park -- the forest's southern tip)",
+      "note": "A real, directly-fetchable source: the calendar is a public Google Calendar (id f72e699fl27rhe615ltpeqvg7g@group.calendar.google.com), which exposes a plain iCal feed at https://calendar.google.com/calendar/ical/f72e699fl27rhe615ltpeqvg7g%40group.calendar.google.com/public/basic.ics -- fetch and parse that directly, it's exactly the kind of feed this project's other sources lack. This is what would have caught the Wanstead Beer Festival (github.com/simonmcmanus/epping-forest-finds/issues/192): held at Christchurch Hall, Wanstead, a venue independent of City of London that none of the forest-wide aggregators above cover. The site's own human-facing listing, wansteadium.com/events, renders through a WordPress 'The Events Calendar' shortcode that returns an empty shell to a plain fetch -- use the calendar feed, not that page.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Epping Town Council events diary (eppingtowncouncil.gov.uk/Events_Diary_35167.aspx)",
+      "note": "A plain page (Town Show, Christmas Market, Remembrance services, Monday Market) with no feed, same treatment as Copped Hall's site: worth checking by hand each run, not yet worth a scraper.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Loughton Town Council, Waltham Abbey Town Council 'What's On', and Waltham Forest borough-wide listings (which would cover Chingford)",
+      "note": "No usable feed found for any of the three, and no current events page confirmed as of this evaluation -- Loughton's site surfaces only its news section (most recent dated item from 2025), Waltham Abbey's calendar is advertised as email-submission-only with no feed, and Waltham Forest's borough events listing is paginated HTML with no RSS/Atom link found and nothing specific to Chingford. Re-check each run rather than building automation against any of them yet; a council could add a feed at any time.",
+      "evaluated": "2026-10-10"
     }
   ]
 }
