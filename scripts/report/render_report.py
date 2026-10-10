@@ -624,6 +624,15 @@ def render_head(*, title, description, canonical_url, date, date_display, covera
         + [f"{town} news" for town in coverage_area]
     )
     return f'''<title>{escape(title)}</title>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){{dataLayer.push(arguments);}}
+  gtag('js', new Date());
+
+  gtag('config', 'G-M9NL06G2JB');
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="{escape(description)}">
 <meta name="keywords" content="{escape(keywords)}">

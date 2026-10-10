@@ -614,6 +614,9 @@ Alternative: `scripts/regenerate-local-landmarks.js` (Node.js version)
 
 ## User Tracking & Analytics
 
+### Google tag (gtag.js)
+Every page on the site (`index.html`, `app.html`, `admin.html`, `terms.html`, the weekly ledger reports under `reports/`, and the generated `reports/index.html`) loads the Google tag (`gtag.js`, measurement ID `G-M9NL06G2JB`) as the first thing in `<head>`, unconditioned on the consent flow below. The weekly report generator (`scripts/report/render_report.py` `render_head`) and the reports-index generator (`scripts/generate-reports-index.js` `buildIndexHtml`) both emit the same snippet, so every future report and index rebuild carries it automatically. This is separate from, and runs regardless of, the first-party tracker described below.
+
 ### Consent
 Consent is implicit: tapping whichever "Enable location" button is on screen (first-visit onboarding's location step, or the in-map location gate shown later) both grants consent and starts the location request. A one-line `.privacy-note` next to that button states what's collected and links to the full policy — identical wording in both places (`js/tracker.js` `ensureTrackingConsent`/`setTrackingConsent`). Consent is stored in `localStorage` under key `ff-track-v1`. Users can withdraw via **Settings → Privacy**, which re-prompts (shows the note again) next time location is requested.
 
