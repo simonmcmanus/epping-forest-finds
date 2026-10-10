@@ -9028,8 +9028,11 @@ test("the weekly report's map inventory counts every filter group the app offers
   const groupKeys = inventory.groups.map((group) => group.key);
   assert.deepEqual(
     groupKeys,
-    ["nature", "food", "transport", "history", "locations", "stories", "events"],
-    "the report groups things exactly the way the app's Filter screen does"
+    ["nature", "food", "transport", "history", "locations", "stories"],
+    // Events is deliberately excluded from this report -- see the comment in
+    // map-inventory.js's buildInventory(). This test's own name is about the app's physical
+    // map categories, not literally "every" FILTER_GROUPS entry.
+    "the report groups every one of the app's static map categories the same way the app's Filter screen does"
   );
   for (const group of inventory.groups) {
     assert.ok(group.subfilters.length > 0, `${group.key} should list its subfilters`);
