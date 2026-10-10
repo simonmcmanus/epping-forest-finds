@@ -549,4 +549,73 @@ test.describe("Selected route line follows the road/path network", () => {
     // And the two pins must land comfortably apart on screen, not compressed into a corner.
     expect(result.spanPx).toBeGreaterThan(60);
   });
+
+  test("the ahead/behind anchor split only reaches an extreme when the side extent isn't the tighter constraint", async ({ page }) => {
+    // Field report ("too high up on the screen ... I would expect the you and location
+    // marker to be close to the modal"): balancedNavigationAnchorY splits the vertical anchor
+    // purely on the route's ahead/behind *distance* ratio, with no regard for the route's own
+    // left/right extent. A route that strays far enough side-to-side (a winding street a real
+    // routed path can easily take, even to a nearby destination) routinely ends up with the
+    // zoom bound by that side extent instead of by ahead/behind -- so the split still reserved
+    // the full ahead/behind room while the side-bound, zoomed-out fit only ever used a sliver
+    // of it, stranding the walker and the destination in a small cluster near one edge with
+    // the rest of the reserved area empty. Measured against a real 335 m routed destination
+    // (27 points, winding through real streets): as little as 11% of the reserved room used,
+    // across roughly half of all possible compass headings.
+    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    // selectedRoutePoints (js/renderer.js) checks state.routingGraph itself, not just the
+    // ready flag, before it will even look at a cache override -- so the real graph must have
+    // finished building before the synthetic cache below takes effect.
+    await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
+
+    const result = await page.evaluate(() => {
+      state.compassHeading = 0;
+      state.compassHeadingTarget = 0;
+      state.renderedNavigationHeading = 0;
+      state.compassLastEventAt = performance.now();
+
+      const userPoint = state.userLocation.point;
+      const o = unprojectPoint(userPoint);
+      const oNorth = unprojectPoint({ x: userPoint.x, y: userPoint.y - 1 });
+      const metresPerUnit = distanceMetres(o.latitude, o.longitude, oNorth.latitude, oNorth.longitude);
+      // With compassHeading 0 (no rotation), dy < 0 is "ahead" and dy > 0 is "behind" --
+      // see balancedNavigationAnchorY's own rotatedY convention.
+      const north = (metres) => -metres / metresPerUnit;
+      const south = (metres) => metres / metresPerUnit;
+      const east = (metres) => metres / metresPerUnit;
+
+      function anchorFractionFor(sideMetres) {
+        const item = { point: { x: userPoint.x, y: userPoint.y + north(200) } };
+        const tail = [
+          { x: userPoint.x + east(sideMetres), y: userPoint.y + south(60) },
+          item.point,
+        ];
+        state.selected = { type: "tree", item };
+        state.selectedRouteCache = {
+          target: item, fromLatitude: state.userLocation.latitude, fromLongitude: state.userLocation.longitude,
+          tail, routed: true,
+        };
+        const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+        const anchorFraction = headingUpAnchorFraction(true);
+        const anchorY = balancedNavigationAnchorY(rect, anchorFraction);
+        return (anchorY - rect.y) / rect.height;
+      }
+
+      // Same 200m-ahead/60m-behind reach in both cases -- only how far the route strays
+      // east/west differs. 5m is negligible next to that reach (side is nowhere near
+      // binding); 3000m comfortably exceeds the rect's own aspect ratio applied to the
+      // ahead/behind span, so side is unambiguously the tighter constraint there.
+      return { narrow: anchorFractionFor(5), sprawling: anchorFractionFor(3000) };
+    });
+
+    // Narrow: side is nowhere near binding, so the split reaches close to its full, unchanged
+    // extreme (toward the bottom of the rect here, since the route is mostly ahead of the
+    // walker -- see the "nothing behind" case in the comment above).
+    expect(result.narrow).toBeGreaterThan(0.65);
+    // Sprawling: side is now the binding constraint, so the split must no longer claim that
+    // same extreme -- it should land noticeably closer to centre instead.
+    expect(result.sprawling).toBeLessThan(result.narrow - 0.15);
+    expect(result.sprawling).toBeLessThan(0.6);
+  });
 });

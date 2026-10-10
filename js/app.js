@@ -4708,13 +4708,16 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   const sin = Math.sin(radians);
   let ahead = 0;
   let behind = 0;
+  let side = 0;
   for (const point of points) {
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
     const dx = point.x - state.userLocation.point.x;
     const dy = point.y - state.userLocation.point.y;
+    const rotatedX = dx * cos - dy * sin;
     const rotatedY = dx * sin + dy * cos;
     if (rotatedY < 0) ahead = Math.max(ahead, -rotatedY);
     else behind = Math.max(behind, rotatedY);
+    side = Math.max(side, Math.abs(rotatedX));
   }
   // No "is there anything on both sides?" guard. There used to be one -- `ahead <= 0 ||
   // behind <= 0` fell back to `anchoredY` -- and it was a cliff, because the two formulas
@@ -4748,7 +4751,36 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   const top = focusRect.y + margin;
   const usable = focusRect.height - margin * 2;
   if (!(usable > 0)) return anchoredY;
-  return top + usable * (ahead / span);
+
+  // Reaching all the way to the ends of [top, top + usable] is only the right answer when
+  // ahead/behind is actually what ends up constraining the eventual zoom. For a route that is
+  // short and narrow side-to-side (a nearby shop or cafe a few streets over, say), the left/
+  // right extent is routinely the tighter constraint instead -- maxScaleForHeadingUpPoints
+  // zooms no further than that already allows, so the ahead/behind span never uses anywhere
+  // near the full room this split just reserved for it. The anchor still sat at the extreme,
+  // so the (small, now-zoomed-out) route rendered in a compressed cluster stranded near one
+  // edge with the rest of the available area empty -- reported from the field as a selected
+  // destination landing "too high up on the screen" with the walker and the destination both
+  // far from the inspector sheet below them. Measured on a real 335 m routed destination: as
+  // little as 11% of the reserved ahead/behind room actually used, across roughly half of all
+  // possible compass headings.
+  //
+  // usableWidth mirrors `usable` for the horizontal axis -- the same margin, and symmetric
+  // around the rect's centre the same way maxScaleForHeadingUpPoints' own focus.x is (see its
+  // availableX). side's own scale candidate is therefore usableWidth / (2 * side); at that
+  // scale, span would occupy `span * usableWidth / (2 * side)` px of the `usable` vertical
+  // band. fillRatio is that fraction, clamped to the [0, 1] a long/wide route (side big
+  // relative to span, or span itself the binding axis) already satisfies -- for that case
+  // this is a no-op and the split reaches the full extreme exactly as before (the behaviour
+  // the doc comment above was measured against). Below 1, blend the split toward the centre
+  // by the same fraction: proportionally less reason to favour either end the less of the
+  // reserved room the route actually needs.
+  const usableWidth = focusRect.width - margin * 2;
+  const fillRatio = side > 0 && usableWidth > 0
+    ? clamp((span * usableWidth) / (2 * side * usable), 0, 1)
+    : 1;
+  const aheadRatio = 0.5 + (ahead / span - 0.5) * fillRatio;
+  return top + usable * aheadRatio;
 }
 
 function navigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
