@@ -28,8 +28,8 @@ are added by the renderer itself -- never write either by hand.
   "date": "2026-09-03",                       // YYYY-MM-DD, used in the output filename
   "date_display": "Wednesday, 3 September 2026",
 
-  // Optional. Shown in the coloured banner under the title, if given.
-  "intro": "One or two sentences highlighting useful forest news this week.",
+  // Optional. Shown below the photo header and before the map, if given.
+  "intro": "One or two sentences summarising the range of changes, not a single cattle update.",
 
   // Optional. Defaults to the 8 coverage settlements (see places.py).
   "coverage_area": ["Loughton", "Chingford", "..."],

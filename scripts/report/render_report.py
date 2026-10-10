@@ -664,7 +664,7 @@ def render_report(report_data, repo_root):
         coverage_area=coverage_area,
     )
 
-    banner_html = f'<div class="banner">{escape(intro)}</div>' if intro else ""
+    banner_html = f'<p class="banner">{escape(intro)}</p>' if intro else ""
 
     html = f'''<!doctype html>
 <html lang="en">
@@ -687,12 +687,15 @@ def render_report(report_data, repo_root):
       <span>{escape(date_display)}</span>
       <span class="coverage">{escape(" · ".join(coverage_area))}</span>
     </div>
-    {banner_html}
   </div>
   {render_hero_photo()}
 </header>
 
 <main class="wrap" id="main">
+
+  {banner_html}
+
+  {map_section}
 
   {business_section}
 
@@ -701,8 +704,6 @@ def render_report(report_data, repo_root):
   {event_section}
 
   {grazing_section}
-
-  {map_section}
 
   {render_newsletter_signup()}
 

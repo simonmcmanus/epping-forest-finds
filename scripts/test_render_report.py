@@ -419,11 +419,11 @@ class RenderReportEndToEndTests(unittest.TestCase):
             self.assertIn("https://www.eppingforestfinds.uk", html)
             self.assertIn("The Hair of the Dog", html)
 
-    def test_newsletter_leads_with_stories_and_uses_homepage_images(self):
+    def test_newsletter_leads_with_map_before_details_and_uses_homepage_images(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = make_repo_root(Path(tmp), ["Pub"])
             html = rr.render_report(BASE_REPORT_DATA, root)
-            self.assertLess(html.index('id="businesses"'), html.index('id="map"'))
+            self.assertLess(html.index('id="map"'), html.index('id="businesses"'))
             self.assertLess(html.index('id="map"'), html.index('id="newsletter"'))
             self.assertNotIn('class="stat-strip', html)
             self.assertNotIn(">What's on the map</h2>", html)

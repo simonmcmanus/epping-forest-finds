@@ -273,11 +273,13 @@ and map-edit proposal wording. A newly discovered established business is a
 local find, not evidence of a new opening. The map legend and search description
 use “local find” for the historical `opening` category.
 
-The report uses a light cream masthead, Fraunces headings and Public Sans body
+The report uses the homepage’s dark-green heading panel beside its longhorn
+photo, on a cream page, with Fraunces headings and Public Sans body
 text, with the homepage oak brand mark, longhorn photograph and Ledger image
 from `assets/home/`. A split text/photo header stacks on phones. No app CSS or
-JavaScript is loaded. Published editions share this design. Stories precede
-the location map; the dashboard stat strip, food breakdown and full app
+JavaScript is loaded. Published editions share this design. A high-level opening paragraph summarises the range of changes below the
+header, without leading on the cattle update. The location map follows, then
+the individual business, access, event and grazing details; the dashboard stat strip, food breakdown and full app
 inventory are omitted so the newsletter stays focused on forest news.
 
 Nothing about how the report is produced goes on the page: not which sources
