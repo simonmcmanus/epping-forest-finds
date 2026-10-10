@@ -362,26 +362,38 @@ jobs:
 
                   None of the above cover events run by the towns and
                   villages around the forest themselves, which is how the
-                  Wanstead Beer Festival (held at Christchurch Hall,
+                  Wanstead Beer Festival (held at Christ Church Hall,
                   Wanstead, the southern tip of the forest by Wanstead
                   Park/Flats) went unnoticed. Fetch and parse
-                  https://calendar.google.com/calendar/ical/f72e699fl27rhe615ltpeqvg7g%40group.calendar.google.com/public/basic.ics
-                  directly (a plain iCal feed, not HTML) -- it's Wansteadium's
-                  community-run "Wanstead Calendar" covering Wanstead and
-                  Wanstead Park; its own https://wansteadium.com/events page
-                  renders via JavaScript and returns nothing to WebFetch, so
-                  use the feed, not the page. Also check Epping Town
-                  Council's own events diary,
-                  https://www.eppingtowncouncil.gov.uk/Events_Diary_35167.aspx
+                  https://wansteadvillagedirectory.com/events/list/?ical=1
+                  directly (a plain iCal feed, not HTML) -- confirmed on
+                  2026-10-10 to be a real, parseable feed that actually
+                  contains the Wanstead Beer Festival entry, not just a
+                  plausible-looking URL. Also check Visit Epping Forest's
+                  district-wide calendar,
+                  https://www.visiteppingforest.org/events/whats-on/events-calendar
+                  -- the official Epping Forest District tourism site, a
+                  plain scrapeable page (no feed) covering venues across the
+                  whole district including Copped Hall, Epping Ongar
+                  Railway and Waltham Abbey, broader than any single town's
+                  own listing. Also check Epping Town Council's own events
+                  diary, https://www.eppingtowncouncil.gov.uk/Events_Diary_35167.aspx
                   -- a plain page like Copped Hall's, not a feed. Loughton
-                  Town Council, Waltham Abbey Town Council and Waltham
-                  Forest's borough-wide listings (which would cover
-                  Chingford) were evaluated and found to have no feed and no
-                  current, checkable events page as of this evaluation --
-                  still worth a skim each run since any of them could add
-                  one, but don't expect automation there yet; see the
+                  Town Council, Waltham Abbey Town Council, Waltham Forest's
+                  borough-wide listings (which would cover Chingford) and
+                  Theydon Bois Parish Council's events category page were
+                  evaluated and found to have no feed and no current,
+                  checkable events listing as of this evaluation -- still
+                  worth a skim each run since any of them could add one, but
+                  don't expect automation there yet. Epping Ongar Railway's
+                  own site (eorailway.co.uk, a heritage railway in the
+                  district running galas and a Real Ale and Cider Weekend)
+                  returned HTTP 503 to a direct fetch and is covered via
+                  Visit Epping Forest's listing above instead -- re-test
+                  eorailway.co.uk directly occasionally in case that was
+                  transient or bot-blocking rather than permanent. See the
                   sourceNotes in data/forest-events.json before re-evaluating
-                  the same ground.
+                  any of this same ground.
                e. For each finding, look up its real coordinates in
                   data/local-roads.geojson or data/local-landmarks-food.geojson
                   rather than guessing -- put them in report-data.json's
