@@ -126,6 +126,11 @@ calendar icon.
   something nobody can still attend; `normalizeEventLocations` (`js/normalize.js`) drops them a
   second time at load, in case a cached copy of the file is briefly stale. An event with no
   `endsAt` is assumed to run for 24 hours from its `startsAt`.
+- **The map only shows an event once it's within a week of starting** (`isEventTooFarAhead`,
+  `js/normalize.js`) — a one-directional display cap, not a data change: the source file can
+  carry events further out (the weekly ledger report has its own longer-range view of upcoming
+  events), they simply don't appear on the map yet. An event already under way is never held
+  back by this, however long ago it started.
 - Live event pin and detail view: see "Map Layers and Markers" and "Details Content
   Requirements" below.
 - **Nearby-event alert (in-app only — no OS push).** On every GPS fix, if a *live* event (its

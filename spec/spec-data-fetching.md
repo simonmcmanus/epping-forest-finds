@@ -258,6 +258,10 @@ This is the app's second line of defence against shipping stale events to a clie
 is `scripts/prune_past_events.js`, which prunes the same expired rows out of the committed
 `data/events.json` itself before it is ever served, so the file a client downloads stays small.
 
+`isEventTooFarAhead` additionally drops anything not yet within `EVENT_SHOW_AHEAD_MS` (7 days) of
+its `startsAt` — a display-only cap on the map, independent of the two filters above and never
+applied to the source file itself (an event already live is exempt, however long ago it started).
+
 ### Combined Landmarks
 
 `state.landmarks = [...osmLandmarks, ...folkloreLandmarks, ...eventLandmarks]`

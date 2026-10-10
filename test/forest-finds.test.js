@@ -421,6 +421,8 @@ globalThis.__forestFindsTest = {
   eventTimeWindow,
   isEventLive,
   isEventPast,
+  isEventTooFarAhead,
+  EVENT_SHOW_AHEAD_MS,
   isEventCategory,
   formatEventWhen,
   eventStatusLabel,
@@ -9177,26 +9179,35 @@ test("Events is a default-on category, like Trees and Cows", () => {
   assert.match(onboardingSrc, /new Set\(\["trees", "cows", "events"\]\)/);
 });
 
-test("normalizeEventLocations keeps upcoming and live events, and drops past ones", () => {
+test("normalizeEventLocations keeps upcoming (within a week) and live events, and drops past or too-far-ahead ones", () => {
   const now = Date.parse("2026-10-10T12:00:00Z");
   const data = {
     events: [
-      { id: "future", name: "Future fair", lat: 51.65, lon: 0.04, startsAt: "2026-10-18T10:00:00Z", endsAt: "2026-10-18T16:00:00Z" },
+      { id: "soon", name: "Soon fair", lat: 51.65, lon: 0.04, startsAt: "2026-10-15T10:00:00Z", endsAt: "2026-10-15T16:00:00Z" },
       { id: "live", name: "Live walk", lat: 51.65, lon: 0.04, startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z" },
       { id: "past", name: "Past market", lat: 51.65, lon: 0.04, startsAt: "2026-09-01T10:00:00Z", endsAt: "2026-09-01T16:00:00Z" },
-      { id: "no-coords", name: "Nowhere", startsAt: "2026-10-18T10:00:00Z" },
+      { id: "too-far-ahead", name: "Next month's fair", lat: 51.65, lon: 0.04, startsAt: "2026-11-21T10:00:00Z" },
+      { id: "no-coords", name: "Nowhere", startsAt: "2026-10-15T10:00:00Z" },
     ],
   };
 
   const events = app.normalizeEventLocations(data, now);
 
-  assert.deepEqual(events.map((e) => e.id).sort(), ["future", "live"]);
+  assert.deepEqual(events.map((e) => e.id).sort(), ["live", "soon"]);
   for (const event of events) {
     assert.equal(event.dataSource, "event");
     assert.equal(event.category, "event");
     assert.ok(event.categoryTags.includes("event"));
     assert.ok(event.point);
   }
+});
+
+test("isEventTooFarAhead holds back an event until it's within a week of starting, but never one already live", () => {
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  assert.equal(app.isEventTooFarAhead({ startsAt: "2026-10-17T11:00:00Z" }, now), false, "exactly a week out is still shown");
+  assert.equal(app.isEventTooFarAhead({ startsAt: "2026-10-18T13:00:00Z" }, now), true, "more than a week out is not");
+  // Started three weeks ago, a multi-week festival still running today -- live, so never "ahead".
+  assert.equal(app.isEventTooFarAhead({ startsAt: "2026-09-19T10:00:00Z", endsAt: "2026-10-20T10:00:00Z" }, now), false);
 });
 
 test("an event with no endsAt is assumed to run for one day from startsAt", () => {

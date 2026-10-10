@@ -340,8 +340,15 @@ function parseFolkloreCoordinates(coordinates) {
 // line of defence -- a past event is dropped here too, before it ever enters state.landmarks,
 // so a stale cached copy of the file can't put one on the map either. Keep
 // EVENT_DEFAULT_DURATION_MS in sync with scripts/prune_past_events.js.
+//
+// isEventTooFarAhead() is a separate, one-directional cap: the map only shows an event once
+// it's within a week of starting, even if the source data already carries it months out (the
+// weekly ledger report is expected to grow its own longer-range view of upcoming events
+// independently -- this cap is an app/map display decision only, not a data-retention one, so
+// it belongs here rather than in the pruning script or any report generator).
 
 const EVENT_DEFAULT_DURATION_MS = 24 * 60 * 60 * 1000; // assumed run time for an event with no endsAt
+const EVENT_SHOW_AHEAD_MS = 7 * 24 * 60 * 60 * 1000; // don't show an event until it's within a week out
 
 function eventTimeWindow(event) {
   const starts = event && event.startsAt ? new Date(event.startsAt).getTime() : NaN;
@@ -354,6 +361,13 @@ function eventTimeWindow(event) {
 function isEventPast(event, nowMs = Date.now()) {
   const window = eventTimeWindow(event);
   return !window || window.ends < nowMs; // malformed (no parseable startsAt) can't be shown either
+}
+
+// An event already live (however long ago it started) is never "too far ahead" -- this only
+// holds back something that hasn't started yet, until it's within a week of starting.
+function isEventTooFarAhead(event, nowMs = Date.now()) {
+  const window = eventTimeWindow(event);
+  return Boolean(window) && window.starts > nowMs + EVENT_SHOW_AHEAD_MS;
 }
 
 function isEventLive(event, nowMs = Date.now()) {
@@ -385,5 +399,5 @@ function normalizeEventLocations(data, nowMs = Date.now()) {
       };
     })
     .filter(Boolean)
-    .filter((event) => !isEventPast(event, nowMs));
+    .filter((event) => !isEventPast(event, nowMs) && !isEventTooFarAhead(event, nowMs));
 }
