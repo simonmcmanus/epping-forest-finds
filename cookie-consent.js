@@ -54,12 +54,12 @@
     style.textContent = `
 #cookieConsentBanner{position:fixed;left:16px;right:16px;
 bottom:calc(16px + var(--nav-bar-h, 0px) + env(safe-area-inset-bottom, 0px));
-z-index:2147483000;max-width:460px;
-margin:0 auto;padding:18px 20px;border-radius:16px;background:#fff;color:#17221e;
+z-index:2147483000;max-width:960px;
+margin:0 auto;padding:18px 24px;border-radius:16px;background:#fff;color:#17221e;
 border:1px solid rgba(36,56,47,.15);box-shadow:0 18px 50px rgba(19,31,25,.18);
 font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,ui-sans-serif,system-ui,sans-serif;
-display:flex;flex-wrap:wrap;gap:14px 16px;align-items:center;justify-content:space-between}
-#cookieConsentBanner .cookie-consent-copy{flex:1 1 220px;min-width:0}
+display:flex;flex-wrap:wrap;gap:14px 24px;align-items:center;justify-content:space-between}
+#cookieConsentBanner .cookie-consent-copy{flex:1 1 320px;min-width:0}
 #cookieConsentBanner strong{display:block;margin:0 0 4px;font-size:.95rem;font-weight:800}
 #cookieConsentBanner p{margin:0;color:#5d6a62}
 #cookieConsentBanner a{color:#2f6f4e;font-weight:700;text-decoration:underline}
