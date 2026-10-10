@@ -114,6 +114,16 @@
         </div>
       </div>
 
+      <div id="eventNearbyBanner" class="event-nearby-banner" role="status" aria-live="polite" hidden>
+        <div class="event-nearby-banner-card">
+          <button id="eventNearbyBannerOpen" class="event-nearby-banner-open" type="button">
+            <span class="event-nearby-banner-icon" aria-hidden="true"><img class="app-icon" src="data/icons/event.png" alt=""></span>
+            <span id="eventNearbyBannerText" class="event-nearby-banner-text"></span>
+          </button>
+          <button id="eventNearbyBannerDismiss" class="event-nearby-banner-dismiss" type="button" aria-label="Dismiss">✕</button>
+        </div>
+      </div>
+
       <div class="legend" aria-label="Map legend">
         <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
         <span style="color: #2f72b2;">💧 Hydrology</span>
@@ -131,6 +141,7 @@
         <span style="color: #4e5d87;">🪧 Plaques</span>
         <span style="color: #6d5c3a;">📜 History</span>
         <span style="color: #6f4d8c;">✨ Legends</span>
+        <span style="color: #0d9488;">📅 Events</span>
       </div>
 
       <!-- A bar of its own, not part of #inspector: it stays visible (and tappable) regardless
@@ -151,7 +162,7 @@
              circle behind it (Nearby, Filters, Settings, Report) -- see updateNearbyAnchorBar. -->
         <div id="nearbyAnchorBar" class="nearby-anchor-bar" role="status" hidden>
           <span class="nearby-anchor-bar-text">Showing places near where you tapped</span>
-          <button class="walk-chip walk-chip-btn" type="button" data-action="reset-nearby-anchor">Use my location</button>
+          <button class="walk-chip walk-chip-btn" type="button" data-action="reset-nearby-anchor"><svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Use my location</button>
         </div>
         <div class="inspector-tools">
           <div class="search-shell">

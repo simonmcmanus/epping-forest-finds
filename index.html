@@ -29,7 +29,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="preload" href="assets/home/epping-longhorns.jpg" as="image" fetchpriority="high">
+  <link rel="preload" as="image" type="image/webp" imagesrcset="assets/home/epping-longhorns-480.webp 480w, assets/home/epping-longhorns-768.webp 768w, assets/home/epping-longhorns-960.webp 960w, assets/home/epping-longhorns-1280.webp 1280w, assets/home/epping-longhorns-1600.webp 1600w" imagesizes="(min-width: 1040px) 457px, (min-width: 640px) calc(46vw - 22px), (max-width: 420px) calc(100vw - 36px), calc(100vw - 48px)" fetchpriority="high">
   <link rel="stylesheet" href="assets/home/home.css">
   <script type="application/ld+json">
   {
@@ -111,7 +111,10 @@
         </div>
       </div>
       <figure class="hero-photo">
-        <img src="assets/home/epping-longhorns.jpg" width="1600" height="1200" fetchpriority="high" alt="GPS-collared English Longhorn cattle grazing in Epping Forest.">
+        <picture>
+          <source type="image/webp" srcset="assets/home/epping-longhorns-480.webp 480w, assets/home/epping-longhorns-768.webp 768w, assets/home/epping-longhorns-960.webp 960w, assets/home/epping-longhorns-1280.webp 1280w, assets/home/epping-longhorns-1600.webp 1600w" sizes="(min-width: 1040px) 457px, (min-width: 640px) calc(46vw - 22px), (max-width: 420px) calc(100vw - 36px), calc(100vw - 48px)">
+          <img src="assets/home/epping-longhorns.jpg" width="1600" height="1200" fetchpriority="high" alt="GPS-collared English Longhorn cattle grazing in Epping Forest.">
+        </picture>
         <figcaption>Epping Forest’s longhorns wear GPS collars.</figcaption>
       </figure>
     </section>
@@ -119,15 +122,15 @@
     <section class="counts">
       <h2>What's on the map</h2>
       <div class="map-inventory">
-        <div class="inventory-total"><img src="assets/home/map-icons/all-finds.png" width="44" height="44" alt=""><strong>31,565</strong><span>places and features</span></div>
+        <div class="inventory-total"><img src="assets/home/map-icons/all-finds.png" width="44" height="44" alt=""><strong>31,640</strong><span>places and features</span></div>
         <div class="inventory-groups">
           <section class="inventory-group" data-inventory-group="nature">
             <h3><span><img src="assets/home/map-icons/nature.png" alt="">Nature</span><strong>25,017</strong></h3>
             <dl><div><dt><img src="assets/home/map-icons/tree.png" alt="">Trees</dt><dd>24,906</dd></div><div><dt><img src="assets/home/map-icons/ponds.png" alt="">Ponds &amp; streams</dt><dd>111</dd></div></dl>
           </section>
           <section class="inventory-group" data-inventory-group="food">
-            <h3><span><img src="assets/home/map-icons/food.png" alt="">Food</span><strong>1,232</strong></h3>
-            <dl><div><dt><img src="assets/home/map-icons/beer.png" alt="">Pubs &amp; bars</dt><dd>119</dd></div><div><dt><img src="assets/home/map-icons/restaurant.png" alt="">Restaurants</dt><dd>525</dd></div><div><dt><img src="assets/home/map-icons/cafe.png" alt="">Cafés</dt><dd>198</dd></div><div><dt><img src="assets/home/map-icons/shop.png" alt="">Shops</dt><dd>390</dd></div></dl>
+            <h3><span><img src="assets/home/map-icons/food.png" alt="">Food</span><strong>1,298</strong></h3>
+            <dl><div><dt><img src="assets/home/map-icons/beer.png" alt="">Pubs &amp; bars</dt><dd>126</dd></div><div><dt><img src="assets/home/map-icons/restaurant.png" alt="">Restaurants</dt><dd>554</dd></div><div><dt><img src="assets/home/map-icons/cafe.png" alt="">Cafés</dt><dd>200</dd></div><div><dt><img src="assets/home/map-icons/shop.png" alt="">Shops</dt><dd>418</dd></div></dl>
           </section>
           <section class="inventory-group" data-inventory-group="transport">
             <h3><span><img src="assets/home/map-icons/bus.png" alt="">Transport</span><strong>1,864</strong></h3>
@@ -148,7 +151,7 @@
         </div>
         <div class="inventory-always" data-inventory-always>
           <div><img src="assets/home/map-icons/gate.png" alt=""><span><strong>Gates, benches &amp; other facilities</strong><small>Always shown on the map</small></span></div>
-          <strong>3,198</strong>
+          <strong>3,207</strong>
         </div>
       </div>
     </section>

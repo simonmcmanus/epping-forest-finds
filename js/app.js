@@ -15,6 +15,7 @@ const LANDMARK_URLS = [
   "data/local-landmarks-misc.geojson"
 ];
 const FOLKLORE_URL = "data/epping_forest_folklore_locations.json";
+const EVENTS_URL = "data/events.json";
 const PATHS_URL = "data/local-paths.geojson";
 const ROADS_URL = "data/local-roads.geojson";
 const ENVIRONMENT_URL = "data/local-environment.geojson";
@@ -27,8 +28,8 @@ const REPORT_REQUEST_ID_KEY = "forest-finds-report-request-id-v1";
 const FILTER_STATE_KEY = "forest-finds-filter-state-v1";
 const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
 // Matches onboarding.js's own default selection and spec.md's "Default filters" section:
-// only Trees and Cows are pre-selected before onboarding ever runs.
-const DEFAULT_FILTERS = ["trees", "cows"];
+// only Trees, Cows and Events are pre-selected before onboarding ever runs.
+const DEFAULT_FILTERS = ["trees", "cows", "events"];
 const COW_REFRESH_MS = 5 * 60 * 1000;
 const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -98,7 +99,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v80"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v87"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -214,6 +215,10 @@ const state = {
   cowRefreshTimerId: null,
   cowDetailTimerId: null,
   cowFetchInFlight: false,
+  // Live events already alerted on this session -- never re-shown even if the user lingers
+  // in range or walks in and out of the radius (see checkEventProximityAlert, js/nav.js).
+  eventNearbyAlertedIds: new Set(),
+  eventNearbyBannerEventId: null,
   // Filter keys just switched on that have nothing inside the walking radius, so the Nearby
   // camera reaches their nearest match once -- see refreshOutOfRadiusReveal/outOfRadiusFitPoints.
   outOfRadiusRevealFilters: [],
@@ -385,6 +390,10 @@ const els = {
   distanceWarning: document.getElementById("distanceWarning"),
   distanceWarningMessage: document.getElementById("distanceWarningMessage"),
   distanceWarningButton: document.getElementById("distanceWarningButton"),
+  eventNearbyBanner: document.getElementById("eventNearbyBanner"),
+  eventNearbyBannerOpen: document.getElementById("eventNearbyBannerOpen"),
+  eventNearbyBannerText: document.getElementById("eventNearbyBannerText"),
+  eventNearbyBannerDismiss: document.getElementById("eventNearbyBannerDismiss"),
   inspector: document.getElementById("inspector"),
   inspectorBack: document.getElementById("inspectorBack"),
   inspectorTitleEmoji: document.getElementById("inspectorTitleEmoji"),
@@ -3703,6 +3712,66 @@ function hideCompassCalibrationPrompt() {
   hideWithFade(els.compassCalibrationBanner);
 }
 
+// --- Nearby-event alert ---
+// In-app only (no OS push): a banner, not a modal, so it never interrupts whatever screen is
+// open. Checked on every GPS fix (ensureLocationWatch) rather than against a timer, so it fires
+// the moment a walk actually brings someone into range of something happening right now.
+
+function eventAlertEnabled() {
+  // Matches the "no filters selected shows everything" rule the rest of the Nearby screen
+  // follows -- an event alert should not fire for a category the user explicitly turned off.
+  return state.overviewFilters.length === 0 || isSubfilterActive("events");
+}
+
+function checkEventProximityAlert(latitude, longitude, nowMs = Date.now()) {
+  if (!els.eventNearbyBanner || !eventAlertEnabled()) return;
+  if (!Array.isArray(state.landmarks) || !state.landmarks.length) return;
+  const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+  let nearest = null;
+  let nearestMetres = Infinity;
+  for (const place of state.landmarks) {
+    if (!isEventCategory(place) || !isEventLive(place, nowMs)) continue;
+    if (state.eventNearbyAlertedIds.has(place.id)) continue;
+    const metres = distanceMetres(latitude, longitude, place.latitude, place.longitude);
+    if (metres <= radiusMetres && metres < nearestMetres) {
+      nearest = place;
+      nearestMetres = metres;
+    }
+  }
+  if (nearest) showEventNearbyBanner(nearest, nearestMetres);
+}
+
+function showEventNearbyBanner(event, metres) {
+  if (!els.eventNearbyBanner) return;
+  // Marked alerted immediately, not on dismiss -- lingering in range (or the next fix landing
+  // before the user has reacted) must never re-show the same event a second time this session.
+  state.eventNearbyAlertedIds.add(event.id);
+  state.eventNearbyBannerEventId = event.id;
+  if (els.eventNearbyBannerText) {
+    const minutes = Math.max(1, Math.round(metres / walkingDistanceToMetres(1)));
+    els.eventNearbyBannerText.textContent = `${event.name} is on now — ${minutes} min walk`;
+  }
+  els.eventNearbyBanner.classList.remove("fading-out");
+  els.eventNearbyBanner.hidden = false;
+}
+
+function hideEventNearbyBanner() {
+  if (!els.eventNearbyBanner) return;
+  hideWithFade(els.eventNearbyBanner);
+}
+
+// Bound to the banner's own body (not just the dismiss "x") -- tapping the alert should open
+// the event exactly as tapping it in the Nearby list would.
+function openEventNearbyBanner() {
+  const id = state.eventNearbyBannerEventId;
+  hideEventNearbyBanner();
+  if (!id) return;
+  const event = Array.isArray(state.landmarks)
+    ? state.landmarks.find((place) => isEventCategory(place) && place.id === id)
+    : null;
+  if (event) focusOverviewItem("landmark", placeHashKey(event));
+}
+
 // Bound to the banner's dismiss button -- lets the user hide the "move your phone"
 // nudge without waiting for calibration to actually finish. Suppressed only for the
 // current calibration cycle: resetCompassCalibration() (staleness recovery) clears
@@ -3885,6 +3954,7 @@ function ensureLocationWatch() {
       state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
       state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
       state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+      checkEventProximityAlert(latitude, longitude);
       // Walked out of a radius that was framing one nearby find? Grow it back to whatever is
       // still in reach before the list and camera are re-derived below (js/nav.js).
       ensureWalkingRadiusCoversNearest();
@@ -6633,7 +6703,9 @@ function searchResultName(type, item) {
 function searchResultTypeLabel(type, item) {
   switch (type) {
     case "tree": return "Tree";
-    case "landmark": return filterMeta(placeLabelFilterKey(item))?.label || item.categoryLabel || "Place";
+    case "landmark":
+      if (isEventCategory(item)) return formatEventWhen(item) || "Event";
+      return filterMeta(placeLabelFilterKey(item))?.label || item.categoryLabel || "Place";
     case "cow": return "Cow";
     case "path": return filterMeta("waymarked_trails")?.label || "Trail";
     case "road": return roadTypeLabel(item);
@@ -7638,6 +7710,33 @@ function formatTimeAgo(timestamp) {
   if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
   const days = Math.floor(hours / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+// "When" row for an event's detail view -- "Sat 18 Oct, 10am–4pm" for a same-day range,
+// "Sat 18 Oct – Sun 19 Oct" spanning days, or just the start time when there's no endsAt.
+function formatEventWhen(event) {
+  const starts = event && event.startsAt ? new Date(event.startsAt) : null;
+  if (!starts || Number.isNaN(starts.getTime())) return null;
+  const ends = event && event.endsAt ? new Date(event.endsAt) : null;
+  const validEnds = ends && !Number.isNaN(ends.getTime()) ? ends : null;
+
+  // The forest, and everyone walking in it, is in the UK -- fixed rather than the device's own
+  // zone, so a visitor from elsewhere (or a CI runner in any zone) sees the same local time a
+  // Londoner would, not their own offset re-applied to a UK event.
+  const dateFmt = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" });
+  const timeFmt = new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-digit", timeZone: "Europe/London" });
+
+  if (!validEnds) return `${dateFmt.format(starts)}, ${timeFmt.format(starts)}`;
+  if (starts.toDateString() === validEnds.toDateString()) {
+    return `${dateFmt.format(starts)}, ${timeFmt.format(starts)}–${timeFmt.format(validEnds)}`;
+  }
+  return `${dateFmt.format(starts)} – ${dateFmt.format(validEnds)}`;
+}
+
+function eventStatusLabel(event, nowMs = Date.now()) {
+  if (isEventLive(event, nowMs)) return "Happening now";
+  const starts = event && event.startsAt ? new Date(event.startsAt).getTime() : NaN;
+  return Number.isFinite(starts) && starts > nowMs ? "Upcoming" : null;
 }
 
 function updateCowTimeAgoField() {

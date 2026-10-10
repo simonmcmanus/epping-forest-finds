@@ -416,6 +416,24 @@ globalThis.__forestFindsTest = {
   PLACE_FILTER_PRIORITY,
   PLACE_FILTER_FALLBACK_PRIORITY,
   PLACE_FILTER_TOPIC_PRIORITY,
+  DEFAULT_FILTERS,
+  normalizeEventLocations,
+  eventTimeWindow,
+  isEventLive,
+  isEventPast,
+  isEventTooFarAhead,
+  EVENT_SHOW_AHEAD_MS,
+  isEventCategory,
+  formatEventWhen,
+  eventStatusLabel,
+  eventAlertEnabled,
+  checkEventProximityAlert,
+  showEventNearbyBanner,
+  hideEventNearbyBanner,
+  openEventNearbyBanner,
+  placeHashKey,
+  findPlaceByHashKey,
+  focusOverviewItem,
   treeSpeciesIconHtml,
   placeTitle,
   ICON_PATHS,
@@ -3975,11 +3993,11 @@ test("settings refresh listeners are removed before being re-added, so reopening
   }
 });
 
-test("filter groups include all six labelled categories", () => {
+test("filter groups include all seven labelled categories", () => {
   const { FILTER_GROUPS: groups } = app;
-  assert.equal(groups.length, 6, "should have exactly six filter groups");
+  assert.equal(groups.length, 7, "should have exactly seven filter groups");
   const labels = groups.map((g) => g.label);
-  for (const expected of ["Nature", "Food", "Transport", "History", "Locations", "Stories"]) {
+  for (const expected of ["Nature", "Food", "Transport", "History", "Locations", "Stories", "Events"]) {
     assert.ok(labels.includes(expected), `missing filter group: ${expected}`);
   }
 });
@@ -9013,7 +9031,10 @@ test("the weekly report's map inventory counts every filter group the app offers
   assert.deepEqual(
     groupKeys,
     ["nature", "food", "transport", "history", "locations", "stories"],
-    "the report groups things exactly the way the app's Filter screen does"
+    // Events is deliberately excluded from this report -- see the comment in
+    // map-inventory.js's buildInventory(). This test's own name is about the app's physical
+    // map categories, not literally "every" FILTER_GROUPS entry.
+    "the report groups every one of the app's static map categories the same way the app's Filter screen does"
   );
   for (const group of inventory.groups) {
     assert.ok(group.subfilters.length > 0, `${group.key} should list its subfilters`);
@@ -9148,6 +9169,160 @@ test("the admin login field has a programmatic label, not just a placeholder", (
   const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8");
 
   assert.match(html, /<label for="loginPassword"[^>]*>[^<]*Admin password[^<]*<\/label>/);
+});
+
+// --- Events ---
+
+test("Events is a default-on category, like Trees and Cows", () => {
+  assert.ok(app.DEFAULT_FILTERS.includes("events"));
+  const onboardingSrc = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
+  assert.match(onboardingSrc, /new Set\(\["trees", "cows", "events"\]\)/);
+});
+
+test("normalizeEventLocations keeps upcoming (within a week) and live events, and drops past or too-far-ahead ones", () => {
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  const data = {
+    events: [
+      { id: "soon", name: "Soon fair", lat: 51.65, lon: 0.04, startsAt: "2026-10-15T10:00:00Z", endsAt: "2026-10-15T16:00:00Z" },
+      { id: "live", name: "Live walk", lat: 51.65, lon: 0.04, startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z" },
+      { id: "past", name: "Past market", lat: 51.65, lon: 0.04, startsAt: "2026-09-01T10:00:00Z", endsAt: "2026-09-01T16:00:00Z" },
+      { id: "too-far-ahead", name: "Next month's fair", lat: 51.65, lon: 0.04, startsAt: "2026-11-21T10:00:00Z" },
+      { id: "no-coords", name: "Nowhere", startsAt: "2026-10-15T10:00:00Z" },
+    ],
+  };
+
+  const events = app.normalizeEventLocations(data, now);
+
+  assert.deepEqual(events.map((e) => e.id).sort(), ["live", "soon"]);
+  for (const event of events) {
+    assert.equal(event.dataSource, "event");
+    assert.equal(event.category, "event");
+    assert.ok(event.categoryTags.includes("event"));
+    assert.ok(event.point);
+  }
+});
+
+test("isEventTooFarAhead holds back an event until it's within a week of starting, but never one already live", () => {
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  assert.equal(app.isEventTooFarAhead({ startsAt: "2026-10-17T11:00:00Z" }, now), false, "exactly a week out is still shown");
+  assert.equal(app.isEventTooFarAhead({ startsAt: "2026-10-18T13:00:00Z" }, now), true, "more than a week out is not");
+  // Started three weeks ago, a multi-week festival still running today -- live, so never "ahead".
+  assert.equal(app.isEventTooFarAhead({ startsAt: "2026-09-19T10:00:00Z", endsAt: "2026-10-20T10:00:00Z" }, now), false);
+});
+
+test("an event with no endsAt is assumed to run for one day from startsAt", () => {
+  const starts = "2026-10-10T10:00:00Z";
+  const justInside = Date.parse(starts) + 23 * 60 * 60 * 1000;
+  const justOutside = Date.parse(starts) + 25 * 60 * 60 * 1000;
+
+  assert.equal(app.isEventPast({ startsAt: starts }, justInside), false);
+  assert.equal(app.isEventPast({ startsAt: starts }, justOutside), true);
+});
+
+test("isEventLive is true only between startsAt and endsAt", () => {
+  const event = { startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z" };
+  assert.equal(app.isEventLive(event, Date.parse("2026-10-10T09:00:00Z")), false);
+  assert.equal(app.isEventLive(event, Date.parse("2026-10-10T12:00:00Z")), true);
+  assert.equal(app.isEventLive(event, Date.parse("2026-10-10T15:00:00Z")), false);
+});
+
+test("an event with no parseable startsAt is never shown", () => {
+  assert.equal(app.isEventPast({}), true);
+  assert.equal(app.isEventPast({ startsAt: "not a date" }), true);
+  assert.equal(app.normalizeEventLocations({ events: [{ id: "bad", lat: 51.65, lon: 0.04 }] }).length, 0);
+});
+
+test("events classify and draw through the ordinary place-filter pipeline", () => {
+  const event = { id: "e1", name: "Autumn Fair", dataSource: "event", categoryTags: ["event"] };
+  assert.equal(app.matchesPlaceFilter(event, "events"), true);
+  assert.equal(app.isEventCategory(event), true);
+  assert.equal(app.placeIconSlug(event), "event");
+  assert.ok(app.PLACE_FILTER_KEYS.has("events"));
+});
+
+test("formatEventWhen renders a same-day range, a spanning range, and a start-only time", () => {
+  assert.equal(
+    app.formatEventWhen({ startsAt: "2026-10-18T10:00:00Z", endsAt: "2026-10-18T16:00:00Z" }),
+    "Sun 18 Oct, 11:00–17:00"
+  );
+  assert.equal(
+    app.formatEventWhen({ startsAt: "2026-10-18T10:00:00Z", endsAt: "2026-10-19T10:00:00Z" }),
+    "Sun 18 Oct – Mon 19 Oct"
+  );
+  assert.equal(app.formatEventWhen({ startsAt: "2026-10-18T10:00:00Z" }), "Sun 18 Oct, 11:00");
+  assert.equal(app.formatEventWhen({}), null);
+});
+
+test("eventStatusLabel reports Happening now vs Upcoming", () => {
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  assert.equal(app.eventStatusLabel({ startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z" }, now), "Happening now");
+  assert.equal(app.eventStatusLabel({ startsAt: "2026-10-18T10:00:00Z" }, now), "Upcoming");
+  assert.equal(app.eventStatusLabel({ startsAt: "2026-09-01T10:00:00Z" }, now), null);
+});
+
+test("a past event never reaches the proximity banner, even standing right on top of it", () => {
+  resetData(app);
+  app.state.overviewFilters = [];
+  app.state.walkingDistanceMinutes = 10;
+  app.state.eventNearbyAlertedIds = new Set();
+  app.state.eventNearbyBannerEventId = null;
+  app.els.eventNearbyBanner.hidden = true;
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  app.state.landmarks.push({
+    id: "past-1", name: "Past market", dataSource: "event", categoryTags: ["event"],
+    startsAt: "2026-09-01T10:00:00Z", endsAt: "2026-09-01T16:00:00Z",
+    ...makePoint(app, 0, 0),
+  });
+  app.checkEventProximityAlert(0, 0, now);
+  assert.equal(app.els.eventNearbyBanner.hidden, true);
+});
+
+test("a live event within the walking radius opens the proximity banner exactly once per session", () => {
+  resetData(app);
+  app.state.overviewFilters = [];
+  app.state.walkingDistanceMinutes = 10;
+  app.state.eventNearbyAlertedIds = new Set();
+  app.state.eventNearbyBannerEventId = null;
+  app.els.eventNearbyBanner.hidden = true;
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  app.state.landmarks.push({
+    id: "live-1", name: "Autumn Fair", dataSource: "event", categoryTags: ["event"],
+    startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z",
+    ...makePoint(app, 0, 0),
+  });
+
+  app.checkEventProximityAlert(0, 0, now);
+  assert.equal(app.els.eventNearbyBanner.hidden, false);
+  assert.match(app.els.eventNearbyBannerText.textContent, /Autumn Fair is on now/);
+
+  app.els.eventNearbyBanner.hidden = true;
+  app.checkEventProximityAlert(0, 0, now);
+  assert.equal(app.els.eventNearbyBanner.hidden, true, "already-alerted events are never re-shown this session");
+});
+
+test("a live event outside the walking radius or behind a disabled Events filter does not alert", () => {
+  resetData(app);
+  app.state.walkingDistanceMinutes = 5;
+  app.state.eventNearbyAlertedIds = new Set();
+  app.els.eventNearbyBanner.hidden = true;
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  app.state.landmarks.push({
+    id: "far-1", name: "Far fair", dataSource: "event", categoryTags: ["event"],
+    startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z",
+    ...makePoint(app, 1, 0), // far outside any walking radius
+  });
+  app.state.overviewFilters = [];
+  app.checkEventProximityAlert(0, 0, now);
+  assert.equal(app.els.eventNearbyBanner.hidden, true, "outside the radius -- no alert");
+
+  app.state.landmarks[0] = {
+    id: "near-but-off-1", name: "Nearby but filtered out", dataSource: "event", categoryTags: ["event"],
+    startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z",
+    ...makePoint(app, 0, 0),
+  };
+  app.state.overviewFilters = ["trees"]; // Events explicitly not among the active filters
+  app.checkEventProximityAlert(0, 0, now);
+  assert.equal(app.els.eventNearbyBanner.hidden, true, "Events filter turned off -- no alert");
 });
 
 runRegisteredTests().catch((error) => {

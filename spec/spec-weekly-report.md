@@ -2,7 +2,7 @@
 
 The weekly report is a standalone HTML page published under `reports/`, built by
 `scripts/report/render_report.py` from a small structured `report-data.json`. The
-generator owns the design, layout, SVG map and every number on the page; the
+generator owns the design, layout and SVG map; the
 research and the written findings come from the weekly workflow
 (`.github/workflows/weekly-ledger.yml`).
 
@@ -231,6 +231,95 @@ which is why every proposed data change arrived with a red suite on it.
 `spec-marketing.md` from the datasets; the weekly run calls it straight after
 applying a changeset. See `spec-marketing.md` §4.
 
+## Road closures, events and standing notices
+
+Unlike business detection, the "road & access" and "events" sections have no
+dedicated script or memory of their own yet — each run researches them fresh
+with `WebSearch`/`WebFetch` against a fixed URL list in the workflow prompt,
+so nothing persists between runs and a long-running item (the High Beech
+water-mains project, say) has to be hand-coded into the prompt as a standing
+reminder rather than remembered automatically. That fixed list covers the
+forest-wide aggregators (City of London's own pages, the EFCC diary) plus,
+as they're found, the own-site events pages of venues that run independently
+of City of London and so never appear in those aggregators — each such site
+has to be checked individually, the same way the aggregators are. It also
+covers the towns and villages around the forest, whose own events (a village
+beer festival, a town council's Christmas market) appear in none of the
+forest-wide aggregators above: the Wanstead Village Directory's and South
+Woodford Village Gazette's events calendars are each checked as a real
+iCal feed, the first verified to actually carry the event that surfaced
+this gap (the Wanstead Beer Festival); the two feeds share some of the
+same Wanstead-area events, so a run checking both de-dupes by title and
+date rather than adding each twice. Visit Epping Forest's district-wide
+calendar and Epping Town Council's events diary are each checked as a
+page, the same way Copped Hall's site is. Facebook and X/Twitter accounts
+of forest-adjacent organisations were
+evaluated and excluded: both gate programmatic read access behind paid
+tiers or app review that a page's own website doesn't need, so the run
+does not spend time on them (see the `sourceNotes` in
+`data/forest-events.json`, which also records which other town/village
+sources were checked and found to have no usable feed yet, or to block
+automated requests outright).
+
+`data/road-closures.json`, `data/forest-events.json` and
+`data/forest-notices.json` are a first step towards fixing that: real,
+researched entries (road/utility works, dated events, and standing
+visit-affecting notices — car park hours, riding/fishing seasons,
+conservation works — that fit none of the report's existing categories) with
+their own sources and a `lastVerified` date, seeded and kept current by hand
+(by the weekly run, per its own prompt) rather than by a diff script. Each
+file's `sourceNotes` records which upstream sources were evaluated and why
+(an API worth building a scraper against, a page too JS-rendered to scrape,
+a URL that has gone 404) — that evaluation is the reusable part until a
+script like `osm_business_diff.py`'s exists for this data. An entry marked
+`needsReverification` is a research gap being surfaced honestly, not a
+finding ready to print; `scripts/report/structured_findings.py` (below)
+carries that caveat into the finding's own body text rather than dropping it.
+
+`scripts/report/structured_findings.py` reads the three files and returns
+whichever entries are still within their own recorded dates as of a given
+day, in `report-data.json`'s finding shape — see "Road, access and event
+findings" in `report-data.schema.md`. A multi-week roadworks project or a
+dated event now shows up every week it's genuinely true, not only the week a
+web search happened to resurface it. Dated events surface up to
+`EVENT_HORIZON_DAYS` (30 days) ahead, not just the current week: the ledger's
+main job is this week's news, but a reader also wants enough notice of a
+dated event to plan it into their diary, not only a mention once it's days
+away. A recurring series with no next date confirmed is always surfaced,
+labelled "Recurring", since it carries no date to measure against the
+horizon.
+
+The published report's Events section splits on this: each event finding
+carries a `when` of `"week"` (happening within the next 7 days) or `"month"`
+(further out, or recurring with no next date confirmed), and
+`render_report.py` groups the section into a "This week" and a "Coming up in
+the next month" subheading accordingly, only showing a subheading that
+actually has something under it. Without this split, a 30-day horizon would
+read as if the whole month were "this week"'s news. `structured_findings.py`
+sets `when` itself from the date; a finding written by hand straight into
+`report-data.json` (the workflow's own fresh research) needs it set
+explicitly — see `report-data.schema.md`.
+
+It is a floor under the weekly run's own
+research, not a replacement for it: the workflow still researches road/access
+and events fresh each run (step 2c/2d), and that step's job now includes
+updating these three files' dates, bodies and `lastVerified` stamps so they
+don't go stale sitting unread. "Notices" is not yet its own `categories.py`
+entry — the script folds them into `"road"`, which the report already titles
+broadly as "Road closures & access".
+
+`scripts/report/tfl_transit_status.py` adds a fourth source that needs none
+of this upkeep, because it checks Transport for London's own live status
+rather than a hand-researched file: the Central line (Epping, Theydon Bois,
+Debden, Loughton) and the Weaver line, London Overground's name for the
+Chingford branch, plus bus stop disruptions around the coverage settlements.
+It folds into `"road"` the same way notices do, needs no `TFL_APP_KEY` (see
+`.env.example` — the key only raises a shared rate limit, it doesn't unlock
+different data), and most weeks prints no findings at all, which is the
+correct result (good service, no disrupted stops), not a gap to research
+around. The bus stop check batches its stop ids: `/StopPoint/{ids}/Disruption`
+rejects a request past 22 comma-joined ids regardless of which ones.
+
 ## Files
 
 - `scripts/report/render_report.py` — entry point; renders the page
@@ -256,14 +345,46 @@ Business detection (see "Keeping the map's businesses current" above):
 - `scripts/sync-homepage-counts.js` — keeps the homepage's quoted counts true
 - `data/business-watch.json` — the committed watchlist
 - `data/verification.json` — the committed confirmation record
+- `data/road-closures.json`, `data/forest-events.json`, `data/forest-notices.json`
+  — manually-researched road/event/notice entries and source evaluations (see
+  "Road closures, events and standing notices" above)
+- `scripts/report/structured_findings.py` — turns the three files above into
+  report-data.json findings that are still within their own recorded dates
+- `scripts/report/tfl_transit_status.py` — live Central line / Weaver line
+  and bus stop disruption check; no file of its own, no key required
 - `scripts/test_*.py` for each of the above — unit tests
 
 Handy while working: `npm run audit:quality` and `npm run audit:duplicates`.
 
 ## Who the report is for
 
-A reader who has never heard of this project and never will. They want to know
-what is going on in Epping Forest, and nothing else.
+A reader interested in Epping Forest, whether or not they use the app. Each
+edition leads with useful local news: what happened, where, and why it matters
+for a visit. Intros are one or two short sentences; stories keep dates, source
+links and genuine uncertainty, without research diaries or maintenance lists.
+
+Write for publication after the accompanying PR merges. Review status stays in
+the PR body, never the published page; the jargon guard rejects pending-review
+and map-edit proposal wording. A newly discovered established business is a
+local find, not evidence of a new opening. The map legend and search description
+use “local find” for the historical `opening` category.
+
+The report uses the homepage’s dark-green heading panel beside its longhorn
+photo without a caption, on a cream page, with Fraunces headings and Public Sans body
+text, with the homepage oak brand mark, longhorn photograph and Ledger image
+from `assets/home/`. The hero selects from the shared 480, 768, 960, 1280 and
+1600px WebP variants using responsive `srcset`/`sizes`, with a JPEG fallback,
+intrinsic dimensions and high fetch priority. Published editions and future
+reports use the same responsive photo without changing the crop. A split text/photo header stacks on phones. No app CSS or
+JavaScript is loaded. Published editions share this design. A high-level opening paragraph inside the green heading panel summarises the
+actual findings in one or two brief sentences, including cattle movement and
+quiet categories where relevant. Avoid generic introductions and directions to
+the rest of the report; no updates included does not mean no disruptions exist. The town list is a quiet
+footer. A statistics strip attaches to the bottom of the photo header, showing
+food/shop totals, local finds, closure updates, access changes, events and grazing
+status when available; it wraps to two columns on phones. The location map follows, then
+the individual business, access, event and grazing details; the detailed food breakdown and full app
+inventory are omitted so the newsletter stays focused on forest news.
 
 Nothing about how the report is produced goes on the page: not which sources
 the tooling reached, not what it checked or what failed, not how the page is
@@ -288,8 +409,8 @@ remain under their public report URLs. These addresses are built from
 Openings/closures, road & access, and events each render whether or not the
 week turned anything up; an empty one says so in plain English
 (`EMPTY_SECTION_NOTES`). A missing "Events" heading reads as "nobody looked";
-an explicit "No events listed this week" reads as "we looked, and there were
-none".
+an explicit empty note says no updates are included in this edition, without
+claiming there are no events or disruptions.
 
 ## Cattle on the map
 
@@ -315,7 +436,12 @@ Both are added by the generator; neither is ever written by hand into
 - **The advert** (`render_app_promo`) sits after the week's news, not in the
   masthead — a reader who has just read what is going on in the forest has a
   reason to want the map; someone who has only read the headline does not. It
-  explains what the app is and what it does, and links to `app_link`.
+  explains what the app is and what it does. Its primary link invites early
+  access updates through the homepage signup; existing testers can use
+  `app_link`. It describes saved cattle locations honestly when offline.
+- **The mailing-list invitation** comes after the news and map, before the app
+  advert. It offers standalone forest updates and uses the existing homepage
+  signup, explicitly saying weekly email updates start once the site launches.
 - **The AI note** (`render_ai_note`) is the last thing on the page: the report
   is researched and written by AI, it can be wrong, and here is how to say so.
   Its link is a deep link into the app's own report-a-problem screen
@@ -337,7 +463,7 @@ is indexable. Both generators run from `npm run build`.
 The listing wears the homepage's look (palette, Fraunces and Public Sans, cards)
 with its styles inlined, loading only the oak leaf and Ledger icon from
 `assets/home/` (including the shaded `ledger.png`) and nothing from the app. It has the homepage's brand header
-(linking to `/`, with a "Get updates" link to `/#signup`), a dark-green hero
+(linking to `/`, with a "Get updates" link to `/#signup`), a cream text-and-photo hero using the homepage longhorn image
 with the "Field notes · Published weekly" eyebrow, then **Every edition**: one
 white card of rows, each reading "Epping Forest Ledger" over the week's date,
 newest first with a **Latest** badge on the top row. Editions are ordered by
@@ -348,51 +474,11 @@ beside an "Open the Epping Forest map →" button, then the homepage footer. It
 is light only, like the homepage, and fits a 390px phone without sideways
 scrolling.
 
-## Stat strip
+## Inventory utilities
 
-One cell per thing that changed this week (openings, closures, road/access, events,
-and the cattle-grazing update when present), plus a count of the food/drink/shop
-dataset labelled **"Places to eat, drink & shop"**. That label is deliberately
-specific: it counts `data/local-landmarks-food.geojson` only. It must never be
-labelled as a total for the map — the whole-map total belongs to the inventory
-section below.
-
-## "What's on the map" section
-
-A running inventory of everything the app can draw: a headline total, then a
-breakdown by the app's own high-level filter groups (Nature, Food, Transport,
-History, Locations, Stories) with each group's subfilter counts underneath, and a
-final full-width row for features that are always shown and have no filter of their
-own (gates, benches, toilets and similar). Each group heading and subcategory
-carries the same icon used by the app; group icons are larger to make the
-hierarchy clear. Those icons are resized and embedded in the report HTML so the
-inventory keeps its meaning when the report is saved or forwarded. When app
-icon artwork changes, regenerate or update the published report embeds in the
-same release so the homepage, ledger and map share the same transparent,
-shaded icon style.
-The public homepage uses this same card format and grouping.
-
-Rules:
-
-- The breakdown must add up to the headline total. A place matching more than one
-  subfilter is counted once, under the filter chip the app lists it under
-  (`placeLabelFilterKey`): the specific filters, then the `monuments`/`historic`
-  fallback tier, with `blue_plaques` counted as Plaques.
-- Counts come from `scripts/report/map-inventory.js`, which loads
-  `js/categories.js` and `js/normalize.js` and classifies places with the app's own
-  `placeLabelFilterKey`. The report must never re-implement classification in
-  Python: the numbers would drift from what the app actually shows, which is the
-  problem this section exists to solve.
-- Trees are counted from `data/trees/index.json`'s `recordCount`; ponds and streams
-  from `extractWaterFeatures` over `data/local-environment.geojson`.
-- Cattle are excluded — they are tracked live from the grazing collars, not stored
-  with the map data — and so are the roads, paths and water drawn as base layers.
-  The section says both in plain English.
-- The inventory is read at render time, after the week's data changes have been
-  applied, so the report always describes the map as it will be once the week's
-  changes are live.
-
-`map-inventory.js` takes an optional `--root <dir>` to read data from a different
-directory (the report's own tests render against a stand-in). The classification
-rules always come from this checkout's `js/`. When the data files are absent the
-inventory is empty and the section is omitted entirely.
+The newsletter shows a compact statistics strip; its food/shop total is read
+from the food dataset when rendering. Historical editions retain their original
+totals. Local finds are not labelled as confirmed new openings.
+`scripts/report/map-inventory.js` remains available for the homepage and other
+count consumers. It classifies places using the app’s own filter rules; the
+newsletter renderer does not load the full inventory to publish a report.

@@ -1,0 +1,67 @@
+{
+  "_comment": "Standing visit-affecting notices (access, facilities, conservation) that aren't road closures or one-off events -- a category the ledger doesn't render yet. Manually researched and verified on lastVerified; see spec/spec-weekly-report.md.",
+  "entries": [
+    {
+      "id": "car-park-hours-2026-09",
+      "category": "facility",
+      "title": "Shorter car park hours",
+      "place": "Epping Forest car parks",
+      "startDate": "2026-09-15",
+      "endDate": null,
+      "status": "ongoing",
+      "body": "Car park opening hours shortened from 7:00am-8:00pm to 7:00am-6:30pm from Monday 15 September 2026.",
+      "sources": [{"label": "City of London: What's new in Epping Forest", "url": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest"}],
+      "lastVerified": "2026-10-10"
+    },
+    {
+      "id": "open-riding-season-2026",
+      "category": "access",
+      "title": "Open riding season",
+      "place": "Epping Forest",
+      "startDate": "2026-04-17",
+      "endDate": null,
+      "status": "ongoing",
+      "body": "Open riding (horse riding off the designated riding routes) started at 00:01 on Friday 17 April 2026. End date for the season not stated on the source page.",
+      "needsReverification": true,
+      "reverificationNote": "No end date found -- confirm whether open riding is still in effect before reporting it as current.",
+      "sources": [{"label": "City of London: What's new in Epping Forest", "url": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest"}],
+      "lastVerified": "2026-10-10"
+    },
+    {
+      "id": "baldwins-pond-dam-works-2026",
+      "category": "works",
+      "title": "Baldwins Pond dam investigation works",
+      "place": "Baldwins Pond",
+      "startDate": "2026-08",
+      "endDate": null,
+      "status": "ongoing",
+      "body": "Cognition Land and Water Ltd is carrying out site investigations to inform future improvements to the Baldwins Pond dam. A public consultation is expected to follow, with construction expected to begin in spring (year not stated, presumably 2027).",
+      "lon": 0.0096,
+      "lat": 51.6295,
+      "sources": [{"label": "City of London: What's new in Epping Forest", "url": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest"}],
+      "lastVerified": "2026-10-10"
+    }
+  ],
+  "sourceNotes": [
+    {
+      "source": "cityoflondon.gov.uk/.../whats-new-in-epping-forest, section 'Things Affecting Your Visit'",
+      "note": "The only page found that collects these standing notices in one place. No dates on several items (e.g. Jubilee Pond pump repair 'from 1 June' with no end), so some entries above are deliberately marked needsReverification rather than asserted as still current.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Wildfire risk / BBQ enforcement (Met Office Fire Severity Index, London Fire Brigade press alerts, City of London's own wildfire-prevention page)",
+      "note": "Genuinely relevant to a forest and currently hand-verifiable only: the Met Office retired its own FSI webpage in favour of Natural England's 'Open Access' map, which has no public API found -- it's a map, not a feed. LFB issues an 'extreme wildfire warning' by press release when conditions spike (one hit in July 2026), not on a schedule, so it's an event to catch via news search in dry/hot weather rather than something to poll. Worth a seasonal reminder in the workflow prompt (check during dry spells) rather than a new structured file yet.",
+      "evaluated": "2026-10-11"
+    },
+    {
+      "source": "Storm/path closures (City of London's 'Severe Weather Protocol')",
+      "note": "Real (the Dec 2021 storm and 2024's Highgate Wood closure during Storm Bert/Darragh are documented precedent) but no advance schedule or feed exists -- it's triggered ad hoc by forecast wind speed. Only catchable via a news/social search in the days around a named storm; not worth a data file until a live source turns up.",
+      "evaluated": "2026-10-11"
+    },
+    {
+      "source": "Environment Agency real-time flood-monitoring API (environment.data.gov.uk/flood-monitoring)",
+      "note": "Free, open, no key needed -- genuinely the easiest API evaluated so far. Covers flood warnings/alerts and river levels; relevant to low-lying paths and ponds near the River Roding/Ching rather than the forest's high ground generally. Not yet looked up which station/flood-area codes cover our coverage settlements -- that's the remaining work before this becomes a real integration.",
+      "evaluated": "2026-10-11"
+    }
+  ]
+}

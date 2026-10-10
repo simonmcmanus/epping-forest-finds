@@ -564,6 +564,18 @@ function setupInspectorHandlers() {
       if (typeof dismissCompassCalibrationPrompt === "function") dismissCompassCalibrationPrompt();
     });
   }
+
+  if (els.eventNearbyBannerOpen) {
+    els.eventNearbyBannerOpen.addEventListener("click", () => {
+      if (typeof openEventNearbyBanner === "function") openEventNearbyBanner();
+    });
+  }
+
+  if (els.eventNearbyBannerDismiss) {
+    els.eventNearbyBannerDismiss.addEventListener("click", () => {
+      if (typeof hideEventNearbyBanner === "function") hideEventNearbyBanner();
+    });
+  }
 }
 
 function pulseNavButton(el) {

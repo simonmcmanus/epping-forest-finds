@@ -7,8 +7,8 @@
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v80";
-const DATA_CACHE_NAME = "forest-finds-data-v20";
+const APP_CACHE_NAME = "forest-finds-app-v87";
+const DATA_CACHE_NAME = "forest-finds-data-v27";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
 // "./" is deliberately absent: after the alpha URL split it resolves to the
@@ -51,6 +51,7 @@ const DATA_SHELL = [
   "./data/local-landmarks-tourism.geojson",
   "./data/local-landmarks-misc.geojson",
   "./data/epping_forest_folklore_locations.json",
+  "./data/events.json",
   "./data/local-paths.geojson",
   "./data/local-environment.geojson",
 ];

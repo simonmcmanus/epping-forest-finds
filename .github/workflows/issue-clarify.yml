@@ -27,7 +27,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           track_progress: true
           claude_args: |
-            --allowedTools "mcp__github__update_issue,Read,Grep,Glob"
+            --allowedTools "mcp__github__update_issue,Read,Grep,Glob,WebFetch"
           prompt: |
             You are grilling a GitHub issue on the Epping Forest Finds project
             before any code gets written against it, using the same discipline as
@@ -50,7 +50,10 @@ jobs:
             (`data/local-landmarks-food.geojson`, `data/local-landmarks-misc.geojson`,
             `data/business-watch.json`, `data/verification.json`, etc.) before
             treating it as settled, and say in your confirmation whether you could
-            confirm it, not just that the reporter said it.
+            confirm it, not just that the reporter said it. The same applies to a
+            report of a missing forest event, road/access closure, or standing
+            visit notice: check `data/forest-events.json`, `data/road-closures.json`
+            and `data/forest-notices.json` to confirm it isn't already listed.
 
             As your very first action, before reading anything else, set your
             tracking comment to just "🤔 Thinking…" — a plain in-progress
@@ -103,24 +106,46 @@ jobs:
             original, say so in one line in your confirmation below.
 
             Next decide, now that it's clarified and you've checked it against
-            the data, whether this is a **simple, confirmed data correction**:
-            a factual fix to one existing mapped place (it closed, renamed,
-            moved, or is mis-categorised) that your data check above actually
-            confirmed, with no design decision left for a person to make. If so,
-            use the update_issue tool to add the `claude` label — that hands it
-            straight to this repo's implementation workflow
-            (`claude-issue-agent.yml`), which will fix the data and open a pull
-            request on its own, no human labelling needed. Say so plainly in
-            your confirmation (e.g. "🔧 Confirmed against the data — labelled for
-            an automatic fix."). Do not add the label for anything else: feature
-            work, anything you couldn't confirm, or anything that still needs a
-            person's judgement call — leave those for a human to label.
+            the data, whether this is a **simple, confirmed data change** of
+            one of two kinds:
+
+            1. A factual fix to one existing mapped place (it closed, renamed,
+               moved, or is mis-categorised) that your data check above
+               actually confirmed.
+            2. A new entry for `data/forest-events.json`, `data/road-closures.json`
+               or `data/forest-notices.json` — a dated event, road/access
+               closure, or standing visit notice — where the issue cites a
+               specific source URL for the date and details, and your check
+               above confirmed it is not already listed. Verifying this one
+               means fetching the cited source URL yourself with WebFetch and
+               confirming the page actually supports the date, venue and
+               details claimed — not taking the issue's word for what it
+               says. If the issue gives no source URL, or the URL doesn't
+               load or doesn't support the claim, that is a clarifying
+               question to ask (case 1/2 above), not something to confirm on
+               trust.
+
+            Either way, there must be no design decision left for a person to
+            make (which category it belongs in, how to phrase it, whether it's
+            a one-off or recurring are all judgement calls — ask rather than
+            guess). If confirmed, use the update_issue tool to add the `claude`
+            label — that hands it straight to this repo's implementation
+            workflow (`claude-issue-agent.yml`), which will make the data
+            change (citing the same source URL for a new entry) and open a
+            pull request on its own, no human labelling needed. Say so plainly
+            in your confirmation (e.g. "🔧 Confirmed against the data —
+            labelled for an automatic fix." or "📅 Source cited and not
+            already listed — labelled to add it automatically."). Do not add
+            the label for anything else: feature work, anything you couldn't
+            confirm, or anything that still needs a person's judgement call —
+            leave those for a human to label.
 
             Then decide whether this also needs a **spec update**. A data
-            correction like the one above is never a spec change by itself —
-            fixing the place's name/status/location in the data is the whole
-            fix, and a spec file must never carry a specific place's facts as
-            documentation. Only look for a spec change when the clarified issue
+            change like either kind above is never a spec change by itself —
+            fixing the place's name/status/location, or adding a sourced
+            event/closure/notice entry, is the whole fix, and a spec file must
+            never carry a specific place's or event's facts as documentation.
+            Only look for a spec change when the clarified issue
             reveals an actual gap in behaviour, UX, categorisation rules, or
             architecture. When one applies, work out which `spec/*.md` file(s)
             (per the list in `CLAUDE.md`) would need updating, read the affected

@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE } = require("./helpers");
+const { setup, FIXTURE_TREE, waitForStableBoundingBox } = require("./helpers");
 
 test.describe("Feedback / Report screen", () => {
   test.beforeEach(async ({ page }) => {
@@ -174,7 +174,7 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await simulateKeyboardInset(page, insetPx);
 
     await expect(page.locator("#inspector")).toHaveClass(/keyboard-avoiding/);
-    const afterBox = await page.locator("#reportDetails").boundingBox();
+    const afterBox = await waitForStableBoundingBox(page.locator("#reportDetails"));
     // The sheet (and the textarea inside it) shifts up by the keyboard inset, so the
     // textarea stays above the simulated keyboard's top edge.
     expect(beforeBox.y - afterBox.y).toBeGreaterThan(insetPx - 20);
@@ -212,7 +212,7 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await simulateKeyboardInset(page, insetPx);
 
     await expect(page.locator("#inspector")).toHaveClass(/keyboard-avoiding/);
-    const afterBox = await page.locator("#reportDetails").boundingBox();
+    const afterBox = await waitForStableBoundingBox(page.locator("#reportDetails"));
     expect(beforeBox.y - afterBox.y).toBeGreaterThan(insetPx - 20);
 
     // Focus it, the way tapping it does: 380px of screen minus a 180px keyboard leaves a sheet
@@ -247,7 +247,7 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await simulateKeyboardInset(page, insetPx);
 
     await expect(page.locator("#inspector")).toHaveClass(/keyboard-avoiding/);
-    const afterBox = await page.locator("#mapSearchInput").boundingBox();
+    const afterBox = await waitForStableBoundingBox(page.locator("#mapSearchInput"));
     expect(beforeBox.y - afterBox.y).toBeGreaterThan(insetPx - 20);
 
     // Closing the keyboard clears the avoidance state

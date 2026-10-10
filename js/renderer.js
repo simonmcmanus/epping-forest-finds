@@ -7,7 +7,6 @@ const MAP_PNG_ICON_SIZE = 30;
 const CLUSTER_RADIUS_ICON_SIZE_REF = 16;
 const MAX_MAP_TREES = 60;
 const SELECTED_OVERLAY_PULSE_PERIOD_MS = 380;  // Shared pulse period for smooth animation
-const LANDMARK_CULL_MARGIN_PX = 24;  // Consistent culling margin for all landmark types
 
 const mapImageCache = new Map();
 
@@ -2263,7 +2262,13 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
   ctx.save();
   for (const cluster of sortedClusters) {
     const { screenPt, items } = cluster;
-    if (!isNearCanvas(screenPt, (items.length > 1 ? 84 : LANDMARK_CULL_MARGIN_PX) * dpr)) continue;
+    // iconSize * 2, not a flat margin: the pin's head sits above its anchor point and grows
+    // with mapEmojiScale() as the user zooms in, the same way drawTrees/drawCows/drawPathPins/
+    // drawWaterPins already cull their own lone pins (see the matching line in each). A flat
+    // margin here used to cull landmark pins well before they were actually off-canvas at
+    // higher zoom levels -- pubs/cafes/shops popping out near the screen edge where every
+    // other category's pin stayed put.
+    if (!isNearCanvas(screenPt, items.length > 1 ? 84 * dpr : iconSize * 2)) continue;
 
     const place = items[0];
     const baseOpacity = markerOpacityFor("landmark", place);

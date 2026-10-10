@@ -736,7 +736,11 @@ moving the real GPS fix:
 - **Returning to the real location:** while a browse anchor is set, `#nearbyAnchorBar` shows a
   "Showing places near where you tapped" notice with a **Use my location**
   (`data-action="reset-nearby-anchor"`) button that clears `state.nearbyAnchor`
-  (`clearNearbyAnchor`) and re-renders/re-fits back to the real GPS fix. The bar lives in the
+  (`clearNearbyAnchor`) and re-renders/re-fits back to the real GPS fix. The bar is an inset
+  card in the brand greens that fades in when a browse anchor is set (no animation under
+  `prefers-reduced-motion`). Its button is a pill-shaped primary button with a locate icon (38px
+  tap target; the icon is dropped below 360px wide), and an amber badge before the text mirrors
+  the browse-anchor marker on the map. On the mobile sheet it starts below the drag handle. The bar lives in the
   inspector *chrome* (between the header and the tools row), not in the Nearby list's HTML, so
   it survives the body swap that opening Filters, Settings or Report performs — all three keep
   drawing the ring around the browsed spot behind them, and while the notice was part of the
