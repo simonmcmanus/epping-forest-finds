@@ -113,21 +113,18 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator(`#${id} svg`)).toHaveCSS("stroke", "rgb(138, 106, 0)");
     }
 
-    // #filterToggle sits inline next to the Nearby heading, not in the nav row, and is a
-    // disclosure control for the drawer rather than a nav-bar screen target -- same gold
-    // highlight when open, via aria-expanded rather than the nav landmark's own
-    // exactly-one-aria-current bookkeeping, and the title stays "Nearby" throughout (Filters is
-    // a drawer on it, not a screen of its own).
+    // #filterToggle sits inline next to the Nearby heading, not in the nav row -- same gold
+    // highlight when it is the current screen, but outside the nav landmark's own bookkeeping.
     await page.click("#filterToggle");
-    await expect(page.locator("#filterToggle")).toHaveAttribute("aria-expanded", "true");
-    await expect(page.locator("#inspectorTitle").last()).toContainText("Nearby");
+    await expect(page.locator("#filterToggle")).toHaveAttribute("aria-current", "page");
+    await expect(page.locator("#inspectorTitle").last()).toContainText("Filters");
     await expect(page.locator("#filterToggle")).toHaveCSS("background-color", "rgba(240, 180, 41, 0.16)");
     await expect(page.locator("#filterToggle svg")).toHaveCSS("stroke", "rgb(138, 106, 0)");
 
     await page.locator(".filter-chip").first().click();
     await page.click("#nearbyToggle");
     await expect(page.locator("#filterCount")).toBeVisible();
-    await expect(page.locator("#filterToggle")).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator("#filterToggle")).not.toHaveAttribute("aria-current", "page");
     await expect(page.locator("#filterToggle")).toHaveAccessibleName(/^Filters/);
   });
 
@@ -264,19 +261,16 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator(".filter-chip").first()).toBeVisible();
   });
 
-  test("opening the drawer shows both the toggle (now active) and the back arrow as ways out", async ({ page }) => {
-    // Unlike Settings/Report, the toggle doesn't hide once the drawer is open -- it's a
-    // disclosure control, so it stays visible, flipped to its active look, as a second way to
-    // close the drawer alongside the ordinary back arrow.
+  test("the Filter screen shows a back arrow instead of the (now inert) filter toggle", async ({ page }) => {
+    // Previously the toggle stayed on screen in its "current" state once Filters opened --
+    // visibly highlighted, but doing nothing when tapped again. The ordinary back arrow is the
+    // way out instead, exactly as on Settings/Report.
     await page.click("#filterToggle");
-    await expect(page.locator("#filterToggle")).toBeVisible();
-    await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
+    await expect(page.locator("#filterToggle")).toBeHidden();
     await expect(page.locator("#inspectorBack")).toBeVisible();
     await page.click("#inspectorBack");
     await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
     await expect(page.locator("#filterToggle")).toBeVisible();
-    await expect(page.locator("#filterToggle")).not.toHaveClass(/screen-active/);
-    await expect(page.locator("#nearbyFilterPanel")).toBeHidden();
   });
 
   test("settings button is visible in overview mode", async ({ page }) => {
@@ -489,10 +483,10 @@ test.describe("Overview / Nearby screen", () => {
       const grown = await page.evaluate(() => state.walkingDistanceMinutes);
 
       expect(grown).toBeGreaterThan(before);
-      // The drawer survives the pinch -- refreshNearbyRadiusView must not stand it down -- and
-      // the real Nearby list underneath it keeps updating live with the new radius.
+      // The screen it was performed on survives: refreshNearbyRadiusView must not re-render
+      // the Nearby list over the top of it.
       await expect(page).toHaveURL(/#filters$/);
-      await expect(page.locator("#nearbyFilterPanel")).toBeVisible();
+      await expect(page.locator("#inspectorTitle")).toContainText("Filters");
     });
   });
 

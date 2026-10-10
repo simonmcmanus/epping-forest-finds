@@ -896,61 +896,36 @@ Search, Filter, Settings, and Report share identical navigation behaviour, gated
 
 ### Filter Panel (Overview mode only)
 
-- **Filters is a drawer on the Nearby screen, not a screen of its own.** `state.filterScreenOpen`
-  still drives the `#filters` URL, the back-arrow history trail and `secondaryScreenActive()`
-  exactly as before — none of that routing changed — but what's *on screen* no longer swaps.
-  `selectOverview()` (`js/inspector.js`) is the single render path for both plain Nearby and
-  Nearby-with-the-drawer-open: the title stays "Nearby" and the heading stays
-  `overviewHeadingText()` throughout, and `#inspectorBody` always holds the real nearest list.
-  `openFiltersScreen()` is now just `state.filterScreenOpen = true; selectOverview(true); updateFilterUi();`
-  — flip the flag, render Nearby the normal way (with the back arrow, since `showBack` also
-  reads `state.filterScreenOpen`), then let the drawer animate open on top.
-- **`#nearbyFilterPanel` is a persistent element** (`app.html`), sitting between
-  `.inspector-title-section` and `#inspectorBody` inside `.inspector-screen`, so it slides away
-  with the rest when navigating to Settings/Report/a selection but is never torn down by
-  `transitionInspectorBody()`'s `#inspectorBody` replacement. `ensureNearbyFilterPanelMounted()`
-  builds its chip markup once, the first time it's needed; `updateFilterUi()` only ever patches
-  `.active` classes, counts and the live `Showing N nearby` line in place afterward, never
-  rebuilds it, so a keyboard user's focus never leaves the chip they just pressed. Because the
-  panel never touches `#inspectorBody`, the real Nearby list sits immediately below it and simply
-  reflows down as the panel's height animates open — no second copy of the list, and no need to
-  re-render one: `setOverviewFilters()`/`refreshNearbyRadiusView()` etc. already refresh
-  `#inspectorBody` on every filter or radius change via the ordinary `isNearbyListShowing()` gate
-  (`!state.selected && !state.searchScreenOpen`), with or without the drawer open.
-- **The drawer pushes the list down by transitioning a measured `height`, not a guessed cap.**
-  `setNearbyFilterPanelOpen()` (`js/app.js`) measures `#nearbyFilterPanel`'s content
-  (`.nearby-filter-panel-inner`'s `scrollHeight`) and sets that exact pixel value as an inline
-  `height` style, animated by a plain CSS `height` transition (`.nearby-filter-panel`,
-  `css/inspector.css`) — not `max-height` toward a guessed cap (which keeps growing past where the
-  content actually stopped) and not a CSS grid's `grid-template-rows: 0fr -> 1fr` (which tracks
-  the real height correctly but makes every animation frame re-run grid track-sizing against the
-  drawer's own nested chip-grid content). Interpolating between two already-known pixel numbers
-  needs only an ordinary reflow of what the height change pushes down. `updateFilterUi()` calls
-  this again on every re-render while the drawer is open (a chip toggle, a live count change), so
-  the measured height stays current rather than being fixed at open time. The easing
-  (`cubic-bezier(0.16, 1, 0.3, 1)`) is ease-out, not ease-in-out, so the push responds immediately
-  and decelerates into place rather than easing into motion. No opacity fade alongside it — a
-  drawer doesn't fade in, it slides. The CSS media query handles `prefers-reduced-motion` by
-  zeroing the transition; nothing in JS branches on it for this panel. It is still effectively
-  capped: `.filter-body` (`css/filter.css`) scrolls internally past `min(54vh, 480px)`, so six chip
-  groups can never push the real list fully off-screen on a short phone, but that cap lives on the
-  inner card, not on the outer height being animated. `setInspectorSelectionChrome()` empties the
-  ghost-snapshot clone's copy of `#nearbyFilterPanel` (it gets cloned along with the rest of
-  `.inspector-screen` for the outgoing-screen slide) so the chip controls are never briefly
-  duplicated, non-interactively, in the live DOM during a transition.
-- **A sticky "Hide filters" bar sits at the drawer's own bottom** (`.filter-panel-collapse`,
-  `css/filter.css`) — a drag-handle-styled grip plus a chevron and label, `position: sticky;
-  bottom: 0` within the drawer's own scroll so it's reachable without hunting for it, a second
-  obvious way back alongside the ordinary back arrow. It calls `navigateBack()`, same as
-  `#inspectorBack`, so forward/back history stays consistent.
-- **`#filterToggle` stays visible and flips to its active look while the drawer is open**, rather
-  than hiding in favour of the back arrow. It's a disclosure control
-  (`aria-expanded`/`aria-controls="nearbyFilterPanel"`), not a nav-bar screen target — it's
-  deliberately left out of `setNavScreenActive()`'s element list, and tapping it while open calls
-  `navigateBack()` the same way the collapse bar does, rather than the "already here" bounce
-  Search/Settings/Report/Nearby give when re-tapped. `updateFilterUi()` shows it whenever nothing
-  is selected and Search is closed (it still hides for a real selection or Search, same as
-  before).
+- **Filters is reached from Nearby, not a nav peer.** `#filterToggle` only ever changes what the
+  Nearby list and map show, so instead of sitting in `.inspector-actions` alongside Search/Nearby/
+  Feedback/Settings as a fifth co-equal tab, it sits inline inside `.inspector-title-section`, next
+  to the Nearby/Filters heading itself (`app.html`) — sharing the title section's reserved
+  top-right corner with `#compassArrow`, which the two screens never show at the same time, so it
+  costs no extra vertical space over a nav-bar tab. It is sized to match `#inspectorBack` (a 44px
+  circle, `.inspector-filter-toggle`/`.inspector-back` in `css/inspector.css`) rather than the
+  smaller nav-bar icon buttons it replaced. `updateFilterUi()` (`js/app.js`) shows it on Nearby
+  only, as the way *in* — it hides on every other screen, Filters itself included, rather than
+  sitting there in its active state doing nothing when tapped again; `#inspectorBack` (below) is
+  the way out instead. This hide check runs from `setInspectorSelectionChrome()`, the shared
+  chokepoint every screen entry routes through, so it never goes stale across a navigation; Search
+  is the one exception, where the flag it depends on (`state.searchScreenOpen`) is only set true
+  just after that chokepoint runs, so `openSearchScreen()` re-derives it once more immediately
+  afterward.
+- **Filters has its own back arrow, like Settings and Report.** `openFiltersScreen()` passes
+  `showBack: true` to `setInspectorSelectionChrome()`, so `#inspectorBack` now shows on Filters too
+  and steps back through the trail the same way it does from any other screen. That chokepoint
+  clears `state.filterScreenOpen` for every `showBack: true` screen (so a selected place or
+  Settings correctly stands Filters down on the way in) — `openFiltersScreen()` sets it `true`
+  again immediately afterward, now that Filters is the screen being entered rather than left.
+- **The Filter screen shows the nearest list too, live.** `filterScreenBodyHtml()` (`js/app.js`)
+  appends the same nearest-list markup the Nearby screen shows (`overviewNearestHtml()`) below the
+  chip groups, with a `Showing N nearby` line next to Clear all at the top of the panel so the
+  count is provable without scrolling even when the groups below fill the sheet. Toggling a chip
+  or a group header only ever replaces the list half (`refreshFilterScreenList()`) — the chip
+  panel above it is never re-rendered, only patched in place by `updateFilterUi()` as before, so a
+  keyboard user's focus stays on the chip they just pressed. This exists so a filter's effect is
+  visible on the screen where you changed it, instead of only being provable by backing out to
+  Nearby again.
 - Toggle button shows active filter count badge
 
 Filter groups (defined by `FILTER_GROUPS` in `js/categories.js`, the single source of truth):

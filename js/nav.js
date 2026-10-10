@@ -574,12 +574,9 @@ function pulseNavButton(el) {
 }
 
 function setupFilterPanelHandlers() {
-  // A disclosure toggle, not a screen-nav button: tapping it while the drawer is open closes
-  // it the same way the back arrow and the drawer's own "Hide filters" bar do, rather than
-  // bouncing in place like Search/Settings/Report do when you re-tap an already-active tab.
   els.filterToggle.addEventListener("click", () => {
-    if (state.filterScreenOpen) {
-      navigateBack();
+    if (els.filterToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+      pulseNavButton(els.filterToggle);
       return;
     }
     if (els.inspector.classList.contains("minimized")) {
@@ -590,11 +587,7 @@ function setupFilterPanelHandlers() {
 
   if (els.nearbyToggle) {
     els.nearbyToggle.addEventListener("click", () => {
-      // nearbyToggle reads "screen-active" even with the filter drawer open now (Filters is
-      // Nearby, not a separate screen -- see selectOverview()), so the bounce that acknowledges
-      // "you're already here" only applies with the drawer closed too; with it open, tapping
-      // Nearby is the one-tap way all the way back, same as it's always been.
-      if (!state.filterScreenOpen && els.nearbyToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+      if (els.nearbyToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.nearbyToggle);
         return;
       }
@@ -638,15 +631,7 @@ function setupFilterPanelHandlers() {
     }
   }, true);
 
-  // The drawer (#nearbyFilterPanel) sits outside #inspectorBody now, so its own clicks need
-  // their own delegated listener rather than riding along with the list's.
-  els.nearbyFilterPanel.addEventListener("click", (event) => {
-    const collapseButton = event.target.closest("[data-action='collapse-filters']");
-    if (collapseButton) {
-      navigateBack();
-      return;
-    }
-
+  els.inspectorBody.addEventListener("click", (event) => {
     const clearAllButton = event.target.closest("[data-filter-clear-all]");
     if (clearAllButton) {
       setOverviewFilters([]);
@@ -825,16 +810,13 @@ function refreshNearestTreeForNearbyOrigin() {
 function refreshNearbyRadiusView(options = {}) {
   const animate = options.animate !== false;
   refreshNearestTreeForNearbyOrigin();
-  // selectOverview() replaces #inspectorBody with the Nearby list and forces its title/nav
+  // selectOverview() replaces the inspector body with the Nearby list and forces its title/nav
   // state regardless of what's currently shown -- correct while the pinch gesture is live (it's
-  // gated on isOverviewScreenActive() before it can even start) and while the filter drawer is
-  // open (the real Nearby list lives in #inspectorBody either way -- see selectOverview() --
-  // and should keep updating live as the radius changes, same as a filter change does). Calling
-  // it while Settings/Report/Search is open would still blow that screen's own #inspectorBody
-  // content away every time the walking-radius slider fires "input", so isNearbyListShowing()
-  // keeps skipping it there; ensureOverviewTargetsVisible below already knows how to frame the
-  // ring correctly for those screens (see secondaryScreenActive()) without it.
-  if (isNearbyListShowing()) selectOverview();
+  // gated on isOverviewScreenActive() before it can even start), but calling it while the
+  // Settings/Filter/Report screen is open would blow that screen's own content away every time
+  // its walking-radius slider fires "input". ensureOverviewTargetsVisible below already knows
+  // how to frame the ring correctly for those screens (see secondaryScreenActive()) without it.
+  if (!secondaryScreenActive()) selectOverview();
   updateNearbyAnchorBar();
   ensureOverviewTargetsVisible({ animate, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
   requestDraw();
@@ -1235,12 +1217,10 @@ function applyWalkingRadiusGesture(rawMinutes) {
     // recovers back above) it -- applyWalkingRadiusChange would no-op here since the minutes
     // value itself hasn't moved, so the floor notice needs its own lightweight refresh to stay
     // in sync with the flag instead of going stale.
-    // The floor notice lives in the Nearby list (#inspectorBody) -- isNearbyListShowing() is
-    // true there whether or not the filter drawer is open above it (selectOverview() leaves the
-    // drawer alone either way), but still false on Settings/Report/Search, where
-    // selectOverview() would throw that screen's own #inspectorBody content away instead.
+    // The floor notice lives in the Nearby list, so only that screen has anything to re-render;
+    // on Filters/Settings/Report selectOverview() would throw the open screen away instead.
     if (flagChanged) {
-      if (isNearbyListShowing()) selectOverview();
+      if (!secondaryScreenActive()) selectOverview();
       requestDraw();
     }
     return floor;
@@ -1253,7 +1233,7 @@ function applyWalkingRadiusGesture(rawMinutes) {
     _radiusGestureListRefreshFrame = requestAnimationFrame(() => {
       _radiusGestureListRefreshFrame = null;
       refreshNearestTreeForNearbyOrigin();
-      if (isNearbyListShowing()) selectOverview();
+      if (!secondaryScreenActive()) selectOverview();
       updateNearbyAnchorBar();
     });
   }
@@ -1694,7 +1674,7 @@ function setupInspectorDragResize() {
         [state.userLocation.point, selectedCompassTarget().point],
         { animate, durationMs, focusVisibleArea: true, assumeInspectorOpen: true }
       );
-    } else if (isNearbyListShowing()) {
+    } else if (isOverviewScreenActive()) {
       ensureOverviewTargetsVisible({ animate, durationMs });
     }
   }

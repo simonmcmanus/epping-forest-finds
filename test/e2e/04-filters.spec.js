@@ -12,14 +12,10 @@ test.describe("Filter panel", () => {
     await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
   });
 
-  test("opening Filters keeps the Nearby title -- it's a drawer on Nearby, not a screen of its own", async ({ page }) => {
-    await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
+  test("Filters explains its purpose directly beneath the screen title", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
-    // The drawer itself is what shows the open state, via the group cards it now reveals
-    // (the live count next to Clear all needs a location fix -- see the geolocation-granted
-    // describe block below for that).
-    await expect(page.locator(".filter-group-card").first()).toBeVisible();
+    await expect(page.locator(".inspector-title-copy #inspectorType").last())
+      .toHaveText("Choose what appears on the map");
   });
 
   test("URL hash becomes #filters when the filter screen opens", async ({ page }) => {
@@ -35,21 +31,26 @@ test.describe("Filter panel", () => {
     await expect(page).toHaveURL(/#filters$/);
   });
 
-  test("Nearby button closes the filter drawer and returns to plain overview", async ({ page }) => {
+  test("Nearby button closes the filter screen and returns to overview", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page).toHaveURL(/#filters$/);
     await page.click("#nearbyToggle");
+    // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
+    await page.waitForFunction(
+      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
+    );
     await expect(page).not.toHaveURL(/#filters$/);
-    await expect(page.locator("#filterToggle")).not.toHaveClass(/screen-active/);
   });
 
-  test("filter button shows active count badge, even while the drawer is still open", async ({ page }) => {
+  test("filter button shows active count badge when filters are toggled on", async ({ page }) => {
     await page.click("#filterToggle");
     // Click a subfilter chip to activate it
     const firstChip = page.locator(".filter-chip").first();
     await firstChip.click();
-    // The toggle is a disclosure control that stays visible and tappable throughout now --
-    // the badge doesn't need the drawer closed first to prove itself.
+    // The toggle (and its badge) is the way in from Nearby, so it hides while Filters itself
+    // is open in favour of the ordinary back arrow -- the badge only has to be visible again
+    // once back on Nearby.
+    await page.click("#nearbyToggle");
     const badge = page.locator("#filterCount");
     await expect(badge).toBeVisible();
   });
@@ -60,9 +61,8 @@ test.describe("Filter panel", () => {
       permissions: ["geolocation"],
     });
 
-    test("toggling a chip changes the results count and the real Nearby list beneath it, without leaving the screen", async ({ page }) => {
+    test("toggling a chip changes the results count and the list beneath it, without leaving the screen", async ({ page }) => {
       await setup(page);
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
       await page.click("#filterToggle");
       const countEl = page.locator("#filterResultsCount");
       await expect(countEl).toBeVisible();
@@ -76,19 +76,7 @@ test.describe("Filter panel", () => {
 
       await expect(countEl).not.toHaveText(before);
       await expect(page).toHaveURL(/#filters$/);
-      // The list under the drawer is #inspectorBody's own list, not a second copy -- it's still
-      // there, still updating, exactly like on plain Nearby.
-      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
-    });
-
-    test("Hide filters closes the drawer and returns to plain Nearby", async ({ page }) => {
-      await setup(page);
-      await page.click("#filterToggle");
-      await expect(page).toHaveURL(/#filters$/);
-      await page.locator("[data-action='collapse-filters']").click();
-      await expect(page).not.toHaveURL(/#filters$/);
-      await expect(page.locator("#filterToggle")).not.toHaveClass(/screen-active/);
-      await expect(page.locator("#nearbyFilterPanel")).toBeHidden();
+      await expect(page.locator("#filterNearestListSection")).toBeVisible();
     });
   });
 

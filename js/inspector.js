@@ -568,19 +568,13 @@ function showWaterDetails(water, distance) {
 let _overviewListKey;
 
 function selectOverview(animate = false) {
-  if (state.searchScreenOpen) return;
+  if (state.filterScreenOpen || state.searchScreenOpen) return;
   const previousNearestPositions = captureNearestItemPositions();
-  // A browse anchor (tap-to-relocate, or an expanded cluster) or the filter drawer being open
-  // both mean there's a step to retrace -- show the back arrow for either, same as every other
-  // screen (navigateBack() retraces the anchor push / the #filters hash entry). preserveFilterPanel
-  // is what lets this double as the drawer's own render path without the chrome setup below
-  // reading state.filterScreenOpen back as false mid-call -- see its own comment.
-  setInspectorSelectionChrome({
-    emoji: appIconHtml("nearby", "app-icon title-icon"),
-    showBack: Boolean(state.nearbyAnchor) || state.filterScreenOpen,
-    captureSnapshot: animate,
-    preserveFilterPanel: true,
-  });
+  // A browse anchor (tap-to-relocate, or an expanded cluster) means the Nearby view is no
+  // longer centred on the real GPS fix -- showing the back arrow here, same as every other
+  // screen, gives that moved view a visible, working way back (navigateBack() retraces the
+  // anchor push from pushNearbyAnchorHistory, same as the browser's own back button).
+  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor), captureSnapshot: animate });
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
   els.inspectorTitle.textContent = "Nearby";
@@ -662,20 +656,8 @@ function animateNearestItemReorder(previousPositions) {
   });
 }
 
-// Narrow: true only for plain Nearby with the filter drawer closed. Kept this strict for the
-// one caller (handleMapClick's beyondNearestArea) that cares specifically about the ring-only
-// camera framing -- secondaryScreenActive() still widens the frame while the drawer is open
-// (see its own comment), so "outside the ring" stays mostly the view there too, same as before.
 function isOverviewScreenActive() {
   return !state.selected && !state.filterScreenOpen && !state.searchScreenOpen;
-}
-
-// Broad: true whenever the Nearby list is what #inspectorBody actually renders -- plain Nearby
-// or Nearby with the filter drawer open on top of it alike (see selectOverview()). Everywhere
-// that refreshes the list/camera in response to GPS, heading or data updates wants this, so the
-// list and map behind the drawer keep living exactly as they do on plain Nearby.
-function isNearbyListShowing() {
-  return !state.selected && !state.searchScreenOpen;
 }
 
 // --- Screen transition ---
@@ -779,7 +761,7 @@ function drawInspectorIconMotion(motion) {
   return true;
 }
 
-function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true, preserveFilterPanel = false }) {
+function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }) {
   // Cancel any in-flight transition and capture a fresh snapshot before DOM changes
   if (_transitionAnimation) {
     _transitionAnimation.cancel();
@@ -798,14 +780,6 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true, 
     if (_transitionSnapshot) {
       _transitionSnapshot.removeAttribute("id");
       _transitionSnapshot.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
-      // #nearbyFilterPanel lives inside .inspector-screen too (it has to, to push the real list
-      // down in normal flow -- see app.html), so it gets cloned along with everything else. Its
-      // chip buttons carry no id to strip, so left alone they'd sit in the live DOM as a second,
-      // CSS-selector-ambiguous (if inert) copy of every filter control for the slide's 310ms.
-      // Emptying the clone keeps the ghost's outer shape for the visual slide without the
-      // duplicate controls.
-      const ghostFilterPanel = _transitionSnapshot.querySelector(".nearby-filter-panel");
-      if (ghostFilterPanel) ghostFilterPanel.innerHTML = "";
     }
   } else {
     _transitionSnapshot = null;
@@ -828,12 +802,7 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true, 
   state.searchScreenOpen = false;
   if (state.searchHighlightResults.length) state.searchHighlightResults = [];
   if (els.searchToggle) els.searchToggle.classList.remove("screen-active");
-  // Settings/Report/a real selection all pass showBack:true to get here, and all of them should
-  // stand the drawer down on the way in. selectOverview() also passes showBack:true (for its own
-  // browse-anchor/filter-drawer reasons) but is the one caller that must NOT trigger this -- it
-  // would otherwise read back its own state.filterScreenOpen as false mid-render, via the
-  // updateFilterUi() call below, and visibly collapse the very drawer it's trying to keep open.
-  if (showBack && !preserveFilterPanel) {
+  if (showBack) {
     state.filterScreenOpen = false;
     if (els.filterToggle) els.filterToggle.classList.remove("screen-active");
   }
