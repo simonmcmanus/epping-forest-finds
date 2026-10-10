@@ -27,7 +27,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           track_progress: true
           claude_args: |
-            --allowedTools "mcp__github__update_issue,Read,Grep,Glob"
+            --allowedTools "mcp__github__update_issue,Read,Grep,Glob,WebFetch"
           prompt: |
             You are grilling a GitHub issue on the Epping Forest Finds project
             before any code gets written against it, using the same discipline as
@@ -117,11 +117,13 @@ jobs:
                closure, or standing visit notice — where the issue cites a
                specific source URL for the date and details, and your check
                above confirmed it is not already listed. Verifying this one
-               means the issue names a real, checkable source, not that you
-               fetched and confirmed the URL yourself — you have no network
-               access here. If the issue gives no source URL, that is a
-               clarifying question to ask (case 1/2 above), not something to
-               confirm on trust.
+               means fetching the cited source URL yourself with WebFetch and
+               confirming the page actually supports the date, venue and
+               details claimed — not taking the issue's word for what it
+               says. If the issue gives no source URL, or the URL doesn't
+               load or doesn't support the claim, that is a clarifying
+               question to ask (case 1/2 above), not something to confirm on
+               trust.
 
             Either way, there must be no design decision left for a person to
             make (which category it belongs in, how to phrase it, whether it's
