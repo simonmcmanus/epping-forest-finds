@@ -382,7 +382,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator('a[href="/terms.html"]').first()).toBeVisible();
   });
 
-  test("gives a neutral success message that also covers an existing address", async ({ page }) => {
+  test("explains how to confirm sign-up without revealing whether the address is already listed", async ({ page }) => {
     await page.route("**/api/subscribe", (route) =>
       route.fulfill({
         status: 200,
@@ -392,17 +392,18 @@ test.describe("the marketing homepage", () => {
     );
 
     await page.goto("/");
+    await expect(page.locator("#signup")).toContainText("After signing up, check your inbox and click “Confirm my email” in the email from Epping Forest Finds.");
     await page.fill("#email", "walker@example.com");
     await page.check("#consent");
     await page.click("#signupForm button[type=submit]");
 
     await expect(page.locator("#formMsg")).toContainText(
-      "Confirmation is needed — check your inbox. The email might be in your spam folder."
+      "One more step: check your inbox. Look for an email from Epping Forest Finds and click “Confirm my email” to finish signing up. Can’t see it? Check your spam or junk folder."
     );
     await expect(page.locator("#email")).toBeDisabled();
     await expect(page.locator("#consent")).toBeDisabled();
     await expect(page.locator("#signupForm button[type=submit]")).toBeDisabled();
-    await expect(page.locator("#signupForm button[type=submit]")).toHaveText("Request received");
+    await expect(page.locator("#signupForm button[type=submit]")).toHaveText("Check your inbox");
   });
 
   test("refuses to submit without consent", async ({ page }) => {

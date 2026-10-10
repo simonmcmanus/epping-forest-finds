@@ -122,11 +122,11 @@
         if (consentField) consentField.disabled = true;
         if (submitButton) {
           submitButton.disabled = true;
-          submitButton.textContent = "Request received";
+          submitButton.textContent = "Check your inbox";
         }
         form.classList.add("is-complete");
         say(
-          "Thanks. Confirmation is needed — check your inbox. The email might be in your spam folder.",
+          "One more step: check your inbox. Look for an email from Epping Forest Finds and click “Confirm my email” to finish signing up. Can’t see it? Check your spam or junk folder.",
           "ok"
         );
       })

@@ -454,12 +454,15 @@ which addresses are on the list is an enumeration oracle.
 
 - Double opt-in. A new contact receives a confirmation message, but EmailOctopus
   does not resend one when an existing contact produces a `409`. The shared
-  success state therefore says **"Confirmation is needed — check your inbox.
-  The email might be in your spam folder"**. It does not reveal whether the
-  address is already on the list.
+  success state says **“One more step: check your inbox. Look for an email from
+  Epping Forest Finds and click ‘Confirm my email’ to finish signing up. Can’t
+  see it? Check your spam or junk folder.”** It does not claim a new email was
+  sent or reveal whether the address is already on the list. Before submission,
+  a note also explains that signing up requires clicking “Confirm my email” in
+  the email from Epping Forest Finds.
 - After a successful response, the email and consent controls remain visible
-  but disabled, and the disabled submit button reads **"Request received"**.
-  This makes the completed state unmistakable; reloading restores the form if
+  but disabled, and the disabled submit button reads **"Check your inbox"**.
+  This points to the remaining confirmation step; reloading restores the form if
   the visitor needs to correct an address.
 - The consent checkbox is unbundled and never pre-ticked.
 - Record the consent timestamp **and the wording consented to**, so the record
