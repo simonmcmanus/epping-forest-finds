@@ -369,7 +369,15 @@ jobs:
                   directly (a plain iCal feed, not HTML) -- confirmed on
                   2026-10-10 to be a real, parseable feed that actually
                   contains the Wanstead Beer Festival entry, not just a
-                  plausible-looking URL. Also check Visit Epping Forest's
+                  plausible-looking URL. Also fetch and parse
+                  https://swvg.co.uk/events/list/?ical=1 (South Woodford
+                  Village Gazette) the same way -- also confirmed real and
+                  parseable, covering South Woodford, Woodford Green,
+                  Snaresbrook and Aldersbrook as well as Wanstead. It
+                  carries some of the same Wanstead events as the feed
+                  above (including the Beer Festival itself), so de-dupe by
+                  title+date across the two feeds rather than treating a
+                  repeat as a second event. Also check Visit Epping Forest's
                   district-wide calendar,
                   https://www.visiteppingforest.org/events/whats-on/events-calendar
                   -- the official Epping Forest District tourism site, a
@@ -380,8 +388,13 @@ jobs:
                   diary, https://www.eppingtowncouncil.gov.uk/Events_Diary_35167.aspx
                   -- a plain page like Copped Hall's, not a feed. Loughton
                   Town Council, Waltham Abbey Town Council, Waltham Forest's
-                  borough-wide listings (which would cover Chingford) and
-                  Theydon Bois Parish Council's events category page were
+                  borough-wide listings (which would cover Chingford),
+                  Theydon Bois Parish Council's events category page,
+                  Chigwell Parish Council, the Essex Libraries events site
+                  (which lists Loughton, Buckhurst Hill, Chigwell, Waltham
+                  Abbey and Epping library branches, but as a room-booking
+                  engine, not a syndicated feed), and Chingford Historical
+                  Society's own events/heritage-festival listing were
                   evaluated and found to have no feed and no current,
                   checkable events listing as of this evaluation -- still
                   worth a skim each run since any of them could add one, but
@@ -391,9 +404,12 @@ jobs:
                   returned HTTP 503 to a direct fetch and is covered via
                   Visit Epping Forest's listing above instead -- re-test
                   eorailway.co.uk directly occasionally in case that was
-                  transient or bot-blocking rather than permanent. See the
-                  sourceNotes in data/forest-events.json before re-evaluating
-                  any of this same ground.
+                  transient or bot-blocking rather than permanent. Waltham
+                  Abbey Town Council's own events page also returned HTTP
+                  403 to a direct fetch on two separate URLs, consistent
+                  with blocking automated requests rather than a wrong URL.
+                  See the sourceNotes in data/forest-events.json before
+                  re-evaluating any of this same ground.
                e. For each finding, look up its real coordinates in
                   data/local-roads.geojson or data/local-landmarks-food.geojson
                   rather than guessing -- put them in report-data.json's

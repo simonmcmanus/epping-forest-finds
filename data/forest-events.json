@@ -113,6 +113,31 @@
       "source": "Loughton Town Council, Waltham Abbey Town Council 'What's On', Waltham Forest borough-wide listings (which would cover Chingford), and Theydon Bois Parish Council's events category page",
       "note": "No usable feed found for any of the four, and no current, dated events listing confirmed as of this evaluation -- Loughton's site surfaces only its news section (most recent dated item from 2025), Waltham Abbey's calendar is advertised as email-submission-only with no feed, Waltham Forest's borough events listing is paginated HTML with no RSS/Atom link found and nothing specific to Chingford, and Theydon Bois PC's 'Events' category is actually news-style posts by publish date, not event date, with the newest confirmed-dated item (an exhibition) from January 2023. Re-check each run rather than building automation against any of them yet; a council could add a feed at any time.",
       "evaluated": "2026-10-10"
+    },
+    {
+      "source": "South Woodford Village Gazette events calendar (swvg.co.uk/events/ -- covers South Woodford, Woodford Green, Snaresbrook and Aldersbrook)",
+      "note": "A second real, directly-fetchable, VERIFIED source, same WordPress 'The Events Calendar' plugin as the Wanstead Village Directory above: a plain iCal feed at https://swvg.co.uk/events/list/?ical=1, fetched and parsed on 2026-10-10 and confirmed to contain real, dated VEVENTs. It covers Woodford Green (one of the coverage settlements) as well as Wanstead -- and some Wanstead events, including the Beer Festival itself, appear in both this feed and the Wanstead Village Directory feed above, so a run checking both must de-dupe by title+date rather than add each twice.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Waltham Abbey Town Council's own events page (walthamabbey-tc.gov.uk/events/)",
+      "note": "Confirmed blocking automated requests rather than simply being the wrong URL: a direct fetch of this page and of the site's separate /whats-on page both returned HTTP 403. No feed found via search either. Re-test occasionally in case the block lifts; not worth building anything against while it 403s.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Essex Libraries 'Events & Bookings' site (library-events.essex.gov.uk) -- lists events at Loughton, Buckhurst Hill, Chigwell, Waltham Abbey and Epping library branches among others",
+      "note": "Real and current (e.g. storytimes, a Peabody advice drop-in, dementia information sessions), and genuinely covers five of the coverage settlements from one site -- but it's a room-booking engine with per-branch/per-event pages, not a syndicated calendar, and no RSS/iCal feed was found on the page. Worth a human skim per branch; not scriptable as a single feed yet.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Chigwell Parish Council and Chingford Historical Society (chingfordhistory.org.uk)",
+      "note": "Chigwell PC's site follows the same ASP.NET council-CMS pattern as Loughton's (news-style display pages, no feed found). Chingford Historical Society runs real, dated events (heritage talks, a Heritage Festival, a downloadable annual talks programme) but publishes them as a plain 'Calendar of Events' page with no RSS/iCal feed -- worth a human skim, same treatment as Copped Hall's site.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Village halls at North Weald, Abridge, Nazeing and High Beach",
+      "note": "Searched for each by name; found only charity-register contact details and occasional third-party mentions (e.g. a 2025 barn dance at Abridge via a constituency MP's site), no own event listing or feed for any of the four. Lower priority than the named coverage settlements -- not worth further research time unless a specific event is reported missing from one of them.",
+      "evaluated": "2026-10-10"
     }
   ]
 }
