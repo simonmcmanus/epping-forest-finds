@@ -19,6 +19,13 @@ the news and its practical relevance, not how it was discovered. Established
 businesses newly listed are local finds, not new openings. Keep uncertainty
 about real-world facts explicit. Do not invent dates or visitor advice.
 
+The page is rendered once and published as a static file -- it is never
+re-rendered to stay current, so a reader may open it days or weeks after it
+was written. Don't write "today", "tomorrow" or other day-relative wording
+into `intro`, a finding's `body` or `status_label`: it reads as true only on
+the day the report was generated. "This week" is fine (true for the whole
+edition); otherwise name the actual date.
+
 The "written by AI, tell us if it is wrong" note and the advert for the app
 are added by the renderer itself -- never write either by hand.
 
@@ -54,7 +61,7 @@ are added by the renderer itself -- never write either by hand.
       "body": "One or two plain-English sentences. No jargon.",
       "lon": 0.0573766, "lat": 51.6521913,  // optional -- omit for "no pin"
       "sources": [{"label": "Tripadvisor", "url": "https://..."}],
-      // "event" findings only, optional: "week" (happening today or within
+      // "event" findings only, optional: "week" (happening within the next
       // 7 days) or "month" (further out, or recurring with no next date
       // confirmed). Groups the Events section into "This week" and "Coming
       // up in the next month" so a month-out event doesn't read as this

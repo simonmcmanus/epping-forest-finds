@@ -277,7 +277,7 @@ class EventsSectionTests(unittest.TestCase):
 
     def test_events_split_into_week_and_month_subgroups(self):
         data = {"findings": [
-            {"category": "event", "title": "Near", "place": "Loughton", "status_label": "Today", "body": "x", "when": "week"},
+            {"category": "event", "title": "Near", "place": "Loughton", "status_label": "This week", "body": "x", "when": "week"},
             {"category": "event", "title": "Far", "place": "Epping", "status_label": "Coming up", "body": "y", "when": "month"},
         ]}
         findings, _ = rr.normalize_findings(data)

@@ -84,9 +84,11 @@ class EventFindingsTests(unittest.TestCase):
         base.update(overrides)
         return base
 
-    def test_event_today_is_labelled_today(self):
+    def test_event_happening_today_is_labelled_this_week(self):
+        # No day-specific "Today" label: the report is a static page read on
+        # whatever day a reader opens it, not re-rendered to stay current.
         findings = event_findings([self._event()], date(2026, 10, 10))
-        self.assertEqual(findings[0]["status_label"], "Today")
+        self.assertEqual(findings[0]["status_label"], "This week")
 
     def test_event_within_horizon_is_labelled_coming_up(self):
         findings = event_findings([self._event(date="2026-10-20")], date(2026, 10, 10))
@@ -98,7 +100,7 @@ class EventFindingsTests(unittest.TestCase):
         self.assertEqual(findings[0]["status_label"], "This week")
         self.assertEqual(findings[0]["when"], "week")
 
-    def test_event_today_is_grouped_with_this_week(self):
+    def test_event_happening_today_is_grouped_with_this_week(self):
         findings = event_findings([self._event()], date(2026, 10, 10))
         self.assertEqual(findings[0]["when"], "week")
 
