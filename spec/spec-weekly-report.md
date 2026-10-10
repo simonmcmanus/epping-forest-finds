@@ -282,6 +282,18 @@ don't go stale sitting unread. "Notices" is not yet its own `categories.py`
 entry — the script folds them into `"road"`, which the report already titles
 broadly as "Road closures & access".
 
+`scripts/report/tfl_transit_status.py` adds a fourth source that needs none
+of this upkeep, because it checks Transport for London's own live status
+rather than a hand-researched file: the Central line (Epping, Theydon Bois,
+Debden, Loughton) and the Weaver line, London Overground's name for the
+Chingford branch, plus bus stop disruptions around the coverage settlements.
+It folds into `"road"` the same way notices do, needs no `TFL_APP_KEY` (see
+`.env.example` — the key only raises a shared rate limit, it doesn't unlock
+different data), and most weeks prints no findings at all, which is the
+correct result (good service, no disrupted stops), not a gap to research
+around. The bus stop check batches its stop ids: `/StopPoint/{ids}/Disruption`
+rejects a request past 22 comma-joined ids regardless of which ones.
+
 ## Files
 
 - `scripts/report/render_report.py` — entry point; renders the page
@@ -312,6 +324,8 @@ Business detection (see "Keeping the map's businesses current" above):
   "Road closures, events and standing notices" above)
 - `scripts/report/structured_findings.py` — turns the three files above into
   report-data.json findings that are still within their own recorded dates
+- `scripts/report/tfl_transit_status.py` — live Central line / Weaver line
+  and bus stop disruption check; no file of its own, no key required
 - `scripts/test_*.py` for each of the above — unit tests
 
 Handy while working: `npm run audit:quality` and `npm run audit:duplicates`.

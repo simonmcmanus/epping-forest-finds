@@ -92,6 +92,18 @@ happened to resurface it:
 python3 scripts/report/structured_findings.py --as-of 2026-10-10
 ```
 
+`scripts/report/tfl_transit_status.py` prints findings in the same shape from
+a live check instead of a hand-researched file: the Central line, the Weaver
+line (London Overground's Chingford branch), and bus stop disruptions around
+the coverage settlements. No arguments, no key required:
+
+```
+python3 scripts/report/tfl_transit_status.py
+```
+
+Most weeks this prints `[]` -- good service and no disrupted stops is the
+common case, not a failure.
+
 Extend `report-data.json`'s `"findings"` array with its output before adding
 anything the week's own research turned up -- it's a floor, not a
 replacement for that research. An entry from these files that is uncertain
