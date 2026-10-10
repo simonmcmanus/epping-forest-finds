@@ -359,7 +359,10 @@ use “local find” for the historical `opening` category.
 The report uses the homepage’s dark-green heading panel beside its longhorn
 photo without a caption, on a cream page, with Fraunces headings and Public Sans body
 text, with the homepage oak brand mark, longhorn photograph and Ledger image
-from `assets/home/`. A split text/photo header stacks on phones. No app CSS or
+from `assets/home/`. The hero selects from the shared 480, 768, 960, 1280 and
+1600px WebP variants using responsive `srcset`/`sizes`, with a JPEG fallback,
+intrinsic dimensions and high fetch priority. Published editions and future
+reports use the same responsive photo without changing the crop. A split text/photo header stacks on phones. No app CSS or
 JavaScript is loaded. Published editions share this design. A high-level opening paragraph inside the green heading panel summarises the
 actual findings in one or two brief sentences, including cattle movement and
 quiet categories where relevant. Avoid generic introductions and directions to

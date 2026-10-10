@@ -513,7 +513,7 @@ def render_brand_header():
 
 
 def render_hero_photo():
-    return '''<figure class="hero-photo"><img src="/assets/home/epping-longhorns.jpg" width="1600" height="1200" alt="English Longhorn cattle grazing in Epping Forest."></figure>'''
+    return '''<figure class="hero-photo"><picture><source type="image/webp" srcset="/assets/home/epping-longhorns-480.webp 480w, /assets/home/epping-longhorns-768.webp 768w, /assets/home/epping-longhorns-960.webp 960w, /assets/home/epping-longhorns-1280.webp 1280w, /assets/home/epping-longhorns-1600.webp 1600w" sizes="(min-width: 1040px) 451px, (max-width: 650px) calc(100vw - 48px), calc((100vw - 48px) / 2.2)"><img src="/assets/home/epping-longhorns.jpg" width="1600" height="1200" fetchpriority="high" alt="English Longhorn cattle grazing in Epping Forest."></picture></figure>'''
 
 
 def render_newsletter_signup():
