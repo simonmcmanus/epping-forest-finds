@@ -8,7 +8,7 @@
       "lon": 0.0469,
       "startsAt": "2026-10-18T10:00:00Z",
       "endsAt": "2026-10-18T16:00:00Z",
-      "sourceUrl": "https://www.cityoflondon.gov.uk/things-to-do/epping-forest"
+      "sourceUrl": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/whats-on-in-our-green-spaces"
     },
     {
       "id": "sample-winter-walk-2026",
@@ -17,7 +17,7 @@
       "lat": 51.6291,
       "lon": 0.0096,
       "startsAt": "2026-11-21T11:00:00Z",
-      "sourceUrl": "https://www.cityoflondon.gov.uk/things-to-do/epping-forest"
+      "sourceUrl": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/whats-on-in-our-green-spaces"
     }
   ]
 }
