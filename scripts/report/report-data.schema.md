@@ -28,7 +28,7 @@ are added by the renderer itself -- never write either by hand.
   "date": "2026-09-03",                       // YYYY-MM-DD, used in the output filename
   "date_display": "Wednesday, 3 September 2026",
 
-  // Optional. Shown below the photo header and before the map, if given.
+  // Optional. Shown inside the green heading panel beside the photo, if given.
   "intro": "One or two sentences summarising the range of changes, not a single cattle update.",
 
   // Optional. Defaults to the 8 coverage settlements (see places.py).
@@ -75,5 +75,6 @@ Usage:
 python3 scripts/report/render_report.py <report-data.json> [output-path]
 ```
 
-The newsletter does not display map inventory counts. Keep the intro and
+The attached statistics strip computes its counts from the findings and food
+dataset; never put counts into the intro by hand. Keep the intro and
 findings focused on useful local news, not the volume of map updates.

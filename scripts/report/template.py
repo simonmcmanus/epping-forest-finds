@@ -87,7 +87,8 @@ REPORT_CSS = """
     color:#ffd98a;
     border:1px solid rgba(250,178,25,0.4);
   }
-  .banner{margin:0 0 32px;max-width:65ch;font-size:1.08rem;line-height:1.65;color:var(--ink-soft);}
+  .banner{margin:20px 0 0;max-width:65ch;font-size:1.04rem;line-height:1.65;color:#d8e5d3;}
+  footer.coverage{margin:40px 0 0;color:var(--ink-soft);font-size:.82rem;line-height:1.7;}
 
   .stat-strip{
     display:grid;
@@ -97,12 +98,13 @@ REPORT_CSS = """
     border:1px solid var(--line);
     border-radius:12px;
     overflow:hidden;
-    margin:-28px 0 40px;
+    margin:0;grid-column:1 / -1;border-radius:0 0 18px 18px;
     box-shadow:var(--shadow);
     position:relative;
     z-index:2;
   }
   .stat{
+    color:var(--ink);
     background:var(--surface);
     padding:18px 16px;
     text-align:left;
@@ -110,7 +112,7 @@ REPORT_CSS = """
   .stat .n{
     font-family:"JetBrains Mono", monospace;
     font-variant-numeric: tabular-nums;
-    font-size:1.9rem;
+    font-size:clamp(1.2rem,1.8vw,1.65rem);
     font-weight:600;
     line-height:1;
   }

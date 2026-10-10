@@ -215,8 +215,8 @@ def render_stat_strip(findings, food_total, grazing):
         # not everything on the map. The whole-map total lives in the
         # "What's on the map" section below.
         (str(food_total), "Places to eat, drink & shop"),
-        (str(count("opening")), "Openings flagged", "good"),
-        (str(count("closing")), "Closures flagged", "critical"),
+        (str(count("opening")), "Local finds", "good"),
+        (str(count("closing")), "Closure updates", "critical"),
         (str(count("road")), "Road & access changes", "warning"),
         (str(count("event")), "Events this week", "event"),
     ]
@@ -632,6 +632,7 @@ def render_sources_footer(findings, grazing):
 def render_report(report_data, repo_root):
     repo_root = Path(repo_root)
     forest_geojson = load_json(repo_root / "data" / "epping-forest-land.geojson")
+    food_stats = compute_food_stats(load_json(repo_root / "data" / "local-landmarks-food.geojson"))
     cow_icon = cow_icon_uri(repo_root)
 
     findings, grazing_pin = normalize_findings(report_data)
@@ -642,6 +643,7 @@ def render_report(report_data, repo_root):
     intro = report_data.get("intro", "")
     app_link = report_data.get("app_link") or DEFAULT_APP_LINK
 
+    stat_strip = render_stat_strip(findings, food_stats["total"], grazing)
     map_section = render_map_section(forest_geojson, findings, cow_icon)
     business_section = render_business_section(findings)
     road_section = render_category_section("road", "road", findings)
@@ -685,15 +687,14 @@ def render_report(report_data, repo_root):
     <h1 class="title">Epping Forest Ledger</h1>
     <div class="meta-row">
       <span>{escape(date_display)}</span>
-      <span class="coverage">{escape(" · ".join(coverage_area))}</span>
     </div>
+    {banner_html}
   </div>
   {render_hero_photo()}
+  {stat_strip}
 </header>
 
 <main class="wrap" id="main">
-
-  {banner_html}
 
   {map_section}
 
@@ -712,6 +713,8 @@ def render_report(report_data, repo_root):
   {about_note}
 
   {sources_footer}
+
+  <footer class="coverage"><strong>Around the forest</strong><br>{escape(" · ".join(coverage_area))}</footer>
 
   {ai_note}
 

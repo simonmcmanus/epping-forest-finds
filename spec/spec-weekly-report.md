@@ -277,9 +277,12 @@ The report uses the homepage’s dark-green heading panel beside its longhorn
 photo, on a cream page, with Fraunces headings and Public Sans body
 text, with the homepage oak brand mark, longhorn photograph and Ledger image
 from `assets/home/`. A split text/photo header stacks on phones. No app CSS or
-JavaScript is loaded. Published editions share this design. A high-level opening paragraph summarises the range of changes below the
-header, without leading on the cattle update. The location map follows, then
-the individual business, access, event and grazing details; the dashboard stat strip, food breakdown and full app
+JavaScript is loaded. Published editions share this design. A high-level opening paragraph inside the green heading panel summarises the
+range of changes without leading on the cattle update. The town list is a quiet
+footer. A statistics strip attaches to the bottom of the photo header, showing
+food/shop totals, local finds, closure updates, access changes, events and grazing
+status when available; it wraps to two columns on phones. The location map follows, then
+the individual business, access, event and grazing details; the detailed food breakdown and full app
 inventory are omitted so the newsletter stays focused on forest news.
 
 Nothing about how the report is produced goes on the page: not which sources
@@ -372,7 +375,9 @@ scrolling.
 
 ## Inventory utilities
 
-The newsletter no longer displays inventory totals or a stat strip.
+The newsletter shows a compact statistics strip; its food/shop total is read
+from the food dataset when rendering. Historical editions retain their original
+totals. Local finds are not labelled as confirmed new openings.
 `scripts/report/map-inventory.js` remains available for the homepage and other
 count consumers. It classifies places using the app’s own filter rules; the
-newsletter renderer does not need to load it or food data to publish a report.
+newsletter renderer does not load the full inventory to publish a report.
