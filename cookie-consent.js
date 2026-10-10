@@ -36,11 +36,15 @@
   }
 
   // Colours and shapes borrowed from the rest of the site's shared visual language rather than
-  // invented fresh: the card look of css/loading.css's .location-gate-card (white surface, the
-  // same rgba(36,56,47,.15) border, the app's own --shadow value), and the pill buttons used by
-  // both assets/home/home.css's .cta-btn and css/inspector.css's .settings-refresh-btn (rounded,
-  // bold, tree-green primary). This file can't reference either stylesheet's custom properties
-  // directly -- it runs on pages that load neither -- so the values are inlined here instead.
+  // invented fresh: the card look of css/loading.css's .location-gate-card (white surface, a
+  // similar border, the app's own --shadow value), the pill buttons used by both
+  // assets/home/home.css's .cta-btn and css/inspector.css's .settings-refresh-btn (rounded,
+  // bold, tree-green primary), and the tree-green left accent border used by the reports-index
+  // generator's "note" callout -- a plain white card nearly vanished against the site's own
+  // off-white page backgrounds (--paper is #eef2ea/#f4f4ec, not far from this card's #fff), so
+  // the stronger border/shadow and the accent stripe are what actually separate it from the page
+  // underneath, not the card colour alone. This file can't reference either stylesheet's custom
+  // properties directly -- it runs on pages that load neither -- so the values are inlined here.
   //
   // The one exception is --nav-bar-h: on narrow/landscape viewports the app pins its own tab bar
   // (.inspector-actions, css/map-ui.css) to the bottom of the screen at the same offset this
@@ -55,8 +59,9 @@
 #cookieConsentBanner{position:fixed;left:16px;right:16px;
 bottom:calc(16px + var(--nav-bar-h, 0px) + env(safe-area-inset-bottom, 0px));
 z-index:2147483000;max-width:960px;
-margin:0 auto;padding:18px 24px;border-radius:16px;background:#fff;color:#17221e;
-border:1px solid rgba(36,56,47,.15);box-shadow:0 18px 50px rgba(19,31,25,.18);
+margin:0 auto;padding:18px 24px 18px 20px;border-radius:16px;background:#fff;color:#17221e;
+border:1px solid rgba(23,34,30,.18);border-left:5px solid #2f6f4e;
+box-shadow:0 22px 50px rgba(19,31,25,.3),0 2px 10px rgba(19,31,25,.14);
 font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,ui-sans-serif,system-ui,sans-serif;
 display:flex;flex-wrap:wrap;gap:14px 24px;align-items:center;justify-content:space-between}
 #cookieConsentBanner .cookie-consent-copy{flex:1 1 320px;min-width:0}
