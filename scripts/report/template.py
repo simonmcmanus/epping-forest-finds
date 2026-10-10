@@ -23,7 +23,7 @@ REPORT_CSS = """
     --forest-deep:#1d4a2f;
     --bark:#9c6b34;
     --forest-opacity:0.4;
-    --status-good:#0ca30c;
+    --status-good:#2e6b44;
     --status-good-ink:#0a4a0a;
     --status-warning:#fab219;
     --status-warning-ink:#6b4a00;
@@ -31,48 +31,6 @@ REPORT_CSS = """
     --status-event:#4a3aa7;
     --shadow: 0 1px 2px rgba(24,28,17,0.06), 0 8px 24px -12px rgba(24,28,17,0.18);
   }
-  /* status-good, status-warning and status-critical are the same four steps in
-     both themes by design (validated against both surfaces) - only the "-ink"
-     text variants and the categorical --status-event hue change below. */
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --bg:#0e120b;
-      --surface:#171b11;
-      --surface-2:#1d2216;
-      --ink:#edeee2;
-      --ink-soft:#c3c2b3;
-      --muted:#8f8d80;
-      --line:#2c3121;
-      --line-strong:#3a4029;
-      --forest:#6fc98a;
-      --forest-deep:#4fa96c;
-      --bark:#d3a467;
-      --forest-opacity:0.55;
-      --status-good-ink:#0ca30c;
-      --status-warning-ink:#fab219;
-      --status-event:#9085e9;
-      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.6);
-    }
-  }
-  :root[data-theme="dark"]{
-    --bg:#0e120b;
-    --surface:#171b11;
-    --surface-2:#1d2216;
-    --ink:#edeee2;
-    --ink-soft:#c3c2b3;
-    --muted:#8f8d80;
-    --line:#2c3121;
-    --line-strong:#3a4029;
-    --forest:#6fc98a;
-    --forest-deep:#4fa96c;
-    --bark:#d3a467;
-    --forest-opacity:0.55;
-    --status-good-ink:#0ca30c;
-    --status-warning-ink:#fab219;
-    --status-event:#9085e9;
-    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.6);
-  }
-
   *{box-sizing:border-box;}
   body{
     margin:0;
@@ -85,38 +43,34 @@ REPORT_CSS = """
   a{color:var(--forest-deep);}
   .mono{font-family:"JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums;}
 
-  header.masthead{
-    background:var(--forest-deep);
-    color:#f4f4ec;
-    padding:40px 24px 32px;
+  .site-head{max-width:1040px;margin:auto;padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;}
+  .site-head a{font-weight:700;text-decoration:none;}
+  .brand{display:flex;align-items:center;gap:12px;color:var(--ink);}
+  .brand img{flex-shrink:0;}
+  .skip-link{position:absolute;top:-100px;left:16px;padding:12px;background:var(--surface);z-index:10;}
+  .skip-link:focus{top:10px;}
+  a:focus-visible{outline:3px solid var(--forest);outline-offset:4px;}
+  header.masthead{max-width:992px;margin:8px auto 48px;padding:0;display:grid;grid-template-columns:1.2fr 1fr;gap:0;align-items:stretch;background:var(--forest-deep);color:var(--bg);border-radius:18px;overflow:hidden;}
+  header.masthead .inner{padding:36px 28px;min-width:0;display:flex;flex-direction:column;justify-content:center;}
+  .eyebrow{color:#c9dfc9;font-size:.82rem;font-weight:600;letter-spacing:.06em;margin:0 0 16px;}
+  h1.title{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(2.6rem,5vw,4rem);letter-spacing:-.04em;line-height:1.05;margin:0 0 20px;text-wrap:balance;}
+  .meta-row{display:flex;flex-direction:column;gap:10px;font-size:.9rem;color:#d8e5d3;}
+  .meta-row .coverage{font-size:.78rem;line-height:1.6;}
+  .hero-photo{margin:0;overflow:hidden;background:var(--forest-deep);display:flex;flex-direction:column;}
+  .hero-photo img{display:block;width:100%;height:300px;object-fit:cover;flex:1;min-height:0;}
+  .hero-photo figcaption{padding:12px 16px;font-size:.75rem;color:#d8e5d3;}
+  .newsletter{display:flex;align-items:flex-start;gap:24px;background:var(--surface-2);padding:28px;border-radius:16px;}
+  .newsletter p{max-width:42em;color:var(--ink-soft);}
+  .newsletter img{flex:0 0 80px;}
+  @media(max-width:1040px){header.masthead{margin-left:24px;margin-right:24px;}}
+  @media(max-width:650px){
+    header.masthead{grid-template-columns:1fr;gap:0;margin-bottom:32px;}
+    .hero-photo img{height:240px;}
+    .site-head{font-size:.8rem;gap:10px;}
+    .brand{gap:8px;}
+    .brand img{width:34px;height:34px;}
+    .newsletter{flex-direction:column;padding:24px;gap:12px;}
   }
-  header.masthead .inner{max-width:1040px;margin:0 auto;}
-  .eyebrow{
-    font-family:"Fraunces", serif;
-    font-style:italic;
-    font-weight:480;
-    font-size:0.95rem;
-    letter-spacing:0.06em;
-    color:#c9dfc9;
-    margin:0 0 6px;
-  }
-  h1.title{
-    font-family:"Fraunces", serif;
-    font-weight:600;
-    font-size:clamp(2.1rem, 4vw, 3rem);
-    letter-spacing:-0.01em;
-    margin:0 0 14px;
-    text-wrap:balance;
-  }
-  .meta-row{
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px 18px;
-    align-items:center;
-    font-size:0.92rem;
-    color:#d8e5d3;
-  }
-  .meta-row .coverage{color:#b9ceb4;}
   .tag{
     display:inline-flex;
     align-items:center;
@@ -133,16 +87,8 @@ REPORT_CSS = """
     color:#ffd98a;
     border:1px solid rgba(250,178,25,0.4);
   }
-  .banner{
-    margin-top:20px;
-    padding:14px 16px;
-    background:rgba(255,255,255,0.08);
-    border:1px solid rgba(255,255,255,0.16);
-    border-radius:10px;
-    font-size:0.92rem;
-    color:#e7efe2;
-  }
-  .banner strong{color:#fff;}
+  .banner{margin:20px 0 0;max-width:65ch;font-size:1.04rem;line-height:1.65;color:#d8e5d3;}
+  footer.coverage{margin:40px 0 0;color:var(--ink-soft);font-size:.82rem;line-height:1.7;}
 
   .stat-strip{
     display:grid;
@@ -152,12 +98,13 @@ REPORT_CSS = """
     border:1px solid var(--line);
     border-radius:12px;
     overflow:hidden;
-    margin:-28px 0 40px;
+    margin:0;grid-column:1 / -1;border-radius:0 0 18px 18px;
     box-shadow:var(--shadow);
     position:relative;
     z-index:2;
   }
   .stat{
+    color:var(--ink);
     background:var(--surface);
     padding:18px 16px;
     text-align:left;
@@ -165,7 +112,7 @@ REPORT_CSS = """
   .stat .n{
     font-family:"JetBrains Mono", monospace;
     font-variant-numeric: tabular-nums;
-    font-size:1.9rem;
+    font-size:clamp(1.2rem,1.8vw,1.65rem);
     font-weight:600;
     line-height:1;
   }
@@ -522,7 +469,7 @@ REPORT_CSS = """
   .promo-cta{margin:0;}
   /* The masthead version of this button sat on the dark green header; here it
      sits on a light card, so it needs the colours the other way round. */
-  .app-promo .app-link{
+  .app-promo .app-link, .newsletter .app-link{
     margin-top:0;
     background:var(--forest-deep);
     color:#f4f4ec;

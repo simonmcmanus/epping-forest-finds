@@ -22,7 +22,7 @@
     --forest-deep:#1d4a2f;
     --bark:#9c6b34;
     --forest-opacity:0.4;
-    --status-good:#0ca30c;
+    --status-good:#2e6b44;
     --status-good-ink:#0a4a0a;
     --status-warning:#fab219;
     --status-warning-ink:#6b4a00;
@@ -30,48 +30,6 @@
     --status-event:#4a3aa7;
     --shadow: 0 1px 2px rgba(24,28,17,0.06), 0 8px 24px -12px rgba(24,28,17,0.18);
   }
-  /* status-good, status-warning and status-critical are the same four steps in
-     both themes by design (validated against both surfaces) - only the "-ink"
-     text variants and the categorical --status-event hue change below. */
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --bg:#0e120b;
-      --surface:#171b11;
-      --surface-2:#1d2216;
-      --ink:#edeee2;
-      --ink-soft:#c3c2b3;
-      --muted:#8f8d80;
-      --line:#2c3121;
-      --line-strong:#3a4029;
-      --forest:#6fc98a;
-      --forest-deep:#4fa96c;
-      --bark:#d3a467;
-      --forest-opacity:0.55;
-      --status-good-ink:#0ca30c;
-      --status-warning-ink:#fab219;
-      --status-event:#9085e9;
-      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.6);
-    }
-  }
-  :root[data-theme="dark"]{
-    --bg:#0e120b;
-    --surface:#171b11;
-    --surface-2:#1d2216;
-    --ink:#edeee2;
-    --ink-soft:#c3c2b3;
-    --muted:#8f8d80;
-    --line:#2c3121;
-    --line-strong:#3a4029;
-    --forest:#6fc98a;
-    --forest-deep:#4fa96c;
-    --bark:#d3a467;
-    --forest-opacity:0.55;
-    --status-good-ink:#0ca30c;
-    --status-warning-ink:#fab219;
-    --status-event:#9085e9;
-    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.6);
-  }
-
   *{box-sizing:border-box;}
   body{
     margin:0;
@@ -84,38 +42,34 @@
   a{color:var(--forest-deep);}
   .mono{font-family:"JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums;}
 
-  header.masthead{
-    background:var(--forest-deep);
-    color:#f4f4ec;
-    padding:40px 24px 32px;
+  .site-head{max-width:1040px;margin:auto;padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;}
+  .site-head a{font-weight:700;text-decoration:none;}
+  .brand{display:flex;align-items:center;gap:12px;color:var(--ink);}
+  .brand img{flex-shrink:0;}
+  .skip-link{position:absolute;top:-100px;left:16px;padding:12px;background:var(--surface);z-index:10;}
+  .skip-link:focus{top:10px;}
+  a:focus-visible{outline:3px solid var(--forest);outline-offset:4px;}
+  header.masthead{max-width:992px;margin:8px auto 48px;padding:0;display:grid;grid-template-columns:1.2fr 1fr;gap:0;align-items:stretch;background:var(--forest-deep);color:var(--bg);border-radius:18px;overflow:hidden;}
+  header.masthead .inner{padding:36px 28px;min-width:0;display:flex;flex-direction:column;justify-content:center;}
+  .eyebrow{color:#c9dfc9;font-size:.82rem;font-weight:600;letter-spacing:.06em;margin:0 0 16px;}
+  h1.title{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(2.6rem,5vw,4rem);letter-spacing:-.04em;line-height:1.05;margin:0 0 20px;text-wrap:balance;}
+  .meta-row{display:flex;flex-direction:column;gap:10px;font-size:.9rem;color:#d8e5d3;}
+  .meta-row .coverage{font-size:.78rem;line-height:1.6;}
+  .hero-photo{margin:0;overflow:hidden;background:var(--forest-deep);display:flex;flex-direction:column;}
+  .hero-photo img{display:block;width:100%;height:300px;object-fit:cover;flex:1;min-height:0;}
+  .hero-photo figcaption{padding:12px 16px;font-size:.75rem;color:#d8e5d3;}
+  .newsletter{display:flex;align-items:flex-start;gap:24px;background:var(--surface-2);padding:28px;border-radius:16px;}
+  .newsletter p{max-width:42em;color:var(--ink-soft);}
+  .newsletter img{flex:0 0 80px;}
+  @media(max-width:1040px){header.masthead{margin-left:24px;margin-right:24px;}}
+  @media(max-width:650px){
+    header.masthead{grid-template-columns:1fr;gap:0;margin-bottom:32px;}
+    .hero-photo img{height:240px;}
+    .site-head{font-size:.8rem;gap:10px;}
+    .brand{gap:8px;}
+    .brand img{width:34px;height:34px;}
+    .newsletter{flex-direction:column;padding:24px;gap:12px;}
   }
-  header.masthead .inner{max-width:1040px;margin:0 auto;}
-  .eyebrow{
-    font-family:"Fraunces", serif;
-    font-style:italic;
-    font-weight:480;
-    font-size:0.95rem;
-    letter-spacing:0.06em;
-    color:#c9dfc9;
-    margin:0 0 6px;
-  }
-  h1.title{
-    font-family:"Fraunces", serif;
-    font-weight:600;
-    font-size:clamp(2.1rem, 4vw, 3rem);
-    letter-spacing:-0.01em;
-    margin:0 0 14px;
-    text-wrap:balance;
-  }
-  .meta-row{
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px 18px;
-    align-items:center;
-    font-size:0.92rem;
-    color:#d8e5d3;
-  }
-  .meta-row .coverage{color:#b9ceb4;}
   .tag{
     display:inline-flex;
     align-items:center;
@@ -132,16 +86,8 @@
     color:#ffd98a;
     border:1px solid rgba(250,178,25,0.4);
   }
-  .banner{
-    margin-top:20px;
-    padding:14px 16px;
-    background:rgba(255,255,255,0.08);
-    border:1px solid rgba(255,255,255,0.16);
-    border-radius:10px;
-    font-size:0.92rem;
-    color:#e7efe2;
-  }
-  .banner strong{color:#fff;}
+  .banner{margin:20px 0 0;max-width:65ch;font-size:1.04rem;line-height:1.65;color:#d8e5d3;}
+  footer.coverage{margin:40px 0 0;color:var(--ink-soft);font-size:.82rem;line-height:1.7;}
 
   .stat-strip{
     display:grid;
@@ -151,12 +97,13 @@
     border:1px solid var(--line);
     border-radius:12px;
     overflow:hidden;
-    margin:-28px 0 40px;
+    margin:0;grid-column:1 / -1;border-radius:0 0 18px 18px;
     box-shadow:var(--shadow);
     position:relative;
     z-index:2;
   }
   .stat{
+    color:var(--ink);
     background:var(--surface);
     padding:18px 16px;
     text-align:left;
@@ -164,7 +111,7 @@
   .stat .n{
     font-family:"JetBrains Mono", monospace;
     font-variant-numeric: tabular-nums;
-    font-size:1.9rem;
+    font-size:clamp(1.2rem,1.8vw,1.65rem);
     font-weight:600;
     line-height:1;
   }
@@ -172,6 +119,7 @@
   .stat .n.critical{color:var(--status-critical);}
   .stat .n.warning{color:var(--status-warning-ink);}
   .stat .n.event{color:var(--status-event);}
+  .stat .n.grazing{color:var(--bark);}
   .stat .lbl{
     margin-top:4px;
     font-size:0.78rem;
@@ -398,6 +346,77 @@
   }
   .app-link:hover, .app-link:focus-visible{ text-decoration:underline; }
 
+  /* "What's on the map" -- the running inventory of everything the app can
+     draw, headline total plus a breakdown by the app's own filter groups.
+     The total sits in the card's own header rather than the stat strip at
+     the top, which is strictly about what changed this week. */
+  .inventory-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .inventory-head{
+    display:flex;
+    align-items:baseline;
+    gap:14px;
+    flex-wrap:wrap;
+    padding:20px 22px;
+    border-bottom:1px solid var(--line);
+    background:var(--surface-2);
+  }
+  .inventory-head .n{
+    font-family:"JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    font-size:2.4rem;
+    font-weight:600;
+    line-height:1;
+  }
+  .inventory-head .lbl{color:var(--ink-soft); font-size:0.95rem;}
+  .inventory-groups{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:1px;
+    background:var(--line);
+  }
+  .inventory-group{background:var(--surface); padding:16px 20px 18px;}
+  /* The always-shown features have no filter to sit beside, so they get a
+     row of their own rather than leaving two empty cells next to them. */
+  .inventory-group.full{grid-column:1 / -1;}
+  .inventory-group .grp{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    font-weight:600;
+    margin-bottom:8px;
+  }
+  .inventory-group .grp > span:first-child{display:flex; align-items:center; gap:9px;}
+  .inventory-icon{width:38px; height:38px; object-fit:contain; flex:0 0 auto;}
+  .inventory-group .grp .c{
+    font-family:"JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .inventory-group ul{margin:0; padding:0; list-style:none;}
+  .inventory-group li{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    font-size:0.88rem;
+    color:var(--ink-soft);
+    padding:2px 0;
+  }
+  .inventory-group li > span:first-child{display:flex; align-items:center; gap:8px;}
+  .inventory-subicon{width:23px; height:23px; object-fit:contain; flex:0 0 auto;}
+  .inventory-group li .c{
+    font-family:"JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  @media (max-width: 760px){
+    .inventory-groups{grid-template-columns:1fr;}
+  }
+
   .about-note{
     margin-top:40px;
     padding:18px 20px;
@@ -408,31 +427,113 @@
     font-size:0.92rem;
   }
 
+  /* The cattle marker: the app's own white map pin with its cow icon inside,
+     so a cow reads as a cow here exactly as it does on the map. Used in the
+     legend, the list beside the map, and on the cattle card. The map SVG
+     draws the same shape -- see .cow-pin-body / .cow-pin-icon below. */
+  .cow-marker{
+    background-color:#fff !important;
+    background-image:var(--cow-icon);
+    background-size:76% 76%;
+    background-position:center;
+    background-repeat:no-repeat;
+    border:1px solid var(--line-strong);
+    display:inline-block;
+    flex:none;
+  }
+  .legend-item .cow-marker{width:17px;height:17px;border-radius:50%;}
+  .cow-pin-body{fill:#fff; stroke:rgba(0,0,0,0.25); stroke-width:1.1;}
+
+  /* The advert for the app itself, near the foot of the report -- after the
+     week's news, where a reader has a reason to want the map. */
+  .app-promo{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    padding:26px 28px 24px;
+  }
+  .app-promo .section-sub{margin-bottom:18px; max-width:62ch;}
+  .promo-points{
+    list-style:none;
+    margin:0 0 22px;
+    padding:0;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:16px 28px;
+  }
+  .promo-points li{display:flex; flex-direction:column; gap:2px;}
+  .promo-points strong{font-size:0.95rem;}
+  .promo-points span{color:var(--ink-soft); font-size:0.9rem;}
+  .promo-cta{margin:0;}
+  /* The masthead version of this button sat on the dark green header; here it
+     sits on a light card, so it needs the colours the other way round. */
+  .app-promo .app-link, .newsletter .app-link{
+    margin-top:0;
+    background:var(--forest-deep);
+    color:#f4f4ec;
+    padding:12px 22px;
+    font-size:1rem;
+  }
+  .promo-foot{margin:14px 0 0; color:var(--muted); font-size:0.85rem;}
+  @media (max-width: 760px){
+    .promo-points{grid-template-columns:1fr;}
+  }
+
+  /* "Nothing to report" cards: present on purpose, so a quiet week reads as a
+     quiet week rather than a missing section. */
+  .card.empty h3{font-size:1rem;}
+  .card.empty p{margin-bottom:0;}
+
+  /* The AI-authored notice. Last thing on the page, quiet but not hidden. */
+  .ai-note{
+    margin-top:40px;
+    padding:18px 20px;
+    border:1px dashed var(--line-strong);
+    border-radius:12px;
+    color:var(--ink-soft);
+    font-size:0.88rem;
+  }
+  .ai-note h4{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:0.95rem;
+    color:var(--ink);
+    margin:0 0 8px;
+  }
+  .ai-note p{margin:0 0 8px;}
+  .ai-note p:last-child{margin-bottom:0;}
+
+
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
+<nav class="site-head" aria-label="Main navigation">
+  <a class="brand" href="/"><img src="/assets/home/map-icons/oak.png" alt="" width="44" height="44"><span>Epping Forest Finds</span></a>
+  <a href="/reports/">All editions</a>
+</nav>
 
 <header class="masthead">
   <div class="inner">
-    <p class="eyebrow">Weekly Epping Forest report</p>
+    <p class="eyebrow">Field notes · Epping Forest &amp; its neighbours</p>
     <h1 class="title">Epping Forest Ledger</h1>
     <div class="meta-row">
       <span>Monday, 14 September 2026</span>
-      <span class="coverage">Loughton · Chingford · Buckhurst Hill · Chigwell · Theydon Bois · Epping · Woodford Green · Waltham Abbey</span>
+
     </div>
-    <div class="banner">This week's cross-check against the Food Standards Agency's public hygiene register turned up five real, currently-trading places that had never made it onto the map, and pointed to one likely closure in Loughton. We've also chased up last week's open question about Theydon Bois Golf Club.</div>
-    <a class="app-link" href="https://www.eppingforestfinds.uk/app">Open the live map →</a>
-  </div>
+
+  <p class="banner">This edition brings together local food and shopping finds, a possible café closure, and travel updates around the forest. Read on for the places affected and details to check before a visit.</p>
+</div>
+<figure class="hero-photo"><img src="/assets/home/epping-longhorns.jpg" width="1600" height="1200" alt="English Longhorn cattle grazing in Epping Forest."></figure>
+<div class="stat-strip cols-6"><div class="stat"><div class="n mono">689</div><div class="lbl">Places to eat, drink &amp; shop</div></div><div class="stat"><div class="n mono good">5</div><div class="lbl">Local finds</div></div><div class="stat"><div class="n mono critical">1</div><div class="lbl">Closure updates</div></div><div class="stat"><div class="n mono warning">2</div><div class="lbl">Road &amp; access changes</div></div><div class="stat"><div class="n mono event">0</div><div class="lbl">Events this week</div></div><div class="stat"><div class="n mono grazing">Moved</div><div class="lbl">Cattle grazing area</div></div></div>
 </header>
 
-<div class="wrap">
+<main class="wrap" id="main">
 
-  <div class="stat-strip cols-6"><div class="stat"><div class="n mono">689</div><div class="lbl">Places on the map</div></div><div class="stat"><div class="n mono good">5</div><div class="lbl">Openings flagged</div></div><div class="stat"><div class="n mono critical">1</div><div class="lbl">Closures flagged</div></div><div class="stat"><div class="n mono warning">2</div><div class="lbl">Road &amp; access changes</div></div><div class="stat"><div class="n mono event">0</div><div class="lbl">Events this week</div></div><div class="stat"><div class="n mono grazing">Moved</div><div class="lbl">Cattle grazing area</div></div></div>
-  <p class="section-sub" style="margin-top:-8px;">There are currently 689 places to eat, drink and shop around the forest, including 213 restaurants, 158 cafés, 127 convenience stores, 75 pubs, 37 supermarkets, 23 bars, 22 bakeries, 16 butchers, 8 confectioneries, 4 greengrocers, 3 delis, 1 pastry shop, 1 kiosk, and 1 farm shop.</p>
-
-  <section id="map">
+<section id="map">
     <h2 class="section-title">This week on the map</h2>
-    <p class="section-sub">The dashed line shows the area this report searches for updates in — not just the forest itself, but the towns around its edge.</p>
+    <p class="section-sub">Find the places mentioned in this edition. The outline includes the forest and its neighbouring towns.</p>
     <div class="map-card">
       <div class="map-svg-holder">
         <svg viewBox="0 0 480 859.5" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Map of Epping Forest and the surrounding area covered by this report">
@@ -465,27 +566,48 @@
           <g><title>8 — Water mains replacement</title><circle class="pin-ring" cx="167.9" cy="380.4" r="9" style="fill:var(--status-warning)"/><text class="pin-num" x="167.9" y="380.8" style="fill:var(--status-warning-ink)">8</text></g>
           <g><title>9 — Where the cattle are grazing</title><circle class="pin-ring" cx="113.3" cy="326.5" r="9" style="fill:var(--bark)"/><text class="pin-num" x="113.3" y="326.9">9</text></g>
         </svg>
-        <div class="legend"><div class="legend-item"><span class="legend-dot" style="background:var(--status-good)"></span>Opening</div><div class="legend-item"><span class="legend-dot" style="background:var(--status-critical)"></span>Closure</div><div class="legend-item"><span class="legend-dot" style="background:var(--status-warning)"></span>Road / access</div><div class="legend-item"><span class="legend-dot" style="background:var(--status-event)"></span>Event</div><div class="legend-item"><span class="legend-dot" style="background:var(--bark)"></span>Cattle grazing</div></div>
+        <div class="legend"><div class="legend-item"><span class="legend-dot" style="background:var(--status-good)"></span>Local find</div><div class="legend-item"><span class="legend-dot" style="background:var(--status-critical)"></span>Closure</div><div class="legend-item"><span class="legend-dot" style="background:var(--status-warning)"></span>Road / access</div><div class="legend-item"><span class="legend-dot" style="background:var(--status-event)"></span>Event</div><div class="legend-item"><span class="legend-dot" style="background:var(--bark)"></span>Cattle grazing</div></div>
       </div>
       <div class="map-side">
-        <p>9 items flagged this run. Full detail is below the map.</p>
+        <p>The places in this edition, at a glance.</p>
         <div class="find-mini"><span class="badge good" style="background:var(--status-good)">1</span><div class="txt"><strong>Railway Tavern</strong><span>Woodford Green</span></div></div><div class="find-mini"><span class="badge good" style="background:var(--status-good)">2</span><div class="txt"><strong>Brothers Supermarket</strong><span>Chingford</span></div></div><div class="find-mini"><span class="badge good" style="background:var(--status-good)">3</span><div class="txt"><strong>Eesa Halal Meat &amp; Groceries</strong><span>Chingford</span></div></div><div class="find-mini"><span class="badge good" style="background:var(--status-good)">4</span><div class="txt"><strong>Leo's Caffe Bar</strong><span>Chingford</span></div></div><div class="find-mini"><span class="badge good" style="background:var(--status-good)">5</span><div class="txt"><strong>Tandoori Cottage</strong><span>Chingford</span></div></div><div class="find-mini"><span class="badge critical" style="background:var(--status-critical)">6</span><div class="txt"><strong>The Gelato Kitchen</strong><span>Loughton</span></div></div><div class="find-mini"><span class="badge warning" style="background:var(--status-warning)">7</span><div class="txt"><strong>Bakers Lane, Epping</strong><span>Epping</span></div></div><div class="find-mini"><span class="badge warning" style="background:var(--status-warning)">8</span><div class="txt"><strong>Water mains replacement</strong><span>Loughton</span></div></div><div class="find-mini"><span class="badge grazing" style="background:var(--bark)">9</span><div class="txt"><strong>Where the cattle are grazing</strong><span>Sewardstone</span></div></div>
       </div>
     </div>
   </section>
 
-  <section id="businesses"><h2 class="section-title">Shops, cafés, restaurants &amp; pubs</h2><p class="section-sub">What's opened, closed, or might have.</p><div class="cards"><div class="card good"><div class="card-head"><span class="pin-chip good">1</span><h3>Railway Tavern</h3><span class="status-label good">Already open, newly added to the map</span></div><p class="addr">Woodford Green</p><p>This pub on Snakes Lane East has been trading and is registered with the Food Standards Agency, but had never made it onto the map. It's on there now.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/443081">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">2</span><h3>Brothers Supermarket</h3><span class="status-label good">Already open, newly added to the map</span></div><p class="addr">Chingford</p><p>A grocery shop on Chingford Mount Road, confirmed as currently trading and registered for food hygiene inspection. Newly added to the map.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/689508">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">3</span><h3>Eesa Halal Meat &amp; Groceries</h3><span class="status-label good">Already open, newly added to the map</span></div><p class="addr">Chingford</p><p>A halal grocer on Chingford Mount Road, confirmed as currently trading. Newly added to the map.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/654279">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">4</span><h3>Leo's Caffe Bar</h3><span class="status-label good">Already open, newly added to the map</span></div><p class="addr">Chingford</p><p>A café on Chingford Mount Road, confirmed as currently trading. Newly added to the map.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/1218441">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">5</span><h3>Tandoori Cottage</h3><span class="status-label good">Already open, newly added to the map</span></div><p class="addr">Chingford</p><p>An Indian restaurant on Chingford Mount Road, confirmed as currently trading. Newly added to the map.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/1109329">Food Standards Agency</a></p></div><div class="card critical"><div class="card-head"><span class="pin-chip critical">6</span><h3>The Gelato Kitchen</h3><span class="status-label critical">Proposed removal, likely closed</span></div><p class="addr">Loughton</p><p>This gelato and dessert café on Loughton High Road looks to have closed. Neighbours in a local community group say it's been shut for several months with no explanation, and it no longer shows up as a registered food business at that address, even though every other shop on the same stretch does. We'd like to remove it from the map, though this hasn't been confirmed by the business itself.</p><p class="src">Source: <a href="https://www.facebook.com/groups/542803182420186/posts/27010964931843984/">Loughton community Facebook group</a></p></div></div></section>
 
-  <section id="road"><h2 class="section-title">Road closures &amp; access</h2><p class="section-sub">Things that might affect getting around the forest.</p><div class="cards"><div class="card warning"><div class="card-head"><span class="pin-chip warning">7</span><h3>Bakers Lane, Epping</h3><span class="status-label warning">Ongoing closure</span></div><p class="addr">Epping</p><p>Bakers Lane's roadworks and resurfacing, which began on 8 September, are still running as previously reported -- essential improvements ahead of the new Epping Leisure Centre opening. We weren't able to pull a fresh week-by-week update this time, as the council's own closures page turned away our automated request again.</p><p class="src">Source: <a href="https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures">Epping Forest District Council</a></p></div><div class="card warning"><div class="card-head"><span class="pin-chip warning">8</span><h3>Water mains replacement</h3><span class="status-label warning">Ongoing, multi-year project</span></div><p class="addr">Loughton</p><p>Thames Water's three-year mains replacement across more than sixty roads in and around Loughton continues. Queens Road, Spareleaze Hill, Hillyfields, Woodbury Hill and Rectory Lane have already been completed; more streets are due to be dug up through the rest of this year and into next. Anyone on an affected road should get a letter beforehand with exact dates.</p><p class="src">Source: <a href="https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/high-beech-loughton-mains-replacement">Thames Water</a></p></div></div></section>
+  <section id="businesses"><h2 class="section-title">Shops, cafés, restaurants &amp; pubs</h2><p class="section-sub">Local finds and changes around the forest.</p><div class="cards"><div class="card good"><div class="card-head"><span class="pin-chip good">1</span><h3>Railway Tavern</h3><span class="status-label good">Already trading</span></div><p class="addr">Woodford Green</p><p>An established pub on Snakes Lane East, Woodford Green.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/443081">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">2</span><h3>Brothers Supermarket</h3><span class="status-label good">Already trading</span></div><p class="addr">Chingford</p><p>A grocery shop on Chingford Mount Road, already trading.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/689508">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">3</span><h3>Eesa Halal Meat &amp; Groceries</h3><span class="status-label good">Already trading</span></div><p class="addr">Chingford</p><p>A halal grocer on Chingford Mount Road, already trading.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/654279">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">4</span><h3>Leo's Caffe Bar</h3><span class="status-label good">Already trading</span></div><p class="addr">Chingford</p><p>A café on Chingford Mount Road, already trading.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/1218441">Food Standards Agency</a></p></div><div class="card good"><div class="card-head"><span class="pin-chip good">5</span><h3>Tandoori Cottage</h3><span class="status-label good">Already trading</span></div><p class="addr">Chingford</p><p>An Indian restaurant on Chingford Mount Road, already trading.</p><p class="src">Source: <a href="https://ratings.food.gov.uk/business/1109329">Food Standards Agency</a></p></div><div class="card critical"><div class="card-head"><span class="pin-chip critical">6</span><h3>The Gelato Kitchen</h3><span class="status-label critical">Possibly closed</span></div><p class="addr">Loughton</p><p>This gelato and dessert café on Loughton High Road looks to have closed. Neighbours in a local community group say it's been shut for several months with no explanation, and it no longer shows up as a registered food business at that address, even though every other shop on the same stretch does. The business itself has not confirmed the closure.</p><p class="src">Source: <a href="https://www.facebook.com/groups/542803182420186/posts/27010964931843984/">Loughton community Facebook group</a></p></div></div></section>
 
-  
+  <section id="road"><h2 class="section-title">Road closures &amp; access</h2><p class="section-sub">Things that might affect getting around the forest.</p><div class="cards"><div class="card warning"><div class="card-head"><span class="pin-chip warning">7</span><h3>Bakers Lane, Epping</h3><span class="status-label warning">Ongoing closure</span></div><p class="addr">Epping</p><p>Bakers Lane's roadworks and resurfacing, which began on 8 September, are still running as previously reported -- essential improvements ahead of the new Epping Leisure Centre opening. The current phase is unconfirmed; check the council’s latest notices before travelling.</p><p class="src">Source: <a href="https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures">Epping Forest District Council</a></p></div><div class="card warning"><div class="card-head"><span class="pin-chip warning">8</span><h3>Water mains replacement</h3><span class="status-label warning">Ongoing, multi-year project</span></div><p class="addr">Loughton</p><p>Thames Water's three-year mains replacement across more than sixty roads in and around Loughton continues. Queens Road, Spareleaze Hill, Hillyfields, Woodbury Hill and Rectory Lane have already been completed; more streets are due to be dug up through the rest of this year and into next. Anyone on an affected road should get a letter beforehand with exact dates.</p><p class="src">Source: <a href="https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/high-beech-loughton-mains-replacement">Thames Water</a></p></div></div></section>
+
+
 
   <section id="grazing"><h2 class="section-title">The forest's grazing cattle</h2><p class="section-sub">Epping Forest's conservation-grazing cattle move around the forest through the year.</p><div class="cards"><div class="card grazing"><div class="card-head"><h3>Where the cattle are grazing</h3><span class="status-label grazing">Moved this week</span></div><p class="addr">Sewardstone</p><p>The forest's grazing cattle have moved to a new area close to Sewardstone.</p></div></div></section>
 
-  <div class="about-note">The Food Standards Agency's hygiene register worked well this week and was the main way we confirmed today's additions. The district council's own road-closures and events pages both refused automated requests again this week (as they did last time) -- those two sections lean on other official sources instead. A wider sweep this week also turned up around thirty more small shops and cafes in the surrounding towns that share a postcode with our usual area but sit well outside sensible walking distance of the forest itself -- they've been left off the map on purpose, not forgotten.</div>
+
+<section id="newsletter" class="newsletter">
+    <img src="/assets/home/ledger.png" alt="" width="80" height="80" loading="lazy">
+    <div><h2 class="section-title">A little closer to the forest</h2>
+    <p>Local discoveries, things to do and updates for your next visit. You do not need the app to enjoy the Ledger.</p>
+    <p>Join the mailing list for weekly Ledger updates once the site launches, plus news of early app access.</p>
+    <a class="app-link" href="https://www.eppingforestfinds.uk/#signup">Keep me in the loop →</a></div>
+  </section>
+<section id="app" class="app-promo">
+    <h2 class="section-title">Take the forest with you</h2>
+    <p>Epping Forest Finds is a free map for your next walk: find nearby cafés,
+    ancient trees, paths and places to pause.</p>
+    <p><strong>Works with no signal.</strong> Load the map before you leave.
+    Cattle positions update when you are online; offline you see the last saved locations.</p>
+    <p class="promo-cta"><a class="app-link" href="https://www.eppingforestfinds.uk/#signup">Get early access updates →</a></p>
+    <p class="promo-foot">The app is in early testing. Already have access?
+    <a href="https://www.eppingforestfinds.uk/app">Open the map</a> and add it to your phone’s home screen.</p>
+  </section>
+<div class="about-note">A snapshot of the forest and its neighbouring towns at the date above. Check organisers’ latest details before setting out.</div>
 
   <footer class="sources"><h4>Sources used in this report</h4><ul><li><a href="https://ratings.food.gov.uk/business/443081">Food Standards Agency</a></li><li><a href="https://ratings.food.gov.uk/business/689508">Food Standards Agency</a></li><li><a href="https://ratings.food.gov.uk/business/654279">Food Standards Agency</a></li><li><a href="https://ratings.food.gov.uk/business/1218441">Food Standards Agency</a></li><li><a href="https://ratings.food.gov.uk/business/1109329">Food Standards Agency</a></li><li><a href="https://www.facebook.com/groups/542803182420186/posts/27010964931843984/">Loughton community Facebook group</a></li><li><a href="https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures">Epping Forest District Council</a></li><li><a href="https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/high-beech-loughton-mains-replacement">Thames Water</a></li></ul></footer>
 
-</div>
+<footer class="coverage"><strong>Around the forest</strong><br>Loughton · Chingford · Buckhurst Hill · Chigwell · Theydon Bois · Epping · Woodford Green · Waltham Abbey</footer>
+<aside class="ai-note"><h4>Written by AI — please tell us if it is wrong</h4><p>Researched and written automatically by AI, which can get things wrong. Check the linked sources for details before making a special trip.</p><p>If you spot a mistake, <a href="https://www.eppingforestfinds.uk/app#report=Mistake%20in%20the%20Epping%20Forest%20Ledger%20for%202026-09-14">report it here</a> — this opens a short form in the app. You will need early access.</p></aside>
+</main>
 </body>
 </html>
