@@ -236,6 +236,10 @@ jobs:
               where. Run it plain (python3 scripts/cow_boundary_tracker.py)
               and use its JSON output directly as your report-data.json's
               "grazing" field.
+            - scripts/report/structured_findings.py -- turns
+              data/road-closures.json, data/forest-notices.json and
+              data/forest-events.json into ready-to-use findings for whatever
+              is still within its own recorded dates. See step 2c.
             - scripts/report/render_report.py -- turns a small JSON file
               into the finished report page (design, map, point-count stats
               -- all of it). You do NOT hand-write the report's HTML or SVG
@@ -267,27 +271,52 @@ jobs:
                   register with its council before it can trade. Best-effort:
                   if it is unreachable, note that in the pull request body
                   (not the report) and carry on.
-               c. Road closures & roadworks -- highways AND utilities, not
+               c. Road closures, access notices and events now have a
+                  starting point that isn't a fresh web search every time:
+                  data/road-closures.json, data/forest-notices.json and
+                  data/forest-events.json are hand-researched entries with
+                  their own dates, sources and a lastVerified stamp (see
+                  spec/spec-weekly-report.md). Run
+
+                    python3 scripts/report/structured_findings.py --as-of <today>
+
+                  first and treat its output as the floor for this week's
+                  road/access/event findings -- add it to report-data.json's
+                  "findings" before anything your own research below turns
+                  up, never instead of that research. Each file's
+                  "sourceNotes" records which upstream sources are worth
+                  building real automation against (the free Street Manager
+                  roadworks API for England; the City of London's Epping
+                  Forest & Commons Committee "Diary" PDF for events) --
+                  nothing automated reads those yet, so this step is still a
+                  human-shaped research step, just starting from a record
+                  instead of nothing.
+
+                  Your job this run is also to keep those three files
+                  current, the same way scripts/business_watch.py keeps
+                  data/business-watch.json current: re-check any entry
+                  marked "needsReverification" or whose endDate has passed or
+                  is close, update its dates/body/lastVerified (or delete it
+                  if it's plainly over), and add any new road/access/event
+                  finding you confirm as a new entry with today's date as its
+                  lastVerified -- then commit the updated files alongside the
+                  rest of this week's change (step 4c). Skipping this is how
+                  the old ad hoc search produced the same gaps week after
+                  week: the point of these files is that they don't go stale
+                  on their own.
+
+                  Road closures & roadworks -- highways AND utilities, not
                   highways alone (a past run missed real, ongoing utility
-                  diversions entirely, see below):
-                  https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures
-                  and Essex Highways for highway schemes; separately,
+                  diversions entirely): Essex Highways for highway schemes
+                  (eppingforestdc.gov.uk's own advance-notice page has gone
+                  404 -- don't use it) and
                   https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/london
                   for Thames Water mains/repair projects (check it every
                   run -- it's a static project list, not paginated news, so
                   re-fetching it fresh each week is cheap and reliable) --
                   scan every project listed for a location matching any
                   coverage settlement, not just ones with "Loughton" etc.
-                  literally in the project name. Known standing item: the
-                  High Beech, Loughton water mains replacement (started
-                  March 2026, ~3-year multi-phase project across Spareleaze
-                  Hill, Queens Road, Debden Lane, Newmans Lane, Rectory Lane
-                  and ~15 other streets) is long-running and easy for a
-                  fresh news search to miss entirely since it isn't "new" --
-                  re-check its project page each run for the current
-                  phase/street/dates rather than assuming last week's is
-                  still accurate, the same way you'd track any other
-                  multi-week roadworks scheme. Also run a per-settlement
+                  literally in the project name. Also run a per-settlement
                   search along the lines of "Thames Water roadworks OR
                   diversion <settlement>" the same way you do for business
                   openings/closures in step 2a, since Thames Water's own
@@ -295,7 +324,13 @@ jobs:
                   ground.
                d. Forest events:
                   https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest
-                  and https://www.eppingforestdc.gov.uk/whats-on-in-epping-forest/.
+                  and https://www.eppingforestdc.gov.uk/whats-on-in-epping-forest/
+                  -- and, for the richest single source, find this month's
+                  Epping Forest & Commons Committee agenda pack on
+                  democracy.cityoflondon.gov.uk (search "Epping Forest
+                  Commons Committee") and open its "Committee Events Diary"
+                  attachment for the current month's exhibitions, guided
+                  tours, litter picks and volunteering sessions.
                e. For each finding, look up its real coordinates in
                   data/local-roads.geojson or data/local-landmarks-food.geojson
                   rather than guessing -- put them in report-data.json's
@@ -512,7 +547,9 @@ jobs:
                   spec/spec-marketing.md if sync-homepage-counts.js touched
                   them, data/business-watch.json and data/verification.json
                   (always -- they are this run's memory, and leaving them out
-                  is what makes next week start from nothing), the new
+                  is what makes next week start from nothing),
+                  data/road-closures.json, data/forest-notices.json and
+                  data/forest-events.json if step 2c/2d updated them, the new
                   report, and
                   data/cow-grazing-history.json if cow_boundary_tracker.py
                   updated it (see step 6), commit
