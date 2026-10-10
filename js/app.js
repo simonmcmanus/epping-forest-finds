@@ -99,7 +99,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v87"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v88"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -1442,8 +1442,14 @@ function applyBoundsToViewport(bounds, options = {}) {
     state.fitScale = Math.max(state.fitScale, options.minScale);
   }
   // Same ceiling the manual pinch-to-zoom gesture already enforces (state.fitScale * 220 there),
-  // so a fit never asks for more zoom than a user could reach by hand.
-  if (baseFitScaleForCap > 0) {
+  // so a fit never asks for more zoom than a user could reach by hand -- unless the caller
+  // passes its own `maxScale` (see MIN_SELECTION_VIEW_METRES), which says explicitly what the
+  // tightest reasonable view for *this* fit is, rather than inheriting a ceiling calibrated
+  // for how far a pinch gesture or a degenerate near-coincident cluster should be allowed to
+  // reach.
+  if (options.maxScale > 0) {
+    state.fitScale = Math.min(state.fitScale, options.maxScale);
+  } else if (baseFitScaleForCap > 0) {
     state.fitScale = Math.min(state.fitScale, baseFitScaleForCap * 220);
   }
 
@@ -4205,11 +4211,21 @@ function navigationAnchorActive() {
 // sit furthest apart. state.cameraOriginTransition, started by startCameraOriginTransition()
 // just before a caller flips the basis, smooths this the same way: this function eases the
 // logical point in from wherever it was last actually drawn rather than returning it outright.
-function cameraOriginPoint() {
+// useFinalBrowseState: see tiltRampedAnchor's comment -- skips both this function's own
+// basis-switch ease (state.cameraOriginTransition) and nearbyRenderOriginPoint's browse-origin
+// slide, returning the real destination point outright. Without it, the camera origin fed
+// into an animate:true fit (nearbyPivotFitScale's originPoint, and this function's own
+// userPoint in alignHeadingUpNavigationViewport) was wherever the slide happened to be at the
+// instant the fit was solved -- not where it was headed -- which bent the fit (and the
+// tx/ty built from it) around a point the camera was about to move away from.
+function cameraOriginPoint(useFinalBrowseState = false) {
   const logical = selectedNavigationHeadingUpActive()
     ? state.userLocation.point
-    : (nearbyRenderOriginPoint() || (state.userLocation ? state.userLocation.point : null));
+    : (useFinalBrowseState
+      ? ((nearbyOrigin() && nearbyOrigin().point) || (state.userLocation ? state.userLocation.point : null))
+      : (nearbyRenderOriginPoint() || (state.userLocation ? state.userLocation.point : null)));
   if (!logical) return logical;
+  if (useFinalBrowseState) return logical;
   const transition = state.cameraOriginTransition;
   if (!transition) return logical;
   const progress = clamp((performance.now() - transition.startedAt) / transition.durationMs, 0, 1);
@@ -4328,8 +4344,8 @@ function nearbyOriginTransitionEasedProgress() {
 }
 
 // Opacity for everything that describes the *nearby set* -- the highlighted pins and the
-// ambient route lines to them. Zero while a browse-origin slide is running, then a quick fade
-// in once it lands.
+// ambient route lines to them. Zero while a browse-origin slide is running *with the camera
+// otherwise pinned in place*, then a quick fade in once it lands.
 //
 // Those pins and lines belong to the destination, but the map underneath them is still
 // travelling: drawing them straight away means a fan of lines pinned to a stationary circle
@@ -4337,19 +4353,34 @@ function nearbyOriginTransitionEasedProgress() {
 // reads as jitter even though every individual element is where it should be. Holding them
 // back until the map settles turns a busy half-second into one clean movement followed by the
 // new surroundings arriving.
+//
+// That reasoning assumes the ring is the only thing moving on screen -- true for a plain
+// anchor move (tap open ground, a Settings/pinch radius change), where the camera itself does
+// not animate and nearbyRenderOriginPoint's slide is what fakes the ring holding still while
+// the terrain pans beneath it. A cluster-tap expansion also re-zooms the camera
+// (focusNearbyOnClusterGroup -> ensureOverviewTargetsVisible's own animateViewportTo tween),
+// so nothing is pinned: ring, pins and terrain are all being redrawn every frame under one
+// live, moving transform, exactly like any other selection fit. Gating opacity here on top of
+// that hid the group's own members for the whole ~450ms flight and then popped them in once
+// both tweens happened to finish -- reported as "it animates to the position and then
+// suddenly snaps afterwards". Skipping the gate whenever a viewport animation is also running
+// leaves the plain-anchor-move case (no concurrent viewport tween) exactly as it was.
 function nearbyRevealOpacity() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return 1;
+  if (state.viewportAnimationTo != null) return 1;
   const sinceStart = performance.now() - transition.startedAt;
   if (sinceStart < transition.durationMs) return 0;
   return clamp((sinceStart - transition.durationMs) / NEARBY_REVEAL_MS, 0, 1);
 }
 
 // True while the reveal fade still has frames left to draw, so prepareCanvasForDraw keeps
-// asking for them after the slide itself has finished.
+// asking for them after the slide itself has finished. See nearbyRevealOpacity: no fade to
+// wait out while a viewport animation is also running, since nothing was hidden to begin with.
 function nearbyRevealInProgress() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return false;
+  if (state.viewportAnimationTo != null) return false;
   return performance.now() - transition.startedAt < transition.durationMs + NEARBY_REVEAL_MS;
 }
 
@@ -4417,7 +4448,18 @@ function tiltAnchorFraction() {
 // mirroring is applied (see headingUpAnchorFraction below). Always >= 0.5 by
 // construction (HEADING_UP_ANCHOR_* constants). Factored out so tiltAvailableAheadCssPx
 // can use it as a safety floor -- see that function's comment for why.
-function tiltRampedAnchor(isSelected) {
+// useFinalBrowseState: true when the caller is computing the *destination* of a camera move
+// it is about to hand to animateViewportTo (alignHeadingUpNavigationViewport's animate:true
+// path) rather than this frame's instantaneous value. The progress blend below exists for
+// per-frame tracking -- sampled once at the instant a browse-origin transition starts (when
+// nearbyOriginTransitionEasedProgress() is still ~0), it reports almost exactly the *from*
+// end, not the slide's actual destination. animateViewportTo then eased smoothly toward that
+// wrong, stale target, and the next un-animated per-frame call (prepareCanvasForDraw, or a
+// live compass tick once the tween's own selectionCameraTransitionActive() guard lifts)
+// snapped straight to the real one the instant the tween finished -- the camera "zooms past
+// the real framing and then snaps back to it" field report. Skipping the blend here means the
+// tween itself eases to the correct destination, so there is nothing left to correct.
+function tiltRampedAnchor(isSelected, useFinalBrowseState = false) {
   // The forward ramp exists to give the screen to what is ahead of *you* as the phone
   // tilts up: it pushes the pivot toward the bottom edge so the ground you are walking
   // into fills the view. Browsing a spot away from yourself has no "ahead" -- the pivot is
@@ -4434,6 +4476,7 @@ function tiltRampedAnchor(isSelected) {
   // in 3D would jerk the whole view up or down the screen on a single frame. Hopping between
   // two browsed spots stays put: both ends are the centred pivot.
   const to = nearbyPivotAnchorFraction(!tiltHidesWhatIsBehind());
+  if (useFinalBrowseState) return to;
   const progress = nearbyOriginTransitionEasedProgress();
   if (progress == null) return to;
   const from = nearbyPivotAnchorFraction(state.nearbyOriginTransition.fromBrowsing);
@@ -4451,8 +4494,8 @@ function nearbyPivotAnchorFraction(browsing) {
   return HEADING_UP_ANCHOR_NEARBY + (HEADING_UP_ANCHOR_NEARBY_TILT - HEADING_UP_ANCHOR_NEARBY) * t;
 }
 
-function headingUpAnchorFraction(isSelected) {
-  const aheadAnchor = tiltRampedAnchor(isSelected);
+function headingUpAnchorFraction(isSelected, useFinalBrowseState = false) {
+  const aheadAnchor = tiltRampedAnchor(isSelected, useFinalBrowseState);
   if (!isSelected) return aheadAnchor;
   const offset = selectedNavigationTargetBearingOffsetRadians();
   if (offset == null) return aheadAnchor;
@@ -4508,10 +4551,16 @@ function selectedNavigationTargetBearingOffsetRadians() {
 // reach regardless of which side of the pivot that is, so mirroring the on-screen
 // anchor position never on its own shrinks the safety margin. In the normal
 // (dead-ahead or nearby) case the anchor is already >= 0.5, so this is a no-op.
-function tiltAvailableAheadCssPx() {
+// useFinalBrowseState: see cameraOriginPoint's comment. headingUpFitTiltCamera (the one
+// animate:true-fit caller, via maxScaleForHeadingUpPoints) passes it through so the camera
+// distance the fit solves against already matches the browse-origin slide's destination; the
+// renderer's own tiltProjection() call leaves it at the default, live-tracking value, since
+// what it draws each frame has to match that frame's own (still-blending) anchor, not where
+// the anchor will eventually land.
+function tiltAvailableAheadCssPx(useFinalBrowseState = false) {
   const focusRect = bestVisibleCanvasRect();
   const isSelected = selectedNavigationHeadingUpActive();
-  const anchor = headingUpAnchorFraction(isSelected);
+  const anchor = headingUpAnchorFraction(isSelected, useFinalBrowseState);
   // max(anchor, 1 - anchor) alone still dips as low as 0.5 for a destination
   // directly to a side (offset ~= +-pi/2, where headingUpAnchorFraction's
   // cos(offset) mirroring passes through the screen's exact 50% centre) -- lower
@@ -4526,7 +4575,7 @@ function tiltAvailableAheadCssPx() {
   // range: at the dead-ahead/dead-behind extremes max(anchor, 1-anchor) already
   // equals tiltRampedAnchor() exactly (so this is a no-op there), and it now also
   // holds at every bearing in between.
-  const reach = Math.max(anchor, 1 - anchor, tiltRampedAnchor(isSelected));
+  const reach = Math.max(anchor, 1 - anchor, tiltRampedAnchor(isSelected, useFinalBrowseState));
   return Math.max(1, (focusRect.height * reach) / pixelRatio());
 }
 
@@ -4555,9 +4604,9 @@ function tiltAvailableAheadCssPx() {
 // (updateHeadingUpCanvasRotationTransform) and by the overlay's manual perspective
 // projection (worldToScreenForOverlayTilted, projectCanvasPoint) -- all three must
 // agree or pins drift away from the tilted terrain beneath them.
-function tiltPerspectivePx() {
+function tiltPerspectivePx(useFinalBrowseState = false) {
   if (tiltRotateXDeg() <= 0) return TILT_PERSPECTIVE_MIN_PX;
-  const desired = tiltAvailableAheadCssPx() * TILT_HORIZON_GROUND_RATIO * TILT_HORIZON_REFERENCE_TAN;
+  const desired = tiltAvailableAheadCssPx(useFinalBrowseState) * TILT_HORIZON_GROUND_RATIO * TILT_HORIZON_REFERENCE_TAN;
   return clamp(desired, TILT_PERSPECTIVE_MIN_PX, TILT_PERSPECTIVE_MAX_PX);
 }
 
@@ -4687,13 +4736,16 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   const sin = Math.sin(radians);
   let ahead = 0;
   let behind = 0;
+  let side = 0;
   for (const point of points) {
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
     const dx = point.x - state.userLocation.point.x;
     const dy = point.y - state.userLocation.point.y;
+    const rotatedX = dx * cos - dy * sin;
     const rotatedY = dx * sin + dy * cos;
     if (rotatedY < 0) ahead = Math.max(ahead, -rotatedY);
     else behind = Math.max(behind, rotatedY);
+    side = Math.max(side, Math.abs(rotatedX));
   }
   // No "is there anything on both sides?" guard. There used to be one -- `ahead <= 0 ||
   // behind <= 0` fell back to `anchoredY` -- and it was a cliff, because the two formulas
@@ -4727,7 +4779,36 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   const top = focusRect.y + margin;
   const usable = focusRect.height - margin * 2;
   if (!(usable > 0)) return anchoredY;
-  return top + usable * (ahead / span);
+
+  // Reaching all the way to the ends of [top, top + usable] is only the right answer when
+  // ahead/behind is actually what ends up constraining the eventual zoom. For a route that is
+  // short and narrow side-to-side (a nearby shop or cafe a few streets over, say), the left/
+  // right extent is routinely the tighter constraint instead -- maxScaleForHeadingUpPoints
+  // zooms no further than that already allows, so the ahead/behind span never uses anywhere
+  // near the full room this split just reserved for it. The anchor still sat at the extreme,
+  // so the (small, now-zoomed-out) route rendered in a compressed cluster stranded near one
+  // edge with the rest of the available area empty -- reported from the field as a selected
+  // destination landing "too high up on the screen" with the walker and the destination both
+  // far from the inspector sheet below them. Measured on a real 335 m routed destination: as
+  // little as 11% of the reserved ahead/behind room actually used, across roughly half of all
+  // possible compass headings.
+  //
+  // usableWidth mirrors `usable` for the horizontal axis -- the same margin, and symmetric
+  // around the rect's centre the same way maxScaleForHeadingUpPoints' own focus.x is (see its
+  // availableX). side's own scale candidate is therefore usableWidth / (2 * side); at that
+  // scale, span would occupy `span * usableWidth / (2 * side)` px of the `usable` vertical
+  // band. fillRatio is that fraction, clamped to the [0, 1] a long/wide route (side big
+  // relative to span, or span itself the binding axis) already satisfies -- for that case
+  // this is a no-op and the split reaches the full extreme exactly as before (the behaviour
+  // the doc comment above was measured against). Below 1, blend the split toward the centre
+  // by the same fraction: proportionally less reason to favour either end the less of the
+  // reserved room the route actually needs.
+  const usableWidth = focusRect.width - margin * 2;
+  const fillRatio = side > 0 && usableWidth > 0
+    ? clamp((span * usableWidth) / (2 * side * usable), 0, 1)
+    : 1;
+  const aheadRatio = 0.5 + (ahead / span - 0.5) * fillRatio;
+  return top + usable * aheadRatio;
 }
 
 function navigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
@@ -4756,15 +4837,17 @@ function dampedHeadingUpFocusY(rawFocus, focusRect, force) {
   return focusRect.y + focusRect.height * resolvedFraction;
 }
 
-function nearbyHeadingUpFocusY() {
-  return headingUpAnchorFraction(false);
+function nearbyHeadingUpFocusY(useFinalBrowseState = false) {
+  return headingUpAnchorFraction(false, useFinalBrowseState);
 }
 
-// See navigationFocusPoint: the rect is the caller's, for the same reason.
-function nearbyNavigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
+// See navigationFocusPoint: the rect is the caller's, for the same reason. useFinalBrowseState
+// is threaded straight through to nearbyHeadingUpFocusY/tiltRampedAnchor -- see the comment
+// there.
+function nearbyNavigationFocusPoint(focusRect = bestVisibleCanvasRect(), useFinalBrowseState = false) {
   return {
     x: focusRect.x + focusRect.width / 2,
-    y: focusRect.y + focusRect.height * nearbyHeadingUpFocusY(),
+    y: focusRect.y + focusRect.height * nearbyHeadingUpFocusY(useFinalBrowseState),
   };
 }
 
@@ -4963,14 +5046,14 @@ function resolveHeadingUpAnchorFraction(targetFraction, focusRect, targetKey, fo
 // keeps worldToScreenFlat()'s no-feedback guarantee intact: the fit still never reads a
 // tilted coordinate back off the screen, it just solves for the scale whose tilted
 // result is right (see claude/3d-tilt-rendering.md).
-function headingUpFitTiltCamera() {
+function headingUpFitTiltCamera(useFinalBrowseState = false) {
   const tiltDeg = tiltRotateXDeg();
   if (!(tiltDeg > 0)) return null;
   const radians = toRadians(tiltDeg);
   const tiltSin = Math.sin(radians);
   const tiltCos = Math.cos(radians);
   if (!(tiltSin > 0)) return null;
-  const perspectivePx = tiltPerspectivePx();
+  const perspectivePx = tiltPerspectivePx(useFinalBrowseState);
   const dpr = pixelRatio();
   if (!(perspectivePx > 0) || !(dpr > 0)) return null;
   return {
@@ -4983,6 +5066,13 @@ function headingUpFitTiltCamera() {
   };
 }
 
+// The ceiling maxHeadingUpNavigationScale clamps its own result to -- the selected-navigation
+// half of the "no ceiling of its own" split described below. See minSelectionFitScale
+// (js/app.js) for what it is and why. Deliberately NOT applied to the nearby ring fit
+// (maxNearbyHeadingUpScale): the walking-radius floor's own "zoom in past the one-minute
+// limit for a find that close" behaviour legitimately asks for more than this, and capping it
+// there pinned the ring at the ceiling instead (see WALKING_RADIUS_TIGHT_MIN_MINUTES).
+
 // Shared bounding-box scale-fit math for both heading-up modes (selected navigation
 // and nearby survey): the maximum scale at which every point in `points` stays inside
 // the rotated focus rect, honouring the tilt behind-heading exclusion. Returns null when
@@ -4991,7 +5081,8 @@ function headingUpFitTiltCamera() {
 // factored out. This is pure fit-to-points geometry with no ceiling of its own: a ceiling
 // baked in here (an arbitrary ratio against an unrelated reference scale) caused more bugs
 // than it fixed, and callers now express what they want by choosing the points they pass --
-// see nearbyCameraFitPoints.
+// see nearbyCameraFitPoints and headingUpZoomCeiling above, where the selected-navigation
+// caller applies its own.
 function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
   // Nearby mode's item cluster is genuinely hidden behind the user during full tilt
   // (isBehindTiltHeading), so excluding those points from the fit is correct there --
@@ -5030,7 +5121,7 @@ function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
   // constraint below is the same inequality as before with the projection substituted
   // in, so with tilt inactive (or projectTilt off) tiltCos is 1, k is 0, and each one
   // collapses back to the exact flat expression it replaced.
-  const tilt = options.projectTilt ? headingUpFitTiltCamera() : null;
+  const tilt = options.projectTilt ? headingUpFitTiltCamera(Boolean(options.useFinalBrowseState)) : null;
   const tiltCos = tilt ? tilt.tiltCos : 1;
   const k = tilt ? tilt.k : 0;
   // Ahead of the pivot the projection is asymptotic, so "inside the rect" alone stops
@@ -5129,7 +5220,16 @@ function maxHeadingUpNavigationScale(focus, focusRect) {
     excludeBehindDuringTilt: false,
     projectTilt: true,
   });
-  return maxScale == null ? state.viewport.scale : maxScale;
+  if (maxScale == null) return state.viewport.scale;
+  // See minSelectionFitScale: without a ceiling here, a target close to the user -- or a
+  // routed-path point set that, once rotated into heading-up space, happens to sit tightly
+  // around the focus -- had no ceiling at all and could demand an arbitrarily large scale.
+  // Measured in the field as the camera suddenly zooming in far past anything sensible once
+  // the routing graph replaced the straight-line fallback, and again on the next selection,
+  // each one further than the last. Same MIN_SELECTION_VIEW_METRES floor the flat fit uses
+  // (ensureUserAndSelectionVisible), so heading-up and flat selections agree on how tight a
+  // view either will ever settle on.
+  return Math.min(maxScale, minSelectionFitScale(focusRect, state.userLocation.latitude));
 }
 
 // The nearest single match for each filter the user has currently selected, ignoring the
@@ -5240,9 +5340,16 @@ function expandedClusterFitPoints(group) {
   return items.map((item) => item.point).filter(Boolean);
 }
 
-function nearbyCameraFitPoints() {
+// useFinalBrowseState: see cameraOriginPoint's comment -- threaded down to
+// walkingRadiusCirclePoints so an animate:true fit solves the ring at the browse-origin
+// slide's destination rather than wherever nearbyRenderOriginPoint's own interpolation has it
+// at the instant the fit is solved. clusterExpanded's own points never went through that
+// interpolation (they're the tapped group's fixed member positions), so this only matters for
+// the plain-ring branch below -- the one restoreNearbyAnchorFromHistory falls back to once no
+// anchor remains.
+function nearbyCameraFitPoints(useFinalBrowseState = false) {
   if (state.clusterExpanded) return expandedClusterFitPoints(state.clusterExpanded);
-  const ring = walkingRadiusCirclePoints();
+  const ring = walkingRadiusCirclePoints(64, useFinalBrowseState);
   const reach = ring.concat(outOfRadiusFitPoints());
   if (!secondaryScreenActive()) return reach;
   return reach.concat(nearestSelectedFilterPoints());
@@ -5315,9 +5422,13 @@ function refreshOutOfRadiusReveal(previousFilters) {
   state.outOfRadiusRevealFilters = Array.from(unanswered);
 }
 
-function maxNearbyHeadingUpScale(focus, focusRect) {
+// useFinalBrowseState: see tiltRampedAnchor's comment -- skips the progress blend below and
+// solves straight for the slide's destination, for a caller (alignHeadingUpNavigationViewport's
+// animate:true path) that is about to hand the result to animateViewportTo and ease to it
+// itself.
+function maxNearbyHeadingUpScale(focus, focusRect, useFinalBrowseState = false) {
   if (!state.userLocation) return state.viewport.scale;
-  const points = nearbyCameraFitPoints();
+  const points = nearbyCameraFitPoints(useFinalBrowseState);
   if (!points.length) return state.viewport.scale;
   // projectTilt: solve against where the tilt camera will actually draw these points rather
   // than flat geometry -- see maxScaleForHeadingUpPoints.
@@ -5349,7 +5460,7 @@ function maxNearbyHeadingUpScale(focus, focusRect) {
   // the zoom starts at exactly what was on screen and lands on the browse fit with nothing
   // in between that neither end would have chosen.
   const browsing = !tiltHidesWhatIsBehind();
-  const progress = nearbyOriginTransitionEasedProgress();
+  const progress = useFinalBrowseState ? null : nearbyOriginTransitionEasedProgress();
   const fromBrowsing = progress == null ? browsing : state.nearbyOriginTransition.fromBrowsing;
   if (progress != null && fromBrowsing !== browsing) {
     const fromScale = nearbyPivotFitScale(points, fromBrowsing, focusRect);
@@ -5358,22 +5469,24 @@ function maxNearbyHeadingUpScale(focus, focusRect) {
       return fromScale + (toScale - fromScale) * progress;
     }
   }
-  const maxScale = nearbyPivotFitScale(points, browsing, focusRect, focus);
+  const maxScale = nearbyPivotFitScale(points, browsing, focusRect, focus, useFinalBrowseState);
   return maxScale == null ? state.viewport.scale : maxScale;
 }
 
 // The nearby ring fit for one end of a browse-origin slide: that end's own pivot position
 // (nearbyPivotAnchorFraction) solved under that end's own behind-the-pivot rule. `focus` is
 // passed only by the plain, non-blended call, which must keep using the focus point its
-// caller already computed rather than re-deriving it.
-function nearbyPivotFitScale(points, browsing, focusRect, focus) {
+// caller already computed rather than re-deriving it. useFinalBrowseState: see
+// cameraOriginPoint's comment -- only the non-blended call passes it through.
+function nearbyPivotFitScale(points, browsing, focusRect, focus, useFinalBrowseState = false) {
   const pivotFocus = focus || {
     x: focusRect.x + focusRect.width / 2,
     y: focusRect.y + focusRect.height * nearbyPivotAnchorFraction(browsing),
   };
   const maxScale = maxScaleForHeadingUpPoints(points, pivotFocus, focusRect, {
     projectTilt: true,
-    originPoint: cameraOriginPoint(),
+    originPoint: cameraOriginPoint(useFinalBrowseState),
+    useFinalBrowseState,
     excludeBehindDuringTilt: !browsing,
   });
   if (maxScale == null) return maxScale;
@@ -5437,14 +5550,22 @@ function alignHeadingUpNavigationViewport(options = {}) {
   const focusRect = bestVisibleCanvasRect({
     assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
   });
+  // A caller passing animate:true is about to hand the result to animateViewportTo and ease
+  // to it itself -- so the nearby pivot/scale/origin must solve for the browse-origin slide's
+  // actual destination, not a progress snapshot of it taken at the instant the slide starts
+  // (see tiltRampedAnchor's comment: that snapshot is what used to make the tween zoom past
+  // the real framing and then have the next per-frame call snap it back). Scoped to the
+  // nearby branch only -- selected navigation's own basis-switch ease (cameraOriginTransition)
+  // is a different, still-wanted slide (see cameraOriginPoint's comment on "very jumpy").
+  const useFinalBrowseState = Boolean(options.animate) && !selectedNavigationHeadingUpActive();
   const focus = selectedNavigationHeadingUpActive()
     ? navigationFocusPoint(focusRect)
-    : nearbyNavigationFocusPoint(focusRect);
+    : nearbyNavigationFocusPoint(focusRect, useFinalBrowseState);
   const maxScale = selectedNavigationHeadingUpActive()
     ? maxHeadingUpNavigationScale(focus, focusRect)
-    : maxNearbyHeadingUpScale(focus, focusRect);
+    : maxNearbyHeadingUpScale(focus, focusRect, useFinalBrowseState);
   // The one shared definition of where the camera is looking -- see cameraOriginPoint().
-  const userPoint = cameraOriginPoint();
+  const userPoint = cameraOriginPoint(useFinalBrowseState);
   // Use maxScale directly: heading-up mode always fits all targets in the
   // rotated focus rect. Math.min would leave scale too low when the map
   // was previously at a wider zoom (e.g. walking-radius level on first load).
@@ -5747,10 +5868,10 @@ function ensureUserAndSelectionVisible(options = {}) {
   // invisible viewport jumps when points are already comfortably visible.
   // Uses the ACTUAL inspector state (not assumeInspectorOpen) so mobile
   // navigation — where the inspector is collapsed — fills the larger available area.
+  const focusRect = bestVisibleCanvasRect({
+    assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
+  });
   if (!options.force && shouldAnimate) {
-    const focusRect = bestVisibleCanvasRect({
-      assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
-    });
     const edgeMargin = Math.min(focusRect.width, focusRect.height) * 0.14;
 
     // Check if ANY point is near the edge (needs animation) vs ALL points are safe
@@ -5766,11 +5887,16 @@ function ensureUserAndSelectionVisible(options = {}) {
     if (!anyNearEdge) return;  // All points safely visible, no animation needed
   }
 
+  // See minSelectionFitScale: the scale at which MIN_SELECTION_VIEW_METRES fills the shorter
+  // side of the focus rect, overriding fitToPoints' own 220x-of-base ceiling for this fit alone.
+  const maxScale = minSelectionFitScale(focusRect, state.userLocation.latitude, DEFAULT_FIT_PADDING_PX * pixelRatio());
+
   fitToPoints(pointsToFit, false, {
     focusVisibleArea: true,
     animate: shouldAnimate,
     durationMs: options.durationMs || 800,
     minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
+    maxScale: maxScale > 0 ? maxScale : undefined,
     boundsSlack: routeIsFallback ? ROUTE_UNKNOWN_FIT_SLACK : 1,
     // Callers that have just expanded the inspector must opt in: its max-height transition
     // (180ms, css/inspector.css) has not run yet, so measuring now reports the minimized
@@ -5848,6 +5974,32 @@ function metresToWorldUnits(metres, latitudeDegrees) {
   return metres / metresPerWorldUnit(latitudeDegrees);
 }
 
+// The tightest view a selected-destination fit (ensureUserAndSelectionVisible, flat; and
+// maxHeadingUpNavigationScale, heading-up) will ever ask for: the scale at which this many
+// real-world metres fill the shorter side of the focus rect. A destination a few metres from
+// the user (reported from the field: "0 m" and "19 m" entries at the top of the Nearby list)
+// has a bounding box small enough that fitToPoints' shared 220x-of-base ceiling
+// (applyBoundsToViewport's baseFitScaleForCap, also the one maxScaleForHeadingUpPoints leaves
+// to its own callers) is the only thing stopping the fit asking for an absurd scale -- but
+// landing on that shared ceiling is itself the bug here: on this dataset it only zooms in
+// enough to show a bit over a kilometre across the screen (baseFitScale is forest-wide), so a
+// 19 m gap rendered as two pins a dozen screen pixels apart in the middle of an otherwise
+// empty, still forest-wide-looking view -- reading as "very zoomed out" despite being at the
+// camera's hardest possible zoom-in, on both the flat and heading-up fits alike. That shared
+// ceiling exists for a different reason (matching what a manual pinch-zoom can reach, and
+// stopping a near-coincident cluster's fit asking for literally infinite scale) and is
+// deliberately left alone for every other caller of fitToPoints/maxScaleForHeadingUpPoints;
+// this override says instead what a selected-destination view should show at minimum,
+// regardless of how close the destination is.
+const MIN_SELECTION_VIEW_METRES = 120;
+
+function minSelectionFitScale(focusRect, latitudeDegrees, paddingPx = 0) {
+  const minViewWorldUnits = metresToWorldUnits(MIN_SELECTION_VIEW_METRES, latitudeDegrees);
+  if (!(minViewWorldUnits > 0)) return Infinity;
+  const availablePx = Math.min(focusRect.width, focusRect.height) - paddingPx * 2;
+  return availablePx > 0 ? availablePx / minViewWorldUnits : Infinity;
+}
+
 // The centred, north-up counterpart to maxNearbyHeadingUpScale: the largest scale that
 // still leaves the whole walking-radius circle inside focusRect. Uses the same
 // headingUpFitMarginPx() inset the heading-up fit does, so the flat fit (boot reveal,
@@ -5875,8 +6027,10 @@ function maxScaleForRadiusVisible(focusRect) {
 // as the ring rotates, by roughly (1 - cos(pi/count)): 1.9% at 16 samples, 0.12% at 64. The
 // extra points cost one cheap arithmetic pass each in a fit that runs once per compass
 // frame, and buy a fit that no longer wobbles (and a circle no longer clipped by up to 2%).
-function walkingRadiusCirclePoints(count = 64) {
-  const point = nearbyRenderOriginPoint();
+function walkingRadiusCirclePoints(count = 64, useFinalBrowseState = false) {
+  const point = useFinalBrowseState
+    ? ((nearbyOrigin() && nearbyOrigin().point) || null)
+    : nearbyRenderOriginPoint();
   if (!point) return [];
   const worldRadius = walkingRadiusWorldUnits();
   if (worldRadius <= 0) return [];

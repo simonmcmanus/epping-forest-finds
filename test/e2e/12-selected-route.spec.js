@@ -465,4 +465,157 @@ test.describe("Selected route line follows the road/path network", () => {
     const ratio = result.onFix.mean / Math.max(result.between.mean, 0.01);
     expect(ratio, "movement should be spread across frames, not concentrated on fix frames").toBeLessThan(5);
   });
+
+  test("heading-up selection zoom is capped at the same minimum view as the flat fit, even for a destination right next to the user", async ({ page }) => {
+    // Field report ("zoom all over the place"): maxHeadingUpNavigationScale had no ceiling of
+    // its own (by design -- see spec-data-rendering.md), unlike the flat fit's own `220x of
+    // base` cap (applyBoundsToViewport). A destination close enough to the user asked for an
+    // arbitrarily large scale, worsening on every subsequent selection, and made the walk back
+    // to the nearby overview look like it zoomed out far more than it needed to. Both fits now
+    // share minSelectionFitScale instead of that flat-only ceiling -- see the second field
+    // report ("very zoomed out ... better slightly zoomed out but its too much") that the flat
+    // 220x cap itself produced for a close selection, fixed by replacing it with a scale tied
+    // to MIN_SELECTION_VIEW_METRES rather than to the whole-forest baseFitScale.
+    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+
+    const result = await page.evaluate(() => {
+      state.compassHeading = 45;
+      state.compassHeadingTarget = 45;
+      state.renderedNavigationHeading = 45;
+      state.compassLastEventAt = performance.now();
+
+      const userPoint = state.userLocation.point;
+      const o = unprojectPoint(userPoint);
+      const oEast = unprojectPoint({ x: userPoint.x + 1, y: userPoint.y });
+      const metresPerUnit = distanceMetres(o.latitude, o.longitude, oEast.latitude, oEast.longitude);
+      // A destination 2 metres away: close enough that an uncapped fit demands a scale many
+      // times the ceiling.
+      const nearPoint = { x: userPoint.x + 2 / metresPerUnit, y: userPoint.y };
+
+      // routingGraphReady: false keeps selectedRoutePoints() on the straight-line fallback, so
+      // this measures the fit itself rather than depending on pathfinding against a synthetic
+      // destination.
+      state.routingGraphReady = false;
+      state.selected = { type: "tree", item: { point: nearPoint } };
+
+      const rect = bestVisibleCanvasRect();
+      const focus = navigationFocusPoint(rect);
+      return {
+        scale: maxHeadingUpNavigationScale(focus, rect),
+        ceiling: minSelectionFitScale(rect, state.userLocation.latitude),
+      };
+    });
+
+    expect(result.scale).toBeLessThanOrEqual(result.ceiling);
+  });
+
+  test("flat selection zoom reaches a usefully close view instead of stalling at the whole-forest-scaled ceiling", async ({ page }) => {
+    // Field report (desktop, no compass): "navigating to a location seems to be very zoomed
+    // out". ensureUserAndSelectionVisible's fit used to be clamped only by fitToPoints' shared
+    // `baseFitScale * 220` ceiling (applyBoundsToViewport) -- on this dataset that only zooms
+    // in enough to show a bit over a kilometre across the screen, so a destination a few
+    // metres from the user rendered as two pins a dozen screen pixels apart in the middle of
+    // an otherwise empty, still forest-wide-looking view: at the camera's hardest possible
+    // zoom-in, yet reading as "very zoomed out". minSelectionFitScale (js/app.js) now gives
+    // this fit its own, much closer ceiling instead.
+    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+
+    const result = await page.evaluate(() => {
+      const userPoint = state.userLocation.point;
+      const o = unprojectPoint(userPoint);
+      const oEast = unprojectPoint({ x: userPoint.x + 1, y: userPoint.y });
+      const metresPerUnit = distanceMetres(o.latitude, o.longitude, oEast.latitude, oEast.longitude);
+      // A destination 19 metres away -- the exact distance reported in the field.
+      const nearPoint = { x: userPoint.x + 19 / metresPerUnit, y: userPoint.y };
+
+      state.routingGraphReady = false;
+      state.selected = { type: "tree", item: { point: nearPoint } };
+      ensureUserAndSelectionVisible({ animate: false, force: true });
+
+      const userScreen = worldToScreen(userPoint);
+      const targetScreen = worldToScreen(nearPoint);
+      return {
+        scale: state.viewport.scale,
+        oldCeiling: state.baseFitScale * 220,
+        spanPx: Math.hypot(targetScreen.x - userScreen.x, targetScreen.y - userScreen.y),
+      };
+    });
+
+    // The old whole-forest-scaled ceiling pinned every close selection to this value
+    // regardless of how close the destination was -- the fit must now ask for more.
+    expect(result.scale).toBeGreaterThan(result.oldCeiling);
+    // And the two pins must land comfortably apart on screen, not compressed into a corner.
+    expect(result.spanPx).toBeGreaterThan(60);
+  });
+
+  test("the ahead/behind anchor split only reaches an extreme when the side extent isn't the tighter constraint", async ({ page }) => {
+    // Field report ("too high up on the screen ... I would expect the you and location
+    // marker to be close to the modal"): balancedNavigationAnchorY splits the vertical anchor
+    // purely on the route's ahead/behind *distance* ratio, with no regard for the route's own
+    // left/right extent. A route that strays far enough side-to-side (a winding street a real
+    // routed path can easily take, even to a nearby destination) routinely ends up with the
+    // zoom bound by that side extent instead of by ahead/behind -- so the split still reserved
+    // the full ahead/behind room while the side-bound, zoomed-out fit only ever used a sliver
+    // of it, stranding the walker and the destination in a small cluster near one edge with
+    // the rest of the reserved area empty. Measured against a real 335 m routed destination
+    // (27 points, winding through real streets): as little as 11% of the reserved room used,
+    // across roughly half of all possible compass headings.
+    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    // selectedRoutePoints (js/renderer.js) checks state.routingGraph itself, not just the
+    // ready flag, before it will even look at a cache override -- so the real graph must have
+    // finished building before the synthetic cache below takes effect.
+    await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
+
+    const result = await page.evaluate(() => {
+      state.compassHeading = 0;
+      state.compassHeadingTarget = 0;
+      state.renderedNavigationHeading = 0;
+      state.compassLastEventAt = performance.now();
+
+      const userPoint = state.userLocation.point;
+      const o = unprojectPoint(userPoint);
+      const oNorth = unprojectPoint({ x: userPoint.x, y: userPoint.y - 1 });
+      const metresPerUnit = distanceMetres(o.latitude, o.longitude, oNorth.latitude, oNorth.longitude);
+      // With compassHeading 0 (no rotation), dy < 0 is "ahead" and dy > 0 is "behind" --
+      // see balancedNavigationAnchorY's own rotatedY convention.
+      const north = (metres) => -metres / metresPerUnit;
+      const south = (metres) => metres / metresPerUnit;
+      const east = (metres) => metres / metresPerUnit;
+
+      function anchorFractionFor(sideMetres) {
+        const item = { point: { x: userPoint.x, y: userPoint.y + north(200) } };
+        const tail = [
+          { x: userPoint.x + east(sideMetres), y: userPoint.y + south(60) },
+          item.point,
+        ];
+        state.selected = { type: "tree", item };
+        state.selectedRouteCache = {
+          target: item, fromLatitude: state.userLocation.latitude, fromLongitude: state.userLocation.longitude,
+          tail, routed: true,
+        };
+        const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+        const anchorFraction = headingUpAnchorFraction(true);
+        const anchorY = balancedNavigationAnchorY(rect, anchorFraction);
+        return (anchorY - rect.y) / rect.height;
+      }
+
+      // Same 200m-ahead/60m-behind reach in both cases -- only how far the route strays
+      // east/west differs. 5m is negligible next to that reach (side is nowhere near
+      // binding); 3000m comfortably exceeds the rect's own aspect ratio applied to the
+      // ahead/behind span, so side is unambiguously the tighter constraint there.
+      return { narrow: anchorFractionFor(5), sprawling: anchorFractionFor(3000) };
+    });
+
+    // Narrow: side is nowhere near binding, so the split reaches close to its full, unchanged
+    // extreme (toward the bottom of the rect here, since the route is mostly ahead of the
+    // walker -- see the "nothing behind" case in the comment above).
+    expect(result.narrow).toBeGreaterThan(0.65);
+    // Sprawling: side is now the binding constraint, so the split must no longer claim that
+    // same extreme -- it should land noticeably closer to centre instead.
+    expect(result.sprawling).toBeLessThan(result.narrow - 0.15);
+    expect(result.sprawling).toBeLessThan(0.6);
+  });
 });
