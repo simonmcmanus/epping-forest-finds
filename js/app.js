@@ -99,7 +99,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v88"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v90"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -2027,6 +2027,7 @@ function setNavScreenActive(current = null) {
 }
 
 function openFiltersScreen() {
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Filters");
   state.selected = null;
   // showBack:true clears state.filterScreenOpen inside setInspectorSelectionChrome (the shared
   // chokepoint every other showBack:true screen relies on to stand Filters down) -- set it again
@@ -2049,6 +2050,7 @@ function openFiltersScreen() {
 }
 
 function openSettings() {
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Settings");
   state.selected = { type: "settings", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.settingsToggle);
@@ -2064,6 +2066,16 @@ function openSettings() {
   if (state.userLocation) {
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
   }
+}
+
+// window.ForestFindsCookieConsent (cookie-consent.js) is the one store of truth for the GA
+// cookie banner's choice -- read through it rather than localStorage directly so Settings always
+// agrees with whatever the banner itself last recorded.
+function cookieConsentStatusLabel() {
+  const consent = window.ForestFindsCookieConsent?.get();
+  if (consent === "granted") return "enabled";
+  if (consent === "denied") return "declined";
+  return "not yet decided";
 }
 
 function settingsFormHtml() {
@@ -2102,6 +2114,8 @@ function settingsFormHtml() {
       <h3 class="settings-section-title">Privacy</h3>
       <p class="settings-description">Location &amp; usage tracking: <strong id="privacyConsentStatus">${hasTrackingConsent() ? "enabled" : "not enabled"}</strong>. We collect anonymous GPS position, navigation and interaction data to improve the app. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
       <button id="privacyConsentToggle" class="settings-refresh-btn" type="button">${hasTrackingConsent() ? "Withdraw consent" : "Enable location &amp; tracking"}</button>
+      <p class="settings-description">Analytics cookies: <strong id="cookieConsentStatus">${cookieConsentStatusLabel()}</strong>. Separate from location &amp; usage tracking above — see <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+      <button id="cookieConsentManageBtn" class="settings-refresh-btn" type="button">Manage cookie preferences</button>
     </section>
     <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
@@ -2174,6 +2188,12 @@ function bindSettingsHandlers() {
       if (status) status.textContent = granting ? "enabled" : "not enabled";
     });
   }
+  const cookieConsentManageBtn = document.getElementById("cookieConsentManageBtn");
+  if (cookieConsentManageBtn) {
+    cookieConsentManageBtn.addEventListener("click", () => {
+      window.ForestFindsCookieConsent?.showBanner();
+    });
+  }
   // Settings HTML is rebuilt fresh every time the screen opens (see openSettings above),
   // so remove before re-adding — otherwise every open leaks another window-level listener.
   window.removeEventListener("online", updateRefreshButtonsOnlineState);
@@ -2184,6 +2204,7 @@ function bindSettingsHandlers() {
 }
 
 function openReportModal() {
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Report");
   state.selected = { type: "report", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.reportToggle);
@@ -6875,6 +6896,7 @@ function renderSearchResults() {
 }
 
 function openSearchScreen() {
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Search");
   state.filterScreenOpen = false;
   state.selected = null;
   // Building the index here rather than on the first keystroke keeps the hitch off the

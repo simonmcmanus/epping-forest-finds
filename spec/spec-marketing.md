@@ -252,10 +252,10 @@ Sections, in order:
    the homepage map pin), 44px, sits on the heading's line, vertically centred
    on it, never on a line of its own. The section starts with this heading,
    without a repeated signup eyebrow. The layout is tight: email field and button share one row on wide
-   screens (stacked on mobile), with the consent checkbox and privacy line
-   directly beneath. Introduction, consent and supporting text
-   use the full card content width; only the email-and-button row has a narrower cap. Both introduction and
-   consent include weekly Epping Forest Ledger updates once the site launches.
+   screens (stacked on mobile). The introduction doubles as the explicit opt-in
+   statement above the form; the privacy line sits below. Both use the full card
+   content width; only the email-and-button row has a narrower cap. The opt-in
+   statement includes weekly Epping Forest Ledger updates once the site launches.
 6. **No signal? Here’s the plan** — three steps: open it once
    on signal, it downloads, it then works anywhere in the forest. The steps and
    the cattle note share one white shadowed card (like the map inventory), so
@@ -421,8 +421,8 @@ links — is written to be true in all three states and does not change.
 
 The page must not imply immediate access or invitations already being sent.
 The signup heading is “Be in the know”, the submit button
-is “Keep me posted”, and the introduction offers news when early testing opens
-and weekly Ledger updates once the site launches. The consent label retains
+is “Email me updates”, and the introduction offers news when early testing opens
+and weekly Ledger updates once the site launches. The consent statement retains
 the same mailing scope.
 
 ## 9. Mailing list
@@ -452,22 +452,34 @@ which addresses are on the list is an enumeration oracle.
 
 ### 9.3 Consent and compliance
 
-- Double opt-in. A new contact receives a confirmation message, but EmailOctopus
-  does not resend one when an existing contact produces a `409`. The shared
-  success state therefore says **"Confirmation is needed — check your inbox.
-  The email might be in your spam folder"**. It does not reveal whether the
-  address is already on the list.
-- After a successful response, the email and consent controls remain visible
-  but disabled, and the disabled submit button reads **"Request received"**.
-  This makes the completed state unmistakable; reloading restores the form if
-  the visitor needs to correct an address.
-- The consent checkbox is unbundled and never pre-ticked.
+- The dedicated email signup uses an explicit **“Email me updates”** button
+  instead of a checkbox. The nearby consent statement explains the sender and
+  mailing scope, and is associated with the button via aria-describedby.
+  Only submitting the form sends the affirmative consent flag to the endpoint.
+- Double opt-in remains required. A new contact receives a confirmation message,
+  but EmailOctopus does not resend one when an existing contact produces a 409.
+  Both responses reveal the same inbox instructions without claiming a new email
+  was sent or exposing whether the address is already listed.
+- While sending, the form stays visible with a disabled submit button and busy
+  state; repeated submissions are ignored. Errors preserve the address and restore
+  the button so the visitor can retry.
+- On success, the entire signup introduction and form are hidden and replaced by
+  a dedicated panel: an envelope illustration, **“One more step”**, **“Check your
+  inbox”**, instructions to find Epping Forest Finds and click **“Confirm my
+  email”**, and a spam/junk reminder. There is no separate pre-submit confirmation
+  reminder. The heading receives keyboard focus; the panel scrolls into view only
+  if needed. Reloading restores the form.
+- Motion runs once: a 140ms fade and slight lift removes the entry panel, a 420ms
+  height transition settles the card, and the envelope and text gently arrive
+  over roughly half a second. There is no looping animation. Reduced-motion
+  visitors get the same focused confirmation immediately, without animation or
+  smooth scrolling.
 - Record the consent timestamp **and the wording consented to**, so the record
   survives later copy changes.
 - Every message carries a working unsubscribe link from the first one.
 - Consent wording in the form and server-side record must match exactly:
-  “Email me when it’s ready, plus weekly Epping Forest Ledger updates once the
-  site launches.” Nothing else is sent to this list without fresh consent.
+  “By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds when early testing opens, plus weekly Epping Forest Ledger updates once the site launches.”
+  Nothing else is sent to this list without fresh consent.
 
 ### 9.4 Privacy policy changes (blocking)
 
@@ -565,7 +577,9 @@ Per the project's completion checklist:
   Parallel worktrees select different local ports via `PLAYWRIGHT_BASE_URL`;
   each test run starts its own server and refuses an already occupied port.
 - **E2E** — a spec covering: the homepage renders its copy with JavaScript
-  disabled; the sign-up form shows the "check your inbox" state on success;
+  disabled; the sign-up button sends affirmative consent; success replaces the
+  form with focused inbox guidance in both motion modes; sending blocks duplicate
+  requests and failures preserve the form for retry;
   the honeypot rejects silently; the CTA reflects the alpha state.
 - **Screenshot** — **not yet taken.** A baseline captured before the hero image
   lands would be replaced immediately, and per `spec/agents.md` a baseline must
@@ -589,9 +603,6 @@ anything that depends on the gate's state must be exercised through
 
 ## 13. Non-goals
 
-- No analytics or tracking on the homepage. `js/tracker.js` covers the app and
-  has its own consent flow; the marketing page collects nothing.
-- No cookie banner, because the page sets no cookies.
 - No blog beyond the existing weekly ledger.
 - No pricing, testimonials, or team page.
 - No app store badges until the native builds in

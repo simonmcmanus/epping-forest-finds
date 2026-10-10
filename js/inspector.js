@@ -114,6 +114,7 @@ function handleMapClick(event) {
 }
 
 function trackSelectionClick(itemType, item, source) {
+  if (typeof trackGaItemSelected === "function") trackGaItemSelected(itemType, item, source);
   if (typeof trackClick !== "function") return;
   const uLat = state.userLocation?.latitude ?? null;
   const uLng = state.userLocation?.longitude ?? null;

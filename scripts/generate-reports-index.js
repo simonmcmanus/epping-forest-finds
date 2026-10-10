@@ -141,6 +141,17 @@ function buildIndexHtml(files) {
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('consent', 'default', { analytics_storage: 'denied' });
+  gtag('js', new Date());
+
+  gtag('config', 'G-M9NL06G2JB');
+</script>
+<script src="/cookie-consent.js" defer></script>
 <title>Epping Forest Ledger — weekly Epping Forest news</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#24382f">
@@ -225,7 +236,7 @@ function buildIndexHtml(files) {
   <section class="hero">
     <div><p class="eyebrow"><img src="/assets/home/ledger.png" alt="" width="34" height="34">Field notes · Published weekly</p>
     <h1>Epping Forest Ledger</h1>
-    <p class="subtitle">Local discoveries, things to do and news for your next visit. Enjoy the forest a little more, whether or not you use the app.</p></div>
+    <p class="subtitle">Field notes on what's changing in and around Epping Forest — cattle grazing moves, shop and café openings and closures, road closures and events. Normally a weekly round-up, but appearing more often for now while we're testing it against real data.</p></div>
     <img class="hero-photo" src="/assets/home/epping-longhorns.jpg" alt="English Longhorn cattle grazing in Epping Forest." width="1600" height="1200">
   </section>
   <section class="editions" aria-labelledby="editions-heading">
