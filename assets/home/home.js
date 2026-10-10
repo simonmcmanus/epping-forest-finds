@@ -66,7 +66,10 @@
 
   var message = document.getElementById("formMsg");
   var emailField = document.getElementById("email");
-  var consentField = document.getElementById("consent");
+  var entry = document.getElementById("signupEntry");
+  var stage = document.getElementById("signupStage");
+  var confirmation = document.getElementById("signupConfirmation");
+  var pending = false;
   var honeypot = document.getElementById("website");
   var submitButton = form.querySelector("button[type=submit]");
 
@@ -76,8 +79,43 @@
     message.className = "form-msg" + (kind ? " is-" + kind : "");
   }
 
+  function finishSending() {
+    pending = false;
+    form.removeAttribute("aria-busy");
+    if (submitButton) submitButton.disabled = false;
+  }
+
+  async function showConfirmation() {
+    var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var animate = !reduceMotion && typeof stage.animate === "function";
+    var oldHeight = stage.getBoundingClientRect().height;
+    if (animate) {
+      await entry.animate(
+        [{ opacity: 1, transform: "translateY(0)" }, { opacity: 0, transform: "translateY(-4px)" }],
+        { duration: 140, easing: "ease-out" }
+      ).finished.catch(function () {});
+    }
+    entry.hidden = true;
+    confirmation.hidden = false;
+    form.removeAttribute("aria-busy");
+    form.reset();
+    if (animate) {
+      stage.animate(
+        [{ height: oldHeight + "px" }, { height: stage.getBoundingClientRect().height + "px" }],
+        { duration: 420, easing: "cubic-bezier(.2,.7,.2,1)" }
+      );
+    }
+    var heading = document.getElementById("confirmationHeading");
+    heading.focus({ preventScroll: true });
+    var bounds = confirmation.getBoundingClientRect();
+    if (bounds.top < 0 || bounds.bottom > window.innerHeight) {
+      confirmation.scrollIntoView({ block: "center", behavior: reduceMotion ? "instant" : "smooth" });
+    }
+  }
+
   form.addEventListener("submit", function (event) {
     event.preventDefault();
+    if (pending) return;
 
     var email = (emailField && emailField.value ? emailField.value : "").trim();
     if (!email) {
@@ -85,12 +123,14 @@
       if (emailField) emailField.focus();
       return;
     }
-    if (consentField && !consentField.checked) {
-      say("Please tick the box to confirm you're happy to hear from us.", "error");
-      consentField.focus();
+    if (!emailField.validity.valid) {
+      say("Please enter a valid email address.", "error");
+      emailField.focus();
       return;
     }
 
+    pending = true;
+    form.setAttribute("aria-busy", "true");
     if (submitButton) submitButton.disabled = true;
     say("Sending…");
 
@@ -111,28 +151,17 @@
       .then(function (result) {
         if (!result.ok) {
           say(result.body.error || "Something went wrong. Please try again.", "error");
-          if (submitButton) submitButton.disabled = false;
+          finishSending();
           return;
         }
         // This wording also covers an existing contact. EmailOctopus returns
         // 409 without resending double opt-in, and distinguishing that case
         // would reveal whether an address is already on the list.
-        form.reset();
-        if (emailField) emailField.disabled = true;
-        if (consentField) consentField.disabled = true;
-        if (submitButton) {
-          submitButton.disabled = true;
-          submitButton.textContent = "Check your inbox";
-        }
-        form.classList.add("is-complete");
-        say(
-          "One more step: check your inbox. Look for an email from Epping Forest Finds and click “Confirm my email” to finish signing up. Can’t see it? Check your spam or junk folder.",
-          "ok"
-        );
+        return showConfirmation();
       })
       .catch(function () {
         say("Couldn't reach the server. Please try again.", "error");
-        if (submitButton) submitButton.disabled = false;
+        finishSending();
       });
   });
 })();

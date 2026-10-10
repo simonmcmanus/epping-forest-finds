@@ -168,22 +168,22 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator(".cta-note")).toContainText("early testing opens");
     await expect(page.locator(".signup-intro")).toContainText("early testing opens");
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates");
-    await expect(page.getByRole("button", { name: "Keep me posted" })).toBeVisible();
-    await expect(page.locator(".consent")).toContainText("Email me when it’s ready, plus weekly Epping Forest Ledger updates");
-    await expect(page.locator("#consent")).not.toBeChecked();
+    await expect(page.getByRole("button", { name: "Email me updates" })).toBeVisible();
+    await expect(page.locator("#signupConsent")).toContainText("By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds");
+    await expect(page.locator("#signup input[type=checkbox]")).toHaveCount(0);
   });
 
   test("highlights signup before the practical questions and ends on the Ledger", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates once the site launches");
-    await expect(page.locator(".consent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
+    await expect(page.locator("#signupConsent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
     await expect(page.locator(".signup + .offline-how + .faq + .ledger")).toHaveCount(1);
     await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.png");
     await expect(page.locator(".ledger .card-icon")).toHaveAttribute("src", "assets/home/ledger.png");
     await expect(page.locator(".tag-copy .card-icon")).toHaveAttribute("src", "assets/home/tree-tag.png");
     await expect(page.locator(".offline-how .card-icon")).toHaveAttribute("src", "assets/home/offline.png");
     await expect(page.locator(".faq .card-icon")).toHaveAttribute("src", "assets/home/faq.png");
-    await expect(page.locator(".signup .eyebrow")).toHaveCount(0);
+    await expect(page.locator("#signupEntry .eyebrow")).toHaveCount(0);
     // Icons remain centred beside their headings; only the Ledger has an eyebrow.
     const iconAlignment = await page.locator(".signup .card-head, .ledger .card-head").evaluateAll(heads => heads.map(head => {
       const icon = head.querySelector(".card-icon").getBoundingClientRect();
@@ -382,43 +382,76 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator('a[href="/terms.html"]').first()).toBeVisible();
   });
 
-  test("explains how to confirm sign-up without revealing whether the address is already listed", async ({ page }) => {
-    await page.route("**/api/subscribe", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ ok: true }),
-      })
-    );
+  for (const reducedMotion of ["reduce", "no-preference"]) {
+    test(`replaces the signup form with focused inbox guidance (motion: ${reducedMotion})`, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion });
+      let payload;
+      await page.route("**/api/subscribe", route => {
+        payload = route.request().postDataJSON();
+        return route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' });
+      });
+      await page.goto("/");
+      await page.fill("#email", "walker@example.com");
+      await page.getByRole("button", { name: "Email me updates" }).click();
 
+      const confirmation = page.locator("#signupConfirmation");
+      await expect(confirmation).toBeVisible();
+      await expect(page.locator("#signupEntry")).toBeHidden();
+      await expect(page.locator("#signupForm")).toBeHidden();
+      await expect(page.locator("#confirmationHeading")).toBeFocused();
+      await expect(confirmation).toContainText("One more step");
+      await expect(confirmation).toContainText("Check your inbox");
+      await expect(confirmation).toContainText("Confirm my email");
+      await expect(confirmation).toContainText("Epping Forest Finds");
+      await expect(confirmation).toContainText("spam or junk");
+      await expect(confirmation).toBeInViewport();
+      expect(payload).toEqual({ email: "walker@example.com", consent: true, website: "" });
+      await expect(page.getByText("After signing up, check your inbox", { exact: false })).toHaveCount(0);
+      const iconMotion = await confirmation.locator("img").evaluate(el => ({
+        name: getComputedStyle(el).animationName,
+        iterations: getComputedStyle(el).animationIterationCount
+      }));
+      expect(iconMotion.name).toBe(reducedMotion === "reduce" ? "none" : "inbox-arrive");
+      if (reducedMotion !== "reduce") expect(iconMotion.iterations).toBe("1");
+      await expect.poll(() => page.locator("#signup").evaluate(el => el.getAnimations({ subtree: true }).filter(animation => animation.playState === "running" || animation.pending).length)).toBe(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    });
+  }
+
+  test("keeps the form while sending and prevents duplicate submissions", async ({ page }) => {
+    let finishRequest;
+    let calls = 0;
+    const responseReady = new Promise(resolve => { finishRequest = resolve; });
+    await page.route("**/api/subscribe", async route => {
+      calls++;
+      await responseReady;
+      await route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' });
+    });
     await page.goto("/");
-    await expect(page.locator("#signup")).toContainText("After signing up, check your inbox and click “Confirm my email” in the email from Epping Forest Finds.");
     await page.fill("#email", "walker@example.com");
-    await page.check("#consent");
-    await page.click("#signupForm button[type=submit]");
-
-    await expect(page.locator("#formMsg")).toContainText(
-      "One more step: check your inbox. Look for an email from Epping Forest Finds and click “Confirm my email” to finish signing up. Can’t see it? Check your spam or junk folder."
-    );
-    await expect(page.locator("#email")).toBeDisabled();
-    await expect(page.locator("#consent")).toBeDisabled();
-    await expect(page.locator("#signupForm button[type=submit]")).toBeDisabled();
-    await expect(page.locator("#signupForm button[type=submit]")).toHaveText("Check your inbox");
+    await page.getByRole("button", { name: "Email me updates" }).click();
+    await expect(page.locator("#signupForm")).toHaveAttribute("aria-busy", "true");
+    await expect(page.locator("#signupForm button")).toBeDisabled();
+    await expect(page.locator("#signupConfirmation")).toBeHidden();
+    await page.locator("#signupForm").evaluate(form => form.requestSubmit());
+    expect(calls).toBe(1);
+    finishRequest();
+    await expect(page.locator("#signupConfirmation")).toBeVisible();
   });
 
-  test("refuses to submit without consent", async ({ page }) => {
-    let called = false;
-    await page.route("**/api/subscribe", (route) => {
-      called = true;
-      route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
-    });
-
+  test("keeps the form available after a network error and allows a retry", async ({ page }) => {
+    await page.route("**/api/subscribe", route => route.abort());
     await page.goto("/");
     await page.fill("#email", "walker@example.com");
-    await page.click("#signupForm button[type=submit]");
-
-    await expect(page.locator("#formMsg")).toContainText(/tick the box/i);
-    expect(called).toBe(false);
+    await page.getByRole("button", { name: "Email me updates" }).click();
+    await expect(page.locator("#formMsg")).toContainText("Couldn't reach the server");
+    await expect(page.locator("#signupForm")).toBeVisible();
+    await expect(page.locator("#email")).toHaveValue("walker@example.com");
+    await expect(page.locator("#signupForm button")).toBeEnabled();
+    await expect(page.locator("#signupForm")).not.toHaveAttribute("aria-busy", "true");
+    await page.route("**/api/subscribe", route => route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' }));
+    await page.getByRole("button", { name: "Email me updates" }).click();
+    await expect(page.locator("#signupConfirmation")).toBeVisible();
   });
 
   test("surfaces the error the endpoint returns", async ({ page }) => {
@@ -432,7 +465,6 @@ test.describe("the marketing homepage", () => {
 
     await page.goto("/");
     await page.fill("#email", "walker@example.com");
-    await page.check("#consent");
     await page.click("#signupForm button[type=submit]");
 
     await expect(page.locator("#formMsg")).toContainText(/temporarily unavailable/i);
