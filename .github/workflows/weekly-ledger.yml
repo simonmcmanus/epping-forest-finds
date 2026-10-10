@@ -240,6 +240,17 @@ jobs:
               data/road-closures.json, data/forest-notices.json and
               data/forest-events.json into ready-to-use findings for whatever
               is still within its own recorded dates. See step 2c.
+            - scripts/report/tfl_transit_status.py -- a live check of the
+              Central line and the Weaver line (London Overground's name for
+              the Chingford branch), plus bus stop disruptions around the
+              coverage settlements. Unlike the three files above this needs
+              no research or upkeep: run it plain
+              (python3 scripts/report/tfl_transit_status.py) and add
+              whatever it prints to report-data.json's "findings" the same
+              way as structured_findings.py's output. Most weeks it prints
+              an empty list -- that is correct (good service, no disrupted
+              stops), not a failure, and needs no further research. See
+              step 2c.
             - scripts/report/render_report.py -- turns a small JSON file
               into the finished report page (design, map, point-count stats
               -- all of it). You do NOT hand-write the report's HTML or SVG
@@ -291,6 +302,13 @@ jobs:
                   nothing automated reads those yet, so this step is still a
                   human-shaped research step, just starting from a record
                   instead of nothing.
+
+                  Separately, run
+                  python3 scripts/report/tfl_transit_status.py and add its
+                  output to report-data.json's "findings" too -- it is a
+                  live check, not a hand-researched file, so there is
+                  nothing to keep current here and no sourceNotes entry to
+                  update.
 
                   Your job this run is also to keep those three files
                   current, the same way scripts/business_watch.py keeps
