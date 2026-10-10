@@ -245,12 +245,15 @@ of City of London and so never appear in those aggregators — each such site
 has to be checked individually, the same way the aggregators are. It also
 covers the towns and villages around the forest, whose own events (a village
 beer festival, a town council's Christmas market) appear in none of the
-forest-wide aggregators above: the Wanstead Village Directory's events
-calendar is checked as a real iCal feed, verified to actually carry the
-event that first surfaced this gap (the Wanstead Beer Festival); Visit
-Epping Forest's district-wide calendar and Epping Town Council's events
-diary are each checked as a page, the same way Copped Hall's site is.
-Facebook and X/Twitter accounts of forest-adjacent organisations were
+forest-wide aggregators above: the Wanstead Village Directory's and South
+Woodford Village Gazette's events calendars are each checked as a real
+iCal feed, the first verified to actually carry the event that surfaced
+this gap (the Wanstead Beer Festival); the two feeds share some of the
+same Wanstead-area events, so a run checking both de-dupes by title and
+date rather than adding each twice. Visit Epping Forest's district-wide
+calendar and Epping Town Council's events diary are each checked as a
+page, the same way Copped Hall's site is. Facebook and X/Twitter accounts
+of forest-adjacent organisations were
 evaluated and excluded: both gate programmatic read access behind paid
 tiers or app review that a page's own website doesn't need, so the run
 does not spend time on them (see the `sourceNotes` in
