@@ -213,37 +213,46 @@
     </section>
 
     <section class="signup" id="signup">
-      <div class="card-head">
-        <img class="card-icon" src="assets/home/mail.png" width="44" height="44" alt="">
-        <h2>Be in the know</h2>
+      <div id="signupStage">
+        <div id="signupEntry">
+          <div class="card-head">
+            <img class="card-icon" src="assets/home/mail.png" width="44" height="44" alt="">
+            <h2>Be in the know</h2>
+          </div>
+          <p class="signup-intro" id="signupConsent">By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds when early testing opens, plus weekly Epping Forest Ledger updates once the site launches.</p>
+
+          <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
+            <label class="field-label" for="email">Email address</label>
+            <div class="signup-row">
+              <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+              <button class="cta-btn" type="submit" aria-describedby="signupConsent"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 11 20 4l-4.5 16-4-6-6-3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11.5 14 20 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Email me updates</button>
+            </div>
+
+            <!-- Honeypot: hidden from people, irresistible to bots. -->
+            <div class="hp" aria-hidden="true">
+              <label for="website">Website</label>
+              <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+            </div>
+
+            <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
+            <p class="form-small">
+              We'll only use your address for this. Unsubscribe from any message.
+              See the <a href="/terms.html">privacy notice</a>.
+            </p>
+          </form>
+        </div>
+        <div class="signup-confirmation" id="signupConfirmation" hidden>
+          <div class="inbox-emblem" aria-hidden="true">
+            <img src="assets/home/mail.png" width="72" height="72" alt="">
+          </div>
+          <div class="inbox-copy">
+            <p class="inbox-step">One more step</p>
+            <h2 id="confirmationHeading" tabindex="-1" aria-describedby="confirmationInstructions">Check your inbox</h2>
+            <p id="confirmationInstructions">Look for an email from <strong>Epping Forest Finds</strong> and click <strong>“Confirm my email”</strong> to finish signing up.</p>
+            <p class="inbox-help">Can’t see it? Check your spam or junk folder.</p>
+          </div>
+        </div>
       </div>
-      <p class="signup-intro">Hear when early testing opens, plus weekly Epping Forest Ledger updates once the site launches.</p>
-
-      <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
-        <label class="field-label" for="email">Email address</label>
-        <div class="signup-row">
-          <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
-          <button class="cta-btn" type="submit"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 11 20 4l-4.5 16-4-6-6-3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11.5 14 20 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Keep me posted</button>
-        </div>
-
-        <!-- Honeypot: hidden from people, irresistible to bots. -->
-        <div class="hp" aria-hidden="true">
-          <label for="website">Website</label>
-          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
-        </div>
-
-        <label class="consent">
-          <input id="consent" name="consent" type="checkbox" required>
-          <span>Email me when it’s ready, plus weekly Epping Forest Ledger updates once the site launches.</span>
-        </label>
-
-        <p class="form-small">After signing up, check your inbox and click “Confirm my email” in the email from Epping Forest Finds.</p>
-        <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
-        <p class="form-small">
-          We'll only use your address for this. Unsubscribe from any message.
-          See the <a href="/terms.html">privacy notice</a>.
-        </p>
-      </form>
     </section>
 
     <section class="how offline-how" aria-labelledby="offline-heading">
