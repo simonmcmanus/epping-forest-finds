@@ -260,7 +260,13 @@ whichever entries are still within their own recorded dates as of a given
 day, in `report-data.json`'s finding shape — see "Road, access and event
 findings" in `report-data.schema.md`. A multi-week roadworks project or a
 dated event now shows up every week it's genuinely true, not only the week a
-web search happened to resurface it. It is a floor under the weekly run's own
+web search happened to resurface it. Dated events surface up to
+`EVENT_HORIZON_DAYS` (30 days) ahead, not just the current week: the ledger's
+main job is this week's news, but a reader also wants enough notice of a
+dated event to plan it into their diary, not only a mention once it's days
+away. A recurring series with no next date confirmed is always surfaced,
+labelled "Recurring", since it carries no date to measure against the
+horizon. It is a floor under the weekly run's own
 research, not a replacement for it: the workflow still researches road/access
 and events fresh each run (step 2c/2d), and that step's job now includes
 updating these three files' dates, bodies and `lastVerified` stamps so they

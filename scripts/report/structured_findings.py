@@ -22,7 +22,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-EVENT_HORIZON_DAYS = 21
+EVENT_HORIZON_DAYS = 30
 NEEDS_CHECK_SUFFIX = (
     " Not confirmed again this week -- worth checking before relying on it."
 )

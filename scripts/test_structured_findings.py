@@ -96,6 +96,11 @@ class EventFindingsTests(unittest.TestCase):
         findings = event_findings([self._event(date="2026-12-25")], date(2026, 10, 10))
         self.assertEqual(findings, [])
 
+    def test_event_a_month_out_is_within_horizon(self):
+        # Planning-ahead window: four weeks out still shows, not just three.
+        findings = event_findings([self._event(date="2026-11-07")], date(2026, 10, 10))
+        self.assertEqual(findings[0]["status_label"], "Coming up")
+
     def test_past_event_is_excluded(self):
         findings = event_findings([self._event(date="2026-01-01")], date(2026, 10, 10))
         self.assertEqual(findings, [])
