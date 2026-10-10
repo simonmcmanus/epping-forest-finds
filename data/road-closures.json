@@ -67,6 +67,11 @@
       "source": "eppingforestdc.gov.uk/advance-notice-of-epping-road-closures",
       "note": "This URL (named in the weekly-ledger workflow prompt and spec-weekly-report.md) now 404s. The council appears to have moved or retired this page -- the workflow's road-closure research step needs a replacement source.",
       "evaluated": "2026-10-10"
+    },
+    {
+      "source": "TfL Unified API (api.tfl.gov.uk) -- road disruptions (TLRN) and line status",
+      "note": "Much lower friction than Eventbrite's: a free self-service app key from api-portal.tfl.gov.uk takes about a minute, no application URL or OAuth redirect needed, and unauthenticated requests even work unkeyed at a lower rate limit. Two separate uses worth having: (1) road disruptions on TfL-managed roads at the forest's London edge (Waltham Forest, Redbridge, Newham boroughs) -- outside Street Manager's remit if that only covers Essex's non-TfL roads, needs checking once the Street Manager key arrives; (2) Central line (Epping/Hainault branch) and Greater Anglia (Chingford line) disruption status, relevant to visitors arriving by train. Worth building once Street Manager is in and we know what it actually covers.",
+      "evaluated": "2026-10-11"
     }
   ]
 }

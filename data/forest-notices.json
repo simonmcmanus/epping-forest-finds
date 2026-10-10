@@ -47,6 +47,21 @@
       "source": "cityoflondon.gov.uk/.../whats-new-in-epping-forest, section 'Things Affecting Your Visit'",
       "note": "The only page found that collects these standing notices in one place. No dates on several items (e.g. Jubilee Pond pump repair 'from 1 June' with no end), so some entries above are deliberately marked needsReverification rather than asserted as still current.",
       "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Wildfire risk / BBQ enforcement (Met Office Fire Severity Index, London Fire Brigade press alerts, City of London's own wildfire-prevention page)",
+      "note": "Genuinely relevant to a forest and currently hand-verifiable only: the Met Office retired its own FSI webpage in favour of Natural England's 'Open Access' map, which has no public API found -- it's a map, not a feed. LFB issues an 'extreme wildfire warning' by press release when conditions spike (one hit in July 2026), not on a schedule, so it's an event to catch via news search in dry/hot weather rather than something to poll. Worth a seasonal reminder in the workflow prompt (check during dry spells) rather than a new structured file yet.",
+      "evaluated": "2026-10-11"
+    },
+    {
+      "source": "Storm/path closures (City of London's 'Severe Weather Protocol')",
+      "note": "Real (the Dec 2021 storm and 2024's Highgate Wood closure during Storm Bert/Darragh are documented precedent) but no advance schedule or feed exists -- it's triggered ad hoc by forecast wind speed. Only catchable via a news/social search in the days around a named storm; not worth a data file until a live source turns up.",
+      "evaluated": "2026-10-11"
+    },
+    {
+      "source": "Environment Agency real-time flood-monitoring API (environment.data.gov.uk/flood-monitoring)",
+      "note": "Free, open, no key needed -- genuinely the easiest API evaluated so far. Covers flood warnings/alerts and river levels; relevant to low-lying paths and ponds near the River Roding/Ching rather than the forest's high ground generally. Not yet looked up which station/flood-area codes cover our coverage settlements -- that's the remaining work before this becomes a real integration.",
+      "evaluated": "2026-10-11"
     }
   ]
 }
