@@ -193,12 +193,35 @@ async function tapCanvasPoint(page, canvasPoint, options = {}) {
   }, { point: canvasPoint, alreadyClient: Boolean(options.alreadyClient) });
 }
 
+/**
+ * boundingBox() reads layout the instant it's called, which can land mid-reflow right after a
+ * class/style change that triggers a transition or a flex-layout resolve -- a real, reproducible
+ * failure in CI (06-feedback.spec.js's keyboard-avoidance tests measured the sheet ~15-20px short
+ * of its settled position on a loaded runner, consistently, not a one-off), even though the box
+ * is never actually wrong once it settles. Polls until two consecutive reads agree, so a caller
+ * gets the box layout has actually settled on rather than a transient mid-reflow one.
+ */
+async function waitForStableBoundingBox(locator, { timeout = 2000, interval = 50 } = {}) {
+  const deadline = Date.now() + timeout;
+  let previous = await locator.boundingBox();
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, interval));
+    const current = await locator.boundingBox();
+    if (previous && current && previous.y === current.y && previous.height === current.height) {
+      return current;
+    }
+    previous = current;
+  }
+  return previous;
+}
+
 module.exports = {
   setup,
   skipOnboarding,
   mockCowApi,
   mockEventsApi,
   denyGeolocationUnlessGranted,
+  waitForStableBoundingBox,
   gotoAndWaitForMap,
   settleMapIconsAndDraw,
   tapCanvasPoint,
