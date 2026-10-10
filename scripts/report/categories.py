@@ -10,7 +10,7 @@ naturally as "cattle/grazing" without introducing a new colour.
 """
 
 CATEGORY_STYLES = {
-    "opening": {"css_class": "good", "css_var": "--status-good", "label": "Opening"},
+    "opening": {"css_class": "good", "css_var": "--status-good", "label": "Local find"},
     "closing": {"css_class": "critical", "css_var": "--status-critical", "label": "Closure"},
     "road": {"css_class": "warning", "css_var": "--status-warning", "label": "Road / access"},
     "event": {"css_class": "event", "css_var": "--status-event", "label": "Event"},

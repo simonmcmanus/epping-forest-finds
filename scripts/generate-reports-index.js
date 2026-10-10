@@ -136,7 +136,7 @@ function buildIndexHtml(files) {
 
   // Styled to match the homepage (assets/home/home.css): same palette, type,
   // cards and header, inlined so this page loads nothing from the homepage or
-  // the app except two small brand images.
+  // the app except shared brand images and forest photograph.
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -178,11 +178,13 @@ function buildIndexHtml(files) {
   .head-link { font-size: .92rem; font-weight: 700; text-decoration: none; }
   .head-link:hover { text-decoration: underline; }
   h1, h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; letter-spacing: -.028em; line-height: 1.1; text-wrap: balance; }
-  .hero { overflow: hidden; padding: clamp(30px, 5vw, 48px) clamp(22px, 5vw, 42px); border-radius: 18px; background: var(--tree-deep); color: var(--paper); box-shadow: var(--shadow); }
-  .eyebrow { display: flex; gap: 12px; align-items: center; margin: 0 0 14px; color: #c9dfc9; font-family: "Fraunces", Georgia, serif; font-size: .98rem; font-style: italic; font-weight: 500; letter-spacing: .05em; }
+  .hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: center; padding: 28px 0; color: var(--ink); }
+  .hero-photo { display: block; width: 100%; height: 300px; object-fit: cover; border-radius: 16px; }
+  @media (max-width: 650px) { .hero { grid-template-columns: 1fr; gap: 24px; } .hero-photo { height: 240px; } }
+  .eyebrow { display: flex; gap: 12px; align-items: center; margin: 0 0 14px; color: var(--tree-deep); font-family: "Fraunces", Georgia, serif; font-size: .98rem; font-style: italic; font-weight: 500; letter-spacing: .05em; }
   .eyebrow img { flex: 0 0 34px; width: 34px; height: 34px; padding: 6px; border-radius: 50%; background: var(--paper); }
   h1 { margin: 0 0 14px; font-size: clamp(2.2rem, 7vw, 3.4rem); letter-spacing: -.04em; line-height: 1.02; }
-  .subtitle { max-width: 40em; margin: 0; color: #dfe8dc; font-size: 1.02rem; }
+  .subtitle { max-width: 40em; margin: 0; color: var(--muted); font-size: 1.02rem; }
   .editions { padding: 44px 0 8px; }
   h2 { margin: 0 0 16px; font-size: clamp(1.55rem, 4vw, 2.15rem); }
   .report-list { margin: 0; padding: 0; overflow: hidden; list-style: none; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
@@ -221,18 +223,19 @@ function buildIndexHtml(files) {
 </header>
 <main>
   <section class="hero">
-    <p class="eyebrow"><img src="/assets/home/ledger.png" alt="" width="34" height="34">Field notes · Published weekly</p>
+    <div><p class="eyebrow"><img src="/assets/home/ledger.png" alt="" width="34" height="34">Field notes · Published weekly</p>
     <h1>Epping Forest Ledger</h1>
-    <p class="subtitle">${escapeHtml(INDEX_DESCRIPTION)}</p>
+    <p class="subtitle">Local discoveries, things to do and news for your next visit. Enjoy the forest a little more, whether or not you use the app.</p></div>
+    <img class="hero-photo" src="/assets/home/epping-longhorns.jpg" alt="English Longhorn cattle grazing in Epping Forest." width="1600" height="1200">
   </section>
   <section class="editions" aria-labelledby="editions-heading">
     <h2 id="editions-heading">Every edition</h2>
     ${body}
   </section>
   <aside class="note">
-    <p>Written automatically each week — it can get things wrong, so please check
-    anything important. Every report has a link for telling us about a mistake.</p>
-    <a class="app-cta" href="${SITE_ORIGIN}/">Open the Epping Forest map →</a>
+    <p>Join the mailing list for weekly Ledger updates once the site launches,
+    plus news of early app access.</p>
+    <a class="app-cta" href="${SITE_ORIGIN}/#signup">Keep me in the loop →</a>
   </aside>
 </main>
 <footer class="site-foot">

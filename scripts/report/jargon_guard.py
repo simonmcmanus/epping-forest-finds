@@ -17,6 +17,9 @@ page is for a reader who has never heard of any of that.
 import re
 
 JARGON_PATTERNS = [
+    (re.compile(r"\bpending (?:a quick )?review\b|\bproposed (?:for the map|for removal|addition|removal)\b", re.I), "unpublished review status"),
+    (re.compile(r"\bwe(?: would|'d|’d) like to (?:add|remove|update)\b", re.I), "an internal map-edit proposal"),
+
     (re.compile(r"\bway/\d+\b"), "raw OSM way id (e.g. way/12345)"),
     (re.compile(r"\bnode/\d+\b"), "raw OSM node id (e.g. node/12345)"),
     (re.compile(r"\.geojson\b", re.I), "a data file name (.geojson)"),
