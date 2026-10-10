@@ -29,7 +29,7 @@ are added by the renderer itself -- never write either by hand.
   "date_display": "Wednesday, 3 September 2026",
 
   // Optional. Shown inside the green heading panel beside the photo, if given.
-  "intro": "One or two sentences summarising the range of changes, not a single cattle update.",
+  "intro": "Briefly say what was found, what changed, and which topics have no updates. No generic introduction.",
 
   // Optional. Defaults to the 8 coverage settlements (see places.py).
   "coverage_area": ["Loughton", "Chingford", "..."],

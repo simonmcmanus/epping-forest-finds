@@ -278,7 +278,9 @@ photo without a caption, on a cream page, with Fraunces headings and Public Sans
 text, with the homepage oak brand mark, longhorn photograph and Ledger image
 from `assets/home/`. A split text/photo header stacks on phones. No app CSS or
 JavaScript is loaded. Published editions share this design. A high-level opening paragraph inside the green heading panel summarises the
-range of changes without leading on the cattle update. The town list is a quiet
+actual findings in one or two brief sentences, including cattle movement and
+quiet categories where relevant. Avoid generic introductions and directions to
+the rest of the report; no updates included does not mean no disruptions exist. The town list is a quiet
 footer. A statistics strip attaches to the bottom of the photo header, showing
 food/shop totals, local finds, closure updates, access changes, events and grazing
 status when available; it wraps to two columns on phones. The location map follows, then

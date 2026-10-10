@@ -44,7 +44,7 @@ test.describe("the Ledger listing", () => {
 
 test("published editions lead with a summary and map and offer updates without needing the app", async ({ page }) => {
   await page.goto("/reports/epping-forest-ledger-2026-10-03.html");
-  await expect(page.locator(".masthead .banner")).toContainText("Food and drink finds around the forest");
+  await expect(page.locator(".masthead .banner")).toContainText("Four food and drink places to discover this week");
   await expect(page.locator("body")).not.toContainText(/pending review|proposed for the map|quick review/i);
   await expect(page.locator("#newsletter a")).toHaveAttribute("href", "https://www.eppingforestfinds.uk/#signup");
   await expect(page.locator("#newsletter")).toContainText("once the site launches");
