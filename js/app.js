@@ -4334,8 +4334,8 @@ function nearbyOriginTransitionEasedProgress() {
 }
 
 // Opacity for everything that describes the *nearby set* -- the highlighted pins and the
-// ambient route lines to them. Zero while a browse-origin slide is running, then a quick fade
-// in once it lands.
+// ambient route lines to them. Zero while a browse-origin slide is running *with the camera
+// otherwise pinned in place*, then a quick fade in once it lands.
 //
 // Those pins and lines belong to the destination, but the map underneath them is still
 // travelling: drawing them straight away means a fan of lines pinned to a stationary circle
@@ -4343,19 +4343,34 @@ function nearbyOriginTransitionEasedProgress() {
 // reads as jitter even though every individual element is where it should be. Holding them
 // back until the map settles turns a busy half-second into one clean movement followed by the
 // new surroundings arriving.
+//
+// That reasoning assumes the ring is the only thing moving on screen -- true for a plain
+// anchor move (tap open ground, a Settings/pinch radius change), where the camera itself does
+// not animate and nearbyRenderOriginPoint's slide is what fakes the ring holding still while
+// the terrain pans beneath it. A cluster-tap expansion also re-zooms the camera
+// (focusNearbyOnClusterGroup -> ensureOverviewTargetsVisible's own animateViewportTo tween),
+// so nothing is pinned: ring, pins and terrain are all being redrawn every frame under one
+// live, moving transform, exactly like any other selection fit. Gating opacity here on top of
+// that hid the group's own members for the whole ~450ms flight and then popped them in once
+// both tweens happened to finish -- reported as "it animates to the position and then
+// suddenly snaps afterwards". Skipping the gate whenever a viewport animation is also running
+// leaves the plain-anchor-move case (no concurrent viewport tween) exactly as it was.
 function nearbyRevealOpacity() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return 1;
+  if (state.viewportAnimationTo != null) return 1;
   const sinceStart = performance.now() - transition.startedAt;
   if (sinceStart < transition.durationMs) return 0;
   return clamp((sinceStart - transition.durationMs) / NEARBY_REVEAL_MS, 0, 1);
 }
 
 // True while the reveal fade still has frames left to draw, so prepareCanvasForDraw keeps
-// asking for them after the slide itself has finished.
+// asking for them after the slide itself has finished. See nearbyRevealOpacity: no fade to
+// wait out while a viewport animation is also running, since nothing was hidden to begin with.
 function nearbyRevealInProgress() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return false;
+  if (state.viewportAnimationTo != null) return false;
   return performance.now() - transition.startedAt < transition.durationMs + NEARBY_REVEAL_MS;
 }
 

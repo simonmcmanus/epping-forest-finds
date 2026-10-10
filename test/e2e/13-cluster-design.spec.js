@@ -207,6 +207,61 @@ test.describe('Cluster badges and geographic footprints', () => {
     await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(target.count);
   });
 
+  test('expanding a cluster keeps its members visible throughout the camera flight, instead of hiding them until it snaps into place', async ({ page }) => {
+    // Field report: "going from nearby to a cluster does not have a smooth transition, it
+    // seems to animate to the position and then suddenly snap afterwards". focusNearbyOnClusterGroup
+    // starts a browse-origin slide (startNearbyOriginTransition) *and* a real camera zoom/pan
+    // tween (refreshNearbyRadiusView's animateViewportTo) together, but nearbyRevealOpacity --
+    // built for a plain anchor move where the camera does *not* animate and only the ring's own
+    // render position slides -- held the group's own member pins at opacity 0 for the entire
+    // ~500ms flight, then faded them in only once both tweens happened to finish. The camera
+    // motion was smooth; what "snapped" was the destination's own pins popping into existence
+    // after it had already stopped.
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    const target = await page.evaluate(() => {
+      stopViewportAnimation();
+      const lookup = activeIconLookup();
+      const trees = buildTypeClusters(lookup.tree, worldToScreen);
+      for (const cluster of trees) {
+        if (cluster.items.length < 2) continue;
+        const box = clusterBadgeGeometry(cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, pixelRatio(), 1, clusterPreviewEntries('tree', cluster).length === 1);
+        const point = { x: box.left + 8 * pixelRatio(), y: box.top + box.height / 2 };
+        const hit = findClusterHit(point);
+        if (hit && hit.items.includes(cluster.items[0])) return { point, count: hit.items.length };
+      }
+      return null;
+    });
+    expect(target).not.toBeNull();
+
+    const samples = await page.evaluate(async (point) => {
+      const canvas = els.canvas;
+      canvas.setPointerCapture = () => {};
+      canvas.releasePointerCapture = () => {};
+      const rect = (els.mapStage || canvas).getBoundingClientRect();
+      const dpr = pixelRatio();
+      const clientX = rect.left + (point.x - state.canvasInsetX) / dpr;
+      const clientY = rect.top + (point.y - state.canvasInsetY) / dpr;
+      const fire = (type) => canvas.dispatchEvent(new PointerEvent(type, {
+        pointerId: 2001, clientX, clientY, bubbles: true, cancelable: true, pointerType: "touch",
+      }));
+      fire("pointerdown");
+      fire("pointerup");
+
+      const collected = [];
+      const start = performance.now();
+      while (performance.now() - start < 700) {
+        collected.push({ opacity: nearbyRevealOpacity(), animating: state.viewportAnimationTo != null });
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      return collected;
+    }, target.point);
+
+    const whileAnimating = samples.filter((s) => s.animating);
+    expect(whileAnimating.length, "sanity: the camera should actually have been animating for part of this").toBeGreaterThan(2);
+    expect(whileAnimating.every((s) => s.opacity === 1), "the cluster's own members must stay visible for the whole camera flight").toBe(true);
+  });
+
   test('flat and tilted scenes paint geographic footprints beneath their badges', async ({ page }) => {
     await setup(page);
     const result = await page.evaluate(() => {
