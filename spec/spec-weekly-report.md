@@ -277,7 +277,7 @@ labelled "Recurring", since it carries no date to measure against the
 horizon.
 
 The published report's Events section splits on this: each event finding
-carries a `when` of `"week"` (happening today or within 7 days) or `"month"`
+carries a `when` of `"week"` (happening within the next 7 days) or `"month"`
 (further out, or recurring with no next date confirmed), and
 `render_report.py` groups the section into a "This week" and a "Coming up in
 the next month" subheading accordingly, only showing a subheading that

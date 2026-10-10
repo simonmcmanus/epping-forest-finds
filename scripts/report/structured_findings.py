@@ -105,9 +105,12 @@ def event_findings(entries, as_of, horizon_days=EVENT_HORIZON_DAYS, this_week_da
         days_out = (event_date - as_of).days
         if days_out < 0 or days_out > horizon_days:
             continue
-        if event_date == as_of:
-            label, when = "Today", "week"
-        elif days_out <= this_week_days:
+        # No "Today" label: the report is rendered once and published as a
+        # static page, read on whatever day a reader opens it, not kept
+        # live -- a label naming the exact publish day would be wrong on
+        # every later day it's read. "This week" stays true for as long as
+        # the edition itself is current.
+        if days_out <= this_week_days:
             label, when = "This week", "week"
         else:
             label, when = "Coming up", "month"
