@@ -1,0 +1,93 @@
+{
+  "_comment": "Events happening in or near the forest. Manually researched and verified on lastVerified; not yet fed by an automated script (see spec/spec-weekly-report.md).",
+  "entries": [
+    {
+      "id": "wildwood-trail-half-marathon-10k-2026-10-10",
+      "title": "Epping Forest Wildwood Trail Series: Half Marathon & 10K",
+      "place": "Epping Forest",
+      "date": "2026-10-10",
+      "body": "A trail half marathon (9:00 start) and 10K (9:30 start) through Epping Forest, chip-timed, with aid stations and limited parking. Entry around £37, ages 17+.",
+      "sources": [
+        {"label": "Time Outdoors event listing", "url": "https://www.timeoutdoors.com/events/epping-forest-wildwood-trail-series-half-marathon-and-10k/half-marathon"}
+      ],
+      "lastVerified": "2026-10-10"
+    },
+    {
+      "id": "top-picks-litter-pick-hollow-ponds-2026-10-28",
+      "title": "Top Picks: litter pick at Hollow Ponds",
+      "place": "Hollow Ponds, Epping Forest",
+      "date": "2026-10-28",
+      "startTime": "10:00",
+      "body": "Free, volunteer-run litter pick at Hollow Ponds, part of the Epping Forest charity's recurring 'Top Picks' series.",
+      "sources": [
+        {"label": "Eventbrite: Top Picks collection", "url": "https://www.eventbrite.co.uk/cc/top-picks-3973383"}
+      ],
+      "lastVerified": "2026-10-10"
+    },
+    {
+      "id": "copped-hall-apple-day-2026-10-11",
+      "title": "Apple Day at Copped Hall",
+      "place": "Copped Hall, Epping",
+      "date": "2026-10-11",
+      "startTime": "11:00",
+      "body": "Family event in the Mansion and gardens at Copped Hall: apple identification by an orchard expert, produce and plant stalls, live music (Chingford Morris Men, Harlow Brass Band) and children's entertainment. Gates open 11am, last entry 4pm. Tickets £12 in advance or £15 on the day; free for Friends of Copped Hall, under-18s and carers.",
+      "sources": [
+        {"label": "Copped Hall Trust: Apple Day", "url": "https://www.coppedhalltrust.org.uk/?view=article&id=273&catid=29"}
+      ],
+      "lon": 0.0679867,
+      "lat": 51.694336,
+      "lastVerified": "2026-10-10"
+    },
+    {
+      "id": "archives-on-show-epping-forest-recurring",
+      "title": "Archives on Show: Epping Forest",
+      "place": "The London Archives, 40 Northampton Road, EC1R 0HB",
+      "date": null,
+      "recurring": true,
+      "body": "Free, one-hour drop-in sessions (1pm or 2pm) on Epping Forest's archives, run on multiple dates. Check the listing for the next date -- none is reliably current as of this verification.",
+      "sources": [
+        {"label": "Eventbrite listing", "url": "https://www.eventbrite.co.uk/e/archives-on-show-epping-forest-tickets-1595749613049"}
+      ],
+      "lastVerified": "2026-10-10",
+      "needsReverification": true,
+      "reverificationNote": "No specific upcoming date confirmed -- re-check the listing for the next session before using in a report."
+    }
+  ],
+  "sourceNotes": [
+    {
+      "source": "City of London: Epping Forest & Commons Committee (EFCC) 'Committee Events Diary'",
+      "note": "The single best structured events source found: a detailed month-by-month diary (exhibitions, guided tours, litter picks, youth conservation sessions, volunteering) published as a PDF alongside each committee meeting's agenda pack on democracy.cityoflondon.gov.uk. No stable URL -- a new PDF is published at each meeting (next: 2026-11-02), so a script would need to find the committee's current agenda page (search 'Epping Forest Commons Committee' on democracy.cityoflondon.gov.uk) and pull the latest 'Diary' attachment. Worth building a scraper for.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Eventbrite organiser 'Epping Forest' (collections: Festive Forest, Top Picks, Leaky Dam Building)",
+      "note": "Real and current, but an API key would not improve on scraping the public pages: Eventbrite retired public cross-organiser event search from its v3 API in February 2020. The remaining API only lists events for an organisation/account you yourself control (GET /v3/organizations/{id}/events/) -- there's no approval tier that reopens access to another organiser's calendar, and 'Epping Forest' is not our account. An OAuth app (the application URL + redirect URI Eventbrite's developer portal asks for) buys nothing here. Scraping the public collection pages, as done for this file, remains the only option.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "cityoflondon.gov.uk/.../whats-new-in-epping-forest",
+      "note": "Good general-interest page (reminders, long-running works, car park/riding/fishing notices -- see data/forest-notices.json) but it's a single long page with no dates on most items and no RSS feed, so it suits a human skim better than automated diffing.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "eppingforestdc.gov.uk/whats-on-in-epping-forest",
+      "note": "District council activities (not City of London / forest-specific) with no dates or locations on the page itself -- detail is locked in a brochure PDF. Lower value for forest-specific events than the EFCC diary.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "coppedhalltrust.org.uk (own site, e.g. the Apple Day article)",
+      "note": "Copped Hall is independently run by its own trust, not City of London, so it never appears in the EFCC diary above -- this is the first entry sourced from a venue-specific site rather than a forest-wide aggregator. It's a plain CMS article per event, no calendar index or RSS found, so a script would have no list of 'current article ids' to crawl; finding new events still means someone (or the weekly research step) visiting the site. Worth re-checking each run rather than building a scraper for yet. The same is likely true of other independently-run sites inside or near the boundary (visitor centres, heritage trusts) that this run hasn't individually surveyed.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Facebook pages of forest-adjacent organisations (e.g. Epping Forest Heritage Trust)",
+      "note": "Not usable, by API or by scraping. Meta has gated the Graph API's 'Page Public Content Access' behind App Review and Business Verification since 2018 (post-Cambridge Analytica), so there is no keyless or simple-OAuth way to read an arbitrary public Page's posts. Fetching a post's own URL without being logged in confirms this in practice: the page returns only its title, no post body, date or details. A human can still open the page and read it; nothing here is automatable.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "X/Twitter accounts of forest-adjacent organisations",
+      "note": "Not usable for free. X removed free read access in 2023; reading another account's posts (search or timeline) now needs at minimum the paid Basic tier, priced per month rather than per use, which is a standing cost for monitoring accounts that mostly repeat what their own websites or Facebook pages already say. Not worth it unless a specific account turns out to be the only place an event is announced.",
+      "evaluated": "2026-10-10"
+    }
+  ]
+}

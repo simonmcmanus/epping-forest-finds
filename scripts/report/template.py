@@ -57,6 +57,7 @@ REPORT_CSS = """
   .meta-row{display:flex;flex-direction:column;gap:10px;font-size:.9rem;color:#d8e5d3;}
   .meta-row .coverage{font-size:.78rem;line-height:1.6;}
   .hero-photo{margin:0;overflow:hidden;background:var(--forest-deep);display:flex;flex-direction:column;}
+  .hero-photo picture{display:contents;}
   .hero-photo img{display:block;width:100%;height:300px;object-fit:cover;flex:1;min-height:0;}
   .hero-photo figcaption{padding:12px 16px;font-size:.75rem;color:#d8e5d3;}
   .newsletter{display:flex;align-items:flex-start;gap:24px;background:var(--surface-2);padding:28px;border-radius:16px;}
@@ -137,6 +138,16 @@ REPORT_CSS = """
     margin:0 0 4px;
   }
   .section-sub{color:var(--ink-soft); font-size:0.95rem; margin:0 0 20px;}
+  .event-subgroup-title{
+    font-family:"Public Sans", sans-serif;
+    font-weight:600;
+    font-size:0.85rem;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:var(--ink-soft);
+    margin:20px 0 10px;
+  }
+  .event-subgroup-title:first-of-type{margin-top:0;}
 
   .map-card{
     background:var(--surface);

@@ -29,7 +29,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="preload" href="assets/home/epping-longhorns.jpg" as="image" fetchpriority="high">
+  <link rel="preload" as="image" type="image/webp" imagesrcset="assets/home/epping-longhorns-480.webp 480w, assets/home/epping-longhorns-768.webp 768w, assets/home/epping-longhorns-960.webp 960w, assets/home/epping-longhorns-1280.webp 1280w, assets/home/epping-longhorns-1600.webp 1600w" imagesizes="(min-width: 1040px) 457px, (min-width: 640px) calc(46vw - 22px), (max-width: 420px) calc(100vw - 36px), calc(100vw - 48px)" fetchpriority="high">
   <link rel="stylesheet" href="assets/home/home.css">
   <script type="application/ld+json">
   {
@@ -111,7 +111,10 @@
         </div>
       </div>
       <figure class="hero-photo">
-        <img src="assets/home/epping-longhorns.jpg" width="1600" height="1200" fetchpriority="high" alt="GPS-collared English Longhorn cattle grazing in Epping Forest.">
+        <picture>
+          <source type="image/webp" srcset="assets/home/epping-longhorns-480.webp 480w, assets/home/epping-longhorns-768.webp 768w, assets/home/epping-longhorns-960.webp 960w, assets/home/epping-longhorns-1280.webp 1280w, assets/home/epping-longhorns-1600.webp 1600w" sizes="(min-width: 1040px) 457px, (min-width: 640px) calc(46vw - 22px), (max-width: 420px) calc(100vw - 36px), calc(100vw - 48px)">
+          <img src="assets/home/epping-longhorns.jpg" width="1600" height="1200" fetchpriority="high" alt="GPS-collared English Longhorn cattle grazing in Epping Forest.">
+        </picture>
         <figcaption>Epping Forest’s longhorns wear GPS collars.</figcaption>
       </figure>
     </section>

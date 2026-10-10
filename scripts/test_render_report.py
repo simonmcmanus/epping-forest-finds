@@ -268,6 +268,25 @@ class EventsSectionTests(unittest.TestCase):
         self.assertIn("Skylark Event", html)
         self.assertNotIn("No events listed this week", html)
 
+    def test_event_with_no_when_defaults_to_this_week(self):
+        # BASE_REPORT_DATA's "Skylark Event" has no "when" field.
+        findings, _ = rr.normalize_findings(BASE_REPORT_DATA)
+        html = rr.render_category_section("event", "event", findings)
+        self.assertIn("This week", html)
+        self.assertNotIn("Coming up in the next month", html)
+
+    def test_events_split_into_week_and_month_subgroups(self):
+        data = {"findings": [
+            {"category": "event", "title": "Near", "place": "Loughton", "status_label": "Today", "body": "x", "when": "week"},
+            {"category": "event", "title": "Far", "place": "Epping", "status_label": "Coming up", "body": "y", "when": "month"},
+        ]}
+        findings, _ = rr.normalize_findings(data)
+        html = rr.render_category_section("event", "event", findings)
+        self.assertIn("This week", html)
+        self.assertIn("Coming up in the next month", html)
+        self.assertLess(html.index("Near"), html.index("Coming up in the next month"))
+        self.assertLess(html.index("Coming up in the next month"), html.index("Far"))
+
 
 class CowIconTests(unittest.TestCase):
     """Cattle are shown with the app's own cow icon, not a numbered dot."""
@@ -430,6 +449,10 @@ class RenderReportEndToEndTests(unittest.TestCase):
             self.assertGreater(html.index('footer class="coverage"'), html.index('id="app"'))
             self.assertNotIn(">What's on the map</h2>", html)
             self.assertIn('/assets/home/epping-longhorns.jpg', html)
+            self.assertIn('<source type="image/webp"', html)
+            for width in (480, 768, 960, 1280, 1600):
+                self.assertIn(f'/assets/home/epping-longhorns-{width}.webp {width}w', html)
+            self.assertIn('fetchpriority="high"', rr.render_hero_photo())
             self.assertIn('once the site launches', html)
 
     def test_jargon_in_finding_body_blocks_render(self):
