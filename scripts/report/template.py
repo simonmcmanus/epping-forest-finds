@@ -137,6 +137,16 @@ REPORT_CSS = """
     margin:0 0 4px;
   }
   .section-sub{color:var(--ink-soft); font-size:0.95rem; margin:0 0 20px;}
+  .event-subgroup-title{
+    font-family:"Public Sans", sans-serif;
+    font-weight:600;
+    font-size:0.85rem;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:var(--ink-soft);
+    margin:20px 0 10px;
+  }
+  .event-subgroup-title:first-of-type{margin-top:0;}
 
   .map-card{
     background:var(--surface);

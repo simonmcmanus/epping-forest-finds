@@ -238,7 +238,15 @@ dedicated script or memory of their own yet — each run researches them fresh
 with `WebSearch`/`WebFetch` against a fixed URL list in the workflow prompt,
 so nothing persists between runs and a long-running item (the High Beech
 water-mains project, say) has to be hand-coded into the prompt as a standing
-reminder rather than remembered automatically.
+reminder rather than remembered automatically. That fixed list covers the
+forest-wide aggregators (City of London's own pages, the EFCC diary) plus,
+as they're found, the own-site events pages of venues that run independently
+of City of London and so never appear in those aggregators — each such site
+has to be checked individually, the same way the aggregators are. Facebook
+and X/Twitter accounts of forest-adjacent organisations were evaluated and
+excluded: both gate programmatic read access behind paid tiers or app review
+that a page's own website doesn't need, so the run does not spend time on
+them (see the `sourceNotes` in `data/forest-events.json`).
 
 `data/road-closures.json`, `data/forest-events.json` and
 `data/forest-notices.json` are a first step towards fixing that: real,
@@ -260,7 +268,26 @@ whichever entries are still within their own recorded dates as of a given
 day, in `report-data.json`'s finding shape — see "Road, access and event
 findings" in `report-data.schema.md`. A multi-week roadworks project or a
 dated event now shows up every week it's genuinely true, not only the week a
-web search happened to resurface it. It is a floor under the weekly run's own
+web search happened to resurface it. Dated events surface up to
+`EVENT_HORIZON_DAYS` (30 days) ahead, not just the current week: the ledger's
+main job is this week's news, but a reader also wants enough notice of a
+dated event to plan it into their diary, not only a mention once it's days
+away. A recurring series with no next date confirmed is always surfaced,
+labelled "Recurring", since it carries no date to measure against the
+horizon.
+
+The published report's Events section splits on this: each event finding
+carries a `when` of `"week"` (happening today or within 7 days) or `"month"`
+(further out, or recurring with no next date confirmed), and
+`render_report.py` groups the section into a "This week" and a "Coming up in
+the next month" subheading accordingly, only showing a subheading that
+actually has something under it. Without this split, a 30-day horizon would
+read as if the whole month were "this week"'s news. `structured_findings.py`
+sets `when` itself from the date; a finding written by hand straight into
+`report-data.json` (the workflow's own fresh research) needs it set
+explicitly — see `report-data.schema.md`.
+
+It is a floor under the weekly run's own
 research, not a replacement for it: the workflow still researches road/access
 and events fresh each run (step 2c/2d), and that step's job now includes
 updating these three files' dates, bodies and `lastVerified` stamps so they

@@ -91,10 +91,30 @@ class EventFindingsTests(unittest.TestCase):
     def test_event_within_horizon_is_labelled_coming_up(self):
         findings = event_findings([self._event(date="2026-10-20")], date(2026, 10, 10))
         self.assertEqual(findings[0]["status_label"], "Coming up")
+        self.assertEqual(findings[0]["when"], "month")
+
+    def test_event_within_the_week_is_labelled_this_week(self):
+        findings = event_findings([self._event(date="2026-10-15")], date(2026, 10, 10))
+        self.assertEqual(findings[0]["status_label"], "This week")
+        self.assertEqual(findings[0]["when"], "week")
+
+    def test_event_today_is_grouped_with_this_week(self):
+        findings = event_findings([self._event()], date(2026, 10, 10))
+        self.assertEqual(findings[0]["when"], "week")
+
+    def test_recurring_event_is_grouped_with_coming_up(self):
+        findings = event_findings([self._event(date=None)], date(2026, 10, 10))
+        self.assertEqual(findings[0]["when"], "month")
 
     def test_event_beyond_horizon_is_excluded(self):
         findings = event_findings([self._event(date="2026-12-25")], date(2026, 10, 10))
         self.assertEqual(findings, [])
+
+    def test_event_a_month_out_is_within_horizon(self):
+        # Planning-ahead window: four weeks out still shows, not just three.
+        findings = event_findings([self._event(date="2026-11-07")], date(2026, 10, 10))
+        self.assertEqual(findings[0]["status_label"], "Coming up")
+        self.assertEqual(findings[0]["when"], "month")
 
     def test_past_event_is_excluded(self):
         findings = event_findings([self._event(date="2026-01-01")], date(2026, 10, 10))

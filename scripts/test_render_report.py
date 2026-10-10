@@ -268,6 +268,25 @@ class EventsSectionTests(unittest.TestCase):
         self.assertIn("Skylark Event", html)
         self.assertNotIn("No events listed this week", html)
 
+    def test_event_with_no_when_defaults_to_this_week(self):
+        # BASE_REPORT_DATA's "Skylark Event" has no "when" field.
+        findings, _ = rr.normalize_findings(BASE_REPORT_DATA)
+        html = rr.render_category_section("event", "event", findings)
+        self.assertIn("This week", html)
+        self.assertNotIn("Coming up in the next month", html)
+
+    def test_events_split_into_week_and_month_subgroups(self):
+        data = {"findings": [
+            {"category": "event", "title": "Near", "place": "Loughton", "status_label": "Today", "body": "x", "when": "week"},
+            {"category": "event", "title": "Far", "place": "Epping", "status_label": "Coming up", "body": "y", "when": "month"},
+        ]}
+        findings, _ = rr.normalize_findings(data)
+        html = rr.render_category_section("event", "event", findings)
+        self.assertIn("This week", html)
+        self.assertIn("Coming up in the next month", html)
+        self.assertLess(html.index("Near"), html.index("Coming up in the next month"))
+        self.assertLess(html.index("Coming up in the next month"), html.index("Far"))
+
 
 class CowIconTests(unittest.TestCase):
     """Cattle are shown with the app's own cow icon, not a numbered dot."""

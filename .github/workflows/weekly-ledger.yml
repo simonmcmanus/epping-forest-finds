@@ -348,12 +348,30 @@ jobs:
                   democracy.cityoflondon.gov.uk (search "Epping Forest
                   Commons Committee") and open its "Committee Events Diary"
                   attachment for the current month's exhibitions, guided
-                  tours, litter picks and volunteering sessions.
+                  tours, litter picks and volunteering sessions. Also check
+                  https://www.coppedhalltrust.org.uk/ (its news/events
+                  articles, e.g. Apple Day) -- Copped Hall is independently
+                  run, not City of London, so it never appears in the EFCC
+                  diary above; treat any other independently-run venue
+                  inside or near the boundary (visitor centres, heritage
+                  trusts) the same way once you find its site, since none of
+                  the aggregators above cover it either. Do not spend time on
+                  these organisations' Facebook or X/Twitter accounts --
+                  evaluated and rejected as automation sources, see the
+                  sourceNotes in data/forest-events.json.
                e. For each finding, look up its real coordinates in
                   data/local-roads.geojson or data/local-landmarks-food.geojson
                   rather than guessing -- put them in report-data.json's
                   "lon"/"lat" fields and the render script places the pin for
-                  you; there's no map formula to copy by hand any more.
+                  you; there's no map formula to copy by hand any more. For
+                  any "event" finding you write by hand here (not already
+                  carrying one from structured_findings.py's own output), set
+                  "when" to "week" if it's happening today or within 7 days,
+                  or "month" if it's further out or recurring with no next
+                  date confirmed -- that's what splits the report's Events
+                  section into "This week" and "Coming up in the next month"
+                  rather than one list that reads as all being this week's
+                  news.
                f. Follow up on anything the previous report flagged as
                   "possible" instead of re-flagging it fresh.
                g. Business turnover -- the gap a general news search misses
