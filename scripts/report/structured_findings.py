@@ -23,6 +23,9 @@ from datetime import date
 from pathlib import Path
 
 EVENT_HORIZON_DAYS = 30
+# Where the "This week" / "Coming up in the next month" split falls, in days
+# from as_of. Matches a calendar week, not the report's own publish cadence.
+EVENT_THIS_WEEK_DAYS = 7
 NEEDS_CHECK_SUFFIX = (
     " Not confirmed again this week -- worth checking before relying on it."
 )
@@ -54,7 +57,7 @@ def _is_active(start, end, as_of):
     return True
 
 
-def _finding(category, entry, status_label, body):
+def _finding(category, entry, status_label, body, when=None):
     finding = {
         "category": category,
         "title": entry["title"],
@@ -62,6 +65,8 @@ def _finding(category, entry, status_label, body):
         "status_label": status_label,
         "body": body + (NEEDS_CHECK_SUFFIX if entry.get("needsReverification") else ""),
     }
+    if when is not None:
+        finding["when"] = when
     if "lon" in entry and "lat" in entry:
         finding["lon"] = entry["lon"]
         finding["lat"] = entry["lat"]
@@ -86,19 +91,27 @@ def notice_findings(entries, as_of):
     ]
 
 
-def event_findings(entries, as_of, horizon_days=EVENT_HORIZON_DAYS):
+def event_findings(entries, as_of, horizon_days=EVENT_HORIZON_DAYS, this_week_days=EVENT_THIS_WEEK_DAYS):
     out = []
     for e in entries:
         event_date = _parse_partial_date(e.get("date"))
         if event_date is None:
             # A recurring series with no next date confirmed -- surface it,
-            # but never pretend to know when it next happens.
-            out.append(_finding("event", e, "Recurring", e["body"]))
+            # but never pretend to know when it next happens. Grouped with
+            # "coming up" rather than "this week" since there's no date to
+            # justify the more urgent bucket.
+            out.append(_finding("event", e, "Recurring", e["body"], when="month"))
             continue
-        if event_date < as_of or (event_date - as_of).days > horizon_days:
+        days_out = (event_date - as_of).days
+        if days_out < 0 or days_out > horizon_days:
             continue
-        label = "Today" if event_date == as_of else "Coming up"
-        out.append(_finding("event", e, label, e["body"]))
+        if event_date == as_of:
+            label, when = "Today", "week"
+        elif days_out <= this_week_days:
+            label, when = "This week", "week"
+        else:
+            label, when = "Coming up", "month"
+        out.append(_finding("event", e, label, e["body"], when=when))
     return out
 
 

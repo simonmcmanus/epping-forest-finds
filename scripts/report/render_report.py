@@ -89,7 +89,7 @@ AI_DISCLAIMER = (
 SECTION_TITLES = {
     "business": ("Shops, cafés, restaurants & pubs", "Local finds and changes around the forest."),
     "road": ("Road closures & access", "Things that might affect getting around the forest."),
-    "event": ("Events in the forest", "What's on this week."),
+    "event": ("Events in the forest", "What's on this week, and what's coming up over the next month."),
 }
 
 # Sections that always appear, even with nothing to report, each with the line
@@ -218,7 +218,7 @@ def render_stat_strip(findings, food_total, grazing):
         (str(count("opening")), "Local finds", "good"),
         (str(count("closing")), "Closure updates", "critical"),
         (str(count("road")), "Road & access changes", "warning"),
-        (str(count("event")), "Events this week", "event"),
+        (str(count("event")), "Upcoming events", "event"),
     ]
     if grazing is not None:
         moved = grazing.get("moved")
@@ -349,16 +349,51 @@ def render_empty_card(section_key):
     )
 
 
+
+# Events carry an optional "when" field ("week" or "month") saying which
+# subgroup they belong under. Absent (older or hand-written entries with no
+# opinion on it) defaults to "week" -- today's flat-list behaviour.
+EVENT_SUBGROUPS = [("week", "This week"), ("month", "Coming up in the next month")]
+
+
+def render_event_body(items):
+    """Events split into "This week" / "Coming up in the next month", so a
+    reader can tell the two apart instead of the whole month reading as
+    "this week". A subgroup heading is only shown when it has something in
+    it; an event with no "when" opinion defaults into "This week"."""
+    groups = {key: [] for key, _ in EVENT_SUBGROUPS}
+    for item in items:
+        when = item.get("when")
+        groups[when if when in groups else "week"].append(item)
+
+    blocks = []
+    for key, heading in EVENT_SUBGROUPS:
+        group_items = groups.get(key, [])
+        if not group_items:
+            continue
+        cards = "".join(render_card(f) for f in group_items)
+        blocks.append(
+            f'<h3 class="event-subgroup-title">{escape(heading)}</h3>'
+            f'<div class="cards">{cards}</div>'
+        )
+    return "".join(blocks)
+
+
 def render_section(section_key, items):
     """A report section. Always rendered, even with nothing in it -- a reader
     who sees no "Events" heading at all can't tell whether the forest was
     quiet or whether nobody looked."""
     title, subtitle = SECTION_TITLES[section_key]
-    body = "".join(render_card(f) for f in items) if items else render_empty_card(section_key)
+    if not items:
+        body = f'<div class="cards">{render_empty_card(section_key)}</div>'
+    elif section_key == "event":
+        body = render_event_body(items)
+    else:
+        body = f'<div class="cards">{"".join(render_card(f) for f in items)}</div>'
     return (
         f'<section id="{SECTION_IDS[section_key]}"><h2 class="section-title">{escape(title)}</h2>'
         f'<p class="section-sub">{escape(subtitle)}</p>'
-        f'<div class="cards">{body}</div></section>'
+        f'{body}</section>'
     )
 
 

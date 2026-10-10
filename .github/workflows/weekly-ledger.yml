@@ -363,7 +363,15 @@ jobs:
                   data/local-roads.geojson or data/local-landmarks-food.geojson
                   rather than guessing -- put them in report-data.json's
                   "lon"/"lat" fields and the render script places the pin for
-                  you; there's no map formula to copy by hand any more.
+                  you; there's no map formula to copy by hand any more. For
+                  any "event" finding you write by hand here (not already
+                  carrying one from structured_findings.py's own output), set
+                  "when" to "week" if it's happening today or within 7 days,
+                  or "month" if it's further out or recurring with no next
+                  date confirmed -- that's what splits the report's Events
+                  section into "This week" and "Coming up in the next month"
+                  rather than one list that reads as all being this week's
+                  news.
                f. Follow up on anything the previous report flagged as
                   "possible" instead of re-flagging it fresh.
                g. Business turnover -- the gap a general news search misses

@@ -53,7 +53,13 @@ are added by the renderer itself -- never write either by hand.
       "status_label": "Already trading",   // short badge text
       "body": "One or two plain-English sentences. No jargon.",
       "lon": 0.0573766, "lat": 51.6521913,  // optional -- omit for "no pin"
-      "sources": [{"label": "Tripadvisor", "url": "https://..."}]
+      "sources": [{"label": "Tripadvisor", "url": "https://..."}],
+      // "event" findings only, optional: "week" (happening today or within
+      // 7 days) or "month" (further out, or recurring with no next date
+      // confirmed). Groups the Events section into "This week" and "Coming
+      // up in the next month" so a month-out event doesn't read as this
+      // week's news. Omit it only for "week" -- that's the default.
+      "when": "week"
     }
   ],
 
