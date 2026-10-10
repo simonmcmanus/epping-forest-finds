@@ -50,7 +50,7 @@
   "sourceNotes": [
     {
       "source": "Street Manager roadworks API (findtransportdata.dft.gov.uk)",
-      "note": "Free, OGL-licensed national API for England covering every utility and local-highway-authority road work -- the best candidate for an automated script, once one is built. Requires a registered account; not yet wired into this project.",
+      "note": "Free, OGL-licensed national API for England covering every utility and local-highway-authority road work -- the best candidate for an automated script. Account requested 2026-10-10 (registration takes a few days); build the integration once the key arrives.",
       "evaluated": "2026-10-10"
     },
     {

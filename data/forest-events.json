@@ -47,7 +47,7 @@
     },
     {
       "source": "Eventbrite organiser 'Epping Forest' (collections: Festive Forest, Top Picks, Leaky Dam Building)",
-      "note": "Real and current, but split across several named collections with no single feed; collection pages render via JS so a plain fetch sometimes shows stale cached listings. An Eventbrite API key (free tier) against the organiser's ID would be more reliable than scraping for an automated script.",
+      "note": "Real and current, but an API key would not improve on scraping the public pages: Eventbrite retired public cross-organiser event search from its v3 API in February 2020. The remaining API only lists events for an organisation/account you yourself control (GET /v3/organizations/{id}/events/) -- there's no approval tier that reopens access to another organiser's calendar, and 'Epping Forest' is not our account. An OAuth app (the application URL + redirect URI Eventbrite's developer portal asks for) buys nothing here. Scraping the public collection pages, as done for this file, remains the only option.",
       "evaluated": "2026-10-10"
     },
     {
