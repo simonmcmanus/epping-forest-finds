@@ -238,7 +238,15 @@ dedicated script or memory of their own yet — each run researches them fresh
 with `WebSearch`/`WebFetch` against a fixed URL list in the workflow prompt,
 so nothing persists between runs and a long-running item (the High Beech
 water-mains project, say) has to be hand-coded into the prompt as a standing
-reminder rather than remembered automatically.
+reminder rather than remembered automatically. That fixed list covers the
+forest-wide aggregators (City of London's own pages, the EFCC diary) plus,
+as they're found, the own-site events pages of venues that run independently
+of City of London and so never appear in those aggregators — each such site
+has to be checked individually, the same way the aggregators are. Facebook
+and X/Twitter accounts of forest-adjacent organisations were evaluated and
+excluded: both gate programmatic read access behind paid tiers or app review
+that a page's own website doesn't need, so the run does not spend time on
+them (see the `sourceNotes` in `data/forest-events.json`).
 
 `data/road-closures.json`, `data/forest-events.json` and
 `data/forest-notices.json` are a first step towards fixing that: real,
