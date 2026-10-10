@@ -231,6 +231,43 @@ which is why every proposed data change arrived with a red suite on it.
 `spec-marketing.md` from the datasets; the weekly run calls it straight after
 applying a changeset. See `spec-marketing.md` §4.
 
+## Road closures, events and standing notices
+
+Unlike business detection, the "road & access" and "events" sections have no
+dedicated script or memory of their own yet — each run researches them fresh
+with `WebSearch`/`WebFetch` against a fixed URL list in the workflow prompt,
+so nothing persists between runs and a long-running item (the High Beech
+water-mains project, say) has to be hand-coded into the prompt as a standing
+reminder rather than remembered automatically.
+
+`data/road-closures.json`, `data/forest-events.json` and
+`data/forest-notices.json` are a first step towards fixing that: real,
+researched entries (road/utility works, dated events, and standing
+visit-affecting notices — car park hours, riding/fishing seasons,
+conservation works — that fit none of the report's existing categories) with
+their own sources and a `lastVerified` date, seeded and kept current by hand
+(by the weekly run, per its own prompt) rather than by a diff script. Each
+file's `sourceNotes` records which upstream sources were evaluated and why
+(an API worth building a scraper against, a page too JS-rendered to scrape,
+a URL that has gone 404) — that evaluation is the reusable part until a
+script like `osm_business_diff.py`'s exists for this data. An entry marked
+`needsReverification` is a research gap being surfaced honestly, not a
+finding ready to print; `scripts/report/structured_findings.py` (below)
+carries that caveat into the finding's own body text rather than dropping it.
+
+`scripts/report/structured_findings.py` reads the three files and returns
+whichever entries are still within their own recorded dates as of a given
+day, in `report-data.json`'s finding shape — see "Road, access and event
+findings" in `report-data.schema.md`. A multi-week roadworks project or a
+dated event now shows up every week it's genuinely true, not only the week a
+web search happened to resurface it. It is a floor under the weekly run's own
+research, not a replacement for it: the workflow still researches road/access
+and events fresh each run (step 2c/2d), and that step's job now includes
+updating these three files' dates, bodies and `lastVerified` stamps so they
+don't go stale sitting unread. "Notices" is not yet its own `categories.py`
+entry — the script folds them into `"road"`, which the report already titles
+broadly as "Road closures & access".
+
 ## Files
 
 - `scripts/report/render_report.py` — entry point; renders the page
@@ -256,6 +293,11 @@ Business detection (see "Keeping the map's businesses current" above):
 - `scripts/sync-homepage-counts.js` — keeps the homepage's quoted counts true
 - `data/business-watch.json` — the committed watchlist
 - `data/verification.json` — the committed confirmation record
+- `data/road-closures.json`, `data/forest-events.json`, `data/forest-notices.json`
+  — manually-researched road/event/notice entries and source evaluations (see
+  "Road closures, events and standing notices" above)
+- `scripts/report/structured_findings.py` — turns the three files above into
+  report-data.json findings that are still within their own recorded dates
 - `scripts/test_*.py` for each of the above — unit tests
 
 Handy while working: `npm run audit:quality` and `npm run audit:duplicates`.

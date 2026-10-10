@@ -78,3 +78,22 @@ python3 scripts/report/render_report.py <report-data.json> [output-path]
 The attached statistics strip computes its counts from the findings and food
 dataset; never put counts into the intro by hand. Keep the intro and
 findings focused on useful local news, not the volume of map updates.
+
+## Road, access and event findings
+
+`scripts/report/structured_findings.py` reads `data/road-closures.json`,
+`data/forest-notices.json` and `data/forest-events.json` and prints a JSON
+list of findings already in this shape -- a standing roadworks project or a
+dated event that is still within its own recorded dates, so it keeps showing
+up every week it's genuinely true rather than only the week a web search
+happened to resurface it:
+
+```
+python3 scripts/report/structured_findings.py --as-of 2026-10-10
+```
+
+Extend `report-data.json`'s `"findings"` array with its output before adding
+anything the week's own research turned up -- it's a floor, not a
+replacement for that research. An entry from these files that is uncertain
+(`needsReverification` in the source file) already carries a plain-English
+caveat in its `"body"`; don't strip that out.
