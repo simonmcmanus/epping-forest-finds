@@ -200,6 +200,10 @@ Sections, in order:
    sub-line (§3.2), and the primary CTA element (§8). The photo caption uses
    white text on an opaque dark-green backing for contrast across the image,
    running flush to the photo's left, right and bottom edges with no inset.
+   The photo uses shared 480, 768, 960, 1280 and 1600px WebP variants with
+   responsive `srcset`/`sizes` and the original JPEG fallback. Its high-priority
+   preload matches the WebP candidates and sizes, downloading only the selected
+   image. Preserve the full-width crop and intrinsic 4:3 dimensions.
 2. **What's on the map** — directly after the hero, one neutral inventory card, matching the Ledger's
    categorisation: a headline total with a 44px map-pin icon
    (`map-icons/all-finds.png`) to its left, the six app filter groups (Nature, Food,

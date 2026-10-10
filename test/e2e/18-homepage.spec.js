@@ -444,3 +444,29 @@ test.describe("the app's own URL", () => {
     await expect(page.locator("#mapCanvas")).toBeAttached();
   });
 });
+
+for (const [label, url] of [["homepage", "/"], ["ledger", "/reports/epping-forest-ledger-2026-10-10.html"]]) {
+  for (const [screen, width, deviceScaleFactor, candidate] of [["phone", 390, 1, 480], ["retina desktop", 1280, 2, 960]]) {
+    test(`${label} downloads one appropriately sized cow photo on ${screen}`, async ({ browser }) => {
+      const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor });
+      const page = await context.newPage();
+      const photos = [];
+      page.on("request", request => {
+        if (/epping-longhorns.*\.(jpg|webp)$/.test(request.url())) photos.push(request.url());
+      });
+      await page.goto(url);
+      const photo = page.locator(".hero-photo img");
+      await expect(photo).toBeVisible();
+      await expect.poll(() => photo.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+      expect(await photo.evaluate(img => img.currentSrc)).toContain(`epping-longhorns-${candidate}.webp`);
+      expect(photos).toHaveLength(1);
+      const bytes = await page.evaluate(url => performance.getEntriesByName(url)[0].encodedBodySize, photos[0]);
+      expect(bytes).toBeGreaterThan(0);
+      expect(bytes).toBeLessThan(200_000);
+      await expect(photo).toHaveAttribute("src", /epping-longhorns\.jpg$/);
+      // The picture wrapper must preserve the existing full-width crop.
+      expect(await photo.evaluate(img => Math.abs(img.getBoundingClientRect().width - img.closest("figure").getBoundingClientRect().width))).toBeLessThan(1);
+      await context.close();
+    });
+  }
+}
