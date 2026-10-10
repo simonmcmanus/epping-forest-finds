@@ -478,8 +478,7 @@ def render_brand_header():
 
 
 def render_hero_photo():
-    return '''<figure class="hero-photo"><img src="/assets/home/epping-longhorns.jpg" width="1600" height="1200" alt="English Longhorn cattle grazing in Epping Forest.">
-    <figcaption>Out among the trees. Epping Forest’s grazing longhorns.</figcaption></figure>'''
+    return '''<figure class="hero-photo"><img src="/assets/home/epping-longhorns.jpg" width="1600" height="1200" alt="English Longhorn cattle grazing in Epping Forest."></figure>'''
 
 
 def render_newsletter_signup():

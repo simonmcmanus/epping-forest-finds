@@ -63,6 +63,7 @@ for (const width of [390, 1280]) {
     await expect(page.locator("body")).toHaveCSS("background-color", "rgb(244, 244, 236)");
     await expect(page.locator(".stat .n").first()).toHaveCSS("color", "rgb(24, 28, 17)");
     await expect(page.locator(".masthead")).toHaveCSS("background-color", "rgb(29, 74, 47)");
+    await expect(page.locator(".hero-photo figcaption")).toHaveCount(0);
     await expect(page.locator(".hero-photo img")).toHaveAttribute("src", "/assets/home/epping-longhorns.jpg");
     expect(await page.locator(".hero-photo img").evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
