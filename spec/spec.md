@@ -614,8 +614,19 @@ Alternative: `scripts/regenerate-local-landmarks.js` (Node.js version)
 
 ## User Tracking & Analytics
 
-### Google tag (gtag.js)
-Every page on the site (`index.html`, `app.html`, `admin.html`, `terms.html`, the weekly ledger reports under `reports/`, and the generated `reports/index.html`) loads the Google tag (`gtag.js`, measurement ID `G-M9NL06G2JB`) as the first thing in `<head>`, unconditioned on the consent flow below. The weekly report generator (`scripts/report/render_report.py` `render_head`) and the reports-index generator (`scripts/generate-reports-index.js` `buildIndexHtml`) both emit the same snippet, so every future report and index rebuild carries it automatically. This is separate from, and runs regardless of, the first-party tracker described below.
+### Google tag (gtag.js) and the cookie-consent banner
+Every page on the site (`index.html`, `app.html`, `admin.html`, `terms.html`, the weekly ledger reports under `reports/`, and the generated `reports/index.html`) loads the Google tag (`gtag.js`, measurement ID `G-M9NL06G2JB`) as the first thing in `<head>`. The weekly report generator (`scripts/report/render_report.py` `render_head`) and the reports-index generator (`scripts/generate-reports-index.js` `buildIndexHtml`) both emit the same snippet, so every future report and index rebuild carries it automatically. This is separate from, and gated independently of, the first-party tracker described below under Consent.
+
+GA's own cookies (`_ga`, `_ga_*`) are not "strictly necessary", so UK PECR/GDPR requires consent before they're set — on every page, the homepage included, not just the app. Each page's `<head>` sets Google Consent Mode v2's default to `analytics_storage: 'denied'` inline (before `gtag.js` loads), then loads the shared `/cookie-consent.js` (repo root, used by every page regardless of marketing/app ownership). That script shows a small, dismissible banner fixed to the bottom of the viewport the first time a visitor reaches any page with no stored choice; **Accept** or **Decline** stores the decision once (`localStorage` key `ff-cookie-consent`) and calls `gtag('consent','update',...)` — the banner never reappears on its own afterward. It can be reopened deliberately via `window.ForestFindsCookieConsent.showBanner()`, exposed by the app's **Settings → Privacy** ("Manage cookie preferences") and by the same control on `/terms.html`; the choice is shared across the whole origin, so accepting or declining on one page covers every other page too.
+
+This cookie-consent flow is entirely independent of the location/usage-tracking consent below: different legal basis (PECR cookie consent vs. a contextual browser permission grant), different storage key, different UI, asked at different times — accepting or declining one has no effect on the other.
+
+#### App usage events sent to GA
+Besides automatic pageviews, `js/tracker.js` fires two custom GA events via `gtag('event', ...)`, gated by the same cookie-consent state as everything else GA does — never by the location/usage-tracking consent:
+- `screen_view` with `screen_name` when **Filters**, **Settings**, **Report**, or **Search** is opened (`js/app.js` `openFiltersScreen`/`openSettings`/`openReportModal`/`openSearchScreen`).
+- `select_map_item` with `item_type`, `item_id`, `item_name` and `source` when a map item is selected (`js/inspector.js` `trackSelectionClick`, the same chokepoint the first-party `trackClick` uses).
+
+Neither event ever includes the user's coordinates (their own position or the selected item's) — only which kind of place or screen was involved. GPS data stays entirely inside the first-party pipeline below, which never leaves this origin.
 
 ### Consent
 Consent is implicit: tapping whichever "Enable location" button is on screen (first-visit onboarding's location step, or the in-map location gate shown later) both grants consent and starts the location request. A one-line `.privacy-note` next to that button states what's collected and links to the full policy — identical wording in both places (`js/tracker.js` `ensureTrackingConsent`/`setTrackingConsent`). Consent is stored in `localStorage` under key `ff-track-v1`. Users can withdraw via **Settings → Privacy**, which re-prompts (shows the note again) next time location is requested.
