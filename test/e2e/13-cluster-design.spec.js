@@ -262,6 +262,146 @@ test.describe('Cluster badges and geographic footprints', () => {
     expect(whileAnimating.every((s) => s.opacity === 1), "the cluster's own members must stay visible for the whole camera flight").toBe(true);
   });
 
+  test('a cluster tap in 3D solves the camera tween against the slide\'s actual destination, not a stale snapshot of it', async ({ page }) => {
+    // Field report: "clicking on a cluster ... it seems to zoom past the location and then
+    // snap back to it", and the matching "back" report ("the camera angle seems to go down
+    // and then snap"). alignHeadingUpNavigationViewport's animate:true path (the one
+    // focusNearbyOnClusterGroup/refreshNearbyRadiusView/restoreNearbyAnchorFromHistory all
+    // use) fed maxNearbyHeadingUpScale and nearbyNavigationFocusPoint straight into
+    // animateViewportTo as a *fixed* target -- but both of those functions blend across the
+    // browse-origin slide via nearbyOriginTransitionEasedProgress(), which is still ~0 the
+    // instant the slide starts. Sampled once at that instant, the "fixed" target the tween
+    // eased toward was close to the slide's *starting* framing, not its destination --
+    // invisible without tilt (where the two framings barely differ) but, with tilt engaged,
+    // the ahead-only first-person fit is dramatically tighter than the full-ring "browsing"
+    // fit the slide actually lands on. The next un-animated per-frame call
+    // (prepareCanvasForDraw, unblocked the instant the tween's own viewportAnimationTo
+    // cleared) then recomputed the real, un-blended destination and snapped straight to it --
+    // "animate to the wrong place, then pop to the right one".
+    //
+    // Fixed with a useFinalBrowseState flag threaded through both functions: an animate:true
+    // caller now gets the slide's settled destination throughout, exactly what calling them
+    // again once the slide has actually finished (no transition in flight) already returns --
+    // asserted directly below rather than by timing a real animation, which is exactly the
+    // kind of frame-timing race this bug itself depended on.
+    await setup(page);
+    await page.evaluate(() => {
+      // tiltActive() requires headingUpActive() (a finite compass heading), not just beta.
+      state.compassHeadingTarget = 0;
+      state.compassHeading = 0;
+      state.renderedNavigationHeading = 0;
+      state.tiltBetaTarget = 50;
+      state.tiltBetaSmoothed = 50;
+    });
+
+    const result = await page.evaluate(() => {
+      stopViewportAnimation();
+      // state.nearbyAnchor starts null (plain GPS-centred browsing) -- tapping a cluster is
+      // exactly the "not browsing -> browsing" crossing that makes the old and new pivot
+      // rules (and so the fromScale/toScale blend) disagree.
+      const lookup = activeIconLookup();
+      const trees = buildTypeClusters(lookup.tree, worldToScreen);
+      let cluster = null;
+      for (const candidate of trees) {
+        if (candidate.items.length >= 2) { cluster = candidate; break; }
+      }
+      if (!cluster) return null;
+
+      const { centerPoint, center, targetMinutes } = clusterFocusTarget(cluster.items);
+      const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+
+      // Right at the instant the slide starts: nearbyOriginTransitionEasedProgress() is ~0.
+      // clusterExpanded mirrors focusNearbyOnClusterGroup's own order -- it is what makes
+      // nearbyCameraFitPoints() read the tapped group's own members directly rather than the
+      // (still mid-slide) walking-radius ring, so this isolates the scale/anchor blend bug
+      // from the ring's own origin-interpolation.
+      startNearbyOriginTransition(nearbyRenderOriginPoint());
+      state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
+      state.walkingDistanceMinutes = targetMinutes;
+      state.clusterExpanded = cluster;
+
+      const blendedFocus = nearbyNavigationFocusPoint(focusRect, false);
+      const blendedScale = maxNearbyHeadingUpScale(blendedFocus, focusRect, false);
+
+      // What an animate:true caller should solve for instead -- the slide's own destination,
+      // asked for right now while the slide is still live.
+      const finalFocus = nearbyNavigationFocusPoint(focusRect, true);
+      const finalScale = maxNearbyHeadingUpScale(finalFocus, focusRect, true);
+
+      // Let the slide actually finish, then ask the plain (now un-blended, since
+      // nearbyOriginTransitionEasedProgress() returns null with no transition in flight)
+      // question again -- this is the real, settled destination the tween must land on.
+      // nearbyRenderOriginPoint's own cache is keyed on the anchor object's identity and is
+      // normally invalidated every frame (prepareCanvasForDraw); re-pointing state.nearbyAnchor
+      // at a fresh object with the same coordinates forces that same real-frame invalidation
+      // here, without which the cache would keep serving the mid-slide value measured above.
+      state.nearbyOriginTransition = null;
+      state.nearbyAnchor = { ...state.nearbyAnchor };
+      const settledFocus = nearbyNavigationFocusPoint(focusRect, false);
+      const settledScale = maxNearbyHeadingUpScale(settledFocus, focusRect, false);
+
+      return { blendedScale, finalScale, settledScale, finalFocusY: finalFocus.y, settledFocusY: settledFocus.y };
+    });
+
+    expect(result, "sanity: a real multi-member tree cluster must exist in the fixture data").not.toBeNull();
+    // Sanity: under tilt, the stale progress~0 snapshot really does diverge sharply from the
+    // settled fit -- confirming this scenario actually exercises the bug this test guards.
+    expect(Math.abs(result.blendedScale - result.settledScale) / result.settledScale).toBeGreaterThan(0.2);
+
+    // The fix: useFinalBrowseState:true must already equal the settled destination, in both
+    // scale and vertical anchor, so a tween built from it has nothing left to correct.
+    expect(Math.abs(result.finalScale - result.settledScale) / result.settledScale).toBeLessThan(0.001);
+    expect(Math.abs(result.finalFocusY - result.settledFocusY)).toBeLessThan(0.5);
+  });
+
+  test('going back from a browsed spot in 3D solves the same way, for the opposite crossing', async ({ page }) => {
+    // The matching "back" half of the field report ("the camera angle seems to go down and
+    // then snap"): restoreNearbyAnchorFromHistory clears state.nearbyAnchor through the same
+    // refreshNearbyRadiusView({animate:true}) path focusNearbyOnClusterGroup uses, just with
+    // the crossing reversed (browsing -> not browsing instead of not browsing -> browsing).
+    await setup(page);
+    await page.evaluate(() => {
+      state.compassHeadingTarget = 0;
+      state.compassHeading = 0;
+      state.renderedNavigationHeading = 0;
+      state.tiltBetaTarget = 50;
+      state.tiltBetaSmoothed = 50;
+    });
+
+    const result = await page.evaluate(() => {
+      stopViewportAnimation();
+      // Start already browsing a spot (the state a "back" press is leaving), mirroring
+      // focusNearbyOnClusterGroup's own end state but without clusterExpanded, so the fit
+      // reads the plain walking-radius ring -- what restoreNearbyAnchorFromHistory actually
+      // falls back to once no anchor remains.
+      state.nearbyAnchor = { latitude: 51.666, longitude: 0.046, point: projectLonLat(0.046, 51.666) };
+      state.walkingDistanceMinutes = 10;
+      const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+
+      startNearbyOriginTransition(nearbyRenderOriginPoint());
+      state.nearbyAnchor = null; // what "back" to plain GPS browsing actually does
+
+      const blendedFocus = nearbyNavigationFocusPoint(focusRect, false);
+      const blendedScale = maxNearbyHeadingUpScale(blendedFocus, focusRect, false);
+
+      const finalFocus = nearbyNavigationFocusPoint(focusRect, true);
+      const finalScale = maxNearbyHeadingUpScale(finalFocus, focusRect, true);
+
+      state.nearbyOriginTransition = null;
+      // No anchor object to re-point this time (it is null, the whole point of "back" here) --
+      // nearbyRenderOriginPoint's cache key still changes (object -> null), which is enough to
+      // force the same real-frame invalidation the forward test needed a clone for.
+      const settledFocus = nearbyNavigationFocusPoint(focusRect, false);
+      const settledScale = maxNearbyHeadingUpScale(settledFocus, focusRect, false);
+
+      return { blendedScale, finalScale, settledScale, finalFocusY: finalFocus.y, settledFocusY: settledFocus.y };
+    });
+
+    expect(Math.abs(result.blendedScale - result.settledScale) / result.settledScale).toBeGreaterThan(0.2);
+    expect(Math.abs(result.finalScale - result.settledScale) / result.settledScale).toBeLessThan(0.001);
+    expect(Math.abs(result.finalFocusY - result.settledFocusY)).toBeLessThan(0.5);
+  });
+
   test('flat and tilted scenes paint geographic footprints beneath their badges', async ({ page }) => {
     await setup(page);
     const result = await page.evaluate(() => {

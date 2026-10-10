@@ -712,6 +712,32 @@ moving the real GPS fix:
     neither end would have chosen. The same applies in reverse when the anchor is cleared.
     Mid-slide framing is therefore deliberately between the two: the whole-ring rule below
     describes the settled browse view.
+  - **The blend above is for continuous, un-animated per-frame tracking only — a one-shot
+    `animate:true` call must bypass it and solve straight for the slide's destination.**
+    `focusNearbyOnClusterGroup`/`restoreNearbyAnchorFromHistory` both call
+    `refreshNearbyRadiusView({animate:true})`, which reaches `alignHeadingUpNavigationViewport`
+    exactly once and hands its result to `animateViewportTo` as a *fixed* tween target — but
+    `maxNearbyHeadingUpScale`, `tiltRampedAnchor`/`nearbyNavigationFocusPoint`, `cameraOriginPoint`
+    and `nearbyCameraFitPoints`/`walkingRadiusCirclePoints` (the ring's own origin) all read
+    `nearbyOriginTransitionEasedProgress()`, which is still ~0 the instant the slide starts.
+    Sampled once at that instant, the "fixed" tween target came out close to the slide's
+    *starting* framing, not its destination — invisible without tilt (where first-person and
+    browsing framings barely differ) but, with tilt engaged, dramatically different: the
+    ahead-only first-person fit is far tighter than the full-ring browsing fit the slide actually
+    lands on, and its camera-distance/perspective maths (`headingUpFitTiltCamera`/
+    `tiltPerspectivePx`/`tiltAvailableAheadCssPx`) is driven by the same live anchor fraction. The
+    next un-animated per-frame call (`prepareCanvasForDraw`'s own re-derive, unblocked the instant
+    the tween's `state.viewportAnimationTo` cleared) then recomputed the real, un-blended
+    destination and snapped straight to it — reported from the field as "clicking on a cluster
+    ... it seems to zoom past the location and then snap back to it", and, on the reverse
+    crossing, "when you click back the camera angle seems to go down and then snap". Fixed with a
+    `useFinalBrowseState` flag threaded through every function above: an `animate:true` caller
+    passes `true` (scoped to the nearby branch only — selected navigation's own basis-switch ease,
+    `cameraOriginPoint`'s `state.cameraOriginTransition`, is a different, still-wanted slide), which
+    skips straight to each function's `to`/settled branch, so the tween itself already eases toward
+    where the slide is actually going and the later un-animated call has nothing left to correct.
+    A plain, continuously-re-invoked un-animated call (the compass tick, `prepareCanvasForDraw`'s
+    own re-derive) still gets the blended, progress-tracking value exactly as before.
 - **Relocating reframes; it never zooms out.** The Nearby camera anchors `nearbyOrigin().point`
   at the focus point and sizes itself to the walking-radius ring, so moving the browse anchor
   slides the same view onto the new spot: same scale, ring the same size, origin at the same
