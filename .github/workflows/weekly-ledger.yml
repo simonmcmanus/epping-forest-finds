@@ -405,11 +405,20 @@ jobs:
                   Visit Epping Forest's listing above instead -- re-test
                   eorailway.co.uk directly occasionally in case that was
                   transient or bot-blocking rather than permanent. Waltham
-                  Abbey Town Council's own events page also returned HTTP
-                  403 to a direct fetch on two separate URLs, consistent
-                  with blocking automated requests rather than a wrong URL.
-                  See the sourceNotes in data/forest-events.json before
-                  re-evaluating any of this same ground.
+                  Abbey Town Council's own events page runs the same
+                  calendar plugin as the two working feeds above, but the
+                  whole site 403s on every URL tried -- the plain pages and
+                  its own ?ical=1 export alike -- so it's blocked outright,
+                  not just a wrong path. theydon.org.uk, which Theydon Bois
+                  Parish Council itself points residents to as "the village
+                  website," 403s the same way. Bedford House / Buckhurst
+                  Hill Community Association (bedfordhouse.org.uk) is a
+                  real, active local charity with its own Upcoming
+                  Events section, but its exact events URL and whether it
+                  has a feed are still unconfirmed -- worth finding and
+                  checking properly on a future run. See the sourceNotes in
+                  data/forest-events.json before re-evaluating any of this
+                  same ground.
                e. For each finding, look up its real coordinates in
                   data/local-roads.geojson or data/local-landmarks-food.geojson
                   rather than guessing -- put them in report-data.json's

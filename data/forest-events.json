@@ -111,7 +111,7 @@
     },
     {
       "source": "Loughton Town Council, Waltham Abbey Town Council 'What's On', Waltham Forest borough-wide listings (which would cover Chingford), and Theydon Bois Parish Council's events category page",
-      "note": "No usable feed found for any of the four, and no current, dated events listing confirmed as of this evaluation -- Loughton's site surfaces only its news section (most recent dated item from 2025), Waltham Abbey's calendar is advertised as email-submission-only with no feed, Waltham Forest's borough events listing is paginated HTML with no RSS/Atom link found and nothing specific to Chingford, and Theydon Bois PC's 'Events' category is actually news-style posts by publish date, not event date, with the newest confirmed-dated item (an exhibition) from January 2023. Re-check each run rather than building automation against any of them yet; a council could add a feed at any time.",
+      "note": "No usable feed found for any of the four, and no current, dated events listing confirmed as of this evaluation -- Loughton's site surfaces only its news section (most recent dated item from 2025), Waltham Abbey's calendar is advertised as email-submission-only with no feed, Waltham Forest's borough events listing is paginated HTML with no RSS/Atom link found and nothing specific to Chingford, and Theydon Bois PC's 'Events' category is actually news-style posts by publish date, not event date, with the newest confirmed-dated item (an exhibition) from January 2023. The parish council's own site points residents to theydon.org.uk as 'the village website', but that site also returned HTTP 403 to a direct fetch, so it couldn't be checked for a calendar either. Re-check each run rather than building automation against any of them yet; a council could add a feed at any time.",
       "evaluated": "2026-10-10"
     },
     {
@@ -121,7 +121,7 @@
     },
     {
       "source": "Waltham Abbey Town Council's own events page (walthamabbey-tc.gov.uk/events/)",
-      "note": "Confirmed blocking automated requests rather than simply being the wrong URL: a direct fetch of this page and of the site's separate /whats-on page both returned HTTP 403. No feed found via search either. Re-test occasionally in case the block lifts; not worth building anything against while it 403s.",
+      "note": "Its URL structure (/events/<slug>, /event_category/past/page/N) matches the same WordPress 'The Events Calendar' plugin that gives the Wanstead Village Directory and South Woodford Village Gazette their working iCal feeds above -- but the whole site blocks automated requests: direct fetches of /events/, /whats-on, and the plugin's own /events/list/?ical=1 export URL all returned HTTP 403, not just a wrong path. Re-test occasionally in case the block lifts; not worth building anything against while it 403s even on the feed URL itself.",
       "evaluated": "2026-10-10"
     },
     {
@@ -137,6 +137,11 @@
     {
       "source": "Village halls at North Weald, Abridge, Nazeing and High Beach",
       "note": "Searched for each by name; found only charity-register contact details and occasional third-party mentions (e.g. a 2025 barn dance at Abridge via a constituency MP's site), no own event listing or feed for any of the four. Lower priority than the named coverage settlements -- not worth further research time unless a specific event is reported missing from one of them.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Bedford House / Buckhurst Hill Community Association (bedfordhouse.org.uk)",
+      "note": "A real, active local charity (adult education classes, an 'Upcoming Events' section, named events like a Winter Fair) -- the best Buckhurst Hill-specific lead found, better than the generic aggregator noise that name alone turns up. Its homepage links to separate Courses & Activities / Upcoming Events / Past Events pages rather than listing them directly, and guessing the events page's URL (bedfordhouse.org.uk/events) 404s, so its actual events page path and whether it carries a feed are still unconfirmed. Worth finding the right URL and checking properly on a future run rather than re-searching from scratch.",
       "evaluated": "2026-10-10"
     }
   ]
