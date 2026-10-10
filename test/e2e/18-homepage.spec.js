@@ -360,7 +360,11 @@ test.describe("the marketing homepage", () => {
     );
     expect(localAssets.length).toBeGreaterThan(0);
     for (const url of localAssets) {
-      expect(new URL(url).pathname).toMatch(/^\/assets\/home\//);
+      const pathname = new URL(url).pathname;
+      // cookie-consent.js is the one deliberate exception: a small shared, non-app file at the
+      // site root (not under css/js, which stay app-only) that every page loads alike -- see
+      // spec.md "Google tag (gtag.js) and the cookie-consent banner".
+      expect(pathname === "/cookie-consent.js" || /^\/assets\/home\//.test(pathname)).toBe(true);
     }
     await expect(page.locator(".hero-photo img")).toBeVisible();
     for (const image of await page.locator('img[loading="lazy"]').all()) {

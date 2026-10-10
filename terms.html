@@ -7,10 +7,12 @@
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
+    gtag('consent', 'default', { analytics_storage: 'denied' });
     gtag('js', new Date());
 
     gtag('config', 'G-M9NL06G2JB');
   </script>
+  <script src="/cookie-consent.js" defer></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Privacy &amp; Terms — Epping Forest Finds</title>
   <link rel="icon" href="data/icons/favicon.png" type="image/png">
@@ -46,6 +48,21 @@
       margin-bottom: 32px;
     }
     .back-link:hover { text-decoration: underline; }
+    .cookie-pref-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--tree);
+      background: none;
+      border: 1px solid var(--tree);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .cookie-pref-btn:hover { text-decoration: underline; }
     h1 {
       font-size: 1.75rem;
       font-weight: 900;
@@ -145,7 +162,10 @@
     <p>To exercise any of these rights, email us at the address below. Please include "Privacy request" in the subject line and, if possible, your anonymous user ID (found in <em>Settings → Privacy</em>).</p>
 
     <h2>8. Cookies and local storage</h2>
-    <p>The app uses browser <strong>localStorage</strong> (not cookies) to store your anonymous ID, filter preferences, consent status, and an offline queue of pending tracking events. No data is shared with third-party cookie networks.</p>
+    <p>The app and website use browser <strong>localStorage</strong> to store your anonymous ID, filter preferences, consent status, and an offline queue of pending tracking events. This is not a cookie and is never shared with third-party cookie networks.</p>
+    <p>Separately, every page uses <strong>Google Analytics</strong> to understand how the site and app are used — which pages and screens are viewed, and in the app, which map items are selected (by type and name only; never your GPS coordinates). Google Analytics sets cookies (<code>_ga</code>, <code>_ga_*</code>) only after you accept the cookie banner shown on first visit; declining, or not responding, keeps analytics cookies off. Your choice is stored once and applied on every page — you are not asked again unless you clear your browser storage. You can review or change it at any time: use the "Manage cookie preferences" button below, or <em>Settings → Privacy</em> in the app.</p>
+    <p id="cookiePreferencesControl"><button type="button" id="manageCookiePreferencesBtn" class="cookie-pref-btn">Manage cookie preferences</button></p>
+    <p>This cookie consent is independent of the location &amp; usage tracking consent in section 7 above — accepting or declining one has no effect on the other.</p>
 
     <h2>9. Children</h2>
     <p>The app is not directed at children under 13. We do not knowingly collect data from children. If you believe a child has enabled location sharing, please contact us to request deletion.</p>
@@ -182,5 +202,10 @@
       For general feedback: use the <em>Report / Feedback</em> button in the app.
     </div>
   </div>
+  <script>
+    document.getElementById("manageCookiePreferencesBtn")?.addEventListener("click", () => {
+      window.ForestFindsCookieConsent?.showBanner();
+    });
+  </script>
 </body>
 </html>

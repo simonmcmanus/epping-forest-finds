@@ -146,10 +146,12 @@ function buildIndexHtml(files) {
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
+  gtag('consent', 'default', { analytics_storage: 'denied' });
   gtag('js', new Date());
 
   gtag('config', 'G-M9NL06G2JB');
 </script>
+<script src="/cookie-consent.js" defer></script>
 <title>Epping Forest Ledger — weekly Epping Forest news</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#24382f">

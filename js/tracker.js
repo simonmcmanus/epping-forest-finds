@@ -266,6 +266,35 @@ function trackClick(itemType, item, userLat, userLng, source = "map") {
   });
 }
 
+// --- Google Analytics engagement events ---
+//
+// Separate from trackClick/trackLocation above: those are the first-party admin-dashboard
+// pipeline (/api/track), gated on the location/usage consent toggle in Settings → Privacy. These
+// go to Google Analytics instead (via the gtag() loaded in app.html's <head>), gated by the
+// site-wide cookie-consent banner (cookie-consent.js) rather than that toggle -- the two consents
+// are deliberately independent (see spec.md "User Tracking & Analytics"). Never pass raw
+// coordinates here: gtag sends to a third party, and what place or screen someone looked at is
+// enough to answer "what are people doing", without exporting their GPS trail off this origin.
+
+function trackGaEvent(name, params) {
+  if (typeof window !== "undefined" && typeof window.gtag === "function") {
+    window.gtag("event", name, params);
+  }
+}
+
+function trackGaScreenView(screenName) {
+  trackGaEvent("screen_view", { screen_name: screenName });
+}
+
+function trackGaItemSelected(itemType, item, source) {
+  trackGaEvent("select_map_item", {
+    item_type: itemType,
+    item_id: trackerItemId(item),
+    item_name: trackerItemName(item),
+    source,
+  });
+}
+
 // --- Init ---
 
 function initTracker() {

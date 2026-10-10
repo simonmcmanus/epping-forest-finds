@@ -629,10 +629,12 @@ def render_head(*, title, description, canonical_url, date, date_display, covera
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){{dataLayer.push(arguments);}}
+  gtag('consent', 'default', {{ analytics_storage: 'denied' }});
   gtag('js', new Date());
 
   gtag('config', 'G-M9NL06G2JB');
 </script>
+<script src="/cookie-consent.js" defer></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="{escape(description)}">
 <meta name="keywords" content="{escape(keywords)}">
