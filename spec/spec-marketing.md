@@ -603,9 +603,6 @@ anything that depends on the gate's state must be exercised through
 
 ## 13. Non-goals
 
-- No analytics or tracking on the homepage. `js/tracker.js` covers the app and
-  has its own consent flow; the marketing page collects nothing.
-- No cookie banner, because the page sets no cookies.
 - No blog beyond the existing weekly ledger.
 - No pricing, testimonials, or team page.
 - No app store badges until the native builds in
