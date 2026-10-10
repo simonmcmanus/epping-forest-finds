@@ -449,6 +449,10 @@ class RenderReportEndToEndTests(unittest.TestCase):
             self.assertGreater(html.index('footer class="coverage"'), html.index('id="app"'))
             self.assertNotIn(">What's on the map</h2>", html)
             self.assertIn('/assets/home/epping-longhorns.jpg', html)
+            self.assertIn('<source type="image/webp"', html)
+            for width in (480, 768, 960, 1280, 1600):
+                self.assertIn(f'/assets/home/epping-longhorns-{width}.webp {width}w', html)
+            self.assertIn('fetchpriority="high"', rr.render_hero_photo())
             self.assertIn('once the site launches', html)
 
     def test_jargon_in_finding_body_blocks_render(self):

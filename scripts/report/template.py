@@ -57,6 +57,7 @@ REPORT_CSS = """
   .meta-row{display:flex;flex-direction:column;gap:10px;font-size:.9rem;color:#d8e5d3;}
   .meta-row .coverage{font-size:.78rem;line-height:1.6;}
   .hero-photo{margin:0;overflow:hidden;background:var(--forest-deep);display:flex;flex-direction:column;}
+  .hero-photo picture{display:contents;}
   .hero-photo img{display:block;width:100%;height:300px;object-fit:cover;flex:1;min-height:0;}
   .hero-photo figcaption{padding:12px 16px;font-size:.75rem;color:#d8e5d3;}
   .newsletter{display:flex;align-items:flex-start;gap:24px;background:var(--surface-2);padding:28px;border-radius:16px;}
