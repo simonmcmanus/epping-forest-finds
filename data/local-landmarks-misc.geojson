@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-10-06T07:20:40.219747Z",
+  "generatedAt": "2026-10-10T06:49:51.491407Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -3196,6 +3196,312 @@
         "address": null,
         "openingHours": null,
         "distanceToForestBoundaryMetres": 38.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/the-wanstead-curtain",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0246373,
+          51.580801
+        ]
+      },
+      "properties": {
+        "id": "manual/the-wanstead-curtain",
+        "osmType": "node",
+        "osmId": 13071011391,
+        "name": "The Wanstead Curtain",
+        "category": "theatre",
+        "categoryLabel": "Theatre",
+        "amenity": "theatre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 126.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/theydon-bois-village-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0961544,
+          51.6728544
+        ]
+      },
+      "properties": {
+        "id": "manual/theydon-bois-village-hall",
+        "osmType": "way",
+        "osmId": 142269853,
+        "name": "Theydon Bois Village Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Coppice Row Theydon Bois",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 45.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/thornwood-village-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1300755,
+          51.7217979
+        ]
+      },
+      "properties": {
+        "id": "manual/thornwood-village-hall",
+        "osmType": "way",
+        "osmId": 490852930,
+        "name": "Thornwood Village Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Weald Hall Lane Thornwood Common",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 304.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/umm-al-qura-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0478176,
+          51.5505156
+        ]
+      },
+      "properties": {
+        "id": "manual/umm-al-qura-centre",
+        "osmType": "node",
+        "osmId": 13426831001,
+        "name": "Umm Al-Qura Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://masjid-umalqura.com/",
+        "phone": "+447943111506;+442030040294",
+        "address": "530-542 High Street North London E12 6QN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 288.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/upshire-village-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0464253,
+          51.6905393
+        ]
+      },
+      "properties": {
+        "id": "manual/upshire-village-hall",
+        "osmType": "way",
+        "osmId": 584391796,
+        "name": "Upshire Village Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Horseshoe Hill Waltham Abbey EN9 3SN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 14.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/waltham-forest-resource-hub",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0158823,
+          51.5744904
+        ]
+      },
+      "properties": {
+        "id": "manual/waltham-forest-resource-hub",
+        "osmType": "way",
+        "osmId": 455661185,
+        "name": "Waltham Forest Resource Hub",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "1 Russell Road London E10 7ES",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 439.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/wanstead-house-community-association",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0292866,
+          51.5742506
+        ]
+      },
+      "properties": {
+        "id": "manual/wanstead-house-community-association",
+        "osmType": "way",
+        "osmId": 544370642,
+        "name": "Wanstead House Community Association",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 44.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/wanstead-library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0252928,
+          51.5758271
+        ]
+      },
+      "properties": {
+        "id": "manual/wanstead-library",
+        "osmType": "way",
+        "osmId": 1299953062,
+        "name": "Wanstead Library",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 125.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/woodbine-day-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0257835,
+          51.5759084
+        ]
+      },
+      "properties": {
+        "id": "manual/woodbine-day-centre",
+        "osmType": "way",
+        "osmId": 1299953063,
+        "name": "Woodbine Day Centre",
+        "category": "social_centre",
+        "categoryLabel": "Social Club",
+        "amenity": "social_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "25 Woodbine Place London",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 120.9,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
