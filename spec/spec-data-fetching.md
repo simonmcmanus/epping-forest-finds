@@ -43,6 +43,7 @@ Data fetching is **not** responsible for:
 | Landmarks – tourism | `data/local-landmarks-tourism.geojson` | GeoJSON |
 | Landmarks – misc | `data/local-landmarks-misc.geojson` | GeoJSON |
 | Folklore | `data/epping_forest_folklore_locations_v14_external_links.json` | Custom JSON |
+| Events | `data/events.json` | Custom JSON |
 | Paths | `data/local-paths.geojson` | GeoJSON |
 | Roads | `data/local-roads.geojson` | GeoJSON |
 | Environment | `data/local-environment.geojson` | GeoJSON |
@@ -230,11 +231,38 @@ Each item is normalized to:
 
 Folklore topic classification detects: `blue_plaque`, `film_tv`, `ww2`, `royal`, `social_history` from text content.
 
+### Events
+
+Source: `{ events: [{ id, name, description, lat, lon, startsAt, endsAt, sourceUrl }] }`.
+
+Each item is normalized via `normalizeEventLocations(data, nowMs)` (`js/normalize.js`) to:
+
+```
+{
+  id: item.id || "event-{index}",
+  name: item.name || "Forest event",
+  description, startsAt, endsAt, sourceUrl,
+  category: "event",
+  categoryTags: ["event"],
+  categoryLabel: "Event",
+  latitude, longitude,
+  point: projectLonLat(longitude, latitude),
+  dataSource: "event",
+}
+```
+
+Filter: Discard any item with no finite coordinates, and any event that is already over.
+`eventTimeWindow(event)` treats a missing `endsAt` as `startsAt + 24h`; `isEventPast` drops
+anything whose window has already closed (including one with no parseable `startsAt` at all).
+This is the app's second line of defence against shipping stale events to a client — the first
+is `scripts/prune_past_events.js`, which prunes the same expired rows out of the committed
+`data/events.json` itself before it is ever served, so the file a client downloads stays small.
+
 ### Combined Landmarks
 
-`state.landmarks = [...osmLandmarks, ...folkloreLandmarks]`
+`state.landmarks = [...osmLandmarks, ...folkloreLandmarks, ...eventLandmarks]`
 
-Both share the same interface fields: `name`, `latitude`, `longitude`, `point`, `categoryTags`.
+All three share the same interface fields: `name`, `latitude`, `longitude`, `point`, `categoryTags`.
 
 ### Paths
 
@@ -326,7 +354,7 @@ setLoadStep(key: string, status: "pending"|"loading"|"done"|"error", count?: num
 
 Steps and their count meanings:
 - `trees` — number of valid tree records
-- `places` — final combined landmark count (OSM + folklore)
+- `places` — final combined landmark count (OSM + folklore + events)
 - `paths` — number of path features
 - `roads` — number of road features
 - `environment` — number of environment features
@@ -343,7 +371,7 @@ The data-fetching step produces the following populated state, which is the **co
 interface AppData {
   trees: Tree[];
   namedTreeStoriesByName: Map<string, NamedTreeStory>;
-  landmarks: Landmark[];           // OSM + folklore combined
+  landmarks: Landmark[];           // OSM + folklore + events combined
   paths: PathFeature[];
   roads: RoadFeature[];
   environmentFeatures: GeoJSONFeature[];

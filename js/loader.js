@@ -148,6 +148,13 @@ async function loadMapData() {
     })
     .catch(() => ({ locations: [] }));
 
+  const eventsPromise = fetch(EVENTS_URL)
+    .then(async (r) => {
+      if (!r.ok) throw new Error(`Events data HTTP ${r.status}`);
+      return r.json();
+    })
+    .catch(() => ({ events: [] }));
+
   const pathsPromise = fetch(PATHS_URL)
     .then(async (r) => {
       if (!r.ok) throw new Error(`Paths data HTTP ${r.status}`);
@@ -192,10 +199,11 @@ async function loadMapData() {
       .catch(() => ({ ...layer, data: { type: "FeatureCollection", features: [] } }))
   );
 
-  const [treeData, landmarkData, folkloreData, pathsData, roadsData, environmentData, ...resolvedLayers] = await Promise.all([
+  const [treeData, landmarkData, folkloreData, eventsData, pathsData, roadsData, environmentData, ...resolvedLayers] = await Promise.all([
     treePromise,
     landmarkPromise,
     folklorePromise,
+    eventsPromise,
     pathsPromise,
     roadsPromise,
     environmentPromise,
@@ -242,7 +250,8 @@ async function loadMapData() {
     });
 
   const folkloreLandmarks = normalizeFolkloreLocations(folkloreData);
-  state.landmarks = [...osmLandmarks, ...folkloreLandmarks];
+  const eventLandmarks = normalizeEventLocations(eventsData);
+  state.landmarks = [...osmLandmarks, ...folkloreLandmarks, ...eventLandmarks];
   setLoadStep("places", "done", state.landmarks.length);
 
   state.paths = (pathsData.features || [])

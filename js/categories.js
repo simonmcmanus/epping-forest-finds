@@ -67,6 +67,14 @@ const FILTER_GROUPS = [
       { key: "art", label: "Art", icon: "art", title: "art" },
     ],
   },
+  {
+    key: "events",
+    label: "Events",
+    icon: "event",
+    subfilters: [
+      { key: "events", label: "Events", icon: "event", title: "events" },
+    ],
+  },
 ];
 
 const FILTER_GROUPS_BY_KEY = new Map(FILTER_GROUPS.map((group) => [group.key, group]));
@@ -94,6 +102,7 @@ const PLACE_FILTER_KEYS = new Set(
 // be tagged with -- Jacob Epstein's plaque is tagged `art`, and it drew an
 // artist's palette until `blue_plaques` got here.
 const PLACE_FILTER_PRIORITY = [
+  "events",
   "pubs", "restaurants", "cafes", "shops",
   "bus", "underground", "national_rail", "parking",
   "blue_plaques", "plaques", "ww2",
@@ -202,6 +211,7 @@ const ICON_PATHS = {
   church: "data/icons/church.png",
   cow: "data/icons/cow.png",
   education: "data/icons/education.png",
+  event: "data/icons/event.png",
   crown: "data/icons/crown.png",
   film: "data/icons/film.png",
   food: "data/icons/food.png",
@@ -386,6 +396,7 @@ function filterKindEmoji(kind) {
     case "national_rail": return appIconHtml("national-rail");
     case "parking": return appIconHtml("landmark-parking");
     case "landmark": return "📍";
+    case "events": return appIconHtml("event");
     case "plaques": return appIconHtml("plaques");
     case "blue_plaques": return appIconHtml("blue-plaques");
     case "film_tv": return appIconHtml("film");
@@ -434,6 +445,7 @@ function filterKindIconSlug(kind) {
     case "underground": return "underground";
     case "national_rail": return "national-rail";
     case "parking": return "landmark-parking";
+    case "events": return "event";
     case "plaques": return "plaques";
     case "blue_plaques": return "blue-plaques";
     case "film_tv": return "film";
@@ -523,6 +535,7 @@ function filterKindColor(kind) {
     case "underground": return "rgba(201, 24, 24, 0.85)";
     case "national_rail": return "rgba(0, 47, 167, 0.85)";
     case "parking": return "rgba(0, 90, 180, 0.85)";
+    case "events": return "rgba(13, 148, 136, 0.85)";
     case "landmark": return "rgba(118, 112, 47, 0.85)";
     case "plaques": return "rgba(78, 93, 135, 0.85)";
     case "blue_plaques": return "rgba(62, 103, 196, 0.85)";
@@ -756,6 +769,10 @@ function isMonumentCategory(place) {
   );
 }
 
+function isEventCategory(place) {
+  return Boolean(place) && place.dataSource === "event";
+}
+
 function isCampsiteCategory(place) {
   return Boolean(place) && (
     ["camp_site", "caravan_site"].includes(place.category)
@@ -766,6 +783,7 @@ function isCampsiteCategory(place) {
 
 function matchesPlaceFilter(place, filterKey) {
   switch (filterKey) {
+    case "events": return isEventCategory(place);
     case "pubs": return isPubCategory(place);
     case "restaurants": return isRestaurantCategory(place);
     case "cafes": return isCafeCategory(place);

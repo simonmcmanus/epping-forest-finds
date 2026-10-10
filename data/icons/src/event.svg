@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Calendar page with one date marked: a forest event. -->
+  <rect x="40" y="56" width="176" height="152" rx="18" fill="#f8f0d0" stroke="#284830" stroke-width="12"/>
+  <rect x="40" y="56" width="176" height="46" rx="18" fill="#c0a068" stroke="#284830" stroke-width="12"/>
+  <rect x="40" y="84" width="176" height="18" fill="#c0a068"/>
+  <circle cx="86" cy="56" r="14" fill="#80a068" stroke="#284830" stroke-width="10"/>
+  <circle cx="170" cy="56" r="14" fill="#80a068" stroke="#284830" stroke-width="10"/>
+  <circle cx="128" cy="152" r="30" fill="#b23a2e" stroke="#284830" stroke-width="10"/>
+</svg>

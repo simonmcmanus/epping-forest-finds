@@ -46,6 +46,7 @@ Provide a fast, mobile-first field map that still works in poor signal condition
 - `data/local-roads.geojson`
 - `data/local-environment.geojson`
 - `data/epping_forest_folklore_locations_v14_external_links.json` (enriched historical/cultural data)
+- `data/events.json` (time-bound events at a fixed location — fairs, guided walks, markets — merged into the map's landmarks; see "Events" below)
 
 ### Local landmarks extraction (OpenStreetMap via Overpass)
 
@@ -110,6 +111,32 @@ Includes:
 - Upstream source pattern: `https://account.nofence.no/api/open/data/?center=<lon>,<lat>`
 
 Cow requests use a fixed center coordinate (not user location) and refresh every 5 minutes.
+
+## Events
+
+Events (fairs, guided walks, markets — anything at a fixed location with a start/end time) are
+sourced from `data/events.json` and merged into `state.landmarks` exactly like folklore
+locations, so they get clustering, search, filtering, routing and the inspector's place-detail
+view for free rather than a parallel code path. **Events is a default-on filter category**, like
+Trees and Cows, shown as its own top-level group (not a subfilter of something else) with the
+calendar icon.
+
+- **Past events are never loaded into the app.** `scripts/prune_past_events.js` drops expired
+  events from the committed `data/events.json` itself, so a client never downloads bytes for
+  something nobody can still attend; `normalizeEventLocations` (`js/normalize.js`) drops them a
+  second time at load, in case a cached copy of the file is briefly stale. An event with no
+  `endsAt` is assumed to run for 24 hours from its `startsAt`.
+- Live event pin and detail view: see "Map Layers and Markers" and "Details Content
+  Requirements" below.
+- **Nearby-event alert (in-app only — no OS push).** On every GPS fix, if a *live* event (its
+  current time falls between `startsAt` and `endsAt`) is within the user's walking radius and
+  the Events filter is active, a dismissible banner appears over the map (`#eventNearbyBanner`,
+  same card styling as the compass-calibration banner) naming the event and the walk time.
+  Tapping it opens the event's detail view and dismisses the banner; dismissing it directly just
+  hides it. Each event alerts at most once per session — walking in and out of its radius, or
+  lingering nearby, never re-shows it. Real OS-level push notifications are a native-app
+  feature to revisit once there is a native wrapper (see `spec-native.md`); the static PWA has
+  no push-subscription backend.
 
 ## Core UX
 
@@ -191,6 +218,7 @@ Marker rules:
 - Transport filter is generic, but map icons differ by type:
   - train-like: 🚆
   - bus-like/stops: 🚌
+- Events draw with the calendar icon (`data/icons/event.png`), through the same place-marker pipeline as every other landmark.
 - Selected marker gets a clear highlight ring.
 - Background ornamental grid scales in world space with zoom.
 
@@ -301,7 +329,7 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 - **Onboarding (first visit):** On first visit (`forest-finds-onboarding-v1` not in localStorage), a full-screen onboarding overlay is shown while map data loads in the background. Steps: Location + compass opt-in (first, shown immediately as data loads) → Welcome → one step per filter group (Nature, Food, Transport, History, Locations, Stories). The location step is deliberately first so the browser permission dialog fires as soon as possible — the single "Enable location & compass" button is the only tap the user needs for permissions. Pressing "Enable location & compass" fires `getCurrentPosition` (browser dialog) and (on iOS) `DeviceOrientationEvent.requestPermission()` in the same synchronous gesture context, then advances to the welcome step so the user can personalise filters while data loads. "Skip for now" also advances to the welcome step without granting. A one-line `.privacy-note` under the step's subtitle states what's collected (GPS position, navigation, interactions) — the same wording the location gate shows next to its own button — since tapping "Enable location & compass" is itself the consent action. Each category step shows all subfilters as toggle chips (all on by default); the user deselects anything unwanted. A skip option is available on every step except the last, where the "Next" button becomes "Done" and finishes onboarding directly. If location is denied or times out after the onboarding button tap, the map is revealed without a second blocking prompt — the "Use my location" button in the inspector is available if they change their mind. On completion (or skip), selected filters are saved and onboarding is marked done. Implemented in `js/onboarding.js` + `css/onboarding.css`. **Icon performance:** All `data/icons/` PNGs (excluding PWA manifest icons) are capped at 256×256px — sufficient for the largest canvas draw size at retina zoom — reducing per-icon sizes from 400KB–1.4MB to under 100KB. `pin.png` and `trees/logo.png` are preloaded via `<link rel="preload">` in `index.html`. Each step also eagerly preloads the next step's icons via `new Image()` so images are in-flight while the user reads the current screen.
 - **Proactive location + compass on every load:** On returning visits, `getCurrentPosition` is called immediately when the app starts, running in parallel with map data loading so the browser's native permission dialog appears during the loading screen rather than after a tap. By the time data finishes loading the location is usually already resolved and the map opens centred on the user. If the auto-request is denied or times out, the location gate is shown after the map reveals so the user can retry. Immediately after a successful location fix at boot, compass permission is also requested: non-iOS browsers auto-grant; iOS shows the gate so the user can tap from a real gesture context (required by iOS for `DeviceOrientationEvent.requestPermission`).
 - **Compass permission — iOS per-session requirement:** On iOS, `DeviceOrientationEvent.requestPermission()` must be called from a synchronous user-gesture handler every page load before orientation events are fired — even when the user has previously granted permission. The stored `forest-finds-compass-permission-v1` value of `"granted"` is therefore treated as `"unknown"` at boot on iOS-like browsers (those where `DeviceOrientationEvent.requestPermission` is a function), so the compass gate is shown and the per-session call happens from the gate button click (a real user gesture). On non-iOS browsers no user gesture is required and the stored value is used as-is.
-- **Default filters:** On first visit, only **Trees** and **Cows** are pre-selected in the onboarding chip screens. All other subfilters start deselected. If onboarding is skipped without changes, only Trees and Cows are active.
+- **Default filters:** On first visit, only **Trees**, **Cows** and **Events** are pre-selected in the onboarding chip screens. All other subfilters start deselected. If onboarding is skipped without changes, only Trees, Cows and Events are active.
 - **Filter persistence:** Active filters and expanded groups are saved to `localStorage` under `forest-finds-filter-state-v1` and restored on next visit.
 - Supported overview filter groups and subfilters:
   - **Nature:** trees, cows, waymarked trails, ponds & streams
@@ -310,6 +338,7 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
   - **History:** historic places, royal history, WWII sites, social history, plaques, blue plaques
   - **Locations:** celebrity associations, science, education, medicine, literature, theatre, politics, art, churches
   - **Stories:** legends, film/TV locations
+- **Events:** events (a single subfilter — fairs, guided walks, markets; see "Events" above)
 - **Note:** Paths, hydrology, nature designations, and buildings are always visible as base layers and not included in filters.
 - Filters are multi-select within and across groups.
 - Selecting a top-level group enables all subfilters within that group.
@@ -468,6 +497,12 @@ Show place name/category/address/contact/source and appropriate emoji by type.
 
 Show serial/type/coordinates/last update/source.
 
+### Event details
+
+Show the event name, a "Happening now"/"Upcoming" status in place of a category label, the
+formatted date/time range ("When"), a "More info" link to `sourceUrl` when present, and the
+description. Shares the place detail layout (`showLandmarkDetails`) rather than a separate view.
+
 ## Legend / Key
 
 Legend reflects active marker semantics:
@@ -483,6 +518,7 @@ Legend reflects active marker semantics:
 - Historic sites & landmarks
 - Plaques & memorials
 - Generic locations
+- Events
 
 ## Attribution Rules
 

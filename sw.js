@@ -51,6 +51,7 @@ const DATA_SHELL = [
   "./data/local-landmarks-tourism.geojson",
   "./data/local-landmarks-misc.geojson",
   "./data/epping_forest_folklore_locations.json",
+  "./data/events.json",
   "./data/local-paths.geojson",
   "./data/local-environment.geojson",
 ];

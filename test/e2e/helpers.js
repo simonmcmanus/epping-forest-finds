@@ -39,6 +39,22 @@ async function mockCowApi(page) {
 }
 
 /**
+ * Intercept data/events.json with a caller-supplied fixture, so an events test can control
+ * exactly which events exist -- in particular, one that is "live" right now -- without being
+ * at the mercy of whatever's actually in the committed data/events.json or the real wall clock.
+ * Must be called before page.goto (same ordering as mockCowApi).
+ */
+async function mockEventsApi(page, events) {
+  await page.route("**/data/events.json", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ events }),
+    })
+  );
+}
+
+/**
  * Make an ungranted geolocation request fail immediately instead of hanging.
  *
  * Chromium answers getCurrentPosition neither way while the permission is still
@@ -181,6 +197,7 @@ module.exports = {
   setup,
   skipOnboarding,
   mockCowApi,
+  mockEventsApi,
   denyGeolocationUnlessGranted,
   gotoAndWaitForMap,
   settleMapIconsAndDraw,

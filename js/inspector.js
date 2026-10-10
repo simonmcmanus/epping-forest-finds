@@ -378,16 +378,24 @@ function showLandmarkDetails(place, distance) {
   setInspectorSelectionChrome({ emoji, showBack: true });
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = place.name || "Local place";
-  els.inspectorType.textContent = place.categoryLabel || "Local place";
+  const isEvent = isEventCategory(place);
+  els.inspectorType.textContent = isEvent
+    ? (eventStatusLabel(place) || place.categoryLabel || "Event")
+    : (place.categoryLabel || "Local place");
   const description = place.folkloreSummary || place.description || place.summary || null;
-  const rows = [
-    ["Address", place.address],
-    ["Type", place.type],
-    ["Area", place.area],
-    ["Confidence", place.confidence],
-    ["Website", place.website],
-    ["Phone", place.phone],
-  ];
+  const rows = isEvent
+    ? [
+        ["When", formatEventWhen(place)],
+        ["More info", place.sourceUrl],
+      ]
+    : [
+        ["Address", place.address],
+        ["Type", place.type],
+        ["Area", place.area],
+        ["Confidence", place.confidence],
+        ["Website", place.website],
+        ["Phone", place.phone],
+      ];
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
