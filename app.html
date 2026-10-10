@@ -114,6 +114,16 @@
         </div>
       </div>
 
+      <div id="eventNearbyBanner" class="event-nearby-banner" role="status" aria-live="polite" hidden>
+        <div class="event-nearby-banner-card">
+          <button id="eventNearbyBannerOpen" class="event-nearby-banner-open" type="button">
+            <span class="event-nearby-banner-icon" aria-hidden="true"><img class="app-icon" src="data/icons/event.png" alt=""></span>
+            <span id="eventNearbyBannerText" class="event-nearby-banner-text"></span>
+          </button>
+          <button id="eventNearbyBannerDismiss" class="event-nearby-banner-dismiss" type="button" aria-label="Dismiss">✕</button>
+        </div>
+      </div>
+
       <div class="legend" aria-label="Map legend">
         <span style="color: var(--tree);"><i class="dot"></i>Trees</span>
         <span style="color: #2f72b2;">💧 Hydrology</span>
@@ -131,6 +141,7 @@
         <span style="color: #4e5d87;">🪧 Plaques</span>
         <span style="color: #6d5c3a;">📜 History</span>
         <span style="color: #6f4d8c;">✨ Legends</span>
+        <span style="color: #0d9488;">📅 Events</span>
       </div>
 
       <!-- A bar of its own, not part of #inspector: it stays visible (and tappable) regardless
