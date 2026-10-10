@@ -618,6 +618,7 @@ function drawEnvironment(ctx) {
   const dpr = pixelRatio();
   const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
   const view = environmentViewWorldBounds();
+  const greenSpaceLabels = [];
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -642,6 +643,8 @@ function drawEnvironment(ctx) {
         stroke: "rgba(72, 130, 65, 0.46)",
         width: 1.1 * dpr,
       });
+      const name = feature.properties && feature.properties.name;
+      if (name && name.trim()) greenSpaceLabels.push({ geometry, name });
       continue;
     }
 
@@ -677,6 +680,8 @@ function drawEnvironment(ctx) {
       });
     }
   }
+
+  if (greenSpaceLabels.length) drawGreenSpaceLabels(ctx, greenSpaceLabels, dpr);
 
   loadBuildingsIfNeeded();
   if (state.buildingFeatures.length) {
@@ -815,6 +820,49 @@ function drawEnvironmentPolygon(ctx, geometry, style) {
     ctx.lineWidth = style.width;
     ctx.stroke();
   }
+}
+
+// Labels a nature-designation polygon with its name, but only when the polygon's own
+// on-screen footprint is roomy enough for the text to sit inside it -- small reserves
+// stay unlabeled rather than spilling text past their own outline. The "fits" check uses
+// the polygon's cached world bbox (projectedEnvironmentGeometry) projected to a screen-space
+// AABB, which stays correct under heading-up rotation and tilt since every corner goes
+// through the same worldToScreen as the polygon fill itself.
+function drawGreenSpaceLabels(ctx, labels, dpr) {
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const fontSize = Math.max(10, Math.round(11 * dpr));
+  ctx.font = `600 ${fontSize}px system-ui`;
+  const padding = 20 * dpr;
+
+  for (const { geometry, name } of labels) {
+    const bounds = projectedEnvironmentGeometry(geometry);
+    const worldCenter = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
+    if (isBehindTiltHeading(worldCenter)) continue;
+
+    const corners = [
+      { x: bounds.minX, y: bounds.minY }, { x: bounds.maxX, y: bounds.minY },
+      { x: bounds.minX, y: bounds.maxY }, { x: bounds.maxX, y: bounds.maxY },
+    ].map(worldToScreen);
+    const screenMinX = Math.min(...corners.map((c) => c.x));
+    const screenMaxX = Math.max(...corners.map((c) => c.x));
+    const screenMinY = Math.min(...corners.map((c) => c.y));
+    const screenMaxY = Math.max(...corners.map((c) => c.y));
+    const point = { x: (screenMinX + screenMaxX) / 2, y: (screenMinY + screenMaxY) / 2 };
+    if (!isNearCanvas(point, 0)) continue;
+
+    const textWidth = ctx.measureText(name).width;
+    if (textWidth + padding > screenMaxX - screenMinX) continue;
+    if (fontSize + padding > screenMaxY - screenMinY) continue;
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+    ctx.lineWidth = 3 * dpr;
+    ctx.strokeText(name, point.x, point.y);
+    ctx.fillStyle = "rgba(42, 74, 44, 0.95)";
+    ctx.fillText(name, point.x, point.y);
+  }
+  ctx.restore();
 }
 
 function drawRailwayLines(ctx, geometry, properties, style) {

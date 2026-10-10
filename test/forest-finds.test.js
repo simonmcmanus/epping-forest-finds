@@ -8841,11 +8841,13 @@ test("a pin hidden behind a selection is no longer tappable, so the tap is open 
 
 // A 2D-context stand-in that records the path it is given, so a test can see what was drawn.
 function recordingContext() {
-  const calls = { moveTo: [], lineTo: 0 };
+  const calls = { moveTo: [], lineTo: 0, fillText: [] };
   const ctx = new Proxy({}, {
     get(target, key) {
       if (key === "moveTo") return (x, y) => calls.moveTo.push({ x, y });
       if (key === "lineTo") return () => { calls.lineTo += 1; };
+      if (key === "fillText") return (text, x, y) => calls.fillText.push({ text, x, y });
+      if (key === "measureText") return (text) => ({ width: String(text).length * 8 });
       if (key in target) return target[key];
       return () => {};
     },
@@ -8853,6 +8855,29 @@ function recordingContext() {
   });
   return { ctx, calls };
 }
+
+test("a nature reserve's name is drawn only when it fits the polygon's on-screen size", () => {
+  resetData(app);
+  const square = (lon, lat, d) => ({ type: "Polygon", coordinates: [[[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]]] });
+  const roomy = { properties: { featureType: "nature_designation", name: "Deer Sanctuary" }, geometry: square(0.049, 51.649, 0.002) };
+  const cramped = { properties: { featureType: "nature_designation", name: "Deer Sanctuary" }, geometry: square(0.0495, 51.6495, 0.0001) };
+  const unnamed = { properties: { featureType: "nature_designation", name: null }, geometry: square(0.0485, 51.6485, 0.002) };
+  app.state.environmentFeatures = [roomy, cramped, unnamed];
+  const centre = app.projectLonLat(0.05, 51.65);
+  const scale = 200000;
+  app.state.viewport = { scale, tx: 500 - centre.x * scale, ty: 400 - centre.y * scale };
+
+  const originalLoadBuildings = app.swapGlobalFunction("loadBuildingsIfNeeded", () => {});
+  try {
+    const { ctx, calls } = recordingContext();
+    app.drawEnvironment(ctx);
+    assert.equal(calls.fillText.length, 1, "only the polygon roomy enough for the name gets a label; the tiny one and the unnamed one don't");
+    assert.equal(calls.fillText[0].text, "Deer Sanctuary");
+  } finally {
+    app.swapGlobalFunction("loadBuildingsIfNeeded", originalLoadBuildings);
+    app.state.environmentFeatures = [];
+  }
+});
 
 test("the environment and forest layers project each vertex once, not on every frame, and skip what is off screen", () => {
   resetData(app);

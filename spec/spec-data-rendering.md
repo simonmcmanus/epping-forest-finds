@@ -192,7 +192,7 @@ Rendered from `environmentFeatures`:
 
 - **Hydrology lines** (rivers, streams) — blue-tinted strokes
 - **Water/wetland polygons** — blue-tinted fills
-- **Nature designation polygons** — green-tinted fills
+- **Nature designation polygons** — green-tinted fills. A named polygon (e.g. a nature reserve) also gets its name drawn centered on it, but only when the name fits inside the polygon's on-screen footprint — the label is measured against the polygon's screen-space bounding box each frame and skipped entirely rather than drawn oversized or spilling past the outline.
 - **Railway lines** — dashed dark strokes with specific styling
 - **Buildings** (lazy-loaded) — opaque light-gray fills in 2D footprints; in full 3D tilt, roofs keep that same opaque fill while walls use subtle opaque side shading (fixed light-from-upper-left look) so buildings read as solid blocks without transparency and still transition cleanly when flattening to 2D.
 
