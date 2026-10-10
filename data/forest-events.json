@@ -88,6 +88,31 @@
       "source": "X/Twitter accounts of forest-adjacent organisations",
       "note": "Not usable for free. X removed free read access in 2023; reading another account's posts (search or timeline) now needs at minimum the paid Basic tier, priced per month rather than per use, which is a standing cost for monitoring accounts that mostly repeat what their own websites or Facebook pages already say. Not worth it unless a specific account turns out to be the only place an event is announced.",
       "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Wanstead Village Directory events calendar (wansteadvillagedirectory.com/events/ -- covers Wanstead and Wanstead Park, the forest's southern tip)",
+      "note": "A real, directly-fetchable, VERIFIED source: its WordPress 'The Events Calendar' plugin exposes a plain iCal feed at https://wansteadvillagedirectory.com/events/list/?ical=1 -- fetched and parsed on 2026-10-10 and confirmed to contain an actual VEVENT for 'Wanstead Beer Festival 2026' (DTSTART 2026-10-10T13:00 Europe/London, at Christ Church Hall, Wanstead), the event that went unnoticed and prompted this evaluation (github.com/simonmcmanus/epping-forest-finds/issues/192). This supersedes an earlier, unverified note in this file pointing at a different Wanstead calendar (Wansteadium's, run through a public Google Calendar) which was never actually confirmed to carry the festival -- don't resurrect that one without verifying its content first.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Visit Epping Forest events calendar (visiteppingforest.org/events/whats-on/events-calendar)",
+      "note": "The official Epping Forest District tourism site. A plain page with no feed, but its event list (dates, venue, description) is present in the raw HTML rather than requiring JavaScript, so it scrapes the same way Copped Hall's site does. Broader than any single town's listing: covers venues across the whole district, including Copped Hall and Epping Ongar Railway.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Epping Town Council events diary (eppingtowncouncil.gov.uk/Events_Diary_35167.aspx)",
+      "note": "A plain page (Town Show, Christmas Market, Remembrance services, Monday Market) with no feed, same treatment as Copped Hall's site: worth checking by hand each run, not yet worth a scraper.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Epping Ongar Railway (eorailway.co.uk) -- heritage railway in the district running galas and a Real Ale and Cider Weekend",
+      "note": "A real, forest-district-relevant venue, but eorailway.co.uk returned HTTP 503 to a direct automated fetch (both the events page and the site root) -- likely bot-blocking rather than the site being down, since the same content is reachable via search-engine caches and third-party listings (raildays.org). Covered indirectly via the Visit Epping Forest calendar above for now; worth re-testing eorailway.co.uk directly on a future run in case the block lifts.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Loughton Town Council, Waltham Abbey Town Council 'What's On', Waltham Forest borough-wide listings (which would cover Chingford), and Theydon Bois Parish Council's events category page",
+      "note": "No usable feed found for any of the four, and no current, dated events listing confirmed as of this evaluation -- Loughton's site surfaces only its news section (most recent dated item from 2025), Waltham Abbey's calendar is advertised as email-submission-only with no feed, Waltham Forest's borough events listing is paginated HTML with no RSS/Atom link found and nothing specific to Chingford, and Theydon Bois PC's 'Events' category is actually news-style posts by publish date, not event date, with the newest confirmed-dated item (an exhibition) from January 2023. Re-check each run rather than building automation against any of them yet; a council could add a feed at any time.",
+      "evaluated": "2026-10-10"
     }
   ]
 }
