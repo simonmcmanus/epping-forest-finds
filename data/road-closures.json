@@ -1,0 +1,72 @@
+{
+  "_comment": "Roads and access affected by closures/roadworks near the forest. Manually researched and verified on lastVerified; not yet fed by an automated script (see spec/spec-weekly-report.md).",
+  "entries": [
+    {
+      "id": "thameswater-high-beech-loughton-mains",
+      "title": "High Beech, Loughton water mains replacement",
+      "place": "Loughton",
+      "authority": "Thames Water",
+      "status": "ongoing",
+      "startDate": "2026-03-03",
+      "endDate": "2029-03",
+      "body": "A roughly 19km, three-year mains replacement across more than 60 roads in Loughton. Streets already finished this year: Queens Road, Spareleaze Hill, Hillyfields, Woodbury Hill, Rectory Lane. Streets with work underway or starting around now: Traps Hill (Jun-Dec 2026), Kings Hill (Sep-Nov 2026), Carroll Hill (Sep-Dec 2026), Hillcroft (Oct-Dec 2026). England's Lane and Staples Road are scheduled Aug 2026-Jul 2027.",
+      "lon": 0.0247,
+      "lat": 51.658,
+      "activeStreets": [
+        {"name": "Traps Hill", "window": "2026-06 to 2026-12", "lon": 0.0570822, "lat": 51.6495793},
+        {"name": "Kings Hill", "window": "2026-09 to 2026-11"},
+        {"name": "Carroll Hill", "window": "2026-09 to 2026-12", "lon": 0.0629071, "lat": 51.6523339},
+        {"name": "Hillcroft", "window": "2026-10 to 2026-12", "lon": 0.0699392, "lat": 51.6570972}
+      ],
+      "needsReverification": true,
+      "reverificationNote": "Street-by-street dates are from June 2026 MP correspondence, not Thames Water's own live schedule -- confirm against the project page before quoting a specific street/date in a report.",
+      "sources": [
+        {"label": "Thames Water project page", "url": "https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/high-beech-loughton-mains-replacement"},
+        {"label": "Thames Water: Loughton mains replacement begins", "url": "https://www.thameswater.co.uk/news/2026/apr/thames-water-investing-in-loughton-s-future-as-mains-replacement-project-begins"},
+        {"label": "Epping Forest MP correspondence on disruption", "url": "https://www.neilhudson.org.uk/news/epping-forest-mp-presses-thames-water-minimise-disruption-loughton-residents"}
+      ],
+      "lastVerified": "2026-10-10"
+    },
+    {
+      "id": "essexhighways-bakers-lane-cottis-lane-epping",
+      "title": "Bakers Lane / Cottis Lane, Epping carriageway improvements",
+      "place": "Epping",
+      "authority": "Essex Highways",
+      "status": "uncertain",
+      "startDate": "2026-03",
+      "endDate": null,
+      "body": "Multi-phase carriageway reconstruction near Bakers Lane / Cottis Lane, Epping, with signed diversions via St John's Road, Coronation Hill and Lincolns Field. A July 2026 residents' letter put final surfacing around 26 July 2026 (subject to change), but no later update was found -- status as of October 2026 is unconfirmed.",
+      "lon": 0.1101083,
+      "lat": 51.7013379,
+      "needsReverification": true,
+      "reverificationNote": "No update found after the July 2026 residents' letter. Check https://www.essexhighways.org/bakers-lane-epping for the current position before reporting this as open or closed.",
+      "sources": [
+        {"label": "Essex Highways: Bakers Lane / Cottis Lane project page", "url": "https://www.essexhighways.org/bakers-lane-epping"},
+        {"label": "Essex Highways progress update, 6 March 2026", "url": "https://www.essexhighways.org/news/bakers-lane-cottis-lane-epping-progress-update"}
+      ],
+      "lastVerified": "2026-10-10"
+    }
+  ],
+  "sourceNotes": [
+    {
+      "source": "Street Manager roadworks API (findtransportdata.dft.gov.uk)",
+      "note": "Free, OGL-licensed national API for England covering every utility and local-highway-authority road work -- the best candidate for an automated script, once one is built. Requires a registered account; not yet wired into this project.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Essex Highways future/live roadworks map (essexhighways.org/future-roadworks-map, essexhighways.org/interactive-maps-and-live-travel-information/live-traffic-map)",
+      "note": "Authoritative for Essex, but it's a one.network-powered interactive map (JS-rendered), not a page a script can scrape directly or a feed it can poll -- an API key from one.network (info@one.network) would be needed for automation.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Thames Water improvements-in-your-area pages",
+      "note": "Static per-project pages (already used for High Beech). Reliable for the headline project but its own street-by-street dates lag behind what's actually happening -- cross-check with local press/MP correspondence as done here.",
+      "evaluated": "2026-10-10"
+    },
+    {
+      "source": "eppingforestdc.gov.uk/advance-notice-of-epping-road-closures",
+      "note": "This URL (named in the weekly-ledger workflow prompt and spec-weekly-report.md) now 404s. The council appears to have moved or retired this page -- the workflow's road-closure research step needs a replacement source.",
+      "evaluated": "2026-10-10"
+    }
+  ]
+}

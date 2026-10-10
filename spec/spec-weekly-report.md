@@ -231,6 +231,34 @@ which is why every proposed data change arrived with a red suite on it.
 `spec-marketing.md` from the datasets; the weekly run calls it straight after
 applying a changeset. See `spec-marketing.md` §4.
 
+## Road closures, events and standing notices
+
+Unlike business detection, the "road & access" and "events" sections have no
+dedicated script or memory of their own yet — each run researches them fresh
+with `WebSearch`/`WebFetch` against a fixed URL list in the workflow prompt,
+so nothing persists between runs and a long-running item (the High Beech
+water-mains project, say) has to be hand-coded into the prompt as a standing
+reminder rather than remembered automatically.
+
+`data/road-closures.json`, `data/forest-events.json` and
+`data/forest-notices.json` are a first step towards fixing that: real,
+researched entries (road/utility works, dated events, and standing
+visit-affecting notices — car park hours, riding/fishing seasons,
+conservation works — that fit none of the report's existing categories) with
+their own sources and a `lastVerified` date, seeded by hand rather than by a
+script. Each file's `sourceNotes` records which upstream sources were
+evaluated and why (an API worth building a scraper against, a page too
+JS-rendered to scrape, a URL that has gone 404) — that evaluation is the
+reusable part until a script like `osm_business_diff.py`'s exists for this
+data. An entry marked `needsReverification` is a research gap being surfaced
+honestly, not a finding ready to print — the weekly run must not treat it as
+confirmed.
+
+These files are not yet read by `render_report.py`, `apply_weekly_changeset.py`
+or the weekly workflow; wiring them in (and deciding whether "notices" becomes
+a sixth `categories.py` entry or folds into an existing one) is follow-up
+work, not done here.
+
 ## Files
 
 - `scripts/report/render_report.py` — entry point; renders the page
@@ -256,6 +284,9 @@ Business detection (see "Keeping the map's businesses current" above):
 - `scripts/sync-homepage-counts.js` — keeps the homepage's quoted counts true
 - `data/business-watch.json` — the committed watchlist
 - `data/verification.json` — the committed confirmation record
+- `data/road-closures.json`, `data/forest-events.json`, `data/forest-notices.json`
+  — manually-researched road/event/notice entries and source evaluations (see
+  "Road closures, events and standing notices" above); not yet script-fed
 - `scripts/test_*.py` for each of the above — unit tests
 
 Handy while working: `npm run audit:quality` and `npm run audit:duplicates`.

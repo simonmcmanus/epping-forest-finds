@@ -1,0 +1,52 @@
+{
+  "_comment": "Standing visit-affecting notices (access, facilities, conservation) that aren't road closures or one-off events -- a category the ledger doesn't render yet. Manually researched and verified on lastVerified; see spec/spec-weekly-report.md.",
+  "entries": [
+    {
+      "id": "car-park-hours-2026-09",
+      "category": "facility",
+      "title": "Shorter car park hours",
+      "place": "Epping Forest car parks",
+      "startDate": "2026-09-15",
+      "endDate": null,
+      "status": "ongoing",
+      "body": "Car park opening hours shortened from 7:00am-8:00pm to 7:00am-6:30pm from Monday 15 September 2026.",
+      "sources": [{"label": "City of London: What's new in Epping Forest", "url": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest"}],
+      "lastVerified": "2026-10-10"
+    },
+    {
+      "id": "open-riding-season-2026",
+      "category": "access",
+      "title": "Open riding season",
+      "place": "Epping Forest",
+      "startDate": "2026-04-17",
+      "endDate": null,
+      "status": "ongoing",
+      "body": "Open riding (horse riding off the designated riding routes) started at 00:01 on Friday 17 April 2026. End date for the season not stated on the source page.",
+      "needsReverification": true,
+      "reverificationNote": "No end date found -- confirm whether open riding is still in effect before reporting it as current.",
+      "sources": [{"label": "City of London: What's new in Epping Forest", "url": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest"}],
+      "lastVerified": "2026-10-10"
+    },
+    {
+      "id": "baldwins-pond-dam-works-2026",
+      "category": "works",
+      "title": "Baldwins Pond dam investigation works",
+      "place": "Baldwins Pond",
+      "startDate": "2026-08",
+      "endDate": null,
+      "status": "ongoing",
+      "body": "Cognition Land and Water Ltd is carrying out site investigations to inform future improvements to the Baldwins Pond dam. A public consultation is expected to follow, with construction expected to begin in spring (year not stated, presumably 2027).",
+      "lon": 0.0096,
+      "lat": 51.6295,
+      "sources": [{"label": "City of London: What's new in Epping Forest", "url": "https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest"}],
+      "lastVerified": "2026-10-10"
+    }
+  ],
+  "sourceNotes": [
+    {
+      "source": "cityoflondon.gov.uk/.../whats-new-in-epping-forest, section 'Things Affecting Your Visit'",
+      "note": "The only page found that collects these standing notices in one place. No dates on several items (e.g. Jubilee Pond pump repair 'from 1 June' with no end), so some entries above are deliberately marked needsReverification rather than asserted as still current.",
+      "evaluated": "2026-10-10"
+    }
+  ]
+}
