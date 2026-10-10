@@ -7,8 +7,8 @@
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v80";
-const DATA_CACHE_NAME = "forest-finds-data-v21";
+const APP_CACHE_NAME = "forest-finds-app-v82";
+const DATA_CACHE_NAME = "forest-finds-data-v23";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
 // "./" is deliberately absent: after the alpha URL split it resolves to the
