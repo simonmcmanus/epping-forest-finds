@@ -97,7 +97,19 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .inventory-group [data-inventory-key]:has(.inventory-toggle[aria-expanded="true"]) { margin: 8px -13px 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-alt); box-shadow: var(--shadow); }
 .inventory-toggle[aria-expanded="true"] { color: var(--tree-deep); }
 .inventory-toggle:hover { color: var(--ink); }
-.inventory-group .inventory-items { flex: 0 0 100%; min-width: 0; padding: 12px 0 0; font-family: inherit; font-size: .9rem; }
+.inventory-group .inventory-items { flex: 0 0 100%; min-width: 0; font-family: inherit; font-size: .9rem; grid-template-rows: 0fr; opacity: 0; }
+.inventory-items:not([hidden]) { display: grid; }
+.inventory-clip { min-height: 0; overflow: hidden; }
+.inventory-content { padding-top: 12px; }
+[data-inventory-key]:has(.inventory-toggle[aria-expanded="true"]) .inventory-items { grid-template-rows: 1fr; opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .inventory-group [data-inventory-key] { transition: background-color .26s ease, box-shadow .26s ease, padding .26s ease, margin .26s ease, border-width .26s ease, border-color .26s ease; border: 0 solid transparent; border-radius: 10px; }
+  .inventory-group .inventory-items { transition: grid-template-rows .26s cubic-bezier(.2,.7,.2,1), opacity .2s ease; }
+  .inventory-toggle, .inventory-action { transition: color .2s ease, background-color .2s ease; }
+  .inventory-toggle::after { transition: transform .26s cubic-bezier(.2,.7,.2,1), color .2s ease; }
+  .inventory-items ul { animation: inventory-arrive .2s ease both; }
+}
+@keyframes inventory-arrive { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .inventory-items input { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; }
 .inventory-items p { margin: 10px 0; color: var(--muted); font-size: .8rem; }
 .inventory-items ul { max-height: 320px; overflow-y: auto; overscroll-behavior: contain; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }

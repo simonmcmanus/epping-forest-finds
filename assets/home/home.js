@@ -28,17 +28,31 @@
     panel.className = "inventory-items";
     panel.hidden = true;
     row.appendChild(panel);
+    var clip = document.createElement("section");
+    clip.className = "inventory-clip";
+    var content = document.createElement("section");
+    content.className = "inventory-content";
+    clip.appendChild(content);
+    panel.appendChild(clip);
+    var closeTimer;
+
+    function finishClose() {
+      if (button.getAttribute("aria-expanded") === "false") panel.hidden = true;
+    }
+    panel.addEventListener("transitionend", function (event) {
+      if (event.target === panel && event.propertyName === "grid-template-rows") finishClose();
+    });
 
     var status = document.createElement("p");
     status.setAttribute("role", "status");
-    panel.appendChild(status);
+    content.appendChild(status);
     var retry = document.createElement("button");
     retry.type = "button";
     retry.className = "inventory-action";
     retry.textContent = "Try again";
     retry.hidden = true;
     retry.addEventListener("click", load);
-    panel.appendChild(retry);
+    content.appendChild(retry);
     var loaded = false;
     var loading = false;
     var icon = button.querySelector("img");
@@ -47,7 +61,7 @@
     var animationFailed = false;
 
     function updateIcon() {
-      var animate = !panel.hidden && !motionPreference.matches && document.visibilityState !== "hidden" && !animationFailed;
+      var animate = button.getAttribute("aria-expanded") === "true" && !motionPreference.matches && document.visibilityState !== "hidden" && !animationFailed;
       var source = animate ? animatedIcon : stillIcon;
       if (icon.getAttribute("src") !== source) icon.setAttribute("src", source);
     }
@@ -57,6 +71,9 @@
       updateIcon();
     });
     motionPreference.addEventListener("change", updateIcon);
+    motionPreference.addEventListener("change", function () {
+      if (motionPreference.matches) finishClose();
+    });
     document.addEventListener("visibilitychange", updateIcon);
 
     function showItems(items) {
@@ -64,14 +81,14 @@
       search.type = "search";
       search.placeholder = "Search " + label.toLowerCase();
       search.setAttribute("aria-label", "Search " + label.toLowerCase());
-      panel.insertBefore(search, status);
+      content.insertBefore(search, status);
       var list = document.createElement("ul");
-      panel.appendChild(list);
+      content.appendChild(list);
       var more = document.createElement("button");
       more.type = "button";
       more.className = "inventory-action";
       more.textContent = "Show more";
-      panel.appendChild(more);
+      content.appendChild(more);
       var limit = 50;
 
       function render() {
@@ -123,10 +140,19 @@
     }
 
     button.addEventListener("click", function () {
-      panel.hidden = !panel.hidden;
-      button.setAttribute("aria-expanded", String(!panel.hidden));
+      var opening = button.getAttribute("aria-expanded") !== "true";
+      clearTimeout(closeTimer);
+      if (opening) {
+        panel.hidden = false;
+        // Establish the collapsed grid before transitioning into its natural height.
+        void panel.offsetHeight;
+      }
+      panel.inert = !opening;
+      button.setAttribute("aria-expanded", String(opening));
       updateIcon();
-      if (!panel.hidden) load();
+      if (opening) load();
+      else if (motionPreference.matches) finishClose();
+      else closeTimer = setTimeout(finishClose, 300);
     });
   });
 })();

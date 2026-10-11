@@ -11,6 +11,32 @@ const { buildInventory } = require("../../scripts/report/map-inventory.js");
 const { formatCount } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
+  test("smoothly reverses category transitions and closes immediately with reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/");
+    const row = page.locator('[data-inventory-key="churches"]');
+    const button = row.getByRole("button", { name: "Churches", exact: true });
+    const panel = row.locator(".inventory-items");
+    await button.click();
+    await expect(panel.getByRole("listitem").first()).toBeVisible();
+    const closing = await button.evaluate(el => {
+      el.click();
+      const panel = document.getElementById(el.getAttribute("aria-controls"));
+      return { hidden: panel.hidden, inert: panel.inert, transitions: panel.getAnimations().length };
+    });
+    expect(closing).toEqual({ hidden: false, inert: true, transitions: 2 });
+    await button.evaluate(el => el.click());
+    await expect(button).toHaveAttribute("aria-expanded", "true");
+    await expect(panel).toHaveJSProperty("inert", false);
+    await expect(panel.getByRole("searchbox")).toBeVisible();
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const hidden = await button.evaluate(el => {
+      el.click();
+      return document.getElementById(el.getAttribute("aria-controls")).hidden;
+    });
+    expect(hidden).toBe(true);
+  });
+
   test("animates an expanded category icon and restores its still artwork on close or reduced motion", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto("/");
@@ -46,6 +72,8 @@ test.describe("the marketing homepage", () => {
     expect(closed.symbol).toBe('""');
     await button.click();
     await expect(row.locator(".inventory-items")).toBeVisible();
+    await expect(row).toHaveCSS("padding-left", "12px");
+    await expect(row.locator(".inventory-items li").first()).toBeVisible();
     await expect.poll(async () => (await appearance()).chevron).not.toBe(closed.chevron);
     const opened = await appearance();
     expect(opened.background).not.toBe(closed.background);

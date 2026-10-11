@@ -230,6 +230,10 @@ Sections, in order:
    and up to 50 results initially; “Show more” reveals another 50. Lists scroll
    within a bounded panel. Loading, empty, no-match and retry states are explicit.
    Lists are retained when collapsed; no category data is fetched before opening.
+   Expansion and collapse ease over 260ms, including the panel height, card
+   spacing, shading and chevron rotation; results fade in gently. Rapid toggles
+   reverse the transition, closing immediately removes controls from keyboard
+   navigation, and reduced motion makes all state changes immediate.
    Only expanded category icons animate, using independent animated PNGs in
    `assets/home/map-icons/animated/`. `scripts/generate-home-icon-motion.js`
    renders these from the existing icon motion at generation time; no app code
