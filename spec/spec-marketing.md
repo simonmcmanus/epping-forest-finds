@@ -222,10 +222,12 @@ Sections, in order:
    subcategory labels become keyboard-accessible expand/collapse buttons when
    JavaScript is available. Collapsed rows retain the original compact spacing;
    a small downward chevron indicates each button and points upward when open.
-   The expanded category is a pale green card with a thin border, 10px corners,
+   The expanded category is a warm cream (`#f6f1e7`) panel with a thin border, 10px corners,
    no inner shadow and 12px inset padding, preserving the label/count
    alignment. Its results form a white, bordered, rounded list with 12px row
-   padding and separators. Opening one loads its own homepage JSON list and
+   padding and separators. The animation wrappers have no section borders or
+   inherited section padding: just 12px above the search field and the outer
+   panel’s 12px bottom inset. Opening one loads its own homepage JSON list and
    shows names with available addresses/areas (or tree tags), a search field,
    and up to 50 results initially; “Show more” reveals another 50. Lists scroll
    within a bounded panel. Loading, empty, no-match and retry states are explicit.

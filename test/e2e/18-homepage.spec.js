@@ -96,6 +96,15 @@ test.describe("the marketing homepage", () => {
     expect(card.padding).toBe(12);
     expect(card.shadow).toBe("none");
     expect(card.listBackground).toBe(card.searchBackground);
+    const spacing = await row.evaluate(el => {
+      const header = el.querySelector("dt").getBoundingClientRect();
+      const search = el.querySelector("input").getBoundingClientRect();
+      const list = el.querySelector("ul").getBoundingClientRect();
+      return { above: search.top - header.bottom, below: el.getBoundingClientRect().bottom - list.bottom };
+    });
+    expect(spacing.above).toBeLessThanOrEqual(14);
+    expect(spacing.below).toBeLessThanOrEqual(14);
+    await expect(row).toHaveCSS("background-color", "rgb(246, 241, 231)");
     await button.press("Enter");
     await expect(row.locator(".inventory-items")).toBeHidden();
     await expect.poll(appearance).toEqual(closed);
