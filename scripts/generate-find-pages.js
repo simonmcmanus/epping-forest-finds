@@ -2,17 +2,21 @@
 "use strict";
 
 /**
- * Generates one static, crawlable category page per POI filter subfilter
- * (Proposal B: "Location Pages for SEO") -- e.g. find/pubs/index.html,
- * served at /find/pubs. A category's count here is exactly what the map
- * would show for it: this reuses the weekly report's own classification
+ * Generates one crawlable category page per POI filter subfilter -- e.g.
+ * find/pubs/index.html, served at /find/pubs/ -- by templating off the real
+ * app.html rather than writing a separate static page. The result IS the
+ * app: same DOM, same <script src> list, same CSS. Only the <head>'s SEO
+ * tags and the inspector's initial (pre-boot) content are swapped in, so a
+ * crawler or a visitor arriving before JS has booted sees real, specific
+ * content, and js/app.js's filterKeyFromFindPath() then reads the category
+ * straight out of the URL path once it does boot, pre-filtering Nearby to
+ * it -- no separate marketing page, no redirect through /app.
+ *
+ * A category's count is exactly what the map would show for it: this
+ * reuses the weekly report's own classification
  * (scripts/report/map-inventory.js, which loads js/categories.js's real
  * rules), rather than recomputing it separately and risking the two
  * drifting apart.
- *
- * Each page's "See them all" link goes to /app?show=<key>, which
- * js/app.js's boot sequence (applyShowFilterFromQuery) reads to land
- * already filtered to that one category.
  *
  * Run directly: node scripts/generate-find-pages.js
  * Also exported for tests (see test/find-pages.test.js).
@@ -26,8 +30,23 @@ const { buildInventory, loadAppRules } = require("./report/map-inventory.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITE_NAME = "Epping Forest Finds";
-const SOCIAL_IMAGE = `${SITE_ORIGIN}/assets/home/epping-longhorns-social.jpg`;
 const FIND_DIR_NAME = "find";
+const APP_HTML_NAME = "app.html";
+
+// The exact strings in app.html this generator swaps per page. Matched literally (not by a
+// template placeholder app.html doesn't otherwise need) so a future edit to app.html that
+// removes one of these breaks the build loudly here, rather than silently generating a page
+// that still carries the generic /app meta tags.
+const APP_TITLE = "<title>Epping Forest Finds — offline map of Epping Forest</title>";
+const APP_DESCRIPTION_META =
+  '<meta name="description" content="A free offline map of Epping Forest. Find veteran trees, pubs, cafés, car parks, toilets, paths and stations near you, see where the forest\'s grazing cattle are, and keep working with no phone signal.">';
+const APP_CANONICAL = '<link rel="canonical" href="https://www.eppingforestfinds.uk/app">';
+const APP_OG_TITLE = '<meta property="og:title" content="Epping Forest Finds — offline map of Epping Forest">';
+const APP_OG_DESCRIPTION =
+  '<meta property="og:description" content="A free offline map of Epping Forest: veteran trees, pubs and cafés, paths, car parks and the forest\'s grazing cattle — working with no phone signal.">';
+const APP_OG_URL = '<meta property="og:url" content="https://www.eppingforestfinds.uk/app">';
+const APP_EMPTY_STATE =
+  '<p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>';
 
 function slugFor(key) {
   return key.replace(/_/g, "-");
@@ -49,6 +68,31 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/** Replaces the one occurrence of `needle` in `html`, throwing if app.html no longer has it. */
+function replaceOnce(html, needle, replacement, label) {
+  const count = html.split(needle).length - 1;
+  if (count !== 1) {
+    throw new Error(
+      `[generate-find-pages] expected exactly one "${label}" in app.html, found ${count} -- ` +
+        "app.html changed in a way this generator's template no longer matches."
+    );
+  }
+  return html.replace(needle, replacement);
+}
+
+/**
+ * app.html's CSS/JS/icon references are relative (e.g. "css/base.css"), which resolves
+ * correctly from /app (one path segment, no trailing slash) but not from /find/<slug>/ (nested
+ * one level deeper, with a trailing slash) -- the browser would look for
+ * /find/<slug>/css/base.css and 404. Root-relativizes every such href/src so the same assets
+ * load regardless of how deep the page's own URL is. Leaves alone anything already absolute
+ * (a leading "/", a scheme, a fragment) -- in particular the canonical/OG tags already rewritten
+ * to full https:// URLs above this call.
+ */
+function rootRelativizeAssetPaths(html) {
+  return html.replace(/((?:href|src)=")(?!https?:|\/|#|data:)([^"]+)(")/g, "$1/$2$3");
 }
 
 /**
@@ -77,7 +121,7 @@ function collectPages(rules, inventory) {
   return pages;
 }
 
-function renderPage(page) {
+function renderPage(page, appHtml) {
   // Trailing slash: Netlify's static hosting serves find/<slug>/index.html directly only at
   // /find/<slug>/, 301-redirecting the bare path to it (the same convention /reports/ already
   // uses, STATIC_PAGES in generate-sitemap.js) -- the canonical/OG/JSON-LD url must be the one
@@ -96,67 +140,60 @@ function renderPage(page) {
   };
 
   const siblingLinks = page.siblings
-    .map((s) => `<li><a href="/find/${escapeHtml(s.slug)}/">${escapeHtml(s.label)}</a></li>`)
-    .join("\n        ");
+    .map((s) => `<a href="/find/${escapeHtml(s.slug)}/">${escapeHtml(s.label)}</a>`)
+    .join(", ");
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(titleTag)}</title>
-  <meta name="description" content="${escapeHtml(description)}">
-  <link rel="canonical" href="${canonical}">
-  <meta name="theme-color" content="#24382f">
+  // What a crawler, or a visitor, sees before js/app.js boots and replaces #inspectorBody with
+  // the live Nearby list (transitionInspectorBody, js/inspector.js) -- real, specific, crawlable
+  // text and links, in the exact spot the app's own "nothing selected yet" message lives today.
+  const seoContent = `<p>Find all ${page.count} ${escapeHtml(page.title)} in Epping Forest, mapped and ready to walk to. Enable location to see how far each one is and get walking directions.</p>` +
+    (siblingLinks ? `<p>More in ${escapeHtml(page.groupLabel)}: ${siblingLinks}.</p>` : "");
 
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="${escapeHtml(page.label)} in Epping Forest">
-  <meta property="og:description" content="${escapeHtml(description)}">
-  <meta property="og:url" content="${canonical}">
-  <meta property="og:image" content="${SOCIAL_IMAGE}">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
-
-  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
-
-  <style>
-    :root { color-scheme: light; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f8f4; color: #1c2a22; }
-    main { max-width: 640px; margin: 0 auto; padding: 32px 20px 56px; }
-    h1 { font-size: 1.75rem; margin: 0 0 12px; color: #1c2a22; }
-    p { line-height: 1.5; }
-    .cta { display: inline-block; margin: 20px 0; padding: 12px 20px; border-radius: 999px; background: #2f6f4e; color: #fff; text-decoration: none; font-weight: 600; }
-    .cta:hover { background: #24382f; }
-    h2 { font-size: 1.1rem; margin-top: 32px; }
-    ul { padding-left: 20px; }
-    a { color: #2f6f4e; }
-    footer { margin-top: 40px; font-size: 0.85rem; color: #5a6a60; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>${escapeHtml(page.label)} in Epping Forest</h1>
-    <p>${escapeHtml(description)}</p>
-    <a class="cta" href="/app?show=${encodeURIComponent(page.key)}">See them all on the map</a>
-    ${siblingLinks ? `<h2>More in ${escapeHtml(page.groupLabel)}</h2>\n    <ul>\n        ${siblingLinks}\n    </ul>` : ""}
-    <footer>
-      <p><a href="/">Epping Forest Finds</a> &mdash; the offline map of Epping Forest.</p>
-    </footer>
-  </main>
-</body>
-</html>
-`;
+  let html = appHtml;
+  html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
+  html = replaceOnce(
+    html,
+    APP_DESCRIPTION_META,
+    `<meta name="description" content="${escapeHtml(description)}">`,
+    "meta description"
+  );
+  html = replaceOnce(html, APP_CANONICAL, `<link rel="canonical" href="${canonical}">`, "canonical link");
+  html = replaceOnce(
+    html,
+    APP_OG_TITLE,
+    `<meta property="og:title" content="${escapeHtml(page.label)} in Epping Forest">`,
+    "og:title"
+  );
+  html = replaceOnce(
+    html,
+    APP_OG_DESCRIPTION,
+    `<meta property="og:description" content="${escapeHtml(description)}">`,
+    "og:description"
+  );
+  html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
+  // app.html's own og:image (a brand icon) is left as-is rather than duplicated here -- two
+  // og:image tags would conflict, and most consumers only read the first one anyway.
+  html = replaceOnce(
+    html,
+    "</head>",
+    `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`,
+    "</head>"
+  );
+  html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
+  html = rootRelativizeAssetPaths(html);
+  return html;
 }
 
 function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInventory(siteRoot)) {
   const rules = loadAppRules();
   const pages = collectPages(rules, inventory);
+  const appHtml = fs.readFileSync(path.join(siteRoot, APP_HTML_NAME), "utf8");
   const findDir = path.join(siteRoot, FIND_DIR_NAME);
   fs.mkdirSync(findDir, { recursive: true });
   for (const page of pages) {
     const pageDir = path.join(findDir, page.slug);
     fs.mkdirSync(pageDir, { recursive: true });
-    fs.writeFileSync(path.join(pageDir, "index.html"), renderPage(page), "utf8");
+    fs.writeFileSync(path.join(pageDir, "index.html"), renderPage(page, appHtml), "utf8");
   }
   return pages;
 }
@@ -174,7 +211,16 @@ function listFindSlugs(siteRoot) {
     .sort();
 }
 
-module.exports = { collectPages, renderPage, generate, listFindSlugs, slugFor, buildTitleIndex, FIND_DIR_NAME };
+module.exports = {
+  collectPages,
+  renderPage,
+  generate,
+  listFindSlugs,
+  slugFor,
+  buildTitleIndex,
+  rootRelativizeAssetPaths,
+  FIND_DIR_NAME,
+};
 
 if (require.main === module) {
   const pages = generate();

@@ -274,6 +274,7 @@ globalThis.__forestFindsTest = {
   releaseStrandedAnimationFrames,
   setOverviewFilters,
   applyShowFilterFromQuery,
+  filterKeyFromFindPath,
   applyWalkingRadiusChange,
   selectionCameraTransitionActive,
   headsUpSortedEntries,
@@ -1630,6 +1631,26 @@ test("an unknown or missing ?show= value leaves the current filters alone", () =
   app.location.search = "";
   app.applyShowFilterFromQuery();
   assert.deepEqual(Array.from(app.state.overviewFilters), ["cafes"], "no ?show= param at all leaves filters untouched");
+});
+
+test("filterKeyFromFindPath reads the category straight from a /find/<slug> path, hyphens back to underscores", () => {
+  assert.equal(app.filterKeyFromFindPath("/find/pubs"), "pubs");
+  assert.equal(app.filterKeyFromFindPath("/find/pubs/"), "pubs", "the trailing slash Netlify serves it at is accepted too");
+  assert.equal(app.filterKeyFromFindPath("/find/national-rail"), "national_rail");
+  assert.equal(app.filterKeyFromFindPath("/find/not-a-real-filter"), null, "an unrecognised slug is not a filter key");
+  assert.equal(app.filterKeyFromFindPath("/app"), null, "a non-/find/ path never matches");
+  assert.equal(app.filterKeyFromFindPath(""), null);
+});
+
+test("arriving at a /find/<slug> page pre-filters Nearby to that category, taking priority over any ?show= param", () => {
+  resetData(app);
+  app.setOverviewFilters(["trees"]);
+  app.location.pathname = "/find/pubs/";
+  app.location.search = "?show=cafes";
+  app.applyShowFilterFromQuery();
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "the path, not the query param, is the category page's own category");
+  app.location.pathname = "/";
+  app.location.search = "";
 });
 
 test("nearby heading-up viewport shows the whole walking-radius circle, leaving the corners outside it", () => {

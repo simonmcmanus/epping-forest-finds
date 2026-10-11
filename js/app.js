@@ -754,11 +754,22 @@ function showRoutedSelection(route, item) {
 
 boot();
 
-// A /find/<slug> category page's "see them all" link lands here with ?show=<filterKey>, so
-// the Nearby list opens already filtered to that one category instead of the general overview.
+// A /find/<slug> category page IS the app (scripts/generate-find-pages.js templates it off
+// this same app.html), so the path itself names the category to land already filtered to --
+// slugFor() in that script turns an underscore into a hyphen, this is the reverse. ?show=
+// stays as a fallback entry point for any older link still using the query-param form.
+function filterKeyFromFindPath(pathname) {
+  const match = /^\/find\/([a-z0-9-]+)\/?$/.exec(String(pathname || ""));
+  if (!match) return null;
+  const key = match[1].replace(/-/g, "_");
+  return ALL_OVERVIEW_FILTER_KEYS.has(key) ? key : null;
+}
+
 function applyShowFilterFromQuery() {
-  const requested = new URLSearchParams(window.location.search).get("show");
-  if (requested && ALL_OVERVIEW_FILTER_KEYS.has(requested)) setOverviewFilters([requested]);
+  const fromPath = filterKeyFromFindPath(window.location.pathname);
+  const fromQuery = new URLSearchParams(window.location.search).get("show");
+  const requested = fromPath || (ALL_OVERVIEW_FILTER_KEYS.has(fromQuery) ? fromQuery : null);
+  if (requested) setOverviewFilters([requested]);
 }
 
 async function boot() {
