@@ -83,6 +83,14 @@ test("generate writes both files into the site root", () => {
   assert.ok(fs.existsSync(path.join(dir, ROBOTS_FILE_NAME)));
 });
 
+test("a generated /find/<slug> category page is listed in the sitemap, unlike the gated app", () => {
+  const dir = makeSite();
+  fs.mkdirSync(path.join(dir, "find", "pubs"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "find", "pubs", "index.html"), "<!doctype html>");
+  const locs = collectUrls(dir).map((url) => url.loc);
+  assert.ok(locs.includes("/find/pubs"), "a generated category page is advertised to crawlers");
+});
+
 test("the gated app is kept out of the sitemap and disallowed to crawlers", () => {
   // /app answers a crawler with a redirect to the homepage while the alpha is
   // closed, which is a soft-404 signal with nothing to gain -- and the app has

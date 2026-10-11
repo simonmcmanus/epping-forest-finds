@@ -19,6 +19,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { listReportFiles } = require("./generate-reports-index.js");
+const { listFindSlugs } = require("./generate-find-pages.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITEMAP_FILE_NAME = "sitemap.xml";
@@ -87,6 +88,13 @@ function collectUrls(siteRoot, now = Date.now()) {
       changefreq: "yearly", // a published report never changes again
       priority: "0.6",
     });
+  }
+
+  // Category pages (scripts/generate-find-pages.js), run earlier in `npm run build` so their
+  // output already exists on disk here. Their count changes with the data, same as the
+  // static pages above, so they share "now" as a build-time lastmod rather than a per-page one.
+  for (const slug of listFindSlugs(siteRoot)) {
+    urls.push({ loc: `/find/${slug}`, lastmod: isoDate(now), changefreq: "weekly", priority: "0.5" });
   }
 
   return urls;

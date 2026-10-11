@@ -273,6 +273,7 @@ globalThis.__forestFindsTest = {
   treeDisplayName,
   releaseStrandedAnimationFrames,
   setOverviewFilters,
+  applyShowFilterFromQuery,
   applyWalkingRadiusChange,
   selectionCameraTransitionActive,
   headsUpSortedEntries,
@@ -1608,6 +1609,27 @@ test("a filter with nothing inside the radius pulls the nearby camera out far en
   app.applyWalkingRadiusChange(6, { animate: false });
   assert.equal(app.state.outOfRadiusRevealFilters.length, 0, "changing the radius hands the camera back to the ring");
   app.state.walkingDistanceMinutes = 5;
+});
+
+test("a ?show=<filterKey> query param filters Nearby to that category on arrival, from a /find/<slug> category page", () => {
+  resetData(app);
+  app.setOverviewFilters(["trees"]);
+  app.location.search = "?show=pubs";
+  app.applyShowFilterFromQuery();
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "the query param replaces whatever filters were active");
+  app.location.search = "";
+});
+
+test("an unknown or missing ?show= value leaves the current filters alone", () => {
+  resetData(app);
+  app.setOverviewFilters(["cafes"]);
+  app.location.search = "?show=not-a-real-filter";
+  app.applyShowFilterFromQuery();
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["cafes"], "an unrecognised key is ignored rather than clearing the filters");
+
+  app.location.search = "";
+  app.applyShowFilterFromQuery();
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["cafes"], "no ?show= param at all leaves filters untouched");
 });
 
 test("nearby heading-up viewport shows the whole walking-radius circle, leaving the corners outside it", () => {

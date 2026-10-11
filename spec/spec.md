@@ -259,6 +259,7 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 | `/app#settings` | Settings |
 | `/app#report` | Feedback / Report |
 | `/app#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway` |
+| `/app?show=<filterKey>` | Nearby, pre-filtered to one category — the "see them all" link from a `/find/<slug>` category page (`spec-marketing.md` § "Category pages") |
 
 - **A screen change pushes a history entry** (`setHashFromSelection` → `history.pushState`), so
   browser back, the phone's back gesture and the inspector's own back arrow all retrace the same

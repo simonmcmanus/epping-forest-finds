@@ -754,6 +754,13 @@ function showRoutedSelection(route, item) {
 
 boot();
 
+// A /find/<slug> category page's "see them all" link lands here with ?show=<filterKey>, so
+// the Nearby list opens already filtered to that one category instead of the general overview.
+function applyShowFilterFromQuery() {
+  const requested = new URLSearchParams(window.location.search).get("show");
+  if (requested && ALL_OVERVIEW_FILTER_KEYS.has(requested)) setOverviewFilters([requested]);
+}
+
 async function boot() {
   initSelectedIconMotion();
   initRouter();
@@ -818,6 +825,7 @@ async function boot() {
     updateLocateButtonVisibility();
 
     state.dataLoaded = true;
+    applyShowFilterFromQuery();
 
     if (locationPromise) {
       // Await the location request that was started in parallel with data loading,

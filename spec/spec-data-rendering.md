@@ -1246,6 +1246,7 @@ The full routing model — the URL for each screen, history entries, back/forwar
 - `#filters`, `#settings` and `#report` open those screens; `#report=<text>` pre-fills the report textarea with `<text>: ` when the field is empty (a saved draft is never overwritten). All are handled in `applyRoute()` before the selection lookups
 - `applySelectionFromHash()` is called after the 320 ms loading-overlay pause (after the overview snap, before the animated reveal) so the selection zoom overrides the overview snap rather than being overridden by it
 - Hash updates are suppressed while a route is being applied and throughout boot (`routeApplyDepth`, `routerBooting`), so the URL never overwrites the entry it is being read from
+- `?show=<filterKey>` is a separate, query-string entry point for a `/find/<slug>` category page's "see them all" link (`spec-marketing.md` § "Category pages"): `applyShowFilterFromQuery()` reads it once, right after data finishes loading in `boot()`, and calls the existing `setOverviewFilters([filterKey])` for a recognised key in `ALL_OVERVIEW_FILTER_KEYS`, landing on Nearby already filtered rather than the general overview. An unrecognised or absent `show` value changes nothing — it is not a hash route and carries no history entry of its own.
 
 ---
 
