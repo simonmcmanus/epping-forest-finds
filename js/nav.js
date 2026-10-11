@@ -830,7 +830,11 @@ function refreshNearbyRadiusView(options = {}) {
   // how to frame the ring correctly for those screens (see secondaryScreenActive()) without it.
   if (!secondaryScreenActive()) selectOverview();
   updateNearbyAnchorBar();
-  ensureOverviewTargetsVisible({ animate, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
+  // A caller that also just started a nearby-origin slide (focusNearbyOnClusterGroup) passes
+  // its own duration so the two tweens land on the same frame -- see nearbyRevealOpacity's
+  // concurrent-viewport-animation check, which otherwise has a gap to fall through if this one
+  // finishes first.
+  ensureOverviewTargetsVisible({ animate, durationMs: options.durationMs || OVERVIEW_REFIT_ANIMATION_MS, force: true });
   requestDraw();
 }
 
@@ -972,7 +976,9 @@ function restoreNearbyAnchorFromHistory() {
       : null;
     state.outOfRadiusRevealFilters = [];
     updateNearbyAnchorBar();
-    refreshNearbyRadiusView({ animate: true });
+    // Same duration as the origin slide just started above -- see the matching comment on
+    // focusNearbyOnClusterGroup's own call.
+    refreshNearbyRadiusView({ animate: true, durationMs: NEARBY_ORIGIN_TRANSITION_MS });
   } finally {
     routeApplyDepth -= 1;
   }
@@ -1071,8 +1077,11 @@ function focusNearbyOnClusterGroup(cluster) {
   // Single direct ease to the group's own framing -- same path a browser-back cluster undo
   // (restoreNearbyAnchorFromHistory) already takes -- rather than the old zoom-out/pan/zoom-in
   // tour. refreshNearbyRadiusView handles the nearest-tree rescan, the Nearby list, the anchor
-  // bar, and ensureOverviewTargetsVisible's own camera fit.
-  refreshNearbyRadiusView({ animate: true });
+  // bar, and ensureOverviewTargetsVisible's own camera fit. Matches the nearby-origin slide's
+  // own duration (started above, via startNearbyOriginTransition -- always
+  // NEARBY_ORIGIN_TRANSITION_MS) so the camera's fly-to-cluster tween and the ring/pin reveal
+  // land on the same frame -- see nearbyRevealOpacity.
+  refreshNearbyRadiusView({ animate: true, durationMs: NEARBY_ORIGIN_TRANSITION_MS });
   pushNearbyAnchorHistory();
   return true;
 }
