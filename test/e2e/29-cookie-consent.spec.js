@@ -69,4 +69,27 @@ test.describe("Cookie consent banner", () => {
     // The in-app tracker consent key is independent of the cookie-consent banner's choice.
     expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBeNull();
   });
+
+  test("on first-run onboarding, the standalone banner is suppressed and 'Enable location' grants cookie consent too", async ({ page }) => {
+    // Do NOT call skipOnboarding() — the merge only applies to the real first-visit overlay.
+    await mockCowApi(page);
+    await page.goto("/app");
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
+
+    await page.locator("#onboardingOverlay .ob-location").click();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-cookie-consent"))).toBe("granted");
+    // Resolved by the onboarding tap, not by a banner that appears afterward.
+    await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
+  });
+
+  test("on first-run onboarding, 'Skip for now' declines cookie consent too with no banner afterward", async ({ page }) => {
+    await mockCowApi(page);
+    await page.goto("/app");
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+
+    await page.locator("#onboardingOverlay .ob-location-skip").click();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-cookie-consent"))).toBe("denied");
+    await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
+  });
 });
