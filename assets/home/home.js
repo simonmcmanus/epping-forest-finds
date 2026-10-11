@@ -5,6 +5,113 @@
  * page. See spec/spec-marketing.md §5.
  */
 
+// Load only the category a visitor opens; large lists render in batches.
+(function () {
+  "use strict";
+
+  document.querySelectorAll("[data-inventory-key]").forEach(function (row) {
+    var key = row.dataset.inventoryKey;
+    var term = row.querySelector("dt");
+    var label = term.textContent;
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "inventory-toggle";
+    button.setAttribute("aria-label", label);
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-controls", "inventory-" + key);
+    while (term.firstChild) button.appendChild(term.firstChild);
+    term.appendChild(button);
+
+    var panel = document.createElement("dd");
+    panel.id = "inventory-" + key;
+    panel.className = "inventory-items";
+    panel.hidden = true;
+    row.appendChild(panel);
+
+    var status = document.createElement("p");
+    status.setAttribute("role", "status");
+    panel.appendChild(status);
+    var retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "inventory-action";
+    retry.textContent = "Try again";
+    retry.hidden = true;
+    retry.addEventListener("click", load);
+    panel.appendChild(retry);
+    var loaded = false;
+    var loading = false;
+
+    function showItems(items) {
+      var search = document.createElement("input");
+      search.type = "search";
+      search.placeholder = "Search " + label.toLowerCase();
+      search.setAttribute("aria-label", "Search " + label.toLowerCase());
+      panel.insertBefore(search, status);
+      var list = document.createElement("ul");
+      panel.appendChild(list);
+      var more = document.createElement("button");
+      more.type = "button";
+      more.className = "inventory-action";
+      more.textContent = "Show more";
+      panel.appendChild(more);
+      var limit = 50;
+
+      function render() {
+        var query = search.value.trim().toLocaleLowerCase("en-GB");
+        var matches = items.filter(function (item) {
+          return (item.name + " " + item.detail).toLocaleLowerCase("en-GB").includes(query);
+        });
+        list.replaceChildren();
+        matches.slice(0, limit).forEach(function (item) {
+          var li = document.createElement("li");
+          li.textContent = item.name;
+          if (item.detail) {
+            var detail = document.createElement("small");
+            detail.textContent = item.detail;
+            li.appendChild(detail);
+          }
+          list.appendChild(li);
+        });
+        status.textContent = !items.length ? "No places in this category yet."
+          : !matches.length ? "No matching places."
+          : "Showing " + Math.min(limit, matches.length).toLocaleString("en-GB") + " of " + matches.length.toLocaleString("en-GB");
+        more.hidden = matches.length <= limit;
+        search.hidden = !items.length;
+      }
+      search.addEventListener("input", function () { limit = 50; render(); });
+      more.addEventListener("click", function () { limit += 50; render(); });
+      render();
+    }
+
+    function load() {
+      if (loaded || loading) return;
+      loading = true;
+      retry.hidden = true;
+      status.textContent = "Loading places…";
+      fetch("/assets/home/inventory/" + key + ".json")
+        .then(function (response) {
+          if (!response.ok) throw new Error("Category unavailable");
+          return response.json();
+        })
+        .then(function (items) {
+          showItems(items);
+          loaded = true;
+        })
+        .catch(function () {
+          status.textContent = "Couldn't load these places. Please try again.";
+          retry.hidden = false;
+        })
+        .finally(function () { loading = false; });
+    }
+
+    button.addEventListener("click", function () {
+      panel.hidden = !panel.hidden;
+      button.setAttribute("aria-expanded", String(!panel.hidden));
+      if (!panel.hidden) load();
+    });
+  });
+})();
+
 // Scroll reveal: blocks fade up gently as they enter the viewport. Skipped for
 // reduced-motion visitors and browsers without IntersectionObserver, so nothing
 // is ever hidden that cannot be shown.

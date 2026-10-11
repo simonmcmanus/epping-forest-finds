@@ -89,8 +89,19 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .inventory-always img { width: 38px; height: 38px; object-fit: contain; }
 .inventory-group h3 > strong, .inventory-group dd, .inventory-always > strong { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; }
 .inventory-group dl { display: grid; gap: 5px; margin: 0; color: var(--muted); }
-.inventory-group dl div { display: flex; justify-content: space-between; gap: 16px; }
+.inventory-group dl div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 16px; align-items: center; }
 .inventory-group dt, .inventory-group dd { margin: 0; }
+.inventory-toggle { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.inventory-toggle::after { content: "+"; color: var(--muted); font-size: 1.1rem; }
+.inventory-toggle[aria-expanded="true"]::after { content: "−"; }
+.inventory-toggle:hover { color: var(--ink); }
+.inventory-group .inventory-items { flex: 0 0 100%; min-width: 0; padding: 10px 0 16px; font-family: inherit; font-size: .9rem; }
+.inventory-items input { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; }
+.inventory-items p { margin: 10px 0; color: var(--muted); font-size: .8rem; }
+.inventory-items ul { max-height: 320px; overflow-y: auto; overscroll-behavior: contain; margin: 0; padding: 0 4px 0 0; list-style: none; }
+.inventory-items li { padding: 9px 0; border-top: 1px solid var(--line); color: var(--ink); overflow-wrap: anywhere; }
+.inventory-items small { display: block; margin-top: 3px; color: var(--muted); }
+.inventory-action { min-height: 44px; margin-top: 8px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-alt); color: var(--ink); font: inherit; cursor: pointer; }
 .inventory-always { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 20px; border-top: 1px solid var(--line); }
 .inventory-always div { display: flex; gap: 10px; align-items: flex-start; }
 .inventory-always span { display: flex; flex-direction: column; }

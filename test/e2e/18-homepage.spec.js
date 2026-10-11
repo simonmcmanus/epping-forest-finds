@@ -11,6 +11,65 @@ const { buildInventory } = require("../../scripts/report/map-inventory.js");
 const { formatCount } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
+  test("expands Churches to show the map's churches and collapses with the keyboard", async ({ page }) => {
+    await page.goto("/");
+    const button = page.getByRole("button", { name: "Churches", exact: true });
+    await expect(button).toHaveAttribute("aria-expanded", "false");
+    await button.click();
+    const panel = page.locator("#inventory-churches");
+    const churches = require("../../assets/home/inventory/churches.json");
+    await expect(panel.getByRole("listitem")).toHaveText(churches.map(item => item.name + item.detail));
+    await expect(button).toHaveAttribute("aria-expanded", "true");
+    await button.focus();
+    await button.press("Enter");
+    await expect(panel).toBeHidden();
+  });
+
+  test("loads only opened categories, searches large lists and shows more results", async ({ page }) => {
+    const requests = [];
+    page.on("request", request => {
+      if (request.url().includes("/assets/home/inventory/")) requests.push(request.url());
+    });
+    await page.goto("/");
+    expect(requests).toHaveLength(0);
+    const toggle = page.getByRole("button", { name: "Trees", exact: true });
+    await toggle.click();
+    const panel = page.locator("#inventory-trees");
+    await expect(panel.getByRole("listitem")).toHaveCount(50);
+    expect(requests).toHaveLength(1);
+    await panel.getByRole("button", { name: "Show more" }).click();
+    await expect(panel.getByRole("listitem")).toHaveCount(100);
+    const search = panel.getByRole("searchbox", { name: "Search trees" });
+    await search.fill("no-such-tree-species");
+    await expect(panel.getByRole("status")).toHaveText("No matching places.");
+    await expect(panel.getByRole("listitem")).toHaveCount(0);
+    const trees = require("../../assets/home/inventory/trees.json");
+    const taggedTree = trees.find(item => item.detail.startsWith("Tag "));
+    await search.fill(taggedTree.detail);
+    await expect(panel).toContainText(taggedTree.name);
+    await expect(panel.getByRole("listitem").first()).toContainText(taggedTree.detail);
+    await toggle.click();
+    await toggle.click();
+    await expect(search).toHaveValue(taggedTree.detail);
+    expect(requests).toHaveLength(1);
+  });
+
+  test("explains empty categories and lets visitors retry a failed category load", async ({ page }) => {
+    let attempts = 0;
+    await page.route("**/assets/home/inventory/medicine.json", route => {
+      attempts += 1;
+      return attempts === 1 ? route.abort() : route.continue();
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Medical sites", exact: true }).click();
+    const panel = page.locator("#inventory-medicine");
+    await expect(panel.getByRole("status")).toHaveText("Couldn't load these places. Please try again.");
+    await panel.getByRole("button", { name: "Try again" }).click();
+    await expect(panel.getByRole("status")).toHaveText("No places in this category yet.");
+    await expect(panel.getByRole("searchbox")).toBeHidden();
+    await expect(panel.getByRole("button", { name: "Show more" })).toBeHidden();
+  });
+
   test("explains what the app is without needing JavaScript", async ({ browser }) => {
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();

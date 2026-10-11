@@ -229,7 +229,9 @@ weekly data change therefore breaks that test unless the copy moves with it —
 which is why every proposed data change arrived with a red suite on it.
 `scripts/sync-homepage-counts.js` rewrites those figures in `index.html` and
 `spec-marketing.md` from the datasets; the weekly run calls it straight after
-applying a changeset. See `spec-marketing.md` §4.
+applying a changeset. It also refreshes the homepage category lists in
+`assets/home/inventory/`, which the weekly run commits with the count changes.
+See `spec-marketing.md` §4.
 
 ## Road closures, events and standing notices
 
