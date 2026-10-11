@@ -94,7 +94,7 @@ function collectUrls(siteRoot, now = Date.now()) {
   // output already exists on disk here. Their count changes with the data, same as the
   // static pages above, so they share "now" as a build-time lastmod rather than a per-page one.
   for (const slug of listFindSlugs(siteRoot)) {
-    urls.push({ loc: `/find/${slug}`, lastmod: isoDate(now), changefreq: "weekly", priority: "0.5" });
+    urls.push({ loc: `/find/${slug}/`, lastmod: isoDate(now), changefreq: "weekly", priority: "0.5" });
   }
 
   return urls;

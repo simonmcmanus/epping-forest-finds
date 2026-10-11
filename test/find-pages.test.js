@@ -60,11 +60,11 @@ test("renderPage emits a self-consistent, crawlable page: title, canonical, OG, 
   const html = renderPage(pubs);
 
   assert.match(html, /<title>Pubs &amp; bars in Epping Forest \| Epping Forest Finds<\/title>/);
-  assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/find\/pubs">/);
-  assert.match(html, /<meta property="og:url" content="https:\/\/www\.eppingforestfinds\.uk\/find\/pubs">/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/find\/pubs\/">/);
+  assert.match(html, /<meta property="og:url" content="https:\/\/www\.eppingforestfinds\.uk\/find\/pubs\/">/);
   assert.match(html, /"numberOfItems":42/);
   assert.match(html, /href="\/app\?show=pubs"/, "the CTA links into the app's pre-filter query param");
-  assert.match(html, /href="\/find\/cafes"/, "a sibling cross-link is present");
+  assert.match(html, /href="\/find\/cafes\/"/, "a sibling cross-link uses the trailing slash Netlify serves directly");
   assert.ok(!html.includes("undefined"), "no template placeholder was left unfilled");
 });
 

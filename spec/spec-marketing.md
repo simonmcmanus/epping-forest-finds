@@ -418,7 +418,12 @@ via `listFindSlugs`). Never gated during the closed alpha: these pages are
 real content, not the app.
 
 - **Slugs**: a subfilter key with underscores turned to hyphens
-  (`national_rail` → `/find/national-rail`).
+  (`national_rail` → `/find/national-rail`). The canonical URL carries a
+  trailing slash (`/find/pubs/`), matching `/reports/`: Netlify's static
+  hosting serves `find/<slug>/index.html` directly only at that trailing-slash
+  path, 301-redirecting the bare one to it, so the canonical/OG/JSON-LD `url`
+  and every sitemap entry and cross-link use the slash form, not the one that
+  redirects.
 - **Counts and labels** come from `scripts/report/map-inventory.js`'s
   `buildInventory()` — the same classification the weekly report and the
   homepage's dataset counts use, so a category page's number is never a

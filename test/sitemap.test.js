@@ -88,7 +88,10 @@ test("a generated /find/<slug> category page is listed in the sitemap, unlike th
   fs.mkdirSync(path.join(dir, "find", "pubs"), { recursive: true });
   fs.writeFileSync(path.join(dir, "find", "pubs", "index.html"), "<!doctype html>");
   const locs = collectUrls(dir).map((url) => url.loc);
-  assert.ok(locs.includes("/find/pubs"), "a generated category page is advertised to crawlers");
+  assert.ok(
+    locs.includes("/find/pubs/"),
+    "a generated category page is advertised to crawlers at the trailing-slash URL Netlify actually serves it at",
+  );
 });
 
 test("the gated app is kept out of the sitemap and disallowed to crawlers", () => {

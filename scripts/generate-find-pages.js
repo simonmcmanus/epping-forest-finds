@@ -78,7 +78,11 @@ function collectPages(rules, inventory) {
 }
 
 function renderPage(page) {
-  const canonical = `${SITE_ORIGIN}/find/${page.slug}`;
+  // Trailing slash: Netlify's static hosting serves find/<slug>/index.html directly only at
+  // /find/<slug>/, 301-redirecting the bare path to it (the same convention /reports/ already
+  // uses, STATIC_PAGES in generate-sitemap.js) -- the canonical/OG/JSON-LD url must be the one
+  // actually served, not the one that redirects to it.
+  const canonical = `${SITE_ORIGIN}/find/${page.slug}/`;
   const titleTag = `${page.label} in Epping Forest | ${SITE_NAME}`;
   const description = `Find all ${page.count} ${page.title} in Epping Forest, mapped and ready to walk to.`;
   const jsonLd = {
@@ -92,7 +96,7 @@ function renderPage(page) {
   };
 
   const siblingLinks = page.siblings
-    .map((s) => `<li><a href="/find/${escapeHtml(s.slug)}">${escapeHtml(s.label)}</a></li>`)
+    .map((s) => `<li><a href="/find/${escapeHtml(s.slug)}/">${escapeHtml(s.label)}</a></li>`)
     .join("\n        ");
 
   return `<!doctype html>
