@@ -83,6 +83,24 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#appVersionDisplay")).toContainText("v");
   });
 
+  test("settings screen offers a one-tap reload once new map data has already downloaded", async ({ page }) => {
+    await expect(page.locator("#dataUpdateNote")).toBeHidden();
+
+    await page.evaluate(() => { state.dataUpdateAvailable = true; });
+    // The form is built when the screen opens, so re-open it to pick up the flag.
+    await page.click("#nearbyToggle");
+    await page.click("#settingsToggle");
+    await expect(page.locator("#dataUpdateNote")).toBeVisible();
+    await expect(page.locator("#dataUpdateReloadButton")).toBeVisible();
+
+    // A real reload clears the JS realm, so a window property set just before the click
+    // disappearing is proof the click actually triggered one (the refresh-scope tests below
+    // use the same "survives/doesn't survive reload" idiom via sessionStorage).
+    await page.evaluate(() => { window.__reloadMarker = true; });
+    await page.click("#dataUpdateReloadButton");
+    await page.waitForFunction(() => window.__reloadMarker === undefined, { timeout: 20_000 });
+  });
+
   test("settings screen stays open when the map canvas is tapped", async ({ page }) => {
     await page.locator("#mapCanvas").click({ position: { x: 200, y: 200 } });
     await expect(page.locator("#settingsToggle")).toHaveClass(/screen-active/);
