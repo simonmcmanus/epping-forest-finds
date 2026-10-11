@@ -25,6 +25,17 @@ class StripHtmlTagsTests(unittest.TestCase):
 
 
 class FindJargonTests(unittest.TestCase):
+    def test_review_status_is_not_published_news(self):
+        for phrase in ("Proposed for the map", "Pending a quick review", "We’d like to add it", "Closed, proposed for removal"):
+            with self.subTest(phrase=phrase), self.assertRaises(ValueError):
+                assert_reader_friendly(f"<p>{phrase}</p>")
+        assert_reader_friendly("<p>The council has proposed a road closure. The café may have closed.</p>")
+
+    def test_published_editions_have_no_internal_jargon(self):
+        for path in (Path(__file__).resolve().parent.parent / "reports").glob("*ledger*.html"):
+            with self.subTest(report=path.name):
+                assert_reader_friendly(path.read_text())
+
     def test_flags_raw_osm_ids(self):
         hits = find_jargon("We removed way/450058980 from the map.")
         self.assertTrue(any("way/450058980" == h[0] for h in hits))

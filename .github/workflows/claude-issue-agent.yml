@@ -41,7 +41,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           label_trigger: "claude"
           claude_args: |
-            --allowedTools "Bash(git fetch:*),Bash(git pull:*),Bash(git rebase:*),Bash(node --test:*),Bash(npm test:*),Bash(npm run test:*),Bash(python3:*)"
+            --allowedTools "Bash(git fetch:*),Bash(git pull:*),Bash(git rebase:*),Bash(node --test:*),Bash(npm test:*),Bash(npm run test:*),Bash(python3:*),WebFetch"
 
       - name: Open pull request
         if: steps.claude.outputs.branch_name != ''

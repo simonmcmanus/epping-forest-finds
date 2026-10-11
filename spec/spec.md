@@ -46,6 +46,7 @@ Provide a fast, mobile-first field map that still works in poor signal condition
 - `data/local-roads.geojson`
 - `data/local-environment.geojson`
 - `data/epping_forest_folklore_locations_v14_external_links.json` (enriched historical/cultural data)
+- `data/events.json` (time-bound events at a fixed location — fairs, guided walks, markets — merged into the map's landmarks; see "Events" below)
 
 ### Local landmarks extraction (OpenStreetMap via Overpass)
 
@@ -110,6 +111,37 @@ Includes:
 - Upstream source pattern: `https://account.nofence.no/api/open/data/?center=<lon>,<lat>`
 
 Cow requests use a fixed center coordinate (not user location) and refresh every 5 minutes.
+
+## Events
+
+Events (fairs, guided walks, markets — anything at a fixed location with a start/end time) are
+sourced from `data/events.json` and merged into `state.landmarks` exactly like folklore
+locations, so they get clustering, search, filtering, routing and the inspector's place-detail
+view for free rather than a parallel code path. **Events is a default-on filter category**, like
+Trees and Cows, shown as its own top-level group (not a subfilter of something else) with the
+calendar icon.
+
+- **Past events are never loaded into the app.** `scripts/prune_past_events.js` drops expired
+  events from the committed `data/events.json` itself, so a client never downloads bytes for
+  something nobody can still attend; `normalizeEventLocations` (`js/normalize.js`) drops them a
+  second time at load, in case a cached copy of the file is briefly stale. An event with no
+  `endsAt` is assumed to run for 24 hours from its `startsAt`.
+- **The map only shows an event once it's within a week of starting** (`isEventTooFarAhead`,
+  `js/normalize.js`) — a one-directional display cap, not a data change: the source file can
+  carry events further out (the weekly ledger report has its own longer-range view of upcoming
+  events), they simply don't appear on the map yet. An event already under way is never held
+  back by this, however long ago it started.
+- Live event pin and detail view: see "Map Layers and Markers" and "Details Content
+  Requirements" below.
+- **Nearby-event alert (in-app only — no OS push).** On every GPS fix, if a *live* event (its
+  current time falls between `startsAt` and `endsAt`) is within the user's walking radius and
+  the Events filter is active, a dismissible banner appears over the map (`#eventNearbyBanner`,
+  same card styling as the compass-calibration banner) naming the event and the walk time.
+  Tapping it opens the event's detail view and dismisses the banner; dismissing it directly just
+  hides it. Each event alerts at most once per session — walking in and out of its radius, or
+  lingering nearby, never re-shows it. Real OS-level push notifications are a native-app
+  feature to revisit once there is a native wrapper (see `spec-native.md`); the static PWA has
+  no push-subscription backend.
 
 ## Core UX
 
@@ -191,6 +223,7 @@ Marker rules:
 - Transport filter is generic, but map icons differ by type:
   - train-like: 🚆
   - bus-like/stops: 🚌
+- Events draw with the calendar icon (`data/icons/event.png`), through the same place-marker pipeline as every other landmark.
 - Selected marker gets a clear highlight ring.
 - Background ornamental grid scales in world space with zoom.
 
@@ -301,7 +334,7 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 - **Onboarding (first visit):** On first visit (`forest-finds-onboarding-v1` not in localStorage), a full-screen onboarding overlay is shown while map data loads in the background. Steps: Location + compass opt-in (first, shown immediately as data loads) → Welcome → one step per filter group (Nature, Food, Transport, History, Locations, Stories). The location step is deliberately first so the browser permission dialog fires as soon as possible — the single "Enable location & compass" button is the only tap the user needs for permissions. Pressing "Enable location & compass" fires `getCurrentPosition` (browser dialog) and (on iOS) `DeviceOrientationEvent.requestPermission()` in the same synchronous gesture context, then advances to the welcome step so the user can personalise filters while data loads. "Skip for now" also advances to the welcome step without granting. A one-line `.privacy-note` under the step's subtitle states what's collected (GPS position, navigation, interactions) — the same wording the location gate shows next to its own button — since tapping "Enable location & compass" is itself the consent action. Each category step shows all subfilters as toggle chips (all on by default); the user deselects anything unwanted. A skip option is available on every step except the last, where the "Next" button becomes "Done" and finishes onboarding directly. If location is denied or times out after the onboarding button tap, the map is revealed without a second blocking prompt — the "Use my location" button in the inspector is available if they change their mind. On completion (or skip), selected filters are saved and onboarding is marked done. Implemented in `js/onboarding.js` + `css/onboarding.css`. **Icon performance:** All `data/icons/` PNGs (excluding PWA manifest icons) are capped at 256×256px — sufficient for the largest canvas draw size at retina zoom — reducing per-icon sizes from 400KB–1.4MB to under 100KB. `pin.png` and `trees/logo.png` are preloaded via `<link rel="preload">` in `index.html`. Each step also eagerly preloads the next step's icons via `new Image()` so images are in-flight while the user reads the current screen.
 - **Proactive location + compass on every load:** On returning visits, `getCurrentPosition` is called immediately when the app starts, running in parallel with map data loading so the browser's native permission dialog appears during the loading screen rather than after a tap. By the time data finishes loading the location is usually already resolved and the map opens centred on the user. If the auto-request is denied or times out, the location gate is shown after the map reveals so the user can retry. Immediately after a successful location fix at boot, compass permission is also requested: non-iOS browsers auto-grant; iOS shows the gate so the user can tap from a real gesture context (required by iOS for `DeviceOrientationEvent.requestPermission`).
 - **Compass permission — iOS per-session requirement:** On iOS, `DeviceOrientationEvent.requestPermission()` must be called from a synchronous user-gesture handler every page load before orientation events are fired — even when the user has previously granted permission. The stored `forest-finds-compass-permission-v1` value of `"granted"` is therefore treated as `"unknown"` at boot on iOS-like browsers (those where `DeviceOrientationEvent.requestPermission` is a function), so the compass gate is shown and the per-session call happens from the gate button click (a real user gesture). On non-iOS browsers no user gesture is required and the stored value is used as-is.
-- **Default filters:** On first visit, only **Trees** and **Cows** are pre-selected in the onboarding chip screens. All other subfilters start deselected. If onboarding is skipped without changes, only Trees and Cows are active.
+- **Default filters:** On first visit, only **Trees**, **Cows** and **Events** are pre-selected in the onboarding chip screens. All other subfilters start deselected. If onboarding is skipped without changes, only Trees, Cows and Events are active.
 - **Filter persistence:** Active filters and expanded groups are saved to `localStorage` under `forest-finds-filter-state-v1` and restored on next visit.
 - Supported overview filter groups and subfilters:
   - **Nature:** trees, cows, waymarked trails, ponds & streams
@@ -310,6 +343,7 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
   - **History:** historic places, royal history, WWII sites, social history, plaques, blue plaques
   - **Locations:** celebrity associations, science, education, medicine, literature, theatre, politics, art, churches
   - **Stories:** legends, film/TV locations
+- **Events:** events (a single subfilter — fairs, guided walks, markets; see "Events" above)
 - **Note:** Paths, hydrology, nature designations, and buildings are always visible as base layers and not included in filters.
 - Filters are multi-select within and across groups.
 - Selecting a top-level group enables all subfilters within that group.
@@ -468,6 +502,12 @@ Show place name/category/address/contact/source and appropriate emoji by type.
 
 Show serial/type/coordinates/last update/source.
 
+### Event details
+
+Show the event name, a "Happening now"/"Upcoming" status in place of a category label, the
+formatted date/time range ("When"), a "More info" link to `sourceUrl` when present, and the
+description. Shares the place detail layout (`showLandmarkDetails`) rather than a separate view.
+
 ## Legend / Key
 
 Legend reflects active marker semantics:
@@ -483,6 +523,7 @@ Legend reflects active marker semantics:
 - Historic sites & landmarks
 - Plaques & memorials
 - Generic locations
+- Events
 
 ## Attribution Rules
 
@@ -572,6 +613,22 @@ Alternative: `scripts/regenerate-local-landmarks.js` (Node.js version)
 - `scripts/split_access.py` - further splits access/facilities file
 
 ## User Tracking & Analytics
+
+### Google tag (gtag.js) and the cookie-consent banner
+Every page on the site (`index.html`, `app.html`, `admin.html`, `terms.html`, the weekly ledger reports under `reports/`, and the generated `reports/index.html`) loads the Google tag (`gtag.js`, measurement ID `G-M9NL06G2JB`) as the first thing in `<head>`. The weekly report generator (`scripts/report/render_report.py` `render_head`) and the reports-index generator (`scripts/generate-reports-index.js` `buildIndexHtml`) both emit the same snippet, so every future report and index rebuild carries it automatically. This is separate from, and gated independently of, the first-party tracker described below under Consent.
+
+GA's own cookies (`_ga`, `_ga_*`) are not "strictly necessary", so UK PECR/GDPR requires consent before they're set — on every page, the homepage included, not just the app. Each page's `<head>` sets Google Consent Mode v2's default to `analytics_storage: 'denied'` inline (before `gtag.js` loads), then loads the shared `/cookie-consent.js` (repo root, used by every page regardless of marketing/app ownership). That script shows a small, dismissible banner fixed to the bottom of the viewport the first time a visitor reaches any page with no stored choice; **Accept** or **Decline** stores the decision once (`localStorage` key `ff-cookie-consent`) and calls `gtag('consent','update',...)` — the banner never reappears on its own afterward. It can be reopened deliberately via `window.ForestFindsCookieConsent.showBanner()`, exposed by the app's **Settings → Privacy** ("Manage cookie preferences") and by the same control on `/terms.html`; the choice is shared across the whole origin, so accepting or declining on one page covers every other page too.
+
+This cookie-consent flow is independent of the location/usage-tracking consent below: different legal basis (PECR cookie consent vs. a contextual browser permission grant), different storage key, different UI. Outside onboarding, they're asked at different times and accepting or declining one has no effect on the other.
+
+**During first-run onboarding, the two are merged into one click.** The onboarding overlay's location step (`js/onboarding.js`) is itself a full-screen dialog, so showing the independent cookie banner behind it at the same time stacked two consent prompts on screen together. Instead, `cookie-consent.js`'s banner stays suppressed for as long as `#onboardingOverlay` is visible (checked by id, a no-op on every page but `app.html`), and the location step's own privacy note is worded to cover both asks. Tapping **Enable location** sets tracking consent *and* calls `window.ForestFindsCookieConsent.set(true)`; **Skip for now** calls `.set(false)`. A returning visitor who already decided cookie consent before this merge shipped, or who reaches the app with onboarding already complete, still gets the plain standalone banner exactly as described above — the merge only applies to the one screen where both would otherwise appear at once.
+
+#### App usage events sent to GA
+Besides automatic pageviews, `js/tracker.js` fires two custom GA events via `gtag('event', ...)`, gated by the same cookie-consent state as everything else GA does — never by the location/usage-tracking consent:
+- `screen_view` with `screen_name` when **Filters**, **Settings**, **Report**, or **Search** is opened (`js/app.js` `openFiltersScreen`/`openSettings`/`openReportModal`/`openSearchScreen`).
+- `select_map_item` with `item_type`, `item_category`, `item_id`, `item_name` and `source` when a map item is selected (`js/inspector.js` `trackSelectionClick`, the same chokepoint the first-party `trackClick` uses). `item_type` is the broad kind (`tree`/`landmark`/`path`/`water`/`cow`/`road`/`railway`); for a `landmark` that's too coarse to tell a cafe from a viewpoint apart, so `item_category` carries the specific filter chip kind instead (`resolvePlaceKind`, `js/app.js`) — for every other type it just repeats `item_type`. This is the dimension that shows which kind of venue, and which named one, gets the most traffic.
+
+Neither event ever includes the user's coordinates (their own position or the selected item's) — only which kind of place or screen was involved. GPS data stays entirely inside the first-party pipeline below, which never leaves this origin.
 
 ### Consent
 Consent is implicit: tapping whichever "Enable location" button is on screen (first-visit onboarding's location step, or the in-map location gate shown later) both grants consent and starts the location request. A one-line `.privacy-note` next to that button states what's collected and links to the full policy — identical wording in both places (`js/tracker.js` `ensureTrackingConsent`/`setTrackingConsent`). Consent is stored in `localStorage` under key `ff-track-v1`. Users can withdraw via **Settings → Privacy**, which re-prompts (shows the note again) next time location is requested.

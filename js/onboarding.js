@@ -52,7 +52,7 @@ function showOnboarding() {
     let compassPromptFailed = false;
     let locationPromise = null;
     const total = ONBOARDING_STEPS.length;
-    const selected = new Set(["trees", "cows"]);
+    const selected = new Set(["trees", "cows", "events"]);
 
     overlay.hidden = false;
     const deactivateFocus = typeof activateModalFocus === "function" ? activateModalFocus(overlay) : null;
@@ -126,7 +126,7 @@ function showOnboarding() {
           <img class="onboarding-step-icon" src="data/icons/pin.png" alt="">
           <h2 class="onboarding-step-title">Your location${needsCompassPrompt ? " & compass" : ""}</h2>
           <p class="onboarding-step-subtitle">Enable location to centre the map on you, see distances to each find, and get heading-up compass navigation.</p>
-          <p class="privacy-note">We collect anonymous usage data (GPS position, navigation, interactions) to improve the app. You can withdraw anytime via Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+          <p class="privacy-note">We collect anonymous usage data (GPS position, navigation, interactions) and use analytics cookies to improve the app — this choice covers both. You can withdraw anytime via Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
         `;
         actionsEl.innerHTML = `
           <button class="button ob-location" type="button">Enable${needsCompassPrompt ? " location &amp; compass" : " location"}</button>
@@ -159,6 +159,9 @@ function showOnboarding() {
         // Consent is given by tapping this button — the privacy note above states what's
         // collected, same wording as the in-map location gate's .privacy-note (app.html).
         if (typeof setTrackingConsent === "function") setTrackingConsent(true);
+        // This step also stands in for the cookie-consent banner (suppressed while onboarding
+        // is open -- see cookie-consent.js) so the user only has to click once.
+        window.ForestFindsCookieConsent?.set(true);
 
         // Start location request — browser dialog fires from this tap.
         if (navigator.geolocation) {
@@ -189,6 +192,8 @@ function showOnboarding() {
       });
       actionsEl.querySelector(".ob-location-skip")?.addEventListener("click", () => {
         setImplicitCompassPermission();
+        // Mirrors the Decline side of the merged consent — see the .ob-location handler above.
+        window.ForestFindsCookieConsent?.set(false);
         // Continue to welcome + filter personalisation even when location is skipped.
         goNext();
       });

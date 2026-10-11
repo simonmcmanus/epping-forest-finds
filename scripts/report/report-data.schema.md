@@ -13,6 +13,19 @@ a reader who only wants to know what is going on in Epping Forest. The
 renderer refuses to write the report if any of that slips in (see
 `jargon_guard.py`).
 
+Write for publication after the report and accompanying changes are merged.
+Review status belongs in the PR, never the newsletter. Lead with the place,
+the news and its practical relevance, not how it was discovered. Established
+businesses newly listed are local finds, not new openings. Keep uncertainty
+about real-world facts explicit. Do not invent dates or visitor advice.
+
+The page is rendered once and published as a static file -- it is never
+re-rendered to stay current, so a reader may open it days or weeks after it
+was written. Don't write "today", "tomorrow" or other day-relative wording
+into `intro`, a finding's `body` or `status_label`: it reads as true only on
+the day the report was generated. "This week" is fine (true for the whole
+edition); otherwise name the actual date.
+
 The "written by AI, tell us if it is wrong" note and the advert for the app
 are added by the renderer itself -- never write either by hand.
 
@@ -22,8 +35,8 @@ are added by the renderer itself -- never write either by hand.
   "date": "2026-09-03",                       // YYYY-MM-DD, used in the output filename
   "date_display": "Wednesday, 3 September 2026",
 
-  // Optional. Shown in the coloured banner under the title, if given.
-  "intro": "A short plain-English line about anything unusual this run.",
+  // Optional. Shown inside the green heading panel beside the photo, if given.
+  "intro": "Briefly say what was found, what changed, and which topics have no updates. No generic introduction.",
 
   // Optional. Defaults to the 8 coverage settlements (see places.py).
   "coverage_area": ["Loughton", "Chingford", "..."],
@@ -44,10 +57,16 @@ are added by the renderer itself -- never write either by hand.
       "category": "opening",   // "opening" | "closing" | "road" | "event"
       "title": "The Hair of the Dog",
       "place": "Loughton",                  // short location line
-      "status_label": "New, not yet on the map",   // short badge text
+      "status_label": "Already trading",   // short badge text
       "body": "One or two plain-English sentences. No jargon.",
       "lon": 0.0573766, "lat": 51.6521913,  // optional -- omit for "no pin"
-      "sources": [{"label": "Tripadvisor", "url": "https://..."}]
+      "sources": [{"label": "Tripadvisor", "url": "https://..."}],
+      // "event" findings only, optional: "week" (happening within the next
+      // 7 days) or "month" (further out, or recurring with no next date
+      // confirmed). Groups the Events section into "This week" and "Coming
+      // up in the next month" so a month-out event doesn't read as this
+      // week's news. Omit it only for "week" -- that's the default.
+      "when": "week"
     }
   ],
 
@@ -69,7 +88,37 @@ Usage:
 python3 scripts/report/render_report.py <report-data.json> [output-path]
 ```
 
-Point counts and the category breakdown sentence ("There are currently NNN
-places to eat, drink and shop...") are computed by the script from the
-current map data -- never put counts in the JSON by hand, they'll just be
-ignored.
+The attached statistics strip computes its counts from the findings and food
+dataset; never put counts into the intro by hand. Keep the intro and
+findings focused on useful local news, not the volume of map updates.
+
+## Road, access and event findings
+
+`scripts/report/structured_findings.py` reads `data/road-closures.json`,
+`data/forest-notices.json` and `data/forest-events.json` and prints a JSON
+list of findings already in this shape -- a standing roadworks project or a
+dated event that is still within its own recorded dates, so it keeps showing
+up every week it's genuinely true rather than only the week a web search
+happened to resurface it:
+
+```
+python3 scripts/report/structured_findings.py --as-of 2026-10-10
+```
+
+`scripts/report/tfl_transit_status.py` prints findings in the same shape from
+a live check instead of a hand-researched file: the Central line, the Weaver
+line (London Overground's Chingford branch), and bus stop disruptions around
+the coverage settlements. No arguments, no key required:
+
+```
+python3 scripts/report/tfl_transit_status.py
+```
+
+Most weeks this prints `[]` -- good service and no disrupted stops is the
+common case, not a failure.
+
+Extend `report-data.json`'s `"findings"` array with its output before adding
+anything the week's own research turned up -- it's a floor, not a
+replacement for that research. An entry from these files that is uncertain
+(`needsReverification` in the source file) already carries a plain-English
+caveat in its `"body"`; don't strip that out.

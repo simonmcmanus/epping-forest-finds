@@ -157,6 +157,19 @@ CI's queueing and setup time still applies. Reporting a task finished before its
 reporting a guess. Two consecutive PRs were once handed over as done on the strength of a
 green-ish local run while their CI job was red the whole time.
 
+### Screenshots in every PR
+
+Every PR needs at least one screenshot showing the change in the running app, not just prose
+describing it — a reviewer should be able to see the result without pulling the branch.
+- **UI/visual change:** capture before and after. Start the dev server (`npm run dev`) or drive
+  the page with Playwright (`page.screenshot()`), screenshot the affected view, and embed both
+  images directly in the PR description.
+- **No visible UI effect** (data fix, backend-only logic, test-only, spec-only change): say so
+  explicitly in the PR description instead of a screenshot — do not fabricate one.
+- A committed Playwright baseline (`test/e2e/__screenshots__/`) is a CI regression artifact, not
+  a substitute: it's pixel-exact to the unchanged parts of the page too, so it rarely shows the
+  change on its own. Take a fresh screenshot for the PR body even when a baseline also changed.
+
 ### If the suite is already red when you arrive
 
 Say so, with numbers, in your first report — do not absorb it silently and do not let it become
@@ -181,7 +194,8 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
    reproduces the runner's 2 vCPUs.
 3. Relevant `spec/` file is updated, or reason documented.
 4. Create a commit with a good concise description summarising the change.
-5. Push and open the PR, then confirm every `E2E tests (<project>, shard <n>)` job is **green on
+5. Push and open the PR with screenshots of the change in its description (see "Screenshots in
+   every PR" above), then confirm every `E2E tests (<project>, shard <n>)` job is **green on
    your branch**, and triage `Visual snapshots (mobile)` if it's red — per "CI is the verdict"
    above. That PR run is the full sweep; do not also run the suite locally or dispatch CI by
    hand. The task is not finished until `E2E tests` is green, and the report says what CI said.
