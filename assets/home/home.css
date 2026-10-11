@@ -139,18 +139,25 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .signup .cta-btn:hover, .ledger .cta-btn:hover { background: var(--tree-deep); }
 .signup-form { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .signup-confirmation:not([hidden]) { display: flex; align-items: flex-start; gap: clamp(18px, 3vw, 28px); padding: 12px 0; }
-.inbox-emblem { display: grid; place-items: center; flex: 0 0 96px; width: 96px; height: 96px; border: 1px solid var(--gold-line); border-radius: 50%; background: var(--surface); }
+.inbox-emblem { position: relative; display: grid; place-items: center; flex: 0 0 96px; width: 96px; height: 96px; border: 1px solid var(--gold-line); border-radius: 50%; background: var(--surface); }
+.inbox-step-badge { position: absolute; top: -3px; right: -3px; display: grid; place-items: center; width: 32px; height: 32px; border: 3px solid var(--surface); border-radius: 50%; background: var(--gold); color: var(--ink); font-size: 1rem; font-weight: 800; box-shadow: 0 0 0 1px var(--gold-line); }
 .inbox-emblem img { display: block; width: 72px; height: 72px; }
 .inbox-copy { max-width: 36em; }
 .inbox-step { margin: 0 0 6px; color: var(--tree-deep); font-size: .75rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.inbox-kicker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; }
+.inbox-kicker .inbox-step { margin: 0; }
+.inbox-reminder { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--gold); color: var(--tree-deep); font-size: .78rem; font-weight: 700; }
+.inbox-reminder svg { width: 16px; height: 16px; transform-origin: 50% 15%; }
 .inbox-copy h2 { margin: 0 0 12px; color: var(--tree-deep); }
 .inbox-copy h2:focus { outline: none; }
 .inbox-copy > p:not(.inbox-step) { margin: 0; }
 .inbox-copy > p.inbox-help { margin-top: 18px; color: var(--muted); font-size: .88rem; }
 @media (prefers-reduced-motion: no-preference) {
+  .signup-confirmation:not([hidden]) .inbox-reminder svg { animation: inbox-remind .9s .5s ease-in-out both; }
   .signup-confirmation:not([hidden]) .inbox-emblem img { animation: inbox-arrive .5s cubic-bezier(.2,.7,.2,1) both; }
   .signup-confirmation:not([hidden]) .inbox-copy { animation: rise .42s .07s cubic-bezier(.2,.7,.2,1) both; }
 }
+@keyframes inbox-remind { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(12deg); } 50% { transform: rotate(-9deg); } 75% { transform: rotate(5deg); } }
 @keyframes inbox-arrive { from { opacity: 0; transform: translateY(8px) scale(.94); } to { opacity: 1; transform: none; } }
 @media (max-width: 599px) {
   .signup-confirmation:not([hidden]) { flex-direction: column; }
