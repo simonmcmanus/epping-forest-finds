@@ -403,7 +403,15 @@ test.describe("the marketing homepage", () => {
       await expect(page.locator("#signupEntry")).toBeHidden();
       await expect(page.locator("#signupForm")).toBeHidden();
       await expect(page.locator("#confirmationHeading")).toBeFocused();
-      await expect(confirmation).toContainText("One more step");
+      await expect(confirmation).toContainText("Step 2 of 2");
+      const reminder = confirmation.locator(".inbox-reminder");
+      await expect(reminder).toBeVisible();
+      await expect(reminder).toHaveText("Don’t forget");
+      await expect(reminder.locator("svg")).toHaveCSS("animation-name", reducedMotion === "reduce" ? "none" : "inbox-remind");
+      if (reducedMotion !== "reduce") await expect(reminder.locator("svg")).toHaveCSS("animation-iteration-count", "1");
+      await expect(confirmation.locator(".inbox-step-badge")).toHaveText("2");
+      await expect(confirmation.locator(".inbox-step-badge")).toBeVisible();
+      await expect(page.locator("#confirmationHeading")).toHaveText("Confirm your email to finish");
       await expect(confirmation).toContainText("Check your inbox");
       await expect(confirmation).toContainText("Confirm my email");
       await expect(confirmation).toContainText("Epping Forest Finds");
