@@ -11,6 +11,164 @@ const { buildInventory } = require("../../scripts/report/map-inventory.js");
 const { formatCount } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
+  test("smoothly reverses category transitions and closes immediately with reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/");
+    const row = page.locator('[data-inventory-key="churches"]');
+    const button = row.getByRole("button", { name: "Churches", exact: true });
+    const panel = row.locator(".inventory-items");
+    await button.click();
+    await expect(panel.getByRole("listitem").first()).toBeVisible();
+    const closing = await button.evaluate(el => {
+      el.click();
+      const panel = document.getElementById(el.getAttribute("aria-controls"));
+      return { hidden: panel.hidden, inert: panel.inert, transitions: panel.getAnimations().length };
+    });
+    expect(closing).toEqual({ hidden: false, inert: true, transitions: 2 });
+    await button.evaluate(el => el.click());
+    await expect(button).toHaveAttribute("aria-expanded", "true");
+    await expect(panel).toHaveJSProperty("inert", false);
+    await expect(panel.getByRole("searchbox")).toBeVisible();
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const hidden = await button.evaluate(el => {
+      el.click();
+      return document.getElementById(el.getAttribute("aria-controls")).hidden;
+    });
+    expect(hidden).toBe(true);
+  });
+
+  test("animates an expanded category icon and restores its still artwork on close or reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/");
+    const row = page.locator('[data-inventory-key="churches"]');
+    const button = row.getByRole("button", { name: "Churches", exact: true });
+    const icon = button.locator("img");
+    const original = "assets/home/map-icons/church.png";
+    const animated = "assets/home/map-icons/animated/church.png";
+    await expect(icon).toHaveAttribute("src", original);
+    await button.click();
+    await expect(icon).toHaveAttribute("src", animated);
+    await expect.poll(() => icon.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(icon).toHaveAttribute("src", original);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expect(icon).toHaveAttribute("src", animated);
+    await button.click();
+    await expect(icon).toHaveAttribute("src", original);
+  });
+
+  test("keeps category rows compact and marks the open list with a chevron and background", async ({ page }) => {
+    await page.goto("/");
+    const row = page.locator('[data-inventory-key="churches"]');
+    const button = row.getByRole("button", { name: "Churches", exact: true });
+    const appearance = () => button.evaluate(el => ({
+      height: el.getBoundingClientRect().height,
+      chevron: getComputedStyle(el, "::after").transform,
+      symbol: getComputedStyle(el, "::after").content,
+      background: getComputedStyle(el.closest("[data-inventory-key]")).backgroundColor,
+    }));
+    const closed = await appearance();
+    expect(closed.height).toBeLessThan(30);
+    expect(closed.symbol).toBe('""');
+    await button.click();
+    await expect(row.locator(".inventory-items")).toBeVisible();
+    await expect(row).toHaveCSS("padding-left", "12px");
+    await expect(row.locator(".inventory-items li").first()).toBeVisible();
+    await expect.poll(async () => (await appearance()).chevron).not.toBe(closed.chevron);
+    const opened = await appearance();
+    expect(opened.background).not.toBe(closed.background);
+    expect(opened.background).not.toBe("rgba(0, 0, 0, 0)");
+    const card = await row.evaluate(el => {
+      const style = getComputedStyle(el);
+      const list = el.querySelector("ul");
+      const search = el.querySelector("input");
+      return {
+        border: style.borderTopWidth,
+        radius: parseFloat(style.borderRadius),
+        padding: parseFloat(style.paddingLeft),
+        shadow: style.boxShadow,
+        listBackground: list && getComputedStyle(list).backgroundColor,
+        searchBackground: search && getComputedStyle(search).backgroundColor,
+      };
+    });
+    expect(card.border).toBe("1px");
+    expect(card.radius).toBeGreaterThanOrEqual(10);
+    expect(card.padding).toBe(12);
+    expect(card.shadow).toBe("none");
+    expect(card.listBackground).toBe(card.searchBackground);
+    const spacing = await row.evaluate(el => {
+      const header = el.querySelector("dt").getBoundingClientRect();
+      const search = el.querySelector("input").getBoundingClientRect();
+      const list = el.querySelector("ul").getBoundingClientRect();
+      return { above: search.top - header.bottom, below: el.getBoundingClientRect().bottom - list.bottom };
+    });
+    expect(spacing.above).toBeLessThanOrEqual(14);
+    expect(spacing.below).toBeLessThanOrEqual(14);
+    await expect(row).toHaveCSS("background-color", "rgb(246, 241, 231)");
+    await button.press("Enter");
+    await expect(row.locator(".inventory-items")).toBeHidden();
+    await expect.poll(appearance).toEqual(closed);
+  });
+
+  test("expands Churches to show the map's churches and collapses with the keyboard", async ({ page }) => {
+    await page.goto("/");
+    const button = page.getByRole("button", { name: "Churches", exact: true });
+    await expect(button).toHaveAttribute("aria-expanded", "false");
+    await button.click();
+    const panel = page.locator("#inventory-churches");
+    const churches = require("../../assets/home/inventory/churches.json");
+    await expect(panel.getByRole("listitem")).toHaveText(churches.map(item => item.name + item.detail));
+    await expect(button).toHaveAttribute("aria-expanded", "true");
+    await button.focus();
+    await button.press("Enter");
+    await expect(panel).toBeHidden();
+  });
+
+  test("loads only opened categories, searches large lists and shows more results", async ({ page }) => {
+    const requests = [];
+    page.on("request", request => {
+      if (request.url().includes("/assets/home/inventory/")) requests.push(request.url());
+    });
+    await page.goto("/");
+    expect(requests).toHaveLength(0);
+    const toggle = page.getByRole("button", { name: "Trees", exact: true });
+    await toggle.click();
+    const panel = page.locator("#inventory-trees");
+    await expect(panel.getByRole("listitem")).toHaveCount(50);
+    expect(requests).toHaveLength(1);
+    await panel.getByRole("button", { name: "Show more" }).click();
+    await expect(panel.getByRole("listitem")).toHaveCount(100);
+    const search = panel.getByRole("searchbox", { name: "Search trees" });
+    await search.fill("no-such-tree-species");
+    await expect(panel.getByRole("status")).toHaveText("No matching places.");
+    await expect(panel.getByRole("listitem")).toHaveCount(0);
+    const trees = require("../../assets/home/inventory/trees.json");
+    const taggedTree = trees.find(item => item.detail.startsWith("Tag "));
+    await search.fill(taggedTree.detail);
+    await expect(panel).toContainText(taggedTree.name);
+    await expect(panel.getByRole("listitem").first()).toContainText(taggedTree.detail);
+    await toggle.click();
+    await toggle.click();
+    await expect(search).toHaveValue(taggedTree.detail);
+    expect(requests).toHaveLength(1);
+  });
+
+  test("explains empty categories and lets visitors retry a failed category load", async ({ page }) => {
+    let attempts = 0;
+    await page.route("**/assets/home/inventory/medicine.json", route => {
+      attempts += 1;
+      return attempts === 1 ? route.abort() : route.continue();
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Medical sites", exact: true }).click();
+    const panel = page.locator("#inventory-medicine");
+    await expect(panel.getByRole("status")).toHaveText("Couldn't load these places. Please try again.");
+    await panel.getByRole("button", { name: "Try again" }).click();
+    await expect(panel.getByRole("status")).toHaveText("No places in this category yet.");
+    await expect(panel.getByRole("searchbox")).toBeHidden();
+    await expect(panel.getByRole("button", { name: "Show more" })).toBeHidden();
+  });
+
   test("explains what the app is without needing JavaScript", async ({ browser }) => {
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();

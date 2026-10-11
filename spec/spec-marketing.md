@@ -157,6 +157,12 @@ as well as the headline figures in §3.4 and §4 of this document, from the
 current data. `--check` reports drift without changing anything and exits
 non-zero.
 
+The same sync writes `assets/home/inventory/*.json` from the read-only map
+datasets, using the app's classification and normalisation rules at generation
+time. Each list preserves every counted record, sorts by name, and labels
+unnamed places and untagged trees explicitly. List lengths and contents are
+checked alongside counts; dataset updates commit the generated lists too.
+
 It exists because the test alone left a person in the loop, and the weekly
 ledger run (`spec-weekly-report.md`) changes the food dataset unattended: every
 data change it proposed therefore arrived with this suite already red, and a
@@ -213,6 +219,30 @@ Sections, in order:
    smaller app icon beside every subcategory. Parent icons are deliberately
    larger so the group hierarchy remains clear. Both icon sizes sit centred
    in the same 38px column, with aligned category and subcategory labels. The
+   subcategory labels become keyboard-accessible expand/collapse buttons when
+   JavaScript is available. Collapsed rows retain the original compact spacing;
+   a small downward chevron indicates each button and points upward when open.
+   The expanded category is a warm cream (`#f6f1e7`) panel with a thin border, 10px corners,
+   no inner shadow and 12px inset padding, preserving the label/count
+   alignment. Its results form a white, bordered, rounded list with 12px row
+   padding and separators. The animation wrappers have no section borders or
+   inherited section padding: just 12px above the search field and the outer
+   panel’s 12px bottom inset. Opening one loads its own homepage JSON list and
+   shows names with available addresses/areas (or tree tags), a search field,
+   and up to 50 results initially; “Show more” reveals another 50. Lists scroll
+   within a bounded panel. Loading, empty, no-match and retry states are explicit.
+   Lists are retained when collapsed; no category data is fetched before opening.
+   Expansion and collapse ease over 260ms, including the panel height, card
+   spacing, shading and chevron rotation; results fade in gently. Rapid toggles
+   reverse the transition, closing immediately removes controls from keyboard
+   navigation, and reduced motion makes all state changes immediate.
+   Only expanded category icons animate, using independent animated PNGs in
+   `assets/home/map-icons/animated/`. `scripts/generate-home-icon-motion.js`
+   renders these from the existing icon motion at generation time; no app code
+   loads on the homepage. Closing the category, hiding the page or requesting
+   reduced motion restores the original still icon. A failed animation load
+   also falls back to the still image.
+   Without JavaScript, the existing labels and counts remain readable. The
    header brand mark is the transparent oak leaf from the app icon, without
    the app icon's yellow background, shown at 44px (36px on phones), with the
    brand name and Ledger link each kept to one line. The hero starts directly
