@@ -8133,6 +8133,35 @@ test("tapping a cluster behind the Settings screen switches to Nearby to show th
   assert.equal(app.els.inspectorTitle.textContent, "Nearby", "Nearby opens to show the expanded group");
 });
 
+for (const [screenName, open] of [
+  ["Filters", (app) => app.openFiltersScreen()],
+  ["Settings", (app) => app.openSettings()],
+  ["Report", (app) => app.openReportModal()],
+  ["Search", (app) => app.openSearchScreen()],
+]) {
+  test(`opening ${screenName} while a cluster is expanded drops the expanded group and its borrowed radius`, () => {
+    resetData(app);
+    app.state.userLocation = makePoint(app, 51.65, 0.05);
+    const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+    const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+    app.state.trees.push(oak1, oak2);
+    const radiusBefore = app.state.walkingDistanceMinutes;
+
+    const cluster = { itemType: "tree", items: [oak1, oak2] };
+    app.focusNearbyOnClusterGroup(cluster);
+    assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
+    assert.notEqual(app.state.walkingDistanceMinutes, radiusBefore, "sanity: the radius grew to cover the group");
+
+    // Filters/Settings/Report/Search all promise the same fixed, zoomed-out survey view of the
+    // walking radius (secondaryScreenActive, spec-data-rendering.md) -- before this, an
+    // expanded cluster stayed narrowed to the tapped group's own members behind any of them,
+    // and the Settings slider showed the group's borrowed radius as if it were the user's own.
+    open(app);
+    assert.equal(app.state.clusterExpanded, null, `opening ${screenName} exits the group's exact-membership view`);
+    assert.equal(app.state.walkingDistanceMinutes, radiusBefore, `opening ${screenName} also restores the radius the group tap grew`);
+  });
+}
+
 test("the browser back button drops an expanded cluster, not just the anchor it moved", () => {
   resetData(app);
   resetRouter(app);
@@ -8170,6 +8199,79 @@ test("resizing the walking radius drops an expanded cluster", () => {
   app.applyWalkingRadiusChange(10, { animate: false });
   assert.equal(app.state.clusterExpanded, null, "dragging the radius to a size of its own choosing exits the group's exact-membership view");
   assert.equal(app.state.walkingDistanceMinutes, 10, "the radius the user just chose wins over the group's own, stashed one");
+});
+
+test("pinching/wheeling the walking radius also drops an expanded cluster", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+  assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
+
+  // applyWalkingRadiusGesture is the continuous pinch/wheel path -- a separate function from
+  // applyWalkingRadiusChange (the Settings slider), and one that used to leave clusterExpanded
+  // set: the gesture changed state.walkingDistanceMinutes on every move, but
+  // nearbyCameraFitPoints/overviewItemsForActiveFilter kept fitting and listing the tapped
+  // group's own members regardless, since nothing in this path ever cleared it -- the camera
+  // and list silently stopped tracking the gesture.
+  app.applyWalkingRadiusGesture(10);
+  assert.equal(app.state.clusterExpanded, null, "a radius gesture of the user's own choosing exits the group's exact-membership view too");
+  assert.equal(app.state.walkingDistanceMinutes, 10, "the gesture's own radius wins over the group's stashed one");
+});
+
+test("tapping a nearby cluster pans to it at today's zoom, then zooms in -- two tweens, not one", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  // A couple of hundred metres from the user's own location -- on screen at the walking-radius
+  // framing the camera already has, but not so coincident with its current pivot that the pan
+  // leg below is a zero-distance no-op (animateViewportTo's own near-identical-target snap,
+  // which would resolve synchronously and skip straight to the chained zoom leg).
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6520, 0.0510) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65201797, 0.0510) };
+  app.state.trees.push(oak1, oak2);
+  app.selectOverview();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  const scaleBeforeTap = app.state.viewport.scale;
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  // The group is a couple of metres from the user's own location -- already on screen -- so
+  // this should be the staged pan-then-zoom (alignHeadingUpNavigationViewport's
+  // stagePanThenZoom branch, js/app.js): a short pan at *today's* scale first, not the single
+  // combined ease. The first (and, synchronously, only observable) leg is the pan: same scale
+  // as before the tap, over 40% of NEARBY_ORIGIN_TRANSITION_MS (520ms) -- its chained zoom leg
+  // only starts once that pan's own animation frame loop completes.
+  assert.ok(app.state.viewportAnimationTo, "the tap should start a camera animation");
+  assert.equal(app.state.viewportAnimationDuration, 208, "the first leg is the 40%-of-520ms pan, not the full duration");
+  assert.equal(app.state.viewportAnimationTo.scale, scaleBeforeTap, "the pan leg holds the scale the camera already had");
+});
+
+test("tapping a cluster far outside the current view skips staging -- one direct ease instead", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  // A tight, arbitrary "current" framing -- standing in for having just zoomed in on some
+  // other, unrelated spot -- paired with a cluster many kilometres away. Panning that whole
+  // distance at this scale, in the short pan leg above, would cover many screens' worth of
+  // pixels in a couple hundred milliseconds: a fast, disorienting slide, not the gentle
+  // repositioning stagePanThenZoom exists for (see its own comment, js/app.js, on why this is
+  // exactly the "mega badge across the ring" case the old three-phase tour was abandoned over).
+  app.state.viewport = { scale: 500000, tx: 0, ty: 0 };
+  app.state.nearbyAnchor = { latitude: 51.65, longitude: 0.05, point: app.projectLonLat(0.05, 51.65) };
+  const far1 = { id: "far1", commonName: "Oak", ...makePoint(app, 51.75, 0.15) };
+  const far2 = { id: "far2", commonName: "Oak", ...makePoint(app, 51.75001797, 0.15) };
+  app.state.trees.push(far1, far2);
+
+  const cluster = { itemType: "tree", items: [far1, far2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  assert.ok(app.state.viewportAnimationTo, "the tap should still start a camera animation");
+  assert.equal(app.state.viewportAnimationDuration, 520, "a far jump falls back to the single, full-duration ease (NEARBY_ORIGIN_TRANSITION_MS)");
+  assert.notEqual(app.state.viewportAnimationTo.scale, 500000, "a single ease targets the group's own fit scale directly, not today's scale");
 });
 
 test("dismissing the anchor bar drops an expanded cluster", () => {

@@ -1290,6 +1290,13 @@ function applyWalkingRadiusGesture(rawMinutes) {
     }
     return floor;
   }
+  // Same reasoning as applyWalkingRadiusChange: deliberately resizing the ring mid-gesture is
+  // the user choosing a radius of their own, which an exact-membership view can no longer
+  // promise once that choice is made. Without this, a pinch/wheel gesture over an expanded
+  // cluster changed state.walkingDistanceMinutes (and the ring's own drawn size) while
+  // nearbyCameraFitPoints/overviewItemsForActiveFilter kept fitting and listing the cluster's
+  // own members regardless -- the camera and list silently stopped tracking the gesture.
+  exitClusterExpansion({ restoreRadius: false });
   state.walkingDistanceMinutes = minutes;
   state.outOfRadiusRevealFilters = [];
   ensureOverviewTargetsVisible({ animate: false, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });

@@ -2075,6 +2075,12 @@ function setNavScreenActive(current = null) {
 
 function openFiltersScreen() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Filters");
+  // Filters/Settings/Report/Search all promise the same fixed, zoomed-out survey view of the
+  // walking radius (secondaryScreenActive) -- left set, an expanded cluster narrowed that to
+  // the tapped group's own members instead, and its borrowed radius looked like the user's own
+  // real setting on the Settings slider. Opening any of them is leaving that exact-membership
+  // view just as much as tapping open ground is.
+  exitClusterExpansion();
   state.selected = null;
   // showBack:true clears state.filterScreenOpen inside setInspectorSelectionChrome (the shared
   // chokepoint every other showBack:true screen relies on to stand Filters down) -- set it again
@@ -2101,6 +2107,9 @@ function openFiltersScreen() {
 
 function openSettings() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Settings");
+  // See the matching comment in openFiltersScreen -- without this the walk-radius slider here
+  // showed the tapped group's borrowed radius as if it were the user's own setting.
+  exitClusterExpansion();
   state.selected = { type: "settings", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.settingsToggle);
@@ -2255,6 +2264,8 @@ function bindSettingsHandlers() {
 
 function openReportModal() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Report");
+  // See the matching comment in openFiltersScreen.
+  exitClusterExpansion();
   state.selected = { type: "report", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.reportToggle);
@@ -5651,7 +5662,26 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // on the new pivot. stagePanThenZoom (focusNearbyOnClusterGroup) eases there first and only
   // then eases scale to targetScale, so a cluster that is already on screen slides into the
   // middle of it before the camera zooms in on it, rather than panning and zooming at once.
-  if (options.animate && options.stagePanThenZoom && Number.isFinite(previousScale) && previousScale > 0) {
+  //
+  // Only worth doing when the new pivot is roughly where the old one was on screen -- the
+  // premise this whole branch rests on ("it will already be in the viewport"). A cluster tap
+  // while already tightly zoomed in elsewhere can land on a pivot that is world-far from here;
+  // panning there at *today's* (tight) scale would cover that whole distance in screen pixels
+  // within one short tween, reading as a fast, disorienting slide rather than a gentle
+  // repositioning -- worse than the single combined ease it would be replacing. This is exactly
+  // the "mega badge across the ring from an earlier browse anchor" case the old three-phase
+  // zoom-out/pan/zoom-in tour existed for and was abandoned over (see focusNearbyOnClusterGroup's
+  // own comment); staging still isn't the answer for it, so this falls back to the plain single
+  // ease below instead, the same path a far jump already took before stagePanThenZoom existed.
+  const panDistancePx = Number.isFinite(previousScale) && previousScale > 0
+    ? Math.hypot(
+      (focus.x - userPoint.x * previousScale) - previousTx,
+      (focusY - userPoint.y * previousScale) - previousTy
+    )
+    : Infinity;
+  const panIsAlreadyOnScreen = panDistancePx <= Math.hypot(focusRect.width, focusRect.height);
+
+  if (options.animate && options.stagePanThenZoom && panIsAlreadyOnScreen) {
     const panViewport = {
       scale: previousScale,
       tx: focus.x - userPoint.x * previousScale,
@@ -7112,6 +7142,8 @@ function renderSearchResults() {
 
 function openSearchScreen() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Search");
+  // See the matching comment in openFiltersScreen.
+  exitClusterExpansion();
   state.filterScreenOpen = false;
   state.selected = null;
   // Building the index here rather than on the first keystroke keeps the hitch off the
