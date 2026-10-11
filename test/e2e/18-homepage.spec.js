@@ -94,7 +94,7 @@ test.describe("the marketing homepage", () => {
     expect(card.border).toBe("1px");
     expect(card.radius).toBeGreaterThanOrEqual(10);
     expect(card.padding).toBe(12);
-    expect(card.shadow).not.toBe("none");
+    expect(card.shadow).toBe("none");
     expect(card.listBackground).toBe(card.searchBackground);
     await button.press("Enter");
     await expect(row.locator(".inventory-items")).toBeHidden();

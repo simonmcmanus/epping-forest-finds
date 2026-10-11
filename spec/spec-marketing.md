@@ -223,7 +223,7 @@ Sections, in order:
    JavaScript is available. Collapsed rows retain the original compact spacing;
    a small downward chevron indicates each button and points upward when open.
    The expanded category is a pale green card with a thin border, 10px corners,
-   the shared soft shadow and 12px inset padding, preserving the label/count
+   no inner shadow and 12px inset padding, preserving the label/count
    alignment. Its results form a white, bordered, rounded list with 12px row
    padding and separators. Opening one loads its own homepage JSON list and
    shows names with available addresses/areas (or tree tags), a search field,
