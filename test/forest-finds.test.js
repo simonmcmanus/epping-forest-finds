@@ -8142,15 +8142,18 @@ test("the browser back button drops an expanded cluster, not just the anchor it 
   const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
   app.state.trees.push(oak1, oak2);
 
+  const radiusBefore = app.state.walkingDistanceMinutes;
   const cluster = { itemType: "tree", items: [oak1, oak2] };
   app.focusNearbyOnClusterGroup(cluster);
   assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
+  assert.notEqual(app.state.walkingDistanceMinutes, radiusBefore, "sanity: the radius grew to cover the group");
 
   // history.state has no room for a live cluster-item reference (pushNearbyAnchorHistory only
   // snapshots the anchor's lat/lon), so a stale state.clusterExpanded left set after the anchor
   // moves back would narrow the map/list to a group unrelated to where the ring now sits.
   app.history.back();
   assert.equal(app.state.clusterExpanded, null, "going back drops the expanded group, not just the anchor it moved");
+  assert.equal(app.state.walkingDistanceMinutes, radiusBefore, "going back also restores the radius the group tap grew, not just the anchor");
 });
 
 test("resizing the walking radius drops an expanded cluster", () => {
@@ -8166,6 +8169,7 @@ test("resizing the walking radius drops an expanded cluster", () => {
 
   app.applyWalkingRadiusChange(10, { animate: false });
   assert.equal(app.state.clusterExpanded, null, "dragging the radius to a size of its own choosing exits the group's exact-membership view");
+  assert.equal(app.state.walkingDistanceMinutes, 10, "the radius the user just chose wins over the group's own, stashed one");
 });
 
 test("dismissing the anchor bar drops an expanded cluster", () => {
@@ -8175,12 +8179,14 @@ test("dismissing the anchor bar drops an expanded cluster", () => {
   const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
   app.state.trees.push(oak1, oak2);
 
+  const radiusBefore = app.state.walkingDistanceMinutes;
   const cluster = { itemType: "tree", items: [oak1, oak2] };
   app.focusNearbyOnClusterGroup(cluster);
   assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
 
   app.clearNearbyAnchor();
   assert.equal(app.state.clusterExpanded, null, "returning to GPS-based browsing exits the group's exact-membership view too");
+  assert.equal(app.state.walkingDistanceMinutes, radiusBefore, "and restores the radius the group tap grew");
 });
 
 test("moving the nearby browse anchor reframes the same view instead of zooming out", () => {

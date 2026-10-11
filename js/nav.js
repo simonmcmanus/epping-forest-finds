@@ -834,7 +834,12 @@ function refreshNearbyRadiusView(options = {}) {
   // its own duration so the two tweens land on the same frame -- see nearbyRevealOpacity's
   // concurrent-viewport-animation check, which otherwise has a gap to fall through if this one
   // finishes first.
-  ensureOverviewTargetsVisible({ animate, durationMs: options.durationMs || OVERVIEW_REFIT_ANIMATION_MS, force: true });
+  ensureOverviewTargetsVisible({
+    animate,
+    durationMs: options.durationMs || OVERVIEW_REFIT_ANIMATION_MS,
+    force: true,
+    stagePanThenZoom: Boolean(options.stagePanThenZoom),
+  });
   requestDraw();
 }
 
@@ -850,7 +855,7 @@ function applyWalkingRadiusChange(minutes, options = {}) {
   // could reach here while a cluster is expanded (the automatic grow-back,
   // ensureWalkingRadiusCoversNearest) already refuses to run in that case, so this never fires
   // mid-expansion on its own.
-  state.clusterExpanded = null;
+  exitClusterExpansion({ restoreRadius: false });
   state.outOfRadiusRevealFilters = [];
   refreshNearbyRadiusView(options);
 }
@@ -976,9 +981,19 @@ function restoreNearbyAnchorFromHistory() {
       : null;
     state.outOfRadiusRevealFilters = [];
     updateNearbyAnchorBar();
-    // Same duration as the origin slide just started above -- see the matching comment on
-    // focusNearbyOnClusterGroup's own call.
-    refreshNearbyRadiusView({ animate: true, durationMs: NEARBY_ORIGIN_TRANSITION_MS });
+    // If a cluster is still expanded here, urlMatchesCurrentScreen (js/app.js) is about to force
+    // applyRouteFromUrl's caller to run applyRouteToScreen right after this returns -- which drops
+    // the expanded group and restores the radius it grew (exitClusterExpansion) before its own
+    // refit runs. A camera tween started here, against the still-expanded group's radius, would
+    // ease toward a target sized for the group; by the time the *correct* tween (that later refit)
+    // tries to start, one is already in flight and alignHeadingUpNavigationViewport refuses to
+    // override it (selectionCameraTransitionActive) -- so the wrong tween is the only one that
+    // ever runs, and the camera settles at the wrong zoom. Reported as the back button "zooming
+    // in and out a bit" rather than one steady zoom. Snapping instead of easing here is invisible
+    // (nothing has painted yet), and leaves nothing in flight for the correction to compete with,
+    // so only the one, right ease -- the later refit's -- is ever seen.
+    const clusterAboutToExit = Boolean(state.clusterExpanded);
+    refreshNearbyRadiusView({ animate: !clusterAboutToExit, durationMs: NEARBY_ORIGIN_TRANSITION_MS });
   } finally {
     routeApplyDepth -= 1;
   }
@@ -1031,6 +1046,25 @@ function clusterFocusTarget(items) {
   return { centerPoint, center, targetMinutes };
 }
 
+// Clears state.clusterExpanded, restoring the walking radius it grew to cover the group's own
+// members (see state.preClusterWalkingDistanceMinutes) -- called from every place that leaves
+// the exact-membership view (back/forward, dismissing the anchor bar, a fresh selection, the
+// user taking the camera over by hand). A no-op when no cluster is expanded, so every caller
+// can call it unconditionally instead of guarding first.
+//
+// restoreRadius: false for applyWalkingRadiusChange, the one caller where state.walkingDistanceMinutes
+// has *already* been set to a new value the user just chose deliberately (the Settings slider,
+// a pinch/wheel gesture) -- that choice must win, not be overwritten by the stashed one.
+function exitClusterExpansion({ restoreRadius = true } = {}) {
+  if (!state.clusterExpanded) return;
+  state.clusterExpanded = null;
+  const previousRadius = state.preClusterWalkingDistanceMinutes;
+  state.preClusterWalkingDistanceMinutes = null;
+  if (restoreRadius && previousRadius != null) {
+    state.walkingDistanceMinutes = previousRadius;
+  }
+}
+
 function focusNearbyOnClusterGroup(cluster) {
   const items = (cluster.items || []).filter(item => item && item.point
     && Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
@@ -1041,6 +1075,12 @@ function focusNearbyOnClusterGroup(cluster) {
   setInspectorMinimized(false);
   stopViewportAnimation();
   state.clusterZoomed = false;
+  // Stashed only on the way *into* the exact-membership view, not on every nested drill-down
+  // into a sub-cluster -- otherwise leaving a two-level drill-down would only undo the inner
+  // tap's own radius change, not the original one from before either tap.
+  if (!state.clusterExpanded) {
+    state.preClusterWalkingDistanceMinutes = state.walkingDistanceMinutes;
+  }
   // Expanding a cluster always surfaces the Nearby list with its members, even when the tap
   // landed on the map behind a secondary screen (Filter/Settings/Report/Search) -- unlike a tap
   // on open ground, which deliberately leaves those screens open (see handleMapClick's own
@@ -1074,14 +1114,18 @@ function focusNearbyOnClusterGroup(cluster) {
   // count never grows or shrinks on the way in.
   state.clusterExpanded = cluster;
   syncSettingsWalkSlider();
-  // Single direct ease to the group's own framing -- same path a browser-back cluster undo
-  // (restoreNearbyAnchorFromHistory) already takes -- rather than the old zoom-out/pan/zoom-in
-  // tour. refreshNearbyRadiusView handles the nearest-tree rescan, the Nearby list, the anchor
-  // bar, and ensureOverviewTargetsVisible's own camera fit. Matches the nearby-origin slide's
-  // own duration (started above, via startNearbyOriginTransition -- always
+  // Pan-then-zoom to the group's own framing, rather than easing position and scale at once:
+  // the tapped group is already on screen (that's how it got tapped), so sliding it to the
+  // middle of today's view before zooming in on it reads as "the camera found the group, then
+  // moved in on it" instead of a single rushed zoom that happens to also be panning. See
+  // alignHeadingUpNavigationViewport's stagePanThenZoom branch (js/app.js). Not the old
+  // zoom-out/pan/zoom-in tour (three tweens, abandoned for reading as a yank away and back) --
+  // this is two. refreshNearbyRadiusView handles the nearest-tree rescan, the Nearby list, the
+  // anchor bar, and ensureOverviewTargetsVisible's own camera fit. Matches the nearby-origin
+  // slide's own duration (started above, via startNearbyOriginTransition -- always
   // NEARBY_ORIGIN_TRANSITION_MS) so the camera's fly-to-cluster tween and the ring/pin reveal
   // land on the same frame -- see nearbyRevealOpacity.
-  refreshNearbyRadiusView({ animate: true, durationMs: NEARBY_ORIGIN_TRANSITION_MS });
+  refreshNearbyRadiusView({ animate: true, durationMs: NEARBY_ORIGIN_TRANSITION_MS, stagePanThenZoom: true });
   pushNearbyAnchorHistory();
   return true;
 }
@@ -1094,7 +1138,7 @@ function clearNearbyAnchor() {
   // Dismissing the anchor bar is as much an exit from an expanded cluster as tapping open
   // ground is (focusNearbyOnMapPoint) -- left set, the list/map stayed narrowed to a group with
   // no relation to wherever GPS-based browsing resumes.
-  state.clusterExpanded = null;
+  exitClusterExpansion();
   refreshNearbyRadiusView({ animate: false });
   pushNearbyAnchorHistory();
 }
@@ -1471,7 +1515,7 @@ function setupMapCanvasHandlers() {
     if (Math.abs(dx) + Math.abs(dy) > 4) {
       state.moved = true;
       state.clusterZoomed = false;
-      state.clusterExpanded = null;
+      exitClusterExpansion();
     }
     if (typeof headingUpActive === "function" && headingUpActive()) {
       alignHeadingUpNavigationViewport();
@@ -1545,7 +1589,7 @@ function setupMapCanvasHandlers() {
   els.canvas.addEventListener("wheel", (event) => {
     event.preventDefault();
     state.clusterZoomed = false;
-    state.clusterExpanded = null;
+    exitClusterExpansion();
     if (zoomInputResizesNearbyRadius()) {
       updateNearbyRadiusWheel(event);
       return;
@@ -1791,7 +1835,7 @@ function goToInitialView(updateHash = true) {
   state.selected = null;
   clearManualCameraOverride();
   state.clusterZoomed = false;
-  state.clusterExpanded = null;
+  exitClusterExpansion();
   state.filterScreenOpen = false;
   state.searchScreenOpen = false;
   selectOverview(true);

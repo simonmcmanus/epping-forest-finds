@@ -346,6 +346,12 @@ const state = {
   overviewOutsideRadiusFallback: false,
   clusterZoomed: false,
   clusterExpanded: null,
+  // The radius in effect just before a cluster tap grew it to cover the group's own members
+  // (focusNearbyOnClusterGroup) -- restored by exitClusterExpansion (js/nav.js) wherever
+  // clusterExpanded is cleared, so leaving that exact-membership view leaves its radius behind
+  // too, rather than permanently shrinking (or growing) the ring to whatever the last tapped
+  // group needed.
+  preClusterWalkingDistanceMinutes: null,
   transportLookupCache: new Map(),
   transportLookupRequests: new Map(),
   dataLoaded: false,
@@ -674,7 +680,7 @@ function applyRouteToScreen(raw, announceMissing) {
   // Whatever the route turns out to be, arriving at one is navigating away from an expanded
   // map group -- the one screen with no URL of its own (see urlMatchesCurrentScreen).
   state.clusterZoomed = false;
-  state.clusterExpanded = null;
+  exitClusterExpansion();
 
   if (!value) {
     goToInitialView(false);
@@ -5639,7 +5645,23 @@ function alignHeadingUpNavigationViewport(options = {}) {
     ty: focusY - userPoint.y * targetScale,
   };
 
-  if (options.animate) {
+  // focus/focusY/userPoint are all independent of scale (the Nearby pivot never rotates with
+  // heading, and dampedHeadingUpFocusY is a no-op outside selected-navigation) -- so the same
+  // tx/ty formula at *today's* scale is a real, reachable viewport: today's framing, re-centred
+  // on the new pivot. stagePanThenZoom (focusNearbyOnClusterGroup) eases there first and only
+  // then eases scale to targetScale, so a cluster that is already on screen slides into the
+  // middle of it before the camera zooms in on it, rather than panning and zooming at once.
+  if (options.animate && options.stagePanThenZoom && Number.isFinite(previousScale) && previousScale > 0) {
+    const panViewport = {
+      scale: previousScale,
+      tx: focus.x - userPoint.x * previousScale,
+      ty: focusY - userPoint.y * previousScale,
+    };
+    const totalMs = options.durationMs || HEADING_UP_NAV_ANIMATION_MS;
+    const panMs = Math.round(totalMs * 0.4);
+    const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - panMs);
+    animateViewportTo(panViewport, panMs, () => animateViewportTo(targetViewport, zoomMs));
+  } else if (options.animate) {
     animateViewportTo(targetViewport, options.durationMs || HEADING_UP_NAV_ANIMATION_MS);
   } else {
     state.viewport.scale = targetScale;
@@ -6226,6 +6248,7 @@ function ensureOverviewTargetsVisible(options = {}) {
       animate: Boolean(options.animate),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       force: Boolean(options.force),
+      stagePanThenZoom: Boolean(options.stagePanThenZoom),
     });
     return;
   }
@@ -7145,7 +7168,7 @@ function openSearchResult(type, key) {
     return;
   }
   state.clusterZoomed = false;
-  state.clusterExpanded = null;
+  exitClusterExpansion();
   state.searchScreenOpen = false;
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location

@@ -59,7 +59,7 @@ function handleMapClick(event) {
   }
 
   state.clusterZoomed = false;
-  state.clusterExpanded = null;
+  exitClusterExpansion();
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
@@ -870,7 +870,7 @@ function focusOverviewItem(type, key) {
     return;
   }
   state.clusterZoomed = false;
-  state.clusterExpanded = null;
+  exitClusterExpansion();
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
