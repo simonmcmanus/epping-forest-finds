@@ -15,6 +15,45 @@ const { connectLambda, getStore } = require("@netlify/blobs");
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const TRACKING_DIR = path.join(__dirname, "..", "..", "data", "tracking");
 
+// Blob count grows without bound (one blob per POST batch, forever -- see Storage
+// section of spec-admin.md), and each one is a separate network round-trip to fetch.
+// Once a deployment has been live long enough, downloading all of them in one admin
+// read blows past the Netlify function execution limit and the request 504s. Blob
+// keys embed their write time (`location/<ms-timestamp>_<rand>.json`), so the default
+// window is applied before any blob content is downloaded, not after.
+const DEFAULT_WINDOW_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function parseWindowDays(event) {
+  const raw = queryParam(event, "days");
+  if (raw === "all") return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_WINDOW_DAYS;
+}
+
+function windowSinceMs(windowDays) {
+  return windowDays == null ? null : Date.now() - windowDays * DAY_MS;
+}
+
+function blobKeyTimestampMs(key) {
+  const match = /\/(\d+)_/.exec(key || "");
+  return match ? Number(match[1]) : null;
+}
+
+// A key this function doesn't recognise is kept rather than dropped, so a future key
+// format never silently loses data -- it just skips the fast-path filter for that key.
+function blobKeyWithinWindow(key, sinceMs) {
+  if (sinceMs == null) return true;
+  const ts = blobKeyTimestampMs(key);
+  return ts == null || ts >= sinceMs;
+}
+
+function eventWithinWindow(storedEvent, sinceMs) {
+  if (sinceMs == null) return true;
+  const ts = Date.parse(storedEvent && storedEvent.ts);
+  return !Number.isFinite(ts) || ts >= sinceMs;
+}
+
 // ---- Environment-scoped blob store ----
 // Production uses "tracking"; preview/branch deploys use "tracking-<branch>" so
 // test data never appears in the production admin dashboard.
@@ -163,6 +202,8 @@ exports.handler = async (event) => {
   if (event.httpMethod === "GET") {
     if (!checkAuth(event)) return response(401, { error: "Unauthorized" });
     const debug = queryParam(event, "debug") === "1";
+    const windowDays = parseWindowDays(event);
+    const sinceMs = windowSinceMs(windowDays);
 
     let store;
     try {
@@ -171,15 +212,20 @@ exports.handler = async (event) => {
         listAllBlobs(store, "location/"),
         listAllBlobs(store, "click/"),
       ]);
+      const locBlobsInWindow = locBlobs.filter((b) => blobKeyWithinWindow(b.key, sinceMs));
+      const clickBlobsInWindow = clickBlobs.filter((b) => blobKeyWithinWindow(b.key, sinceMs));
       const [locationArrays, clickArrays] = await Promise.all([
-        Promise.all(locBlobs.map((b) => store.get(b.key, { type: "json" }).catch(() => []))),
-        Promise.all(clickBlobs.map((b) => store.get(b.key, { type: "json" }).catch(() => []))),
+        Promise.all(locBlobsInWindow.map((b) => store.get(b.key, { type: "json" }).catch(() => []))),
+        Promise.all(clickBlobsInWindow.map((b) => store.get(b.key, { type: "json" }).catch(() => []))),
       ]);
       const locations = locationArrays.flat();
       const clicks = clickArrays.flat();
       logTrack("blob-read-ok", {
-        locationBlobCount: locBlobs.length,
-        clickBlobCount: clickBlobs.length,
+        windowDays,
+        locationBlobCount: locBlobsInWindow.length,
+        locationBlobCountTotal: locBlobs.length,
+        clickBlobCount: clickBlobsInWindow.length,
+        clickBlobCountTotal: clickBlobs.length,
         locations: locations.length,
         clicks: clicks.length,
       });
@@ -189,10 +235,13 @@ exports.handler = async (event) => {
         meta: {
           storeName: getTrackingStoreName(),
           context: process.env.CONTEXT || "local",
+          windowDays,
           ...(debug ? {
             storage: "blobs",
-            locationBlobCount: locBlobs.length,
-            clickBlobCount: clickBlobs.length,
+            locationBlobCount: locBlobsInWindow.length,
+            locationBlobCountTotal: locBlobs.length,
+            clickBlobCount: clickBlobsInWindow.length,
+            clickBlobCountTotal: clickBlobs.length,
           } : {}),
         },
       });
@@ -202,10 +251,11 @@ exports.handler = async (event) => {
         return response(500, { error: "Blob storage read failed", details: errorDetails(blobErr) });
       }
 
-      // Fall back to local NDJSON files
+      // Fall back to local NDJSON files. Small enough locally that windowing is just
+      // applied to the already-read events rather than filtering file content up front.
       try {
-        const locations = fileRead("location.ndjson");
-        const clicks = fileRead("click.ndjson");
+        const locations = fileRead("location.ndjson").filter((e) => eventWithinWindow(e, sinceMs));
+        const clicks = fileRead("click.ndjson").filter((e) => eventWithinWindow(e, sinceMs));
         logTrack("file-read-fallback-ok", { locations: locations.length, clicks: clicks.length });
         return response(200, {
           locations,
@@ -213,6 +263,7 @@ exports.handler = async (event) => {
           meta: {
             storeName: getTrackingStoreName(),
             context: process.env.CONTEXT || "local",
+            windowDays,
             ...(debug ? { storage: "file-fallback", blobError: errorDetails(blobErr) } : {}),
           },
         });
@@ -294,3 +345,10 @@ exports.handler = async (event) => {
 
   return response(405, { error: "Method not allowed" });
 };
+
+exports.DEFAULT_WINDOW_DAYS = DEFAULT_WINDOW_DAYS;
+exports.parseWindowDays = parseWindowDays;
+exports.windowSinceMs = windowSinceMs;
+exports.blobKeyTimestampMs = blobKeyTimestampMs;
+exports.blobKeyWithinWindow = blobKeyWithinWindow;
+exports.eventWithinWindow = eventWithinWindow;

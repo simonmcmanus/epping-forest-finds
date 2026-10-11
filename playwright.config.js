@@ -71,6 +71,17 @@ module.exports = defineConfig({
     trace: "on-first-retry",
     // Suppress service-worker registration so tests always hit real routes
     serviceWorkers: "block",
+    // Pre-decide the cookie-consent banner (cookie-consent.js) as already granted, the same way
+    // denyGeolocationUnlessGranted pre-decides geolocation: without this, the banner is undecided
+    // on every fresh page load and sits fixed at the bottom of the viewport, which Playwright's
+    // actionability checks treat as covering anything underneath it — a single config default
+    // here is far safer than touching every spec file's own setup. The dedicated banner spec
+    // (test/e2e/29-cookie-consent.spec.js) overrides this per-test with its own storageState to
+    // exercise the undecided/accept/decline states themselves.
+    storageState: {
+      cookies: [],
+      origins: [{ origin: baseURL, localStorage: [{ name: "ff-cookie-consent", value: "granted" }] }],
+    },
   },
 
   projects: [

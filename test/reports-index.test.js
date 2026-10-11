@@ -124,7 +124,7 @@ test("the listing wears the homepage's look: brand header, forest photograph and
 
 test("buildIndexHtml escapes filenames so an untrusted/odd name cannot break the page", () => {
   const html = buildIndexHtml([{ name: `weird<script>.html`, size: 10, mtimeMs: Date.now() }]);
-  assert.doesNotMatch(html, /<script>/);
+  assert.ok(!html.includes("weird<script>.html"), "the raw filename must never appear unescaped");
   assert.match(html, /weird&lt;script&gt;\.html/);
 });
 

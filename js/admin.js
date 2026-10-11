@@ -202,6 +202,7 @@ function shortUid(uid) {
 // ---- State ----
 
 let allData = { locations: [], clicks: [] };
+let lastMeta = null;
 let selectedUid = null; // null = show all users
 let selectedClickKey = null;
 let viewMode = "tracks"; // "tracks" | "heatmap"
@@ -1216,7 +1217,10 @@ function updateStats() {
   const locs = filteredLocations();
   const clicks = filteredClicks();
   const uids = new Set([...locs, ...clicks].map((e) => e.uid));
-  el.innerHTML = `<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""} &nbsp;·&nbsp; <strong>${locs.length}</strong> location pings &nbsp;·&nbsp; <strong>${clicks.length}</strong> taps`;
+  const windowLabel = Number.isFinite(lastMeta?.windowDays)
+    ? ` &nbsp;·&nbsp; last ${lastMeta.windowDays} days`
+    : "";
+  el.innerHTML = `<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""} &nbsp;·&nbsp; <strong>${locs.length}</strong> location pings &nbsp;·&nbsp; <strong>${clicks.length}</strong> taps${windowLabel}`;
 }
 
 function formatEventTime(value) {
@@ -1339,6 +1343,7 @@ async function loadData(password) {
     clicks: Array.isArray(data.clicks) ? data.clicks.length : 0,
   });
   updateEnvBadge(data.meta);
+  lastMeta = data.meta;
   return data;
 }
 

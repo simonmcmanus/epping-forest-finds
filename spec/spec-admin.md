@@ -22,7 +22,7 @@ The admin UI stores the password in `sessionStorage` under `ff-admin-session-pas
 
 ### Login screen
 - Full-page password form, with a visually-hidden (`.sr-only`) `<label>` for the password field so it has a programmatic name beyond its placeholder text
-- On success: loads all tracking data, transitions to the map view
+- On success: loads tracking data for the current window (see Data API), transitions to the map view
 - On same-tab refresh after a successful login: restores the session from `sessionStorage` and re-fetches data without asking for the password again
 - **Log out** clears the stored admin session and returns to the login screen
 - On failure: shows inline error message
@@ -93,6 +93,7 @@ Fixed to bottom-right of the canvas. Shows:
 - Number of distinct users in current view
 - Total location pings
 - Total tap events
+- The active time window (e.g. "last 30 days"), omitted when the API returned the full history
 
 ## Tap / Click Details
 
@@ -142,15 +143,20 @@ Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.
 **Response:** `{ "ok": true, "stored": <count> }`
 
 ### `GET /api/admin/tracks?pw=<password>`
-Returns all stored events. Requires authentication.
+Returns stored events from a recent time window. Requires authentication.
+
+**Query params:**
+- `days` — size of the window in days. Defaults to **30**. `days=all` returns the entire history (see Storage below for the cost of doing this on a long-lived deployment).
 
 **Response:**
 ```json
 {
-  "locations": [ /* all location events */ ],
-  "clicks":    [ /* all click events */ ]
+  "locations": [ /* location events from the window */ ],
+  "clicks":    [ /* click events from the window */ ],
+  "meta": { "storeName": "...", "context": "...", "windowDays": 30 }
 }
 ```
+`meta.windowDays` is `null` when `days=all` was requested. The admin stats bar shows the active window (e.g. "last 30 days") next to the event counts.
 
 ## Storage
 
@@ -191,7 +197,16 @@ Each batch stored as a separate blob to avoid concurrent-write conflicts:
 - Location batches keyed `location/<timestamp>_<random>`
 - Click batches keyed `click/<timestamp>_<random>`
 
-Admin read endpoint lists all blobs by prefix and downloads them in parallel.
+Admin read endpoint lists all blobs by prefix, then downloads in parallel only the ones
+inside the requested window. Blob count grows without bound (one blob per POST batch,
+forever — there is no compaction or deletion), so on a deployment old enough to have
+accumulated many thousands of batches, downloading every one of them in a single
+request exceeded the Netlify function execution limit and the admin login 504'd. The
+blob key encodes the batch's write time, so the window is applied to the key before any
+blob content is fetched: listing is still full-history, but the per-blob downloads that
+dominate request time are not. The local NDJSON fallback has no equivalent key to
+pre-filter on, so it reads the whole file and filters by each event's own `ts` instead —
+fine at local-dev data volumes.
 
 ## Netlify routing
 
@@ -225,7 +240,7 @@ Colours are assigned from a fixed 15-colour palette in the order users are first
 
 ## Planned future features
 
-- Date range filter to narrow the time window shown
+- UI control to change the window (currently fixed to the last 30 days, or all history via `?days=N`/`?days=all` on the API directly)
 - Per-user route replay (animated playback)
 - Export to CSV / GeoJSON
 - Date/time filters for click-detail aggregation
