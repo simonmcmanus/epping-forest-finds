@@ -220,7 +220,10 @@ Sections, in order:
    larger so the group hierarchy remains clear. Both icon sizes sit centred
    in the same 38px column, with aligned category and subcategory labels. The
    subcategory labels become keyboard-accessible expand/collapse buttons when
-   JavaScript is available. Opening one loads its own homepage JSON list and
+   JavaScript is available. Collapsed rows retain the original compact spacing;
+   a small downward chevron indicates each button and points upward when open.
+   The open row and its list share a pale green background without shifting the
+   label or count alignment. Opening one loads its own homepage JSON list and
    shows names with available addresses/areas (or tree tags), a search field,
    and up to 50 results initially; “Show more” reveals another 50. Lists scroll
    within a bounded panel. Loading, empty, no-match and retry states are explicit.

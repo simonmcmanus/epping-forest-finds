@@ -91,11 +91,13 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .inventory-group dl { display: grid; gap: 5px; margin: 0; color: var(--muted); }
 .inventory-group dl div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 16px; align-items: center; }
 .inventory-group dt, .inventory-group dd { margin: 0; }
-.inventory-toggle { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.inventory-toggle::after { content: "+"; color: var(--muted); font-size: 1.1rem; }
-.inventory-toggle[aria-expanded="true"]::after { content: "−"; }
+.inventory-toggle { display: flex; align-items: center; gap: 9px; min-height: 24px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.inventory-toggle::after { content: ""; flex: 0 0 6px; width: 6px; height: 6px; margin: -3px 3px 0 2px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); color: var(--muted); }
+.inventory-toggle[aria-expanded="true"]::after { transform: translateY(3px) rotate(225deg); color: var(--tree); }
+.inventory-group [data-inventory-key]:has(.inventory-toggle[aria-expanded="true"]) { border-radius: 6px; background: var(--surface-alt); box-shadow: 0 0 0 5px var(--surface-alt); }
+.inventory-toggle[aria-expanded="true"] { color: var(--tree-deep); }
 .inventory-toggle:hover { color: var(--ink); }
-.inventory-group .inventory-items { flex: 0 0 100%; min-width: 0; padding: 10px 0 16px; font-family: inherit; font-size: .9rem; }
+.inventory-group .inventory-items { flex: 0 0 100%; min-width: 0; padding: 8px 0 10px; font-family: inherit; font-size: .9rem; }
 .inventory-items input { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; }
 .inventory-items p { margin: 10px 0; color: var(--muted); font-size: .8rem; }
 .inventory-items ul { max-height: 320px; overflow-y: auto; overscroll-behavior: contain; margin: 0; padding: 0 4px 0 0; list-style: none; }

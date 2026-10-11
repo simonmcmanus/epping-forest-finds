@@ -11,6 +11,30 @@ const { buildInventory } = require("../../scripts/report/map-inventory.js");
 const { formatCount } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
+  test("keeps category rows compact and marks the open list with a chevron and background", async ({ page }) => {
+    await page.goto("/");
+    const row = page.locator('[data-inventory-key="churches"]');
+    const button = row.getByRole("button", { name: "Churches", exact: true });
+    const appearance = () => button.evaluate(el => ({
+      height: el.getBoundingClientRect().height,
+      chevron: getComputedStyle(el, "::after").transform,
+      symbol: getComputedStyle(el, "::after").content,
+      background: getComputedStyle(el.closest("[data-inventory-key]")).backgroundColor,
+    }));
+    const closed = await appearance();
+    expect(closed.height).toBeLessThan(30);
+    expect(closed.symbol).toBe('""');
+    await button.click();
+    await expect(row.locator(".inventory-items")).toBeVisible();
+    await expect.poll(async () => (await appearance()).chevron).not.toBe(closed.chevron);
+    const opened = await appearance();
+    expect(opened.background).not.toBe(closed.background);
+    expect(opened.background).not.toBe("rgba(0, 0, 0, 0)");
+    await button.press("Enter");
+    await expect(row.locator(".inventory-items")).toBeHidden();
+    await expect.poll(appearance).toEqual(closed);
+  });
+
   test("expands Churches to show the map's churches and collapses with the keyboard", async ({ page }) => {
     await page.goto("/");
     const button = page.getByRole("button", { name: "Churches", exact: true });
