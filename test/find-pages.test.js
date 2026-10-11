@@ -10,7 +10,6 @@ const {
   generate,
   listFindSlugs,
   slugFor,
-  rootRelativizeAssetPaths,
 } = require("../scripts/generate-find-pages.js");
 
 const REPO_ROOT = path.join(__dirname, "..");
@@ -59,17 +58,19 @@ test("collectPages produces one page per subfilter, each carrying its siblings b
   assert.deepEqual(pubs.siblings.map((s) => s.key), ["cafes"], "a page lists its siblings, never itself");
 });
 
-test("rootRelativizeAssetPaths roots every relative href/src, leaving absolute ones alone", () => {
-  const html = rootRelativizeAssetPaths(
-    '<link href="css/base.css"><script src="js/app.js"></script>' +
-      '<script src="/cookie-consent.js"></script><a href="https://example.com/x">x</a>' +
-      '<a href="#top">top</a>'
-  );
-  assert.ok(html.includes('href="/css/base.css"'));
-  assert.ok(html.includes('src="/js/app.js"'));
-  assert.ok(html.includes('src="/cookie-consent.js"'), "already-rooted paths are untouched");
-  assert.ok(html.includes('href="https://example.com/x"'), "absolute URLs are untouched");
-  assert.ok(html.includes('href="#top"'), "fragment links are untouched");
+test("renderPage inserts <base href=\"/\"> right after <meta charset>, before any relative URL on the page", () => {
+  const [pubs] = collectPages(FAKE_RULES, FAKE_INVENTORY);
+  const html = renderPage(pubs, APP_HTML);
+
+  const charsetIndex = html.indexOf('<meta charset="utf-8">');
+  const baseIndex = html.indexOf('<base href="/">');
+  assert.ok(charsetIndex !== -1 && baseIndex !== -1);
+  assert.ok(baseIndex > charsetIndex, "<base> comes after <meta charset> but before everything else");
+
+  // app.html's own relative references are left completely untouched -- <base> is what makes
+  // them resolve correctly from /find/<slug>/, not a rewrite of the references themselves.
+  assert.match(html, /href="css\/base\.css"/);
+  assert.match(html, /src="js\/app\.js"/);
 });
 
 test("renderPage produces the real app shell -- same scripts and canvas -- not a separate marketing page", () => {
@@ -77,8 +78,8 @@ test("renderPage produces the real app shell -- same scripts and canvas -- not a
   const html = renderPage(pubs, APP_HTML);
 
   assert.match(html, /id="mapCanvas"/, "the real interactive map canvas is present");
-  assert.match(html, /<script src="\/js\/app\.js"><\/script>/, "the real app script boots this page");
-  assert.match(html, /<script src="\/js\/categories\.js"><\/script>/);
+  assert.match(html, /<script src="js\/app\.js"><\/script>/, "the real app script boots this page");
+  assert.match(html, /<script src="js\/categories\.js"><\/script>/);
 });
 
 test("renderPage swaps in the category's own title, canonical, OG and JSON-LD, never the generic /app ones", () => {
@@ -100,16 +101,6 @@ test("renderPage replaces the app's initial empty-state message with real, crawl
   assert.ok(!html.includes("All veteran trees are shown"), "the generic placeholder text is gone");
   assert.match(html, /Find all 42 pubs and bars in Epping Forest/);
   assert.match(html, /href="\/find\/cafes\/"/, "a sibling cross-link uses the trailing slash Netlify serves directly");
-});
-
-test("renderPage roots every CSS/JS/icon reference so the page works one directory level deeper than /app", () => {
-  const [pubs] = collectPages(FAKE_RULES, FAKE_INVENTORY);
-  const html = renderPage(pubs, APP_HTML);
-
-  assert.ok(!/href="css\//.test(html), "no relative css/ reference survives");
-  assert.ok(!/src="js\//.test(html), "no relative js/ reference survives");
-  assert.match(html, /href="\/css\/base\.css"/);
-  assert.match(html, /src="\/js\/app\.js"/);
 });
 
 test("generate writes one index.html per page under find/<slug>/, and listFindSlugs finds them back", () => {

@@ -441,12 +441,33 @@ hyphen-for-underscore slug) and calls the existing `setOverviewFilters([key])`
 redirect through `/app` and no separate `?show=` hop (that query param still
 works as a fallback for any older link).
 
-Because `app.html`'s CSS/JS/icon references are relative paths (`css/base.css`,
-`js/app.js`, ...), which resolve correctly from `/app` but not from one
-directory deeper at `/find/<slug>/`, the generator root-relativizes every
-such `href`/`src` (`rootRelativizeAssetPaths`) after the SEO substitutions —
-leaving anything already absolute (a scheme, a leading `/`, a fragment)
-untouched.
+`app.html`'s CSS/JS/icon references, and several of the app's own
+runtime-constructed ones (`FOLKLORE_URL`/`PATHS_URL`/etc. in `js/app.js`,
+`navigator.serviceWorker.register("sw.js")` in `js/nav.js`), are relative
+paths — correct from `/app` but not from one directory deeper at
+`/find/<slug>/`, where the browser resolves `"css/base.css"` against the
+page's own directory and 404s. Rewriting every `href`/`src` in the markup
+alone isn't enough, since it can't reach the paths JS constructs at runtime
+(this was found by the service worker registration itself 404ing on a live
+page). The generator instead inserts `<base href="/">` as the first thing
+after `<meta charset>` — one tag that changes what *every* relative URL on
+the page resolves against, markup and script-constructed alike, without
+touching any of `app.html`'s or the JS files' existing relative-path code.
+
+**Without location, a category page lists and shows everything in its
+category anyway — it does not sit behind the "enable location" prompt.**
+`overviewNearestHtml()` (`js/app.js`) special-cases exactly one condition:
+no `state.userLocation` and exactly one active filter (true on arrival at a
+category page, since `applyShowFilterFromQuery` sets exactly one). In that
+case it lists every match via `allEntriesForFilterKey` (dataset order, no
+distance — there is no origin to measure from) instead of the generic
+prompt, and `fitMapToSingleFilterIfNoLocation` fits the camera to all of
+them instead of the forest-wide default `fitToBounds` leaves in place,
+so the map is genuinely zoomed to the category rather than an arbitrary
+framing. Granting location is unaffected — same radius-based nearest list
+and camera behaviour as everywhere else in the app — and the fallback never
+fires with zero or more than one active filter, or over a deep-linked
+selection's own framing.
 
 - **Slugs**: a subfilter key with underscores turned to hyphens
   (`national_rail` → `/find/national-rail`). The canonical URL carries a

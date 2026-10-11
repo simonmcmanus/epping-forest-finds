@@ -82,18 +82,17 @@ function replaceOnce(html, needle, replacement, label) {
   return html.replace(needle, replacement);
 }
 
-/**
- * app.html's CSS/JS/icon references are relative (e.g. "css/base.css"), which resolves
- * correctly from /app (one path segment, no trailing slash) but not from /find/<slug>/ (nested
- * one level deeper, with a trailing slash) -- the browser would look for
- * /find/<slug>/css/base.css and 404. Root-relativizes every such href/src so the same assets
- * load regardless of how deep the page's own URL is. Leaves alone anything already absolute
- * (a leading "/", a scheme, a fragment) -- in particular the canonical/OG tags already rewritten
- * to full https:// URLs above this call.
- */
-function rootRelativizeAssetPaths(html) {
-  return html.replace(/((?:href|src)=")(?!https?:|\/|#|data:)([^"]+)(")/g, "$1/$2$3");
-}
+// app.html's CSS/JS/icon references are relative ("css/base.css"), which resolves correctly
+// from /app (one path segment, no trailing slash) but not from /find/<slug>/ (nested one level
+// deeper, with a trailing slash) -- the browser would look for /find/<slug>/css/base.css and
+// 404. Rewriting every href/src in the markup isn't enough on its own: js/app.js and js/nav.js
+// also build relative paths at runtime (FOLKLORE_URL = "data/...", navigator.serviceWorker
+// .register("sw.js")), and those broke exactly the same way -- found by the sw.js registration
+// itself 404ing on a live page. A single <base href="/"> fixes both at once: it changes what
+// *every* relative URL on the page resolves against, HTML attributes and script-constructed
+// ones alike, without touching any of app.html's or the JS files' existing relative-path code.
+const BASE_HREF_TAG = '<base href="/">';
+const HEAD_CHARSET = '<meta charset="utf-8">';
 
 /**
  * Builds the flat list of pages to generate: one per subfilter already in
@@ -180,7 +179,9 @@ function renderPage(page, appHtml) {
     "</head>"
   );
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
-  html = rootRelativizeAssetPaths(html);
+  // Right after <meta charset>, before anything else references a relative URL -- <base> only
+  // affects resolution for elements that come after it in the document.
+  html = replaceOnce(html, HEAD_CHARSET, `${HEAD_CHARSET}\n  ${BASE_HREF_TAG}`, "meta charset");
   return html;
 }
 
@@ -218,7 +219,6 @@ module.exports = {
   listFindSlugs,
   slugFor,
   buildTitleIndex,
-  rootRelativizeAssetPaths,
   FIND_DIR_NAME,
 };
 

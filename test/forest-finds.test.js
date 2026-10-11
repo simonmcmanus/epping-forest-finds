@@ -275,6 +275,9 @@ globalThis.__forestFindsTest = {
   setOverviewFilters,
   applyShowFilterFromQuery,
   filterKeyFromFindPath,
+  allEntriesForFilterKey,
+  renderNearestItemsHtml,
+  fitMapToSingleFilterIfNoLocation,
   applyWalkingRadiusChange,
   selectionCameraTransitionActive,
   headsUpSortedEntries,
@@ -1651,6 +1654,76 @@ test("arriving at a /find/<slug> page pre-filters Nearby to that category, takin
   assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "the path, not the query param, is the category page's own category");
   app.location.pathname = "/";
   app.location.search = "";
+});
+
+test("allEntriesForFilterKey lists every match for a filter with no origin and no distance, trees/water included", () => {
+  resetData(app);
+  app.state.landmarks.push(
+    { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) },
+    { id: "cafe-a", name: "Cafe A", category: "cafe", ...makePoint(app, 0.01, 0.01) },
+  );
+  app.state.trees.push({ id: "tree-a", recordNumber: 1, commonName: "Oak", ...makePoint(app, 0.02, 0) });
+
+  const pubs = app.allEntriesForFilterKey("pubs");
+  assert.equal(pubs.length, 1);
+  assert.equal(pubs[0].item.id, "pub-a");
+  assert.equal(pubs[0].metres, undefined, "no origin means no distance");
+
+  const trees = app.allEntriesForFilterKey("trees");
+  assert.equal(trees.length, 1);
+  assert.equal(trees[0].type, "tree");
+});
+
+test("without location, the Nearby list shows the category's full list when exactly one filter is active, not the generic prompt", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.landmarks.push(
+    { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) },
+    { id: "pub-b", name: "Pub B", category: "pub", ...makePoint(app, 0.01, 0) },
+  );
+  app.setOverviewFilters(["pubs"]);
+
+  const html = app.overviewNearestHtml();
+  assert.ok(html.includes("Pub A") && html.includes("Pub B"), "both pubs are listed even with no location");
+  assert.ok(!html.includes("Use your location to list the nearest"), "the generic prompt is not shown");
+});
+
+test("without location, the generic prompt still shows when no filter, or more than one, is active", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.landmarks.push({ id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) });
+
+  app.setOverviewFilters([]);
+  assert.match(app.overviewNearestHtml(), /Use your location to list the nearest/);
+
+  app.setOverviewFilters(["pubs", "cafes"]);
+  assert.match(app.overviewNearestHtml(), /Use your location to list the nearest/);
+  app.setOverviewFilters([]);
+});
+
+test("fitMapToSingleFilterIfNoLocation fits the camera to every match, but only without location, with exactly one filter, and nothing already selected", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.selected = null;
+  app.state.landmarks.push(
+    { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) },
+    { id: "pub-b", name: "Pub B", category: "pub", ...makePoint(app, 0.05, 0.05) },
+  );
+  app.setOverviewFilters(["pubs"]);
+
+  assert.equal(app.fitMapToSingleFilterIfNoLocation(), true, "fits when the conditions hold");
+
+  app.state.userLocation = makePoint(app, 0, 0);
+  assert.equal(app.fitMapToSingleFilterIfNoLocation(), false, "does nothing once a location exists");
+  app.state.userLocation = null;
+
+  app.setOverviewFilters(["pubs", "cafes"]);
+  assert.equal(app.fitMapToSingleFilterIfNoLocation(), false, "does nothing with more than one active filter");
+  app.setOverviewFilters(["pubs"]);
+
+  app.state.selected = { type: "landmark", item: app.state.landmarks[0] };
+  assert.equal(app.fitMapToSingleFilterIfNoLocation(), false, "never overrides a deep-linked selection's own framing");
+  app.state.selected = null;
 });
 
 test("nearby heading-up viewport shows the whole walking-radius circle, leaving the corners outside it", () => {

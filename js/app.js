@@ -910,7 +910,7 @@ async function boot() {
         selectOverview();
         draw();
         applySelectionFromHash();
-        triggerMapRevealZoom();
+        if (!fitMapToSingleFilterIfNoLocation()) triggerMapRevealZoom();
         triggerInspectorEntry();
         hideWithFade(els.loadingOverlay);
         updateLocateButtonVisibility();
@@ -921,7 +921,7 @@ async function boot() {
       selectOverview();
       draw();
       applySelectionFromHash();
-      triggerMapRevealZoom();
+      if (!fitMapToSingleFilterIfNoLocation()) triggerMapRevealZoom();
       triggerInspectorEntry();
       hideWithFade(els.loadingOverlay);
     }
@@ -1136,6 +1136,23 @@ function triggerMapRevealZoom(durationMs = FIRST_LOAD_REVEAL_ANIMATION_MS) {
   state.viewport.ty = target.ty + els.canvas.height * (1 - f) / 2;
   draw();
   animateViewportTo(target, durationMs);
+}
+
+// Companion to allEntriesForFilterKey's no-location list in overviewNearestHtml: without an
+// origin, boot's default framing (fitToBounds, called earlier) is the whole forest boundary --
+// correct in general, but not "zoomed out to this category" for a /find/<slug> page with
+// exactly one filter active. Fits the camera to every matching pin instead, so the map actually
+// shows the category rather than an origin-less default. Returns false (doing nothing) when
+// there is no single active filter, nothing matches it, or a specific item is already selected
+// (e.g. from a deep-link hash) whose own framing should not be overridden.
+function fitMapToSingleFilterIfNoLocation(options = {}) {
+  if (state.userLocation || state.selected || state.overviewFilters.length !== 1) return false;
+  const points = allEntriesForFilterKey(state.overviewFilters[0])
+    .filter((entry) => Number.isFinite(entry.item.latitude) && Number.isFinite(entry.item.longitude))
+    .map((entry) => projectLonLat(entry.item.longitude, entry.item.latitude));
+  if (!points.length) return false;
+  fitToPoints(points, false, options);
+  return true;
 }
 
 // The Geolocation API's own `timeout` option does not start counting until the
@@ -3152,44 +3169,26 @@ function overviewHeadingText() {
       : (radiusLabel ? `Nearest within ${radiusLabel}` : "Nearest around you");
 }
 
-function overviewNearestHtml() {
-  if (!state.userLocation) {
-    return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
+// Every place/tree/water matching one filter key, dataset order, no distance -- there is no
+// origin to measure from. Used only for the no-location /find/<slug> fallback below; the normal
+// Nearby list always has an origin and goes through overviewItemsForActiveFilter() instead.
+function allEntriesForFilterKey(filterKey) {
+  if (filterKey === "trees") {
+    return state.trees.map((tree) => ({ kind: "tree", type: "tree", item: tree }));
   }
-
-  // The "showing places near where you tapped / use my location" notice is no longer part of
-  // this list -- it is the persistent #nearbyAnchorBar in the inspector chrome, so it stays
-  // reachable from Filters/Settings/Report too (updateNearbyAnchorBar, js/nav.js).
-
-  // Set by the pinch-to-resize gesture (updateNearbyRadiusPinch, js/nav.js) while the user
-  // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
-  // that has no slider to show it on. Transient: cleared as soon as the pinch ends.
-  const floorNotice = state.walkingRadiusAtFloor
-    ? `<p class="source-note walk-radius-floor-notice">This is as close as it gets — nothing closer to show.</p>`
-    : "";
-
-  // overviewItemsForActiveFilter() now returns every match within the radius (see its
-  // comment) so the map can show all of them -- this scrollable text list still only
-  // wants to display the nearest handful, so cap it here instead.
-  // Heads-up ordering is applied to the *whole* in-radius set before the display cap, so a
-  // find you are walking straight at can climb into the visible handful rather than being
-  // cut off by a closer one behind your shoulder.
-  const allEntries = headsUpSortedEntries(overviewItemsForActiveFilter());
-  const entries = allEntries.slice(0, state.nearestItemsCount);
-  const activePointFilters = getActivePointFilterKeys();
-  if (!allEntries.length) {
-    if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
-      return `<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
-    }
-    if (activePointFilters.length === 1) {
-      const meta = filterMeta(activePointFilters[0]);
-      return `<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
-    }
-    return `<p class="empty">No nearby places found.</p>`;
+  if (filterKey === "ponds_streams") {
+    return state.waterFeatures.map((water) => ({ kind: "ponds_streams", type: "water", item: water }));
   }
+  return state.landmarks
+    .filter((place) => matchesPlaceFilter(place, filterKey))
+    .map((place) => ({ kind: filterKey, type: "landmark", item: place }));
+}
 
-
-  const itemsHtml = entries.map((entry) => {
+// One <li> per nearest-list entry -- shared by the normal (has an origin, sorted, distance
+// chips) and the no-location /find/<slug> fallback (no origin, dataset order, no distance chip:
+// walkInfoHtml(undefined) already renders as "") paths below.
+function renderNearestItemsHtml(entries) {
+  return entries.map((entry) => {
     const name = entry.type === "tree"
       ? treeDisplayName(entry.item)
       : entry.type === "cow"
@@ -3226,6 +3225,57 @@ function overviewNearestHtml() {
       </div>
     </button></li>`;
   }).join("");
+}
+
+function overviewNearestHtml() {
+  if (!state.userLocation) {
+    // A /find/<slug> category page lands here with exactly one filter active and no location
+    // yet (no prompt answered, or declined) -- list what the category actually contains rather
+    // than the generic "use your location" prompt, which would otherwise hide real, specific
+    // content (the whole point of that page) behind a request nobody has answered. Anyone with
+    // more than one filter on, or none, still sees the generic prompt exactly as before.
+    if (state.overviewFilters.length === 1) {
+      const entries = allEntriesForFilterKey(state.overviewFilters[0]);
+      if (entries.length) {
+        return `<p class="source-note">Enable location to sort these by distance and get walking directions.</p><ul class="nearest-list">${renderNearestItemsHtml(entries)}</ul>`;
+      }
+    }
+    return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
+  }
+
+  // The "showing places near where you tapped / use my location" notice is no longer part of
+  // this list -- it is the persistent #nearbyAnchorBar in the inspector chrome, so it stays
+  // reachable from Filters/Settings/Report too (updateNearbyAnchorBar, js/nav.js).
+
+  // Set by the pinch-to-resize gesture (updateNearbyRadiusPinch, js/nav.js) while the user
+  // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
+  // that has no slider to show it on. Transient: cleared as soon as the pinch ends.
+  const floorNotice = state.walkingRadiusAtFloor
+    ? `<p class="source-note walk-radius-floor-notice">This is as close as it gets — nothing closer to show.</p>`
+    : "";
+
+  // overviewItemsForActiveFilter() now returns every match within the radius (see its
+  // comment) so the map can show all of them -- this scrollable text list still only
+  // wants to display the nearest handful, so cap it here instead.
+  // Heads-up ordering is applied to the *whole* in-radius set before the display cap, so a
+  // find you are walking straight at can climb into the visible handful rather than being
+  // cut off by a closer one behind your shoulder.
+  const allEntries = headsUpSortedEntries(overviewItemsForActiveFilter());
+  const entries = allEntries.slice(0, state.nearestItemsCount);
+  const activePointFilters = getActivePointFilterKeys();
+  if (!allEntries.length) {
+    if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
+      return `<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
+    }
+    if (activePointFilters.length === 1) {
+      const meta = filterMeta(activePointFilters[0]);
+      return `<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
+    }
+    return `<p class="empty">No nearby places found.</p>`;
+  }
+
+
+  const itemsHtml = renderNearestItemsHtml(entries);
 
   const fallbackNotice = state.overviewOutsideRadiusFallback
     ? `<p class="source-note"><strong>Nothing found within ${formatWalkingRadius(state.walkingDistanceMinutes)} walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
