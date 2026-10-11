@@ -192,7 +192,9 @@ Rendered from `environmentFeatures`:
 
 - **Hydrology lines** (rivers, streams) — blue-tinted strokes
 - **Water/wetland polygons** — blue-tinted fills
-- **Nature designation polygons** — green-tinted fills
+- **Nature designation polygons** (`featureType: "nature_designation"` — nature reserves, SSSIs, LNRs, Ancient Woodland) — green-tinted fills. A named polygon also gets its name drawn centered on it, but only when the name fits inside the polygon's on-screen footprint — the label is measured against the polygon's screen-space bounding box each frame and skipped entirely rather than drawn oversized or spilling past the outline.
+- **Open-land polygons** (`featureType: "open_land"` — parks, commons, grassland, heath, scrub, meadows, recreation grounds) — a lighter, more muted green-tinted fill than nature designations, since these aren't necessarily protected/designated land, just named open ground. Named ones get the same fits-the-footprint label treatment as nature designation polygons, drawn by the same `drawGreenSpaceLabels` (`js/renderer.js`).
+- **Named locality points** (`featureType: "named_locality"` — OSM `place=locality`: a known, named spot with no mapped boundary of its own, e.g. an informal forest "plain" like Deershelter Plain) — no fill or outline, just the name, drawn once zoomed in past the same threshold `drawPaths` uses for path names (`drawNamedLocalityLabels`, `js/renderer.js`). There's no polygon footprint to gate against here, so the gate is zoom level rather than "does it fit".
 - **Railway lines** — dashed dark strokes with specific styling
 - **Buildings** (lazy-loaded) — opaque light-gray fills in 2D footprints; in full 3D tilt, roofs keep that same opaque fill while walls use subtle opaque side shading (fixed light-from-upper-left look) so buildings read as solid blocks without transparency and still transition cleanly when flattening to 2D.
 
