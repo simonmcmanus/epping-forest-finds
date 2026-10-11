@@ -403,7 +403,10 @@ test.describe("the marketing homepage", () => {
       await expect(page.locator("#signupEntry")).toBeHidden();
       await expect(page.locator("#signupForm")).toBeHidden();
       await expect(page.locator("#confirmationHeading")).toBeFocused();
-      await expect(confirmation).toContainText("One more step");
+      await expect(confirmation).toContainText("Step 2 of 2");
+      await expect(confirmation.locator(".inbox-step-badge")).toHaveText("2");
+      await expect(confirmation.locator(".inbox-step-badge")).toBeVisible();
+      await expect(page.locator("#confirmationHeading")).toHaveText("Confirm your email to finish");
       await expect(confirmation).toContainText("Check your inbox");
       await expect(confirmation).toContainText("Confirm my email");
       await expect(confirmation).toContainText("Epping Forest Finds");

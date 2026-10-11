@@ -464,9 +464,12 @@ which addresses are on the list is an enumeration oracle.
   state; repeated submissions are ignored. Errors preserve the address and restore
   the button so the visitor can retry.
 - On success, the entire signup introduction and form are hidden and replaced by
-  a dedicated panel: an envelope illustration, **“One more step”**, **“Check your
-  inbox”**, instructions to find Epping Forest Finds and click **“Confirm my
-  email”**, and a spam/junk reminder. There is no separate pre-submit confirmation
+  a dedicated panel: an envelope illustration marked with a gold **2** badge,
+  **“Step 2 of 2”**, **“Confirm your email to finish”**, instructions to check
+  the inbox, open the email from Epping Forest Finds and click **“Confirm my
+  email”** to complete sign-up, and a spam/junk reminder. The numbered image
+  and heading make the remaining action explicit, rather than implying that
+  submitting the form completed the subscription. There is no separate pre-submit confirmation
   reminder. The heading receives keyboard focus; the panel scrolls into view only
   if needed. Reloading restores the form.
 - Motion runs once: a 140ms fade and slight lift removes the entry panel, a 420ms

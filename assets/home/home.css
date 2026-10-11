@@ -139,7 +139,8 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .signup .cta-btn:hover, .ledger .cta-btn:hover { background: var(--tree-deep); }
 .signup-form { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .signup-confirmation:not([hidden]) { display: flex; align-items: flex-start; gap: clamp(18px, 3vw, 28px); padding: 12px 0; }
-.inbox-emblem { display: grid; place-items: center; flex: 0 0 96px; width: 96px; height: 96px; border: 1px solid var(--gold-line); border-radius: 50%; background: var(--surface); }
+.inbox-emblem { position: relative; display: grid; place-items: center; flex: 0 0 96px; width: 96px; height: 96px; border: 1px solid var(--gold-line); border-radius: 50%; background: var(--surface); }
+.inbox-step-badge { position: absolute; top: -3px; right: -3px; display: grid; place-items: center; width: 32px; height: 32px; border: 3px solid var(--surface); border-radius: 50%; background: var(--gold); color: var(--ink); font-size: 1rem; font-weight: 800; box-shadow: 0 0 0 1px var(--gold-line); }
 .inbox-emblem img { display: block; width: 72px; height: 72px; }
 .inbox-copy { max-width: 36em; }
 .inbox-step { margin: 0 0 6px; color: var(--tree-deep); font-size: .75rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
