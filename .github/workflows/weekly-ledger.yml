@@ -142,20 +142,37 @@ jobs:
             leave it for a human instead of guessing.
 
             HOUSEKEEPING (do this first, before any research): this workflow
-            can be re-run manually the same day (workflow_dispatch), e.g.
-            because an earlier run today was blocked by something unrelated
-            to the actual data (a flaky test, an API outage). Run
-            `gh pr list --state open --json number,headRefName,title` and
-            check any PR whose head branch matches
-            `weekly-data-report/<today's date>*`. If you find one AND its
-            branch's diff against main touches no file under `data/`
-            (i.e. it only carries a report, or nothing at all -- a prior
-            attempt that didn't get as far as a real data change), close it
-            with `gh pr close <number> --comment "Superseded by a re-run of
-            this workflow later the same day."` before continuing. Leave
-            alone any same-day PR that DID change a `data/` file -- that is
-            a real, reviewable proposal and must never be closed
-            automatically just because a newer run exists.
+            runs nightly and auto-merge is disabled, so an earlier run's PR
+            is often still open and unmerged when this run starts -- and
+            because a fresh run otherwise branches from `main` independently
+            of it, the two would edit the same data files on diverging
+            branches and conflict with each other the moment either one is
+            merged. Run `gh pr list --state open --json
+            number,headRefName,title` and look at EVERY open PR whose head
+            branch matches `weekly-data-report/*` (any date, not just
+            today's -- an older unmerged one is exactly the case to avoid
+            conflicting with).
+
+            For each one, check its diff against main:
+            - If it touches no file under `data/` (a prior attempt that
+              never got as far as a real data change, or a report-only PR
+              from an earlier empty-changeset run), close it with `gh pr
+              close <number> --comment "Superseded by a later run of this
+              workflow."` before continuing.
+            - Otherwise it is a real, reviewable ledger proposal -- never
+              close one of these just because a newer run exists. Remember
+              its number and head branch; call it the OPEN LEDGER PR below.
+              (More than one should not normally happen once the closures
+              above run; if it does, pick the most recently updated as the
+              OPEN LEDGER PR and say so in this run's PR body so Simon knows
+              to look at the other one too.)
+
+            If there IS an OPEN LEDGER PR, this run adds tonight's changes
+            to that SAME PR and branch instead of opening a competing one --
+            that is the whole point of this step, so there is only ever one
+            weekly-report PR for Simon to review and merge. Steps 4a, 4c/4d
+            and 5 below say exactly where that changes what you'd otherwise
+            do.
 
             Coverage settlements: Loughton, Chingford, Buckhurst Hill,
             Chigwell, Theydon Bois, Epping, Woodford Green, Waltham Abbey.
@@ -219,6 +236,21 @@ jobs:
               where. Run it plain (python3 scripts/cow_boundary_tracker.py)
               and use its JSON output directly as your report-data.json's
               "grazing" field.
+            - scripts/report/structured_findings.py -- turns
+              data/road-closures.json, data/forest-notices.json and
+              data/forest-events.json into ready-to-use findings for whatever
+              is still within its own recorded dates. See step 2c.
+            - scripts/report/tfl_transit_status.py -- a live check of the
+              Central line and the Weaver line (London Overground's name for
+              the Chingford branch), plus bus stop disruptions around the
+              coverage settlements. Unlike the three files above this needs
+              no research or upkeep: run it plain
+              (python3 scripts/report/tfl_transit_status.py) and add
+              whatever it prints to report-data.json's "findings" the same
+              way as structured_findings.py's output. Most weeks it prints
+              an empty list -- that is correct (good service, no disrupted
+              stops), not a failure, and needs no further research. See
+              step 2c.
             - scripts/report/render_report.py -- turns a small JSON file
               into the finished report page (design, map, point-count stats
               -- all of it). You do NOT hand-write the report's HTML or SVG
@@ -250,27 +282,59 @@ jobs:
                   register with its council before it can trade. Best-effort:
                   if it is unreachable, note that in the pull request body
                   (not the report) and carry on.
-               c. Road closures & roadworks -- highways AND utilities, not
+               c. Road closures, access notices and events now have a
+                  starting point that isn't a fresh web search every time:
+                  data/road-closures.json, data/forest-notices.json and
+                  data/forest-events.json are hand-researched entries with
+                  their own dates, sources and a lastVerified stamp (see
+                  spec/spec-weekly-report.md). Run
+
+                    python3 scripts/report/structured_findings.py --as-of <today>
+
+                  first and treat its output as the floor for this week's
+                  road/access/event findings -- add it to report-data.json's
+                  "findings" before anything your own research below turns
+                  up, never instead of that research. Each file's
+                  "sourceNotes" records which upstream sources are worth
+                  building real automation against (the free Street Manager
+                  roadworks API for England; the City of London's Epping
+                  Forest & Commons Committee "Diary" PDF for events) --
+                  nothing automated reads those yet, so this step is still a
+                  human-shaped research step, just starting from a record
+                  instead of nothing.
+
+                  Separately, run
+                  python3 scripts/report/tfl_transit_status.py and add its
+                  output to report-data.json's "findings" too -- it is a
+                  live check, not a hand-researched file, so there is
+                  nothing to keep current here and no sourceNotes entry to
+                  update.
+
+                  Your job this run is also to keep those three files
+                  current, the same way scripts/business_watch.py keeps
+                  data/business-watch.json current: re-check any entry
+                  marked "needsReverification" or whose endDate has passed or
+                  is close, update its dates/body/lastVerified (or delete it
+                  if it's plainly over), and add any new road/access/event
+                  finding you confirm as a new entry with today's date as its
+                  lastVerified -- then commit the updated files alongside the
+                  rest of this week's change (step 4c). Skipping this is how
+                  the old ad hoc search produced the same gaps week after
+                  week: the point of these files is that they don't go stale
+                  on their own.
+
+                  Road closures & roadworks -- highways AND utilities, not
                   highways alone (a past run missed real, ongoing utility
-                  diversions entirely, see below):
-                  https://www.eppingforestdc.gov.uk/advance-notice-of-epping-road-closures
-                  and Essex Highways for highway schemes; separately,
+                  diversions entirely): Essex Highways for highway schemes
+                  (eppingforestdc.gov.uk's own advance-notice page has gone
+                  404 -- don't use it) and
                   https://www.thameswater.co.uk/about-us/projects/improvements-in-your-area/london
                   for Thames Water mains/repair projects (check it every
                   run -- it's a static project list, not paginated news, so
                   re-fetching it fresh each week is cheap and reliable) --
                   scan every project listed for a location matching any
                   coverage settlement, not just ones with "Loughton" etc.
-                  literally in the project name. Known standing item: the
-                  High Beech, Loughton water mains replacement (started
-                  March 2026, ~3-year multi-phase project across Spareleaze
-                  Hill, Queens Road, Debden Lane, Newmans Lane, Rectory Lane
-                  and ~15 other streets) is long-running and easy for a
-                  fresh news search to miss entirely since it isn't "new" --
-                  re-check its project page each run for the current
-                  phase/street/dates rather than assuming last week's is
-                  still accurate, the same way you'd track any other
-                  multi-week roadworks scheme. Also run a per-settlement
+                  literally in the project name. Also run a per-settlement
                   search along the lines of "Thames Water roadworks OR
                   diversion <settlement>" the same way you do for business
                   openings/closures in step 2a, since Thames Water's own
@@ -278,12 +342,96 @@ jobs:
                   ground.
                d. Forest events:
                   https://www.cityoflondon.gov.uk/things-to-do/green-spaces/epping-forest/whats-new-in-epping-forest
-                  and https://www.eppingforestdc.gov.uk/whats-on-in-epping-forest/.
+                  and https://www.eppingforestdc.gov.uk/whats-on-in-epping-forest/
+                  -- and, for the richest single source, find this month's
+                  Epping Forest & Commons Committee agenda pack on
+                  democracy.cityoflondon.gov.uk (search "Epping Forest
+                  Commons Committee") and open its "Committee Events Diary"
+                  attachment for the current month's exhibitions, guided
+                  tours, litter picks and volunteering sessions. Also check
+                  https://www.coppedhalltrust.org.uk/ (its news/events
+                  articles, e.g. Apple Day) -- Copped Hall is independently
+                  run, not City of London, so it never appears in the EFCC
+                  diary above; treat any other independently-run venue
+                  inside or near the boundary (visitor centres, heritage
+                  trusts) the same way once you find its site, since none of
+                  the aggregators above cover it either. Do not spend time on
+                  these organisations' Facebook or X/Twitter accounts --
+                  evaluated and rejected as automation sources, see the
+                  sourceNotes in data/forest-events.json.
+
+                  None of the above cover events run by the towns and
+                  villages around the forest themselves, which is how the
+                  Wanstead Beer Festival (held at Christ Church Hall,
+                  Wanstead, the southern tip of the forest by Wanstead
+                  Park/Flats) went unnoticed. Fetch and parse
+                  https://wansteadvillagedirectory.com/events/list/?ical=1
+                  directly (a plain iCal feed, not HTML) -- confirmed on
+                  2026-10-10 to be a real, parseable feed that actually
+                  contains the Wanstead Beer Festival entry, not just a
+                  plausible-looking URL. Also fetch and parse
+                  https://swvg.co.uk/events/list/?ical=1 (South Woodford
+                  Village Gazette) the same way -- also confirmed real and
+                  parseable, covering South Woodford, Woodford Green,
+                  Snaresbrook and Aldersbrook as well as Wanstead. It
+                  carries some of the same Wanstead events as the feed
+                  above (including the Beer Festival itself), so de-dupe by
+                  title+date across the two feeds rather than treating a
+                  repeat as a second event. Also check Visit Epping Forest's
+                  district-wide calendar,
+                  https://www.visiteppingforest.org/events/whats-on/events-calendar
+                  -- the official Epping Forest District tourism site, a
+                  plain scrapeable page (no feed) covering venues across the
+                  whole district including Copped Hall, Epping Ongar
+                  Railway and Waltham Abbey, broader than any single town's
+                  own listing. Also check Epping Town Council's own events
+                  diary, https://www.eppingtowncouncil.gov.uk/Events_Diary_35167.aspx
+                  -- a plain page like Copped Hall's, not a feed. Loughton
+                  Town Council, Waltham Abbey Town Council, Waltham Forest's
+                  borough-wide listings (which would cover Chingford),
+                  Theydon Bois Parish Council's events category page,
+                  Chigwell Parish Council, the Essex Libraries events site
+                  (which lists Loughton, Buckhurst Hill, Chigwell, Waltham
+                  Abbey and Epping library branches, but as a room-booking
+                  engine, not a syndicated feed), and Chingford Historical
+                  Society's own events/heritage-festival listing were
+                  evaluated and found to have no feed and no current,
+                  checkable events listing as of this evaluation -- still
+                  worth a skim each run since any of them could add one, but
+                  don't expect automation there yet. Epping Ongar Railway's
+                  own site (eorailway.co.uk, a heritage railway in the
+                  district running galas and a Real Ale and Cider Weekend)
+                  returned HTTP 503 to a direct fetch and is covered via
+                  Visit Epping Forest's listing above instead -- re-test
+                  eorailway.co.uk directly occasionally in case that was
+                  transient or bot-blocking rather than permanent. Waltham
+                  Abbey Town Council's own events page runs the same
+                  calendar plugin as the two working feeds above, but the
+                  whole site 403s on every URL tried -- the plain pages and
+                  its own ?ical=1 export alike -- so it's blocked outright,
+                  not just a wrong path. theydon.org.uk, which Theydon Bois
+                  Parish Council itself points residents to as "the village
+                  website," 403s the same way. Bedford House / Buckhurst
+                  Hill Community Association (bedfordhouse.org.uk) is a
+                  real, active local charity with its own Upcoming
+                  Events section, but its exact events URL and whether it
+                  has a feed are still unconfirmed -- worth finding and
+                  checking properly on a future run. See the sourceNotes in
+                  data/forest-events.json before re-evaluating any of this
+                  same ground.
                e. For each finding, look up its real coordinates in
                   data/local-roads.geojson or data/local-landmarks-food.geojson
                   rather than guessing -- put them in report-data.json's
                   "lon"/"lat" fields and the render script places the pin for
-                  you; there's no map formula to copy by hand any more.
+                  you; there's no map formula to copy by hand any more. For
+                  any "event" finding you write by hand here (not already
+                  carrying one from structured_findings.py's own output), set
+                  "when" to "week" if it's happening today or within 7 days,
+                  or "month" if it's further out or recurring with no next
+                  date confirmed -- that's what splits the report's Events
+                  section into "This week" and "Coming up in the next month"
+                  rather than one list that reads as all being this week's
+                  news.
                f. Follow up on anything the previous report flagged as
                   "possible" instead of re-flagging it fresh.
                g. Business turnover -- the gap a general news search misses
@@ -450,11 +598,24 @@ jobs:
                worth a look"), rather than leaving it out or guessing.
 
             4. If the changeset is non-empty:
-               a. Create a branch:
-                  git checkout -b weekly-data-report/<date>-$RUN_NUMBER
-                  (the run-number suffix keeps this collision-free from any
-                  branch a same-day re-run of this workflow already pushed --
-                  see HOUSEKEEPING above)
+               a. Branch:
+                  - OPEN LEDGER PR found in HOUSEKEEPING: check out its head
+                    branch instead of starting fresh --
+                      git fetch origin <branch>
+                      git checkout <branch>
+                      git merge origin/main --no-edit
+                    (picks up anything else merged to main since that branch
+                    was opened; expect a clean merge -- if it genuinely
+                    conflicts, stop and say so in the run's log rather than
+                    guessing at a resolution). Build and apply this run's
+                    changeset on top of whatever that branch already has on
+                    disk -- it already carries the previous run(s)' additions,
+                    so do not re-read main's copy of the data files.
+                  - No OPEN LEDGER PR: git checkout -b
+                    weekly-data-report/<date>-$RUN_NUMBER (the run-number
+                    suffix keeps this collision-free from any branch a
+                    same-day re-run of this workflow already pushed -- see
+                    HOUSEKEEPING above).
                b. Run, in this order:
 
                     python3 scripts/apply_weekly_changeset.py <changeset.json>
@@ -478,21 +639,28 @@ jobs:
                   test suites run as normal CI checks on the PR instead
                   (step e below) -- that's Simon's and CI's job to wait on,
                   not yours.
-               c. git add the changed data file(s), index.html and
+               c. git add the changed data file(s), index.html,
+                  assets/home/inventory/ and
                   spec/spec-marketing.md if sync-homepage-counts.js touched
                   them, data/business-watch.json and data/verification.json
                   (always -- they are this run's memory, and leaving them out
-                  is what makes next week start from nothing), the new
+                  is what makes next week start from nothing),
+                  data/road-closures.json, data/forest-notices.json and
+                  data/forest-events.json if step 2c/2d updated them, the new
                   report, and
                   data/cow-grazing-history.json if cow_boundary_tracker.py
                   updated it (see step 6), commit
                   (git config user.name "Epping Forest Ledger (weekly report)",
                   user.email "weekly-report@local", scoped to this checkout
-                  only), and git push -u origin
-                  weekly-data-report/<date>-$RUN_NUMBER.
-               d. Open a PR: gh pr create --title "..." --body "..." listing
-                  exactly what was added/removed and why. Keep it tight -- a
-                  few lines, then two short lists:
+                  only), and push:
+                  - OPEN LEDGER PR found in HOUSEKEEPING: git push (the
+                    branch already tracks origin from when it was first
+                    opened).
+                  - No OPEN LEDGER PR: git push -u origin
+                    weekly-data-report/<date>-$RUN_NUMBER.
+               d. Open or update the PR, listing exactly what was
+                  added/removed and why. Keep it tight -- a few lines, then
+                  two short lists:
 
                     Applied this week: each change, with what it was based on.
                     Reported by people: each open report, what you did about
@@ -504,6 +672,20 @@ jobs:
                     after applying the changeset and paste the first two
                     lines. That is the week's real result -- whether the map
                     got better, not just whether something moved.
+
+                  - OPEN LEDGER PR found in HOUSEKEEPING: do NOT run `gh pr
+                    create` -- that would be exactly the second, conflicting
+                    PR this step exists to avoid. Instead `gh pr edit
+                    <number> --body "..."` rewriting the body to cover the
+                    CUMULATIVE proposal across every run folded into this PR
+                    so far, not just tonight's increment -- a reviewer
+                    opening this PR once should see the whole thing. Add a
+                    short "Updated <date>" line so what was added when stays
+                    visible, and fold tonight's findings into the same
+                    Applied/Reported/Still watching/Data quality lists rather
+                    than appending a second copy of them.
+                  - No OPEN LEDGER PR: gh pr create --title "..." --body
+                    "..." as above.
 
                   The second list is what makes the first trustworthy, and it
                   is how a reviewer sees a real closure sitting one week short
@@ -532,28 +714,42 @@ jobs:
                   Snapshots" workflow, on a Linux runner, never here) once a
                   re-run has shown the difference is real and repeatable.
                f. Do NOT start CI yourself -- there is nothing to start.
-                  This job pushes and opens PRs as a real user credential
-                  (WEEKLY_LEDGER_PAT), so ci.yml's normal pull_request
-                  event fires the instant the PR opens: unit and e2e are
-                  already queued before you finish. Never run `gh workflow
+                  This job pushes and opens/updates PRs as a real user
+                  credential (WEEKLY_LEDGER_PAT), so ci.yml's normal
+                  pull_request event fires the instant the PR opens, and
+                  again (as `synchronize`) the instant you push a new commit
+                  to an already-open PR's branch: unit and e2e are already
+                  queued before you finish either way. Never run `gh workflow
                   run ci.yml`; a duplicate dispatch just puts a second,
                   confusing copy of every check on the PR.
-               g. Add a report preview link to the PR body (see REPORT
-                  PREVIEW LINK below) -- do this for every PR this workflow
-                  opens, this one included. Also mention in the PR body that
-                  CI starts automatically and that Simon should wait for
-                  those checks to go green before merging.
+               g. Add or refresh the report preview link in the PR body (see
+                  REPORT PREVIEW LINK below) -- do this for every PR this
+                  workflow opens or updates, this one included; when
+                  continuing an OPEN LEDGER PR, point it at tonight's new
+                  report file, not the previous run's. Also mention in the
+                  PR body that CI starts automatically and that Simon should
+                  wait for those checks to go green before merging.
                h. Do NOT merge the PR. Auto-merge is temporarily
                   disabled while this workflow is being tested -- leave it
                   open for Simon to review and merge by hand once CI passes.
                   Say so plainly in the PR body and in your final summary.
-            5. If the changeset is empty, skip the data branch/PR/merge
-               entirely and say so in the report -- but still open the
-               small standalone report-only PR described in step 6 (CI
-               attaches to that PR automatically too, same as step 4e), and
-               it still needs the REPORT PREVIEW LINK below.
+            5. If the changeset is empty:
+               - OPEN LEDGER PR found in HOUSEKEEPING: still commit
+                 data/business-watch.json's updated patience count and
+                 tonight's new report (step 6) onto that SAME branch
+                 (following 4a's checkout/merge and 4c's push, since there
+                 is no data-file edit to apply first) and `gh pr edit
+                 <number>` to fold a line into the body noting this run's
+                 changeset was empty and what was banked instead. Do NOT
+                 open a separate standalone PR for it -- that is exactly the
+                 duplicate-PR situation this step exists to prevent.
+               - No OPEN LEDGER PR: skip the data branch/PR/merge entirely
+                 and say so in the report -- but still open the small
+                 standalone report-only PR described in step 6 (CI attaches
+                 to that PR automatically too, same as step 4e), and it
+                 still needs the REPORT PREVIEW LINK below.
 
-               data/business-watch.json still gets committed on that PR. It
+               data/business-watch.json still gets committed either way. It
                will have changed even in a week with nothing to apply --
                that is a week of patience banked towards next time, and
                throwing it away is what kept resetting the count to zero.
@@ -570,7 +766,9 @@ jobs:
             and put it near the top of the PR body with
             `gh pr edit <number> --body "..."` (rewrite the full body: keep
             everything the initial `gh pr create` body had, just add this
-            near the top), roughly:
+            near the top -- and if this PR already had a report preview
+            line from an earlier run, replace it with tonight's report
+            rather than leaving the old one stacked above it), roughly:
               **Report preview:** <url>
               (Netlify usually finishes building the preview within a
               minute or two of the PR opening -- if the link 404s right
@@ -601,12 +799,31 @@ jobs:
                sentence is about the plumbing, take it out or say it in
                plain English" and try again.
 
-               Auto-merge is temporarily disabled while this workflow is
-               being tested, so phrase anything sitting on the open PR as
-               proposed and pending a quick review -- e.g. "we'd like to
-               remove this" rather than "this has been removed" -- never as
-               already live on the map. Once Simon re-enables auto-merge,
-               switch to describing changes as already made.
+               Write the finished newsletter for publication AFTER this PR is
+               merged. Review status belongs only in the PR body: never say
+               "proposed for the map", "pending review" or "we'd like to add".
+               Lead with forest life and useful local news, not map maintenance.
+               Give each story a place, what happened, and why a visitor or
+               neighbour would care; include dates and practical details when
+               supported by sources. Keep the intro to one or two short sentences
+               stating the actual findings briefly: local finds, closures,
+               access changes, events and cattle movement where relevant. Avoid
+               generic phrases such as "this edition rounds up" or explaining
+               that details follow the map. Say when no updates are included,
+               without claiming there are no disruptions. Summarise the week rather than
+               leading with a specific cattle movement. The summary comes before
+               the map, then the individual updates. Do not invent colour,
+               opening dates, recommendations or events to fill a quiet edition.
+               An established business newly discovered in a register is a local
+               find, NOT a new opening. Say "Already trading" unless evidence
+               establishes an opening date. Preserve uncertainty about closures
+               and future events; publication does not make uncertain facts true.
+               Avoid repetitive listings and research diaries. Empty sections
+               must say no updates are included, never imply no events or
+               disruptions exist. Use coverage notes only for useful gaps.
+               Readers should get value without using the app. The generator
+               adds signup and app invitations after the news, with access and
+               email availability matching the homepage. Leave auto-merge off.
 
                report-data.json's "about_note" field is a reader-facing note
                about the report's coverage, in plain language, only if there
@@ -626,4 +843,4 @@ jobs:
           # below -- auto-merge is disabled while Simon tests this workflow.
           # Add it back (and flip the prompt language above) once he is happy.
           claude_args: |
-            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(node:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*),Bash(gh issue create:*)"
+            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git fetch:*),Bash(git merge:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(node:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*),Bash(gh issue create:*)"

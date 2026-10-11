@@ -2,6 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('consent', 'default', { analytics_storage: 'denied' });
+    gtag('js', new Date());
+
+    gtag('config', 'G-M9NL06G2JB');
+  </script>
+  <script src="/cookie-consent.js" defer></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#24382f">
   <title>Epping Forest offline map | Trees, walks & cattle</title>
@@ -29,7 +40,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="preload" href="assets/home/epping-longhorns.jpg" as="image" fetchpriority="high">
+  <link rel="preload" as="image" type="image/webp" imagesrcset="assets/home/epping-longhorns-480.webp 480w, assets/home/epping-longhorns-768.webp 768w, assets/home/epping-longhorns-960.webp 960w, assets/home/epping-longhorns-1280.webp 1280w, assets/home/epping-longhorns-1600.webp 1600w" imagesizes="(min-width: 1040px) 457px, (min-width: 640px) calc(46vw - 22px), (max-width: 420px) calc(100vw - 36px), calc(100vw - 48px)" fetchpriority="high">
   <link rel="stylesheet" href="assets/home/home.css">
   <script type="application/ld+json">
   {
@@ -111,7 +122,10 @@
         </div>
       </div>
       <figure class="hero-photo">
-        <img src="assets/home/epping-longhorns.jpg" width="1600" height="1200" fetchpriority="high" alt="GPS-collared English Longhorn cattle grazing in Epping Forest.">
+        <picture>
+          <source type="image/webp" srcset="assets/home/epping-longhorns-480.webp 480w, assets/home/epping-longhorns-768.webp 768w, assets/home/epping-longhorns-960.webp 960w, assets/home/epping-longhorns-1280.webp 1280w, assets/home/epping-longhorns-1600.webp 1600w" sizes="(min-width: 1040px) 457px, (min-width: 640px) calc(46vw - 22px), (max-width: 420px) calc(100vw - 36px), calc(100vw - 48px)">
+          <img src="assets/home/epping-longhorns.jpg" width="1600" height="1200" fetchpriority="high" alt="GPS-collared English Longhorn cattle grazing in Epping Forest.">
+        </picture>
         <figcaption>Epping Forest’s longhorns wear GPS collars.</figcaption>
       </figure>
     </section>
@@ -119,36 +133,36 @@
     <section class="counts">
       <h2>What's on the map</h2>
       <div class="map-inventory">
-        <div class="inventory-total"><img src="assets/home/map-icons/all-finds.png" width="44" height="44" alt=""><strong>31,326</strong><span>places and features</span></div>
+        <div class="inventory-total"><img src="assets/home/map-icons/all-finds.png" width="44" height="44" alt=""><strong>31,699</strong><span>places and features</span></div>
         <div class="inventory-groups">
           <section class="inventory-group" data-inventory-group="nature">
             <h3><span><img src="assets/home/map-icons/nature.png" alt="">Nature</span><strong>25,017</strong></h3>
-            <dl><div><dt><img src="assets/home/map-icons/tree.png" alt="">Trees</dt><dd>24,906</dd></div><div><dt><img src="assets/home/map-icons/ponds.png" alt="">Ponds &amp; streams</dt><dd>111</dd></div></dl>
+            <dl><div data-inventory-key="trees"><dt><img src="assets/home/map-icons/tree.png" alt="">Trees</dt><dd>24,906</dd></div><div data-inventory-key="ponds_streams"><dt><img src="assets/home/map-icons/ponds.png" alt="">Ponds &amp; streams</dt><dd>111</dd></div></dl>
           </section>
           <section class="inventory-group" data-inventory-group="food">
-            <h3><span><img src="assets/home/map-icons/food.png" alt="">Food</span><strong>1,005</strong></h3>
-            <dl><div><dt><img src="assets/home/map-icons/beer.png" alt="">Pubs &amp; bars</dt><dd>109</dd></div><div><dt><img src="assets/home/map-icons/restaurant.png" alt="">Restaurants</dt><dd>384</dd></div><div><dt><img src="assets/home/map-icons/cafe.png" alt="">Cafés</dt><dd>186</dd></div><div><dt><img src="assets/home/map-icons/shop.png" alt="">Shops</dt><dd>326</dd></div></dl>
+            <h3><span><img src="assets/home/map-icons/food.png" alt="">Food</span><strong>1,357</strong></h3>
+            <dl><div data-inventory-key="pubs"><dt><img src="assets/home/map-icons/beer.png" alt="">Pubs &amp; bars</dt><dd>129</dd></div><div data-inventory-key="restaurants"><dt><img src="assets/home/map-icons/restaurant.png" alt="">Restaurants</dt><dd>577</dd></div><div data-inventory-key="cafes"><dt><img src="assets/home/map-icons/cafe.png" alt="">Cafés</dt><dd>203</dd></div><div data-inventory-key="shops"><dt><img src="assets/home/map-icons/shop.png" alt="">Shops</dt><dd>448</dd></div></dl>
           </section>
           <section class="inventory-group" data-inventory-group="transport">
             <h3><span><img src="assets/home/map-icons/bus.png" alt="">Transport</span><strong>1,864</strong></h3>
-            <dl><div><dt><img src="assets/home/map-icons/bus.png" alt="">Bus stops</dt><dd>1,069</dd></div><div><dt><img src="assets/home/map-icons/underground.png" alt="">Underground</dt><dd>14</dd></div><div><dt><img src="assets/home/map-icons/national-rail.png" alt="">National Rail</dt><dd>14</dd></div><div><dt><img src="assets/home/map-icons/parking.png" alt="">Car parks</dt><dd>767</dd></div></dl>
+            <dl><div data-inventory-key="bus"><dt><img src="assets/home/map-icons/bus.png" alt="">Bus stops</dt><dd>1,069</dd></div><div data-inventory-key="underground"><dt><img src="assets/home/map-icons/underground.png" alt="">Underground</dt><dd>14</dd></div><div data-inventory-key="national_rail"><dt><img src="assets/home/map-icons/national-rail.png" alt="">National Rail</dt><dd>14</dd></div><div data-inventory-key="parking"><dt><img src="assets/home/map-icons/parking.png" alt="">Car parks</dt><dd>767</dd></div></dl>
           </section>
           <section class="inventory-group" data-inventory-group="history">
             <h3><span><img src="assets/home/map-icons/history.png" alt="">History</span><strong>182</strong></h3>
-            <dl><div><dt><img src="assets/home/map-icons/historic.png" alt="">Historic sites</dt><dd>39</dd></div><div><dt><img src="assets/home/map-icons/plaques.png" alt="">Plaques</dt><dd>65</dd></div><div><dt><img src="assets/home/map-icons/monument.png" alt="">Monuments</dt><dd>66</dd></div><div><dt><img src="assets/home/map-icons/historic.png" alt="">WWII sites</dt><dd>12</dd></div></dl>
+            <dl><div data-inventory-key="historic"><dt><img src="assets/home/map-icons/historic.png" alt="">Historic sites</dt><dd>39</dd></div><div data-inventory-key="plaques"><dt><img src="assets/home/map-icons/plaques.png" alt="">Plaques</dt><dd>65</dd></div><div data-inventory-key="monuments"><dt><img src="assets/home/map-icons/monument.png" alt="">Monuments</dt><dd>66</dd></div><div data-inventory-key="ww2"><dt><img src="assets/home/map-icons/historic.png" alt="">WWII sites</dt><dd>12</dd></div></dl>
           </section>
           <section class="inventory-group" data-inventory-group="locations">
             <h3><span><img src="assets/home/map-icons/pin.png" alt="">Locations</span><strong>30</strong></h3>
-            <dl><div><dt><img src="assets/home/map-icons/church.png" alt="">Churches</dt><dd>11</dd></div><div><dt><img src="assets/home/map-icons/education.png" alt="">Education</dt><dd>2</dd></div><div><dt><img src="assets/home/map-icons/medicine.png" alt="">Medical sites</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/campsite.png" alt="">Campsites</dt><dd>17</dd></div></dl>
+            <dl><div data-inventory-key="churches"><dt><img src="assets/home/map-icons/church.png" alt="">Churches</dt><dd>11</dd></div><div data-inventory-key="education"><dt><img src="assets/home/map-icons/education.png" alt="">Education</dt><dd>2</dd></div><div data-inventory-key="medicine"><dt><img src="assets/home/map-icons/medicine.png" alt="">Medical sites</dt><dd>0</dd></div><div data-inventory-key="campsites"><dt><img src="assets/home/map-icons/campsite.png" alt="">Campsites</dt><dd>17</dd></div></dl>
           </section>
           <section class="inventory-group" data-inventory-group="stories">
             <h3><span><img src="assets/home/map-icons/legends.png" alt="">Stories</span><strong>42</strong></h3>
-            <dl><div><dt><img src="assets/home/map-icons/legends.png" alt="">Legends</dt><dd>33</dd></div><div><dt><img src="assets/home/map-icons/literature.png" alt="">Literature</dt><dd>0</dd></div><div><dt><img src="assets/home/map-icons/film.png" alt="">Film &amp; TV</dt><dd>8</dd></div><div><dt><img src="assets/home/map-icons/art.png" alt="">Art</dt><dd>1</dd></div></dl>
+            <dl><div data-inventory-key="legends"><dt><img src="assets/home/map-icons/legends.png" alt="">Legends</dt><dd>33</dd></div><div data-inventory-key="literature"><dt><img src="assets/home/map-icons/literature.png" alt="">Literature</dt><dd>0</dd></div><div data-inventory-key="film_tv"><dt><img src="assets/home/map-icons/film.png" alt="">Film &amp; TV</dt><dd>8</dd></div><div data-inventory-key="art"><dt><img src="assets/home/map-icons/art.png" alt="">Art</dt><dd>1</dd></div></dl>
           </section>
         </div>
         <div class="inventory-always" data-inventory-always>
           <div><img src="assets/home/map-icons/gate.png" alt=""><span><strong>Gates, benches &amp; other facilities</strong><small>Always shown on the map</small></span></div>
-          <strong>3,186</strong>
+          <strong>3,207</strong>
         </div>
       </div>
     </section>
@@ -201,36 +215,50 @@
     </section>
 
     <section class="signup" id="signup">
-      <div class="card-head">
-        <img class="card-icon" src="assets/home/mail.png" width="44" height="44" alt="">
-        <h2>Be in the know</h2>
+      <div id="signupStage">
+        <div id="signupEntry">
+          <div class="card-head">
+            <img class="card-icon" src="assets/home/mail.png" width="44" height="44" alt="">
+            <h2>Be in the know</h2>
+          </div>
+          <p class="signup-intro" id="signupConsent">By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds when early testing opens, plus weekly Epping Forest Ledger updates once the site launches.</p>
+
+          <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
+            <label class="field-label" for="email">Email address</label>
+            <div class="signup-row">
+              <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+              <button class="cta-btn" type="submit" aria-describedby="signupConsent"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 11 20 4l-4.5 16-4-6-6-3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11.5 14 20 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Email me updates</button>
+            </div>
+
+            <!-- Honeypot: hidden from people, irresistible to bots. -->
+            <div class="hp" aria-hidden="true">
+              <label for="website">Website</label>
+              <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+            </div>
+
+            <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
+            <p class="form-small">
+              We'll only use your address for this. Unsubscribe from any message.
+              See the <a href="/terms.html">privacy notice</a>.
+            </p>
+          </form>
+        </div>
+        <div class="signup-confirmation" id="signupConfirmation" hidden>
+          <div class="inbox-emblem" aria-hidden="true">
+            <img src="assets/home/mail.png" width="72" height="72" alt="">
+            <span class="inbox-step-badge">2</span>
+          </div>
+          <div class="inbox-copy">
+            <div class="inbox-kicker">
+              <p class="inbox-step">Step 2 of 2</p>
+              <span class="inbox-reminder"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Don’t forget</span>
+            </div>
+            <h2 id="confirmationHeading" tabindex="-1" aria-describedby="confirmationInstructions">Confirm your email to finish</h2>
+            <p id="confirmationInstructions">Check your inbox for an email from <strong>Epping Forest Finds</strong>. Open it and click <strong>“Confirm my email”</strong> to complete your sign-up.</p>
+            <p class="inbox-help">Can’t see it? Check your spam or junk folder.</p>
+          </div>
+        </div>
       </div>
-      <p class="signup-intro">Hear when early testing opens, plus weekly Epping Forest Ledger updates once the site launches.</p>
-
-      <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
-        <label class="field-label" for="email">Email address</label>
-        <div class="signup-row">
-          <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
-          <button class="cta-btn" type="submit"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 11 20 4l-4.5 16-4-6-6-3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11.5 14 20 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Keep me posted</button>
-        </div>
-
-        <!-- Honeypot: hidden from people, irresistible to bots. -->
-        <div class="hp" aria-hidden="true">
-          <label for="website">Website</label>
-          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
-        </div>
-
-        <label class="consent">
-          <input id="consent" name="consent" type="checkbox" required>
-          <span>Email me when it’s ready, plus weekly Epping Forest Ledger updates once the site launches.</span>
-        </label>
-
-        <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
-        <p class="form-small">
-          We'll only use your address for this. Unsubscribe from any message.
-          See the <a href="/terms.html">privacy notice</a>.
-        </p>
-      </form>
     </section>
 
     <section class="how offline-how" aria-labelledby="offline-heading">

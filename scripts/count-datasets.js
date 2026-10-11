@@ -18,6 +18,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 /**
  * GeoJSON feature counts, taken by counting `"type":"Feature"` rather than
@@ -71,7 +72,49 @@ function formatCount(value) {
   return Number(value).toLocaleString("en-GB");
 }
 
-module.exports = { readCounts, formatCount, FEATURE_FILES, TREE_INDEX };
+/** Generate small, independent homepage lists using the map's own classifier.
+ * App scripts are read only by this Node generator, never loaded by the homepage.
+ * Keep every record (including unnamed places) so lists match the inventory.
+ */
+function readCategoryItems(root) {
+  const context = vm.createContext({ projectLonLat: () => null });
+  for (const file of ["js/categories.js", "js/normalize.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context);
+  }
+  const rules = vm.runInContext(
+    "({ FILTER_GROUPS, placeLabelFilterKey, buildOsmCategoryTags, normalizeFolkloreLocations, extractWaterFeatures })", context
+  );
+  const read = file => JSON.parse(fs.readFileSync(path.join(root, file), "utf8"));
+  const categories = Object.fromEntries(Array.from(rules.FILTER_GROUPS).flatMap(group =>
+    Array.from(group.subfilters).filter(item => item.key !== "cows").map(item => [item.key, []])
+  ));
+  const places = ["food", "transport", "gates", "facilities", "historic", "tourism", "misc"].flatMap(name =>
+    read(`data/local-landmarks-${name}.geojson`).features
+      .filter(feature => feature.geometry && feature.geometry.type === "Point")
+      .map(feature => ({ ...feature.properties, categoryTags: rules.buildOsmCategoryTags(feature.properties) }))
+  );
+  places.push(...rules.normalizeFolkloreLocations(read("data/epping_forest_folklore_locations.json")));
+  for (const place of places) {
+    const key = rules.placeLabelFilterKey(place);
+    if (!categories[key]) continue;
+    categories[key].push({
+      name: place.name || `Unnamed ${(place.categoryLabel || "place").toLowerCase()}`,
+      detail: place.address || place.area || (!place.name && place.id ? `Map record ${place.id}` : ""),
+    });
+  }
+  categories.ponds_streams = Array.from(rules.extractWaterFeatures(read("data/local-environment.geojson").features),
+    place => ({ name: place.name, detail: "" }));
+  categories.trees = read(TREE_INDEX).chunks.flatMap(chunk => read(chunk.url).trees.map(tree => ({
+    name: tree.commonName || tree.latinName || "Tree",
+    detail: Number(tree.tagNumber) > 0 ? `Tag ${tree.tagNumber}` : `Untagged · record ${tree.recordNumber}`,
+  })));
+  for (const items of Object.values(categories)) {
+    items.sort((a, b) => a.name.localeCompare(b.name, "en-GB") || a.detail.localeCompare(b.detail, "en-GB", { numeric: true }));
+  }
+  return categories;
+}
+
+module.exports = { readCounts, readCategoryItems, formatCount, FEATURE_FILES, TREE_INDEX };
 
 if (require.main === module) {
   const counts = readCounts(path.join(__dirname, ".."));

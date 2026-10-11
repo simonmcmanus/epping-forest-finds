@@ -65,8 +65,19 @@ test("a silently accepted honeypot submission is visible in privacy-safe functio
 });
 
 test("the consent wording is recorded so it survives later copy changes", () => {
-  assert.match(subscribe.CONSENT_WORDING, /ready/i);
+  assert.match(subscribe.CONSENT_WORDING, /early testing opens/i);
   assert.match(subscribe.CONSENT_WORDING, /weekly Epping Forest Ledger updates once the site launches/);
   const html = require("node:fs").readFileSync(require("node:path").join(__dirname, "../index.html"), "utf8");
-  assert.ok(html.includes(`<span>${subscribe.CONSENT_WORDING}</span>`));
+  assert.ok(html.includes(`<p class="signup-intro" id="signupConsent">${subscribe.CONSENT_WORDING}</p>`));
+});
+
+test("the endpoint still requires affirmative consent from the signup action", async () => {
+  for (const consent of [undefined, false, "true"]) {
+    const result = await subscribe.handler({
+      httpMethod: "POST",
+      body: JSON.stringify({ email: "walker@example.com", consent })
+    });
+    assert.strictEqual(result.statusCode, 400);
+    assert.strictEqual(JSON.parse(result.body).error, "Please use the ‘Email me updates’ button to sign up.");
+  }
 });

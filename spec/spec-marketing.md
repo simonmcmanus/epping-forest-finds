@@ -96,7 +96,7 @@ Epping Forest." so the first line leads.
 > See the latest reported cattle locations from their GPS collars. Positions refresh while online; offline, you’ll see the last saved positions, which may be out of date.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 1,005 pubs, cafés and shops. 1,596 car parks,
+> 9,162 paths and bridleways. 1,357 pubs, cafés and shops. 1,596 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -135,7 +135,7 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 1,005 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 1,357 food & drink | feature count, `data/local-landmarks-food.geojson` |
 | 1,596 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
@@ -156,6 +156,12 @@ rewrites the inventory total, group totals and subfilter rows in `index.html`,
 as well as the headline figures in §3.4 and §4 of this document, from the
 current data. `--check` reports drift without changing anything and exits
 non-zero.
+
+The same sync writes `assets/home/inventory/*.json` from the read-only map
+datasets, using the app's classification and normalisation rules at generation
+time. Each list preserves every counted record, sorts by name, and labels
+unnamed places and untagged trees explicitly. List lengths and contents are
+checked alongside counts; dataset updates commit the generated lists too.
 
 It exists because the test alone left a person in the loop, and the weekly
 ledger run (`spec-weekly-report.md`) changes the food dataset unattended: every
@@ -200,6 +206,10 @@ Sections, in order:
    sub-line (§3.2), and the primary CTA element (§8). The photo caption uses
    white text on an opaque dark-green backing for contrast across the image,
    running flush to the photo's left, right and bottom edges with no inset.
+   The photo uses shared 480, 768, 960, 1280 and 1600px WebP variants with
+   responsive `srcset`/`sizes` and the original JPEG fallback. Its high-priority
+   preload matches the WebP candidates and sizes, downloading only the selected
+   image. Preserve the full-width crop and intrinsic 4:3 dimensions.
 2. **What's on the map** — directly after the hero, one neutral inventory card, matching the Ledger's
    categorisation: a headline total with a 44px map-pin icon
    (`map-icons/all-finds.png`) to its left, the six app filter groups (Nature, Food,
@@ -209,6 +219,30 @@ Sections, in order:
    smaller app icon beside every subcategory. Parent icons are deliberately
    larger so the group hierarchy remains clear. Both icon sizes sit centred
    in the same 38px column, with aligned category and subcategory labels. The
+   subcategory labels become keyboard-accessible expand/collapse buttons when
+   JavaScript is available. Collapsed rows retain the original compact spacing;
+   a small downward chevron indicates each button and points upward when open.
+   The expanded category is a warm cream (`#f6f1e7`) panel with a thin border, 10px corners,
+   no inner shadow and 12px inset padding, preserving the label/count
+   alignment. Its results form a white, bordered, rounded list with 12px row
+   padding and separators. The animation wrappers have no section borders or
+   inherited section padding: just 12px above the search field and the outer
+   panel’s 12px bottom inset. Opening one loads its own homepage JSON list and
+   shows names with available addresses/areas (or tree tags), a search field,
+   and up to 50 results initially; “Show more” reveals another 50. Lists scroll
+   within a bounded panel. Loading, empty, no-match and retry states are explicit.
+   Lists are retained when collapsed; no category data is fetched before opening.
+   Expansion and collapse ease over 260ms, including the panel height, card
+   spacing, shading and chevron rotation; results fade in gently. Rapid toggles
+   reverse the transition, closing immediately removes controls from keyboard
+   navigation, and reduced motion makes all state changes immediate.
+   Only expanded category icons animate, using independent animated PNGs in
+   `assets/home/map-icons/animated/`. `scripts/generate-home-icon-motion.js`
+   renders these from the existing icon motion at generation time; no app code
+   loads on the homepage. Closing the category, hiding the page or requesting
+   reduced motion restores the original still icon. A failed animation load
+   also falls back to the still image.
+   Without JavaScript, the existing labels and counts remain readable. The
    header brand mark is the transparent oak leaf from the app icon, without
    the app icon's yellow background, shown at 44px (36px on phones), with the
    brand name and Ledger link each kept to one line. The hero starts directly
@@ -248,10 +282,10 @@ Sections, in order:
    the homepage map pin), 44px, sits on the heading's line, vertically centred
    on it, never on a line of its own. The section starts with this heading,
    without a repeated signup eyebrow. The layout is tight: email field and button share one row on wide
-   screens (stacked on mobile), with the consent checkbox and privacy line
-   directly beneath. Introduction, consent and supporting text
-   use the full card content width; only the email-and-button row has a narrower cap. Both introduction and
-   consent include weekly Epping Forest Ledger updates once the site launches.
+   screens (stacked on mobile). The introduction doubles as the explicit opt-in
+   statement above the form; the privacy line sits below. Both use the full card
+   content width; only the email-and-button row has a narrower cap. The opt-in
+   statement includes weekly Epping Forest Ledger updates once the site launches.
 6. **No signal? Here’s the plan** — three steps: open it once
    on signal, it downloads, it then works anywhere in the forest. The steps and
    the cattle note share one white shadowed card (like the map inventory), so
@@ -417,8 +451,8 @@ links — is written to be true in all three states and does not change.
 
 The page must not imply immediate access or invitations already being sent.
 The signup heading is “Be in the know”, the submit button
-is “Keep me posted”, and the introduction offers news when early testing opens
-and weekly Ledger updates once the site launches. The consent label retains
+is “Email me updates”, and the introduction offers news when early testing opens
+and weekly Ledger updates once the site launches. The consent statement retains
 the same mailing scope.
 
 ## 9. Mailing list
@@ -448,22 +482,40 @@ which addresses are on the list is an enumeration oracle.
 
 ### 9.3 Consent and compliance
 
-- Double opt-in. A new contact receives a confirmation message, but EmailOctopus
-  does not resend one when an existing contact produces a `409`. The shared
-  success state therefore says **"Confirmation is needed — check your inbox.
-  The email might be in your spam folder"**. It does not reveal whether the
-  address is already on the list.
-- After a successful response, the email and consent controls remain visible
-  but disabled, and the disabled submit button reads **"Request received"**.
-  This makes the completed state unmistakable; reloading restores the form if
-  the visitor needs to correct an address.
-- The consent checkbox is unbundled and never pre-ticked.
+- The dedicated email signup uses an explicit **“Email me updates”** button
+  instead of a checkbox. The nearby consent statement explains the sender and
+  mailing scope, and is associated with the button via aria-describedby.
+  Only submitting the form sends the affirmative consent flag to the endpoint.
+- Double opt-in remains required. A new contact receives a confirmation message,
+  but EmailOctopus does not resend one when an existing contact produces a 409.
+  Both responses reveal the same inbox instructions without claiming a new email
+  was sent or exposing whether the address is already listed.
+- While sending, the form stays visible with a disabled submit button and busy
+  state; repeated submissions are ignored. Errors preserve the address and restore
+  the button so the visitor can retry.
+- On success, the entire signup introduction and form are hidden and replaced by
+  a dedicated panel: an envelope illustration marked with a gold **2** badge,
+  **“Step 2 of 2”**, **“Confirm your email to finish”**, instructions to check
+  the inbox, open the email from Epping Forest Finds and click **“Confirm my
+  email”** to complete sign-up, and a spam/junk reminder. The numbered image
+  and heading make the remaining action explicit, rather than implying that
+  submitting the form completed the subscription. There is no separate pre-submit confirmation
+  reminder. The heading receives keyboard focus; the panel scrolls into view only
+  if needed. Reloading restores the form.
+- A gold **“Don’t forget”** reminder sits beside the step label. Its decorative
+  bell makes one gentle 900ms swing after a 500ms delay; it never loops. The
+  reminder remains static for reduced-motion visitors.
+- Motion runs once: a 140ms fade and slight lift removes the entry panel, a 420ms
+  height transition settles the card, and the envelope and text gently arrive
+  over roughly half a second. There is no looping animation. Reduced-motion
+  visitors get the same focused confirmation immediately, without animation or
+  smooth scrolling.
 - Record the consent timestamp **and the wording consented to**, so the record
   survives later copy changes.
 - Every message carries a working unsubscribe link from the first one.
 - Consent wording in the form and server-side record must match exactly:
-  “Email me when it’s ready, plus weekly Epping Forest Ledger updates once the
-  site launches.” Nothing else is sent to this list without fresh consent.
+  “By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds when early testing opens, plus weekly Epping Forest Ledger updates once the site launches.”
+  Nothing else is sent to this list without fresh consent.
 
 ### 9.4 Privacy policy changes (blocking)
 
@@ -561,7 +613,9 @@ Per the project's completion checklist:
   Parallel worktrees select different local ports via `PLAYWRIGHT_BASE_URL`;
   each test run starts its own server and refuses an already occupied port.
 - **E2E** — a spec covering: the homepage renders its copy with JavaScript
-  disabled; the sign-up form shows the "check your inbox" state on success;
+  disabled; the sign-up button sends affirmative consent; success replaces the
+  form with focused inbox guidance in both motion modes; sending blocks duplicate
+  requests and failures preserve the form for retry;
   the honeypot rejects silently; the CTA reflects the alpha state.
 - **Screenshot** — **not yet taken.** A baseline captured before the hero image
   lands would be replaced immediately, and per `spec/agents.md` a baseline must
@@ -585,9 +639,6 @@ anything that depends on the gate's state must be exercised through
 
 ## 13. Non-goals
 
-- No analytics or tracking on the homepage. `js/tracker.js` covers the app and
-  has its own consent flow; the marketing page collects nothing.
-- No cookie banner, because the page sets no cookies.
 - No blog beyond the existing weekly ledger.
 - No pricing, testimonials, or team page.
 - No app store badges until the native builds in

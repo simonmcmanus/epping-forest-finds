@@ -49,9 +49,9 @@ test.describe("Map interaction", () => {
 
       await tapCanvasPoint(page, target.point);
 
-      // The state change (anchor, radius, list) lands at the start of the tour's pan phase, not
-      // instantly on tap -- see focusNearbyOnClusterGroup's three-phase camera tour (js/nav.js)
-      // -- so wait for it rather than asserting immediately after the tap.
+      // The state change (anchor, radius, list) lands synchronously on tap, but the camera eases
+      // to its new framing afterwards (focusNearbyOnClusterGroup, js/nav.js) -- wait for the
+      // state rather than asserting before the draw that reflects it has had a chance to run.
       await page.waitForFunction(() => Boolean(state.nearbyAnchor));
 
       // Tapping a group behaves like tapping open ground on that spot: the Nearby browse anchor
@@ -298,6 +298,11 @@ test.describe("Map interaction", () => {
         focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
       });
       await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+      // This assertion measures the settled browse view. The anchor bar appears before
+      // the 520ms origin slide finishes, and stopping the camera does not stop that slide.
+      // Measuring mid-slide mixes the moving ring with the destination's camera fit.
+      await page.waitForFunction(() => !state.nearbyOriginTransition);
+
 
       for (const beta of [20, 40, 60, 85]) {
         await tiltTo(page, beta);
@@ -451,6 +456,44 @@ test.describe("Map interaction", () => {
       const after = await page.evaluate(() => ({ anchor: state.nearbyAnchor, selected: state.selected }));
       expect(after.anchor, "the anchor bar still returns to the real location").toBeNull();
       expect(after.selected, "and selects nothing on the way").toBeNull();
+    });
+
+    test("selecting a real pin while browsing another spot resets Nearby to the user's own location", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+
+      await page.evaluate(() => {
+        const latitude = state.userLocation.latitude - 0.005;
+        const longitude = state.userLocation.longitude - 0.012;
+        focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
+      });
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+      await page.waitForFunction(() => !state.nearbyOriginTransition);
+
+      // A single (unclustered) tree pin on screen, found the same way the cluster tests above
+      // locate their own target -- which pins exist at this camera depends on the live dataset.
+      const target = await page.evaluate(() => {
+        stopViewportAnimation();
+        const lookup = activeIconLookup();
+        const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+        const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
+        for (const single of clusters.filter(c => c.items.length === 1)) {
+          const point = { x: single.screenPt.x, y: single.screenPt.y - iconSize * 0.416 };
+          const hit = findHit(point, screenToWorld(point.x, point.y));
+          if (!findClusterHit(point) && hit?.type === 'tree' && hit.item === single.items[0]) return { point };
+        }
+        return null;
+      });
+      test.skip(!target, "no single tree pin on screen at this camera");
+
+      await tapCanvasPoint(page, target.point);
+      await page.waitForFunction(() => state.selected?.type === "tree");
+
+      // Selecting the pin must hand Nearby back to the real GPS fix rather than leaving the
+      // browsed spot -- and its map dot (drawNearbyAnchorMarker, js/renderer.js, which only
+      // checks state.nearbyAnchor) -- behind the new selection.
+      const anchor = await page.evaluate(() => state.nearbyAnchor);
+      expect(anchor, "the browse anchor is cleared once a real selection is made").toBeNull();
     });
   });
 

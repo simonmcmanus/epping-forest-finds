@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-09-28T06:22:07.419320Z",
+  "generatedAt": "2026-10-11T06:56:01.677181Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -2616,7 +2616,7 @@
         "website": null,
         "phone": null,
         "address": "Church Lane London E11 1HG",
-        "openingHours": null,
+        "openingHours": "Mo-Fr 09:00-19:00; Sa 09:00-18:00; Su 12:00-16:00",
         "distanceToForestBoundaryMetres": 397.2,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
@@ -2788,6 +2788,720 @@
         "address": "83 Marlborough Road London",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 412.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mornington-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0010946,
+          51.6318028
+        ]
+      },
+      "properties": {
+        "id": "manual/mornington-hall",
+        "osmType": "way",
+        "osmId": 329373050,
+        "name": "Mornington Hall",
+        "category": "social_centre",
+        "categoryLabel": "Social Club",
+        "amenity": "social_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 21.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/north-chingford-library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0028565,
+          51.6316221
+        ]
+      },
+      "properties": {
+        "id": "manual/north-chingford-library",
+        "osmType": "way",
+        "osmId": 928846348,
+        "name": "North Chingford Library",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 31.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/odeon-south-woodford",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0229997,
+          51.5944972
+        ]
+      },
+      "properties": {
+        "id": "manual/odeon-south-woodford",
+        "osmType": "way",
+        "osmId": 91275364,
+        "name": "Odeon South Woodford",
+        "category": "cinema",
+        "categoryLabel": "Cinema",
+        "amenity": "cinema",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.odeon.co.uk/cinemas/south-woodford/",
+        "phone": null,
+        "address": "High Road London E18 2QL",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 299.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/orchard-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0391239,
+          51.601608
+        ]
+      },
+      "properties": {
+        "id": "manual/orchard-hall",
+        "osmType": "way",
+        "osmId": 220254289,
+        "name": "Orchard Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Woodford Green IG8 7BN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 265.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/our-lady-of-lourdes-pastoral-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0244219,
+          51.5745997
+        ]
+      },
+      "properties": {
+        "id": "manual/our-lady-of-lourdes-pastoral-centre",
+        "osmType": "way",
+        "osmId": 990173421,
+        "name": "Our Lady of Lourdes Pastoral Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 110.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/paradox-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0251737,
+          51.6081221
+        ]
+      },
+      "properties": {
+        "id": "manual/paradox-centre",
+        "osmType": "node",
+        "osmId": 8693867436,
+        "name": "Paradox Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 314.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/pastures-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.011981,
+          51.5639625
+        ]
+      },
+      "properties": {
+        "id": "manual/pastures-centre",
+        "osmType": "way",
+        "osmId": 1182024959,
+        "name": "Pastures Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "15 Davies Lane London E11 3DR",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 158.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/peterhouse-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.004558,
+          51.5882673
+        ]
+      },
+      "properties": {
+        "id": "manual/peterhouse-centre",
+        "osmType": "way",
+        "osmId": 226296902,
+        "name": "Peterhouse Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.stpeterintheforest.org/",
+        "phone": "+44 20 8509 1811",
+        "address": "122 Forest Rise London E17 3PW",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 11.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/ravidassia-community-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0483719,
+          51.5519119
+        ]
+      },
+      "properties": {
+        "id": "manual/ravidassia-community-centre",
+        "osmType": "way",
+        "osmId": 955328132,
+        "name": "Ravidassia Community Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "26 Carlyle Road London E12 6BN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 150.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/roding-valley-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0447891,
+          51.6180185
+        ]
+      },
+      "properties": {
+        "id": "manual/roding-valley-hall",
+        "osmType": "way",
+        "osmId": 235167206,
+        "name": "Roding Valley Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "IG9 6LN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 259.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/st-anne-s-parish-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0006652,
+          51.6176518
+        ]
+      },
+      "properties": {
+        "id": "manual/st-anne-s-parish-centre",
+        "osmType": "node",
+        "osmId": 3163720403,
+        "name": "St Anne's Parish Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 41.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/st-mary-s-church-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0954958,
+          51.6728959
+        ]
+      },
+      "properties": {
+        "id": "manual/st-mary-s-church-hall",
+        "osmType": "way",
+        "osmId": 219244508,
+        "name": "St. Mary's Church Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 38.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/the-wanstead-curtain",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0246373,
+          51.580801
+        ]
+      },
+      "properties": {
+        "id": "manual/the-wanstead-curtain",
+        "osmType": "node",
+        "osmId": 13071011391,
+        "name": "The Wanstead Curtain",
+        "category": "theatre",
+        "categoryLabel": "Theatre",
+        "amenity": "theatre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 126.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/theydon-bois-village-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0961544,
+          51.6728544
+        ]
+      },
+      "properties": {
+        "id": "manual/theydon-bois-village-hall",
+        "osmType": "way",
+        "osmId": 142269853,
+        "name": "Theydon Bois Village Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Coppice Row Theydon Bois",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 45.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/thornwood-village-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1300755,
+          51.7217979
+        ]
+      },
+      "properties": {
+        "id": "manual/thornwood-village-hall",
+        "osmType": "way",
+        "osmId": 490852930,
+        "name": "Thornwood Village Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Weald Hall Lane Thornwood Common",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 304.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/umm-al-qura-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0478176,
+          51.5505156
+        ]
+      },
+      "properties": {
+        "id": "manual/umm-al-qura-centre",
+        "osmType": "node",
+        "osmId": 13426831001,
+        "name": "Umm Al-Qura Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://masjid-umalqura.com/",
+        "phone": "+447943111506;+442030040294",
+        "address": "530-542 High Street North London E12 6QN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 288.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/upshire-village-hall",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0464253,
+          51.6905393
+        ]
+      },
+      "properties": {
+        "id": "manual/upshire-village-hall",
+        "osmType": "way",
+        "osmId": 584391796,
+        "name": "Upshire Village Hall",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Horseshoe Hill Waltham Abbey EN9 3SN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 14.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/waltham-forest-resource-hub",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0158823,
+          51.5744904
+        ]
+      },
+      "properties": {
+        "id": "manual/waltham-forest-resource-hub",
+        "osmType": "way",
+        "osmId": 455661185,
+        "name": "Waltham Forest Resource Hub",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "1 Russell Road London E10 7ES",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 439.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/wanstead-house-community-association",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0292866,
+          51.5742506
+        ]
+      },
+      "properties": {
+        "id": "manual/wanstead-house-community-association",
+        "osmType": "way",
+        "osmId": 544370642,
+        "name": "Wanstead House Community Association",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 44.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/wanstead-library",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0252928,
+          51.5758271
+        ]
+      },
+      "properties": {
+        "id": "manual/wanstead-library",
+        "osmType": "way",
+        "osmId": 1299953062,
+        "name": "Wanstead Library",
+        "category": "library",
+        "categoryLabel": "Library",
+        "amenity": "library",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 125.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/woodbine-day-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0257835,
+          51.5759084
+        ]
+      },
+      "properties": {
+        "id": "manual/woodbine-day-centre",
+        "osmType": "way",
+        "osmId": 1299953063,
+        "name": "Woodbine Day Centre",
+        "category": "social_centre",
+        "categoryLabel": "Social Club",
+        "amenity": "social_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "25 Woodbine Place London",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 120.9,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }

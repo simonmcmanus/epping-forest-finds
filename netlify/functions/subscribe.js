@@ -21,7 +21,7 @@ const LIST_ID = process.env.EMAILOCTOPUS_LIST_ID || "";
 // The exact wording the subscriber consented to, recorded alongside the
 // address so the consent record survives later copy changes.
 const CONSENT_WORDING =
-  "Email me when it’s ready, plus weekly Epping Forest Ledger updates once the site launches.";
+  "By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds when early testing opens, plus weekly Epping Forest Ledger updates once the site launches.";
 
 /**
  * Deliberately permissive: one @, something either side, a dot in the domain.
@@ -84,7 +84,7 @@ exports.handler = async (event, context) => {
 
   if (payload.consent !== true) {
     log("rejected missing consent");
-    return response(400, { error: "Please tick the box to confirm you're happy to hear from us." });
+    return response(400, { error: "Please use the ‘Email me updates’ button to sign up." });
   }
 
   // Silently accept anything that looks automated: telling a bot it was

@@ -32,7 +32,6 @@
       "Read(//tmp/**)"
     ],
     "deny": [
-      "Read(data/**)",
       "Read(node_modules/**)",
       "Read(playwright-report/**)",
       "Read(test-results/**)",

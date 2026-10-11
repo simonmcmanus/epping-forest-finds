@@ -331,3 +331,73 @@ function parseFolkloreCoordinates(coordinates) {
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
   return { latitude, longitude };
 }
+
+// --- Event normalization ---
+// Events are time-bound landmarks: merged into state.landmarks (js/loader.js) exactly like
+// folklore locations, so they get clustering, search, filtering and routing for free.
+// scripts/prune_past_events.js keeps data/events.json itself from accumulating expired rows
+// (the actual fix for shipping dead data to every client); isEventPast() below is the second
+// line of defence -- a past event is dropped here too, before it ever enters state.landmarks,
+// so a stale cached copy of the file can't put one on the map either. Keep
+// EVENT_DEFAULT_DURATION_MS in sync with scripts/prune_past_events.js.
+//
+// isEventTooFarAhead() is a separate, one-directional cap: the map only shows an event once
+// it's within a week of starting, even if the source data already carries it months out (the
+// weekly ledger report is expected to grow its own longer-range view of upcoming events
+// independently -- this cap is an app/map display decision only, not a data-retention one, so
+// it belongs here rather than in the pruning script or any report generator).
+
+const EVENT_DEFAULT_DURATION_MS = 24 * 60 * 60 * 1000; // assumed run time for an event with no endsAt
+const EVENT_SHOW_AHEAD_MS = 7 * 24 * 60 * 60 * 1000; // don't show an event until it's within a week out
+
+function eventTimeWindow(event) {
+  const starts = event && event.startsAt ? new Date(event.startsAt).getTime() : NaN;
+  if (!Number.isFinite(starts)) return null;
+  const endsRaw = event && event.endsAt ? new Date(event.endsAt).getTime() : NaN;
+  const ends = Number.isFinite(endsRaw) ? endsRaw : starts + EVENT_DEFAULT_DURATION_MS;
+  return { starts, ends };
+}
+
+function isEventPast(event, nowMs = Date.now()) {
+  const window = eventTimeWindow(event);
+  return !window || window.ends < nowMs; // malformed (no parseable startsAt) can't be shown either
+}
+
+// An event already live (however long ago it started) is never "too far ahead" -- this only
+// holds back something that hasn't started yet, until it's within a week of starting.
+function isEventTooFarAhead(event, nowMs = Date.now()) {
+  const window = eventTimeWindow(event);
+  return Boolean(window) && window.starts > nowMs + EVENT_SHOW_AHEAD_MS;
+}
+
+function isEventLive(event, nowMs = Date.now()) {
+  const window = eventTimeWindow(event);
+  return Boolean(window) && window.starts <= nowMs && nowMs <= window.ends;
+}
+
+function normalizeEventLocations(data, nowMs = Date.now()) {
+  const input = Array.isArray(data && data.events) ? data.events : [];
+  return input
+    .map((item, index) => {
+      const latitude = Number(item && (item.lat ?? item.latitude));
+      const longitude = Number(item && (item.lon ?? item.lng ?? item.longitude));
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+      return {
+        id: (item && item.id) || `event-${index + 1}`,
+        name: (item && item.name) || "Forest event",
+        description: (item && item.description) || null,
+        startsAt: (item && item.startsAt) || null,
+        endsAt: (item && item.endsAt) || null,
+        sourceUrl: (item && item.sourceUrl) || null,
+        category: "event",
+        categoryTags: ["event"],
+        categoryLabel: "Event",
+        latitude,
+        longitude,
+        point: projectLonLat(longitude, latitude),
+        dataSource: "event",
+      };
+    })
+    .filter(Boolean)
+    .filter((event) => !isEventPast(event, nowMs) && !isEventTooFarAhead(event, nowMs));
+}

@@ -39,6 +39,22 @@ async function mockCowApi(page) {
 }
 
 /**
+ * Intercept data/events.json with a caller-supplied fixture, so an events test can control
+ * exactly which events exist -- in particular, one that is "live" right now -- without being
+ * at the mercy of whatever's actually in the committed data/events.json or the real wall clock.
+ * Must be called before page.goto (same ordering as mockCowApi).
+ */
+async function mockEventsApi(page, events) {
+  await page.route("**/data/events.json", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ events }),
+    })
+  );
+}
+
+/**
  * Make an ungranted geolocation request fail immediately instead of hanging.
  *
  * Chromium answers getCurrentPosition neither way while the permission is still
@@ -177,11 +193,35 @@ async function tapCanvasPoint(page, canvasPoint, options = {}) {
   }, { point: canvasPoint, alreadyClient: Boolean(options.alreadyClient) });
 }
 
+/**
+ * boundingBox() reads layout the instant it's called, which can land mid-reflow right after a
+ * class/style change that triggers a transition or a flex-layout resolve -- a real, reproducible
+ * failure in CI (06-feedback.spec.js's keyboard-avoidance tests measured the sheet ~15-20px short
+ * of its settled position on a loaded runner, consistently, not a one-off), even though the box
+ * is never actually wrong once it settles. Polls until two consecutive reads agree, so a caller
+ * gets the box layout has actually settled on rather than a transient mid-reflow one.
+ */
+async function waitForStableBoundingBox(locator, { timeout = 2000, interval = 50 } = {}) {
+  const deadline = Date.now() + timeout;
+  let previous = await locator.boundingBox();
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, interval));
+    const current = await locator.boundingBox();
+    if (previous && current && previous.y === current.y && previous.height === current.height) {
+      return current;
+    }
+    previous = current;
+  }
+  return previous;
+}
+
 module.exports = {
   setup,
   skipOnboarding,
   mockCowApi,
+  mockEventsApi,
   denyGeolocationUnlessGranted,
+  waitForStableBoundingBox,
   gotoAndWaitForMap,
   settleMapIconsAndDraw,
   tapCanvasPoint,

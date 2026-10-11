@@ -11,6 +11,164 @@ const { buildInventory } = require("../../scripts/report/map-inventory.js");
 const { formatCount } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
+  test("smoothly reverses category transitions and closes immediately with reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/");
+    const row = page.locator('[data-inventory-key="churches"]');
+    const button = row.getByRole("button", { name: "Churches", exact: true });
+    const panel = row.locator(".inventory-items");
+    await button.click();
+    await expect(panel.getByRole("listitem").first()).toBeVisible();
+    const closing = await button.evaluate(el => {
+      el.click();
+      const panel = document.getElementById(el.getAttribute("aria-controls"));
+      return { hidden: panel.hidden, inert: panel.inert, transitions: panel.getAnimations().length };
+    });
+    expect(closing).toEqual({ hidden: false, inert: true, transitions: 2 });
+    await button.evaluate(el => el.click());
+    await expect(button).toHaveAttribute("aria-expanded", "true");
+    await expect(panel).toHaveJSProperty("inert", false);
+    await expect(panel.getByRole("searchbox")).toBeVisible();
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const hidden = await button.evaluate(el => {
+      el.click();
+      return document.getElementById(el.getAttribute("aria-controls")).hidden;
+    });
+    expect(hidden).toBe(true);
+  });
+
+  test("animates an expanded category icon and restores its still artwork on close or reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/");
+    const row = page.locator('[data-inventory-key="churches"]');
+    const button = row.getByRole("button", { name: "Churches", exact: true });
+    const icon = button.locator("img");
+    const original = "assets/home/map-icons/church.png";
+    const animated = "assets/home/map-icons/animated/church.png";
+    await expect(icon).toHaveAttribute("src", original);
+    await button.click();
+    await expect(icon).toHaveAttribute("src", animated);
+    await expect.poll(() => icon.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(icon).toHaveAttribute("src", original);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expect(icon).toHaveAttribute("src", animated);
+    await button.click();
+    await expect(icon).toHaveAttribute("src", original);
+  });
+
+  test("keeps category rows compact and marks the open list with a chevron and background", async ({ page }) => {
+    await page.goto("/");
+    const row = page.locator('[data-inventory-key="churches"]');
+    const button = row.getByRole("button", { name: "Churches", exact: true });
+    const appearance = () => button.evaluate(el => ({
+      height: el.getBoundingClientRect().height,
+      chevron: getComputedStyle(el, "::after").transform,
+      symbol: getComputedStyle(el, "::after").content,
+      background: getComputedStyle(el.closest("[data-inventory-key]")).backgroundColor,
+    }));
+    const closed = await appearance();
+    expect(closed.height).toBeLessThan(30);
+    expect(closed.symbol).toBe('""');
+    await button.click();
+    await expect(row.locator(".inventory-items")).toBeVisible();
+    await expect(row).toHaveCSS("padding-left", "12px");
+    await expect(row.locator(".inventory-items li").first()).toBeVisible();
+    await expect.poll(async () => (await appearance()).chevron).not.toBe(closed.chevron);
+    const opened = await appearance();
+    expect(opened.background).not.toBe(closed.background);
+    expect(opened.background).not.toBe("rgba(0, 0, 0, 0)");
+    const card = await row.evaluate(el => {
+      const style = getComputedStyle(el);
+      const list = el.querySelector("ul");
+      const search = el.querySelector("input");
+      return {
+        border: style.borderTopWidth,
+        radius: parseFloat(style.borderRadius),
+        padding: parseFloat(style.paddingLeft),
+        shadow: style.boxShadow,
+        listBackground: list && getComputedStyle(list).backgroundColor,
+        searchBackground: search && getComputedStyle(search).backgroundColor,
+      };
+    });
+    expect(card.border).toBe("1px");
+    expect(card.radius).toBeGreaterThanOrEqual(10);
+    expect(card.padding).toBe(12);
+    expect(card.shadow).toBe("none");
+    expect(card.listBackground).toBe(card.searchBackground);
+    const spacing = await row.evaluate(el => {
+      const header = el.querySelector("dt").getBoundingClientRect();
+      const search = el.querySelector("input").getBoundingClientRect();
+      const list = el.querySelector("ul").getBoundingClientRect();
+      return { above: search.top - header.bottom, below: el.getBoundingClientRect().bottom - list.bottom };
+    });
+    expect(spacing.above).toBeLessThanOrEqual(14);
+    expect(spacing.below).toBeLessThanOrEqual(14);
+    await expect(row).toHaveCSS("background-color", "rgb(246, 241, 231)");
+    await button.press("Enter");
+    await expect(row.locator(".inventory-items")).toBeHidden();
+    await expect.poll(appearance).toEqual(closed);
+  });
+
+  test("expands Churches to show the map's churches and collapses with the keyboard", async ({ page }) => {
+    await page.goto("/");
+    const button = page.getByRole("button", { name: "Churches", exact: true });
+    await expect(button).toHaveAttribute("aria-expanded", "false");
+    await button.click();
+    const panel = page.locator("#inventory-churches");
+    const churches = require("../../assets/home/inventory/churches.json");
+    await expect(panel.getByRole("listitem")).toHaveText(churches.map(item => item.name + item.detail));
+    await expect(button).toHaveAttribute("aria-expanded", "true");
+    await button.focus();
+    await button.press("Enter");
+    await expect(panel).toBeHidden();
+  });
+
+  test("loads only opened categories, searches large lists and shows more results", async ({ page }) => {
+    const requests = [];
+    page.on("request", request => {
+      if (request.url().includes("/assets/home/inventory/")) requests.push(request.url());
+    });
+    await page.goto("/");
+    expect(requests).toHaveLength(0);
+    const toggle = page.getByRole("button", { name: "Trees", exact: true });
+    await toggle.click();
+    const panel = page.locator("#inventory-trees");
+    await expect(panel.getByRole("listitem")).toHaveCount(50);
+    expect(requests).toHaveLength(1);
+    await panel.getByRole("button", { name: "Show more" }).click();
+    await expect(panel.getByRole("listitem")).toHaveCount(100);
+    const search = panel.getByRole("searchbox", { name: "Search trees" });
+    await search.fill("no-such-tree-species");
+    await expect(panel.getByRole("status")).toHaveText("No matching places.");
+    await expect(panel.getByRole("listitem")).toHaveCount(0);
+    const trees = require("../../assets/home/inventory/trees.json");
+    const taggedTree = trees.find(item => item.detail.startsWith("Tag "));
+    await search.fill(taggedTree.detail);
+    await expect(panel).toContainText(taggedTree.name);
+    await expect(panel.getByRole("listitem").first()).toContainText(taggedTree.detail);
+    await toggle.click();
+    await toggle.click();
+    await expect(search).toHaveValue(taggedTree.detail);
+    expect(requests).toHaveLength(1);
+  });
+
+  test("explains empty categories and lets visitors retry a failed category load", async ({ page }) => {
+    let attempts = 0;
+    await page.route("**/assets/home/inventory/medicine.json", route => {
+      attempts += 1;
+      return attempts === 1 ? route.abort() : route.continue();
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Medical sites", exact: true }).click();
+    const panel = page.locator("#inventory-medicine");
+    await expect(panel.getByRole("status")).toHaveText("Couldn't load these places. Please try again.");
+    await panel.getByRole("button", { name: "Try again" }).click();
+    await expect(panel.getByRole("status")).toHaveText("No places in this category yet.");
+    await expect(panel.getByRole("searchbox")).toBeHidden();
+    await expect(panel.getByRole("button", { name: "Show more" })).toBeHidden();
+  });
+
   test("explains what the app is without needing JavaScript", async ({ browser }) => {
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
@@ -168,22 +326,22 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator(".cta-note")).toContainText("early testing opens");
     await expect(page.locator(".signup-intro")).toContainText("early testing opens");
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates");
-    await expect(page.getByRole("button", { name: "Keep me posted" })).toBeVisible();
-    await expect(page.locator(".consent")).toContainText("Email me when it’s ready, plus weekly Epping Forest Ledger updates");
-    await expect(page.locator("#consent")).not.toBeChecked();
+    await expect(page.getByRole("button", { name: "Email me updates" })).toBeVisible();
+    await expect(page.locator("#signupConsent")).toContainText("By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds");
+    await expect(page.locator("#signup input[type=checkbox]")).toHaveCount(0);
   });
 
   test("highlights signup before the practical questions and ends on the Ledger", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates once the site launches");
-    await expect(page.locator(".consent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
+    await expect(page.locator("#signupConsent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
     await expect(page.locator(".signup + .offline-how + .faq + .ledger")).toHaveCount(1);
     await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.png");
     await expect(page.locator(".ledger .card-icon")).toHaveAttribute("src", "assets/home/ledger.png");
     await expect(page.locator(".tag-copy .card-icon")).toHaveAttribute("src", "assets/home/tree-tag.png");
     await expect(page.locator(".offline-how .card-icon")).toHaveAttribute("src", "assets/home/offline.png");
     await expect(page.locator(".faq .card-icon")).toHaveAttribute("src", "assets/home/faq.png");
-    await expect(page.locator(".signup .eyebrow")).toHaveCount(0);
+    await expect(page.locator("#signupEntry .eyebrow")).toHaveCount(0);
     // Icons remain centred beside their headings; only the Ledger has an eyebrow.
     const iconAlignment = await page.locator(".signup .card-head, .ledger .card-head").evaluateAll(heads => heads.map(head => {
       const icon = head.querySelector(".card-icon").getBoundingClientRect();
@@ -360,7 +518,11 @@ test.describe("the marketing homepage", () => {
     );
     expect(localAssets.length).toBeGreaterThan(0);
     for (const url of localAssets) {
-      expect(new URL(url).pathname).toMatch(/^\/assets\/home\//);
+      const pathname = new URL(url).pathname;
+      // cookie-consent.js is the one deliberate exception: a small shared, non-app file at the
+      // site root (not under css/js, which stay app-only) that every page loads alike -- see
+      // spec.md "Google tag (gtag.js) and the cookie-consent banner".
+      expect(pathname === "/cookie-consent.js" || /^\/assets\/home\//.test(pathname)).toBe(true);
     }
     await expect(page.locator(".hero-photo img")).toBeVisible();
     for (const image of await page.locator('img[loading="lazy"]').all()) {
@@ -382,42 +544,84 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator('a[href="/terms.html"]').first()).toBeVisible();
   });
 
-  test("gives a neutral success message that also covers an existing address", async ({ page }) => {
-    await page.route("**/api/subscribe", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ ok: true }),
-      })
-    );
+  for (const reducedMotion of ["reduce", "no-preference"]) {
+    test(`replaces the signup form with focused inbox guidance (motion: ${reducedMotion})`, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion });
+      let payload;
+      await page.route("**/api/subscribe", route => {
+        payload = route.request().postDataJSON();
+        return route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' });
+      });
+      await page.goto("/");
+      await page.fill("#email", "walker@example.com");
+      await page.getByRole("button", { name: "Email me updates" }).click();
 
+      const confirmation = page.locator("#signupConfirmation");
+      await expect(confirmation).toBeVisible();
+      await expect(page.locator("#signupEntry")).toBeHidden();
+      await expect(page.locator("#signupForm")).toBeHidden();
+      await expect(page.locator("#confirmationHeading")).toBeFocused();
+      await expect(confirmation).toContainText("Step 2 of 2");
+      const reminder = confirmation.locator(".inbox-reminder");
+      await expect(reminder).toBeVisible();
+      await expect(reminder).toHaveText("Don’t forget");
+      await expect(reminder.locator("svg")).toHaveCSS("animation-name", reducedMotion === "reduce" ? "none" : "inbox-remind");
+      if (reducedMotion !== "reduce") await expect(reminder.locator("svg")).toHaveCSS("animation-iteration-count", "1");
+      await expect(confirmation.locator(".inbox-step-badge")).toHaveText("2");
+      await expect(confirmation.locator(".inbox-step-badge")).toBeVisible();
+      await expect(page.locator("#confirmationHeading")).toHaveText("Confirm your email to finish");
+      await expect(confirmation).toContainText("Check your inbox");
+      await expect(confirmation).toContainText("Confirm my email");
+      await expect(confirmation).toContainText("Epping Forest Finds");
+      await expect(confirmation).toContainText("spam or junk");
+      await expect(confirmation).toBeInViewport();
+      expect(payload).toEqual({ email: "walker@example.com", consent: true, website: "" });
+      await expect(page.getByText("After signing up, check your inbox", { exact: false })).toHaveCount(0);
+      const iconMotion = await confirmation.locator("img").evaluate(el => ({
+        name: getComputedStyle(el).animationName,
+        iterations: getComputedStyle(el).animationIterationCount
+      }));
+      expect(iconMotion.name).toBe(reducedMotion === "reduce" ? "none" : "inbox-arrive");
+      if (reducedMotion !== "reduce") expect(iconMotion.iterations).toBe("1");
+      await expect.poll(() => page.locator("#signup").evaluate(el => el.getAnimations({ subtree: true }).filter(animation => animation.playState === "running" || animation.pending).length)).toBe(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    });
+  }
+
+  test("keeps the form while sending and prevents duplicate submissions", async ({ page }) => {
+    let finishRequest;
+    let calls = 0;
+    const responseReady = new Promise(resolve => { finishRequest = resolve; });
+    await page.route("**/api/subscribe", async route => {
+      calls++;
+      await responseReady;
+      await route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' });
+    });
     await page.goto("/");
     await page.fill("#email", "walker@example.com");
-    await page.check("#consent");
-    await page.click("#signupForm button[type=submit]");
-
-    await expect(page.locator("#formMsg")).toContainText(
-      "Confirmation is needed — check your inbox. The email might be in your spam folder."
-    );
-    await expect(page.locator("#email")).toBeDisabled();
-    await expect(page.locator("#consent")).toBeDisabled();
-    await expect(page.locator("#signupForm button[type=submit]")).toBeDisabled();
-    await expect(page.locator("#signupForm button[type=submit]")).toHaveText("Request received");
+    await page.getByRole("button", { name: "Email me updates" }).click();
+    await expect(page.locator("#signupForm")).toHaveAttribute("aria-busy", "true");
+    await expect(page.locator("#signupForm button")).toBeDisabled();
+    await expect(page.locator("#signupConfirmation")).toBeHidden();
+    await page.locator("#signupForm").evaluate(form => form.requestSubmit());
+    expect(calls).toBe(1);
+    finishRequest();
+    await expect(page.locator("#signupConfirmation")).toBeVisible();
   });
 
-  test("refuses to submit without consent", async ({ page }) => {
-    let called = false;
-    await page.route("**/api/subscribe", (route) => {
-      called = true;
-      route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
-    });
-
+  test("keeps the form available after a network error and allows a retry", async ({ page }) => {
+    await page.route("**/api/subscribe", route => route.abort());
     await page.goto("/");
     await page.fill("#email", "walker@example.com");
-    await page.click("#signupForm button[type=submit]");
-
-    await expect(page.locator("#formMsg")).toContainText(/tick the box/i);
-    expect(called).toBe(false);
+    await page.getByRole("button", { name: "Email me updates" }).click();
+    await expect(page.locator("#formMsg")).toContainText("Couldn't reach the server");
+    await expect(page.locator("#signupForm")).toBeVisible();
+    await expect(page.locator("#email")).toHaveValue("walker@example.com");
+    await expect(page.locator("#signupForm button")).toBeEnabled();
+    await expect(page.locator("#signupForm")).not.toHaveAttribute("aria-busy", "true");
+    await page.route("**/api/subscribe", route => route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' }));
+    await page.getByRole("button", { name: "Email me updates" }).click();
+    await expect(page.locator("#signupConfirmation")).toBeVisible();
   });
 
   test("surfaces the error the endpoint returns", async ({ page }) => {
@@ -431,7 +635,6 @@ test.describe("the marketing homepage", () => {
 
     await page.goto("/");
     await page.fill("#email", "walker@example.com");
-    await page.check("#consent");
     await page.click("#signupForm button[type=submit]");
 
     await expect(page.locator("#formMsg")).toContainText(/temporarily unavailable/i);
@@ -444,3 +647,29 @@ test.describe("the app's own URL", () => {
     await expect(page.locator("#mapCanvas")).toBeAttached();
   });
 });
+
+for (const [label, url] of [["homepage", "/"], ["ledger", "/reports/epping-forest-ledger-2026-10-10.html"]]) {
+  for (const [screen, width, deviceScaleFactor, candidate] of [["phone", 390, 1, 480], ["retina desktop", 1280, 2, 960]]) {
+    test(`${label} downloads one appropriately sized cow photo on ${screen}`, async ({ browser }) => {
+      const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor });
+      const page = await context.newPage();
+      const photos = [];
+      page.on("request", request => {
+        if (/epping-longhorns.*\.(jpg|webp)$/.test(request.url())) photos.push(request.url());
+      });
+      await page.goto(url);
+      const photo = page.locator(".hero-photo img");
+      await expect(photo).toBeVisible();
+      await expect.poll(() => photo.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+      expect(await photo.evaluate(img => img.currentSrc)).toContain(`epping-longhorns-${candidate}.webp`);
+      expect(photos).toHaveLength(1);
+      const bytes = await page.evaluate(url => performance.getEntriesByName(url)[0].encodedBodySize, photos[0]);
+      expect(bytes).toBeGreaterThan(0);
+      expect(bytes).toBeLessThan(200_000);
+      await expect(photo).toHaveAttribute("src", /epping-longhorns\.jpg$/);
+      // The picture wrapper must preserve the existing full-width crop.
+      expect(await photo.evaluate(img => Math.abs(img.getBoundingClientRect().width - img.closest("figure").getBoundingClientRect().width))).toBeLessThan(1);
+      await context.close();
+    });
+  }
+}

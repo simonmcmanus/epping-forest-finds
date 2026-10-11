@@ -212,6 +212,8 @@ globalThis.__forestFindsTest = {
   drawEnvironment,
   drawLayer,
   clusterFocusTarget,
+  focusNearbyOnClusterGroup,
+  expandedClusterOverviewEntries,
   // The sandbox's own clock object, so a test can freeze what the app reads from
   // performance.now() -- see withFrozenAppClock. Exported as the object, not as now(),
   // because the app looks the method up on it at every call.
@@ -266,7 +268,6 @@ globalThis.__forestFindsTest = {
   buildSearchIconLookup,
   activeIconLookup,
   markerOpacityFor,
-  searchClearFiltersHtml,
   treeHashKey,
   findTreeByHashKey,
   treeDisplayName,
@@ -393,6 +394,7 @@ globalThis.__forestFindsTest = {
   worldToScreenFlat,
   projectCanvasPoint,
   handleMapClick,
+  startCameraOriginTransition,
   distanceFromUserToRoad,
   nearbyOrigin,
   setNearbyAnchor,
@@ -414,6 +416,24 @@ globalThis.__forestFindsTest = {
   PLACE_FILTER_PRIORITY,
   PLACE_FILTER_FALLBACK_PRIORITY,
   PLACE_FILTER_TOPIC_PRIORITY,
+  DEFAULT_FILTERS,
+  normalizeEventLocations,
+  eventTimeWindow,
+  isEventLive,
+  isEventPast,
+  isEventTooFarAhead,
+  EVENT_SHOW_AHEAD_MS,
+  isEventCategory,
+  formatEventWhen,
+  eventStatusLabel,
+  eventAlertEnabled,
+  checkEventProximityAlert,
+  showEventNearbyBanner,
+  hideEventNearbyBanner,
+  openEventNearbyBanner,
+  placeHashKey,
+  findPlaceByHashKey,
+  focusOverviewItem,
   treeSpeciesIconHtml,
   placeTitle,
   ICON_PATHS,
@@ -427,6 +447,7 @@ globalThis.__forestFindsTest = {
   CLUSTER_RADIUS_ICON_SIZE_REF,
   MEGA_CLUSTER_MERGE_RADIUS_CSS_PX,
   buildTypeClusters,
+  clusterTreeIconSrc,
   buildSuperClusters,
   drawMegaClusters,
   clusterJoinAnimationState,
@@ -449,6 +470,7 @@ globalThis.__forestFindsTest = {
   hasTrackingConsent,
   setTrackingConsent,
   ensureTrackingConsent,
+  trackGaItemSelected,
   reportFormHtml,
   reportIssueHtml,
   openFiltersScreen,
@@ -603,6 +625,7 @@ function resetData(app) {
   app.state.roads = [];
   app.state.nearbyAnchor = null;
   app.state.nearbyOriginTransition = null;
+  app.state.cameraOriginTransition = null;
   app.state.clusterExpanded = null;
   app.state.clusterZoomed = false;
   app.state.overviewFilters = [];
@@ -818,6 +841,16 @@ test("a mega badge's displayed count is exactly what was merged into it, not a s
   };
   app.drawMegaClusters(ctx, megaGroups);
   assert.deepEqual(texts, ["5"], "the badge shows the raw number of items merged into it");
+});
+
+test("a tree cluster's icon is the shared species only when every member agrees", () => {
+  const oak = { commonName: "English oak", latinName: "Quercus robur" };
+  const anotherOak = { commonName: "Pedunculate oak", latinName: "Quercus robur" };
+  const beech = { commonName: "Common beech", latinName: "Fagus sylvatica" };
+  assert.equal(app.clusterTreeIconSrc([oak, anotherOak]), app.ICON_PATHS["tree-english-oak"],
+    "a cluster of same-species trees still shows that species' own icon");
+  assert.equal(app.clusterTreeIconSrc([oak, oak, beech]), app.ICON_PATHS["tree"],
+    "a cluster mixing oaks and a beech must not draw as a plain oak -- the generic tree icon doesn't claim a species the cluster isn't");
 });
 
 test("buildSuperClusters does not chain far-apart clusters into one mega cluster", () => {
@@ -1682,8 +1715,10 @@ test("nearby filter updates trigger a heading-up refit that keeps the radius cir
 test("navigation has labelled outline glyphs that inherit the selected colour", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
   const nav = html.match(/<nav class="inspector-actions"[\s\S]*?<\/nav>/)[0];
-  assert.equal((nav.match(/stroke="currentColor"/g) || []).length, 5);
-  assert.equal((nav.match(/class="nav-label"/g) || []).length, 5);
+  // Filters is reached inline from the Nearby heading, not a fifth nav-bar tab -- see
+  // spec-data-rendering.md, "Filters is reached from Nearby, not a nav peer".
+  assert.equal((nav.match(/stroke="currentColor"/g) || []).length, 4);
+  assert.equal((nav.match(/class="nav-label"/g) || []).length, 4);
   assert.ok(!nav.includes("<img"), "navigation must not retain fixed-colour PNG icons");
 });
 
@@ -2930,6 +2965,25 @@ test("the filter screen with nothing selected frames the walking radius, the sam
   assert.deepEqual(app.nearbyCameraFitPoints(), app.walkingRadiusCirclePoints());
 });
 
+test("an expanded cluster's camera fit is the group's own members, not the floor-sized ring", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  // ~2m apart -- tighter than the walking-radius floor (~21m, WALKING_RADIUS_TIGHT_MIN_MINUTES)
+  // ever lets the ring itself frame, which is exactly what left a tight cluster unable to
+  // visually separate no matter how many times its badge was tapped.
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65000018, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  const points = app.nearbyCameraFitPoints();
+  assert.equal(points.length, 2, "exactly the group's own two members, not the ring's circumference samples");
+  assert.ok(points.includes(oak1.point) && points.includes(oak2.point),
+    "the fit points are exactly the tapped trees' own world points");
+});
+
 test("resizing the walking radius from a screen other than Nearby re-derives which locations the map highlights", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -3620,21 +3674,16 @@ test("search results are never dimmed by the active category filters", () => {
   assert.equal(app.markerOpacityFor("cow", { id: "any-cow" }), 1);
 });
 
-test("a \"Clear all filters\" row appears in Search whenever filters are active, on every state of the results pane", () => {
+test("Search never offers a \"Clear all filters\" row, on any state of the results pane -- that control lives on the Filters screen", () => {
   resetSearchData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   addSearchFixtures(app);
 
-  assert.doesNotMatch(app.searchResultsHtml(""), /data-filter-clear-all/, "nothing to clear yet");
-
   app.setOverviewFilters(["cows"]);
-  assert.match(app.searchResultsHtml(""), /data-filter-clear-all/, "empty prompt");
-  assert.match(app.searchResultsHtml("a"), /data-filter-clear-all/, "too-short prompt");
-  assert.match(app.searchResultsHtml("zzzznothing"), /data-filter-clear-all/, "no-matches state");
-  assert.match(app.searchResultsHtml("royal forest"), /data-filter-clear-all/, "results list");
-
-  app.setOverviewFilters([]);
-  assert.doesNotMatch(app.searchResultsHtml("royal forest"), /data-filter-clear-all/, "hidden again once cleared");
+  assert.doesNotMatch(app.searchResultsHtml(""), /data-filter-clear-all/, "empty prompt");
+  assert.doesNotMatch(app.searchResultsHtml("a"), /data-filter-clear-all/, "too-short prompt");
+  assert.doesNotMatch(app.searchResultsHtml("zzzznothing"), /data-filter-clear-all/, "no-matches state");
+  assert.doesNotMatch(app.searchResultsHtml("royal forest"), /data-filter-clear-all/, "results list");
 });
 
 test("searching a tree species by itself finds every matching tree, nearest first", () => {
@@ -3907,7 +3956,35 @@ test("ensureTrackingConsent grants consent implicitly, with no separate accept/d
   app.setTrackingConsent(original);
 });
 
-test("the location gate and onboarding's location step show the exact same privacy disclosure", () => {
+test("select_map_item GA event carries a specific venue category for landmarks, never coordinates", () => {
+  const calls = [];
+  const originalGtag = app.windowStub.gtag;
+  app.windowStub.gtag = (...args) => calls.push(args);
+
+  const memorial = { category: "memorial", categoryTags: ["memorial"], name: "War Memorial" };
+  app.trackGaItemSelected("landmark", memorial, "map");
+  const tree = { commonName: "Old Oak", latitude: 51.65, longitude: 0.03 };
+  app.trackGaItemSelected("tree", tree, "overview");
+
+  app.windowStub.gtag = originalGtag;
+
+  assert.equal(calls.length, 2);
+  const [landmarkCall, treeCall] = calls;
+  assert.equal(landmarkCall[1], "select_map_item");
+  assert.equal(landmarkCall[2].item_type, "landmark");
+  assert.equal(landmarkCall[2].item_category, "monuments", "should narrow landmark down to its filter chip kind");
+  assert.equal(landmarkCall[2].item_name, "War Memorial");
+  assert.equal(treeCall[2].item_type, "tree");
+  assert.equal(treeCall[2].item_category, "tree", "non-landmark types repeat item_type");
+
+  for (const call of calls) {
+    for (const value of Object.values(call[2])) {
+      assert.notEqual(typeof value, "number", "GA item events must never carry raw coordinates");
+    }
+  }
+});
+
+test("the location gate and onboarding's location step disclose the same location/usage tracking, but onboarding also covers the merged cookie choice", () => {
   const appHtml = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
   const onboardingSource = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
 
@@ -3916,11 +3993,19 @@ test("the location gate and onboarding's location step show the exact same priva
 
   assert.ok(gateNoteMatch, "the location gate should show a .privacy-note disclosure");
   assert.ok(onboardingNoteMatch, "the onboarding location step should show a .privacy-note disclosure");
-  assert.equal(
-    onboardingNoteMatch[1],
-    gateNoteMatch[1],
-    "onboarding and the location gate must show identical consent wording, not two different screens"
-  );
+  // Both still disclose the same first-party location/usage tracking and the same withdrawal
+  // path -- the location gate has no decline option, so it never took on the cookie-banner's
+  // job and keeps the original single-purpose wording. Onboarding's location step does have a
+  // real "Skip for now" alternative, so it stands in for the independent cookie-consent banner
+  // (suppressed while onboarding is open -- see cookie-consent.js) and its note says so.
+  assert.match(gateNoteMatch[1], /We collect anonymous usage data \(GPS position, navigation, interactions\)/);
+  assert.match(onboardingNoteMatch[1], /We collect anonymous usage data \(GPS position, navigation, interactions\)/);
+  assert.match(onboardingNoteMatch[1], /analytics cookies/, "onboarding's note must disclose the merged cookie consent");
+  assert.doesNotMatch(gateNoteMatch[1], /analytics cookies/, "the location gate never decides cookie consent, so it should not claim to");
+  for (const note of [gateNoteMatch[1], onboardingNoteMatch[1]]) {
+    assert.match(note, /Settings → Privacy/);
+    assert.match(note, /<a href="\/terms\.html" target="_blank" rel="noopener">Privacy Policy<\/a>/);
+  }
 });
 
 test("settings form offers separate data, app and combined refresh buttons", () => {
@@ -3978,11 +4063,11 @@ test("settings refresh listeners are removed before being re-added, so reopening
   }
 });
 
-test("filter groups include all six labelled categories", () => {
+test("filter groups include all seven labelled categories", () => {
   const { FILTER_GROUPS: groups } = app;
-  assert.equal(groups.length, 6, "should have exactly six filter groups");
+  assert.equal(groups.length, 7, "should have exactly seven filter groups");
   const labels = groups.map((g) => g.label);
-  for (const expected of ["Nature", "Food", "Transport", "History", "Locations", "Stories"]) {
+  for (const expected of ["Nature", "Food", "Transport", "History", "Locations", "Stories", "Events"]) {
     assert.ok(labels.includes(expected), `missing filter group: ${expected}`);
   }
 });
@@ -7985,6 +8070,273 @@ test("tapping open ground while a group is expanded returns to nearby mode ancho
   assert.equal(app.els.inspectorTitle.textContent, "Nearby");
 });
 
+test("tapping a cluster shows exactly that cluster's own members, not every tree the walking-radius floor also reaches", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.64, 0.04);
+
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  const oak3 = { id: "oak3", commonName: "Oak", ...makePoint(app, 51.6500, 0.05002894) };
+  // ~15m from the cluster's centre each -- inside the walking-radius floor a tiny 3-tree
+  // cluster's own few-metre extent still rounds up to (see focusNearbyOnClusterGroup's own
+  // comment), so a plain within-radius scan from the new anchor would have swept all four of
+  // these different-species trees in too.
+  const beechNorth = { id: "beechN", commonName: "Beech", ...makePoint(app, 51.6501347, 0.0500) };
+  const beechEast = { id: "beechE", commonName: "Beech", ...makePoint(app, 51.6500, 0.0502169) };
+  const beechSouth = { id: "beechS", commonName: "Beech", ...makePoint(app, 51.6498653, 0.0500) };
+  const beechWest = { id: "beechW", commonName: "Beech", ...makePoint(app, 51.6500, 0.0497831) };
+  app.state.trees.push(oak1, oak2, oak3, beechNorth, beechEast, beechSouth, beechWest);
+
+  const cluster = { itemType: "tree", items: [oak1, oak2, oak3] };
+  const handled = app.focusNearbyOnClusterGroup(cluster);
+  assert.equal(handled, true);
+  assert.equal(app.state.clusterExpanded, cluster, "the tapped cluster stays the expanded group");
+
+  // Sanity: the ring this tap actually settled on reaches past the 3-tree cluster to where the
+  // beeches stand -- otherwise this test would not be exercising the bug it's named for.
+  const ringMetres = app.walkingDistanceToMetres(app.state.walkingDistanceMinutes);
+  const beechDistance = app.distanceMetres(app.state.nearbyAnchor.latitude, app.state.nearbyAnchor.longitude, beechNorth.latitude, beechNorth.longitude);
+  assert.ok(beechDistance < ringMetres, "sanity: the walking ring reaches past the tapped cluster to where the beeches stand");
+
+  // .join, not deepEqual: arrays mapped from the vm sandbox carry the sandbox's Array prototype.
+  const ids = app.overviewItemsForActiveFilter().map((entry) => entry.item.id).sort().join(",");
+  assert.equal(ids, "oak1,oak2,oak3", "the Nearby list shows exactly the tapped cluster's own members, no more");
+});
+
+test("the Nearby list and the map's highlighted pins agree on an expanded cluster's membership", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  const outsider = { id: "outsider", commonName: "Beech", ...makePoint(app, 51.6501347, 0.0500) };
+  app.state.trees.push(oak1, oak2, outsider);
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  const listIds = app.overviewItemsForActiveFilter().map((entry) => entry.item.id).sort().join(",");
+  const mapTrees = app.buildNearbyIconLookup().tree;
+  assert.equal(listIds, "oak1,oak2", "the list shows exactly the expanded group");
+  assert.equal(mapTrees.size, 2, "the map highlights exactly the expanded group");
+  assert.ok(mapTrees.has(oak1) && mapTrees.has(oak2) && !mapTrees.has(outsider),
+    "the list and the map agree on membership -- same two trees, outsider excluded from both");
+});
+
+test("tapping a cluster while already on Nearby actually refreshes the rendered list, not just the underlying data", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  const outsider = { id: "outsider", commonName: "Beech", ...makePoint(app, 51.6501347, 0.0500) };
+  app.state.trees.push(oak1, oak2, outsider);
+  app.selectOverview();
+  // Sanity: before the tap, the rendered list is the plain, unexpanded view -- the outsider is
+  // in it. els.inspectorBody is a hand-rolled test stub with no real HTML parsing
+  // (querySelectorAll() always returns []), so the rendered markup is checked as a string.
+  const outsiderKey = app.treeHashKey(outsider);
+  assert.ok(app.els.inspectorBody.innerHTML.includes(outsiderKey), "sanity: the outsider starts out listed");
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  const rendered = app.els.inspectorBody.innerHTML;
+  assert.equal(rendered, app.overviewNearestHtml(),
+    "the rendered markup was actually replaced, not left showing whatever was there before the tap");
+  assert.ok(rendered.includes(app.treeHashKey(oak1)) && rendered.includes(app.treeHashKey(oak2)),
+    "the rendered list includes both tapped trees");
+  assert.ok(!rendered.includes(outsiderKey), "the rendered list no longer includes the outsider");
+});
+
+test("tapping a cluster behind the Filter screen switches to Nearby to show the expanded group", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+  app.openFiltersScreen();
+  assert.equal(app.state.filterScreenOpen, true, "sanity: the Filter screen is open");
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  assert.equal(app.state.filterScreenOpen, false, "the Filter screen closes for the tap");
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby", "Nearby opens to show the expanded group");
+});
+
+test("tapping a cluster behind the Settings screen switches to Nearby to show the expanded group", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+  app.openSettings();
+  assert.equal(app.state.selected?.type, "settings", "sanity: Settings is open");
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  assert.equal(app.state.selected, null, "the Settings pseudo-selection clears for the tap");
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby", "Nearby opens to show the expanded group");
+});
+
+for (const [screenName, open] of [
+  ["Filters", (app) => app.openFiltersScreen()],
+  ["Settings", (app) => app.openSettings()],
+  ["Report", (app) => app.openReportModal()],
+  ["Search", (app) => app.openSearchScreen()],
+]) {
+  test(`opening ${screenName} while a cluster is expanded drops the expanded group and its borrowed radius`, () => {
+    resetData(app);
+    app.state.userLocation = makePoint(app, 51.65, 0.05);
+    const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+    const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+    app.state.trees.push(oak1, oak2);
+    const radiusBefore = app.state.walkingDistanceMinutes;
+
+    const cluster = { itemType: "tree", items: [oak1, oak2] };
+    app.focusNearbyOnClusterGroup(cluster);
+    assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
+    assert.notEqual(app.state.walkingDistanceMinutes, radiusBefore, "sanity: the radius grew to cover the group");
+
+    // Filters/Settings/Report/Search all promise the same fixed, zoomed-out survey view of the
+    // walking radius (secondaryScreenActive, spec-data-rendering.md) -- before this, an
+    // expanded cluster stayed narrowed to the tapped group's own members behind any of them,
+    // and the Settings slider showed the group's borrowed radius as if it were the user's own.
+    open(app);
+    assert.equal(app.state.clusterExpanded, null, `opening ${screenName} exits the group's exact-membership view`);
+    assert.equal(app.state.walkingDistanceMinutes, radiusBefore, `opening ${screenName} also restores the radius the group tap grew`);
+  });
+}
+
+test("the browser back button drops an expanded cluster, not just the anchor it moved", () => {
+  resetData(app);
+  resetRouter(app);
+  app.setupSearchAndNavHandlers();
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+
+  const radiusBefore = app.state.walkingDistanceMinutes;
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+  assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
+  assert.notEqual(app.state.walkingDistanceMinutes, radiusBefore, "sanity: the radius grew to cover the group");
+
+  // history.state has no room for a live cluster-item reference (pushNearbyAnchorHistory only
+  // snapshots the anchor's lat/lon), so a stale state.clusterExpanded left set after the anchor
+  // moves back would narrow the map/list to a group unrelated to where the ring now sits.
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "going back drops the expanded group, not just the anchor it moved");
+  assert.equal(app.state.walkingDistanceMinutes, radiusBefore, "going back also restores the radius the group tap grew, not just the anchor");
+});
+
+test("resizing the walking radius drops an expanded cluster", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+  assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
+
+  app.applyWalkingRadiusChange(10, { animate: false });
+  assert.equal(app.state.clusterExpanded, null, "dragging the radius to a size of its own choosing exits the group's exact-membership view");
+  assert.equal(app.state.walkingDistanceMinutes, 10, "the radius the user just chose wins over the group's own, stashed one");
+});
+
+test("pinching/wheeling the walking radius also drops an expanded cluster", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+  assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
+
+  // applyWalkingRadiusGesture is the continuous pinch/wheel path -- a separate function from
+  // applyWalkingRadiusChange (the Settings slider), and one that used to leave clusterExpanded
+  // set: the gesture changed state.walkingDistanceMinutes on every move, but
+  // nearbyCameraFitPoints/overviewItemsForActiveFilter kept fitting and listing the tapped
+  // group's own members regardless, since nothing in this path ever cleared it -- the camera
+  // and list silently stopped tracking the gesture.
+  app.applyWalkingRadiusGesture(10);
+  assert.equal(app.state.clusterExpanded, null, "a radius gesture of the user's own choosing exits the group's exact-membership view too");
+  assert.equal(app.state.walkingDistanceMinutes, 10, "the gesture's own radius wins over the group's stashed one");
+});
+
+test("tapping a nearby cluster pans to it at today's zoom, then zooms in -- two tweens, not one", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  // A couple of hundred metres from the user's own location -- on screen at the walking-radius
+  // framing the camera already has, but not so coincident with its current pivot that the pan
+  // leg below is a zero-distance no-op (animateViewportTo's own near-identical-target snap,
+  // which would resolve synchronously and skip straight to the chained zoom leg).
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6520, 0.0510) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65201797, 0.0510) };
+  app.state.trees.push(oak1, oak2);
+  app.selectOverview();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  const scaleBeforeTap = app.state.viewport.scale;
+
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  // The group is a couple of metres from the user's own location -- already on screen -- so
+  // this should be the staged pan-then-zoom (alignHeadingUpNavigationViewport's
+  // stagePanThenZoom branch, js/app.js): a short pan at *today's* scale first, not the single
+  // combined ease. The first (and, synchronously, only observable) leg is the pan: same scale
+  // as before the tap, over 40% of NEARBY_ORIGIN_TRANSITION_MS (520ms) -- its chained zoom leg
+  // only starts once that pan's own animation frame loop completes.
+  assert.ok(app.state.viewportAnimationTo, "the tap should start a camera animation");
+  assert.equal(app.state.viewportAnimationDuration, 208, "the first leg is the 40%-of-520ms pan, not the full duration");
+  assert.equal(app.state.viewportAnimationTo.scale, scaleBeforeTap, "the pan leg holds the scale the camera already had");
+});
+
+test("tapping a cluster far outside the current view skips staging -- one direct ease instead", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  // A tight, arbitrary "current" framing -- standing in for having just zoomed in on some
+  // other, unrelated spot -- paired with a cluster many kilometres away. Panning that whole
+  // distance at this scale, in the short pan leg above, would cover many screens' worth of
+  // pixels in a couple hundred milliseconds: a fast, disorienting slide, not the gentle
+  // repositioning stagePanThenZoom exists for (see its own comment, js/app.js, on why this is
+  // exactly the "mega badge across the ring" case the old three-phase tour was abandoned over).
+  app.state.viewport = { scale: 500000, tx: 0, ty: 0 };
+  app.state.nearbyAnchor = { latitude: 51.65, longitude: 0.05, point: app.projectLonLat(0.05, 51.65) };
+  const far1 = { id: "far1", commonName: "Oak", ...makePoint(app, 51.75, 0.15) };
+  const far2 = { id: "far2", commonName: "Oak", ...makePoint(app, 51.75001797, 0.15) };
+  app.state.trees.push(far1, far2);
+
+  const cluster = { itemType: "tree", items: [far1, far2] };
+  app.focusNearbyOnClusterGroup(cluster);
+
+  assert.ok(app.state.viewportAnimationTo, "the tap should still start a camera animation");
+  assert.equal(app.state.viewportAnimationDuration, 520, "a far jump falls back to the single, full-duration ease (NEARBY_ORIGIN_TRANSITION_MS)");
+  assert.notEqual(app.state.viewportAnimationTo.scale, 500000, "a single ease targets the group's own fit scale directly, not today's scale");
+});
+
+test("dismissing the anchor bar drops an expanded cluster", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65001797, 0.0500) };
+  app.state.trees.push(oak1, oak2);
+
+  const radiusBefore = app.state.walkingDistanceMinutes;
+  const cluster = { itemType: "tree", items: [oak1, oak2] };
+  app.focusNearbyOnClusterGroup(cluster);
+  assert.equal(app.state.clusterExpanded, cluster, "sanity: the tap expanded the group");
+
+  app.clearNearbyAnchor();
+  assert.equal(app.state.clusterExpanded, null, "returning to GPS-based browsing exits the group's exact-membership view too");
+  assert.equal(app.state.walkingDistanceMinutes, radiusBefore, "and restores the radius the group tap grew");
+});
+
 test("moving the nearby browse anchor reframes the same view instead of zooming out", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
@@ -8244,6 +8596,36 @@ test("the camera origin, the scale fit and the 3D projection all pivot on the sa
   const anchorRaw = app.rawWorldToScreen(app.state.nearbyAnchor.point);
   assert.ok(Math.abs(projection.originX - anchorRaw.x) < 0.001, "the 3D projection pivots on the anchor too");
   assert.ok(Math.abs(projection.originY - anchorRaw.y) < 0.001, "the 3D projection pivots on the anchor too");
+});
+
+test("selecting an item while browsing a distant anchor slides the camera origin to the GPS fix instead of jumping to it", () => {
+  // The bug this covers: cameraOriginPoint() switches outright from the browsed anchor to the
+  // real GPS fix the instant a selection is made (selectedNavigationHeadingUpActive() flips),
+  // with no slide of its own -- unlike a plain anchor-to-anchor move, which nearbyRenderOriginPoint
+  // already smooths. Reported as "very jumpy" selecting an item while browsing a nearby area that
+  // is not nearby, since that is exactly when the two points sit furthest apart.
+  enterNearby3D(app);
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  settleNearbySlide(app);
+  assert.equal(app.cameraOriginPoint(), app.state.nearbyAnchor.point, "sanity: settled on the browsed anchor");
+
+  const userPoint = app.state.userLocation.point;
+  // Mirrors the real sequence (handleMapClick/focusOverviewItem/openSearchResult): capture the
+  // pivot, then flip the basis by selecting something with a real compass target.
+  app.startCameraOriginTransition();
+  app.state.selected = { type: "tree", item: app.state.trees[0] };
+
+  const midSlide = app.cameraOriginPoint();
+  assert.notEqual(midSlide, userPoint, "selecting does not jump the pivot to the GPS fix on the same frame");
+  assert.notEqual(midSlide, anchor.point, "nor does it stay frozen on the old anchor");
+  assert.ok(
+    midSlide.x >= Math.min(anchor.point.x, userPoint.x) - 1e-6 && midSlide.x <= Math.max(anchor.point.x, userPoint.x) + 1e-6,
+    "and it is somewhere between the browsed anchor and the real GPS fix"
+  );
+
+  app.state.cameraOriginTransition.startedAt -= app.state.cameraOriginTransition.durationMs + 1;
+  assert.equal(app.cameraOriginPoint(), userPoint, "settled: the camera is back on the real GPS fix, as selected navigation requires");
 });
 
 // Records the path each draw walks, so a marker's actual drawn geometry can be asserted rather
@@ -8650,11 +9032,13 @@ test("a pin hidden behind a selection is no longer tappable, so the tap is open 
 
 // A 2D-context stand-in that records the path it is given, so a test can see what was drawn.
 function recordingContext() {
-  const calls = { moveTo: [], lineTo: 0 };
+  const calls = { moveTo: [], lineTo: 0, fillText: [] };
   const ctx = new Proxy({}, {
     get(target, key) {
       if (key === "moveTo") return (x, y) => calls.moveTo.push({ x, y });
       if (key === "lineTo") return () => { calls.lineTo += 1; };
+      if (key === "fillText") return (text, x, y) => calls.fillText.push({ text, x, y });
+      if (key === "measureText") return (text) => ({ width: String(text).length * 8 });
       if (key in target) return target[key];
       return () => {};
     },
@@ -8662,6 +9046,81 @@ function recordingContext() {
   });
   return { ctx, calls };
 }
+
+test("a nature reserve's name is drawn only when it fits the polygon's on-screen size", () => {
+  resetData(app);
+  const square = (lon, lat, d) => ({ type: "Polygon", coordinates: [[[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]]] });
+  const roomy = { properties: { featureType: "nature_designation", name: "Deer Sanctuary" }, geometry: square(0.049, 51.649, 0.002) };
+  const cramped = { properties: { featureType: "nature_designation", name: "Deer Sanctuary" }, geometry: square(0.0495, 51.6495, 0.0001) };
+  const unnamed = { properties: { featureType: "nature_designation", name: null }, geometry: square(0.0485, 51.6485, 0.002) };
+  app.state.environmentFeatures = [roomy, cramped, unnamed];
+  const centre = app.projectLonLat(0.05, 51.65);
+  const scale = 200000;
+  app.state.viewport = { scale, tx: 500 - centre.x * scale, ty: 400 - centre.y * scale };
+
+  const originalLoadBuildings = app.swapGlobalFunction("loadBuildingsIfNeeded", () => {});
+  try {
+    const { ctx, calls } = recordingContext();
+    app.drawEnvironment(ctx);
+    assert.equal(calls.fillText.length, 1, "only the polygon roomy enough for the name gets a label; the tiny one and the unnamed one don't");
+    assert.equal(calls.fillText[0].text, "Deer Sanctuary");
+  } finally {
+    app.swapGlobalFunction("loadBuildingsIfNeeded", originalLoadBuildings);
+    app.state.environmentFeatures = [];
+  }
+});
+
+test("an open-land polygon's name (a park, common, grassland, heath or scrub) is drawn only when it fits its on-screen size", () => {
+  resetData(app);
+  const square = (lon, lat, d) => ({ type: "Polygon", coordinates: [[[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]]] });
+  const roomy = { properties: { featureType: "open_land", name: "Chingford Plain" }, geometry: square(0.049, 51.649, 0.002) };
+  const cramped = { properties: { featureType: "open_land", name: "Chingford Plain" }, geometry: square(0.0495, 51.6495, 0.0001) };
+  app.state.environmentFeatures = [roomy, cramped];
+  const centre = app.projectLonLat(0.05, 51.65);
+  const scale = 200000;
+  app.state.viewport = { scale, tx: 500 - centre.x * scale, ty: 400 - centre.y * scale };
+
+  const originalLoadBuildings = app.swapGlobalFunction("loadBuildingsIfNeeded", () => {});
+  try {
+    const { ctx, calls } = recordingContext();
+    app.drawEnvironment(ctx);
+    assert.equal(calls.fillText.length, 1, "only the roomy open-land polygon gets a label");
+    assert.equal(calls.fillText[0].text, "Chingford Plain");
+  } finally {
+    app.swapGlobalFunction("loadBuildingsIfNeeded", originalLoadBuildings);
+    app.state.environmentFeatures = [];
+  }
+});
+
+test("a named locality point (a boundary-less forest plain like Deershelter Plain) labels only once zoomed in", () => {
+  resetData(app);
+  const locality = {
+    properties: { featureType: "named_locality", name: "Deershelter Plain" },
+    geometry: { type: "Point", coordinates: [0.05, 51.65] },
+  };
+  app.state.environmentFeatures = [locality];
+  const centre = app.projectLonLat(0.05, 51.65);
+  app.state.fitScale = 10000;
+
+  const originalLoadBuildings = app.swapGlobalFunction("loadBuildingsIfNeeded", () => {});
+  try {
+    // Zoomed out: scale/fitScale is under the 2^1.15 label threshold.
+    app.state.viewport = { scale: 15000, tx: 500 - centre.x * 15000, ty: 400 - centre.y * 15000 };
+    const zoomedOut = recordingContext();
+    app.drawEnvironment(zoomedOut.ctx);
+    assert.equal(zoomedOut.calls.fillText.length, 0, "no label yet at a whole-forest zoom level");
+
+    // Zoomed in well past the threshold.
+    app.state.viewport = { scale: 200000, tx: 500 - centre.x * 200000, ty: 400 - centre.y * 200000 };
+    const zoomedIn = recordingContext();
+    app.drawEnvironment(zoomedIn.ctx);
+    assert.equal(zoomedIn.calls.fillText.length, 1, "label appears once zoomed in enough");
+    assert.equal(zoomedIn.calls.fillText[0].text, "Deershelter Plain");
+  } finally {
+    app.swapGlobalFunction("loadBuildingsIfNeeded", originalLoadBuildings);
+    app.state.environmentFeatures = [];
+  }
+});
 
 test("the environment and forest layers project each vertex once, not on every frame, and skip what is off screen", () => {
   resetData(app);
@@ -8840,7 +9299,10 @@ test("the weekly report's map inventory counts every filter group the app offers
   assert.deepEqual(
     groupKeys,
     ["nature", "food", "transport", "history", "locations", "stories"],
-    "the report groups things exactly the way the app's Filter screen does"
+    // Events is deliberately excluded from this report -- see the comment in
+    // map-inventory.js's buildInventory(). This test's own name is about the app's physical
+    // map categories, not literally "every" FILTER_GROUPS entry.
+    "the report groups every one of the app's static map categories the same way the app's Filter screen does"
   );
   for (const group of inventory.groups) {
     assert.ok(group.subfilters.length > 0, `${group.key} should list its subfilters`);
@@ -8975,6 +9437,160 @@ test("the admin login field has a programmatic label, not just a placeholder", (
   const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8");
 
   assert.match(html, /<label for="loginPassword"[^>]*>[^<]*Admin password[^<]*<\/label>/);
+});
+
+// --- Events ---
+
+test("Events is a default-on category, like Trees and Cows", () => {
+  assert.ok(app.DEFAULT_FILTERS.includes("events"));
+  const onboardingSrc = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
+  assert.match(onboardingSrc, /new Set\(\["trees", "cows", "events"\]\)/);
+});
+
+test("normalizeEventLocations keeps upcoming (within a week) and live events, and drops past or too-far-ahead ones", () => {
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  const data = {
+    events: [
+      { id: "soon", name: "Soon fair", lat: 51.65, lon: 0.04, startsAt: "2026-10-15T10:00:00Z", endsAt: "2026-10-15T16:00:00Z" },
+      { id: "live", name: "Live walk", lat: 51.65, lon: 0.04, startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z" },
+      { id: "past", name: "Past market", lat: 51.65, lon: 0.04, startsAt: "2026-09-01T10:00:00Z", endsAt: "2026-09-01T16:00:00Z" },
+      { id: "too-far-ahead", name: "Next month's fair", lat: 51.65, lon: 0.04, startsAt: "2026-11-21T10:00:00Z" },
+      { id: "no-coords", name: "Nowhere", startsAt: "2026-10-15T10:00:00Z" },
+    ],
+  };
+
+  const events = app.normalizeEventLocations(data, now);
+
+  assert.deepEqual(events.map((e) => e.id).sort(), ["live", "soon"]);
+  for (const event of events) {
+    assert.equal(event.dataSource, "event");
+    assert.equal(event.category, "event");
+    assert.ok(event.categoryTags.includes("event"));
+    assert.ok(event.point);
+  }
+});
+
+test("isEventTooFarAhead holds back an event until it's within a week of starting, but never one already live", () => {
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  assert.equal(app.isEventTooFarAhead({ startsAt: "2026-10-17T11:00:00Z" }, now), false, "exactly a week out is still shown");
+  assert.equal(app.isEventTooFarAhead({ startsAt: "2026-10-18T13:00:00Z" }, now), true, "more than a week out is not");
+  // Started three weeks ago, a multi-week festival still running today -- live, so never "ahead".
+  assert.equal(app.isEventTooFarAhead({ startsAt: "2026-09-19T10:00:00Z", endsAt: "2026-10-20T10:00:00Z" }, now), false);
+});
+
+test("an event with no endsAt is assumed to run for one day from startsAt", () => {
+  const starts = "2026-10-10T10:00:00Z";
+  const justInside = Date.parse(starts) + 23 * 60 * 60 * 1000;
+  const justOutside = Date.parse(starts) + 25 * 60 * 60 * 1000;
+
+  assert.equal(app.isEventPast({ startsAt: starts }, justInside), false);
+  assert.equal(app.isEventPast({ startsAt: starts }, justOutside), true);
+});
+
+test("isEventLive is true only between startsAt and endsAt", () => {
+  const event = { startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z" };
+  assert.equal(app.isEventLive(event, Date.parse("2026-10-10T09:00:00Z")), false);
+  assert.equal(app.isEventLive(event, Date.parse("2026-10-10T12:00:00Z")), true);
+  assert.equal(app.isEventLive(event, Date.parse("2026-10-10T15:00:00Z")), false);
+});
+
+test("an event with no parseable startsAt is never shown", () => {
+  assert.equal(app.isEventPast({}), true);
+  assert.equal(app.isEventPast({ startsAt: "not a date" }), true);
+  assert.equal(app.normalizeEventLocations({ events: [{ id: "bad", lat: 51.65, lon: 0.04 }] }).length, 0);
+});
+
+test("events classify and draw through the ordinary place-filter pipeline", () => {
+  const event = { id: "e1", name: "Autumn Fair", dataSource: "event", categoryTags: ["event"] };
+  assert.equal(app.matchesPlaceFilter(event, "events"), true);
+  assert.equal(app.isEventCategory(event), true);
+  assert.equal(app.placeIconSlug(event), "event");
+  assert.ok(app.PLACE_FILTER_KEYS.has("events"));
+});
+
+test("formatEventWhen renders a same-day range, a spanning range, and a start-only time", () => {
+  assert.equal(
+    app.formatEventWhen({ startsAt: "2026-10-18T10:00:00Z", endsAt: "2026-10-18T16:00:00Z" }),
+    "Sun 18 Oct, 11:00–17:00"
+  );
+  assert.equal(
+    app.formatEventWhen({ startsAt: "2026-10-18T10:00:00Z", endsAt: "2026-10-19T10:00:00Z" }),
+    "Sun 18 Oct – Mon 19 Oct"
+  );
+  assert.equal(app.formatEventWhen({ startsAt: "2026-10-18T10:00:00Z" }), "Sun 18 Oct, 11:00");
+  assert.equal(app.formatEventWhen({}), null);
+});
+
+test("eventStatusLabel reports Happening now vs Upcoming", () => {
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  assert.equal(app.eventStatusLabel({ startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z" }, now), "Happening now");
+  assert.equal(app.eventStatusLabel({ startsAt: "2026-10-18T10:00:00Z" }, now), "Upcoming");
+  assert.equal(app.eventStatusLabel({ startsAt: "2026-09-01T10:00:00Z" }, now), null);
+});
+
+test("a past event never reaches the proximity banner, even standing right on top of it", () => {
+  resetData(app);
+  app.state.overviewFilters = [];
+  app.state.walkingDistanceMinutes = 10;
+  app.state.eventNearbyAlertedIds = new Set();
+  app.state.eventNearbyBannerEventId = null;
+  app.els.eventNearbyBanner.hidden = true;
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  app.state.landmarks.push({
+    id: "past-1", name: "Past market", dataSource: "event", categoryTags: ["event"],
+    startsAt: "2026-09-01T10:00:00Z", endsAt: "2026-09-01T16:00:00Z",
+    ...makePoint(app, 0, 0),
+  });
+  app.checkEventProximityAlert(0, 0, now);
+  assert.equal(app.els.eventNearbyBanner.hidden, true);
+});
+
+test("a live event within the walking radius opens the proximity banner exactly once per session", () => {
+  resetData(app);
+  app.state.overviewFilters = [];
+  app.state.walkingDistanceMinutes = 10;
+  app.state.eventNearbyAlertedIds = new Set();
+  app.state.eventNearbyBannerEventId = null;
+  app.els.eventNearbyBanner.hidden = true;
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  app.state.landmarks.push({
+    id: "live-1", name: "Autumn Fair", dataSource: "event", categoryTags: ["event"],
+    startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z",
+    ...makePoint(app, 0, 0),
+  });
+
+  app.checkEventProximityAlert(0, 0, now);
+  assert.equal(app.els.eventNearbyBanner.hidden, false);
+  assert.match(app.els.eventNearbyBannerText.textContent, /Autumn Fair is on now/);
+
+  app.els.eventNearbyBanner.hidden = true;
+  app.checkEventProximityAlert(0, 0, now);
+  assert.equal(app.els.eventNearbyBanner.hidden, true, "already-alerted events are never re-shown this session");
+});
+
+test("a live event outside the walking radius or behind a disabled Events filter does not alert", () => {
+  resetData(app);
+  app.state.walkingDistanceMinutes = 5;
+  app.state.eventNearbyAlertedIds = new Set();
+  app.els.eventNearbyBanner.hidden = true;
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  app.state.landmarks.push({
+    id: "far-1", name: "Far fair", dataSource: "event", categoryTags: ["event"],
+    startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z",
+    ...makePoint(app, 1, 0), // far outside any walking radius
+  });
+  app.state.overviewFilters = [];
+  app.checkEventProximityAlert(0, 0, now);
+  assert.equal(app.els.eventNearbyBanner.hidden, true, "outside the radius -- no alert");
+
+  app.state.landmarks[0] = {
+    id: "near-but-off-1", name: "Nearby but filtered out", dataSource: "event", categoryTags: ["event"],
+    startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T14:00:00Z",
+    ...makePoint(app, 0, 0),
+  };
+  app.state.overviewFilters = ["trees"]; // Events explicitly not among the active filters
+  app.checkEventProximityAlert(0, 0, now);
+  assert.equal(app.els.eventNearbyBanner.hidden, true, "Events filter turned off -- no alert");
 });
 
 runRegisteredTests().catch((error) => {

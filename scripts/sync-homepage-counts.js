@@ -29,7 +29,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { readCounts, formatCount, FEATURE_FILES, TREE_INDEX } = require("./count-datasets.js");
+const { readCounts, readCategoryItems, formatCount, FEATURE_FILES, TREE_INDEX } = require("./count-datasets.js");
 const { buildInventory } = require("./report/map-inventory.js");
 
 const ROOT = path.join(__dirname, "..");
@@ -69,6 +69,10 @@ function updateHomepage(html, counts, inventory = buildInventory(ROOT)) {
     out = out.replace(groupPattern, `$1${formatCount(group.count)}$2`);
     for (const subfilter of group.subfilters) {
       const label = escapeRegExp(subfilter.label).replace(/&/, "&amp;");
+      out = out.replace(
+        new RegExp(`<div(?: data-inventory-key="[^"]*")?>(<dt>(?:<img[^>]*>)?${label}</dt>)`),
+        `<div data-inventory-key="${subfilter.key}">$1`
+      );
       out = out.replace(
         new RegExp(`(<dt>(?:<img[^>]*>)?${label}</dt><dd>)[\\d,]+(</dd>)`),
         `$1${formatCount(subfilter.count)}$2`
@@ -117,6 +121,17 @@ function sync({ check = false, root = ROOT } = {}) {
     if (before === after) continue;
     stale.push(path.relative(root, file.path));
     if (!check) fs.writeFileSync(file.path, after);
+  }
+  for (const [key, items] of Object.entries(readCategoryItems(root))) {
+    const relative = `assets/home/inventory/${key}.json`;
+    const target = path.join(root, relative);
+    const contents = JSON.stringify(items) + "\n";
+    if (fs.existsSync(target) && fs.readFileSync(target, "utf8") === contents) continue;
+    stale.push(relative);
+    if (!check) {
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, contents);
+    }
   }
   return { counts, stale };
 }

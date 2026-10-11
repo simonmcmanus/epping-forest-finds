@@ -120,7 +120,13 @@ function buildInventory(root = APP_ROOT) {
   // Array.from rather than .map: FILTER_GROUPS belongs to the sandbox the
   // app's rules were loaded into, and arrays derived from it with .map stay
   // sandbox-side, which trips up anything comparing them to ordinary arrays.
-  const groups = Array.from(rules.FILTER_GROUPS, (group) => {
+  //
+  // Events is excluded here, not just left at a zero count: this inventory (and the
+  // marketing homepage section built from it) describes the map's static business/landmark
+  // presence -- counts a reader can take as a fact about the forest -- and a time-bound event
+  // doesn't fit that model. It is never "0 events" the way "0 medical sites" can genuinely be
+  // true; it is a category this report doesn't cover at all.
+  const groups = Array.from(rules.FILTER_GROUPS.filter((group) => group.key !== "events"), (group) => {
     const subfilters = Array.from(
       // Cattle are tracked live from the grazing collars rather than stored
       // with the map data, so there is no fixed number to report here.

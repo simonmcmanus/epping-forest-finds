@@ -5,6 +5,158 @@
  * page. See spec/spec-marketing.md §5.
  */
 
+// Load only the category a visitor opens; large lists render in batches.
+(function () {
+  "use strict";
+
+  var motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+  document.querySelectorAll("[data-inventory-key]").forEach(function (row) {
+    var key = row.dataset.inventoryKey;
+    var term = row.querySelector("dt");
+    var label = term.textContent;
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "inventory-toggle";
+    button.setAttribute("aria-label", label);
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-controls", "inventory-" + key);
+    while (term.firstChild) button.appendChild(term.firstChild);
+    term.appendChild(button);
+
+    var panel = document.createElement("dd");
+    panel.id = "inventory-" + key;
+    panel.className = "inventory-items";
+    panel.hidden = true;
+    row.appendChild(panel);
+    var clip = document.createElement("section");
+    clip.className = "inventory-clip";
+    var content = document.createElement("section");
+    content.className = "inventory-content";
+    clip.appendChild(content);
+    panel.appendChild(clip);
+    var closeTimer;
+
+    function finishClose() {
+      if (button.getAttribute("aria-expanded") === "false") panel.hidden = true;
+    }
+    panel.addEventListener("transitionend", function (event) {
+      if (event.target === panel && event.propertyName === "grid-template-rows") finishClose();
+    });
+
+    var status = document.createElement("p");
+    status.setAttribute("role", "status");
+    content.appendChild(status);
+    var retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "inventory-action";
+    retry.textContent = "Try again";
+    retry.hidden = true;
+    retry.addEventListener("click", load);
+    content.appendChild(retry);
+    var loaded = false;
+    var loading = false;
+    var icon = button.querySelector("img");
+    var stillIcon = icon.getAttribute("src");
+    var animatedIcon = stillIcon.replace("map-icons/", "map-icons/animated/");
+    var animationFailed = false;
+
+    function updateIcon() {
+      var animate = button.getAttribute("aria-expanded") === "true" && !motionPreference.matches && document.visibilityState !== "hidden" && !animationFailed;
+      var source = animate ? animatedIcon : stillIcon;
+      if (icon.getAttribute("src") !== source) icon.setAttribute("src", source);
+    }
+    icon.addEventListener("error", function () {
+      if (icon.getAttribute("src") !== animatedIcon) return;
+      animationFailed = true;
+      updateIcon();
+    });
+    motionPreference.addEventListener("change", updateIcon);
+    motionPreference.addEventListener("change", function () {
+      if (motionPreference.matches) finishClose();
+    });
+    document.addEventListener("visibilitychange", updateIcon);
+
+    function showItems(items) {
+      var search = document.createElement("input");
+      search.type = "search";
+      search.placeholder = "Search " + label.toLowerCase();
+      search.setAttribute("aria-label", "Search " + label.toLowerCase());
+      content.insertBefore(search, status);
+      var list = document.createElement("ul");
+      content.appendChild(list);
+      var more = document.createElement("button");
+      more.type = "button";
+      more.className = "inventory-action";
+      more.textContent = "Show more";
+      content.appendChild(more);
+      var limit = 50;
+
+      function render() {
+        var query = search.value.trim().toLocaleLowerCase("en-GB");
+        var matches = items.filter(function (item) {
+          return (item.name + " " + item.detail).toLocaleLowerCase("en-GB").includes(query);
+        });
+        list.replaceChildren();
+        matches.slice(0, limit).forEach(function (item) {
+          var li = document.createElement("li");
+          li.textContent = item.name;
+          if (item.detail) {
+            var detail = document.createElement("small");
+            detail.textContent = item.detail;
+            li.appendChild(detail);
+          }
+          list.appendChild(li);
+        });
+        status.textContent = !items.length ? "No places in this category yet."
+          : !matches.length ? "No matching places."
+          : "Showing " + Math.min(limit, matches.length).toLocaleString("en-GB") + " of " + matches.length.toLocaleString("en-GB");
+        more.hidden = matches.length <= limit;
+        search.hidden = !items.length;
+      }
+      search.addEventListener("input", function () { limit = 50; render(); });
+      more.addEventListener("click", function () { limit += 50; render(); });
+      render();
+    }
+
+    function load() {
+      if (loaded || loading) return;
+      loading = true;
+      retry.hidden = true;
+      status.textContent = "Loading places…";
+      fetch("/assets/home/inventory/" + key + ".json")
+        .then(function (response) {
+          if (!response.ok) throw new Error("Category unavailable");
+          return response.json();
+        })
+        .then(function (items) {
+          showItems(items);
+          loaded = true;
+        })
+        .catch(function () {
+          status.textContent = "Couldn't load these places. Please try again.";
+          retry.hidden = false;
+        })
+        .finally(function () { loading = false; });
+    }
+
+    button.addEventListener("click", function () {
+      var opening = button.getAttribute("aria-expanded") !== "true";
+      clearTimeout(closeTimer);
+      if (opening) {
+        panel.hidden = false;
+        // Establish the collapsed grid before transitioning into its natural height.
+        void panel.offsetHeight;
+      }
+      panel.inert = !opening;
+      button.setAttribute("aria-expanded", String(opening));
+      updateIcon();
+      if (opening) load();
+      else if (motionPreference.matches) finishClose();
+      else closeTimer = setTimeout(finishClose, 300);
+    });
+  });
+})();
+
 // Scroll reveal: blocks fade up gently as they enter the viewport. Skipped for
 // reduced-motion visitors and browsers without IntersectionObserver, so nothing
 // is ever hidden that cannot be shown.
@@ -66,7 +218,10 @@
 
   var message = document.getElementById("formMsg");
   var emailField = document.getElementById("email");
-  var consentField = document.getElementById("consent");
+  var entry = document.getElementById("signupEntry");
+  var stage = document.getElementById("signupStage");
+  var confirmation = document.getElementById("signupConfirmation");
+  var pending = false;
   var honeypot = document.getElementById("website");
   var submitButton = form.querySelector("button[type=submit]");
 
@@ -76,8 +231,43 @@
     message.className = "form-msg" + (kind ? " is-" + kind : "");
   }
 
+  function finishSending() {
+    pending = false;
+    form.removeAttribute("aria-busy");
+    if (submitButton) submitButton.disabled = false;
+  }
+
+  async function showConfirmation() {
+    var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var animate = !reduceMotion && typeof stage.animate === "function";
+    var oldHeight = stage.getBoundingClientRect().height;
+    if (animate) {
+      await entry.animate(
+        [{ opacity: 1, transform: "translateY(0)" }, { opacity: 0, transform: "translateY(-4px)" }],
+        { duration: 140, easing: "ease-out" }
+      ).finished.catch(function () {});
+    }
+    entry.hidden = true;
+    confirmation.hidden = false;
+    form.removeAttribute("aria-busy");
+    form.reset();
+    if (animate) {
+      stage.animate(
+        [{ height: oldHeight + "px" }, { height: stage.getBoundingClientRect().height + "px" }],
+        { duration: 420, easing: "cubic-bezier(.2,.7,.2,1)" }
+      );
+    }
+    var heading = document.getElementById("confirmationHeading");
+    heading.focus({ preventScroll: true });
+    var bounds = confirmation.getBoundingClientRect();
+    if (bounds.top < 0 || bounds.bottom > window.innerHeight) {
+      confirmation.scrollIntoView({ block: "center", behavior: reduceMotion ? "instant" : "smooth" });
+    }
+  }
+
   form.addEventListener("submit", function (event) {
     event.preventDefault();
+    if (pending) return;
 
     var email = (emailField && emailField.value ? emailField.value : "").trim();
     if (!email) {
@@ -85,12 +275,14 @@
       if (emailField) emailField.focus();
       return;
     }
-    if (consentField && !consentField.checked) {
-      say("Please tick the box to confirm you're happy to hear from us.", "error");
-      consentField.focus();
+    if (!emailField.validity.valid) {
+      say("Please enter a valid email address.", "error");
+      emailField.focus();
       return;
     }
 
+    pending = true;
+    form.setAttribute("aria-busy", "true");
     if (submitButton) submitButton.disabled = true;
     say("Sending…");
 
@@ -111,28 +303,17 @@
       .then(function (result) {
         if (!result.ok) {
           say(result.body.error || "Something went wrong. Please try again.", "error");
-          if (submitButton) submitButton.disabled = false;
+          finishSending();
           return;
         }
         // This wording also covers an existing contact. EmailOctopus returns
         // 409 without resending double opt-in, and distinguishing that case
         // would reveal whether an address is already on the list.
-        form.reset();
-        if (emailField) emailField.disabled = true;
-        if (consentField) consentField.disabled = true;
-        if (submitButton) {
-          submitButton.disabled = true;
-          submitButton.textContent = "Request received";
-        }
-        form.classList.add("is-complete");
-        say(
-          "Thanks. Confirmation is needed — check your inbox. The email might be in your spam folder.",
-          "ok"
-        );
+        return showConfirmation();
       })
       .catch(function () {
         say("Couldn't reach the server. Please try again.", "error");
-        if (submitButton) submitButton.disabled = false;
+        finishSending();
       });
   });
 })();

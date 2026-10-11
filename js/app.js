@@ -15,6 +15,7 @@ const LANDMARK_URLS = [
   "data/local-landmarks-misc.geojson"
 ];
 const FOLKLORE_URL = "data/epping_forest_folklore_locations.json";
+const EVENTS_URL = "data/events.json";
 const PATHS_URL = "data/local-paths.geojson";
 const ROADS_URL = "data/local-roads.geojson";
 const ENVIRONMENT_URL = "data/local-environment.geojson";
@@ -27,8 +28,8 @@ const REPORT_REQUEST_ID_KEY = "forest-finds-report-request-id-v1";
 const FILTER_STATE_KEY = "forest-finds-filter-state-v1";
 const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
 // Matches onboarding.js's own default selection and spec.md's "Default filters" section:
-// only Trees and Cows are pre-selected before onboarding ever runs.
-const DEFAULT_FILTERS = ["trees", "cows"];
+// only Trees, Cows and Events are pre-selected before onboarding ever runs.
+const DEFAULT_FILTERS = ["trees", "cows", "events"];
 const COW_REFRESH_MS = 5 * 60 * 1000;
 const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -98,7 +99,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v69"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v96"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -185,6 +186,9 @@ const state = {
   nearbyAnchor: null,
   // In-flight slide between two browse origins -- see nearbyRenderOriginPoint().
   nearbyOriginTransition: null,
+  // In-flight slide of cameraOriginPoint()'s own pivot across the moment it switches *basis* --
+  // nearby browsing to selected navigation, or back -- see cameraOriginPoint().
+  cameraOriginTransition: null,
   activePointers: new Map(),
   pinchActive: false,
   pinchBaseDistance: null,
@@ -211,6 +215,10 @@ const state = {
   cowRefreshTimerId: null,
   cowDetailTimerId: null,
   cowFetchInFlight: false,
+  // Live events already alerted on this session -- never re-shown even if the user lingers
+  // in range or walks in and out of the radius (see checkEventProximityAlert, js/nav.js).
+  eventNearbyAlertedIds: new Set(),
+  eventNearbyBannerEventId: null,
   // Filter keys just switched on that have nothing inside the walking radius, so the Nearby
   // camera reaches their nearest match once -- see refreshOutOfRadiusReveal/outOfRadiusFitPoints.
   outOfRadiusRevealFilters: [],
@@ -338,6 +346,12 @@ const state = {
   overviewOutsideRadiusFallback: false,
   clusterZoomed: false,
   clusterExpanded: null,
+  // The radius in effect just before a cluster tap grew it to cover the group's own members
+  // (focusNearbyOnClusterGroup) -- restored by exitClusterExpansion (js/nav.js) wherever
+  // clusterExpanded is cleared, so leaving that exact-membership view leaves its radius behind
+  // too, rather than permanently shrinking (or growing) the ring to whatever the last tapped
+  // group needed.
+  preClusterWalkingDistanceMinutes: null,
   transportLookupCache: new Map(),
   transportLookupRequests: new Map(),
   dataLoaded: false,
@@ -382,6 +396,10 @@ const els = {
   distanceWarning: document.getElementById("distanceWarning"),
   distanceWarningMessage: document.getElementById("distanceWarningMessage"),
   distanceWarningButton: document.getElementById("distanceWarningButton"),
+  eventNearbyBanner: document.getElementById("eventNearbyBanner"),
+  eventNearbyBannerOpen: document.getElementById("eventNearbyBannerOpen"),
+  eventNearbyBannerText: document.getElementById("eventNearbyBannerText"),
+  eventNearbyBannerDismiss: document.getElementById("eventNearbyBannerDismiss"),
   inspector: document.getElementById("inspector"),
   inspectorBack: document.getElementById("inspectorBack"),
   inspectorTitleEmoji: document.getElementById("inspectorTitleEmoji"),
@@ -662,7 +680,7 @@ function applyRouteToScreen(raw, announceMissing) {
   // Whatever the route turns out to be, arriving at one is navigating away from an expanded
   // map group -- the one screen with no URL of its own (see urlMatchesCurrentScreen).
   state.clusterZoomed = false;
-  state.clusterExpanded = null;
+  exitClusterExpansion();
 
   if (!value) {
     goToInitialView(false);
@@ -717,6 +735,10 @@ function applyRouteToScreen(raw, announceMissing) {
 }
 
 function showRoutedSelection(route, item) {
+  // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
+  // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
+  // rather than lingering for whenever Nearby is next shown.
+  state.nearbyAnchor = null;
   state.selected = { type: route.type, item };
   route.show(item);
   // Deep-linked selections behave like a map-tap selection: the inspector opens expanded
@@ -1426,8 +1448,14 @@ function applyBoundsToViewport(bounds, options = {}) {
     state.fitScale = Math.max(state.fitScale, options.minScale);
   }
   // Same ceiling the manual pinch-to-zoom gesture already enforces (state.fitScale * 220 there),
-  // so a fit never asks for more zoom than a user could reach by hand.
-  if (baseFitScaleForCap > 0) {
+  // so a fit never asks for more zoom than a user could reach by hand -- unless the caller
+  // passes its own `maxScale` (see MIN_SELECTION_VIEW_METRES), which says explicitly what the
+  // tightest reasonable view for *this* fit is, rather than inheriting a ceiling calibrated
+  // for how far a pinch gesture or a degenerate near-coincident cluster should be allowed to
+  // reach.
+  if (options.maxScale > 0) {
+    state.fitScale = Math.min(state.fitScale, options.maxScale);
+  } else if (baseFitScaleForCap > 0) {
     state.fitScale = Math.min(state.fitScale, baseFitScaleForCap * 220);
   }
 
@@ -1676,6 +1704,7 @@ function zoomAt(factor, screenPoint) {
 function renderFilterBodyHtml() {
   return `<div class="filter-body">
     <div class="filter-actions">
+      <span id="filterResultsCount" class="filter-results-count"></span>
       <button class="filter-action-btn filter-clear-all" type="button" data-filter-clear-all>
         Clear all filters
       </button>
@@ -1704,6 +1733,26 @@ function renderFilterBodyHtml() {
       `).join("")}
     </div>
   </div>`;
+}
+
+// The Filter screen's own body: the chip groups above, exactly as renderFilterBodyHtml() has
+// always built them, plus the same nearest-list markup the plain Nearby screen shows -- so
+// toggling a chip has a visible effect right there instead of only being provable by backing
+// out to Nearby again. refreshFilterScreenList() re-renders just the list half on every filter
+// change; the chip half is only ever patched in place by updateFilterUi(), never rebuilt, so a
+// keyboard user's focus stays on the chip they just pressed.
+function filterScreenBodyHtml() {
+  return `${renderFilterBodyHtml()}<div id="filterNearestListSection" class="filter-nearest-list-section">${overviewNearestHtml()}</div>`;
+}
+
+function refreshFilterScreenList() {
+  const section = document.getElementById("filterNearestListSection");
+  if (!section) return;
+  const previousNearestPositions = captureNearestItemPositions();
+  section.innerHTML = overviewNearestHtml();
+  updateOverviewDirectionArrows();
+  hydrateOverviewBusStopDirections();
+  animateNearestItemReorder(previousNearestPositions);
 }
 
 function attachFilterScrollHints() {
@@ -1892,6 +1941,10 @@ function setOverviewFilters(nextFilters) {
     selectOverview();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
   } else if (state.filterScreenOpen) {
+    // The whole point of the Filter screen showing the nearest list is that a chip tap proves
+    // its own effect right there (see filterScreenBodyHtml()) -- refresh just that list, never
+    // the chip panel above it, which updateFilterUi() patches in place a few lines up.
+    refreshFilterScreenList();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
   }
   requestDraw();
@@ -1973,12 +2026,26 @@ function updateFilterUi() {
     clearAllBtn.hidden = currentSet.size === 0;
   }
 
+  // Live "Showing N nearby" line next to Clear all -- only present while the Filter screen's
+  // own body is on screen (filterScreenBodyHtml()), a no-op everywhere else since the lookup
+  // simply finds nothing.
+  const resultsCountEl = els.inspectorBody.querySelector("#filterResultsCount");
+  if (resultsCountEl) {
+    resultsCountEl.textContent = state.userLocation
+      ? `Showing ${overviewItemsForActiveFilter().length} nearby`
+      : "";
+  }
+
   // Update filter toggle button
   if (els.filterToggle) {
     const activeGroupCount = getActiveGroupKeys(currentSet).length;
     const hasActiveFilter = activeGroupCount > 0;
     const locationSelected = Boolean(state.selected);
-    els.filterToggle.hidden = locationSelected;
+    // Filters only ever changes what Nearby shows, so its inline toggle (next to the Nearby
+    // heading -- see app.html) is the way *in* from Nearby, and only shows there. On the Filter
+    // screen itself it would just sit in its active state doing nothing when tapped, so it hides
+    // in favour of the ordinary #inspectorBack arrow -- the way out, same as any other screen.
+    els.filterToggle.hidden = locationSelected || state.searchScreenOpen || state.filterScreenOpen;
     els.filterToggle.classList.toggle("active", hasActiveFilter);
     els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
     els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
@@ -2007,15 +2074,28 @@ function setNavScreenActive(current = null) {
 }
 
 function openFiltersScreen() {
-  state.filterScreenOpen = true;
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Filters");
+  // Filters/Settings/Report/Search all promise the same fixed, zoomed-out survey view of the
+  // walking radius (secondaryScreenActive) -- left set, an expanded cluster narrowed that to
+  // the tapped group's own members instead, and its borrowed radius looked like the user's own
+  // real setting on the Settings slider. Opening any of them is leaving that exact-membership
+  // view just as much as tapping open ground is.
+  exitClusterExpansion();
   state.selected = null;
-  setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: false });
+  // showBack:true clears state.filterScreenOpen inside setInspectorSelectionChrome (the shared
+  // chokepoint every other showBack:true screen relies on to stand Filters down) -- set it again
+  // immediately after, now that Filters is the screen being entered rather than left.
+  setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: true });
+  state.filterScreenOpen = true;
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
   setNavScreenActive(els.filterToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Filters";
   els.inspectorType.textContent = "Choose what appears on the map";
-  transitionInspectorBody(renderFilterBodyHtml(), "forward");
+  transitionInspectorBody(filterScreenBodyHtml(), "forward", () => {
+    updateOverviewDirectionArrows();
+    hydrateOverviewBusStopDirections();
+  });
   updateFilterUi();
   setInspectorMinimized(false);
   syncHashFromSelection();
@@ -2026,6 +2106,10 @@ function openFiltersScreen() {
 }
 
 function openSettings() {
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Settings");
+  // See the matching comment in openFiltersScreen -- without this the walk-radius slider here
+  // showed the tapped group's borrowed radius as if it were the user's own setting.
+  exitClusterExpansion();
   state.selected = { type: "settings", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.settingsToggle);
@@ -2041,6 +2125,16 @@ function openSettings() {
   if (state.userLocation) {
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
   }
+}
+
+// window.ForestFindsCookieConsent (cookie-consent.js) is the one store of truth for the GA
+// cookie banner's choice -- read through it rather than localStorage directly so Settings always
+// agrees with whatever the banner itself last recorded.
+function cookieConsentStatusLabel() {
+  const consent = window.ForestFindsCookieConsent?.get();
+  if (consent === "granted") return "enabled";
+  if (consent === "denied") return "declined";
+  return "not yet decided";
 }
 
 function settingsFormHtml() {
@@ -2109,6 +2203,8 @@ function settingsFormHtml() {
       <h3 class="settings-section-title">Privacy</h3>
       <p class="settings-description">Location &amp; usage tracking: <strong id="privacyConsentStatus">${hasTrackingConsent() ? "enabled" : "not enabled"}</strong>. We collect anonymous GPS position, navigation and interaction data to improve the app. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
       <button id="privacyConsentToggle" class="settings-btn" type="button">${hasTrackingConsent() ? "Withdraw consent" : "Enable location &amp; tracking"}</button>
+      <p class="settings-description">Analytics cookies: <strong id="cookieConsentStatus">${cookieConsentStatusLabel()}</strong>. Separate from location &amp; usage tracking above — see <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+      <button id="cookieConsentManageBtn" class="settings-btn" type="button">Manage cookie preferences</button>
     </section>
   </div>`;
 }
@@ -2171,6 +2267,12 @@ function bindSettingsHandlers() {
       if (status) status.textContent = granting ? "enabled" : "not enabled";
     });
   }
+  const cookieConsentManageBtn = document.getElementById("cookieConsentManageBtn");
+  if (cookieConsentManageBtn) {
+    cookieConsentManageBtn.addEventListener("click", () => {
+      window.ForestFindsCookieConsent?.showBanner();
+    });
+  }
   // Settings HTML is rebuilt fresh every time the screen opens (see openSettings above),
   // so remove before re-adding — otherwise every open leaks another window-level listener.
   window.removeEventListener("online", updateRefreshButtonsOnlineState);
@@ -2181,6 +2283,9 @@ function bindSettingsHandlers() {
 }
 
 function openReportModal() {
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Report");
+  // See the matching comment in openFiltersScreen.
+  exitClusterExpansion();
   state.selected = { type: "report", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.reportToggle);
@@ -2746,6 +2851,35 @@ function storeOverviewItemsCache(cacheKey, result) {
   return result;
 }
 
+// While a cluster is expanded (state.clusterExpanded, set by focusNearbyOnClusterGroup on a map
+// tap), the Nearby list reads straight from the tapped group's own items rather than running
+// the ordinary within-radius scan below -- see that function's own comment for why a scan can't
+// promise the list agrees with the badge's count. Builds the same {kind, type, item, metres}
+// shape every other branch of overviewItemsForActiveFilter produces, so every downstream
+// consumer (heads-up sort, the nearest-item cap, route targets) handles it exactly the same way.
+function expandedClusterOverviewEntries(group, latitude, longitude) {
+  const entries = [];
+  const pushEntry = (itemType, item) => {
+    if (itemType === "path") {
+      entries.push({ kind: "waymarked_trails", type: "path", item, metres: distanceFromPointToPath(latitude, longitude, item) });
+      return;
+    }
+    const metres = distanceMetres(latitude, longitude, item.latitude, item.longitude);
+    if (itemType === "tree") entries.push({ kind: "tree", type: "tree", item, metres });
+    else if (itemType === "cow") entries.push({ kind: "cow", type: "cow", item, metres });
+    else if (itemType === "water") entries.push({ kind: "ponds_streams", type: "water", item, metres });
+    else entries.push({ kind: resolvePlaceKind(item), type: "landmark", item, metres });
+  };
+  if (group.itemType === "_mega" && group.itemsByType) {
+    for (const [itemType, items] of Object.entries(group.itemsByType)) {
+      for (const item of items) pushEntry(itemType, item);
+    }
+  } else {
+    for (const item of (group.items || [])) pushEntry(group.itemType, item);
+  }
+  return entries.filter(entry => Number.isFinite(entry.metres)).sort((a, b) => a.metres - b.metres);
+}
+
 function overviewItemsForActiveFilter() {
   // nearbyOrigin() everywhere, Filter/Settings/Report included: those screens draw the
   // walking-radius ring around the browse anchor like the Nearby screen does, and the anchor
@@ -2759,6 +2893,11 @@ function overviewItemsForActiveFilter() {
   const origin = stableNearbyOrigin();
   if (!origin) return [];
   const { latitude, longitude } = origin;
+
+  if (state.clusterExpanded) {
+    state.overviewOutsideRadiusFallback = false;
+    return expandedClusterOverviewEntries(state.clusterExpanded, latitude, longitude);
+  }
 
   if (state.showAllOutsideRadius) {
     state.overviewOutsideRadiusFallback = false;
@@ -3669,6 +3808,66 @@ function hideCompassCalibrationPrompt() {
   hideWithFade(els.compassCalibrationBanner);
 }
 
+// --- Nearby-event alert ---
+// In-app only (no OS push): a banner, not a modal, so it never interrupts whatever screen is
+// open. Checked on every GPS fix (ensureLocationWatch) rather than against a timer, so it fires
+// the moment a walk actually brings someone into range of something happening right now.
+
+function eventAlertEnabled() {
+  // Matches the "no filters selected shows everything" rule the rest of the Nearby screen
+  // follows -- an event alert should not fire for a category the user explicitly turned off.
+  return state.overviewFilters.length === 0 || isSubfilterActive("events");
+}
+
+function checkEventProximityAlert(latitude, longitude, nowMs = Date.now()) {
+  if (!els.eventNearbyBanner || !eventAlertEnabled()) return;
+  if (!Array.isArray(state.landmarks) || !state.landmarks.length) return;
+  const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+  let nearest = null;
+  let nearestMetres = Infinity;
+  for (const place of state.landmarks) {
+    if (!isEventCategory(place) || !isEventLive(place, nowMs)) continue;
+    if (state.eventNearbyAlertedIds.has(place.id)) continue;
+    const metres = distanceMetres(latitude, longitude, place.latitude, place.longitude);
+    if (metres <= radiusMetres && metres < nearestMetres) {
+      nearest = place;
+      nearestMetres = metres;
+    }
+  }
+  if (nearest) showEventNearbyBanner(nearest, nearestMetres);
+}
+
+function showEventNearbyBanner(event, metres) {
+  if (!els.eventNearbyBanner) return;
+  // Marked alerted immediately, not on dismiss -- lingering in range (or the next fix landing
+  // before the user has reacted) must never re-show the same event a second time this session.
+  state.eventNearbyAlertedIds.add(event.id);
+  state.eventNearbyBannerEventId = event.id;
+  if (els.eventNearbyBannerText) {
+    const minutes = Math.max(1, Math.round(metres / walkingDistanceToMetres(1)));
+    els.eventNearbyBannerText.textContent = `${event.name} is on now — ${minutes} min walk`;
+  }
+  els.eventNearbyBanner.classList.remove("fading-out");
+  els.eventNearbyBanner.hidden = false;
+}
+
+function hideEventNearbyBanner() {
+  if (!els.eventNearbyBanner) return;
+  hideWithFade(els.eventNearbyBanner);
+}
+
+// Bound to the banner's own body (not just the dismiss "x") -- tapping the alert should open
+// the event exactly as tapping it in the Nearby list would.
+function openEventNearbyBanner() {
+  const id = state.eventNearbyBannerEventId;
+  hideEventNearbyBanner();
+  if (!id) return;
+  const event = Array.isArray(state.landmarks)
+    ? state.landmarks.find((place) => isEventCategory(place) && place.id === id)
+    : null;
+  if (event) focusOverviewItem("landmark", placeHashKey(event));
+}
+
 // Bound to the banner's dismiss button -- lets the user hide the "move your phone"
 // nudge without waiting for calibration to actually finish. Suppressed only for the
 // current calibration cycle: resetCompassCalibration() (staleness recovery) clears
@@ -3851,6 +4050,7 @@ function ensureLocationWatch() {
       state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
       state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
       state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+      checkEventProximityAlert(latitude, longitude);
       // Walked out of a radius that was framing one nearby find? Grow it back to whatever is
       // still in reach before the list and camera are re-derived below (js/nav.js).
       ensureWalkingRadiusCoversNearest();
@@ -4095,11 +4295,68 @@ function navigationAnchorActive() {
 // the ring ended up drawn through a perspective solved for somewhere the camera was not
 // looking. Any new consumer of "where is the camera" belongs here too rather than reaching
 // for state.userLocation.point directly.
-function cameraOriginPoint() {
-  if (selectedNavigationHeadingUpActive()) return state.userLocation.point;
-  const rendered = nearbyRenderOriginPoint();
-  if (rendered) return rendered;
-  return state.userLocation ? state.userLocation.point : null;
+//
+// The *basis* above (selected-navigation vs nearby) can itself flip between two calls -- a
+// selection is made or cleared -- which switches this function from one of those sources to
+// the other outright, with no slide of its own the way nearbyRenderOriginPoint() already gives
+// a browse-anchor move. Left alone, the heading-up rotation and 3D tilt -- everything
+// worldToScreen() projects around -- jump straight to the new basis on the very next frame,
+// well before the selection's own camera ease even starts (it is still waiting on the inspector
+// to settle): reported as "very jumpy" selecting an item while browsing a nearby area that is
+// not nearby, since that is exactly when the two bases (the browsed anchor and the real GPS fix)
+// sit furthest apart. state.cameraOriginTransition, started by startCameraOriginTransition()
+// just before a caller flips the basis, smooths this the same way: this function eases the
+// logical point in from wherever it was last actually drawn rather than returning it outright.
+// useFinalBrowseState: see tiltRampedAnchor's comment -- skips both this function's own
+// basis-switch ease (state.cameraOriginTransition) and nearbyRenderOriginPoint's browse-origin
+// slide, returning the real destination point outright. Without it, the camera origin fed
+// into an animate:true fit (nearbyPivotFitScale's originPoint, and this function's own
+// userPoint in alignHeadingUpNavigationViewport) was wherever the slide happened to be at the
+// instant the fit was solved -- not where it was headed -- which bent the fit (and the
+// tx/ty built from it) around a point the camera was about to move away from.
+function cameraOriginPoint(useFinalBrowseState = false) {
+  const logical = selectedNavigationHeadingUpActive()
+    ? state.userLocation.point
+    : (useFinalBrowseState
+      ? ((nearbyOrigin() && nearbyOrigin().point) || (state.userLocation ? state.userLocation.point : null))
+      : (nearbyRenderOriginPoint() || (state.userLocation ? state.userLocation.point : null)));
+  if (!logical) return logical;
+  if (useFinalBrowseState) return logical;
+  const transition = state.cameraOriginTransition;
+  if (!transition) return logical;
+  const progress = clamp((performance.now() - transition.startedAt) / transition.durationMs, 0, 1);
+  if (progress >= 1) {
+    state.cameraOriginTransition = null;
+    return logical;
+  }
+  // Same cubic ease-in-out animateViewportTo and nearbyRenderOriginPoint use, so this reads as
+  // the same family of motion as every other camera move in the app.
+  const eased = progress < 0.5
+    ? 4 * progress * progress * progress
+    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+  return {
+    x: transition.fromX + (logical.x - transition.fromX) * eased,
+    y: transition.fromY + (logical.y - transition.fromY) * eased,
+  };
+}
+
+// Captures cameraOriginPoint()'s current pivot and schedules a slide from it, for a caller
+// that is about to flip the basis above -- making a selection, or clearing one -- partway
+// through its own body. Call this before state.selected changes (and before any other state
+// that feeds selectedNavigationHeadingUpActive()/nearbyOrigin() does), mirroring how
+// startNearbyOriginTransition is called before state.nearbyAnchor changes.
+function startCameraOriginTransition() {
+  const fromPoint = cameraOriginPoint();
+  if (!fromPoint) {
+    state.cameraOriginTransition = null;
+    return;
+  }
+  state.cameraOriginTransition = {
+    fromX: fromPoint.x,
+    fromY: fromPoint.y,
+    startedAt: performance.now(),
+    durationMs: NEARBY_ORIGIN_TRANSITION_MS,
+  };
 }
 
 // Where the Nearby view's origin is *drawn* this frame, which is not always where it
@@ -4183,8 +4440,8 @@ function nearbyOriginTransitionEasedProgress() {
 }
 
 // Opacity for everything that describes the *nearby set* -- the highlighted pins and the
-// ambient route lines to them. Zero while a browse-origin slide is running, then a quick fade
-// in once it lands.
+// ambient route lines to them. Zero while a browse-origin slide is running *with the camera
+// otherwise pinned in place*, then a quick fade in once it lands.
 //
 // Those pins and lines belong to the destination, but the map underneath them is still
 // travelling: drawing them straight away means a fan of lines pinned to a stationary circle
@@ -4192,19 +4449,34 @@ function nearbyOriginTransitionEasedProgress() {
 // reads as jitter even though every individual element is where it should be. Holding them
 // back until the map settles turns a busy half-second into one clean movement followed by the
 // new surroundings arriving.
+//
+// That reasoning assumes the ring is the only thing moving on screen -- true for a plain
+// anchor move (tap open ground, a Settings/pinch radius change), where the camera itself does
+// not animate and nearbyRenderOriginPoint's slide is what fakes the ring holding still while
+// the terrain pans beneath it. A cluster-tap expansion also re-zooms the camera
+// (focusNearbyOnClusterGroup -> ensureOverviewTargetsVisible's own animateViewportTo tween),
+// so nothing is pinned: ring, pins and terrain are all being redrawn every frame under one
+// live, moving transform, exactly like any other selection fit. Gating opacity here on top of
+// that hid the group's own members for the whole ~450ms flight and then popped them in once
+// both tweens happened to finish -- reported as "it animates to the position and then
+// suddenly snaps afterwards". Skipping the gate whenever a viewport animation is also running
+// leaves the plain-anchor-move case (no concurrent viewport tween) exactly as it was.
 function nearbyRevealOpacity() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return 1;
+  if (state.viewportAnimationTo != null) return 1;
   const sinceStart = performance.now() - transition.startedAt;
   if (sinceStart < transition.durationMs) return 0;
   return clamp((sinceStart - transition.durationMs) / NEARBY_REVEAL_MS, 0, 1);
 }
 
 // True while the reveal fade still has frames left to draw, so prepareCanvasForDraw keeps
-// asking for them after the slide itself has finished.
+// asking for them after the slide itself has finished. See nearbyRevealOpacity: no fade to
+// wait out while a viewport animation is also running, since nothing was hidden to begin with.
 function nearbyRevealInProgress() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return false;
+  if (state.viewportAnimationTo != null) return false;
   return performance.now() - transition.startedAt < transition.durationMs + NEARBY_REVEAL_MS;
 }
 
@@ -4272,7 +4544,18 @@ function tiltAnchorFraction() {
 // mirroring is applied (see headingUpAnchorFraction below). Always >= 0.5 by
 // construction (HEADING_UP_ANCHOR_* constants). Factored out so tiltAvailableAheadCssPx
 // can use it as a safety floor -- see that function's comment for why.
-function tiltRampedAnchor(isSelected) {
+// useFinalBrowseState: true when the caller is computing the *destination* of a camera move
+// it is about to hand to animateViewportTo (alignHeadingUpNavigationViewport's animate:true
+// path) rather than this frame's instantaneous value. The progress blend below exists for
+// per-frame tracking -- sampled once at the instant a browse-origin transition starts (when
+// nearbyOriginTransitionEasedProgress() is still ~0), it reports almost exactly the *from*
+// end, not the slide's actual destination. animateViewportTo then eased smoothly toward that
+// wrong, stale target, and the next un-animated per-frame call (prepareCanvasForDraw, or a
+// live compass tick once the tween's own selectionCameraTransitionActive() guard lifts)
+// snapped straight to the real one the instant the tween finished -- the camera "zooms past
+// the real framing and then snaps back to it" field report. Skipping the blend here means the
+// tween itself eases to the correct destination, so there is nothing left to correct.
+function tiltRampedAnchor(isSelected, useFinalBrowseState = false) {
   // The forward ramp exists to give the screen to what is ahead of *you* as the phone
   // tilts up: it pushes the pivot toward the bottom edge so the ground you are walking
   // into fills the view. Browsing a spot away from yourself has no "ahead" -- the pivot is
@@ -4289,6 +4572,7 @@ function tiltRampedAnchor(isSelected) {
   // in 3D would jerk the whole view up or down the screen on a single frame. Hopping between
   // two browsed spots stays put: both ends are the centred pivot.
   const to = nearbyPivotAnchorFraction(!tiltHidesWhatIsBehind());
+  if (useFinalBrowseState) return to;
   const progress = nearbyOriginTransitionEasedProgress();
   if (progress == null) return to;
   const from = nearbyPivotAnchorFraction(state.nearbyOriginTransition.fromBrowsing);
@@ -4306,8 +4590,8 @@ function nearbyPivotAnchorFraction(browsing) {
   return HEADING_UP_ANCHOR_NEARBY + (HEADING_UP_ANCHOR_NEARBY_TILT - HEADING_UP_ANCHOR_NEARBY) * t;
 }
 
-function headingUpAnchorFraction(isSelected) {
-  const aheadAnchor = tiltRampedAnchor(isSelected);
+function headingUpAnchorFraction(isSelected, useFinalBrowseState = false) {
+  const aheadAnchor = tiltRampedAnchor(isSelected, useFinalBrowseState);
   if (!isSelected) return aheadAnchor;
   const offset = selectedNavigationTargetBearingOffsetRadians();
   if (offset == null) return aheadAnchor;
@@ -4363,10 +4647,16 @@ function selectedNavigationTargetBearingOffsetRadians() {
 // reach regardless of which side of the pivot that is, so mirroring the on-screen
 // anchor position never on its own shrinks the safety margin. In the normal
 // (dead-ahead or nearby) case the anchor is already >= 0.5, so this is a no-op.
-function tiltAvailableAheadCssPx() {
+// useFinalBrowseState: see cameraOriginPoint's comment. headingUpFitTiltCamera (the one
+// animate:true-fit caller, via maxScaleForHeadingUpPoints) passes it through so the camera
+// distance the fit solves against already matches the browse-origin slide's destination; the
+// renderer's own tiltProjection() call leaves it at the default, live-tracking value, since
+// what it draws each frame has to match that frame's own (still-blending) anchor, not where
+// the anchor will eventually land.
+function tiltAvailableAheadCssPx(useFinalBrowseState = false) {
   const focusRect = bestVisibleCanvasRect();
   const isSelected = selectedNavigationHeadingUpActive();
-  const anchor = headingUpAnchorFraction(isSelected);
+  const anchor = headingUpAnchorFraction(isSelected, useFinalBrowseState);
   // max(anchor, 1 - anchor) alone still dips as low as 0.5 for a destination
   // directly to a side (offset ~= +-pi/2, where headingUpAnchorFraction's
   // cos(offset) mirroring passes through the screen's exact 50% centre) -- lower
@@ -4381,7 +4671,7 @@ function tiltAvailableAheadCssPx() {
   // range: at the dead-ahead/dead-behind extremes max(anchor, 1-anchor) already
   // equals tiltRampedAnchor() exactly (so this is a no-op there), and it now also
   // holds at every bearing in between.
-  const reach = Math.max(anchor, 1 - anchor, tiltRampedAnchor(isSelected));
+  const reach = Math.max(anchor, 1 - anchor, tiltRampedAnchor(isSelected, useFinalBrowseState));
   return Math.max(1, (focusRect.height * reach) / pixelRatio());
 }
 
@@ -4410,9 +4700,9 @@ function tiltAvailableAheadCssPx() {
 // (updateHeadingUpCanvasRotationTransform) and by the overlay's manual perspective
 // projection (worldToScreenForOverlayTilted, projectCanvasPoint) -- all three must
 // agree or pins drift away from the tilted terrain beneath them.
-function tiltPerspectivePx() {
+function tiltPerspectivePx(useFinalBrowseState = false) {
   if (tiltRotateXDeg() <= 0) return TILT_PERSPECTIVE_MIN_PX;
-  const desired = tiltAvailableAheadCssPx() * TILT_HORIZON_GROUND_RATIO * TILT_HORIZON_REFERENCE_TAN;
+  const desired = tiltAvailableAheadCssPx(useFinalBrowseState) * TILT_HORIZON_GROUND_RATIO * TILT_HORIZON_REFERENCE_TAN;
   return clamp(desired, TILT_PERSPECTIVE_MIN_PX, TILT_PERSPECTIVE_MAX_PX);
 }
 
@@ -4542,13 +4832,16 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   const sin = Math.sin(radians);
   let ahead = 0;
   let behind = 0;
+  let side = 0;
   for (const point of points) {
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
     const dx = point.x - state.userLocation.point.x;
     const dy = point.y - state.userLocation.point.y;
+    const rotatedX = dx * cos - dy * sin;
     const rotatedY = dx * sin + dy * cos;
     if (rotatedY < 0) ahead = Math.max(ahead, -rotatedY);
     else behind = Math.max(behind, rotatedY);
+    side = Math.max(side, Math.abs(rotatedX));
   }
   // No "is there anything on both sides?" guard. There used to be one -- `ahead <= 0 ||
   // behind <= 0` fell back to `anchoredY` -- and it was a cliff, because the two formulas
@@ -4582,7 +4875,36 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   const top = focusRect.y + margin;
   const usable = focusRect.height - margin * 2;
   if (!(usable > 0)) return anchoredY;
-  return top + usable * (ahead / span);
+
+  // Reaching all the way to the ends of [top, top + usable] is only the right answer when
+  // ahead/behind is actually what ends up constraining the eventual zoom. For a route that is
+  // short and narrow side-to-side (a nearby shop or cafe a few streets over, say), the left/
+  // right extent is routinely the tighter constraint instead -- maxScaleForHeadingUpPoints
+  // zooms no further than that already allows, so the ahead/behind span never uses anywhere
+  // near the full room this split just reserved for it. The anchor still sat at the extreme,
+  // so the (small, now-zoomed-out) route rendered in a compressed cluster stranded near one
+  // edge with the rest of the available area empty -- reported from the field as a selected
+  // destination landing "too high up on the screen" with the walker and the destination both
+  // far from the inspector sheet below them. Measured on a real 335 m routed destination: as
+  // little as 11% of the reserved ahead/behind room actually used, across roughly half of all
+  // possible compass headings.
+  //
+  // usableWidth mirrors `usable` for the horizontal axis -- the same margin, and symmetric
+  // around the rect's centre the same way maxScaleForHeadingUpPoints' own focus.x is (see its
+  // availableX). side's own scale candidate is therefore usableWidth / (2 * side); at that
+  // scale, span would occupy `span * usableWidth / (2 * side)` px of the `usable` vertical
+  // band. fillRatio is that fraction, clamped to the [0, 1] a long/wide route (side big
+  // relative to span, or span itself the binding axis) already satisfies -- for that case
+  // this is a no-op and the split reaches the full extreme exactly as before (the behaviour
+  // the doc comment above was measured against). Below 1, blend the split toward the centre
+  // by the same fraction: proportionally less reason to favour either end the less of the
+  // reserved room the route actually needs.
+  const usableWidth = focusRect.width - margin * 2;
+  const fillRatio = side > 0 && usableWidth > 0
+    ? clamp((span * usableWidth) / (2 * side * usable), 0, 1)
+    : 1;
+  const aheadRatio = 0.5 + (ahead / span - 0.5) * fillRatio;
+  return top + usable * aheadRatio;
 }
 
 function navigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
@@ -4611,15 +4933,17 @@ function dampedHeadingUpFocusY(rawFocus, focusRect, force) {
   return focusRect.y + focusRect.height * resolvedFraction;
 }
 
-function nearbyHeadingUpFocusY() {
-  return headingUpAnchorFraction(false);
+function nearbyHeadingUpFocusY(useFinalBrowseState = false) {
+  return headingUpAnchorFraction(false, useFinalBrowseState);
 }
 
-// See navigationFocusPoint: the rect is the caller's, for the same reason.
-function nearbyNavigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
+// See navigationFocusPoint: the rect is the caller's, for the same reason. useFinalBrowseState
+// is threaded straight through to nearbyHeadingUpFocusY/tiltRampedAnchor -- see the comment
+// there.
+function nearbyNavigationFocusPoint(focusRect = bestVisibleCanvasRect(), useFinalBrowseState = false) {
   return {
     x: focusRect.x + focusRect.width / 2,
-    y: focusRect.y + focusRect.height * nearbyHeadingUpFocusY(),
+    y: focusRect.y + focusRect.height * nearbyHeadingUpFocusY(useFinalBrowseState),
   };
 }
 
@@ -4818,14 +5142,14 @@ function resolveHeadingUpAnchorFraction(targetFraction, focusRect, targetKey, fo
 // keeps worldToScreenFlat()'s no-feedback guarantee intact: the fit still never reads a
 // tilted coordinate back off the screen, it just solves for the scale whose tilted
 // result is right (see claude/3d-tilt-rendering.md).
-function headingUpFitTiltCamera() {
+function headingUpFitTiltCamera(useFinalBrowseState = false) {
   const tiltDeg = tiltRotateXDeg();
   if (!(tiltDeg > 0)) return null;
   const radians = toRadians(tiltDeg);
   const tiltSin = Math.sin(radians);
   const tiltCos = Math.cos(radians);
   if (!(tiltSin > 0)) return null;
-  const perspectivePx = tiltPerspectivePx();
+  const perspectivePx = tiltPerspectivePx(useFinalBrowseState);
   const dpr = pixelRatio();
   if (!(perspectivePx > 0) || !(dpr > 0)) return null;
   return {
@@ -4838,6 +5162,13 @@ function headingUpFitTiltCamera() {
   };
 }
 
+// The ceiling maxHeadingUpNavigationScale clamps its own result to -- the selected-navigation
+// half of the "no ceiling of its own" split described below. See minSelectionFitScale
+// (js/app.js) for what it is and why. Deliberately NOT applied to the nearby ring fit
+// (maxNearbyHeadingUpScale): the walking-radius floor's own "zoom in past the one-minute
+// limit for a find that close" behaviour legitimately asks for more than this, and capping it
+// there pinned the ring at the ceiling instead (see WALKING_RADIUS_TIGHT_MIN_MINUTES).
+
 // Shared bounding-box scale-fit math for both heading-up modes (selected navigation
 // and nearby survey): the maximum scale at which every point in `points` stays inside
 // the rotated focus rect, honouring the tilt behind-heading exclusion. Returns null when
@@ -4846,7 +5177,8 @@ function headingUpFitTiltCamera() {
 // factored out. This is pure fit-to-points geometry with no ceiling of its own: a ceiling
 // baked in here (an arbitrary ratio against an unrelated reference scale) caused more bugs
 // than it fixed, and callers now express what they want by choosing the points they pass --
-// see nearbyCameraFitPoints.
+// see nearbyCameraFitPoints and headingUpZoomCeiling above, where the selected-navigation
+// caller applies its own.
 function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
   // Nearby mode's item cluster is genuinely hidden behind the user during full tilt
   // (isBehindTiltHeading), so excluding those points from the fit is correct there --
@@ -4885,7 +5217,7 @@ function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
   // constraint below is the same inequality as before with the projection substituted
   // in, so with tilt inactive (or projectTilt off) tiltCos is 1, k is 0, and each one
   // collapses back to the exact flat expression it replaced.
-  const tilt = options.projectTilt ? headingUpFitTiltCamera() : null;
+  const tilt = options.projectTilt ? headingUpFitTiltCamera(Boolean(options.useFinalBrowseState)) : null;
   const tiltCos = tilt ? tilt.tiltCos : 1;
   const k = tilt ? tilt.k : 0;
   // Ahead of the pivot the projection is asymptotic, so "inside the rect" alone stops
@@ -4984,7 +5316,16 @@ function maxHeadingUpNavigationScale(focus, focusRect) {
     excludeBehindDuringTilt: false,
     projectTilt: true,
   });
-  return maxScale == null ? state.viewport.scale : maxScale;
+  if (maxScale == null) return state.viewport.scale;
+  // See minSelectionFitScale: without a ceiling here, a target close to the user -- or a
+  // routed-path point set that, once rotated into heading-up space, happens to sit tightly
+  // around the focus -- had no ceiling at all and could demand an arbitrarily large scale.
+  // Measured in the field as the camera suddenly zooming in far past anything sensible once
+  // the routing graph replaced the straight-line fallback, and again on the next selection,
+  // each one further than the last. Same MIN_SELECTION_VIEW_METRES floor the flat fit uses
+  // (ensureUserAndSelectionVisible), so heading-up and flat selections agree on how tight a
+  // view either will ever settle on.
+  return Math.min(maxScale, minSelectionFitScale(focusRect, state.userLocation.latitude));
 }
 
 // The nearest single match for each filter the user has currently selected, ignoring the
@@ -5072,8 +5413,39 @@ function nearestSelectedFilterPoints() {
 // filter whose nearest match is beyond the ring -- Underground stations from inside the forest,
 // say -- changed the list and left the map framed on a ring with nothing new in it, so the
 // station the list had just named was nowhere to be seen.
-function nearbyCameraFitPoints() {
-  const ring = walkingRadiusCirclePoints();
+// While a cluster is expanded (state.clusterExpanded), the camera fits the group's own member
+// points instead of the ring. This is not the "fit the item cluster" design the comment above
+// warns against reverting to: that one re-solved every frame against whichever matches
+// happened to be nearest, which chased and re-zoomed as the set or the compass heading changed.
+// This point set is a fixed snapshot -- exactly the items a deliberate tap just expanded, never
+// recomputed until the next tap -- so there is nothing to chase.
+//
+// Without this, the ring's own floor (WALKING_RADIUS_TIGHT_MIN_MINUTES, js/nav.js, ~21m) capped
+// how far in the camera could ever zoom for *any* expanded group, ring-sized or not. A group
+// tighter than that floor -- two veteran trees a couple of metres apart, not unusual in a dense
+// patch of forest -- never actually separated on screen no matter how many times its badge was
+// tapped: each tap re-narrowed state.clusterExpanded correctly, but the camera kept framing the
+// same floor-sized ring, so the same unsplit badge just redrew in the same spot. Reported as
+// "I get down to a cluster that does not expand". Fitting the group's own points instead lets
+// the camera zoom in exactly as far as separating them needs, capped at the same 220x-of-base
+// ceiling applyBoundsToViewport already enforces for the pinch gesture.
+function expandedClusterFitPoints(group) {
+  const items = group.itemType === "_mega" && group.itemsByType
+    ? Object.values(group.itemsByType).flat()
+    : (group.items || []);
+  return items.map((item) => item.point).filter(Boolean);
+}
+
+// useFinalBrowseState: see cameraOriginPoint's comment -- threaded down to
+// walkingRadiusCirclePoints so an animate:true fit solves the ring at the browse-origin
+// slide's destination rather than wherever nearbyRenderOriginPoint's own interpolation has it
+// at the instant the fit is solved. clusterExpanded's own points never went through that
+// interpolation (they're the tapped group's fixed member positions), so this only matters for
+// the plain-ring branch below -- the one restoreNearbyAnchorFromHistory falls back to once no
+// anchor remains.
+function nearbyCameraFitPoints(useFinalBrowseState = false) {
+  if (state.clusterExpanded) return expandedClusterFitPoints(state.clusterExpanded);
+  const ring = walkingRadiusCirclePoints(64, useFinalBrowseState);
   const reach = ring.concat(outOfRadiusFitPoints());
   if (!secondaryScreenActive()) return reach;
   return reach.concat(nearestSelectedFilterPoints());
@@ -5146,9 +5518,13 @@ function refreshOutOfRadiusReveal(previousFilters) {
   state.outOfRadiusRevealFilters = Array.from(unanswered);
 }
 
-function maxNearbyHeadingUpScale(focus, focusRect) {
+// useFinalBrowseState: see tiltRampedAnchor's comment -- skips the progress blend below and
+// solves straight for the slide's destination, for a caller (alignHeadingUpNavigationViewport's
+// animate:true path) that is about to hand the result to animateViewportTo and ease to it
+// itself.
+function maxNearbyHeadingUpScale(focus, focusRect, useFinalBrowseState = false) {
   if (!state.userLocation) return state.viewport.scale;
-  const points = nearbyCameraFitPoints();
+  const points = nearbyCameraFitPoints(useFinalBrowseState);
   if (!points.length) return state.viewport.scale;
   // projectTilt: solve against where the tilt camera will actually draw these points rather
   // than flat geometry -- see maxScaleForHeadingUpPoints.
@@ -5180,7 +5556,7 @@ function maxNearbyHeadingUpScale(focus, focusRect) {
   // the zoom starts at exactly what was on screen and lands on the browse fit with nothing
   // in between that neither end would have chosen.
   const browsing = !tiltHidesWhatIsBehind();
-  const progress = nearbyOriginTransitionEasedProgress();
+  const progress = useFinalBrowseState ? null : nearbyOriginTransitionEasedProgress();
   const fromBrowsing = progress == null ? browsing : state.nearbyOriginTransition.fromBrowsing;
   if (progress != null && fromBrowsing !== browsing) {
     const fromScale = nearbyPivotFitScale(points, fromBrowsing, focusRect);
@@ -5189,22 +5565,24 @@ function maxNearbyHeadingUpScale(focus, focusRect) {
       return fromScale + (toScale - fromScale) * progress;
     }
   }
-  const maxScale = nearbyPivotFitScale(points, browsing, focusRect, focus);
+  const maxScale = nearbyPivotFitScale(points, browsing, focusRect, focus, useFinalBrowseState);
   return maxScale == null ? state.viewport.scale : maxScale;
 }
 
 // The nearby ring fit for one end of a browse-origin slide: that end's own pivot position
 // (nearbyPivotAnchorFraction) solved under that end's own behind-the-pivot rule. `focus` is
 // passed only by the plain, non-blended call, which must keep using the focus point its
-// caller already computed rather than re-deriving it.
-function nearbyPivotFitScale(points, browsing, focusRect, focus) {
+// caller already computed rather than re-deriving it. useFinalBrowseState: see
+// cameraOriginPoint's comment -- only the non-blended call passes it through.
+function nearbyPivotFitScale(points, browsing, focusRect, focus, useFinalBrowseState = false) {
   const pivotFocus = focus || {
     x: focusRect.x + focusRect.width / 2,
     y: focusRect.y + focusRect.height * nearbyPivotAnchorFraction(browsing),
   };
   const maxScale = maxScaleForHeadingUpPoints(points, pivotFocus, focusRect, {
     projectTilt: true,
-    originPoint: cameraOriginPoint(),
+    originPoint: cameraOriginPoint(useFinalBrowseState),
+    useFinalBrowseState,
     excludeBehindDuringTilt: !browsing,
   });
   if (maxScale == null) return maxScale;
@@ -5268,14 +5646,22 @@ function alignHeadingUpNavigationViewport(options = {}) {
   const focusRect = bestVisibleCanvasRect({
     assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
   });
+  // A caller passing animate:true is about to hand the result to animateViewportTo and ease
+  // to it itself -- so the nearby pivot/scale/origin must solve for the browse-origin slide's
+  // actual destination, not a progress snapshot of it taken at the instant the slide starts
+  // (see tiltRampedAnchor's comment: that snapshot is what used to make the tween zoom past
+  // the real framing and then have the next per-frame call snap it back). Scoped to the
+  // nearby branch only -- selected navigation's own basis-switch ease (cameraOriginTransition)
+  // is a different, still-wanted slide (see cameraOriginPoint's comment on "very jumpy").
+  const useFinalBrowseState = Boolean(options.animate) && !selectedNavigationHeadingUpActive();
   const focus = selectedNavigationHeadingUpActive()
     ? navigationFocusPoint(focusRect)
-    : nearbyNavigationFocusPoint(focusRect);
+    : nearbyNavigationFocusPoint(focusRect, useFinalBrowseState);
   const maxScale = selectedNavigationHeadingUpActive()
     ? maxHeadingUpNavigationScale(focus, focusRect)
-    : maxNearbyHeadingUpScale(focus, focusRect);
+    : maxNearbyHeadingUpScale(focus, focusRect, useFinalBrowseState);
   // The one shared definition of where the camera is looking -- see cameraOriginPoint().
-  const userPoint = cameraOriginPoint();
+  const userPoint = cameraOriginPoint(useFinalBrowseState);
   // Use maxScale directly: heading-up mode always fits all targets in the
   // rotated focus rect. Math.min would leave scale too low when the map
   // was previously at a wider zoom (e.g. walking-radius level on first load).
@@ -5290,7 +5676,42 @@ function alignHeadingUpNavigationViewport(options = {}) {
     ty: focusY - userPoint.y * targetScale,
   };
 
-  if (options.animate) {
+  // focus/focusY/userPoint are all independent of scale (the Nearby pivot never rotates with
+  // heading, and dampedHeadingUpFocusY is a no-op outside selected-navigation) -- so the same
+  // tx/ty formula at *today's* scale is a real, reachable viewport: today's framing, re-centred
+  // on the new pivot. stagePanThenZoom (focusNearbyOnClusterGroup) eases there first and only
+  // then eases scale to targetScale, so a cluster that is already on screen slides into the
+  // middle of it before the camera zooms in on it, rather than panning and zooming at once.
+  //
+  // Only worth doing when the new pivot is roughly where the old one was on screen -- the
+  // premise this whole branch rests on ("it will already be in the viewport"). A cluster tap
+  // while already tightly zoomed in elsewhere can land on a pivot that is world-far from here;
+  // panning there at *today's* (tight) scale would cover that whole distance in screen pixels
+  // within one short tween, reading as a fast, disorienting slide rather than a gentle
+  // repositioning -- worse than the single combined ease it would be replacing. This is exactly
+  // the "mega badge across the ring from an earlier browse anchor" case the old three-phase
+  // zoom-out/pan/zoom-in tour existed for and was abandoned over (see focusNearbyOnClusterGroup's
+  // own comment); staging still isn't the answer for it, so this falls back to the plain single
+  // ease below instead, the same path a far jump already took before stagePanThenZoom existed.
+  const panDistancePx = Number.isFinite(previousScale) && previousScale > 0
+    ? Math.hypot(
+      (focus.x - userPoint.x * previousScale) - previousTx,
+      (focusY - userPoint.y * previousScale) - previousTy
+    )
+    : Infinity;
+  const panIsAlreadyOnScreen = panDistancePx <= Math.hypot(focusRect.width, focusRect.height);
+
+  if (options.animate && options.stagePanThenZoom && panIsAlreadyOnScreen) {
+    const panViewport = {
+      scale: previousScale,
+      tx: focus.x - userPoint.x * previousScale,
+      ty: focusY - userPoint.y * previousScale,
+    };
+    const totalMs = options.durationMs || HEADING_UP_NAV_ANIMATION_MS;
+    const panMs = Math.round(totalMs * 0.4);
+    const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - panMs);
+    animateViewportTo(panViewport, panMs, () => animateViewportTo(targetViewport, zoomMs));
+  } else if (options.animate) {
     animateViewportTo(targetViewport, options.durationMs || HEADING_UP_NAV_ANIMATION_MS);
   } else {
     state.viewport.scale = targetScale;
@@ -5578,10 +5999,10 @@ function ensureUserAndSelectionVisible(options = {}) {
   // invisible viewport jumps when points are already comfortably visible.
   // Uses the ACTUAL inspector state (not assumeInspectorOpen) so mobile
   // navigation — where the inspector is collapsed — fills the larger available area.
+  const focusRect = bestVisibleCanvasRect({
+    assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
+  });
   if (!options.force && shouldAnimate) {
-    const focusRect = bestVisibleCanvasRect({
-      assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
-    });
     const edgeMargin = Math.min(focusRect.width, focusRect.height) * 0.14;
 
     // Check if ANY point is near the edge (needs animation) vs ALL points are safe
@@ -5597,11 +6018,16 @@ function ensureUserAndSelectionVisible(options = {}) {
     if (!anyNearEdge) return;  // All points safely visible, no animation needed
   }
 
+  // See minSelectionFitScale: the scale at which MIN_SELECTION_VIEW_METRES fills the shorter
+  // side of the focus rect, overriding fitToPoints' own 220x-of-base ceiling for this fit alone.
+  const maxScale = minSelectionFitScale(focusRect, state.userLocation.latitude, DEFAULT_FIT_PADDING_PX * pixelRatio());
+
   fitToPoints(pointsToFit, false, {
     focusVisibleArea: true,
     animate: shouldAnimate,
     durationMs: options.durationMs || 800,
     minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
+    maxScale: maxScale > 0 ? maxScale : undefined,
     boundsSlack: routeIsFallback ? ROUTE_UNKNOWN_FIT_SLACK : 1,
     // Callers that have just expanded the inspector must opt in: its max-height transition
     // (180ms, css/inspector.css) has not run yet, so measuring now reports the minimized
@@ -5679,6 +6105,32 @@ function metresToWorldUnits(metres, latitudeDegrees) {
   return metres / metresPerWorldUnit(latitudeDegrees);
 }
 
+// The tightest view a selected-destination fit (ensureUserAndSelectionVisible, flat; and
+// maxHeadingUpNavigationScale, heading-up) will ever ask for: the scale at which this many
+// real-world metres fill the shorter side of the focus rect. A destination a few metres from
+// the user (reported from the field: "0 m" and "19 m" entries at the top of the Nearby list)
+// has a bounding box small enough that fitToPoints' shared 220x-of-base ceiling
+// (applyBoundsToViewport's baseFitScaleForCap, also the one maxScaleForHeadingUpPoints leaves
+// to its own callers) is the only thing stopping the fit asking for an absurd scale -- but
+// landing on that shared ceiling is itself the bug here: on this dataset it only zooms in
+// enough to show a bit over a kilometre across the screen (baseFitScale is forest-wide), so a
+// 19 m gap rendered as two pins a dozen screen pixels apart in the middle of an otherwise
+// empty, still forest-wide-looking view -- reading as "very zoomed out" despite being at the
+// camera's hardest possible zoom-in, on both the flat and heading-up fits alike. That shared
+// ceiling exists for a different reason (matching what a manual pinch-zoom can reach, and
+// stopping a near-coincident cluster's fit asking for literally infinite scale) and is
+// deliberately left alone for every other caller of fitToPoints/maxScaleForHeadingUpPoints;
+// this override says instead what a selected-destination view should show at minimum,
+// regardless of how close the destination is.
+const MIN_SELECTION_VIEW_METRES = 120;
+
+function minSelectionFitScale(focusRect, latitudeDegrees, paddingPx = 0) {
+  const minViewWorldUnits = metresToWorldUnits(MIN_SELECTION_VIEW_METRES, latitudeDegrees);
+  if (!(minViewWorldUnits > 0)) return Infinity;
+  const availablePx = Math.min(focusRect.width, focusRect.height) - paddingPx * 2;
+  return availablePx > 0 ? availablePx / minViewWorldUnits : Infinity;
+}
+
 // The centred, north-up counterpart to maxNearbyHeadingUpScale: the largest scale that
 // still leaves the whole walking-radius circle inside focusRect. Uses the same
 // headingUpFitMarginPx() inset the heading-up fit does, so the flat fit (boot reveal,
@@ -5706,8 +6158,10 @@ function maxScaleForRadiusVisible(focusRect) {
 // as the ring rotates, by roughly (1 - cos(pi/count)): 1.9% at 16 samples, 0.12% at 64. The
 // extra points cost one cheap arithmetic pass each in a fit that runs once per compass
 // frame, and buy a fit that no longer wobbles (and a circle no longer clipped by up to 2%).
-function walkingRadiusCirclePoints(count = 64) {
-  const point = nearbyRenderOriginPoint();
+function walkingRadiusCirclePoints(count = 64, useFinalBrowseState = false) {
+  const point = useFinalBrowseState
+    ? ((nearbyOrigin() && nearbyOrigin().point) || null)
+    : nearbyRenderOriginPoint();
   if (!point) return [];
   const worldRadius = walkingRadiusWorldUnits();
   if (worldRadius <= 0) return [];
@@ -5844,6 +6298,7 @@ function ensureOverviewTargetsVisible(options = {}) {
       animate: Boolean(options.animate),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       force: Boolean(options.force),
+      stagePanThenZoom: Boolean(options.stagePanThenZoom),
     });
     return;
   }
@@ -6480,7 +6935,9 @@ function searchResultName(type, item) {
 function searchResultTypeLabel(type, item) {
   switch (type) {
     case "tree": return "Tree";
-    case "landmark": return filterMeta(placeLabelFilterKey(item))?.label || item.categoryLabel || "Place";
+    case "landmark":
+      if (isEventCategory(item)) return formatEventWhen(item) || "Event";
+      return filterMeta(placeLabelFilterKey(item))?.label || item.categoryLabel || "Place";
     case "cow": return "Cow";
     case "path": return filterMeta("waymarked_trails")?.label || "Trail";
     case "road": return roadTypeLabel(item);
@@ -6631,35 +7088,21 @@ function updateSearchHighlight(results) {
   }, SEARCH_CAMERA_FIT_DEBOUNCE_MS);
 }
 
-// Search's own matches are never dimmed or hidden by the active category filters (see
-// markerOpacityFor's search bypass, js/inspector.js, and buildSearchIconLookup, js/renderer.js)
-// -- but the filters set on the Filter screen stay in effect for Nearby underneath, so this row
-// offers the same one-click reset the Filter screen has, without leaving Search to reach it.
-function searchClearFiltersHtml() {
-  if (!state.overviewFilters.length) return "";
-  return `<div class="filter-actions search-clear-filters">
-    <button class="filter-action-btn filter-clear-all" type="button" data-filter-clear-all>
-      Clear all filters
-    </button>
-  </div>`;
-}
-
 function searchResultsHtml(query) {
-  const clearFiltersHtml = searchClearFiltersHtml();
   const needle = normalizeSearchText(query);
   if (!needle) {
     updateSearchHighlight([]);
-    return `${clearFiltersHtml}<p class="empty">Search for a tree tag or species, a shop, pub or café, a road, a trail, or anywhere else on the map.</p>`;
+    return `<p class="empty">Search for a tree tag or species, a shop, pub or café, a road, a trail, or anywhere else on the map.</p>`;
   }
   if (needle.length < SEARCH_MIN_QUERY_LENGTH) {
     updateSearchHighlight([]);
-    return `${clearFiltersHtml}<p class="empty">Keep typing — search needs at least ${SEARCH_MIN_QUERY_LENGTH} characters.</p>`;
+    return `<p class="empty">Keep typing — search needs at least ${SEARCH_MIN_QUERY_LENGTH} characters.</p>`;
   }
 
   const results = searchMapFeatures(query);
   updateSearchHighlight(results);
   if (!results.length) {
-    return `${clearFiltersHtml}<p class="empty">Nothing on the map matches “${escapeHtml(query.trim())}”.</p>`;
+    return `<p class="empty">Nothing on the map matches “${escapeHtml(query.trim())}”.</p>`;
   }
 
   const itemsHtml = results.map((result) => {
@@ -6683,7 +7126,7 @@ function searchResultsHtml(query) {
   const countLabel = results.length >= SEARCH_RESULT_LIMIT
     ? `Closest ${SEARCH_RESULT_LIMIT} matches`
     : `${results.length} match${results.length === 1 ? "" : "es"}`;
-  return `${clearFiltersHtml}<div class="nearby-heading"><strong>${escapeHtml(countLabel)}</strong></div><ul class="nearest-list">${itemsHtml}</ul>`;
+  return `<div class="nearby-heading"><strong>${escapeHtml(countLabel)}</strong></div><ul class="nearest-list">${itemsHtml}</ul>`;
 }
 
 // The nav button's magnifier again, at title size. There is no search PNG in the icon
@@ -6718,6 +7161,9 @@ function renderSearchResults() {
 }
 
 function openSearchScreen() {
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Search");
+  // See the matching comment in openFiltersScreen.
+  exitClusterExpansion();
   state.filterScreenOpen = false;
   state.selected = null;
   // Building the index here rather than on the first keystroke keeps the hitch off the
@@ -6727,6 +7173,9 @@ function openSearchScreen() {
   state.searchScreenOpen = true;
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
   setNavScreenActive(els.searchToggle);
+  // Hides the inline filter toggle next to the Nearby/Filters heading -- Filters is reached
+  // from Nearby, not from Search, which deliberately ignores the active filters regardless.
+  updateFilterUi();
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Search";
   els.inspectorType.textContent = "Find anything on the map";
@@ -6771,8 +7220,14 @@ function openSearchResult(type, key) {
     return;
   }
   state.clusterZoomed = false;
-  state.clusterExpanded = null;
+  exitClusterExpansion();
   state.searchScreenOpen = false;
+  // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
+  // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
+  // rather than lingering for whenever Nearby is next shown.
+  state.nearbyAnchor = null;
+  // Before state.selected changes below -- see startCameraOriginTransition.
+  startCameraOriginTransition();
   state.selected = { type, item };
   route.show(item);
   syncHashFromSelection();
@@ -7015,7 +7470,9 @@ function overviewLandmarkItemSelector(placeKey) {
 }
 
 function shouldSkipOverviewBusStopHydration() {
-  return !navigator.onLine || !els.inspectorBody || state.selected || state.filterScreenOpen;
+  // The Filter screen's own body now includes the same nearest list (filterScreenBodyHtml()),
+  // so it needs bus-stop hydration exactly like the plain Nearby screen -- no longer excluded.
+  return !navigator.onLine || !els.inspectorBody || state.selected;
 }
 
 function transportCacheKey(place, type) {
@@ -7490,6 +7947,33 @@ function formatTimeAgo(timestamp) {
   if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
   const days = Math.floor(hours / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+// "When" row for an event's detail view -- "Sat 18 Oct, 10am–4pm" for a same-day range,
+// "Sat 18 Oct – Sun 19 Oct" spanning days, or just the start time when there's no endsAt.
+function formatEventWhen(event) {
+  const starts = event && event.startsAt ? new Date(event.startsAt) : null;
+  if (!starts || Number.isNaN(starts.getTime())) return null;
+  const ends = event && event.endsAt ? new Date(event.endsAt) : null;
+  const validEnds = ends && !Number.isNaN(ends.getTime()) ? ends : null;
+
+  // The forest, and everyone walking in it, is in the UK -- fixed rather than the device's own
+  // zone, so a visitor from elsewhere (or a CI runner in any zone) sees the same local time a
+  // Londoner would, not their own offset re-applied to a UK event.
+  const dateFmt = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" });
+  const timeFmt = new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-digit", timeZone: "Europe/London" });
+
+  if (!validEnds) return `${dateFmt.format(starts)}, ${timeFmt.format(starts)}`;
+  if (starts.toDateString() === validEnds.toDateString()) {
+    return `${dateFmt.format(starts)}, ${timeFmt.format(starts)}–${timeFmt.format(validEnds)}`;
+  }
+  return `${dateFmt.format(starts)} – ${dateFmt.format(validEnds)}`;
+}
+
+function eventStatusLabel(event, nowMs = Date.now()) {
+  if (isEventLive(event, nowMs)) return "Happening now";
+  const starts = event && event.startsAt ? new Date(event.startsAt).getTime() : NaN;
+  return Number.isFinite(starts) && starts > nowMs ? "Upcoming" : null;
 }
 
 function updateCowTimeAgoField() {

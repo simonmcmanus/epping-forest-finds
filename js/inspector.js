@@ -59,8 +59,14 @@ function handleMapClick(event) {
   }
 
   state.clusterZoomed = false;
-  state.clusterExpanded = null;
+  exitClusterExpansion();
+  // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
+  // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
+  // rather than lingering for whenever Nearby is next shown.
+  state.nearbyAnchor = null;
   setInspectorMinimized(false);
+  // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
+  startCameraOriginTransition();
   if (hit.type === "tree") {
     state.selected = { type: "tree", item: hit.item };
     syncHashFromSelection();
@@ -108,6 +114,7 @@ function handleMapClick(event) {
 }
 
 function trackSelectionClick(itemType, item, source) {
+  if (typeof trackGaItemSelected === "function") trackGaItemSelected(itemType, item, source);
   if (typeof trackClick !== "function") return;
   const uLat = state.userLocation?.latitude ?? null;
   const uLng = state.userLocation?.longitude ?? null;
@@ -117,14 +124,14 @@ function trackSelectionClick(itemType, item, source) {
 function findHit(screen, world) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
-  // drawPngMapIcon geometry: R = size*0.4, circle centre sits R*1.6 above the tip.
+  // Compact pin head: half-width R*1.2, half-height R; centre R*1.3 above the tip.
   // Unselected pins drive overview taps; use MAP_ICON_SCALE_UNSELECTED for accurate centering.
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
-  const pinR = iconSize * 0.4 * 1.3;   // R * 1.3 — slightly larger than visual for easy tapping
-  const pinYOffset = iconSize * 0.64;   // R * 1.6 = center of circle above tip
+  const pinR = iconSize * 0.32 * 1.3;   // R * 1.3 — slightly larger than visual for easy tapping
+  const pinYOffset = iconSize * 0.416;   // R * 1.3 = head centre above tip
 
   function pinDistance(point) {
-    return Math.hypot(point.x - screen.x, (point.y - pinYOffset) - screen.y);
+    return Math.max(Math.abs(point.x - screen.x) / 1.2, Math.abs((point.y - pinYOffset) - screen.y));
   }
 
   // Only pins that are actually on screen are tappable: hit testing asks the renderer's own
@@ -258,18 +265,15 @@ function findHit(screen, world) {
 
 function findClusterHit(screen) {
   const dpr = pixelRatio();
-  const mapScale = mapEmojiScale();
-  // Matches drawPngMapIcon geometry (R = size*0.4, centre = R*1.6 above tip).
-  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
-  const pinR = iconSize * 0.4 * 1.3;
-  const pinYOffset = iconSize * 0.64;
+  const toScreen = tiltActive() ? worldToScreenForOverlayTilted
+    : nearbyHeadingUpActive() ? worldToScreenForOverlay : worldToScreen;
   const lookup = activeIconLookup();
   const tag = (clusters, itemType) => clusters.map(c => ({ ...c, itemType }));
-  const treeClusters = tag(buildTypeClusters(lookup.tree, worldToScreen), "tree");
-  const landmarkClusters = tag(buildLandmarkClusters(lookup.landmark, worldToScreen), "landmark");
-  const cowClusters = tag(buildTypeClusters(lookup.cow, worldToScreen), "cow");
-  const pathClusters = tag(buildTypeClusters(lookup.path, worldToScreen), "path");
-  const waterClusters = tag(buildTypeClusters(lookup.water, worldToScreen), "water");
+  const treeClusters = tag(buildTypeClusters(lookup.tree, toScreen), "tree");
+  const landmarkClusters = tag(buildLandmarkClusters(lookup.landmark, toScreen), "landmark");
+  const cowClusters = tag(buildTypeClusters(lookup.cow, toScreen), "cow");
+  const pathClusters = tag(buildTypeClusters(lookup.path, toScreen), "path");
+  const waterClusters = tag(buildTypeClusters(lookup.water, toScreen), "water");
 
   // Cross-category mega clusters (see buildSuperClusters, js/renderer.js) draw on top of the
   // per-type badges they absorb, so check those first -- a tap in their radius always means the
@@ -310,15 +314,25 @@ function findClusterHit(screen) {
     const cx = sx / totalItems;
     const cy = sy / totalItems;
     const dpr = pixelRatio();
-    if (Math.hypot(cx - screen.x, cy - screen.y) < megaClusterOuterRadius(totalItems, dpr)) {
+    const worldPt = { x: items.reduce((sum, item) => sum + item.point.x, 0) / totalItems,
+      y: items.reduce((sum, item) => sum + item.point.y, 0) / totalItems };
+    const drawn = group.length >= megaClusterMinMembersFor(group);
+    const compact = new Set(group.flatMap(({ itemType, cluster }) => clusterPreviewEntries(itemType, cluster).map(entry => entry.key))).size === 1;
+    const hit = drawn
+      ? clusterBadgeContains(screen, cx, cy, totalItems, true, dpr, Math.max(0.65, tiltPinScale(worldPt)), compact)
+      : group.some(({ itemType, cluster }) => cluster.items.length > 1
+        ? clusterBadgeContains(screen, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)), clusterPreviewEntries(itemType, cluster).length === 1)
+        : Math.hypot(cluster.screenPt.x - screen.x, cluster.screenPt.y - 20 * dpr - screen.y) < 24 * dpr);
+    if (hit) {
       return { items, itemsByType, itemType: "_mega", screenPt: { x: cx, y: cy } };
     }
   }
 
+  const absorbed = new Set(megaGroups.filter(g => g.length >= megaClusterMinMembersFor(g)).flatMap(g => g.map(m => m.cluster)));
   const allClusters = [...treeClusters, ...landmarkClusters, ...cowClusters, ...pathClusters, ...waterClusters];
   for (const cluster of allClusters) {
-    if (cluster.items.length <= 1) continue;
-    if (Math.hypot(cluster.screenPt.x - screen.x, (cluster.screenPt.y - pinYOffset) - screen.y) < pinR) return cluster;
+    if (cluster.items.length <= 1 || absorbed.has(cluster)) continue;
+    if (clusterBadgeContains(screen, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)), clusterPreviewEntries(cluster.itemType, cluster).length === 1)) return cluster;
   }
   return null;
 }
@@ -365,16 +379,24 @@ function showLandmarkDetails(place, distance) {
   setInspectorSelectionChrome({ emoji, showBack: true });
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = place.name || "Local place";
-  els.inspectorType.textContent = place.categoryLabel || "Local place";
+  const isEvent = isEventCategory(place);
+  els.inspectorType.textContent = isEvent
+    ? (eventStatusLabel(place) || place.categoryLabel || "Event")
+    : (place.categoryLabel || "Local place");
   const description = place.folkloreSummary || place.description || place.summary || null;
-  const rows = [
-    ["Address", place.address],
-    ["Type", place.type],
-    ["Area", place.area],
-    ["Confidence", place.confidence],
-    ["Website", place.website],
-    ["Phone", place.phone],
-  ];
+  const rows = isEvent
+    ? [
+        ["When", formatEventWhen(place)],
+        ["More info", place.sourceUrl],
+      ]
+    : [
+        ["Address", place.address],
+        ["Type", place.type],
+        ["Area", place.area],
+        ["Confidence", place.confidence],
+        ["Website", place.website],
+        ["Phone", place.phone],
+      ];
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
@@ -556,9 +578,20 @@ let _overviewListKey;
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
-  if (state.clusterExpanded) return;
-  const previousNearestPositions = captureNearestItemPositions();
-  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: false, captureSnapshot: animate });
+  // The reorder animation is for a live update to the list already on screen (GPS/heading
+  // moving an item, a filter changing which ones show) -- captured positions only mean
+  // something when compared against the same screen's own previous layout. animate=true means
+  // this is a screen-entry transition (goToInitialView, returning from Settings/Report/Filters),
+  // where the slide itself is the transition; capturing positions here would instead measure
+  // wherever the items sat in the screen being left -- lower on Filters, which also renders
+  // this list, pushed down by its chip groups -- and animate every item sliding up into place
+  // on top of the slide, reading as the list refreshing rather than just the screen changing.
+  const previousNearestPositions = animate ? null : captureNearestItemPositions();
+  // A browse anchor (tap-to-relocate, or an expanded cluster) means the Nearby view is no
+  // longer centred on the real GPS fix -- showing the back arrow here, same as every other
+  // screen, gives that moved view a visible, working way back (navigateBack() retraces the
+  // anchor push from pushNearbyAnchorHistory, same as the browser's own back button).
+  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor), captureSnapshot: animate });
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
   els.inspectorTitle.textContent = "Nearby";
@@ -792,6 +825,11 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
   }
   if (els.reportToggle) els.reportToggle.classList.remove("active");
   if (els.settingsToggle) els.settingsToggle.classList.remove("active");
+  // Every screen entry point routes through here, so this is also where the inline filter
+  // toggle next to the Nearby/Filters heading hides itself for every other screen (a selected
+  // place, Settings, Report) -- openSearchScreen re-derives it again once searchScreenOpen
+  // itself is set, just after its own call into this function.
+  updateFilterUi();
   // Every screen change routes through here, so this is the one place the browse-anchor bar
   // needs re-evaluating as the user moves between Nearby, Filters, Settings, Report and a
   // selection (js/nav.js).
@@ -832,7 +870,13 @@ function focusOverviewItem(type, key) {
     return;
   }
   state.clusterZoomed = false;
-  state.clusterExpanded = null;
+  exitClusterExpansion();
+  // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
+  // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
+  // rather than lingering for whenever Nearby is next shown.
+  state.nearbyAnchor = null;
+  // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
+  startCameraOriginTransition();
 
   if (type === "tree") {
     const tree = findTreeByHashKey(key);
