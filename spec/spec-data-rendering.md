@@ -926,6 +926,16 @@ Search, Filter, Settings, and Report share identical navigation behaviour, gated
   keyboard user's focus stays on the chip they just pressed. This exists so a filter's effect is
   visible on the screen where you changed it, instead of only being provable by backing out to
   Nearby again.
+- **Returning to Nearby from Filters does not replay the list's reorder animation.**
+  `selectOverview(animate)` only captures `.nearest-item` positions
+  (`captureNearestItemPositions()`/`animateNearestItemReorder()`, `js/inspector.js` — see the FLIP
+  reorder animation under "The order follows you round, but does not churn" above) when `animate`
+  is false, i.e. a live update to the list already on screen. `animate` is true only for a
+  screen-entry transition (`goToInitialView()`, returning from Filters/Settings/Report), where the
+  slide itself is the transition. Capturing positions there would instead measure wherever the
+  items sat on the screen being left — lower on Filters, pushed down by its own copy of this list
+  sitting below the chip groups — and animate every row sliding up into its Nearby position right
+  on top of the slide, reading as the list refreshing itself rather than just the screen changing.
 - Toggle button shows active filter count badge
 
 Filter groups (defined by `FILTER_GROUPS` in `js/categories.js`, the single source of truth):

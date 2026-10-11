@@ -78,6 +78,43 @@ test.describe("Filter panel", () => {
       await expect(page).toHaveURL(/#filters$/);
       await expect(page.locator("#filterNearestListSection")).toBeVisible();
     });
+
+    // Regression: the Filter screen's own copy of the nearest list sits lower than Nearby's
+    // (pushed down by the chip groups above it), so captureNearestItemPositions() -- meant only
+    // to animate a live reorder while already on Nearby -- used to also fire on the way back
+    // from Filters, reading the layout difference as a reorder and sliding every row into place
+    // right on top of the screen-slide transition. That read as the list refreshing itself.
+    // selectOverview(animate) now skips the capture entirely when animate is true (a
+    // screen-entry transition), since the slide alone is the transition here.
+    test("going back from Filters to Nearby does not replay a reorder animation on the list", async ({ page }) => {
+      await setup(page);
+      await page.click("#filterToggle");
+      await expect(page.locator("#filterNearestListSection")).toBeVisible();
+
+      await page.evaluate(() => {
+        window.__sawReorderStyle = false;
+        const body = document.getElementById("inspectorBody");
+        const observer = new MutationObserver((mutations) => {
+          for (const m of mutations) {
+            const style = m.target.getAttribute && m.target.getAttribute("style");
+            if (m.type === "attributes" && m.attributeName === "style" &&
+              m.target.classList?.contains("nearest-item") &&
+              style && (style.includes("transform") || style.includes("opacity"))) {
+              window.__sawReorderStyle = true;
+            }
+          }
+        });
+        observer.observe(body, { attributes: true, subtree: true, attributeFilter: ["style"] });
+      });
+
+      await page.click("#inspectorBack");
+      await page.waitForFunction(
+        () => document.getElementById("inspectorTitle")?.textContent === "Nearby"
+      );
+      await page.waitForTimeout(400);
+
+      expect(await page.evaluate(() => window.__sawReorderStyle)).toBe(false);
+    });
   });
 
   test.describe("adding a filter whose matches are all outside the radius", () => {
