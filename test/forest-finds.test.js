@@ -470,6 +470,7 @@ globalThis.__forestFindsTest = {
   hasTrackingConsent,
   setTrackingConsent,
   ensureTrackingConsent,
+  trackGaItemSelected,
   reportFormHtml,
   reportIssueHtml,
   openFiltersScreen,
@@ -3920,6 +3921,34 @@ test("ensureTrackingConsent grants consent implicitly, with no separate accept/d
   assert.equal(app.hasTrackingConsent(), true, "consent should be recorded immediately, synchronously");
 
   app.setTrackingConsent(original);
+});
+
+test("select_map_item GA event carries a specific venue category for landmarks, never coordinates", () => {
+  const calls = [];
+  const originalGtag = app.windowStub.gtag;
+  app.windowStub.gtag = (...args) => calls.push(args);
+
+  const memorial = { category: "memorial", categoryTags: ["memorial"], name: "War Memorial" };
+  app.trackGaItemSelected("landmark", memorial, "map");
+  const tree = { commonName: "Old Oak", latitude: 51.65, longitude: 0.03 };
+  app.trackGaItemSelected("tree", tree, "overview");
+
+  app.windowStub.gtag = originalGtag;
+
+  assert.equal(calls.length, 2);
+  const [landmarkCall, treeCall] = calls;
+  assert.equal(landmarkCall[1], "select_map_item");
+  assert.equal(landmarkCall[2].item_type, "landmark");
+  assert.equal(landmarkCall[2].item_category, "monuments", "should narrow landmark down to its filter chip kind");
+  assert.equal(landmarkCall[2].item_name, "War Memorial");
+  assert.equal(treeCall[2].item_type, "tree");
+  assert.equal(treeCall[2].item_category, "tree", "non-landmark types repeat item_type");
+
+  for (const call of calls) {
+    for (const value of Object.values(call[2])) {
+      assert.notEqual(typeof value, "number", "GA item events must never carry raw coordinates");
+    }
+  }
 });
 
 test("the location gate and onboarding's location step show the exact same privacy disclosure", () => {
