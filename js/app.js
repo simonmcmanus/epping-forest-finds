@@ -99,7 +99,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v94"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v96"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -346,6 +346,12 @@ const state = {
   overviewOutsideRadiusFallback: false,
   clusterZoomed: false,
   clusterExpanded: null,
+  // The radius in effect just before a cluster tap grew it to cover the group's own members
+  // (focusNearbyOnClusterGroup) -- restored by exitClusterExpansion (js/nav.js) wherever
+  // clusterExpanded is cleared, so leaving that exact-membership view leaves its radius behind
+  // too, rather than permanently shrinking (or growing) the ring to whatever the last tapped
+  // group needed.
+  preClusterWalkingDistanceMinutes: null,
   transportLookupCache: new Map(),
   transportLookupRequests: new Map(),
   dataLoaded: false,
@@ -674,7 +680,7 @@ function applyRouteToScreen(raw, announceMissing) {
   // Whatever the route turns out to be, arriving at one is navigating away from an expanded
   // map group -- the one screen with no URL of its own (see urlMatchesCurrentScreen).
   state.clusterZoomed = false;
-  state.clusterExpanded = null;
+  exitClusterExpansion();
 
   if (!value) {
     goToInitialView(false);
@@ -2069,6 +2075,12 @@ function setNavScreenActive(current = null) {
 
 function openFiltersScreen() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Filters");
+  // Filters/Settings/Report/Search all promise the same fixed, zoomed-out survey view of the
+  // walking radius (secondaryScreenActive) -- left set, an expanded cluster narrowed that to
+  // the tapped group's own members instead, and its borrowed radius looked like the user's own
+  // real setting on the Settings slider. Opening any of them is leaving that exact-membership
+  // view just as much as tapping open ground is.
+  exitClusterExpansion();
   state.selected = null;
   // showBack:true clears state.filterScreenOpen inside setInspectorSelectionChrome (the shared
   // chokepoint every other showBack:true screen relies on to stand Filters down) -- set it again
@@ -2095,6 +2107,9 @@ function openFiltersScreen() {
 
 function openSettings() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Settings");
+  // See the matching comment in openFiltersScreen -- without this the walk-radius slider here
+  // showed the tapped group's borrowed radius as if it were the user's own setting.
+  exitClusterExpansion();
   state.selected = { type: "settings", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.settingsToggle);
@@ -2249,6 +2264,8 @@ function bindSettingsHandlers() {
 
 function openReportModal() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Report");
+  // See the matching comment in openFiltersScreen.
+  exitClusterExpansion();
   state.selected = { type: "report", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.reportToggle);
@@ -5639,7 +5656,42 @@ function alignHeadingUpNavigationViewport(options = {}) {
     ty: focusY - userPoint.y * targetScale,
   };
 
-  if (options.animate) {
+  // focus/focusY/userPoint are all independent of scale (the Nearby pivot never rotates with
+  // heading, and dampedHeadingUpFocusY is a no-op outside selected-navigation) -- so the same
+  // tx/ty formula at *today's* scale is a real, reachable viewport: today's framing, re-centred
+  // on the new pivot. stagePanThenZoom (focusNearbyOnClusterGroup) eases there first and only
+  // then eases scale to targetScale, so a cluster that is already on screen slides into the
+  // middle of it before the camera zooms in on it, rather than panning and zooming at once.
+  //
+  // Only worth doing when the new pivot is roughly where the old one was on screen -- the
+  // premise this whole branch rests on ("it will already be in the viewport"). A cluster tap
+  // while already tightly zoomed in elsewhere can land on a pivot that is world-far from here;
+  // panning there at *today's* (tight) scale would cover that whole distance in screen pixels
+  // within one short tween, reading as a fast, disorienting slide rather than a gentle
+  // repositioning -- worse than the single combined ease it would be replacing. This is exactly
+  // the "mega badge across the ring from an earlier browse anchor" case the old three-phase
+  // zoom-out/pan/zoom-in tour existed for and was abandoned over (see focusNearbyOnClusterGroup's
+  // own comment); staging still isn't the answer for it, so this falls back to the plain single
+  // ease below instead, the same path a far jump already took before stagePanThenZoom existed.
+  const panDistancePx = Number.isFinite(previousScale) && previousScale > 0
+    ? Math.hypot(
+      (focus.x - userPoint.x * previousScale) - previousTx,
+      (focusY - userPoint.y * previousScale) - previousTy
+    )
+    : Infinity;
+  const panIsAlreadyOnScreen = panDistancePx <= Math.hypot(focusRect.width, focusRect.height);
+
+  if (options.animate && options.stagePanThenZoom && panIsAlreadyOnScreen) {
+    const panViewport = {
+      scale: previousScale,
+      tx: focus.x - userPoint.x * previousScale,
+      ty: focusY - userPoint.y * previousScale,
+    };
+    const totalMs = options.durationMs || HEADING_UP_NAV_ANIMATION_MS;
+    const panMs = Math.round(totalMs * 0.4);
+    const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - panMs);
+    animateViewportTo(panViewport, panMs, () => animateViewportTo(targetViewport, zoomMs));
+  } else if (options.animate) {
     animateViewportTo(targetViewport, options.durationMs || HEADING_UP_NAV_ANIMATION_MS);
   } else {
     state.viewport.scale = targetScale;
@@ -6226,6 +6278,7 @@ function ensureOverviewTargetsVisible(options = {}) {
       animate: Boolean(options.animate),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       force: Boolean(options.force),
+      stagePanThenZoom: Boolean(options.stagePanThenZoom),
     });
     return;
   }
@@ -7089,6 +7142,8 @@ function renderSearchResults() {
 
 function openSearchScreen() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Search");
+  // See the matching comment in openFiltersScreen.
+  exitClusterExpansion();
   state.filterScreenOpen = false;
   state.selected = null;
   // Building the index here rather than on the first keystroke keeps the hitch off the
@@ -7145,7 +7200,7 @@ function openSearchResult(type, key) {
     return;
   }
   state.clusterZoomed = false;
-  state.clusterExpanded = null;
+  exitClusterExpansion();
   state.searchScreenOpen = false;
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
