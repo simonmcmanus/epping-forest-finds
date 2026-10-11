@@ -578,7 +578,15 @@ let _overviewListKey;
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
-  const previousNearestPositions = captureNearestItemPositions();
+  // The reorder animation is for a live update to the list already on screen (GPS/heading
+  // moving an item, a filter changing which ones show) -- captured positions only mean
+  // something when compared against the same screen's own previous layout. animate=true means
+  // this is a screen-entry transition (goToInitialView, returning from Settings/Report/Filters),
+  // where the slide itself is the transition; capturing positions here would instead measure
+  // wherever the items sat in the screen being left -- lower on Filters, which also renders
+  // this list, pushed down by its chip groups -- and animate every item sliding up into place
+  // on top of the slide, reading as the list refreshing rather than just the screen changing.
+  const previousNearestPositions = animate ? null : captureNearestItemPositions();
   // A browse anchor (tap-to-relocate, or an expanded cluster) means the Nearby view is no
   // longer centred on the real GPS fix -- showing the back arrow here, same as every other
   // screen, gives that moved view a visible, working way back (navigateBack() retraces the

@@ -96,7 +96,7 @@ Epping Forest." so the first line leads.
 > See the latest reported cattle locations from their GPS collars. Positions refresh while online; offline, you’ll see the last saved positions, which may be out of date.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 1,298 pubs, cafés and shops. 1,596 car parks,
+> 9,162 paths and bridleways. 1,357 pubs, cafés and shops. 1,596 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -135,7 +135,7 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 1,298 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 1,357 food & drink | feature count, `data/local-landmarks-food.geojson` |
 | 1,596 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
@@ -480,11 +480,17 @@ which addresses are on the list is an enumeration oracle.
   state; repeated submissions are ignored. Errors preserve the address and restore
   the button so the visitor can retry.
 - On success, the entire signup introduction and form are hidden and replaced by
-  a dedicated panel: an envelope illustration, **“One more step”**, **“Check your
-  inbox”**, instructions to find Epping Forest Finds and click **“Confirm my
-  email”**, and a spam/junk reminder. There is no separate pre-submit confirmation
+  a dedicated panel: an envelope illustration marked with a gold **2** badge,
+  **“Step 2 of 2”**, **“Confirm your email to finish”**, instructions to check
+  the inbox, open the email from Epping Forest Finds and click **“Confirm my
+  email”** to complete sign-up, and a spam/junk reminder. The numbered image
+  and heading make the remaining action explicit, rather than implying that
+  submitting the form completed the subscription. There is no separate pre-submit confirmation
   reminder. The heading receives keyboard focus; the panel scrolls into view only
   if needed. Reloading restores the form.
+- A gold **“Don’t forget”** reminder sits beside the step label. Its decorative
+  bell makes one gentle 900ms swing after a 500ms delay; it never loops. The
+  reminder remains static for reduced-motion visitors.
 - Motion runs once: a 140ms fade and slight lift removes the entry panel, a 420ms
   height transition settles the card, and the envelope and text gently arrive
   over roughly half a second. There is no looping animation. Reduced-motion

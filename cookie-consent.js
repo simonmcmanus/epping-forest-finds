@@ -87,6 +87,12 @@ background:#fff;color:#2f6f4e}
   function renderBanner() {
     const existing = document.getElementById("cookieConsentBanner");
     if (existing) return;
+    // On the app's first-run onboarding (app.html only -- this id doesn't exist elsewhere),
+    // the location step's own privacy note already asks this question and decides cookie
+    // consent itself (see the .ob-location/.ob-location-skip handlers in js/onboarding.js).
+    // Stacking this banner on top of that overlay would ask twice for the same thing.
+    const onboarding = document.getElementById("onboardingOverlay");
+    if (onboarding && !onboarding.hidden) return;
     injectStyle();
     const banner = document.createElement("div");
     banner.id = "cookieConsentBanner";
