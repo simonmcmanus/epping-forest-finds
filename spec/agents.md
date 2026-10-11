@@ -73,6 +73,8 @@ Before finishing any implementation task:
   **They used to run after the merge and push straight to `main`, and that broke silently when `main` became a protected branch** (`GH006: Protected branch update failed ... Changes must be made through a pull request`). Every merge from 19 September 2026 failed that way on a `push` event nobody watches, so the caches stopped being versioned while everything looked fine. Anything else that wants to write to `main` from CI has the same problem and needs the same treatment.
 
   A fork's pull request is skipped rather than failed: its token is read-only and its branch is not ours to write to, so a merge from a fork needs the bump by hand.
+
+  **If a stale PR's `sw.js`/`js/app.js` conflicts with `main` on these version lines, don't hand-pick a number — take `main`'s side and push.** This happens when two or more qualifying PRs merge while a third sits unsynced: that third branch's bump was computed as "one past base" against a base that has since moved by more than one merge, so its line and `main`'s line now disagree and a merge can't auto-resolve them. Resolving by keeping `main`'s version (`git checkout --theirs sw.js js/app.js` during a local merge, or accepting the incoming change in GitHub's conflict editor) and pushing is always correct and sufficient: that push is a `synchronize` event, so `sw-release.yml`/`data-bump.yml` re-run and recompute "one past base" fresh against the current `main`, overwriting whatever was kept. There is nothing to merge by hand beyond clearing the conflict marker — the workflow redoes the arithmetic.
 - **Local dev (`node server.js` / `npm run dev`) never depends on the `CACHE_NAME` bump above.** `server.js` injects `self.__DEV__ = true` into the `sw.js` response it serves (see `injectDevFlag()`), and `sw.js` uses that to fetch everything network-first instead of its production cache-first strategy. Don't try to "fix" stale local testing by bumping `CACHE_NAME` by hand — that's a CI concern; if local changes still don't show up, the dev-flag wiring in `server.js`/`sw.js` is what to check. `injectDevFlag()` also prefixes the served `CACHE_NAME` with `dev-` (e.g. `forest-finds-dev-v274`), so the Settings "About" version display and any bug-report `appVersion` are visibly local rather than a frozen release number.
 
 ## Testing
@@ -157,6 +159,19 @@ CI's queueing and setup time still applies. Reporting a task finished before its
 reporting a guess. Two consecutive PRs were once handed over as done on the strength of a
 green-ish local run while their CI job was red the whole time.
 
+### Screenshots in every PR
+
+Every PR needs at least one screenshot showing the change in the running app, not just prose
+describing it — a reviewer should be able to see the result without pulling the branch.
+- **UI/visual change:** capture before and after. Start the dev server (`npm run dev`) or drive
+  the page with Playwright (`page.screenshot()`), screenshot the affected view, and embed both
+  images directly in the PR description.
+- **No visible UI effect** (data fix, backend-only logic, test-only, spec-only change): say so
+  explicitly in the PR description instead of a screenshot — do not fabricate one.
+- A committed Playwright baseline (`test/e2e/__screenshots__/`) is a CI regression artifact, not
+  a substitute: it's pixel-exact to the unchanged parts of the page too, so it rarely shows the
+  change on its own. Take a fresh screenshot for the PR body even when a baseline also changed.
+
 ### If the suite is already red when you arrive
 
 Say so, with numbers, in your first report — do not absorb it silently and do not let it become
@@ -181,7 +196,8 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
    reproduces the runner's 2 vCPUs.
 3. Relevant `spec/` file is updated, or reason documented.
 4. Create a commit with a good concise description summarising the change.
-5. Push and open the PR, then confirm every `E2E tests (<project>, shard <n>)` job is **green on
+5. Push and open the PR with screenshots of the change in its description (see "Screenshots in
+   every PR" above), then confirm every `E2E tests (<project>, shard <n>)` job is **green on
    your branch**, and triage `Visual snapshots (mobile)` if it's red — per "CI is the verdict"
    above. That PR run is the full sweep; do not also run the suite locally or dispatch CI by
    hand. The task is not finished until `E2E tests` is green, and the report says what CI said.

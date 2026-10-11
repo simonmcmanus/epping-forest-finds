@@ -3951,7 +3951,7 @@ test("select_map_item GA event carries a specific venue category for landmarks, 
   }
 });
 
-test("the location gate and onboarding's location step show the exact same privacy disclosure", () => {
+test("the location gate and onboarding's location step disclose the same location/usage tracking, but onboarding also covers the merged cookie choice", () => {
   const appHtml = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
   const onboardingSource = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
 
@@ -3960,11 +3960,19 @@ test("the location gate and onboarding's location step show the exact same priva
 
   assert.ok(gateNoteMatch, "the location gate should show a .privacy-note disclosure");
   assert.ok(onboardingNoteMatch, "the onboarding location step should show a .privacy-note disclosure");
-  assert.equal(
-    onboardingNoteMatch[1],
-    gateNoteMatch[1],
-    "onboarding and the location gate must show identical consent wording, not two different screens"
-  );
+  // Both still disclose the same first-party location/usage tracking and the same withdrawal
+  // path -- the location gate has no decline option, so it never took on the cookie-banner's
+  // job and keeps the original single-purpose wording. Onboarding's location step does have a
+  // real "Skip for now" alternative, so it stands in for the independent cookie-consent banner
+  // (suppressed while onboarding is open -- see cookie-consent.js) and its note says so.
+  assert.match(gateNoteMatch[1], /We collect anonymous usage data \(GPS position, navigation, interactions\)/);
+  assert.match(onboardingNoteMatch[1], /We collect anonymous usage data \(GPS position, navigation, interactions\)/);
+  assert.match(onboardingNoteMatch[1], /analytics cookies/, "onboarding's note must disclose the merged cookie consent");
+  assert.doesNotMatch(gateNoteMatch[1], /analytics cookies/, "the location gate never decides cookie consent, so it should not claim to");
+  for (const note of [gateNoteMatch[1], onboardingNoteMatch[1]]) {
+    assert.match(note, /Settings → Privacy/);
+    assert.match(note, /<a href="\/terms\.html" target="_blank" rel="noopener">Privacy Policy<\/a>/);
+  }
 });
 
 test("settings form offers separate data, app and combined refresh buttons", () => {
