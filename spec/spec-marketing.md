@@ -472,6 +472,9 @@ which addresses are on the list is an enumeration oracle.
   submitting the form completed the subscription. There is no separate pre-submit confirmation
   reminder. The heading receives keyboard focus; the panel scrolls into view only
   if needed. Reloading restores the form.
+- A gold **“Don’t forget”** reminder sits beside the step label. Its decorative
+  bell makes one gentle 900ms swing after a 500ms delay; it never loops. The
+  reminder remains static for reduced-motion visitors.
 - Motion runs once: a 140ms fade and slight lift removes the entry panel, a 420ms
   height transition settles the card, and the envelope and text gently arrive
   over roughly half a second. There is no looping animation. Reduced-motion
