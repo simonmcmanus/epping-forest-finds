@@ -624,7 +624,7 @@ This cookie-consent flow is entirely independent of the location/usage-tracking 
 #### App usage events sent to GA
 Besides automatic pageviews, `js/tracker.js` fires two custom GA events via `gtag('event', ...)`, gated by the same cookie-consent state as everything else GA does — never by the location/usage-tracking consent:
 - `screen_view` with `screen_name` when **Filters**, **Settings**, **Report**, or **Search** is opened (`js/app.js` `openFiltersScreen`/`openSettings`/`openReportModal`/`openSearchScreen`).
-- `select_map_item` with `item_type`, `item_id`, `item_name` and `source` when a map item is selected (`js/inspector.js` `trackSelectionClick`, the same chokepoint the first-party `trackClick` uses).
+- `select_map_item` with `item_type`, `item_category`, `item_id`, `item_name` and `source` when a map item is selected (`js/inspector.js` `trackSelectionClick`, the same chokepoint the first-party `trackClick` uses). `item_type` is the broad kind (`tree`/`landmark`/`path`/`water`/`cow`/`road`/`railway`); for a `landmark` that's too coarse to tell a cafe from a viewpoint apart, so `item_category` carries the specific filter chip kind instead (`resolvePlaceKind`, `js/app.js`) — for every other type it just repeats `item_type`. This is the dimension that shows which kind of venue, and which named one, gets the most traffic.
 
 Neither event ever includes the user's coordinates (their own position or the selected item's) — only which kind of place or screen was involved. GPS data stays entirely inside the first-party pipeline below, which never leaves this origin.
 

@@ -287,8 +287,15 @@ function trackGaScreenView(screenName) {
 }
 
 function trackGaItemSelected(itemType, item, source) {
+  // item_type is the broad kind (tree/landmark/path/...); for a landmark that's too coarse to
+  // tell a cafe from a viewpoint, so item_category carries the specific filter chip kind
+  // (resolvePlaceKind, js/app.js) -- the dimension that actually shows which venues get traffic.
+  const category = itemType === "landmark" && typeof resolvePlaceKind === "function"
+    ? resolvePlaceKind(item)
+    : itemType;
   trackGaEvent("select_map_item", {
     item_type: itemType,
+    item_category: category,
     item_id: trackerItemId(item),
     item_name: trackerItemName(item),
     source,
