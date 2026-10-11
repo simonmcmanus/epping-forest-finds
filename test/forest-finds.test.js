@@ -1688,6 +1688,37 @@ test("without location, the Nearby list shows the category's full list when exac
   assert.ok(!html.includes("Use your location to list the nearest"), "the generic prompt is not shown");
 });
 
+test("without location, the map also draws pins for every match of the one active filter, not just the list", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  const pubA = { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) };
+  const cafeA = { id: "cafe-a", name: "Cafe A", category: "cafe", ...makePoint(app, 0.01, 0) };
+  app.state.landmarks.push(pubA, cafeA);
+  app.setOverviewFilters(["pubs"]);
+
+  const lookup = app.buildNearbyIconLookup();
+  assert.equal(lookup.landmark.has(pubA), true, "the matching pub is in the drawable set");
+  assert.equal(lookup.landmark.has(cafeA), false, "a place the active filter doesn't match stays out");
+});
+
+test("the no-location icon-lookup cache tells two different single filters apart instead of colliding", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  const pubA = { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) };
+  const cafeA = { id: "cafe-a", name: "Cafe A", category: "cafe", ...makePoint(app, 0.01, 0) };
+  app.state.landmarks.push(pubA, cafeA);
+
+  app.setOverviewFilters(["pubs"]);
+  const pubsLookup = app.buildNearbyIconLookup();
+  assert.equal(pubsLookup.landmark.has(pubA), true);
+
+  app.setOverviewFilters(["cafes"]);
+  const cafesLookup = app.buildNearbyIconLookup();
+  assert.equal(cafesLookup.landmark.has(cafeA), true, "switching filters with no location still shows the new filter's own matches");
+  assert.equal(cafesLookup.landmark.has(pubA), false, "not a stale copy of the previous filter's lookup");
+  app.setOverviewFilters([]);
+});
+
 test("without location, the generic prompt still shows when no filter, or more than one, is active", () => {
   resetData(app);
   app.state.userLocation = null;

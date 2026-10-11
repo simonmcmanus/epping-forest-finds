@@ -2127,7 +2127,13 @@ let _nearbyIconLookupCache = null;
 
 function nearbyIconLookupCacheKey(reachesPastRing) {
   const origin = typeof nearbyOrigin === "function" ? nearbyOrigin() : state.userLocation;
-  if (!origin) return "none";
+  if (!origin) {
+    // No origin to scan from -- but with exactly one filter active (a /find/<slug> arrival, or
+    // any single filter chosen before location is granted) buildFullNearbyIconLookup's fallback
+    // below still shows every match for it, so the key must still tell two different filters
+    // apart rather than every no-location state colliding on one constant "none".
+    return `none|${state.overviewFilters.join(",")}`;
+  }
   // The radius is part of the key on every screen now, Filters/Settings/Report included: their
   // highlighted set is the in-radius one, so a ring resized from any of them has to invalidate
   // this. The old filter-screen key named neither the radius nor the active filters, which is
@@ -2280,7 +2286,14 @@ function buildFullNearbyIconLookup() {
   // the lookup's record of the distinction, which the specs assert against.
   const outOfRadius = new Set();
   const treeCandidates = [];
-  for (const entry of overviewItemsForActiveFilter()) {
+  // Mirrors overviewNearestHtml's own no-location fallback (js/app.js): without an origin,
+  // overviewItemsForActiveFilter() always returns nothing to scan from, which used to mean the
+  // map drew no pins at all for a /find/<slug> page -- the list showed every match, the map
+  // showed none of them. With exactly one filter active, show every match here too.
+  const sourceEntries = (!state.userLocation && state.overviewFilters.length === 1)
+    ? allEntriesForFilterKey(state.overviewFilters[0])
+    : overviewItemsForActiveFilter();
+  for (const entry of sourceEntries) {
     if (!entry || !entry.item) continue;
     if (entry.outOfRadius) {
       outOfRadius.add(entry.item);

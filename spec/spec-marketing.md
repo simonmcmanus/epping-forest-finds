@@ -469,6 +469,20 @@ and camera behaviour as everywhere else in the app — and the fallback never
 fires with zero or more than one active filter, or over a deep-linked
 selection's own framing.
 
+**The map pins themselves need the same fallback as the list, separately.**
+`buildFullNearbyIconLookup()` (`js/renderer.js`) is the one source every pin
+draw and hit-test reads from, and on its own it only ever scans
+`overviewItemsForActiveFilter()` — origin-only, same as the list — so the
+list could show every restaurant while the map, reading a lookup built from
+nothing, drew none of them. It takes the same `allEntriesForFilterKey`
+fallback under the same no-location-and-one-filter condition. Its cache key
+(`nearbyIconLookupCacheKey`) needed the matching fix: without an origin it
+used to collide on one constant key regardless of which filter was active,
+harmless while that case was always empty, but a real bug once it was not —
+switching from one category page to another with no location would have kept
+showing the first one's pins. The key now stays `state.overviewFilters`-aware
+in both branches.
+
 - **Slugs**: a subfilter key with underscores turned to hyphens
   (`national_rail` → `/find/national-rail`). The canonical URL carries a
   trailing slash (`/find/pubs/`), matching `/reports/`: Netlify's static
