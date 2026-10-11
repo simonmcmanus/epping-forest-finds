@@ -29,7 +29,9 @@ def classify_feature(tags):
         return "hydrology_area"
     if tags.get("leisure") == "nature_reserve" or tags.get("boundary") == "protected_area" or "sssi" in designation or "nature reserve" in designation or "ancient woodland" in designation:
         return "nature_designation"
-    if tags.get("leisure") in {"garden", "park"}:
+    if tags.get("leisure") in {"park", "common"} or tags.get("natural") in {"grassland", "heath", "scrub"} or tags.get("landuse") in {"meadow", "recreation_ground"}:
+        return "open_land"
+    if tags.get("leisure") == "garden":
         return "garden"
     if tags.get("railway") in {"rail", "light_rail", "subway", "tram"}:
         return "railway"
@@ -78,6 +80,30 @@ parsed = json.loads(raw)
 features = []
 seen = set()
 for element in parsed.get("elements", []):
+    if element.get("type") == "node":
+        tags = element.get("tags") or {}
+        name = tags.get("name")
+        lon, lat = element.get("lon"), element.get("lat")
+        if tags.get("place") != "locality" or not name or not isinstance(lon, (int, float)) or not isinstance(lat, (int, float)):
+            continue
+        key = f"node/{element.get('id')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        features.append({
+            "type": "Feature",
+            "id": key,
+            "geometry": {"type": "Point", "coordinates": [lon, lat]},
+            "properties": {
+                "id": key,
+                "osmType": "node",
+                "osmId": element.get("id"),
+                "name": name,
+                "featureType": "named_locality",
+            },
+        })
+        continue
+
     if element.get("type") != "way":
         continue
 

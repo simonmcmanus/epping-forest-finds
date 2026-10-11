@@ -619,6 +619,7 @@ function drawEnvironment(ctx) {
   const zoomLevel = Math.max(0, Math.log2(state.viewport.scale / state.fitScale));
   const view = environmentViewWorldBounds();
   const greenSpaceLabels = [];
+  const namedLocalityLabels = [];
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -645,6 +646,23 @@ function drawEnvironment(ctx) {
       });
       const name = feature.properties && feature.properties.name;
       if (name && name.trim()) greenSpaceLabels.push({ geometry, name });
+      continue;
+    }
+
+    if (type === "open_land") {
+      drawEnvironmentPolygon(ctx, geometry, {
+        fill: "rgba(142, 178, 98, 0.16)",
+        stroke: "rgba(104, 138, 62, 0.4)",
+        width: 1 * dpr,
+      });
+      const name = feature.properties && feature.properties.name;
+      if (name && name.trim()) greenSpaceLabels.push({ geometry, name });
+      continue;
+    }
+
+    if (type === "named_locality") {
+      const name = feature.properties && feature.properties.name;
+      if (name && name.trim()) namedLocalityLabels.push({ geometry, name });
       continue;
     }
 
@@ -682,6 +700,7 @@ function drawEnvironment(ctx) {
   }
 
   if (greenSpaceLabels.length) drawGreenSpaceLabels(ctx, greenSpaceLabels, dpr);
+  if (namedLocalityLabels.length) drawNamedLocalityLabels(ctx, namedLocalityLabels, dpr, zoomLevel);
 
   loadBuildingsIfNeeded();
   if (state.buildingFeatures.length) {
@@ -726,6 +745,13 @@ function projectedEnvironmentGeometry(geometry) {
   let cached = _projectedEnvironmentGeometry.get(geometry);
   if (cached) return cached;
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  if (geometry && geometry.type === "Point") {
+    const coordinates = geometry.coordinates || [0, 0];
+    const point = projectLonLat(Number(coordinates[0]), Number(coordinates[1]));
+    cached = { polygons: [], segments: [], point, minX: point.x, maxX: point.x, minY: point.y, maxY: point.y };
+    _projectedEnvironmentGeometry.set(geometry, cached);
+    return cached;
+  }
   // Flat [x0, y0, x1, y1, ...] typed arrays rather than {x, y} objects: a quarter of a million
   // points is several megabytes less heap this way, which matters on the phones this is for.
   const projectLine = (line) => {
@@ -860,6 +886,33 @@ function drawGreenSpaceLabels(ctx, labels, dpr) {
     ctx.lineWidth = 3 * dpr;
     ctx.strokeText(name, point.x, point.y);
     ctx.fillStyle = "rgba(42, 74, 44, 0.95)";
+    ctx.fillText(name, point.x, point.y);
+  }
+  ctx.restore();
+}
+
+// Labels a named, boundary-less open-ground point (OSM place=locality -- e.g. a forest "plain"
+// like Deershelter Plain that was never mapped as a polygon). There is no footprint to measure
+// a "does it fit" check against the way drawGreenSpaceLabels has for a polygon, so this instead
+// mirrors drawPaths' named-label gate: wait until zoomed in enough that a scattering of these
+// points would not overwhelm the whole-forest view, same font/halo treatment as path names.
+function drawNamedLocalityLabels(ctx, labels, dpr, zoomLevel) {
+  const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  if (zoomLevel < (isCoarsePointer ? 1.45 : 1.15)) return;
+
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${Math.max(isCoarsePointer ? 9 : 10, Math.round((isCoarsePointer ? 9 : 10) * dpr))}px system-ui`;
+  for (const { geometry, name } of labels) {
+    const worldPoint = projectedEnvironmentGeometry(geometry).point;
+    if (!worldPoint || isBehindTiltHeading(worldPoint)) continue;
+    const point = worldToScreen(worldPoint);
+    if (!isNearCanvas(point, 28 * dpr)) continue;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+    ctx.lineWidth = 3 * dpr;
+    ctx.strokeText(name, point.x, point.y);
+    ctx.fillStyle = "rgba(45, 59, 52, 0.95)";
     ctx.fillText(name, point.x, point.y);
   }
   ctx.restore();
