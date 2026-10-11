@@ -9,6 +9,7 @@
 (function () {
   "use strict";
 
+  var motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
   document.querySelectorAll("[data-inventory-key]").forEach(function (row) {
     var key = row.dataset.inventoryKey;
     var term = row.querySelector("dt");
@@ -40,6 +41,23 @@
     panel.appendChild(retry);
     var loaded = false;
     var loading = false;
+    var icon = button.querySelector("img");
+    var stillIcon = icon.getAttribute("src");
+    var animatedIcon = stillIcon.replace("map-icons/", "map-icons/animated/");
+    var animationFailed = false;
+
+    function updateIcon() {
+      var animate = !panel.hidden && !motionPreference.matches && document.visibilityState !== "hidden" && !animationFailed;
+      var source = animate ? animatedIcon : stillIcon;
+      if (icon.getAttribute("src") !== source) icon.setAttribute("src", source);
+    }
+    icon.addEventListener("error", function () {
+      if (icon.getAttribute("src") !== animatedIcon) return;
+      animationFailed = true;
+      updateIcon();
+    });
+    motionPreference.addEventListener("change", updateIcon);
+    document.addEventListener("visibilitychange", updateIcon);
 
     function showItems(items) {
       var search = document.createElement("input");
@@ -107,6 +125,7 @@
     button.addEventListener("click", function () {
       panel.hidden = !panel.hidden;
       button.setAttribute("aria-expanded", String(!panel.hidden));
+      updateIcon();
       if (!panel.hidden) load();
     });
   });

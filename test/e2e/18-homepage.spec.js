@@ -11,6 +11,26 @@ const { buildInventory } = require("../../scripts/report/map-inventory.js");
 const { formatCount } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
+  test("animates an expanded category icon and restores its still artwork on close or reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/");
+    const row = page.locator('[data-inventory-key="churches"]');
+    const button = row.getByRole("button", { name: "Churches", exact: true });
+    const icon = button.locator("img");
+    const original = "assets/home/map-icons/church.png";
+    const animated = "assets/home/map-icons/animated/church.png";
+    await expect(icon).toHaveAttribute("src", original);
+    await button.click();
+    await expect(icon).toHaveAttribute("src", animated);
+    await expect.poll(() => icon.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(icon).toHaveAttribute("src", original);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expect(icon).toHaveAttribute("src", animated);
+    await button.click();
+    await expect(icon).toHaveAttribute("src", original);
+  });
+
   test("keeps category rows compact and marks the open list with a chevron and background", async ({ page }) => {
     await page.goto("/");
     const row = page.locator('[data-inventory-key="churches"]');
@@ -30,6 +50,24 @@ test.describe("the marketing homepage", () => {
     const opened = await appearance();
     expect(opened.background).not.toBe(closed.background);
     expect(opened.background).not.toBe("rgba(0, 0, 0, 0)");
+    const card = await row.evaluate(el => {
+      const style = getComputedStyle(el);
+      const list = el.querySelector("ul");
+      const search = el.querySelector("input");
+      return {
+        border: style.borderTopWidth,
+        radius: parseFloat(style.borderRadius),
+        padding: parseFloat(style.paddingLeft),
+        shadow: style.boxShadow,
+        listBackground: list && getComputedStyle(list).backgroundColor,
+        searchBackground: search && getComputedStyle(search).backgroundColor,
+      };
+    });
+    expect(card.border).toBe("1px");
+    expect(card.radius).toBeGreaterThanOrEqual(10);
+    expect(card.padding).toBe(12);
+    expect(card.shadow).not.toBe("none");
+    expect(card.listBackground).toBe(card.searchBackground);
     await button.press("Enter");
     await expect(row.locator(".inventory-items")).toBeHidden();
     await expect.poll(appearance).toEqual(closed);

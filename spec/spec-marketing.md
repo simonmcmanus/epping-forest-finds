@@ -222,12 +222,20 @@ Sections, in order:
    subcategory labels become keyboard-accessible expand/collapse buttons when
    JavaScript is available. Collapsed rows retain the original compact spacing;
    a small downward chevron indicates each button and points upward when open.
-   The open row and its list share a pale green background without shifting the
-   label or count alignment. Opening one loads its own homepage JSON list and
+   The expanded category is a pale green card with a thin border, 10px corners,
+   the shared soft shadow and 12px inset padding, preserving the label/count
+   alignment. Its results form a white, bordered, rounded list with 12px row
+   padding and separators. Opening one loads its own homepage JSON list and
    shows names with available addresses/areas (or tree tags), a search field,
    and up to 50 results initially; “Show more” reveals another 50. Lists scroll
    within a bounded panel. Loading, empty, no-match and retry states are explicit.
    Lists are retained when collapsed; no category data is fetched before opening.
+   Only expanded category icons animate, using independent animated PNGs in
+   `assets/home/map-icons/animated/`. `scripts/generate-home-icon-motion.js`
+   renders these from the existing icon motion at generation time; no app code
+   loads on the homepage. Closing the category, hiding the page or requesting
+   reduced motion restores the original still icon. A failed animation load
+   also falls back to the still image.
    Without JavaScript, the existing labels and counts remain readable. The
    header brand mark is the transparent oak leaf from the app icon, without
    the app icon's yellow background, shown at 44px (36px on phones), with the
