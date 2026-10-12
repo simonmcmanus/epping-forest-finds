@@ -2518,7 +2518,10 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
 // facing (forward in heading-up mode, or the compass heading in flat mode) — the dotted
 // route line, not the radar cone, is what shows the bearing to a selected target.
 function drawUserRadarMainCanvas(ctx) {
-  if (!state.userLocation || !state.userInMapArea) return;
+  // isDefault: see drawUser's own comment -- the device's real heading pointing out of a
+  // High Beach stand-in the reader isn't actually standing at would be its own false signal,
+  // not just a mislabelled dot.
+  if (!state.userLocation || state.userLocation.isDefault || !state.userInMapArea) return;
   if (!Number.isFinite(state.compassHeading)) return;
   if (typeof tiltActive === "function" && tiltActive()) return;
   const dpr = pixelRatio();
@@ -2565,7 +2568,7 @@ function drawUserRadarMainCanvas(ctx) {
 // projectCanvasPoint (same math the pins use) rather than relying on CSS rotateX, which
 // produces a visually ambiguous fin shape for simple geometric arcs.
 function drawUserRadarOverlayTilted(ctx) {
-  if (!state.userLocation || !state.userInMapArea) return;
+  if (!state.userLocation || state.userLocation.isDefault || !state.userInMapArea) return;
   if (typeof tiltActive !== "function" || !tiltActive()) return;
   if (typeof projectCanvasPoint !== "function") return;
 
@@ -2859,7 +2862,10 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 }
 
 function drawUser(ctx, toScreen, isTilted) {
-  if (!state.userLocation || !state.userInMapArea) return;
+  // isDefault (applyDefaultLocation, js/app.js): DEFAULT_LOCATION's High Beach stand-in, not a
+  // real fix -- drawing "You" there would tell the reader they've been located somewhere they
+  // are not actually standing.
+  if (!state.userLocation || state.userLocation.isDefault || !state.userInMapArea) return;
   const dpr = pixelRatio();
   // Use provided toScreen function (handles tilt projection), fallback to worldToScreen
   if (!toScreen) toScreen = worldToScreen;

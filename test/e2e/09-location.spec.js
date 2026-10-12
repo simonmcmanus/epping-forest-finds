@@ -80,13 +80,79 @@ test.describe("Location and GPS — happy path", () => {
       // Opening the gate should have moved focus into it, onto its first control.
       await expect(page.locator("#locationGateButton")).toBeFocused();
 
-      // Tab moves to the privacy note's policy link, the dialog's only other control...
+      // A returning visit with no real fix now falls back to DEFAULT_LOCATION, so this gate
+      // is the dismissible invite (see "No real location fix" in spec.md) — Tab visits its
+      // "Maybe later" button next, then the privacy note's policy link...
+      await page.keyboard.press("Tab");
+      await expect(page.locator("#locationGateDismiss")).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(gate.locator(".privacy-note a")).toBeFocused();
 
-      // ...and a further Tab cycles back to the button rather than escaping to the map behind it.
+      // ...and a further Tab cycles back to the first button rather than escaping to the map
+      // behind it.
       await page.keyboard.press("Tab");
       await expect(page.locator("#locationGateButton")).toBeFocused();
+    });
+
+    test("the gate is dismissible, and the map behind it is already usable centred on High Beach", async ({ page }) => {
+      await gotoAndWaitForMap(page);
+      const gate = page.locator("#locationGate");
+      const dismiss = page.locator("#locationGateDismiss");
+      await expect(dismiss).toBeVisible();
+
+      await dismiss.click();
+      await expect(gate).toBeHidden();
+
+      // Dismissing the invite never granted location — DEFAULT_LOCATION's stand-in is still
+      // what the map and Nearby list are centred on, not a real fix.
+      const isDefault = await page.evaluate(() => Boolean(state.userLocation && state.userLocation.isDefault));
+      expect(isDefault).toBe(true);
+      await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
+    });
+  });
+
+  test.describe("no real fix falls back to DEFAULT_LOCATION (High Beach)", () => {
+    // Same denied-geolocation setup as "geolocation denied" above, but these tests are about
+    // what the fallback itself looks like rather than the gate's own dialog mechanics.
+    test.beforeEach(async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await gotoAndWaitForMap(page);
+    });
+
+    test("the map opens on DEFAULT_LOCATION with the Nearby list already populated, not the bare whole-forest outline", async ({ page }) => {
+      const result = await page.evaluate(() => ({
+        latitude: state.userLocation?.latitude,
+        longitude: state.userLocation?.longitude,
+        isDefault: state.userLocation?.isDefault,
+        defaultLatitude: DEFAULT_LOCATION.latitude,
+        defaultLongitude: DEFAULT_LOCATION.longitude,
+      }));
+      expect(result.isDefault).toBe(true);
+      expect(result.latitude).toBeCloseTo(result.defaultLatitude, 5);
+      expect(result.longitude).toBeCloseTo(result.defaultLongitude, 5);
+      await expect(page.locator("#inspectorBody .empty")).not.toBeVisible();
+      await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
+    });
+
+    test("the walking radius defaults to 30 minutes, not the ordinary 5, since the anchor isn't tied to anywhere real", async ({ page }) => {
+      const minutes = await page.evaluate(() => state.walkingDistanceMinutes);
+      expect(minutes).toBe(30);
+    });
+
+    test("the locate button stays visible, and the \"You\" dot is never drawn for the stand-in", async ({ page }) => {
+      await expect(page.locator("#locateButton")).toBeVisible();
+      const drewYouDot = await page.evaluate(() => {
+        let arcCount = 0;
+        const ctx = {
+          save() {}, restore() {}, beginPath() {}, closePath() {}, moveTo() {}, lineTo() {},
+          arc() { arcCount += 1; }, fill() {}, stroke() {}, fillText() {},
+          createRadialGradient() { return { addColorStop() {} }; },
+        };
+        drawUser(ctx, (p) => p, false);
+        return arcCount > 0;
+      });
+      expect(drewYouDot).toBe(false);
     });
   });
 

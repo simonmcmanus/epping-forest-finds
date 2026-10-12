@@ -528,7 +528,7 @@ function setupInspectorHandlers() {
   if (els.locationGateButton) {
     els.locationGateButton.addEventListener("click", async () => {
       els.locationGateButton.disabled = true;
-      if (!state.userLocation) {
+      if (!hasRealLocation()) {
         ensureTrackingConsent();
         locateUser({ initial: false });
         // Button re-enabled by setLocationGateVisible(true) when locateUser's callbacks
@@ -545,6 +545,12 @@ function setupInspectorHandlers() {
           if (els.locationGateButton.disabled) els.locationGateButton.disabled = false;
         }
       }
+    });
+  }
+
+  if (els.locationGateDismiss) {
+    els.locationGateDismiss.addEventListener("click", () => {
+      setLocationGateVisible(false);
     });
   }
 
@@ -1891,9 +1897,19 @@ function goToInitialView(updateHash = true) {
   requestDraw();
 }
 
+// True once a real GPS fix exists -- false while state.userLocation is unset, or is only
+// applyDefaultLocation()'s High Beach stand-in (js/app.js). Everything that means "do we
+// already know where the user actually is" (the locate button, the location gate's own retry
+// button) reads this instead of state.userLocation's bare truthiness; everything that just
+// wants coordinates to measure or draw from (distances, the Nearby list, the walking-radius
+// ring) keeps reading state.userLocation directly, stand-in included -- that's the point of it.
+function hasRealLocation() {
+  return Boolean(state.userLocation) && !state.userLocation.isDefault;
+}
+
 function updateLocateButtonVisibility() {
   const geolocationAvailable = typeof navigator !== "undefined" && Boolean(navigator.geolocation);
-  els.locateButton.hidden = !geolocationAvailable || Boolean(state.userLocation);
+  els.locateButton.hidden = !geolocationAvailable || hasRealLocation();
   syncInspectorToolsVisibility();
 }
 
@@ -1964,14 +1980,23 @@ function activateModalFocus(container, { onEscape } = {}) {
 }
 if (typeof globalThis !== "undefined") globalThis.activateModalFocus = activateModalFocus;
 
-function setLocationGateVisible(visible, message, buttonLabel, title) {
+// dismissible (js/app.js's revealNoRealLocation) shows the "Maybe later" button and answers
+// Escape the same way, for the invite-only prompts shown once DEFAULT_LOCATION's High Beach
+// stand-in has already made the map usable. Every hard-stop case (blocked permission, no
+// geolocation support at all, the compass-only prompt) still omits it, since there the map
+// has nothing of its own to fall back on and the button is the only way forward.
+function setLocationGateVisible(visible, message, buttonLabel, title, { dismissible = false } = {}) {
   if (!els.locationGate) return;
   if (visible) {
     els.locationGate.classList.remove("fading-out");
     els.locationGate.hidden = false;
     if (els.locationGateButton) els.locationGateButton.disabled = false;
+    if (els.locationGateDismiss) els.locationGateDismiss.hidden = !dismissible;
     if (!els.locationGate._deactivateFocus) {
-      els.locationGate._deactivateFocus = activateModalFocus(els.locationGate);
+      els.locationGate._deactivateFocus = activateModalFocus(
+        els.locationGate,
+        dismissible ? { onEscape: () => setLocationGateVisible(false) } : undefined
+      );
     }
   } else {
     if (els.locationGate._deactivateFocus) {

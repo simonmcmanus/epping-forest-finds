@@ -213,6 +213,7 @@ globalThis.__forestFindsTest = {
   state,
   els,
   localStorage,
+  navigator,
   // Replaces a top-level app function (a global in this sandbox) and returns the original, so a
   // test can count how often a hot path reaches an expensive helper. Restore it with the return.
   swapGlobalFunction(name, fn) { const previous = globalThis[name]; globalThis[name] = fn; return previous; },
@@ -297,6 +298,13 @@ globalThis.__forestFindsTest = {
   applySearchQueryFromQuery,
   applyRadiusFromQuery,
   DEFAULT_WALKING_DISTANCE_MINUTES,
+  LANDING_PAGE_WALKING_DISTANCE_MINUTES,
+  DEFAULT_LOCATION,
+  DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
+  applyDefaultLocation,
+  hasRealLocation,
+  updateLocateButtonVisibility,
+  setLocationGateVisible,
   ROUTE_PATHS,
   NEARBY_PATH,
   applyWalkingRadiusChange,
@@ -416,6 +424,7 @@ globalThis.__forestFindsTest = {
   tiltHidesWhatIsBehind,
   tiltProjection,
   drawUserRadarOverlayTilted,
+  drawUser,
   worldToScreenForOverlayTilted,
   worldToScreenFlat,
   projectCanvasPoint,
@@ -2014,6 +2023,125 @@ test("the 1-3 filter default state nobody chose never gets the full-list/fit tre
   );
   assert.equal(app.fitMapToSingleFilterIfNoLocation(), false);
   app.state.overviewFilters = [];
+});
+
+test("applyDefaultLocation stands in for a real fix at DEFAULT_LOCATION, flagged so hasRealLocation can tell it apart", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  assert.equal(app.hasRealLocation(), false, "no fix at all is not a real one");
+
+  app.applyDefaultLocation();
+  assert.ok(app.state.userLocation, "a stand-in location is set");
+  assert.equal(app.state.userLocation.latitude, app.DEFAULT_LOCATION.latitude);
+  assert.equal(app.state.userLocation.longitude, app.DEFAULT_LOCATION.longitude);
+  assert.equal(app.state.userLocation.isDefault, true, "flagged as the stand-in, not a real fix");
+  assert.equal(app.hasRealLocation(), false, "the stand-in is still not a real fix");
+
+  // Runs through the same pipeline as a real fix (applyLocationFix), so distance-based state
+  // used elsewhere (Nearby list, nearest-tree/cow/pub text) is already populated from it.
+  assert.equal(app.state.userInMapArea, false, "no forest bounds loaded in this test, same as a real fix would see");
+
+  app.state.userLocation = { ...makePoint(app, 51.6, 0.03), isDefault: false };
+  assert.equal(app.hasRealLocation(), true, "a real fix has no isDefault flag at all");
+});
+
+test("applyDefaultLocation widens the plain 5-minute default radius to 30 minutes, but never overrides a deliberate one", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.walkingDistanceMinutes = app.DEFAULT_WALKING_DISTANCE_MINUTES;
+  app.applyDefaultLocation();
+  assert.equal(
+    app.state.walkingDistanceMinutes,
+    app.DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
+    "a High Beach stand-in isn't tied to anywhere real, so it gets the wider net"
+  );
+
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.walkingDistanceMinutes = 8; // e.g. an explicit ?radius=8 already applied
+  app.applyDefaultLocation();
+  assert.equal(app.state.walkingDistanceMinutes, 8, "a radius already set by something else is left alone");
+
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.walkingDistanceMinutes = app.LANDING_PAGE_WALKING_DISTANCE_MINUTES;
+  app.applyDefaultLocation();
+  assert.equal(app.state.walkingDistanceMinutes, app.LANDING_PAGE_WALKING_DISTANCE_MINUTES, "already-30 from the landing-page default is left alone too");
+});
+
+test("updateLocateButtonVisibility keeps the locate button visible for the default location, hides it only once a real fix lands", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  // The sandbox's navigator stub has no geolocation by default (matching a real browser that
+  // lacks the API); give it one here so the button's visibility turns on hasRealLocation()
+  // rather than being hidden by that outer check regardless.
+  const previousGeolocation = app.navigator.geolocation;
+  app.navigator.geolocation = {};
+  // syncInspectorToolsVisibility's getComputedStyle call is a real-browser-only path this
+  // sandbox doesn't stub; hidden inspectorTools short-circuits it before that's reached, same
+  // as it does whenever the inspector itself is closed.
+  app.els.inspectorTools.hidden = true;
+
+  try {
+    app.updateLocateButtonVisibility();
+    assert.equal(app.els.locateButton.hidden, false, "no fix yet: offer the button");
+
+    app.applyDefaultLocation();
+    app.updateLocateButtonVisibility();
+    assert.equal(app.els.locateButton.hidden, false, "the High Beach stand-in is not a reason to hide the button -- a real fix is still worth asking for");
+
+    app.state.userLocation = makePoint(app, 51.6, 0.03);
+    app.updateLocateButtonVisibility();
+    assert.equal(app.els.locateButton.hidden, true, "a real fix hides it as before");
+  } finally {
+    app.navigator.geolocation = previousGeolocation;
+  }
+});
+
+test("setLocationGateVisible shows its dismiss button only when told the prompt is dismissible", () => {
+  const localApp = loadAppForTests();
+
+  localApp.setLocationGateVisible(true, "Permission was blocked.", "Enable location");
+  assert.equal(localApp.els.locationGateDismiss.hidden, true, "a hard-stop prompt offers no way to brush it off");
+
+  localApp.setLocationGateVisible(true, "Share your location for more.", "Enable location", "Get a more custom experience", { dismissible: true });
+  assert.equal(localApp.els.locationGateDismiss.hidden, false, "an invite-only prompt, shown once the map already has a usable default, can be dismissed");
+
+  localApp.setLocationGateVisible(true, "Permission was blocked again.", "Enable location");
+  assert.equal(localApp.els.locationGateDismiss.hidden, true, "a later hard-stop call hides it again rather than leaking the previous call's flag");
+});
+
+test("the location gate button asks for location whenever there is no real fix, default location included", () => {
+  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
+  const handlerMatch = /locationGateButton\.addEventListener\("click", async \(\) => \{[\s\S]{0,400}/.exec(nav);
+  assert.ok(handlerMatch, "locationGateButton's click handler must exist");
+  assert.match(
+    handlerMatch[0],
+    /hasRealLocation\(\)/,
+    "the handler must branch on hasRealLocation(), not state.userLocation's bare truthiness -- otherwise the default location's own stand-in would be mistaken for a real fix and the button would try to request compass permission instead of location"
+  );
+});
+
+test("drawUser never draws the \"You\" dot for the default location, only for a real fix", () => {
+  resetData(app);
+  let arcCalls = 0;
+  const ctx = {
+    save() {}, restore() {}, beginPath() {}, closePath() {}, moveTo() {}, lineTo() {},
+    arc() { arcCalls += 1; }, fill() {}, stroke() {}, fillText() {},
+    createRadialGradient() { return { addColorStop() {} }; },
+  };
+  const identityToScreen = (point) => point;
+
+  app.state.userLocation = makePoint(app, 51.6, 0.03);
+  app.state.userLocation.isDefault = true;
+  app.state.userInMapArea = true;
+  app.drawUser(ctx, identityToScreen, false);
+  assert.equal(arcCalls, 0, "the High Beach stand-in must never be drawn as \"You\"");
+
+  app.state.userLocation = makePoint(app, 51.6, 0.03);
+  app.state.userInMapArea = true;
+  app.drawUser(ctx, identityToScreen, false);
+  assert.equal(arcCalls, 1, "a real fix is drawn as before");
 });
 
 test("nearby heading-up viewport shows the whole walking-radius circle, leaving the corners outside it", () => {
