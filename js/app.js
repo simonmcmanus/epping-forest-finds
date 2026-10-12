@@ -107,7 +107,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v99"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v100"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -904,6 +904,18 @@ function filterKeysFromQuery(search) {
   return raw.split(",").map((key) => key.trim()).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key));
 }
 
+// True when this load's own URL already names a landing-page pre-filter -- a /nearby/<slug>
+// page's own path, or a first-touch ?show= link -- read straight off the URL rather than off
+// state.overviewFilters/overviewFiltersEphemeral (what activeFiltersShowFullListWithoutLocation()
+// checks): boot() needs this answer before applyShowFilterFromQuery() has run, at the point
+// where it decides whether to show onboarding at all. A reader arriving this way already has
+// their own category pre-selected for them; the first-run setup wizard (pick what to see, enable
+// location) doesn't fit that arrival and is saved for a first visit to the plain Nearby screen.
+function isLandingPageArrival() {
+  return filterKeysFromFindPath(window.location.pathname).length > 0
+    || filterKeysFromQuery(window.location.search).length > 0;
+}
+
 function applyShowFilterFromQuery() {
   const fromPath = filterKeysFromFindPath(window.location.pathname);
   if (fromPath.length) {
@@ -983,8 +995,11 @@ async function boot() {
   let locationPromise = null;
   let locationAskedInOnboarding = false;
 
-  if (!hasCompletedOnboarding()) {
-    // First visit: show onboarding while data loads behind it.
+  if (!hasCompletedOnboarding() && !isLandingPageArrival()) {
+    // First visit to the plain Nearby screen: show onboarding while data loads behind it.
+    // A landing-page arrival (/nearby/<slug>, or a first-touch ?show= link) skips this --
+    // see isLandingPageArrival() -- and is treated like a returning visit below instead, so
+    // the setup wizard is saved for whenever this reader first reaches plain Nearby itself.
     // The location request is fired from within the onboarding tap handler so the
     // browser dialog appears at the natural moment; we just pick up the live promise.
     if (els.loadingOverlay) els.loadingOverlay.hidden = true;
@@ -998,8 +1013,8 @@ async function boot() {
       locationAskedInOnboarding = true;
     }
   } else if (navigator.geolocation) {
-    // Returning user: start location request immediately so the browser dialog
-    // appears while data loads — no tap needed to trigger it.
+    // Returning user, or a first-visit landing-page arrival: start location request
+    // immediately so the browser dialog appears while data loads — no tap needed to trigger it.
     setLoadStep("location", "loading");
     locationPromise = new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(

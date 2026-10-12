@@ -284,6 +284,7 @@ globalThis.__forestFindsTest = {
   applyShowFilterFromQuery,
   filterKeysFromFindPath,
   filterKeysFromQuery,
+  isLandingPageArrival,
   allEntriesForFilterKey,
   allEntriesForActiveFilters,
   activeFiltersShowFullListWithoutLocation,
@@ -1837,6 +1838,31 @@ test("filterKeysFromFindPath reads a top-level group's page as every one of its 
 test("filterKeysFromFindPath never mistakes the /nearby/filter or /nearby/search screens for a category", () => {
   assert.deepEqual(Array.from(app.filterKeysFromFindPath("/nearby/filter")), [], "/nearby/filter is a screen, not a category");
   assert.deepEqual(Array.from(app.filterKeysFromFindPath("/nearby/search")), [], "/nearby/search is a screen, not a category");
+});
+
+test("isLandingPageArrival recognises a /nearby/<slug> path or a first-touch ?show= link, but not the plain Nearby screen", () => {
+  app.location.pathname = "/nearby/pubs";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), true, "a subfilter's own page is a landing page");
+
+  app.location.pathname = "/nearby/food";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), true, "a group's own page is a landing page too");
+
+  app.location.pathname = "/nearby/filter";
+  app.location.search = "?show=pubs";
+  assert.equal(app.isLandingPageArrival(), true, "a shared ?show= link is a landing-page arrival even on /nearby/filter");
+
+  app.location.pathname = "/nearby";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), false, "the plain Nearby screen with nothing pre-filtered is not a landing page");
+
+  app.location.pathname = "/nearby/filter";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), false, "/nearby/filter with no ?show= is just the Filter screen");
+
+  app.location.pathname = "/";
+  app.location.search = "";
 });
 
 test("arriving at a /nearby/<slug> page pre-filters Nearby to that category, taking priority over any ?show= param", () => {
