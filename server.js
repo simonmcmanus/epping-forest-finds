@@ -246,6 +246,15 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Mirrors the public /report -> /app#report redirect in netlify.toml. The
+  // destination is still gated in production because the redirect lands on
+  // /app, not on a separate feedback page.
+  if (url.pathname === "/report") {
+    res.writeHead(302, { Location: "/app#report", "Cache-Control": "no-store" });
+    res.end();
+    return;
+  }
+
   if (url.pathname === "/admin") {
     const adminFile = path.join(ROOT, "admin.html");
     if (!fs.existsSync(adminFile)) { send(res, 404, "Admin not found"); return; }

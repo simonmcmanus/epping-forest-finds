@@ -44,6 +44,7 @@ restriction has to be real even though the secret is shared.
 | `/` | Marketing homepage (`index.html`) | No |
 | `/app` | The map application (`app.html`) | Yes |
 | `/app.html` | Same, the underlying file | Yes |
+| `/report` | Redirect to `/app#report` | The redirected app page is gated |
 | `/reports/`, `/terms.html`, `/admin` | Unchanged | No |
 | `/js/*`, `/css/*`, `/data/*`, `/sw.js`, `/manifest.webmanifest` | Unchanged | No |
 

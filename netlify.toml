@@ -24,12 +24,19 @@
 # directory move would collapse its scope to /app/ and the app would stop
 # working offline entirely.
 [[redirects]]
-  from = "/app"
-  to = "/app.html"
-  status = 200
+from = "/app"
+to = "/app.html"
+status = 200
+
+# A short public feedback link. The redirected app entry remains protected by
+# the alpha gate configured above.
+[[redirects]]
+from = "/report"
+to = "/app#report"
+status = 302
 
 [[redirects]]
-  from = "/api/cows"
+from = "/api/cows"
   to = "/.netlify/functions/cows"
   status = 200
   force = true

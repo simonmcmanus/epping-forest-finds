@@ -258,6 +258,7 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 | `/app#filters` | Filters |
 | `/app#settings` | Settings |
 | `/app#report` | Feedback |
+| `/report` | Redirects to `/app#report` |
 | `/app#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway` |
 
 - **A screen change pushes a history entry** (`setHashFromSelection` → `history.pushState`), so
