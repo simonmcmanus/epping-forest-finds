@@ -51,7 +51,7 @@ const STATIC_PAGES = [
 // pages (scripts/generate-find-pages.js) live under that same /nearby/ prefix and must stay
 // crawlable, so "Disallow: /nearby" alone would silently swallow every one of them too.
 // /admin.html, /api/ and /.netlify/ have no such children to protect, so they stay bare.
-const DISALLOWED_PATHS = ["/admin.html", "/nearby$", "/nearby/search$", "/nearby/filter$", "/settings$", "/report$", "/api/", "/.netlify/"];
+const DISALLOWED_PATHS = ["/admin.html", "/nearby$", "/nearby/search$", "/nearby/filter$", "/settings$", "/feedback$", "/api/", "/.netlify/"];
 
 function isoDate(ms) {
   return new Date(ms).toISOString().slice(0, 10);
