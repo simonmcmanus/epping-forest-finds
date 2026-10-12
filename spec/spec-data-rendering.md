@@ -117,16 +117,12 @@ Draw order (back to front):
    ("clear"); everything *outside* it gets a darker, translucent wash (`rgba(18, 28, 23,
    0.4)`) so the walkable circle reads as the highlighted area, not the reverse. Flat and
    tilted maps share one implementation (`drawWalkingRadiusDimming`): fill the whole canvas
-   rect minus the walking-radius shape (`evenodd` fill rule) with the dark wash, then apply a
-   canvas `filter: blur()` to the whole fill so the cutout's edge is the only soft transition
-   — under tilt this uses the same ground-projected polygon path (`traceGroundCirclePath`)
+   rect minus the walking-radius shape (`evenodd` fill rule) with the dark wash. The cutout has
+   a crisp edge in every browser: canvas blur produces visibly different feather widths in
+   Chrome and Safari. Under tilt this uses the same ground-projected polygon path (`traceGroundCirclePath`)
    used elsewhere in this file, since a plain radial gradient can't represent that
-   foreshortened ellipse; on a flat map it's a plain `ctx.arc()`. The outer rect is drawn well
-   past the canvas edges so the blur only softens the radius cutout, not the screen edges. The
-   feather radius is `max(7px, radius * 0.06)`. There is no separate boundary line — an
-   earlier version drew a dashed ring on top, but it read as broken against the flat mode's
-   soft edge and didn't match the tilted mode's hard one; blurring one shared cutout in both
-   modes keeps the transition visually identical regardless of tilt. Centre and radius are
+   foreshortened ellipse; on a flat map it's a plain `ctx.arc()`. There is no separate boundary
+   line — an earlier version drew a dashed ring on top, but it read as broken. Centre and radius are
    measured with `worldToScreenFlat()` — measuring them after projection would apply the
    perspective twice. A thin top-left-lit rim highlight (`drawWalkingRadiusRimHighlight`) is
    stroked just inside the clear circle's edge — a linear gradient across the circle's bounding

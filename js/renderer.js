@@ -985,18 +985,14 @@ function traceGroundCirclePath(ctx, centerFlat, radiusFlatPx) {
 const WALKING_RADIUS_DIM = "rgba(18, 28, 23, 0.4)";
 const NEARBY_CONE_DIM = "rgba(18, 28, 23, 0.13)";
 
-// Inside the radius stays completely untouched ("clear"). No separate boundary line is drawn
-// (it read as broken against the soft flat-mode edge and didn't match the hard tilted-mode
-// edge) -- flat and tilted share one implementation: fill everywhere except the radius shape
-// and the cone (evenodd, using the same ground-projected polygon path under tilt that the rest
-// of this file uses for the same reason -- a plain radial gradient can't represent that
-// foreshortened ellipse), then blur the whole fill so the edge itself is the only soft
-// transition, in both modes alike. featherPx is deliberately half the original flat-only
-// gradient's feather size.
-function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, cone) {
-  const featherPx = Math.max(7 * dpr, radiusPx * 0.06);
+// Inside the radius stays completely untouched ("clear"). Flat and tilted maps share one
+// crisp implementation: fill everywhere except the radius shape and cone (evenodd, using the
+// same ground-projected polygon path under tilt that the rest of this file uses for the same
+// reason -- a plain radial gradient can't represent that foreshortened ellipse). Canvas blur
+// produces visibly different feather widths in Chrome and Safari, so the boundary is kept hard
+// in every browser.
+function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, cone) {
   ctx.save();
-  ctx.filter = `blur(${featherPx}px)`;
 
   // The cone first and on its own, so it carries its own lighter shade instead of the dim. It
   // never overlaps the circle (its far edge *is* the circle's near arc), so the two cutouts
@@ -1009,11 +1005,7 @@ function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, cone) {
   }
 
   ctx.beginPath();
-  // The outer rect extends well past the canvas edges so the blur softens only the cutouts --
-  // if it matched the canvas bounds exactly, the blur would also fade the wash out near the
-  // screen edges instead of staying solidly dark there.
-  const margin = featherPx * 3;
-  ctx.rect(-margin, -margin, els.canvas.width + margin * 2, els.canvas.height + margin * 2);
+  ctx.rect(0, 0, els.canvas.width, els.canvas.height);
   if (tilted) traceGroundCirclePath(ctx, center, radiusPx);
   else ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
   ctx.closePath();
@@ -1064,7 +1056,7 @@ function drawWalkingRadius(ctx) {
   const radiusPx = Math.max(8, Math.hypot(edge.x - center.x, edge.y - center.y));
   const tilted = typeof tiltActive === "function" && tiltActive();
 
-  drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, dpr, nearbyUserCone(center, radiusPx, tilted));
+  drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, nearbyUserCone(center, radiusPx, tilted));
   drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr);
 }
 
