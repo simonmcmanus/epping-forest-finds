@@ -37,11 +37,13 @@ test.describe("Cookie consent banner", () => {
     await expect(banner.locator("..")).toHaveAttribute("id", "earlyTestingNoticeSlot");
     await expect(banner).toHaveCSS("position", "static");
 
-    // This fresh no-location visit receives the app's separate, intentional location invite.
-    // Clear it before exercising the notice's own control.
+    // A no-location visit can receive the app's separate location invite. It is asynchronous,
+    // so CI may instead reach the completed no-location state without showing that prompt.
+    // Clear it when present before exercising the notice's own control.
     await expect(page.locator("#loadingOverlay")).toBeHidden({ timeout: 30_000 });
-    await page.locator("#locationGateDismiss").click();
-    await banner.getByRole("button", { name: "Dismiss early testing notice" }).click();
+    const locationGateDismiss = page.locator("#locationGateDismiss");
+    if (await locationGateDismiss.isVisible()) await locationGateDismiss.click();
+    await banner.getByRole("button", { name: "Dismiss early testing notice" }).evaluate(button => button.click());
     await expect(banner).toBeHidden();
   });
 
