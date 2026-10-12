@@ -459,7 +459,7 @@ const ROUTE_PATHS = {
   [ROUTE_FILTERS]: "/nearby/filter",
   [ROUTE_SEARCH]: "/nearby/search",
   [ROUTE_SETTINGS]: "/settings",
-  [ROUTE_REPORT]: "/report",
+  [ROUTE_REPORT]: "/feedback",
 };
 const NEARBY_PATH = "/nearby";
 

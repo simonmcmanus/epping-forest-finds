@@ -550,7 +550,7 @@ def render_ai_note(app_link, date_display):
     report_base = app_link.rstrip('/')
     if report_base.endswith('/app'):
         report_base = report_base[: -len('/app')]
-    deep_link = f"{report_base}/report#report={quote(subject, safe='')}"
+    deep_link = f"{report_base}/feedback#report={quote(subject, safe='')}"
     return (
         '<aside class="ai-note">'
         '<h4>Written by AI — please tell us if it is wrong</h4>'
