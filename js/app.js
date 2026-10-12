@@ -481,6 +481,33 @@ function nearbyAnchorSnapshot() {
   return anchor ? { latitude: anchor.latitude, longitude: anchor.longitude } : null;
 }
 
+// "near=<lat>,<lon>" -- state.nearbyAnchor's own hash route, so a tapped browse point
+// (focusNearbyOnMapPoint, js/nav.js) is shareable like any real selection instead of living only
+// in history.state (nearbyAnchorSnapshot above, which back/forward within one session already
+// covered on its own). Kept out of SELECTION_ROUTES below: every entry there resolves to a real
+// state.selected item, where this never does -- "browse around here", not "look at this one
+// thing" -- so it gets its own narrower value/parse pair rather than a find/show pair.
+const NEARBY_ANCHOR_PARAM = "near";
+
+// Same toFixed(6) precision placeHashKey's own "ll:" fallback already uses for a place with no
+// id -- plenty for this app's pin-level accuracy, and short enough not to make the address bar
+// unwieldy.
+function nearbyAnchorRouteValue(anchor) {
+  return routeParam(NEARBY_ANCHOR_PARAM, `${anchor.latitude.toFixed(6)},${anchor.longitude.toFixed(6)}`);
+}
+
+// nearbyAnchorRouteValue's reverse. Rejects anything that isn't exactly two finite numbers --
+// a shared link is as editable as any URL, and a malformed one should read as "no anchor named
+// here" rather than throw.
+function parseNearbyAnchorParam(raw) {
+  const parts = String(raw || "").split(",");
+  if (parts.length !== 2) return null;
+  const latitude = Number(parts[0]);
+  const longitude = Number(parts[1]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { latitude, longitude };
+}
+
 // Every selectable thing, with the URL parameter that names it, the key it is written as and
 // how it is resolved and shown again. Trees and places were the only two with a URL before
 // the router; the rest are here so that a screen change can never leave the URL describing a
@@ -598,15 +625,19 @@ function routeName(raw) {
 
 // The canonical route for whatever is on screen right now -- unchanged by the four screens
 // having real paths now (ROUTE_PATHS): this still speaks the same bare vocabulary
-// ("filters"/"search"/"settings"/"report"/"tree=<key>"/"") it always has. Serialising that
-// to the real URL, and reading it back, is urlPartsForRouteValue/routeValueFromLocation below
-// -- everything in between (this function, applyRouteToScreen, SELECTION_ROUTES) never needs
-// to know paths exist at all.
+// ("filters"/"search"/"settings"/"report"/"tree=<key>"/"near=<lat>,<lon>"/"") it always has.
+// Serialising that to the real URL, and reading it back, is
+// urlPartsForRouteValue/routeValueFromLocation below -- everything in between (this function,
+// applyRouteToScreen, SELECTION_ROUTES) never needs to know paths exist at all.
 function currentScreenRoute() {
   if (state.searchScreenOpen) return ROUTE_SEARCH;
   if (state.filterScreenOpen) return ROUTE_FILTERS;
   const selection = state.selected;
-  if (!selection || !selection.type) return "";
+  if (!selection || !selection.type) {
+    // A browse anchor is the plain Nearby screen's own lens, not a selection -- see
+    // NEARBY_ANCHOR_PARAM above.
+    return state.nearbyAnchor ? nearbyAnchorRouteValue(state.nearbyAnchor) : "";
+  }
   if (selection.type === "settings") return ROUTE_SETTINGS;
   if (selection.type === "report") return ROUTE_REPORT;
   if (!selection.item) return "";
@@ -707,18 +738,17 @@ function setHashFromSelection(value, { force = false } = {}) {
   );
 }
 
-// The anchor-only counterpart to setHashFromSelection, for a Nearby browse move (a cluster tap
-// or a tap on open ground moving state.nearbyAnchor): the hash never changes, so it always
-// pushes rather than relying on setHashFromSelection's "hash unchanged" short-circuit, which
-// would otherwise skip it entirely.
+// Called after every Nearby browse move (a cluster tap, a tap on open ground, or clearing the
+// anchor) to record it in history -- named for that purpose rather than left as a bare
+// syncHashFromSelection() call so each call site still reads as "record this anchor move".
+// Safe to call even when selectOverview()'s own trailing syncHashFromSelection() (via
+// refreshNearbyRadiusView) already pushed the very same URL moments earlier: now that
+// currentScreenRoute() carries state.nearbyAnchor itself (nearbyAnchorRouteValue), a second call
+// here is just setHashFromSelection's own "URL unchanged" no-op rather than a duplicate entry --
+// unlike before this existed, when the anchor had no hash of its own and every move needed a
+// forced push to get a back-button step at all.
 function pushNearbyAnchorHistory() {
-  if (routeApplyDepth > 0 || routerBooting) return;
-  const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  history.pushState(
-    { [NAV_DEPTH_KEY]: navDepth() + 1, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
-    "",
-    url
-  );
+  syncHashFromSelection();
 }
 
 // Corrects the current entry's URL without adding one, keeping the entry's depth.
@@ -841,6 +871,20 @@ function applyRouteToScreen(raw, announceMissing) {
       return true;
     }
     break;
+  }
+
+  // "near=<lat>,<lon>" -- a shared or hand-edited browse-anchor link, not a selection (see
+  // NEARBY_ANCHOR_PARAM). A popstate normally never reaches this: restoreNearbyAnchorFromHistory
+  // (js/nav.js) already applied the target entry's anchor before applyRouteFromUrl ran, so
+  // urlMatchesCurrentScreen short-circuits above. This is what actually resolves it for a fresh
+  // load and for a hashchange with no matching history traversal (a hand-edited fragment, or a
+  // future in-page link straight to a "near=" hash).
+  if (params.has(NEARBY_ANCHOR_PARAM)) {
+    const anchor = parseNearbyAnchorParam(params.get(NEARBY_ANCHOR_PARAM));
+    if (anchor) {
+      applyNearbyAnchorFromRoute(anchor);
+      return true;
+    }
   }
 
   if (announceMissing) setStatus("Linked location was not found in this dataset.");

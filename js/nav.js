@@ -947,6 +947,18 @@ function setNearbyAnchor(latitude, longitude, point) {
   pushNearbyAnchorHistory();
 }
 
+// "near=<lat>,<lon>" arriving fresh -- a shared link opened cold, or a hashchange with no
+// matching history traversal (applyRouteToScreen, js/app.js). The anchor counterpart to
+// showRoutedSelection there: moves the Nearby browse point via the very setNearbyAnchor a map
+// tap uses, so the link reproduces exactly the view tapping that spot gave whoever shared it.
+// Clears any real selection first, same as showRoutedSelection clears the anchor for the
+// reverse case.
+function applyNearbyAnchorFromRoute(anchor) {
+  state.selected = null;
+  setInspectorMinimized(false);
+  setNearbyAnchor(anchor.latitude, anchor.longitude, projectLonLat(anchor.longitude, anchor.latitude));
+}
+
 // The counterpart to pushNearbyAnchorHistory (js/app.js), run on every popstate before the URL
 // itself is re-applied: puts state.nearbyAnchor back to whatever it was on the history entry
 // just landed on, so moving between clusters undoes on the browser back button and the
@@ -1870,7 +1882,12 @@ function goToInitialView(updateHash = true) {
     refitOverview();
   }
   updateCompassOverlay();
-  if (updateHash) setHashFromSelection("");
+  // syncHashFromSelection(), not a bare "": state.selected is cleared above but state.nearbyAnchor
+  // is deliberately left alone (the Nearby nav button re-centres the current browse anchor rather
+  // than resetting it -- see selectOverview's own comment on showing its back arrow), so the URL
+  // this writes must still be able to come out "near=<lat>,<lon>" rather than wrongly forcing it
+  // to the real-location "" every time.
+  if (updateHash) syncHashFromSelection();
   requestDraw();
 }
 

@@ -424,6 +424,43 @@ test.describe("Overview / Nearby screen", () => {
       expect(boxes.button.left, "the button sits beside the text, not wrapped under it").toBeGreaterThanOrEqual(boxes.text.right);
       expect(boxes.button.height, "the button is a comfortable tap target").toBeGreaterThanOrEqual(36);
     });
+
+    test("moving the browsed spot updates the URL hash so it can be shared", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+
+      const moved = await page.evaluate(() => {
+        const origin = state.userLocation;
+        // Well outside any walking-radius option -- same offset the other anchor tests in this
+        // file use -- so the Nearby list content always differs from the real-location one and
+        // selectOverview()'s own "nothing changed" short-circuit can never mask a missed push.
+        const latitude = origin.latitude + 0.02;
+        const longitude = origin.longitude;
+        setNearbyAnchor(latitude, longitude, projectLonLat(longitude, latitude));
+        return { latitude, longitude, hash: window.location.hash };
+      });
+
+      const params = new URLSearchParams(moved.hash.replace(/^#/, ""));
+      const [hashLat, hashLon] = (params.get("near") || "").split(",").map(Number);
+      expect(hashLat, "the hash names the anchor's own latitude").toBeCloseTo(moved.latitude, 5);
+      expect(hashLon, "the hash names the anchor's own longitude").toBeCloseTo(moved.longitude, 5);
+
+      // Clearing the anchor takes the hash back to plain Nearby.
+      await page.click("[data-action='reset-nearby-anchor']");
+      await expect.poll(() => page.evaluate(() => window.location.hash)).toBe("");
+    });
+
+    test("a link carrying a browse anchor in its hash restores that spot on a fresh load", async ({ page }) => {
+      const latitude = FOREST_LOCATION.latitude + 0.02;
+      const longitude = FOREST_LOCATION.longitude;
+      await setup(page, `/nearby#near=${latitude},${longitude}`);
+
+      const anchor = await page.evaluate(() => state.nearbyAnchor);
+      expect(anchor, "the shared link's anchor is restored").not.toBeNull();
+      expect(anchor.latitude).toBeCloseTo(latitude, 5);
+      expect(anchor.longitude).toBeCloseTo(longitude, 5);
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+    });
   });
 
   // Filters, Settings and Report all keep drawing the walking-radius ring around the browse
