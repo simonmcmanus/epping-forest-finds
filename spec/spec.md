@@ -267,6 +267,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 | `/settings` | Settings |
 | `/feedback` | Feedback |
 | `/nearby#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway`, on top of whichever screen's path it was selected from |
+| `/nearby#near=<lat>,<lon>` | the Nearby view's browse anchor (tap-to-relocate, or an expanded cluster's centre) — shareable and restored on a fresh load, same as a selection |
 | `/nearby/<slug>` | The same app, served at its own URL and pre-filtered to one category (a subfilter's own slug, e.g. `pubs`, or a whole top-level group's, e.g. `food`) — a `/nearby/<slug>` category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it. `<slug>` is never `filter` or `search`: those two are the screens below, not categories |
 | `/nearby/filter?show=<filterKey>` | Filters, pre-filtered to one or more categories — also accepted as a fallback entry point on any path for a link still using the query-param form, superseded by `/nearby/<slug>` above for the single-category case |
 | `/nearby/search?q=<text>` | Search, with the box already filled in and showing that text's results, so a search is shareable the same way a filter set is |
@@ -326,11 +327,15 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   one-tap way home. With nothing of this app's own behind the current screen — a link opened in
   a fresh tab, where `history.state` carries depth 0 — it returns to Nearby rather than leaving
   the site.
-- **The URL stays `/nearby` while browsing a different spot, but the back arrow still appears.**
-  Moving the Nearby view's browse anchor (tap-to-relocate, or expanding a cluster) pushes a
-  history entry without changing the route, so there is nothing in the table above to show it —
-  `selectOverview()` instead shows `#inspectorBack` whenever `state.nearbyAnchor` is set, giving
-  that moved view the same back arrow as every other screen (see "Browsing Another Spot" above).
+- **Browsing a different spot carries the anchor in the hash, so it can be shared like a
+  selection.** Moving the Nearby view's browse anchor (tap-to-relocate, or expanding a cluster)
+  writes `#near=<lat>,<lon>` (`nearbyAnchorRouteValue`/`currentScreenRoute`, `js/app.js`) and
+  pushes a history entry, exactly as selecting a real location does — `selectOverview()` also
+  shows `#inspectorBack` whenever `state.nearbyAnchor` is set, giving that moved view the same
+  back arrow as every other screen (see "Browsing Another Spot" above). Opening a `#near=` link
+  fresh restores the anchor the same way a `#tree=` link restores a selection
+  (`applyNearbyAnchorFromRoute`, `js/nav.js`), reusing the same tap-to-relocate machinery
+  (`setNearbyAnchor`) so the view it produces is identical to tapping that spot by hand.
 - **`popstate` and `hashchange` both apply whatever the URL now says** (`applyRouteFromUrl`).
   A history traversal fires `popstate` (and `hashchange` too when only the fragment differs),
   while a fragment edited by hand fires `hashchange` alone; applying a route the app is already
