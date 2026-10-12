@@ -11,6 +11,19 @@ const { buildInventory } = require("../../scripts/report/map-inventory.js");
 const { formatCount } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
+  test("explains tree-data limitations and the trial's feedback to the City of London", async ({ page }) => {
+    await page.goto("/");
+    const answer = page.locator(".faq-item").filter({ hasText: "Where does the tree data come from?" }).locator("dd");
+    await expect(answer).toContainText("provided by the City of London");
+    await expect(answer).toContainText("some of the data may not be completely accurate");
+    await expect(answer).toContainText("working to understand the issues and improve the data");
+    await expect(answer).toContainText("report our findings back to the City of London");
+    const data = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent());
+    const question = data["@graph"].find(item => item["@type"] === "FAQPage").mainEntity
+      .find(item => item.name === "Where does the tree data come from?");
+    await expect(answer).toHaveText(question.acceptedAnswer.text);
+  });
+
   test("smoothly reverses category transitions and closes immediately with reduced motion", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto("/");
