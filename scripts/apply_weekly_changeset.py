@@ -99,6 +99,11 @@ VALID_FOOD_CATEGORIES = {
 # the map however plainly a source said so. They belong to the "misc" split
 # file (see scripts/split_landmarks.py, which routes anything uncategorised
 # there).
+#
+# place_of_worship belongs here too: a church, synagogue or mosque is not a
+# venue in the usual sense, but it needs the same routing (misc file) and the
+# same weekly watch via scripts/osm_business_diff.py's VENUE_CATEGORIES, so it
+# is grouped with them rather than given its own near-identical dict.
 VALID_VENUE_CATEGORIES = {
     "community_centre": ("amenity", "Community Centre"),
     "public_hall": ("amenity", "Public Hall"),
@@ -108,6 +113,7 @@ VALID_VENUE_CATEGORIES = {
     "townhall": ("amenity", "Town Hall"),
     "library": ("amenity", "Library"),
     "social_centre": ("amenity", "Social Club"),
+    "place_of_worship": ("amenity", "Place Of Worship"),
 }
 
 VALID_CATEGORIES = {**VALID_FOOD_CATEGORIES, **VALID_VENUE_CATEGORIES}

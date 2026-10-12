@@ -262,6 +262,22 @@ class VenueScopeTests(unittest.TestCase):
         }]
         self.assertEqual(obd.normalize_overpass_elements(elements, scope="food"), [])
 
+    def test_the_query_covers_places_of_worship(self):
+        # None of the churches on Loughton High Road were showing on the map
+        # because data/local-landmarks.overpassql never asked for
+        # amenity=place_of_worship at all -- the weekly watch must not repeat
+        # that gap once a church IS on the map.
+        query = obd.build_overpass_query({"south": 51.5, "west": -0.1, "north": 51.8, "east": 0.2})
+        self.assertIn("place_of_worship", query)
+
+    def test_a_church_is_recognised_as_a_place(self):
+        elements = [{
+            "type": "way", "id": 8, "center": {"lat": 51.6442, "lon": 0.0505},
+            "tags": {"name": "Loughton Baptist Church", "amenity": "place_of_worship"},
+        }]
+        out = obd.normalize_overpass_elements(elements)
+        self.assertEqual(out[0]["category"], "place_of_worship")
+
 
 class ScopeTests(unittest.TestCase):
     """The Overpass box is 22km by 12km; the map keeps to eight minutes' walk
