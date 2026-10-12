@@ -8,19 +8,38 @@ const { skipOnboarding, mockCowApi, denyGeolocationUnlessGranted } = require("./
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe("Cookie consent banner", () => {
-  test("early testing notice is omitted from the homepage, then shown once elsewhere with feedback and mailing-list links", async ({ page }) => {
+  test("early testing notice is omitted from the homepage, then shown once in the page flow with a feedback link", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("#earlyTestingBanner")).toHaveCount(0);
 
     await page.goto("/terms.html");
     const banner = page.locator("#earlyTestingBanner");
     await expect(banner).toBeVisible();
-    await expect(banner).toContainText("a few map details may be a bit off");
-    await expect(banner.getByRole("link", { name: "Report feedback" })).toHaveAttribute("href", "/report");
-    await expect(banner.getByRole("link", { name: "get email updates" })).toHaveAttribute("href", "/#signup");
+    await expect(banner).toContainText("Epping Forest Finds is still a work in progress");
+    await expect(banner).toContainText("You may find data problems or bugs");
+    await expect(banner.getByRole("link", { name: "report any you find" })).toHaveAttribute("href", "/report");
 
     await page.reload();
     await expect(page.locator("#earlyTestingBanner")).toHaveCount(0);
+  });
+
+  test("early testing notice lives inside the app inspector instead of overlaying the map", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await denyGeolocationUnlessGranted(page);
+    await page.goto("/nearby");
+
+    const banner = page.locator("#earlyTestingBanner");
+    await expect(banner).toBeVisible();
+    await expect(banner.locator("..")).toHaveAttribute("id", "earlyTestingNoticeSlot");
+    await expect(banner).toHaveCSS("position", "static");
+
+    // This fresh no-location visit receives the app's separate, intentional location invite.
+    // Clear it before exercising the notice's own control.
+    await expect(page.locator("#loadingOverlay")).toBeHidden({ timeout: 30_000 });
+    await page.locator("#locationGateDismiss").click();
+    await banner.getByRole("button", { name: "Dismiss early testing notice" }).click();
+    await expect(banner).toBeHidden();
   });
 
   test("the short /report link opens the app feedback screen", async ({ page }) => {
