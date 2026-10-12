@@ -7,24 +7,71 @@
 [functions]
   node_bundler = "esbuild"
 
-# Closed alpha gate. Only the app's HTML entry point is gated -- the loose
+# Closed alpha gate. Only the app's HTML entry points are gated -- the loose
 # assets stay public so the service worker can fill its offline caches and so
-# crawlers can reach robots.txt, the sitemap and the homepage.
+# crawlers can reach robots.txt, the sitemap and the homepage. /app itself is
+# not gated: it is a bare redirect to /nearby below, with no content of its
+# own to protect.
 # See spec/spec-alpha-access.md.
 [[edge_functions]]
   function = "alpha-gate"
-  path = "/app"
+  path = "/nearby"
+
+[[edge_functions]]
+  function = "alpha-gate"
+  path = "/search"
+
+[[edge_functions]]
+  function = "alpha-gate"
+  path = "/filter"
+
+[[edge_functions]]
+  function = "alpha-gate"
+  path = "/settings"
+
+[[edge_functions]]
+  function = "alpha-gate"
+  path = "/report"
 
 [[edge_functions]]
   function = "alpha-gate"
   path = "/app.html"
 
-# The pretty URL for the map. app.html stays at the root rather than moving to
-# /app/index.html: js/nav.js registers the service worker relatively, so a
-# directory move would collapse its scope to /app/ and the app would stop
-# working offline entirely.
+# /app is retired to a permanent redirect to /nearby, the app's new
+# place-agnostic entry point -- not a second address for the app, and no
+# content of its own, so it needs no gate (see above).
 [[redirects]]
   from = "/app"
+  to = "/nearby"
+  status = 301
+
+# The pretty URLs for the map's own screens. app.html stays at the root
+# rather than moving into a directory: js/nav.js registers the service
+# worker relatively, so a directory move would collapse its scope and the
+# app would stop working offline entirely. js/app.js's router reads
+# location.pathname to know which of these it was asked for.
+[[redirects]]
+  from = "/nearby"
+  to = "/app.html"
+  status = 200
+
+[[redirects]]
+  from = "/search"
+  to = "/app.html"
+  status = 200
+
+[[redirects]]
+  from = "/filter"
+  to = "/app.html"
+  status = 200
+
+[[redirects]]
+  from = "/settings"
+  to = "/app.html"
+  status = 200
+
+[[redirects]]
+  from = "/report"
   to = "/app.html"
   status = 200
 

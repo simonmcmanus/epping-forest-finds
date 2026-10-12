@@ -10,7 +10,7 @@
  * crawler or a visitor arriving before JS has booted sees real, specific
  * content, and js/app.js's filterKeyFromFindPath() then reads the category
  * straight out of the URL path once it does boot, pre-filtering Nearby to
- * it -- no separate marketing page, no redirect through /app.
+ * it -- no separate marketing page, no redirect through /nearby.
  *
  * A category's count is exactly what the map would show for it: this
  * reuses the weekly report's own classification
@@ -40,11 +40,11 @@ const APP_HTML_NAME = "app.html";
 const APP_TITLE = "<title>Epping Forest Finds — offline map of Epping Forest</title>";
 const APP_DESCRIPTION_META =
   '<meta name="description" content="A free offline map of Epping Forest. Find veteran trees, pubs, cafés, car parks, toilets, paths and stations near you, see where the forest\'s grazing cattle are, and keep working with no phone signal.">';
-const APP_CANONICAL = '<link rel="canonical" href="https://www.eppingforestfinds.uk/app">';
+const APP_CANONICAL = '<link rel="canonical" href="https://www.eppingforestfinds.uk/nearby">';
 const APP_OG_TITLE = '<meta property="og:title" content="Epping Forest Finds — offline map of Epping Forest">';
 const APP_OG_DESCRIPTION =
   '<meta property="og:description" content="A free offline map of Epping Forest: veteran trees, pubs and cafés, paths, car parks and the forest\'s grazing cattle — working with no phone signal.">';
-const APP_OG_URL = '<meta property="og:url" content="https://www.eppingforestfinds.uk/app">';
+const APP_OG_URL = '<meta property="og:url" content="https://www.eppingforestfinds.uk/nearby">';
 const APP_EMPTY_STATE =
   '<p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>';
 

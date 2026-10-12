@@ -444,6 +444,18 @@ const ROUTE_SEARCH = "search";
 const ROUTE_SETTINGS = "settings";
 const ROUTE_REPORT = "report";
 
+// Each of the four screens above now has a real path of its own (netlify.toml, server.js --
+// both rewrite these to app.html, same as /app used to). Nearby (no screen name, "" in the
+// route vocabulary below) is the one with no entry here: it is NEARBY_PATH, the app's new
+// place-agnostic entry point, replacing /app (now a bare redirect to it).
+const ROUTE_PATHS = {
+  [ROUTE_FILTERS]: "/filter",
+  [ROUTE_SEARCH]: "/search",
+  [ROUTE_SETTINGS]: "/settings",
+  [ROUTE_REPORT]: "/report",
+};
+const NEARBY_PATH = "/nearby";
+
 // How deep inside the app's own history the current entry sits, carried in history.state.
 // 0 means "this is where the user arrived", so there is nothing behind it to go back to and
 // the in-app back arrow must return to Nearby itself rather than leaving the site.
@@ -577,7 +589,12 @@ function routeName(raw) {
   return separator === -1 ? value : value.slice(0, separator);
 }
 
-// The canonical route for whatever is on screen right now.
+// The canonical route for whatever is on screen right now -- unchanged by the four screens
+// having real paths now (ROUTE_PATHS): this still speaks the same bare vocabulary
+// ("filters"/"search"/"settings"/"report"/"tree=<key>"/"") it always has. Serialising that
+// to the real URL, and reading it back, is urlPartsForRouteValue/routeValueFromLocation below
+// -- everything in between (this function, applyRouteToScreen, SELECTION_ROUTES) never needs
+// to know paths exist at all.
 function currentScreenRoute() {
   if (state.searchScreenOpen) return ROUTE_SEARCH;
   if (state.filterScreenOpen) return ROUTE_FILTERS;
@@ -603,6 +620,42 @@ function urlMatchesCurrentScreen(raw) {
   return current === ROUTE_REPORT && routeName(raw) === ROUTE_REPORT;
 }
 
+// value -> the real URL it lives at. The four screens each have their own path and (bar
+// Report's prefill, below) no hash of their own; everything else -- Nearby itself, or a
+// selection -- stays on NEARBY_PATH, with the value (if any) carried as the hash fragment,
+// exactly as it was universally before paths existed.
+function urlPartsForRouteValue(value) {
+  const name = routeName(value);
+  const path = ROUTE_PATHS[name];
+  if (path) {
+    // report=<text> (a prefill) is the one screen value that still carries a hash alongside
+    // its own path -- everywhere else, reaching a screen's path is the whole story.
+    const hash = name === ROUTE_REPORT && value !== name ? `#${value}` : "";
+    return { pathname: path, hash };
+  }
+  return { pathname: NEARBY_PATH, hash: value ? `#${value}` : "" };
+}
+
+// The live, shareable description of exactly what's filtered -- the one path whose URL still
+// carries a query string of its own. "/filter" alone with nothing on, "?show=pubs" with one,
+// comma-joined with more; every other path never carries one.
+function searchStringForPath(pathname) {
+  if (pathname !== ROUTE_PATHS[ROUTE_FILTERS]) return "";
+  return state.overviewFilters.length ? `?show=${state.overviewFilters.join(",")}` : "";
+}
+
+// The reverse of urlPartsForRouteValue: reconstructs the bare route value currentScreenRoute()
+// and applyRouteToScreen() already speak, from the real URL on screen right now.
+function routeValueFromLocation() {
+  const pathname = window.location.pathname;
+  const screenName = Object.keys(ROUTE_PATHS).find((name) => ROUTE_PATHS[name] === pathname);
+  if (screenName) {
+    const hash = window.location.hash.replace(/^#/, "").trim();
+    return screenName === ROUTE_REPORT && hash ? hash : screenName;
+  }
+  return window.location.hash.replace(/^#/, "").trim();
+}
+
 function syncHashFromSelection(options) {
   setHashFromSelection(currentScreenRoute(), options);
 }
@@ -612,13 +665,14 @@ function syncHashFromSelection(options) {
 // the back button has to be able to leave.
 function setHashFromSelection(value, { force = false } = {}) {
   if (routeApplyDepth > 0 || routerBooting) return;
-  const nextHash = value ? `#${value}` : "";
-  if (!force && window.location.hash === nextHash) return;
-  const url = `${window.location.pathname}${window.location.search}${nextHash}`;
+  const { pathname, hash } = urlPartsForRouteValue(value);
+  const nextUrl = `${pathname}${searchStringForPath(pathname)}${hash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (!force && currentUrl === nextUrl) return;
   history.pushState(
     { [NAV_DEPTH_KEY]: navDepth() + 1, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
     "",
-    url
+    nextUrl
   );
 }
 
@@ -638,8 +692,22 @@ function pushNearbyAnchorHistory() {
 
 // Corrects the current entry's URL without adding one, keeping the entry's depth.
 function replaceHashInPlace(value) {
-  const nextHash = value ? (value.startsWith("#") ? value : `#${value}`) : "";
-  const url = `${window.location.pathname}${window.location.search}${nextHash}`;
+  const { pathname, hash } = urlPartsForRouteValue(value);
+  const url = `${pathname}${searchStringForPath(pathname)}${hash}`;
+  history.replaceState(history.state, "", url);
+}
+
+// While the Filters screen is open, every change to state.overviewFilters corrects /filter's
+// own query string in place -- replaces rather than pushes, or every checkbox toggle would add
+// its own back-button step. Arriving at Filters already gets the right query string for free
+// (setHashFromSelection/replaceHashInPlace above both run searchStringForPath on push); this
+// is only for a change that happens without a screen transition alongside it.
+function syncFilterQueryStringIfOnFilterScreen() {
+  if (routeApplyDepth > 0 || routerBooting) return;
+  if (window.location.pathname !== ROUTE_PATHS[ROUTE_FILTERS]) return;
+  const search = searchStringForPath(window.location.pathname);
+  if (window.location.search === search) return;
+  const url = `${window.location.pathname}${search}${window.location.hash}`;
   history.replaceState(history.state, "", url);
 }
 
@@ -649,8 +717,24 @@ function replaceHashInPlace(value) {
 // Re-applying a route the app is already on is the same as doing nothing, so the shared
 // entry point simply checks first.
 function applyRouteFromUrl() {
-  const raw = window.location.hash.replace(/^#/, "").trim();
-  if (urlMatchesCurrentScreen(raw)) return true;
+  // A ?show= on whichever path was just navigated to (back/forward, or a hand-typed URL) is
+  // applied before the route itself, the same way boot() applies it once up front -- so e.g.
+  // routing to /nearby?show=pubs,cafes or /filter?show=pubs lands with the right filters on.
+  // Guarded the same way applyRoute() guards its own screen change: setOverviewFilters() (called
+  // from applyShowFilterFromQuery) looks at state.filterScreenOpen to decide whether to refresh
+  // the live overview or the Filter screen's own list, and at this point that flag still
+  // describes the screen being left, not the one the URL is about to open -- unguarded, that
+  // stale read pushed a /nearby correction of its own before the real route ever ran, stomping
+  // the forward-navigation entry the browser had just restored.
+  routeApplyDepth += 1;
+  let raw;
+  try {
+    applyShowFilterFromQuery();
+    raw = routeValueFromLocation();
+    if (urlMatchesCurrentScreen(raw)) return true;
+  } finally {
+    routeApplyDepth -= 1;
+  }
   return applyRoute(raw, false);
 }
 
@@ -658,7 +742,7 @@ function applyRouteFromUrl() {
 // empty hash alone: at boot the Nearby screen has already been built behind the loading
 // overlay, and there is nothing to navigate away from.
 function applySelectionFromHash(announceMissing = true) {
-  const raw = window.location.hash.replace(/^#/, "").trim();
+  const raw = routeValueFromLocation();
   if (!raw) return false;
   return applyRoute(raw, announceMissing);
 }
@@ -765,11 +849,24 @@ function filterKeyFromFindPath(pathname) {
   return ALL_OVERVIEW_FILTER_KEYS.has(key) ? key : null;
 }
 
+// ?show=pubs,cafes -- /filter's own live query string (searchStringForPath) writes exactly
+// this comma-joined form, and this is its reverse: every key /filter or a shared link named,
+// filtered to ones ALL_OVERVIEW_FILTER_KEYS actually recognises so a typo or a stale key drops
+// silently rather than breaking the parse.
+function filterKeysFromQuery(search) {
+  const raw = new URLSearchParams(search).get("show");
+  if (!raw) return [];
+  return raw.split(",").map((key) => key.trim()).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key));
+}
+
 function applyShowFilterFromQuery() {
   const fromPath = filterKeyFromFindPath(window.location.pathname);
-  const fromQuery = new URLSearchParams(window.location.search).get("show");
-  const requested = fromPath || (ALL_OVERVIEW_FILTER_KEYS.has(fromQuery) ? fromQuery : null);
-  if (requested) setOverviewFilters([requested]);
+  if (fromPath) {
+    setOverviewFilters([fromPath]);
+    return;
+  }
+  const fromQuery = filterKeysFromQuery(window.location.search);
+  if (fromQuery.length) setOverviewFilters(fromQuery);
 }
 
 async function boot() {
@@ -1973,6 +2070,7 @@ function setOverviewFilters(nextFilters) {
   refreshOutOfRadiusReveal(previousFilters);
   saveFilterState();
   updateFilterUi();
+  syncFilterQueryStringIfOnFilterScreen();
   if (isOverviewScreenActive() && !state.filterScreenOpen) {
     selectOverview();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });

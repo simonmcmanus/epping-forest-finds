@@ -642,8 +642,14 @@ test.describe("the marketing homepage", () => {
 });
 
 test.describe("the app's own URL", () => {
-  test("serves the map at /app", async ({ page }) => {
+  test("serves the map at /nearby", async ({ page }) => {
+    await page.goto("/nearby");
+    await expect(page.locator("#mapCanvas")).toBeAttached();
+  });
+
+  test("/app redirects to /nearby, the app's new entry point", async ({ page }) => {
     await page.goto("/app");
+    await expect(page).toHaveURL(/\/nearby$/);
     await expect(page.locator("#mapCanvas")).toBeAttached();
   });
 });

@@ -246,21 +246,34 @@ Marker rules:
 - Tapping the Nearby button always calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone. It is the one-tap way home; the header's back arrow steps back through the trail instead (see "URL hash / navigation state").
 - Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) plays a spring bounce animation (`.nav-reselect`) on the button instead of re-entering the screen. This gives tactile confirmation that the user is already on that screen.
 
-### URL hash / navigation state
+### URL / navigation state
 
 The URL is the app's navigation state: every screen has one, and the URL is what puts the app
-on that screen. Implemented by the router in `js/app.js` (see the `--- Router ---` block there).
+on that screen. Nearby, Search, Filters, Settings and Report are each a real path of their own
+(GA4 fires a pageview on a path change, not on a hash-only one, so each screen and each
+`/find/<slug>` category is distinguishable in analytics); a selected thing — a tree, a place, a
+cow, a street — stays a URL fragment on top of whichever path it was selected from, since none of
+those are a "screen" of their own. Implemented by the router in `js/app.js` (see the
+`--- Router ---` block there).
 
 | URL | Screen |
 | --- | --- |
-| `/app` | Nearby — the app's home screen |
-| `/app#search` | Search |
-| `/app#filters` | Filters |
-| `/app#settings` | Settings |
-| `/app#report` | Feedback / Report |
-| `/app#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway` |
+| `/nearby` | Nearby — the app's home screen and entry point |
+| `/search` | Search |
+| `/filter` | Filters — carries the active set as a live `?show=<key>,<key>` query string (see below) |
+| `/settings` | Settings |
+| `/report` | Feedback / Report |
+| `/nearby#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway`, on top of whichever screen's path it was selected from |
 | `/find/<slug>` | The same app, served at its own URL and pre-filtered to one category — a `/find/<slug>` category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it |
-| `/app?show=<filterKey>` | Nearby, pre-filtered to one category — a fallback entry point kept for any link still using the query-param form, superseded by `/find/<slug>` above |
+| `/filter?show=<filterKey>` | Filters, pre-filtered to one or more categories — also accepted as a fallback entry point on any path for a link still using the query-param form, superseded by `/find/<slug>` above for the single-category case |
+| `/app` | Bare redirect (301) to `/nearby`, kept working for old links and bookmarks |
+
+- **`/filter`'s query string tracks the active filters live.** Every change to
+  `state.overviewFilters` while the Filters screen is open rewrites the URL's `?show=` list to
+  match with `history.replaceState` (`syncFilterQueryStringIfOnFilterScreen`) rather than
+  `pushState` — toggling chips is one continuous action, not a sequence of back-stops — so the
+  address bar, and anything built from it (a shared link, GA4's page path), always names exactly
+  what is currently showing.
 
 - **A screen change pushes a history entry** (`setHashFromSelection` → `history.pushState`), so
   browser back, the phone's back gesture and the inspector's own back arrow all retrace the same
@@ -271,17 +284,17 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
   one-tap way home. With nothing of this app's own behind the current screen — a link opened in
   a fresh tab, where `history.state` carries depth 0 — it returns to Nearby rather than leaving
   the site.
-- **The hash stays `/app` while browsing a different spot, but the back arrow still appears.**
+- **The URL stays `/nearby` while browsing a different spot, but the back arrow still appears.**
   Moving the Nearby view's browse anchor (tap-to-relocate, or expanding a cluster) pushes a
   history entry without changing the route, so there is nothing in the table above to show it —
   `selectOverview()` instead shows `#inspectorBack` whenever `state.nearbyAnchor` is set, giving
   that moved view the same back arrow as every other screen (see "Browsing Another Spot" above).
 - **`popstate` and `hashchange` both apply whatever the URL now says** (`applyRouteFromUrl`).
-  A history traversal fires `popstate` (and `hashchange` too when the fragment differs), while a
-  fragment edited by hand fires `hashchange` alone; applying a route the app is already on is a
-  no-op, so being called twice for one change costs nothing. Clearing the hash therefore returns
-  to Nearby from any screen, the Filter screen included — the URL is what says which screen is
-  open, so there is no longer a `secondaryScreenActive()` exception.
+  A history traversal fires `popstate` (and `hashchange` too when only the fragment differs),
+  while a fragment edited by hand fires `hashchange` alone; applying a route the app is already
+  on is a no-op, so being called twice for one change costs nothing. Clearing a selection's hash
+  therefore returns to whichever screen's path is current — Nearby included — the URL is what
+  says which screen is open and what, if anything, is selected on top of it.
 - **Screen changes made by the URL do not write history entries.** `applyRoute` and the boot
   sequence both suppress URL writes (`routeApplyDepth`, `routerBooting`), so replaying a route
   never buries the entry behind it, and the launch URL survives the Nearby screen being built
@@ -301,7 +314,7 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 - **A URL naming something the dataset does not have** (a stale share link) falls back to Nearby
   and corrects the entry in place with `replaceState`, rather than leaving the app on a screen
   its URL does not describe.
-- `#report` opens the Feedback / Report screen directly. `#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
+- `/report` opens the Feedback / Report screen directly. `/report#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
 
 ### Camera behavior
 

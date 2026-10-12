@@ -235,10 +235,18 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Mirrors the /app -> /app.html rewrite in netlify.toml. The alpha gate is
-  // NOT mirrored: it is a Netlify edge function, so local dev and the e2e
-  // suite always reach the app. See spec/spec-alpha-access.md section 3.4.
+  // Mirrors the /app -> /nearby redirect in netlify.toml. /app carries no content of its
+  // own any more, so this is an ordinary redirect, not a rewrite.
   if (url.pathname === "/app") {
+    res.writeHead(301, { Location: "/nearby", "Cache-Control": "no-store" });
+    res.end();
+    return;
+  }
+
+  // Mirrors the five screen-path -> app.html rewrites in netlify.toml. The alpha gate is NOT
+  // mirrored: it is a Netlify edge function, so local dev and the e2e suite always reach the
+  // app. See spec/spec-alpha-access.md section 3.4.
+  if (["/nearby", "/search", "/filter", "/settings", "/report"].includes(url.pathname)) {
     const appFile = path.join(ROOT, "app.html");
     if (!fs.existsSync(appFile)) { send(res, 404, "App not found"); return; }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });

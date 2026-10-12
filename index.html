@@ -16,9 +16,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#24382f">
   <title>Epping Forest offline map | Trees, walks & cattle</title>
-  <!-- The public front door. The map itself lives at /app. This page carries the
-       copy from spec/spec-marketing.md; the counts are checked against the real
-       datasets by test/home-counts.test.js, so they cannot drift. -->
+  <!-- The public front door. The map itself lives at /nearby (/app redirects there).
+       This page carries the copy from spec/spec-marketing.md; the counts are checked
+       against the real datasets by test/home-counts.test.js, so they cannot drift. -->
   <meta name="description" content="Explore 24,906 veteran trees in Epping Forest. Find trees by tag number, navigate to them and discover their estimated ages with an offline map.">
   <meta name="geo.region" content="GB-ESS">
   <meta name="geo.placename" content="Epping Forest, Essex">
@@ -57,7 +57,7 @@
         "name": "Epping Forest Finds",
         "applicationCategory": "TravelApplication",
         "operatingSystem": "Web browser, iOS, Android",
-        "url": "https://www.eppingforestfinds.uk/app",
+        "url": "https://www.eppingforestfinds.uk/nearby",
         "areaServed": { "@type": "Place", "name": "Epping Forest, Essex" },
         "description": "A free offline map of Epping Forest: veteran trees, pubs and cafés, paths, car parks and the forest's grazing cattle — working with no phone signal.",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "GBP" }
@@ -115,7 +115,7 @@
         <h1>Your guide to Epping Forest.<br><span class="h1-tagline">No Signal Necessary.</span></h1>
         <p class="hero-sub">A free, offline map of Epping Forest. Find <strong>24,906</strong> veteran trees, forest paths, pubs and grazing cattle.</p>
         <!-- Alpha call to action. One swappable element: at launch this becomes
-             a link to /app. Nothing else on the page changes. -->
+             a link to /nearby, the app's entry point. Nothing else on the page changes. -->
         <div class="cta">
           <a class="cta-btn" href="#signup"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3a5 5 0 0 0-5 5v3.2c0 .7-.24 1.38-.68 1.93L4.6 15.4A1 1 0 0 0 5.4 17h13.2a1 1 0 0 0 .8-1.6l-1.72-2.27A3.2 3.2 0 0 1 17 11.2V8a5 5 0 0 0-5-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Keep me in the loop</a>
           <p class="cta-note">Sign up to hear when early testing opens.</p>

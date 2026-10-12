@@ -94,8 +94,8 @@ test("a generated /find/<slug> category page is listed in the sitemap, unlike th
   );
 });
 
-test("the gated app is kept out of the sitemap and disallowed to crawlers", () => {
-  // /app answers a crawler with a redirect to the homepage while the alpha is
+test("the gated app screens are kept out of the sitemap and disallowed to crawlers", () => {
+  // Each screen answers a crawler with a redirect to the homepage while the alpha is
   // closed, which is a soft-404 signal with nothing to gain -- and the app has
   // no indexable content in any case. See spec/spec-alpha-access.md section 6.
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sitemap-app-"));
@@ -108,6 +108,10 @@ test("the gated app is kept out of the sitemap and disallowed to crawlers", () =
   const sitemap = fs.readFileSync(path.join(root, "sitemap.xml"), "utf8");
   const robots = fs.readFileSync(path.join(root, "robots.txt"), "utf8");
 
-  assert.ok(!sitemap.includes("/app"), "sitemap.xml must not advertise the gated app");
-  assert.match(robots, /^Disallow: \/app$/m, "robots.txt must disallow /app");
+  for (const screen of ["/nearby", "/search", "/filter", "/settings", "/report"]) {
+    assert.ok(!sitemap.includes(`<loc>https://www.eppingforestfinds.uk${screen}<`), `sitemap.xml must not advertise ${screen}`);
+    assert.match(robots, new RegExp(`^Disallow: ${screen}$`, "m"), `robots.txt must disallow ${screen}`);
+  }
+  // /app itself carries no entry of its own: it is a bare redirect, not a page with content.
+  assert.ok(!robots.includes("Disallow: /app\n"), "/app is a redirect, not a gated page -- it needs no disallow entry");
 });

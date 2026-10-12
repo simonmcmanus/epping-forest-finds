@@ -141,7 +141,13 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
   const applyUrlToLocation = (url) => {
     if (typeof url !== "string") return;
     const hashIndex = url.indexOf("#");
-    window.location.hash = hashIndex >= 0 ? url.substring(hashIndex) : "";
+    const hash = hashIndex >= 0 ? url.substring(hashIndex) : "";
+    const beforeHash = hashIndex >= 0 ? url.substring(0, hashIndex) : url;
+    const searchIndex = beforeHash.indexOf("?");
+    window.location.search = searchIndex >= 0 ? beforeHash.substring(searchIndex) : "";
+    const pathname = searchIndex >= 0 ? beforeHash.substring(0, searchIndex) : beforeHash;
+    if (pathname) window.location.pathname = pathname;
+    window.location.hash = hash;
   };
 
   const history = {
@@ -275,9 +281,16 @@ globalThis.__forestFindsTest = {
   setOverviewFilters,
   applyShowFilterFromQuery,
   filterKeyFromFindPath,
+  filterKeysFromQuery,
   allEntriesForFilterKey,
   renderNearestItemsHtml,
   fitMapToSingleFilterIfNoLocation,
+  urlPartsForRouteValue,
+  searchStringForPath,
+  routeValueFromLocation,
+  syncFilterQueryStringIfOnFilterScreen,
+  ROUTE_PATHS,
+  NEARBY_PATH,
   applyWalkingRadiusChange,
   selectionCameraTransitionActive,
   headsUpSortedEntries,
@@ -3956,7 +3969,7 @@ test("opening Search is a screen of its own, and leaving it hands the map back t
   assert.equal(app.isOverviewScreenActive(), false, "so map taps do not move the nearby anchor");
   assert.equal(app.secondaryScreenActive(), true, "and the map keeps the nearby framing behind it");
   assert.equal(app.els.inspectorTitle.textContent, "Search");
-  assert.ok(app.location.hash === "search" || app.location.hash === "#search", "the screen has a URL, so back leaves it");
+  assert.equal(app.location.pathname, "/search", "the screen has its own URL, so back leaves it");
 
   app.goToInitialView();
   assert.equal(app.state.searchScreenOpen, false);
@@ -4611,29 +4624,29 @@ test("walking radius circle fits in visible area even with inspector open", () =
   assert.ok(center.y + radiusPx <= canvasHeight, `bottom edge of radius circle off screen: ${center.y + radiusPx} > ${canvasHeight}`);
 });
 
-test("filter screen sets hash to #filters", () => {
+test("filter screen sets the URL to /filter", () => {
   resetData(app);
   app.openFiltersScreen();
-  // In real browsers, window.location.hash = "filters" results in window.location.hash === "#filters"
-  // But in tests, it's just a plain object, so we check for "filters"
-  assert.ok(app.location.hash === "filters" || app.location.hash === "#filters", "filter screen sets hash");
+  assert.equal(app.location.pathname, "/filter", "filter screen has its own path");
 });
 
-test("hash #filters opens filter screen on load", () => {
+test("the /filter path opens the filter screen on load", () => {
   resetData(app);
-  app.location.hash = "#filters";
+  app.location.pathname = "/filter";
   const opened = app.applySelectionFromHash(false);
-  assert.ok(opened, "applySelectionFromHash returns true for #filters");
+  assert.ok(opened, "applySelectionFromHash returns true for /filter");
   assert.ok(app.state.filterScreenOpen, "filter screen is open");
   assert.equal(app.els.inspectorTitle.textContent, "Filters", "inspector shows Filters title");
+  app.location.pathname = "/";
 });
 
-test("returning to nearby screen clears the hash", () => {
+test("returning to nearby screen goes back to /nearby with no hash", () => {
   resetData(app);
   app.openFiltersScreen();
-  assert.ok(app.location.hash === "filters" || app.location.hash === "#filters", "hash is set to filters");
+  assert.equal(app.location.pathname, "/filter", "path is set to /filter");
   app.goToInitialView();
-  assert.equal(app.location.hash, "", "hash is cleared after returning to nearby");
+  assert.equal(app.location.pathname, "/nearby", "path returns to /nearby");
+  assert.equal(app.location.hash, "", "and carries no hash");
   assert.equal(app.state.filterScreenOpen, false, "filter screen is closed");
 });
 
@@ -4757,6 +4770,8 @@ test("hash-selecting a new tree re-expands the inspector even if it was left min
 
 // Puts the session history back to a single landing entry, the way a fresh page load leaves it.
 function resetRouter(app, hash = "") {
+  app.location.pathname = "/";
+  app.location.search = "";
   app.location.hash = hash;
   app.history.entries = [{ state: null, url: `/${hash}` }];
   app.history.index = 0;
@@ -4770,7 +4785,7 @@ test("opening a screen adds a history entry rather than replacing the one behind
   app.openFiltersScreen();
   app.openSettings();
   assert.equal(app.history.length, before + 2, "Filters and Settings each added an entry");
-  assert.ok(app.location.hash.includes("settings"), `Settings is in the URL, got ${app.location.hash}`);
+  assert.equal(app.location.pathname, "/settings", "Settings has its own path");
 });
 
 test("Settings and Report each have a URL of their own that opens them again", () => {

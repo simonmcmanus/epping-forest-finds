@@ -82,7 +82,7 @@ test("renderPage produces the real app shell -- same scripts and canvas -- not a
   assert.match(html, /<script src="js\/categories\.js"><\/script>/);
 });
 
-test("renderPage swaps in the category's own title, canonical, OG and JSON-LD, never the generic /app ones", () => {
+test("renderPage swaps in the category's own title, canonical, OG and JSON-LD, never the generic /nearby ones", () => {
   const [pubs] = collectPages(FAKE_RULES, FAKE_INVENTORY);
   const html = renderPage(pubs, APP_HTML);
 
@@ -90,8 +90,8 @@ test("renderPage swaps in the category's own title, canonical, OG and JSON-LD, n
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/find\/pubs\/">/);
   assert.match(html, /<meta property="og:url" content="https:\/\/www\.eppingforestfinds\.uk\/find\/pubs\/">/);
   assert.match(html, /"numberOfItems":42/);
-  assert.ok(!html.includes("offline map of Epping Forest</title>"), "the generic /app title is gone");
-  assert.ok(!html.includes('href="https://www.eppingforestfinds.uk/app">'), "the generic /app canonical is gone");
+  assert.ok(!html.includes("offline map of Epping Forest</title>"), "the generic /nearby title is gone");
+  assert.ok(!html.includes('href="https://www.eppingforestfinds.uk/nearby">'), "the generic /nearby canonical is gone");
 });
 
 test("renderPage replaces the app's initial empty-state message with real, crawlable category content and sibling links", () => {

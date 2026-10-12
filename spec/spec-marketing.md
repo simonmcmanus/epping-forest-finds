@@ -10,10 +10,11 @@ consistent wording, not a shared runtime dependency: changing marketing copy
 does not require editing app files. Cross-surface wording changes are handed
 to the app owner for a separate change. See `spec/agents.md` for file ownership.
 
-It does **not** own the alpha access gate — who may reach `/app`, how the
-shared secret link works, or the edge function that enforces it. That belongs
-in `spec-alpha-access.md` (to be written). This spec only defines the *call to
-action* that the gate's state selects between (§8).
+It does **not** own the alpha access gate — who may reach the app's screens
+(`/nearby`, `/search`, `/filter`, `/settings`, `/report`), how the shared
+secret link works, or the edge function that enforces it. That belongs in
+`spec-alpha-access.md`. This spec only defines the *call to action* that the
+gate's state selects between (§8).
 
 ## 1. Why the homepage exists
 
@@ -32,7 +33,7 @@ front door:
 | Path | Role | Audience |
 | --- | --- | --- |
 | `/` | Marketing homepage — explains the app, ranks in search, collects sign-ups | Everyone |
-| `/app` | The map application | Invited alpha users; everyone after launch |
+| `/nearby` | The map application's entry point (`/app` redirects here) | Invited alpha users; everyone after launch |
 | `/reports/` | Weekly Epping Forest Ledger | Everyone — the main organic discovery path |
 | `/terms.html` | Privacy & terms | Everyone |
 
@@ -375,7 +376,7 @@ the FAQ and pillar sections cover these because they are the honest answers.
 - One `<h1>`, carrying the headline (§3.1).
 - `<title>` and `meta description` from §3.3.
 - `link rel=canonical` → `https://www.eppingforestfinds.uk/`. The homepage owns
-  the root URL; `app.html` canonicalises to `/app`.
+  the root URL; `app.html` canonicalises to `/nearby`, its entry point.
 - Semantic headings in order, descriptive `alt` text, real `<a>` elements.
 
 ### 6.3 Structured data
@@ -401,9 +402,11 @@ generated report links back to the homepage. This is what lifts both.
 `scripts/generate-sitemap.js` changes:
 
 - `/` stays priority 1.0 — now with content actually behind it.
-- `/app` is **not** listed, and is added to `DISALLOWED_PATHS` for the duration
-  of the alpha. A gated path that serves crawlers a landing page or a 403 is a
-  soft-404 signal with no upside.
+- The app's five screen paths (`/nearby`, `/search`, `/filter`, `/settings`,
+  `/report`) are **not** listed, and are added to `DISALLOWED_PATHS` for the
+  duration of the alpha. A gated path that serves crawlers a landing page or a
+  403 is a soft-404 signal with no upside. `/app` itself is a bare redirect
+  with no content, so it needs no entry either way.
 - `/reports/` and `/terms.html` are unchanged.
 
 `test/sitemap.test.js` updates alongside.
@@ -432,20 +435,21 @@ writing a standalone page. Only two things are swapped:
   cross-links to its sibling categories in the same filter group. This is
   exactly what a crawler or a slow-JS visitor sees; `transitionInspectorBody`
   (`js/inspector.js`) overwrites it unconditionally once the real Nearby list
-  renders, the same way it already overwrites that paragraph on `/app` today.
+  renders, the same way it already overwrites that paragraph on `/nearby`
+  today.
 
 `js/app.js`'s boot sequence (`applyShowFilterFromQuery`) reads the category
 straight out of the URL path (`filterKeyFromFindPath`, reversing the
 hyphen-for-underscore slug) and calls the existing `setOverviewFilters([key])`
 — so the page lands already filtered to that category on its own URL, with no
-redirect through `/app` and no separate `?show=` hop (that query param still
-works as a fallback for any older link).
+redirect through `/nearby` and no separate `?show=` hop (that query param
+still works as a fallback on any screen path for any older link).
 
 `app.html`'s CSS/JS/icon references, and several of the app's own
 runtime-constructed ones (`FOLKLORE_URL`/`PATHS_URL`/etc. in `js/app.js`,
 `navigator.serviceWorker.register("sw.js")` in `js/nav.js`), are relative
-paths — correct from `/app` but not from one directory deeper at
-`/find/<slug>/`, where the browser resolves `"css/base.css"` against the
+paths — correct from a screen path like `/nearby` but not from one directory
+deeper at `/find/<slug>/`, where the browser resolves `"css/base.css"` against the
 page's own directory and 404s. Rewriting every `href`/`src` in the markup
 alone isn't enough, since it can't reach the paths JS constructs at runtime
 (this was found by the service worker registration itself 404ing on a live
@@ -500,9 +504,9 @@ in both branches.
   `reports/index.html` — regenerated fresh on every build, never committed.
 - **Not yet done** (tracked separately, not part of this page's own
   behaviour): the service worker has no offline case for `/find/*` yet (it
-  falls straight through to the network, same as any unrecognised path), and
-  `/app` itself has not yet been retired to a redirect to a promoted `/nearby`
-  entry point — both are their own, larger pieces of work.
+  falls straight through to the network, same as any unrecognised path) — its
+  own, larger piece of work. `/app` has since been retired to a bare redirect
+  to `/nearby`, the app's entry point (spec-alpha-access.md §2).
 
 ## 7. The hero image
 
@@ -540,7 +544,7 @@ the site runs in.
 | State | CTA | Supporting line |
 | --- | --- | --- |
 | `closed` | Keep me in the loop → sign-up form | "Sign up to hear when early testing opens." |
-| `open` | Open the map → `/app` | "Free, and it works offline." |
+| `open` | Open the map → `/nearby` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
 links — is written to be true in all three states and does not change.
@@ -670,10 +674,13 @@ The social image, the homepage, `robots.txt`, `sitemap.xml` and `/reports/*`
 must all be reachable **without the alpha gate**. Crawlers and link unfurlers
 carry no invite cookie. Gating any of them breaks every share preview.
 
-The gate therefore covers `/app` only. This is a deliberate trade recorded in
-`spec-alpha-access.md`: the loose assets under `/js`, `/css` and `/data` stay
-public, because the data is public OpenStreetMap and a public tree register,
-and because gated asset responses would poison the service worker's caches.
+The gate therefore covers only the app's five screen paths (`/nearby`,
+`/search`, `/filter`, `/settings`, `/report`) and `/app.html`, never `/app`
+itself (a bare redirect, not a gated page). This is a deliberate trade
+recorded in `spec-alpha-access.md`: the loose assets under `/js`, `/css` and
+`/data` stay public, because the data is public OpenStreetMap and a public
+tree register, and because gated asset responses would poison the service
+worker's caches.
 
 ## 11. Colour and type
 
@@ -718,7 +725,8 @@ Per the project's completion checklist:
   come from a Linux CI runner rather than a developer sandbox. Add one via the
   `Update Snapshots` action in the same change as the hero image, on the
   `mobile` project only.
-- **Sitemap** — `test/sitemap.test.js` updated for the `/app` disallow.
+- **Sitemap** — `test/sitemap.test.js` updated for the five screen paths'
+  disallow.
 - **Accessibility** — a "Skip to content" link is the first focusable element
   in `<body>`, hidden off-screen until focused and jumping to `<main id="main"
   tabindex="-1">` so keyboard users can bypass the header. Heading order runs
