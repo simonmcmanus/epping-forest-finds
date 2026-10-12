@@ -301,6 +301,10 @@ Sections, in order:
    inaccuracies, and explains that the trial will investigate and improve the
    data and report findings back to the City of London. The visible answer and
    JSON-LD use the same wording.
+   Each question links to its own stable fragment: `#faq-offline`, `#faq-free`,
+   `#faq-tree-data`, `#faq-cattle` and `#faq-coverage`. Direct links scroll to
+   the answer with breathing room above it and highlight the targeted row in
+   warm cream, including with JavaScript disabled.
    No battery-use question. All answers stay visible (no accordion) in one
    white rounded card, each question-and-answer pair divided by a hairline;
    on wide screens the question sits in a left column beside its answer.

@@ -11,6 +11,26 @@ const { buildInventory } = require("../../scripts/report/map-inventory.js");
 const { formatCount } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
+  test("links directly to every FAQ answer without requiring JavaScript", async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    try {
+      for (const key of ["offline", "free", "tree-data", "cattle", "coverage"]) {
+        await page.goto("/#faq-" + key);
+        const answer = page.locator("#faq-" + key);
+        await expect(answer).toBeInViewport();
+        await expect(answer).toHaveCSS("background-color", "rgb(246, 241, 231)");
+        await expect(answer.locator("dt a")).toHaveAttribute("href", "#faq-" + key);
+      }
+      await page.goto("/");
+      await page.locator("#faq-tree-data dt a").click();
+      await expect(page).toHaveURL(/#faq-tree-data$/);
+      await expect(page.locator("#faq-tree-data")).toBeInViewport();
+    } finally {
+      await context.close();
+    }
+  });
+
   test("explains tree-data limitations and the trial's feedback to the City of London", async ({ page }) => {
     await page.goto("/");
     const answer = page.locator(".faq-item").filter({ hasText: "Where does the tree data come from?" }).locator("dd");
