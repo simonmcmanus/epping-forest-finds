@@ -1952,6 +1952,26 @@ test("walking radius marker still draws when nearest results use fallback", () =
   assert.equal(arcCount, 2);
 });
 
+test("walking radius dimming keeps a crisp edge without a canvas blur filter", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+
+  const ctx = {
+    save() {},
+    restore() {},
+    beginPath() {},
+    closePath() {},
+    rect() {},
+    arc() {},
+    fill() {},
+    stroke() {},
+    createLinearGradient() { return { addColorStop() {} }; },
+    set filter(value) { throw new Error(`walking-radius blur is not allowed: ${value}`); },
+  };
+
+  app.drawWalkingRadius(ctx);
+});
+
 test("walking radius marker hides in selected-detail mode", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
