@@ -259,21 +259,32 @@ those are a "screen" of their own. Implemented by the router in `js/app.js` (see
 | URL | Screen |
 | --- | --- |
 | `/nearby` | Nearby — the app's home screen and entry point |
-| `/search` | Search |
+| `/search` | Search — carries the typed text as a live `?q=<text>` query string (see below) |
 | `/filter` | Filters — carries the active set as a live `?show=<key>,<key>` query string (see below) |
 | `/settings` | Settings |
 | `/report` | Feedback / Report |
 | `/nearby#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway`, on top of whichever screen's path it was selected from |
 | `/find/<slug>` | The same app, served at its own URL and pre-filtered to one category — a `/find/<slug>` category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it |
 | `/filter?show=<filterKey>` | Filters, pre-filtered to one or more categories — also accepted as a fallback entry point on any path for a link still using the query-param form, superseded by `/find/<slug>` above for the single-category case |
+| `/search?q=<text>` | Search, with the box already filled in and showing that text's results, so a search is shareable the same way a filter set is |
 | `/app` | Bare redirect (301) to `/nearby`, kept working for old links and bookmarks |
 
-- **`/filter`'s query string tracks the active filters live.** Every change to
-  `state.overviewFilters` while the Filters screen is open rewrites the URL's `?show=` list to
-  match with `history.replaceState` (`syncFilterQueryStringIfOnFilterScreen`) rather than
-  `pushState` — toggling chips is one continuous action, not a sequence of back-stops — so the
-  address bar, and anything built from it (a shared link, GA4's page path), always names exactly
-  what is currently showing.
+- **`/filter` and `/search` each track their own live query string.** Every change to
+  `state.overviewFilters` while on Filters, or to `state.searchQuery` while on Search, rewrites
+  the URL's `?show=`/`?q=` to match with `history.replaceState` (`syncLiveQueryStringForScreen`)
+  rather than `pushState` — toggling a chip or typing a character is one continuous action, not a
+  sequence of back-stops — so the address bar, and anything built from it (a shared link, GA4's
+  page path), always names exactly what is currently showing.
+- **A `/find/<slug>` page's single category never becomes the reader's own default.**
+  `setOverviewFilters` takes a `persist: false` option, used only when the filter set comes from
+  the URL itself (a `/find/<slug>` path or a `?show=` link) rather than a chip the reader tapped
+  — so arriving at a category page is never saved as the reader's new default for a later, plain
+  visit to `/nearby`. The Nearby nav button goes further for the current visit too: landing on
+  one of these pages marks the filters `state.overviewFiltersEphemeral`, and tapping "Nearby"
+  while that is set restores whatever the reader's own saved filters were
+  (`loadStoredOverviewFilters`) rather than carrying the page's one category over to the plain
+  Nearby screen. A filter the reader actually chose — on that same page's own Filters screen
+  included — always persists and is never treated as ephemeral.
 
 - **A screen change pushes a history entry** (`setHashFromSelection` → `history.pushState`), so
   browser back, the phone's back gesture and the inspector's own back arrow all retrace the same

@@ -1845,6 +1845,11 @@ function goToInitialView(updateHash = true) {
   exitClusterExpansion();
   state.filterScreenOpen = false;
   state.searchScreenOpen = false;
+  // A /find/<slug> page's single category is that page's own lens, not a preference the reader
+  // chose -- the Nearby nav button is "take me to the real Nearby", so it puts their actual
+  // filters back rather than carrying that category over (see setOverviewFilters' persist:false
+  // comment, js/app.js).
+  if (state.overviewFiltersEphemeral) setOverviewFilters(loadStoredOverviewFilters());
   selectOverview(true);
   setInspectorMinimized(false);
   const refitOverview = () => {

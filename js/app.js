@@ -222,13 +222,9 @@ const state = {
   // Filter keys just switched on that have nothing inside the walking radius, so the Nearby
   // camera reaches their nearest match once -- see refreshOutOfRadiusReveal/outOfRadiusFitPoints.
   outOfRadiusRevealFilters: [],
-  overviewFilters: (() => {
-    try {
-      const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
-      if (d && Array.isArray(d.filters)) return sanitizeOverviewFilters(d.filters);
-    } catch {}
-    return DEFAULT_FILTERS.slice();
-  })(),
+  overviewFilters: loadStoredOverviewFilters(),
+  // Set by setOverviewFilters(persist:false) -- see its comment -- never true on first load.
+  overviewFiltersEphemeral: false,
   overviewExpandedGroups: (() => {
     try {
       const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
@@ -636,12 +632,18 @@ function urlPartsForRouteValue(value) {
   return { pathname: NEARBY_PATH, hash: value ? `#${value}` : "" };
 }
 
-// The live, shareable description of exactly what's filtered -- the one path whose URL still
-// carries a query string of its own. "/filter" alone with nothing on, "?show=pubs" with one,
-// comma-joined with more; every other path never carries one.
+// The live, shareable description of exactly what's showing. "/filter" carries the active set
+// ("?show=pubs", comma-joined with more, nothing when none are on) and "/search" carries the
+// typed query ("?q=<text>") so either can be copied out of the address bar and still land on
+// the same thing; every other path never carries one.
 function searchStringForPath(pathname) {
-  if (pathname !== ROUTE_PATHS[ROUTE_FILTERS]) return "";
-  return state.overviewFilters.length ? `?show=${state.overviewFilters.join(",")}` : "";
+  if (pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
+    return state.overviewFilters.length ? `?show=${state.overviewFilters.join(",")}` : "";
+  }
+  if (pathname === ROUTE_PATHS[ROUTE_SEARCH]) {
+    return state.searchQuery ? `?q=${encodeURIComponent(state.searchQuery)}` : "";
+  }
+  return "";
 }
 
 // The reverse of urlPartsForRouteValue: reconstructs the bare route value currentScreenRoute()
@@ -702,9 +704,11 @@ function replaceHashInPlace(value) {
 // its own back-button step. Arriving at Filters already gets the right query string for free
 // (setHashFromSelection/replaceHashInPlace above both run searchStringForPath on push); this
 // is only for a change that happens without a screen transition alongside it.
-function syncFilterQueryStringIfOnFilterScreen() {
+// Shared by setOverviewFilters (while on /filter) and setSearchQuery (while on /search) --
+// searchStringForPath already returns "" for a path with nothing live to carry, so this is a
+// no-op on every other screen without needing to ask which one called it.
+function syncLiveQueryStringForScreen() {
   if (routeApplyDepth > 0 || routerBooting) return;
-  if (window.location.pathname !== ROUTE_PATHS[ROUTE_FILTERS]) return;
   const search = searchStringForPath(window.location.pathname);
   if (window.location.search === search) return;
   const url = `${window.location.pathname}${search}${window.location.hash}`;
@@ -730,6 +734,7 @@ function applyRouteFromUrl() {
   let raw;
   try {
     applyShowFilterFromQuery();
+    applySearchQueryFromQuery();
     raw = routeValueFromLocation();
     if (urlMatchesCurrentScreen(raw)) return true;
   } finally {
@@ -862,11 +867,21 @@ function filterKeysFromQuery(search) {
 function applyShowFilterFromQuery() {
   const fromPath = filterKeyFromFindPath(window.location.pathname);
   if (fromPath) {
-    setOverviewFilters([fromPath]);
+    setOverviewFilters([fromPath], { persist: false });
     return;
   }
   const fromQuery = filterKeysFromQuery(window.location.search);
-  if (fromQuery.length) setOverviewFilters(fromQuery);
+  if (fromQuery.length) setOverviewFilters(fromQuery, { persist: false });
+}
+
+// ?q=<text> -- /search's own live query string (searchStringForPath), reversed: whatever a
+// shared link named, set directly rather than through setSearchQuery so a query arriving before
+// the Search screen itself has opened (a fresh /search?q=... load, or back/forward onto it)
+// needs no element on the page yet -- openSearchScreen's own render picks up state.searchQuery
+// the same way it already does for a query restored within the same session (see its comment).
+function applySearchQueryFromQuery() {
+  const query = new URLSearchParams(window.location.search).get("q");
+  if (query) state.searchQuery = query;
 }
 
 async function boot() {
@@ -934,6 +949,7 @@ async function boot() {
 
     state.dataLoaded = true;
     applyShowFilterFromQuery();
+    applySearchQueryFromQuery();
 
     if (locationPromise) {
       // Await the location request that was started in parallel with data loading,
@@ -2062,15 +2078,34 @@ function saveFilterState() {
   } catch {}
 }
 
-function setOverviewFilters(nextFilters) {
+// The reader's own real filters -- read once for the initial state object below, and again by
+// goToInitialView to put them back after a /find/<slug> page's own ephemeral single category.
+function loadStoredOverviewFilters() {
+  try {
+    const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
+    if (d && Array.isArray(d.filters)) return sanitizeOverviewFilters(d.filters);
+  } catch {}
+  return DEFAULT_FILTERS.slice();
+}
+
+// persist:false is for a URL-driven pre-filter (a /find/<slug> page, or a shared ?show= link)
+// -- landing on one of those names what that page shows, not a preference the reader chose, so
+// it must not overwrite their own saved filters (saveFilterState) for every later visit to
+// /nearby. An actual chip tap, on that page or anywhere else, always persists as before.
+function setOverviewFilters(nextFilters, { persist = true } = {}) {
   const previousFilters = state.overviewFilters;
   state.overviewFilters = sanitizeOverviewFilters(nextFilters);
+  // Marks the current filters as a page's own lens rather than the reader's choice, so
+  // goToInitialView (the Nearby nav button) knows to put their real filters back rather than
+  // carrying a /find/<slug> page's single category over to the plain Nearby screen. Any real
+  // change -- a chip tap, anywhere, persist:false page included -- clears it again.
+  state.overviewFiltersEphemeral = !persist;
   // Before the camera work below: a filter switched on with nothing inside the walking radius
   // is what lets the fit reach its nearest match (outOfRadiusFitPoints).
   refreshOutOfRadiusReveal(previousFilters);
-  saveFilterState();
+  if (persist) saveFilterState();
   updateFilterUi();
-  syncFilterQueryStringIfOnFilterScreen();
+  syncLiveQueryStringForScreen();
   if (isOverviewScreenActive() && !state.filterScreenOpen) {
     selectOverview();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
@@ -3260,8 +3295,13 @@ function overviewHeadingText() {
     ? (filterMeta(activePointFilters[0])?.title || "items")
     : null;
   const singleFilterTitle = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : null;
+  // A single category (the common case on a /find/<slug> page) gets its count named too --
+  // "5 Pubs and bars within 5 min walk" says at a glance whether the radius is worth widening,
+  // which "Pubs and bars within 5 min walk" alone left the reader to count for themselves.
   return singleFilterTitle
-    ? (radiusLabel ? `${singleFilterTitle} within ${radiusLabel}` : `Nearest ${singleFilterTitle} around you`)
+    ? (radiusLabel
+        ? `${overviewItemsForActiveFilter().length} ${singleFilterTitle} within ${radiusLabel}`
+        : `Nearest ${singleFilterTitle} around you`)
     : state.overviewFilters.length > 0
       ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : "Nearest selected filters around you")
       : (radiusLabel ? `Nearest within ${radiusLabel}` : "Nearest around you");
@@ -7368,6 +7408,7 @@ function setSearchQuery(value) {
   const next = String(value ?? "");
   if (state.searchQuery === next) return;
   state.searchQuery = next;
+  syncLiveQueryStringForScreen();
   if (_searchRenderFrame != null) cancelAnimationFrame(_searchRenderFrame);
   _searchRenderFrame = requestAnimationFrame(() => {
     _searchRenderFrame = null;

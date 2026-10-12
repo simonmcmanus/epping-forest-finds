@@ -476,7 +476,7 @@ test.describe("Overview / Nearby screen", () => {
 
     test("pinching resizes the walking radius from the filter screen", async ({ page }) => {
       await page.click("#filterToggle");
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/filter(\?|$)/);
 
       const before = await page.evaluate(() => state.walkingDistanceMinutes);
       await firePinch(page, { startHalfGap: 140, endHalfGap: 20 });
@@ -485,7 +485,7 @@ test.describe("Overview / Nearby screen", () => {
       expect(grown).toBeGreaterThan(before);
       // The screen it was performed on survives: refreshNearbyRadiusView must not re-render
       // the Nearby list over the top of it.
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/filter(\?|$)/);
       await expect(page.locator("#inspectorTitle")).toContainText("Filters");
     });
   });

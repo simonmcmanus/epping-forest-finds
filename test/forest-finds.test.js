@@ -212,6 +212,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
 globalThis.__forestFindsTest = {
   state,
   els,
+  localStorage,
   // Replaces a top-level app function (a global in this sandbox) and returns the original, so a
   // test can count how often a hot path reaches an expensive helper. Restore it with the return.
   swapGlobalFunction(name, fn) { const previous = globalThis[name]; globalThis[name] = fn; return previous; },
@@ -279,6 +280,7 @@ globalThis.__forestFindsTest = {
   treeDisplayName,
   releaseStrandedAnimationFrames,
   setOverviewFilters,
+  loadStoredOverviewFilters,
   applyShowFilterFromQuery,
   filterKeyFromFindPath,
   filterKeysFromQuery,
@@ -288,7 +290,8 @@ globalThis.__forestFindsTest = {
   urlPartsForRouteValue,
   searchStringForPath,
   routeValueFromLocation,
-  syncFilterQueryStringIfOnFilterScreen,
+  syncLiveQueryStringForScreen,
+  applySearchQueryFromQuery,
   ROUTE_PATHS,
   NEARBY_PATH,
   applyWalkingRadiusChange,
@@ -647,6 +650,7 @@ function resetData(app) {
   app.state.clusterExpanded = null;
   app.state.clusterZoomed = false;
   app.state.overviewFilters = [];
+  app.state.overviewFiltersEphemeral = false;
   app.state.walkingDistanceMinutes = 5;
   app.state.showAllOutsideRadius = false;
   app.state.overviewOutsideRadiusFallback = false;
@@ -1647,6 +1651,73 @@ test("an unknown or missing ?show= value leaves the current filters alone", () =
   app.location.search = "";
   app.applyShowFilterFromQuery();
   assert.deepEqual(Array.from(app.state.overviewFilters), ["cafes"], "no ?show= param at all leaves filters untouched");
+});
+
+test("visiting a /find/<slug> page never overwrites the reader's own saved filters", () => {
+  resetData(app);
+  app.localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["cafes"], expandedGroups: [] }));
+  app.location.pathname = "/find/pubs/";
+  app.applyShowFilterFromQuery();
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "the page itself still shows its one category");
+  assert.equal(
+    JSON.parse(app.localStorage.getItem("forest-finds-filter-state-v1")).filters[0],
+    "cafes",
+    "but it never becomes the reader's new default -- their real saved filters are untouched"
+  );
+  app.location.pathname = "/";
+});
+
+test("the Nearby nav button restores the reader's real filters after a /find/<slug> page's own single category", () => {
+  resetData(app);
+  resetRouter(app);
+  app.localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["cafes"], expandedGroups: [] }));
+  app.location.pathname = "/find/pubs/";
+  app.applyShowFilterFromQuery();
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "arrives pre-filtered to the page's own category");
+
+  app.goToInitialView();
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["cafes"], "\"Nearby\" takes the reader back to their own filters, not the page's");
+  app.location.pathname = "/";
+});
+
+test("the Nearby nav button leaves a filter the reader deliberately chose alone", () => {
+  resetData(app);
+  resetRouter(app);
+  app.setOverviewFilters(["pubs"]);
+  app.goToInitialView();
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "a real chip tap is never mistaken for a page's own ephemeral lens");
+});
+
+test("a ?q=<text> query param restores the search box's text on arrival at /search", () => {
+  resetData(app);
+  app.state.searchQuery = "";
+  app.location.search = "?q=oak";
+  app.applySearchQueryFromQuery();
+  assert.equal(app.state.searchQuery, "oak", "the query param fills in the search text");
+  app.location.search = "";
+});
+
+test("a missing ?q= leaves the search text alone", () => {
+  resetData(app);
+  app.state.searchQuery = "oak";
+  app.location.search = "";
+  app.applySearchQueryFromQuery();
+  assert.equal(app.state.searchQuery, "oak", "nothing to restore, so the existing text is untouched");
+});
+
+test("typing into search updates /search's own URL live, the same way toggling a filter updates /filter's", () => {
+  resetData(app);
+  resetRouter(app);
+  app.openSearchScreen();
+  app.setSearchQuery("oak");
+  assert.equal(app.location.pathname, "/search", "still on its own path");
+  assert.equal(app.location.search, "?q=oak", "the typed text is shareable straight out of the address bar");
+
+  app.setSearchQuery("oak tree");
+  assert.equal(app.location.search, "?q=oak%20tree", "and keeps correcting in place as the text changes");
+
+  app.setSearchQuery("");
+  assert.equal(app.location.search, "", "clearing the box clears the query string too");
 });
 
 test("filterKeyFromFindPath reads the category straight from a /find/<slug> path, hyphens back to underscores", () => {
@@ -3536,6 +3607,19 @@ test("the nearby heading names the walking radius, not just the filter", () => {
   app.state.showAllOutsideRadius = true;
   assert.match(app.overviewHeadingText(), /Nearest Trees around you/);
   app.state.showAllOutsideRadius = false;
+});
+
+test("the nearby heading names the count too, so a /find/<slug> page answers 'how many' at a glance", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 5;
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push(
+    { id: "near-tree", recordNumber: 910, commonName: "Near Oak", ...makePoint(app, 0.001, 0) },
+    { id: "near-tree-2", recordNumber: 911, commonName: "Near Ash", ...makePoint(app, 0.0015, 0) }
+  );
+
+  assert.equal(app.overviewHeadingText(), "2 Trees within 5 min walk");
 });
 
 test("untagged trees each keep their own identity instead of collapsing onto one another", () => {

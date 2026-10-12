@@ -24,7 +24,7 @@ test.describe("Searching the map", () => {
     );
     await expect(page.locator("#mapSearchInput")).toBeVisible();
     await expect(page.locator("#searchToggle")).toHaveClass(/screen-active/);
-    await expect(page).toHaveURL(/#search$/);
+    await expect(page).toHaveURL(/\/search$/);
   });
 
   test("results are listed the way the nearby view lists places", async ({ page }) => {
@@ -278,7 +278,7 @@ test.describe("Searching the map", () => {
     await page.waitForFunction(
       () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
     );
-    await expect(page).not.toHaveURL(/#search/);
+    await expect(page).not.toHaveURL(/\/search/);
   });
 });
 
