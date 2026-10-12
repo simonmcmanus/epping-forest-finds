@@ -44,53 +44,20 @@ test.describe("the marketing homepage", () => {
     await expect(answer).toHaveText(question.acceptedAnswer.text);
   });
 
-  test("smoothly reverses category transitions and closes immediately with reduced motion", async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: "no-preference" });
+  test("links every map category and subcategory to its filtered Nearby page", async ({ page }) => {
     await page.goto("/");
-    const row = page.locator('[data-inventory-key="churches"]');
-    const button = row.getByRole("button", { name: "Churches", exact: true });
-    const panel = row.locator(".inventory-items");
-    await button.click();
-    await expect(panel.getByRole("listitem").first()).toBeVisible();
-    const closing = await button.evaluate(el => {
-      el.click();
-      const panel = document.getElementById(el.getAttribute("aria-controls"));
-      return { hidden: panel.hidden, inert: panel.inert, transitions: panel.getAnimations().length };
-    });
-    expect(closing).toEqual({ hidden: false, inert: true, transitions: 2 });
-    await button.evaluate(el => el.click());
-    await expect(button).toHaveAttribute("aria-expanded", "true");
-    await expect(panel).toHaveJSProperty("inert", false);
-    await expect(panel.getByRole("searchbox")).toBeVisible();
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    const hidden = await button.evaluate(el => {
-      el.click();
-      return document.getElementById(el.getAttribute("aria-controls")).hidden;
-    });
-    expect(hidden).toBe(true);
+    const inventory = buildInventory();
+    for (const group of inventory.groups) {
+      await expect(page.locator(`[data-inventory-group="${group.key}"] h3 > a`)).toHaveAttribute("href", `/nearby/${group.key}/`);
+      for (const subfilter of group.subfilters) {
+        await expect(page.locator(`[data-inventory-key="${subfilter.key}"] dt > a`)).toHaveAttribute("href", `/nearby/${subfilter.key.replace(/_/g, "-")}/`);
+      }
+    }
+    await expect(page.getByRole("link", { name: "Pubs & bars" })).toHaveAttribute("href", "/nearby/pubs/");
+    await expect(page.locator(".inventory-toggle, .inventory-items")).toHaveCount(0);
   });
 
-  test("animates an expanded category icon and restores its still artwork on close or reduced motion", async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: "no-preference" });
-    await page.goto("/");
-    const row = page.locator('[data-inventory-key="churches"]');
-    const button = row.getByRole("button", { name: "Churches", exact: true });
-    const icon = button.locator("img");
-    const original = "assets/home/map-icons/church.png";
-    const animated = "assets/home/map-icons/animated/church.png";
-    await expect(icon).toHaveAttribute("src", original);
-    await button.click();
-    await expect(icon).toHaveAttribute("src", animated);
-    await expect.poll(() => icon.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await expect(icon).toHaveAttribute("src", original);
-    await page.emulateMedia({ reducedMotion: "no-preference" });
-    await expect(icon).toHaveAttribute("src", animated);
-    await button.click();
-    await expect(icon).toHaveAttribute("src", original);
-  });
-
-  test("keeps category rows compact and marks the open list with a chevron and background", async ({ page }) => {
+  test.skip("keeps category rows compact and marks the open list with a chevron and background", async ({ page }) => {
     await page.goto("/");
     const row = page.locator('[data-inventory-key="churches"]');
     const button = row.getByRole("button", { name: "Churches", exact: true });
@@ -143,7 +110,7 @@ test.describe("the marketing homepage", () => {
     await expect.poll(appearance).toEqual(closed);
   });
 
-  test("expands Churches to show the map's churches and collapses with the keyboard", async ({ page }) => {
+  test.skip("expands Churches to show the map's churches and collapses with the keyboard", async ({ page }) => {
     await page.goto("/");
     const button = page.getByRole("button", { name: "Churches", exact: true });
     await expect(button).toHaveAttribute("aria-expanded", "false");
@@ -161,7 +128,7 @@ test.describe("the marketing homepage", () => {
     await expect(panel).toBeHidden();
   });
 
-  test("loads only opened categories, searches large lists and shows more results", async ({ page }) => {
+  test.skip("loads only opened categories, searches large lists and shows more results", async ({ page }) => {
     const requests = [];
     page.on("request", request => {
       if (request.url().includes("/assets/home/inventory/")) requests.push(request.url());
@@ -190,7 +157,7 @@ test.describe("the marketing homepage", () => {
     expect(requests).toHaveLength(1);
   });
 
-  test("explains empty categories and lets visitors retry a failed category load", async ({ page }) => {
+  test.skip("explains empty categories and lets visitors retry a failed category load", async ({ page }) => {
     let attempts = 0;
     await page.route("**/assets/home/inventory/medicine.json", route => {
       attempts += 1;
