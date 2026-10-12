@@ -14,6 +14,7 @@
   // own Lopping Hall was never on the map. scripts/osm_business_diff.py watches
   // the same set, so a regeneration and a weekly change agree on what is in scope.
   nwr["amenity"~"^(community_centre|public_hall|arts_centre|theatre|cinema|townhall|library|social_centre)$"]["name"](51.545,-0.035,51.745,0.145);
+  nwr["amenity"="place_of_worship"]["name"](51.545,-0.035,51.745,0.145);
   nwr["highway"="bus_stop"](51.545,-0.035,51.745,0.145);
   nwr["railway"~"^(station|halt|tram_stop)$"](51.545,-0.035,51.745,0.145);
   nwr["tourism"~"^(attraction|viewpoint|museum|picnic_site)$"]["name"](51.545,-0.035,51.745,0.145);

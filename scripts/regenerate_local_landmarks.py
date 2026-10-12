@@ -316,6 +316,26 @@ for element in parsed.get("elements", []):
         },
     })
 
+known_ids = {feature["properties"]["id"] for feature in features}
+preserved_manual_count = 0
+for split_file in sorted(DATA.glob("local-landmarks-*.geojson")):
+    split_data = json.loads(split_file.read_text(encoding="utf-8"))
+    for feature in split_data.get("features", []):
+        properties = feature.get("properties", {})
+        feature_id = properties.get("id")
+        # A "manual/..." id means this feature was added by hand (a weekly-ledger
+        # changeset, a one-off fix) rather than fetched from Overpass, so it will
+        # never reappear in `elements` above however the query changes. Carrying
+        # it forward here is what stops a full regen from silently discarding
+        # every such entry the next time split_landmarks.py re-derives the split
+        # files from this master -- see spec/spec-weekly-report.md.
+        if properties.get("osmType") == "manual" and feature_id not in known_ids:
+            features.append(feature)
+            known_ids.add(feature_id)
+            preserved_manual_count += 1
+if preserved_manual_count:
+    print(f"Preserved {preserved_manual_count} manually-added feature(s) not sourced from Overpass")
+
 geojson = {
     "type": "FeatureCollection",
     "name": "Local landmarks around Epping Forest",

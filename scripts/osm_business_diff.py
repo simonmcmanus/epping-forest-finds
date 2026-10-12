@@ -117,10 +117,20 @@ SHOP_CATEGORIES = {
 # checked them at all and nothing could add one that was never mapped --
 # Loughton's own Lopping Hall being the example that prompted this. They land
 # in data/local-landmarks-misc.geojson; see apply_weekly_changeset.py.
+#
+# place_of_worship joins the same group for the same reason: the map's own
+# Overpass query (data/local-landmarks.overpassql) didn't ask for it at all
+# until a report that none of the churches on Loughton High Road were
+# showing -- the few that did only snuck in because they also carried a
+# `historic=church` tag, which the query does fetch. Watching it here is
+# what lets a new or renamed church reach the map on its own in a future
+# week, the same way Lopping Hall now would, rather than needing another
+# one-off manual fetch.
 VENUE_CATEGORIES = {
     "community_centre": "community_centre", "public_hall": "public_hall",
     "arts_centre": "arts_centre", "theatre": "theatre", "cinema": "cinema",
     "townhall": "townhall", "library": "library", "social_centre": "social_centre",
+    "place_of_worship": "place_of_worship",
 }
 
 # What a walker needs that is not a business at all: where the bus goes from,
