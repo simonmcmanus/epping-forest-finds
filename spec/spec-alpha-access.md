@@ -204,7 +204,11 @@ cache versions are never bumped by hand or on a branch.
 - A 200 rewrite from each of those five screen paths to `/app.html`, so every
   pretty URL serves the same file.
 - `/app` is a separate 301 redirect to `/nearby` — not a rewrite, and not bound
-  to the gate — so old links and bookmarks keep working.
+  to the gate — so old links and bookmarks keep working. It carries
+  `force = true`: without it, Netlify's own clean-URL resolution (which tries
+  `<path>.html` for an extension-less path) matches `/app` to the static file
+  `app.html` on disk before this redirect rule ever runs, serving that file
+  directly at a 200 and skipping both the redirect and the gate.
 
 `server.js` mirrors the five rewrites for local dev, serving `app.html` at
 each screen path, following the existing `/admin` precedent, and mirrors the
