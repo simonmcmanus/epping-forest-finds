@@ -29,7 +29,7 @@ test.describe("Cookie consent banner", () => {
     await denyGeolocationUnlessGranted(page);
     await page.goto("/report");
     await expect(page.locator("#reportForm")).toBeVisible();
-    await expect(page.locator("#inspectorTitle")).toHaveText("Report");
+    await expect(page.locator("#inspectorTitle")).toHaveText("Feedback");
   });
 
   test("is shown on first visit to the homepage, and Accept hides it and persists", async ({ page }) => {
