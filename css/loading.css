@@ -73,6 +73,77 @@
   line-height: 1.45;
 }
 
+/* Non-blocking merged cookie/location ask for a landing-page arrival
+   (showCombinedConsentBanner, js/app.js) -- unlike .location-gate above (an opaque, full-screen
+   modal used for hard-stop/retry prompts), this sits fixed to the bottom like cookie-consent.js's
+   own standalone banner and leaves the map fully visible and interactive underneath. position:
+   fixed rather than absolute so it isn't clipped by .map-stage's own overflow: hidden. */
+.consent-banner {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(16px + var(--nav-bar-h) + env(safe-area-inset-bottom, 0px));
+  z-index: 5;
+  max-width: 560px;
+  margin: 0 auto;
+  transition: opacity 0.32s ease;
+}
+
+.consent-banner[hidden] {
+  display: none;
+}
+
+.consent-banner.fading-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.consent-banner-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  background: var(--panel);
+  border: 1px solid rgba(36, 56, 47, 0.15);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.consent-banner-copy {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.consent-banner-copy strong {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.consent-banner-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.consent-banner-copy a {
+  color: var(--tree);
+  font-weight: 700;
+}
+
+.consent-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
 .loading-card {
   width: 100%;
   max-width: 380px;

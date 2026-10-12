@@ -528,13 +528,6 @@ function setupInspectorHandlers() {
   if (els.locationGateButton) {
     els.locationGateButton.addEventListener("click", async () => {
       els.locationGateButton.disabled = true;
-      // showCombinedConsentGate's merged ask resolves itself here (js/app.js).
-      if (state.pendingConsentGateResolve) {
-        const resolve = state.pendingConsentGateResolve;
-        state.pendingConsentGateResolve = state.pendingConsentGateReject = null;
-        await resolve();
-        return;
-      }
       if (!hasRealLocation()) {
         ensureTrackingConsent();
         locateUser({ initial: false });
@@ -2009,16 +2002,6 @@ function setLocationGateVisible(visible, message, buttonLabel, title, { dismissi
     if (els.locationGate._deactivateFocus) {
       els.locationGate._deactivateFocus();
       els.locationGate._deactivateFocus = null;
-    }
-    // The gate closed some other way than the Enable button above -- the dismiss button or
-    // Escape -- while showCombinedConsentGate's merged ask was still pending: treat that the
-    // same as its own decline path (cookie consent denied, boot's locationPromise resolves to
-    // no fix) rather than leaving it dangling.
-    if (state.pendingConsentGateReject) {
-      const rejectGate = state.pendingConsentGateReject;
-      state.pendingConsentGateResolve = null;
-      state.pendingConsentGateReject = null;
-      rejectGate();
     }
     // When the gate is dismissed (all permissions granted), show loading overlay if data isn't ready yet
     if (!state.dataLoaded && els.loadingOverlay) {

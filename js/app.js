@@ -376,11 +376,6 @@ const state = {
   canvasInsetY: 0,
   canvasVisibleWidth: 0,
   canvasVisibleHeight: 0,
-  // Accept/decline resolvers for showCombinedConsentGate's merged cookie/location/compass ask,
-  // consumed once by els.locationGateButton/els.locationGateDismiss's own click handlers
-  // (js/nav.js) and reset to null afterward -- unset except while that gate is up.
-  pendingConsentGateResolve: null,
-  pendingConsentGateReject: null,
 };
 
 // Per-frame cache for the non-assume-open overlap rect. undefined = uncached;
@@ -416,6 +411,9 @@ const els = {
   locationGateMessage: document.getElementById("locationGateMessage"),
   locationGateButton: document.getElementById("locationGateButton"),
   locationGateDismiss: document.getElementById("locationGateDismiss"),
+  consentBanner: document.getElementById("consentBanner"),
+  consentBannerAccept: document.getElementById("consentBannerAccept"),
+  consentBannerDecline: document.getElementById("consentBannerDecline"),
   distanceWarning: document.getElementById("distanceWarning"),
   distanceWarningMessage: document.getElementById("distanceWarningMessage"),
   distanceWarningButton: document.getElementById("distanceWarningButton"),
@@ -1078,9 +1076,10 @@ async function revealMapCenteredOnUser() {
 // anything else gets a usable map straight away by standing in at DEFAULT_LOCATION (High Beach)
 // instead, with the same walking-radius-circle reveal a real fix gets (revealMapCenteredOnUser).
 // Either way, a dismissible gate invites a real fix for the exact same view centred on the user
-// -- skipped only when this boot already asked through one of the other two gates (onboarding's
-// own location step, or showCombinedConsentGate's landing-page equivalent) and failed, so hitting
-// Skip/Maybe later there (or getting denied) doesn't draw two prompts in a row.
+// -- skipped only when this boot already asked through one of the other two prompts (onboarding's
+// own location step, or showCombinedConsentBanner's landing-page equivalent) and failed, so
+// hitting Skip/Maybe later there (or getting denied, or just ignoring the banner) doesn't draw
+// two prompts in a row.
 async function revealNoRealLocation({ locationAlreadyAsked }) {
   const isLandingPage = activeFiltersShowFullListWithoutLocation();
   if (!isLandingPage) applyDefaultLocation();
@@ -1132,71 +1131,66 @@ function cookieConsentIsUndecided() {
   }
 }
 
-// Merges cookie consent, location, and (on iOS) compass access into the one location-gate tap
-// -- the landing-page-arrival counterpart to onboarding's own merged .ob-location step -- so a
-// first-time /nearby/<slug> reader sees a single ask while data loads behind it, rather than the
-// standalone cookie banner, a silent location prompt, and a separate compass prompt stacking up
-// in turn. Resolves to { locationPromise } -- the same shape showOnboarding() resolves to -- once
-// the user actually answers the gate, however long that takes: this promise is deliberately left
-// unbounded (awaited directly by boot(), not raced through withBootLocationTimeout) since it is
-// waiting on a person, not a network request. locationPromise is null when declined or when
-// geolocation itself fails to start; otherwise it's the live getCurrentPosition request, which
-// boot() wraps in withBootLocationTimeout itself, same as every other path into that variable.
-// Acceptance/decline is relayed through els.locationGateButton/els.locationGateDismiss's own
-// permanent click handlers (js/nav.js) via state.pendingConsentGateResolve/Reject rather than a
-// second pair of listeners on those buttons, so there is exactly one handler per button.
-function showCombinedConsentGate() {
-  return new Promise((resolve) => {
-    // cookie-consent.js runs as a deferred <head> script, ahead of this one -- by the time boot()
-    // reaches here the banner has very likely already rendered once; the gate replaces it rather
-    // than stacking alongside it.
-    document.getElementById("cookieConsentBanner")?.remove();
+// Non-blocking merged cookie/location/compass ask for a landing-page arrival whose cookie
+// consent is still undecided -- the SEO landing-page counterpart to onboarding's own merged
+// .ob-location step, but shown as a bottom banner (#consentBanner, styled like cookie-consent.js's
+// own banner) rather than a blocking modal: unlike #locationGate (a full-screen, opaque-background
+// dialog used for hard-stop/retry prompts elsewhere), this leaves the map fully visible and
+// interactive underneath, and boot() doesn't wait for an answer before revealing it -- see its
+// call site. A reader who ignores the banner just keeps browsing with the map's existing
+// no-location view (a landing page's own "list the whole category" treatment); a real
+// default-location stand-in for that case is left for a follow-up PR.
+function showCombinedConsentBanner() {
+  const banner = els.consentBanner;
+  if (!banner) return;
 
-    const needsCompassPrompt = compassPermissionCanBeRequested();
-    const title = needsCompassPrompt ? "Allow location, compass & cookies" : "Allow location & cookies";
-    const buttonLabel = needsCompassPrompt ? "Enable location, compass & cookies" : "Enable location & cookies";
-    const message = needsCompassPrompt
-      ? "Epping Forest Finds uses your location to show nearby finds and point you toward them with compass directions, and uses analytics cookies to understand how people use this site — enabling covers all three."
-      : "Epping Forest Finds uses your location to show nearby finds and their distance from you, and uses analytics cookies to understand how people use this site — enabling covers both.";
+  // cookie-consent.js runs as a deferred <head> script, ahead of this one -- by the time boot()
+  // reaches here the banner has very likely already rendered once; this one replaces it rather
+  // than stacking alongside it.
+  document.getElementById("cookieConsentBanner")?.remove();
 
-    state.pendingConsentGateResolve = async () => {
-      ensureTrackingConsent();
-      window.ForestFindsCookieConsent?.set(true);
+  if (els.consentBannerAccept) {
+    els.consentBannerAccept.textContent = "Enable location & cookies";
+  }
 
-      const locationPromise = new Promise((res) => {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => res({ ok: true, position: pos }),
-          () => res({ ok: false }),
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-        );
-      });
+  function hideBanner() {
+    banner.classList.add("fading-out");
+    banner.addEventListener("transitionend", () => {
+      banner.hidden = true;
+      banner.classList.remove("fading-out");
+    }, { once: true });
+  }
 
-      if (needsCompassPrompt) {
-        // Called from within this tap's own (synchronous, un-awaited-so-far) call stack, the
-        // same requirement onboarding's .ob-location handler already relies on.
-        try {
-          const permission = await DeviceOrientationEvent.requestPermission();
-          state.compassPermission = permission === "granted" ? "granted" : "denied";
-          try { localStorage.setItem(COMPASS_PERMISSION_KEY, state.compassPermission); } catch {}
-        } catch {
-          state.compassPermission = "denied";
-          try { localStorage.setItem(COMPASS_PERMISSION_KEY, "denied"); } catch {}
-        }
-      } else {
-        requestCompassPermissionIfNeeded({ fromGesture: false });
-      }
+  function cleanup() {
+    els.consentBannerAccept?.removeEventListener("click", onAccept);
+    els.consentBannerDecline?.removeEventListener("click", onDecline);
+  }
 
-      setLocationGateVisible(false);
-      resolve({ locationPromise });
-    };
+  function onAccept() {
+    cleanup();
+    hideBanner();
+    ensureTrackingConsent();
+    window.ForestFindsCookieConsent?.set(true);
+    // Compass (on iOS) is asked separately, exactly the way the post-reveal "Get a more custom
+    // experience" gate's own button already does it once a real fix exists -- locateUser() shows
+    // that gate itself if still needed. Folding the ungestured-by-then compass ask into this
+    // banner's own tap wouldn't satisfy iOS's requestPermission() gesture requirement anyway, so
+    // there is nothing to gain by special-casing it here: one small prompt at a time, reusing an
+    // already-proven path, instead of two asks racing out of the same tap.
+    locateUser({ initial: false });
+  }
 
-    state.pendingConsentGateReject = () => {
-      window.ForestFindsCookieConsent?.set(false);
-      resolve({ locationPromise: null });
-    };
+  function onDecline() {
+    cleanup();
+    window.ForestFindsCookieConsent?.set(false);
+    hideBanner();
+  }
 
-    setLocationGateVisible(true, message, buttonLabel, title, { dismissible: true });
-  });
+  els.consentBannerAccept?.addEventListener("click", onAccept);
+  els.consentBannerDecline?.addEventListener("click", onDecline);
+
+  banner.classList.remove("fading-out");
+  banner.hidden = false;
 }
 
 async function boot() {
@@ -1220,8 +1214,8 @@ async function boot() {
   // Kick off location request — this fires the browser permission dialog automatically
   // and runs in parallel with data loading so the map can open centred on the user.
   let locationPromise = null;
-  // Set once an interactive gate -- onboarding's own location step, or its landing-page
-  // equivalent showCombinedConsentGate() -- actually asked this boot, win or lose, so
+  // Set once an interactive prompt -- onboarding's own location step, or its landing-page
+  // equivalent showCombinedConsentBanner() -- actually asked this boot, win or lose, so
   // revealNoRealLocation() below knows not to draw a second prompt for the same question.
   let locationAlreadyAsked = false;
 
@@ -1247,20 +1241,15 @@ async function boot() {
     // consent is still undecided would otherwise show the standalone cookie banner, then fire
     // the browser's own location prompt silently, and then -- once that resolves -- a third,
     // separate in-app compass prompt on iOS: three stacked asks for what is really one
-    // decision. Fold all three into a single tap on the location gate instead, the same "one
-    // tap for everything" merge onboarding's own location step already does (js/onboarding.js).
-    // A repeat landing-page visit with consent already settled falls through to the plain
-    // immediate-fire branch below, same as any other returning visit.
-    //
-    // Awaited directly, unbounded, exactly like showOnboarding() below -- this is waiting on the
-    // user's own tap, not a network request, so it must not be raced through
-    // withBootLocationTimeout the way the live geolocation request it starts afterward still is.
-    const gateResult = await showCombinedConsentGate();
-    if (gateResult.locationPromise) {
-      setLoadStep("location", "loading");
-      locationPromise = gateResult.locationPromise;
-      locationAlreadyAsked = true;
-    }
+    // decision. showCombinedConsentBanner() folds all three into a single tap on a non-blocking
+    // bottom banner instead, the same "one tap for everything" merge onboarding's own location
+    // step already does (js/onboarding.js) -- except here it doesn't hold up the reveal: it's
+    // fired and left running, and boot() falls straight through to the no-location-yet branch
+    // below so the map (the landing page's own "list the whole category" view) appears right
+    // away behind it. A repeat landing-page visit with consent already settled falls through to
+    // the plain immediate-fire branch instead, same as any other returning visit.
+    showCombinedConsentBanner();
+    locationAlreadyAsked = true;
   } else if (navigator.geolocation) {
     // Returning user, or a landing-page revisit with consent already settled: start location
     // request immediately so the browser dialog appears while data loads — no tap needed.
@@ -1325,10 +1314,11 @@ async function boot() {
         await revealNoRealLocation({ locationAlreadyAsked });
       }
     } else {
-      // No geolocation support, or a first-time user skipped it (onboarding, or the landing-page
-      // combined gate).
+      // No geolocation support, a first-time user skipped it in onboarding, or the landing-page
+      // combined banner is up (locationAlreadyAsked true in that last case, so the banner is the
+      // only ask rather than also drawing the post-reveal invite gate below).
       setStatus("Offline map data loaded.");
-      await revealNoRealLocation({ locationAlreadyAsked: false });
+      await revealNoRealLocation({ locationAlreadyAsked });
     }
     showFilterHintIfFirstVisit();
 

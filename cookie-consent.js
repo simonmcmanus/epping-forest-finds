@@ -94,12 +94,12 @@ background:#fff;color:#2f6f4e}
     // Stacking this banner on top of that overlay would ask twice for the same thing.
     const onboarding = document.getElementById("onboardingOverlay");
     if (onboarding && !onboarding.hidden) return;
-    // Same reasoning for a landing-page arrival's merged location/compass/cookie ask
-    // (showCombinedConsentGate in js/app.js) -- it already asks this and decides consent itself,
-    // normally by removing this banner outright the moment it opens, but this also covers the
-    // rare case where that happens before this script's own deferred init() has run.
-    const locationGate = document.getElementById("locationGate");
-    if (locationGate && !locationGate.hidden) return;
+    // Same reasoning for a landing-page arrival's merged location/cookie ask
+    // (showCombinedConsentBanner in js/app.js) -- it already asks this and decides consent
+    // itself, normally by removing this banner outright the moment it opens, but this also
+    // covers the rare case where that happens before this script's own deferred init() has run.
+    const consentBanner = document.getElementById("consentBanner");
+    if (consentBanner && !consentBanner.hidden) return;
     injectStyle();
     const banner = document.createElement("div");
     banner.id = "cookieConsentBanner";

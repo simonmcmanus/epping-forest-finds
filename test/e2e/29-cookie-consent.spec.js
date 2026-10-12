@@ -120,51 +120,70 @@ test.describe("Cookie consent banner", () => {
     await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
   });
 
-  test.describe("landing-page arrival (merged location + cookie gate)", () => {
+  test.describe("landing-page arrival (merged location + cookie banner)", () => {
     // Do NOT call skipOnboarding() — isLandingPageArrival() already skips onboarding on its own
     // (js/app.js), and these tests are about what replaces it there: cookie consent is still
     // undecided (this file's own storageState), same as a genuine first visit.
 
+    test("shows a non-blocking banner, not the standalone cookie banner, and the map reveals immediately behind it", async ({ page }) => {
+      await denyGeolocationUnlessGranted(page);
+      await mockCowApi(page);
+      await page.goto("/nearby/filter?show=pubs");
+
+      const banner = page.locator("#consentBanner");
+      await expect(banner).toBeVisible();
+      await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
+      await expect(banner).toContainText("cookies");
+
+      // Unlike #locationGate (a blocking, opaque-background modal elsewhere in the app), this
+      // banner must not hold up the map reveal -- boot() falls straight through to the
+      // landing page's own no-location view behind it.
+      await expect(page.locator("#loadingOverlay")).toBeHidden({ timeout: 30_000 });
+      await expect(banner).toBeVisible();
+    });
+
     test.describe("geolocation granted", () => {
       // Grants the browser permission itself (not just cookie consent) so tapping Enable runs
-      // the whole merged flow to a real success -- the happy-path case this gate is meant for,
-      // where the gate stays hidden afterward rather than revealNoRealLocation's separate
-      // no-fix invite reappearing moments later (see the decline test below for that case).
+      // the whole merged flow to a real success via locateUser() -- the happy-path case this
+      // banner is meant for.
       test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 
-      test("shows one combined gate instead of the standalone cookie banner, and Enable grants both", async ({ page }) => {
+      test("Enable grants cookie consent and applies a real location fix live", async ({ page }) => {
         await mockCowApi(page);
         await page.goto("/nearby/filter?show=pubs");
 
-        const gate = page.locator("#locationGate");
-        await expect(gate).toBeVisible();
-        await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
-        await expect(page.locator("#locationGateMessage")).toContainText("cookies");
+        const banner = page.locator("#consentBanner");
+        await expect(banner).toBeVisible();
 
-        await page.locator("#locationGateButton").click();
+        await page.locator("#consentBannerAccept").click();
         await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-cookie-consent"))).toBe("granted");
-        await expect(gate).toBeHidden();
-        // Resolved by the gate's own tap, not by a banner that appears afterward.
+        await expect(banner).toBeHidden();
+        // Resolved by the banner's own tap, not by a standalone banner appearing afterward.
         await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
+
+        await expect.poll(() => page.evaluate(() => state.userLocation && !state.userLocation.isDefault)).toBe(true);
       });
     });
 
     test("'Maybe later' declines cookie consent too, with no banner afterward", async ({ page }) => {
+      await denyGeolocationUnlessGranted(page);
       await mockCowApi(page);
       await page.goto("/nearby/filter?show=pubs");
 
-      const gate = page.locator("#locationGate");
-      await expect(gate).toBeVisible();
+      const banner = page.locator("#consentBanner");
+      await expect(banner).toBeVisible();
 
-      await page.locator("#locationGateDismiss").click();
+      await page.locator("#consentBannerDecline").click();
       await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-cookie-consent"))).toBe("denied");
-      // revealNoRealLocation's own separate "get a more custom experience" invite may reappear
-      // shortly after (existing behaviour for any no-real-fix landing-page arrival, unrelated to
-      // cookie consent) -- the cookie banner must not, since consent is already decided.
+      await expect(banner).toBeHidden();
+      // revealNoRealLocation's own separate "get a more custom experience" invite is suppressed
+      // here (locationAlreadyAsked), same as a declined onboarding location step -- this banner
+      // was already the one ask, so nothing else should draw in its place.
+      await expect(page.locator("#locationGate")).toBeHidden();
       await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
     });
 
-    test("a repeat landing-page visit with consent already settled skips the combined gate", async ({ page }) => {
+    test("a repeat landing-page visit with consent already settled skips the banner", async ({ page }) => {
       await page.addInitScript(() => localStorage.setItem("ff-cookie-consent", "granted"));
       await denyGeolocationUnlessGranted(page);
       await mockCowApi(page);
@@ -174,8 +193,9 @@ test.describe("Cookie consent banner", () => {
         { timeout: 30_000 }
       );
       // Consent was already decided, so this falls through to the ordinary immediate-fire
-      // location request instead -- no gate tap needed, and no banner either since consent is
-      // already stored.
+      // location request instead -- no banner tap needed, and no cookie banner either since
+      // consent is already stored.
+      await expect(page.locator("#consentBanner")).toBeHidden();
       await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
     });
   });
