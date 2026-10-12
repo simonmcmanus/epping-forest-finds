@@ -1749,6 +1749,42 @@ test("?radius= is clamped to the slider's own bounds, and a missing or invalid v
   app.location.search = "";
 });
 
+test("a /nearby/<slug> landing page defaults the radius to 30 minutes, not the ordinary 5", () => {
+  resetData(app);
+  app.state.walkingDistanceMinutes = 5;
+  app.location.pathname = "/nearby/pubs/";
+  app.applyRadiusFromQuery();
+  assert.equal(app.state.walkingDistanceMinutes, 30, "a single category gets a fair showing without the reader touching the radius");
+
+  app.state.walkingDistanceMinutes = 5;
+  app.location.pathname = "/nearby/food/";
+  app.applyRadiusFromQuery();
+  assert.equal(app.state.walkingDistanceMinutes, 30, "a group page gets the same wider default");
+
+  app.location.pathname = "/";
+});
+
+test("an explicit ?radius= on a /nearby/<slug> landing page overrides the 30-minute default", () => {
+  resetData(app);
+  app.location.pathname = "/nearby/pubs/";
+  app.location.search = "?radius=8";
+  app.applyRadiusFromQuery();
+  assert.equal(app.state.walkingDistanceMinutes, 8, "a link that already named a radius is never overridden");
+  app.location.pathname = "/";
+  app.location.search = "";
+});
+
+test("the 30-minute landing default never leaks onto /nearby itself or its own filter/search paths", () => {
+  resetData(app);
+  for (const path of ["/nearby", "/nearby/filter", "/nearby/search", "/settings", "/report"]) {
+    app.state.walkingDistanceMinutes = 5;
+    app.location.pathname = path;
+    app.applyRadiusFromQuery();
+    assert.equal(app.state.walkingDistanceMinutes, 5, `${path} is not a /nearby/<slug> landing page`);
+  }
+  app.location.pathname = "/";
+});
+
 test("resizing the walking radius updates /nearby's own URL live, the same way a filter or a search does", () => {
   resetData(app);
   resetRouter(app);

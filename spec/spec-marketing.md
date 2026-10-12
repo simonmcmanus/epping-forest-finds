@@ -470,6 +470,12 @@ hyphen-for-underscore slug) and calls the existing `setOverviewFilters(keys)`
 subfilter's key at once — so the page lands already filtered on its own URL,
 with no redirect through `/nearby` and no separate `?show=` hop (that query
 param still works as a fallback on any screen path for any older link).
+The same boot step also widens the walking radius to 30 minutes
+(`applyRadiusFromQuery`, `LANDING_PAGE_WALKING_DISTANCE_MINUTES`) unless the
+URL already named one with `?radius=` — the ordinary 5-minute default is
+too easy for a single category to come up empty within, which would
+undersell a page whose whole job is answering "is there enough near here to
+be worth a visit".
 
 `app.html`'s CSS/JS/icon references, and several of the app's own
 runtime-constructed ones (`FOLKLORE_URL`/`PATHS_URL`/etc. in `js/app.js`,

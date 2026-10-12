@@ -33,6 +33,11 @@ const DEFAULT_FILTERS = ["trees", "cows", "events"];
 // The radius state starts at and the URL (searchStringForPath) omits -- matching state's own
 // walkingDistanceMinutes: 5 below, so a plain /nearby stays plain for the common case.
 const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
+// A /nearby/<slug> landing page (a category's own, or a whole group's) is judged on its own --
+// "is there enough near here to be worth a visit" -- which the ordinary 5-minute default can
+// easily come up empty within for a single category. 30 gives it a fair showing without the
+// reader having to touch the radius control themselves.
+const LANDING_PAGE_WALKING_DISTANCE_MINUTES = 30;
 const COW_REFRESH_MS = 5 * 60 * 1000;
 const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -940,7 +945,16 @@ function applyRadiusFromQuery() {
   // Number(null) is 0, not NaN -- read the raw param first so a missing ?radius= is left alone
   // instead of silently clamping every other navigation's radius down to the 1-minute floor.
   const param = new URLSearchParams(window.location.search).get("radius");
-  if (param == null) return;
+  if (param == null) {
+    // A /nearby/<slug> landing page gets the wider default unless the link itself already named
+    // a radius above -- the same "arrival sets the lens" treatment applyShowFilterFromQuery
+    // already gives that page's filters, so it applies every time this path is landed on, boot
+    // or popstate alike, consistently with how the filters themselves are re-applied there too.
+    if (filterKeysFromFindPath(window.location.pathname).length) {
+      state.walkingDistanceMinutes = LANDING_PAGE_WALKING_DISTANCE_MINUTES;
+    }
+    return;
+  }
   const raw = Number(param);
   if (!Number.isFinite(raw)) return;
   state.walkingDistanceMinutes = clamp(raw, WALKING_RADIUS_MIN_MINUTES, WALKING_RADIUS_MAX_MINUTES);

@@ -271,6 +271,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 | `/nearby/filter?show=<filterKey>` | Filters, pre-filtered to one or more categories — also accepted as a fallback entry point on any path for a link still using the query-param form, superseded by `/nearby/<slug>` above for the single-category case |
 | `/nearby/search?q=<text>` | Search, with the box already filled in and showing that text's results, so a search is shareable the same way a filter set is |
 | `/nearby?radius=<minutes>` | Nearby (or its `/filter`/`/search` sub-paths) with the walking radius already set to that many minutes, instead of the 5-minute default |
+| `/nearby/<slug>?radius=<minutes>` | A category or group page, with the radius set to that many minutes instead of its own 30-minute default (see below) |
 | `/app` | Bare redirect (301) to `/nearby`, kept working for old links and bookmarks |
 
 - **`/nearby`, `/nearby/filter` and `/nearby/search` each track their own live query string.**
@@ -290,6 +291,14 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   (`state.preClusterWalkingDistanceMinutes`) — the same reasoning that radius is restored to on
   leaving the group — so a history entry written mid-expansion never bakes the group's borrowed
   ring into the address bar as if the reader had chosen it.
+- **A `/nearby/<slug>` landing page defaults the radius to 30 minutes, not the ordinary
+  5-minute default.** `applyRadiusFromQuery()` applies this (`LANDING_PAGE_WALKING_DISTANCE_MINUTES`,
+  `js/app.js`) whenever the path itself names a category or group and the URL carries no explicit
+  `?radius=` of its own — a single category is otherwise too easy to come up empty within the
+  ordinary 5-minute default, which would undersell a landing page meant to answer "is there
+  enough near here to be worth a visit". An explicit `?radius=` always wins, the same as it does
+  everywhere else. Applied the same way on every arrival at the path, boot or popstate alike,
+  matching the filters' own "arrival sets the lens" treatment just below.
 - **A `/nearby/<slug>` page's single category never becomes the reader's own default.**
   `setOverviewFilters` takes a `persist: false` option, used only when the filter set comes from
   the URL itself (a `/nearby/<slug>` path or a `?show=` link) rather than a chip the reader tapped
