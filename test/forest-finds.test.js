@@ -1777,7 +1777,7 @@ test("an explicit ?radius= on a /nearby/<slug> landing page overrides the 30-min
 
 test("the 30-minute landing default never leaks onto /nearby itself or its own filter/search paths", () => {
   resetData(app);
-  for (const path of ["/nearby", "/nearby/filter", "/nearby/search", "/settings", "/report"]) {
+  for (const path of ["/nearby", "/nearby/filter", "/nearby/search", "/settings", "/feedback"]) {
     app.state.walkingDistanceMinutes = 5;
     app.location.pathname = path;
     app.applyRadiusFromQuery();

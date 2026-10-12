@@ -107,7 +107,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v100"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = "v101"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -459,7 +459,7 @@ const ROUTE_PATHS = {
   [ROUTE_FILTERS]: "/nearby/filter",
   [ROUTE_SEARCH]: "/nearby/search",
   [ROUTE_SETTINGS]: "/settings",
-  [ROUTE_REPORT]: "/report",
+  [ROUTE_REPORT]: "/feedback",
 };
 const NEARBY_PATH = "/nearby";
 
@@ -2552,8 +2552,8 @@ function openReportModal() {
   setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.reportToggle);
   els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = "Report";
-  els.inspectorType.textContent = "Missing data / feature request";
+  els.inspectorTitle.textContent = "Feedback";
+  els.inspectorType.textContent = "Help improve the data for everyone";
   transitionInspectorBody(reportFormHtml(), "forward", () => {
     const detailsInput = document.getElementById("reportDetails");
     if (detailsInput) {
@@ -2582,6 +2582,7 @@ function reportFormHtml() {
   const detailsValue = draft.details || "";
   const online = navigator.onLine;
   return `<form id="reportForm" class="report-form">
+      <p class="report-intro">We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone.</p>
       <label for="reportDetails">What did you notice?
         <textarea id="reportDetails" class="report-textarea" placeholder="Describe what's missing or what you'd like to see…" required>${escapeHtml(detailsValue)}</textarea>
       </label>

@@ -31,7 +31,7 @@
 
 [[edge_functions]]
   function = "alpha-gate"
-  path = "/report"
+  path = "/feedback"
 
 [[edge_functions]]
   function = "alpha-gate"
@@ -84,9 +84,16 @@
   status = 200
 
 [[redirects]]
-  from = "/report"
+  from = "/feedback"
   to = "/app.html"
   status = 200
+
+# /report is the screen's old path; published ledgers still link to it.
+[[redirects]]
+  from = "/report"
+  to = "/feedback"
+  status = 301
+  force = true
 
 [[redirects]]
   from = "/api/cows"

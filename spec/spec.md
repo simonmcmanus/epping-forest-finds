@@ -265,7 +265,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 | `/nearby/search` | Search — carries the typed text as a live `?q=<text>` query string (see below) |
 | `/nearby/filter` | Filters — carries the active set as a live `?show=<key>,<key>` query string (see below) |
 | `/settings` | Settings |
-| `/report` | Feedback / Report |
+| `/feedback` | Feedback |
 | `/nearby#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway`, on top of whichever screen's path it was selected from |
 | `/nearby/<slug>` | The same app, served at its own URL and pre-filtered to one category (a subfilter's own slug, e.g. `pubs`, or a whole top-level group's, e.g. `food`) — a `/nearby/<slug>` category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it. `<slug>` is never `filter` or `search`: those two are the screens below, not categories |
 | `/nearby/filter?show=<filterKey>` | Filters, pre-filtered to one or more categories — also accepted as a fallback entry point on any path for a link still using the query-param form, superseded by `/nearby/<slug>` above for the single-category case |
@@ -356,7 +356,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 - **A URL naming something the dataset does not have** (a stale share link) falls back to Nearby
   and corrects the entry in place with `replaceState`, rather than leaving the app on a screen
   its URL does not describe.
-- `/report` opens the Feedback / Report screen directly. `/report#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
+- `/feedback` opens the Feedback screen directly (the old `/report` path 301-redirects to it, keeping the hash, so published ledger links still work). `/feedback#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
 
 ### Camera behavior
 
@@ -482,10 +482,10 @@ the only one.
 - Changing the walking radius stays on the settings screen, immediately animates the map to fit the new radius, updates the nearby list and nearest tree selection, and keeps the walking radius ring visible.
 - Opening Settings shows the same map view as the Filter and Feedback screens (see below).
 
-## Feedback / Report Screen
+## Feedback Screen
 
 - Accessible via the generated feedback icon button in the inspector header, and by a direct link to `#report` (see "URL hash / navigation state" above).
-- Allows users to report missing data or request features; submissions are tracked as GitHub issues.
+- Welcomes feedback, bug reports, and anything strange users notice, explaining that it helps improve the data for everyone; submissions are tracked as GitHub issues.
 - The current app version is displayed in the form so the user can see which version will be reported.
 - The app version, user agent, page URL, and optional geolocation are included in every submission payload.
 - **Duplicate-submission prevention:** the Submit button is disabled and re-entrant submits are ignored for the duration of a request, so a double-tap cannot fire two GitHub issue creations. Each report also carries a `requestId` generated once and persisted (`localStorage`) until the report succeeds, so a retry after a dropped/failed response (e.g. flaky connection) reuses the same ID instead of minting a new one. The `report-missing-data` Netlify function searches existing GitHub issues for that ID before creating a new one and returns the existing issue if found, rather than filing a duplicate.

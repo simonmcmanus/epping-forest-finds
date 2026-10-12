@@ -21,11 +21,11 @@ test.describe("URL navigation", () => {
       await expect(page.locator("#settingsWalkMins")).toBeVisible();
     });
 
-    test("navigating to /report opens the report screen on load", async ({ page }) => {
+    test("navigating to /feedback opens the feedback screen on load", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
-      await gotoAndWaitForMap(page, "/report");
-      await expect(page).toHaveURL(/\/report$/);
+      await gotoAndWaitForMap(page, "/feedback");
+      await expect(page).toHaveURL(/\/feedback$/);
       await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
       await expect(page.locator("#reportDetails")).toBeVisible();
     });

@@ -11,7 +11,7 @@ does not require editing app files. Cross-surface wording changes are handed
 to the app owner for a separate change. See `spec/agents.md` for file ownership.
 
 It does **not** own the alpha access gate — who may reach the app's screens
-(`/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/report`), how the shared
+(`/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/feedback`), how the shared
 secret link works, or the edge function that enforces it. That belongs in
 `spec-alpha-access.md`. This spec only defines the *call to action* that the
 gate's state selects between (§8).
@@ -411,7 +411,7 @@ generated report links back to the homepage. This is what lifts both.
 
 - `/` stays priority 1.0 — now with content actually behind it.
 - The app's five screen paths (`/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`,
-  `/report`) are **not** listed, and are added to `DISALLOWED_PATHS` for the
+  `/feedback`) are **not** listed, and are added to `DISALLOWED_PATHS` for the
   duration of the alpha. A gated path that serves crawlers a landing page or a
   403 is a soft-404 signal with no upside. `/app` itself is a bare redirect
   with no content, so it needs no entry either way.
@@ -728,7 +728,7 @@ must all be reachable **without the alpha gate**. Crawlers and link unfurlers
 carry no invite cookie. Gating any of them breaks every share preview.
 
 The gate therefore covers only the app's five screen paths (`/nearby`,
-`/nearby/search`, `/nearby/filter`, `/settings`, `/report`) and `/app.html`, never `/app`
+`/nearby/search`, `/nearby/filter`, `/settings`, `/feedback`) and `/app.html`, never `/app`
 itself (a bare redirect, not a gated page). This is a deliberate trade
 recorded in `spec-alpha-access.md`: the loose assets under `/js`, `/css` and
 `/data` stay public, because the data is public OpenStreetMap and a public
