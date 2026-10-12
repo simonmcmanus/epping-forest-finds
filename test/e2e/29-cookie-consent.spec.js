@@ -13,11 +13,20 @@ test.describe("Cookie consent banner", () => {
     const banner = page.locator("#earlyTestingBanner");
     await expect(banner).toBeVisible();
     await expect(banner).toContainText("Some data may not be correct");
-    await expect(banner.getByRole("link", { name: "Report feedback" })).toHaveAttribute("href", "/app#report");
+    await expect(banner.getByRole("link", { name: "Report feedback" })).toHaveAttribute("href", "/report");
     await expect(banner.getByRole("link", { name: "get email updates" })).toHaveAttribute("href", "/#signup");
 
     await page.goto("/terms.html");
     await expect(page.locator("#earlyTestingBanner")).toHaveCount(0);
+  });
+
+  test("the short /report link opens the app feedback screen", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await denyGeolocationUnlessGranted(page);
+    await page.goto("/report");
+    await expect(page.locator("#reportForm")).toBeVisible();
+    await expect(page.locator("#inspectorTitle")).toHaveText("Report");
   });
 
   test("is shown on first visit to the homepage, and Accept hides it and persists", async ({ page }) => {

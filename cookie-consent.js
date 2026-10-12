@@ -167,7 +167,7 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
       '<div class="early-testing-copy">' +
       "<strong>Early testing</strong>" +
       '<p>This site is in an early testing phase. Some data may not be correct and you may find bugs. ' +
-      '<a href="/app#report">Report feedback</a> or <a href="/#signup">get email updates</a> by joining the mailing list.</p>' +
+      '<a href="/report">Report feedback</a> or <a href="/#signup">get email updates</a> by joining the mailing list.</p>' +
       "</div>" +
       '<button type="button" data-action="dismiss" aria-label="Dismiss early testing notice">×</button>';
     document.body.appendChild(banner);
