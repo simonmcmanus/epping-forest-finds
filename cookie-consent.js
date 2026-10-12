@@ -140,12 +140,12 @@ background:#fff;color:#2f6f4e}
     const style = document.createElement("style");
     style.id = "earlyTestingBannerStyle";
     style.textContent = `
-#earlyTestingBanner{position:fixed;top:max(16px,env(safe-area-inset-top,0px));left:16px;right:16px;
-z-index:2147482999;max-width:960px;margin:0 auto;padding:14px 18px;border-radius:14px;
+#earlyTestingBanner{margin:18px 0;padding:14px 18px;border-radius:14px;
 background:#fff;color:#17221e;border:1px solid rgba(23,34,30,.18);border-left:5px solid #c58b16;
-box-shadow:0 18px 42px rgba(19,31,25,.24),0 2px 8px rgba(19,31,25,.12);
+box-shadow:0 2px 8px rgba(19,31,25,.12);
 font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,ui-sans-serif,system-ui,sans-serif;
 display:flex;gap:12px 18px;align-items:flex-start}
+#earlyTestingNoticeSlot #earlyTestingBanner{margin:12px 12px 0;background:linear-gradient(120deg,rgba(197,139,22,.13),rgba(255,255,255,.86))}
 #earlyTestingBanner .early-testing-copy{flex:1 1 320px;min-width:0}
 #earlyTestingBanner strong{display:block;margin:0 0 3px;font-size:.95rem;font-weight:800}
 #earlyTestingBanner p{margin:0;color:#5d6a62}
@@ -153,7 +153,7 @@ display:flex;gap:12px 18px;align-items:flex-start}
 #earlyTestingBanner button{flex:0 0 auto;border:0;background:transparent;color:#405048;padding:2px;
 font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
 #earlyTestingBanner button:hover{color:#17221e}
-@media (max-width:480px){#earlyTestingBanner{left:10px;right:10px;padding:13px 14px;gap:10px}}
+@media (max-width:480px){#earlyTestingBanner{padding:13px 14px;gap:10px}}
 `;
     document.head.appendChild(style);
   }
@@ -163,6 +163,12 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
     // The homepage already explains the trial and has its own sign-up invitation, so keep this
     // extra notice for people arriving elsewhere on the site.
     if (location.pathname === "/" || location.pathname === "/index.html") return;
+    // A notice belongs in the page's reading flow. The app supplies a dedicated inspector slot;
+    // standalone public pages use their main content container. Do not add it to the admin UI,
+    // which has neither public-facing content nor an appropriate non-overlaying home for it.
+    const noticeSlot = document.getElementById("earlyTestingNoticeSlot") ||
+      document.querySelector("main, .page");
+    if (!noticeSlot) return;
     // Do not layer a site notice over the app's first-run onboarding dialog. It is shown once
     // that dialog has been completed instead.
     const onboarding = document.getElementById("onboardingOverlay");
@@ -174,12 +180,11 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
     banner.setAttribute("aria-label", "Early testing notice");
     banner.innerHTML =
       '<div class="early-testing-copy">' +
-      "<strong>A quick heads-up</strong>" +
-      '<p>We’re still trying things out around the forest, so a few map details may be a bit off and you might spot the odd bug. ' +
-      '<a href="/report">Report feedback</a> or <a href="/#signup">get email updates</a> by joining the mailing list.</p>' +
+      "<strong>Epping Forest Finds is still a work in progress</strong>" +
+      '<p>You may find data problems or bugs — please <a href="/report">report any you find</a>.</p>' +
       "</div>" +
       '<button type="button" data-action="dismiss" aria-label="Dismiss early testing notice">×</button>';
-    document.body.appendChild(banner);
+    noticeSlot.prepend(banner);
     // This is an informational notice, not a consent choice: recording it at first display
     // means visitors never see it again when they navigate to another page.
     markEarlyTestingBannerSeen();
