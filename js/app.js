@@ -74,7 +74,7 @@ const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up ali
 const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigationViewport's duration
 const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
 const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for animateViewportTo's duration
-const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user, or the no-location zoom pulse)
+const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
 const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
 const DEFAULT_FIT_PADDING_PX = 54; // default screen-space padding for fitToPoints (around content bounds)
 const OVERVIEW_FIT_PADDING_PX = 28; // tighter padding for overview targets fit
@@ -1071,47 +1071,31 @@ async function revealMapCenteredOnUser() {
 }
 
 // Boot reached here with no real GPS fix -- denied, timed out, unsupported, or skipped in
-// onboarding. A /nearby/<slug> landing page keeps its own deliberate "list the whole category"
-// treatment (activeFiltersShowFullListWithoutLocation, fitMapToSingleFilterIfNoLocation) --
-// anything else gets a usable map straight away by standing in at DEFAULT_LOCATION (High Beach)
-// instead, with the same walking-radius-circle reveal a real fix gets (revealMapCenteredOnUser).
-// Either way, a dismissible gate invites a real fix for the exact same view centred on the user
-// -- skipped only when this boot already asked through one of the other two prompts (onboarding's
+// onboarding. Every page, including a /nearby/<slug> landing page, gets a usable map straight
+// away by standing in at DEFAULT_LOCATION (High Beach), with the same walking-radius-circle
+// reveal a real fix gets (revealMapCenteredOnUser) -- a landing page already defaults its radius
+// to 30 minutes (LANDING_PAGE_WALKING_DISTANCE_MINUTES, applyRadiusFromQuery), so this just gives
+// it an origin to actually measure that radius from instead of listing the whole category
+// unsorted. A dismissible gate invites a real fix for the exact same view centred on the user --
+// skipped only when this boot already asked through one of the other two prompts (onboarding's
 // own location step, or showCombinedConsentBanner's landing-page equivalent) and failed, so
 // hitting Skip/Maybe later there (or getting denied, or just ignoring the banner) doesn't draw
 // two prompts in a row.
 async function revealNoRealLocation({ locationAlreadyAsked }) {
-  const isLandingPage = activeFiltersShowFullListWithoutLocation();
-  if (!isLandingPage) applyDefaultLocation();
+  applyDefaultLocation();
 
   selectOverview();
   draw();
   applySelectionFromHash();
-
-  if (fitMapToSingleFilterIfNoLocation()) {
-    triggerInspectorEntry();
-    hideWithFade(els.loadingOverlay);
-  } else if (!isLandingPage) {
-    await revealMapCenteredOnUser();
-  } else {
-    // A landing page whose category turned out to have nothing in it at all -- nothing of its
-    // own to fall back on, so this is the one case left with the old plain zoom pulse.
-    triggerMapRevealZoom();
-    triggerInspectorEntry();
-    hideWithFade(els.loadingOverlay);
-  }
+  await revealMapCenteredOnUser();
   updateLocateButtonVisibility();
 
   if (locationAlreadyAsked) return;
   const title = "Get a more custom experience";
   const buttonLabel = "Enable location";
-  const message = isLandingPage
-    ? (navigator.geolocation
-        ? "Share your location for a more custom experience — sorted by distance, with walking directions."
-        : "This browser does not support location access, so these aren't sorted by distance.")
-    : (navigator.geolocation
-        ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
-        : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.");
+  const message = navigator.geolocation
+    ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
+    : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.";
   setLocationGateVisible(true, message, buttonLabel, title, { dismissible: true });
 }
 
@@ -1133,13 +1117,14 @@ function cookieConsentIsUndecided() {
 
 // Non-blocking merged cookie/location/compass ask for a landing-page arrival whose cookie
 // consent is still undecided -- the SEO landing-page counterpart to onboarding's own merged
-// .ob-location step, but shown as a bottom banner (#consentBanner, styled like cookie-consent.js's
-// own banner) rather than a blocking modal: unlike #locationGate (a full-screen, opaque-background
-// dialog used for hard-stop/retry prompts elsewhere), this leaves the map fully visible and
-// interactive underneath, and boot() doesn't wait for an answer before revealing it -- see its
-// call site. A reader who ignores the banner just keeps browsing with the map's existing
-// no-location view (a landing page's own "list the whole category" treatment); a real
-// default-location stand-in for that case is left for a follow-up PR.
+// .ob-location step, but shown as an inline notice card (#consentBanner, in the inspector
+// chrome right under #earlyTestingNoticeSlot's "still a work in progress" notice -- app.html,
+// css/loading.css) rather than a blocking modal: unlike #locationGate (a full-screen,
+// opaque-background dialog used for hard-stop/retry prompts elsewhere), this leaves the map
+// fully visible and interactive underneath, and boot() doesn't wait for an answer before
+// revealing it -- see its call site. A reader who ignores the banner just keeps browsing with
+// the map's existing no-location view (DEFAULT_LOCATION's High Beach stand-in, same as any other
+// no-fix arrival -- see "No real location fix" in spec.md).
 function showCombinedConsentBanner() {
   const banner = els.consentBanner;
   if (!banner) return;
@@ -1534,16 +1519,6 @@ function triggerInspectorEntry() {
   void el.offsetWidth;
   el.classList.add("entering");
   el.addEventListener("animationend", () => el.classList.remove("entering"), { once: true });
-}
-
-function triggerMapRevealZoom(durationMs = FIRST_LOAD_REVEAL_ANIMATION_MS) {
-  const target = { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
-  const f = 0.85;
-  state.viewport.scale = target.scale * f;
-  state.viewport.tx = target.tx + els.canvas.width * (1 - f) / 2;
-  state.viewport.ty = target.ty + els.canvas.height * (1 - f) / 2;
-  draw();
-  animateViewportTo(target, durationMs);
 }
 
 // Companion to allEntriesForActiveFilters' no-location list in overviewNearestHtml: without an
@@ -4616,10 +4591,13 @@ function ensureLocationWatch() {
     },
     (error) => {
       if (error && error.code === 1) {
-        // Permission revoked mid-session — clear the watch and surface the gate.
+        // Permission revoked mid-session — clear the watch. No blocking gate: the app stays
+        // usable on the last fix it had (or the High Beach stand-in) rather than forcing a
+        // retry wall for a permission that was never required in the first place. The locate
+        // button already reflects "no real fix" and re-requests on tap if the reader wants to.
         navigator.geolocation.clearWatch(state.locationWatchId);
         state.locationWatchId = null;
-        setLocationGateVisible(true, "Location permission was blocked. Check browser settings and tap below to try again.");
+        updateLocateButtonVisibility();
       }
       // Timeout / position-unavailable: watchPosition continues automatically.
     },
