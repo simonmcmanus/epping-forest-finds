@@ -905,6 +905,17 @@ function applyShowFilterFromQuery() {
     setOverviewFilters(fromPath, { persist: false });
     return;
   }
+  // /nearby/filter's own ?show= (searchStringForPath) is a live mirror of whatever is already
+  // active, not an external pre-filter -- real only when it is how the reader first arrived
+  // (routeApplyDepth is still 0: boot(), or a shared /nearby/filter?show= link read fresh).
+  // Retracing a history entry on /nearby/filter itself (back/forward, routeApplyDepth > 0 inside
+  // applyRouteFromUrl) reads the exact value this same reader's own earlier action wrote, so
+  // reapplying it would wrongly flag already-active filters -- the ordinary 1-3 filter default
+  // state included -- as a page's own ephemeral lens, handing them the no-location full-list/fit
+  // treatment meant only for an actual single-category or group-page arrival (for the default
+  // filters, that means trying to list and fit every tree in the forest). Nothing has changed on
+  // this path, so there is nothing to (re)apply.
+  if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS] && routeApplyDepth > 0) return;
   const fromQuery = filterKeysFromQuery(window.location.search);
   if (fromQuery.length) setOverviewFilters(fromQuery, { persist: false });
 }

@@ -299,7 +299,14 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   while that is set restores whatever the reader's own saved filters were
   (`loadStoredOverviewFilters`) rather than carrying the page's one category over to the plain
   Nearby screen. A filter the reader actually chose — on that same page's own Filters screen
-  included — always persists and is never treated as ephemeral.
+  included — always persists and is never treated as ephemeral. `/nearby/filter`'s own live
+  `?show=` (the line above) round-trips through the same `?show=` fallback on every popstate,
+  including a plain back/forward retracing a history entry the reader's own filterToggle click
+  already created — `applyShowFilterFromQuery()` skips that fallback entirely while on
+  `/nearby/filter` itself during a route application (`routeApplyDepth > 0`), so retracing the
+  trail back to Filters is never mistaken for a fresh `/nearby/<slug>` arrival. Without this, the
+  ordinary 1-3 filter default state got the no-location full-list/fit treatment above on every
+  single back-navigation to Filters with no location granted.
 
 - **A screen change pushes a history entry** (`setHashFromSelection` → `history.pushState`), so
   browser back, the phone's back gesture and the inspector's own back arrow all retrace the same

@@ -5023,6 +5023,41 @@ test("going back does not itself write a history entry", () => {
   assert.equal(app.history.length, length, "applying a route from the URL must not bury the entry behind it");
 });
 
+test("going back to /nearby/filter never flags the filters already showing as a page's own ephemeral lens", () => {
+  // Regression: /nearby/filter's own live ?show= (searchStringForPath) round-trips through
+  // applyShowFilterFromQuery on every popstate, including a plain back-navigation retracing a
+  // history entry this same reader's own filterToggle click created. Before the fix, reapplying
+  // that round-tripped ?show= set state.overviewFiltersEphemeral regardless of whether anything
+  // had actually changed -- which, combined with no location, handed the ordinary 1-3 filter
+  // default state the no-location full-list/fit treatment meant only for an actual
+  // /nearby/<slug> arrival (i.e. tried to list and fit every tree in the forest on every single
+  // back-navigation to the Filter screen).
+  resetData(app);
+  app.state.userLocation = null;
+  // searchStringForPath only ever puts ?show= on /nearby/filter's own URL when some filter is
+  // active -- resetData starts with none, which would make this test a no-op (no ?show= to
+  // round-trip at all). The real boot default (DEFAULT_FILTERS) is exactly the case that broke.
+  app.state.overviewFilters = app.DEFAULT_FILTERS.slice();
+  resetRouter(app);
+  app.setupSearchAndNavHandlers();
+  app.openFiltersScreen();
+  app.openSettings();
+
+  app.history.back();
+  assert.equal(app.state.filterScreenOpen, true, "back from Settings lands on Filters again");
+  assert.match(app.location.search, /show=/, "the Filters URL really did round-trip a ?show= -- otherwise this test proves nothing");
+  assert.equal(
+    app.state.overviewFiltersEphemeral,
+    false,
+    "retracing the trail back to Filters is not a /nearby/<slug> arrival -- the default filters are still the reader's own"
+  );
+  assert.equal(
+    app.activeFiltersShowFullListWithoutLocation(),
+    false,
+    "and so never gets the no-location full-list/fit treatment that reading applies for"
+  );
+});
+
 test("the inspector back arrow steps back through the trail when a screen sits behind the current one", () => {
   resetData(app);
   resetRouter(app);
