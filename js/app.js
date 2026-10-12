@@ -2290,8 +2290,8 @@ function openReportModal() {
   setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.reportToggle);
   els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = "Report";
-  els.inspectorType.textContent = "Missing data / feature request";
+  els.inspectorTitle.textContent = "Feedback";
+  els.inspectorType.textContent = "Help improve the data for everyone";
   transitionInspectorBody(reportFormHtml(), "forward", () => {
     const detailsInput = document.getElementById("reportDetails");
     if (detailsInput) {
@@ -2320,6 +2320,7 @@ function reportFormHtml() {
   const detailsValue = draft.details || "";
   const online = navigator.onLine;
   return `<form id="reportForm" class="report-form">
+      <p class="report-intro">We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone.</p>
       <label for="reportDetails">What did you notice?
         <textarea id="reportDetails" class="report-textarea" placeholder="Describe what's missing or what you'd like to see…" required>${escapeHtml(detailsValue)}</textarea>
       </label>

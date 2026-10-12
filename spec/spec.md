@@ -257,7 +257,7 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 | `/app#search` | Search |
 | `/app#filters` | Filters |
 | `/app#settings` | Settings |
-| `/app#report` | Feedback / Report |
+| `/app#report` | Feedback |
 | `/app#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway` |
 
 - **A screen change pushes a history entry** (`setHashFromSelection` → `history.pushState`), so
@@ -299,7 +299,7 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 - **A URL naming something the dataset does not have** (a stale share link) falls back to Nearby
   and corrects the entry in place with `replaceState`, rather than leaving the app on a screen
   its URL does not describe.
-- `#report` opens the Feedback / Report screen directly. `#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
+- `#report` opens the Feedback screen directly. `#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
 
 ### Camera behavior
 
@@ -425,10 +425,10 @@ the only one.
 - Changing the walking radius stays on the settings screen, immediately animates the map to fit the new radius, updates the nearby list and nearest tree selection, and keeps the walking radius ring visible.
 - Opening Settings shows the same map view as the Filter and Feedback screens (see below).
 
-## Feedback / Report Screen
+## Feedback Screen
 
 - Accessible via the generated feedback icon button in the inspector header, and by a direct link to `#report` (see "URL hash / navigation state" above).
-- Allows users to report missing data or request features; submissions are tracked as GitHub issues.
+- Welcomes feedback, bug reports, and anything strange users notice, explaining that it helps improve the data for everyone; submissions are tracked as GitHub issues.
 - The current app version is displayed in the form so the user can see which version will be reported.
 - The app version, user agent, page URL, and optional geolocation are included in every submission payload.
 - **Duplicate-submission prevention:** the Submit button is disabled and re-entrant submits are ignored for the duration of a request, so a double-tap cannot fire two GitHub issue creations. Each report also carries a `requestId` generated once and persisted (`localStorage`) until the report succeeds, so a retry after a dropped/failed response (e.g. flaky connection) reuses the same ID instead of minting a new one. The `report-missing-data` Netlify function searches existing GitHub issues for that ID before creating a new one and returns the existing issue if found, rather than filing a duplicate.
