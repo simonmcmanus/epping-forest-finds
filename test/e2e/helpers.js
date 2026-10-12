@@ -154,10 +154,12 @@ async function gotoAndWaitForMap(page, path = "/nearby", { timeout = 30_000 } = 
 /**
  * Full standard setup: skip onboarding, mock cows, navigate, wait for map.
  * Also force-hides the location gate if it appeared (location fails in any test that
- * has not granted the permission — see denyGeolocationUnlessGranted). The gate is
- * full-screen and would block all button clicks — hiding it here leaves
- * state.userLocation null so the overview empty-state assertion in 02-overview still
- * works.
+ * has not granted the permission — see denyGeolocationUnlessGranted), and clears
+ * applyDefaultLocation()'s High Beach stand-in (js/app.js) that boot falls back to
+ * whenever there is no real fix — restoring the "no location at all" baseline most of
+ * this suite is written against, including the overview empty-state assertion in
+ * 02-overview. A test that wants the real default-location behaviour (09-location) uses
+ * gotoAndWaitForMap directly instead of this helper, so it sees it unmodified.
  */
 async function setup(page, urlPath = "/nearby") {
   await skipOnboarding(page);
@@ -166,6 +168,13 @@ async function setup(page, urlPath = "/nearby") {
   await page.evaluate(() => {
     const gate = document.getElementById("locationGate");
     if (gate && !gate.hidden) gate.hidden = true;
+    if (state.userLocation && state.userLocation.isDefault) {
+      state.userLocation = null;
+      state.walkingDistanceMinutes = DEFAULT_WALKING_DISTANCE_MINUTES;
+      selectOverview();
+      updateLocateButtonVisibility();
+      draw();
+    }
   });
 }
 

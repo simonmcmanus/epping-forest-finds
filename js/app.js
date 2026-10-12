@@ -38,6 +38,19 @@ const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
 // easily come up empty within for a single category. 30 gives it a fair showing without the
 // reader having to touch the radius control themselves.
 const LANDING_PAGE_WALKING_DISTANCE_MINUTES = 30;
+// Centre used by applyDefaultLocation() until a real GPS fix exists (denied, unavailable, or not
+// yet asked) outside the /nearby/<slug> landing-page case above -- the "high-beach-general" area
+// anchor in data/epping_forest_folklore_locations.json, a well-known, central, historic spot in
+// the forest rather than an arbitrary coordinate. Lets the map open already populated -- Nearby
+// list, distances, the walking-radius ring -- instead of the bare whole-forest outline, with the
+// location gate inviting a real fix for the same view centred on the user instead.
+const DEFAULT_LOCATION = { latitude: 51.667591, longitude: 0.037454 };
+// Matches LANDING_PAGE_WALKING_DISTANCE_MINUTES's own reasoning (a fair showing without the
+// reader touching the radius control) for the same reason: DEFAULT_LOCATION isn't tied to
+// anywhere the user actually stands, so the ordinary 5-minute default would show very little of
+// it. A separate constant from that one on purpose -- the two features' radii may need to diverge
+// later even though they start at the same number.
+const DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES = 30;
 const COW_REFRESH_MS = 5 * 60 * 1000;
 const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -363,6 +376,11 @@ const state = {
   canvasInsetY: 0,
   canvasVisibleWidth: 0,
   canvasVisibleHeight: 0,
+  // Accept/decline resolvers for showCombinedConsentGate's merged cookie/location/compass ask,
+  // consumed once by els.locationGateButton/els.locationGateDismiss's own click handlers
+  // (js/nav.js) and reset to null afterward -- unset except while that gate is up.
+  pendingConsentGateResolve: null,
+  pendingConsentGateReject: null,
 };
 
 // Per-frame cache for the non-assume-open overlap rect. undefined = uncached;
@@ -397,6 +415,7 @@ const els = {
   locationGateTitle: document.getElementById("locationGateTitle"),
   locationGateMessage: document.getElementById("locationGateMessage"),
   locationGateButton: document.getElementById("locationGateButton"),
+  locationGateDismiss: document.getElementById("locationGateDismiss"),
   distanceWarning: document.getElementById("distanceWarning"),
   distanceWarningMessage: document.getElementById("distanceWarningMessage"),
   distanceWarningButton: document.getElementById("distanceWarningButton"),
@@ -1016,6 +1035,170 @@ function applyRadiusFromQuery() {
   state.walkingDistanceMinutes = clamp(raw, WALKING_RADIUS_MIN_MINUTES, WALKING_RADIUS_MAX_MINUTES);
 }
 
+// Snaps the camera onto the walking-radius circle around state.userLocation, pauses on it, then
+// animates to the final framing -- shared by boot's real-fix success path and, via
+// applyDefaultLocation(), its no-real-fix one (revealNoRealLocation below), so both get the same
+// polished reveal rather than one of them settling for a plain zoom pulse.
+async function revealMapCenteredOnUser() {
+  selectOverview();
+  draw();
+
+  // Snap the camera onto the walking-radius circle before the reveal animation -- the same
+  // thing the Nearby view frames once it is live (see nearbyCameraFitPoints), so the reveal
+  // eases from a slightly wider version of the final view rather than starting on a tight fit
+  // of whichever items happened to be nearest and then pulling back out to the circle.
+  {
+    const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+    const targetScale = maxScaleForRadiusVisible(focusRect);
+    centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
+  }
+  draw();
+
+  // Brief pause so the user sees the completed step list.
+  await new Promise((resolve) => setTimeout(resolve, 320));
+
+  // Apply the launch URL's own screen after the wait so it overrides the overview snap.
+  applySelectionFromHash();
+
+  // Fade overlay and animate camera to final position simultaneously.
+  // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
+  // to a wider viewport if a GPS update arrived during the 320 ms wait.
+  if (state.selected) {
+    ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
+  } else {
+    ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
+  }
+  triggerInspectorEntry();
+  hideWithFade(els.loadingOverlay);
+}
+
+// Boot reached here with no real GPS fix -- denied, timed out, unsupported, or skipped in
+// onboarding. A /nearby/<slug> landing page keeps its own deliberate "list the whole category"
+// treatment (activeFiltersShowFullListWithoutLocation, fitMapToSingleFilterIfNoLocation) --
+// anything else gets a usable map straight away by standing in at DEFAULT_LOCATION (High Beach)
+// instead, with the same walking-radius-circle reveal a real fix gets (revealMapCenteredOnUser).
+// Either way, a dismissible gate invites a real fix for the exact same view centred on the user
+// -- skipped only when this boot already asked through one of the other two gates (onboarding's
+// own location step, or showCombinedConsentGate's landing-page equivalent) and failed, so hitting
+// Skip/Maybe later there (or getting denied) doesn't draw two prompts in a row.
+async function revealNoRealLocation({ locationAlreadyAsked }) {
+  const isLandingPage = activeFiltersShowFullListWithoutLocation();
+  if (!isLandingPage) applyDefaultLocation();
+
+  selectOverview();
+  draw();
+  applySelectionFromHash();
+
+  if (fitMapToSingleFilterIfNoLocation()) {
+    triggerInspectorEntry();
+    hideWithFade(els.loadingOverlay);
+  } else if (!isLandingPage) {
+    await revealMapCenteredOnUser();
+  } else {
+    // A landing page whose category turned out to have nothing in it at all -- nothing of its
+    // own to fall back on, so this is the one case left with the old plain zoom pulse.
+    triggerMapRevealZoom();
+    triggerInspectorEntry();
+    hideWithFade(els.loadingOverlay);
+  }
+  updateLocateButtonVisibility();
+
+  if (locationAlreadyAsked) return;
+  const title = "Get a more custom experience";
+  const buttonLabel = "Enable location";
+  const message = isLandingPage
+    ? (navigator.geolocation
+        ? "Share your location for a more custom experience — sorted by distance, with walking directions."
+        : "This browser does not support location access, so these aren't sorted by distance.")
+    : (navigator.geolocation
+        ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
+        : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.");
+  setLocationGateVisible(true, message, buttonLabel, title, { dismissible: true });
+}
+
+// Read directly rather than through window.ForestFindsCookieConsent.get(): js/app.js's own
+// <script> tags (app.html) are plain, synchronous ones, not deferred, so they run while the
+// document is still parsing -- before cookie-consent.js's deferred <head> script has run and
+// defined that global. boot()'s own top-level call happens from that same synchronous parse, so
+// checking the global here would read it as always unset (optional-chaining to undefined, which
+// == null) regardless of what's actually stored. localStorage itself has no such ordering
+// dependency. window.ForestFindsCookieConsent.set() further down is safe to use as-is -- it only
+// ever runs from a later user gesture, long after every script has finished loading.
+function cookieConsentIsUndecided() {
+  try {
+    return localStorage.getItem("ff-cookie-consent") == null;
+  } catch {
+    return true;
+  }
+}
+
+// Merges cookie consent, location, and (on iOS) compass access into the one location-gate tap
+// -- the landing-page-arrival counterpart to onboarding's own merged .ob-location step -- so a
+// first-time /nearby/<slug> reader sees a single ask while data loads behind it, rather than the
+// standalone cookie banner, a silent location prompt, and a separate compass prompt stacking up
+// in turn. Resolves to { locationPromise } -- the same shape showOnboarding() resolves to -- once
+// the user actually answers the gate, however long that takes: this promise is deliberately left
+// unbounded (awaited directly by boot(), not raced through withBootLocationTimeout) since it is
+// waiting on a person, not a network request. locationPromise is null when declined or when
+// geolocation itself fails to start; otherwise it's the live getCurrentPosition request, which
+// boot() wraps in withBootLocationTimeout itself, same as every other path into that variable.
+// Acceptance/decline is relayed through els.locationGateButton/els.locationGateDismiss's own
+// permanent click handlers (js/nav.js) via state.pendingConsentGateResolve/Reject rather than a
+// second pair of listeners on those buttons, so there is exactly one handler per button.
+function showCombinedConsentGate() {
+  return new Promise((resolve) => {
+    // cookie-consent.js runs as a deferred <head> script, ahead of this one -- by the time boot()
+    // reaches here the banner has very likely already rendered once; the gate replaces it rather
+    // than stacking alongside it.
+    document.getElementById("cookieConsentBanner")?.remove();
+
+    const needsCompassPrompt = compassPermissionCanBeRequested();
+    const title = needsCompassPrompt ? "Allow location, compass & cookies" : "Allow location & cookies";
+    const buttonLabel = needsCompassPrompt ? "Enable location, compass & cookies" : "Enable location & cookies";
+    const message = needsCompassPrompt
+      ? "Epping Forest Finds uses your location to show nearby finds and point you toward them with compass directions, and uses analytics cookies to understand how people use this site — enabling covers all three."
+      : "Epping Forest Finds uses your location to show nearby finds and their distance from you, and uses analytics cookies to understand how people use this site — enabling covers both.";
+
+    state.pendingConsentGateResolve = async () => {
+      ensureTrackingConsent();
+      window.ForestFindsCookieConsent?.set(true);
+
+      const locationPromise = new Promise((res) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => res({ ok: true, position: pos }),
+          () => res({ ok: false }),
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        );
+      });
+
+      if (needsCompassPrompt) {
+        // Called from within this tap's own (synchronous, un-awaited-so-far) call stack, the
+        // same requirement onboarding's .ob-location handler already relies on.
+        try {
+          const permission = await DeviceOrientationEvent.requestPermission();
+          state.compassPermission = permission === "granted" ? "granted" : "denied";
+          try { localStorage.setItem(COMPASS_PERMISSION_KEY, state.compassPermission); } catch {}
+        } catch {
+          state.compassPermission = "denied";
+          try { localStorage.setItem(COMPASS_PERMISSION_KEY, "denied"); } catch {}
+        }
+      } else {
+        requestCompassPermissionIfNeeded({ fromGesture: false });
+      }
+
+      setLocationGateVisible(false);
+      resolve({ locationPromise });
+    };
+
+    state.pendingConsentGateReject = () => {
+      window.ForestFindsCookieConsent?.set(false);
+      resolve({ locationPromise: null });
+    };
+
+    setLocationGateVisible(true, message, buttonLabel, title, { dismissible: true });
+  });
+}
+
 async function boot() {
   initSelectedIconMotion();
   initRouter();
@@ -1037,7 +1220,10 @@ async function boot() {
   // Kick off location request — this fires the browser permission dialog automatically
   // and runs in parallel with data loading so the map can open centred on the user.
   let locationPromise = null;
-  let locationAskedInOnboarding = false;
+  // Set once an interactive gate -- onboarding's own location step, or its landing-page
+  // equivalent showCombinedConsentGate() -- actually asked this boot, win or lose, so
+  // revealNoRealLocation() below knows not to draw a second prompt for the same question.
+  let locationAlreadyAsked = false;
 
   if (!hasCompletedOnboarding() && !isLandingPageArrival()) {
     // First visit to the plain Nearby screen: show onboarding while data loads behind it.
@@ -1054,11 +1240,30 @@ async function boot() {
     if (onboardResult.locationPromise) {
       setLoadStep("location", "loading");
       locationPromise = onboardResult.locationPromise;
-      locationAskedInOnboarding = true;
+      locationAlreadyAsked = true;
+    }
+  } else if (navigator.geolocation && isLandingPageArrival() && cookieConsentIsUndecided()) {
+    // A landing-page arrival (/nearby/<slug>, or a first-touch ?show= link) whose cookie
+    // consent is still undecided would otherwise show the standalone cookie banner, then fire
+    // the browser's own location prompt silently, and then -- once that resolves -- a third,
+    // separate in-app compass prompt on iOS: three stacked asks for what is really one
+    // decision. Fold all three into a single tap on the location gate instead, the same "one
+    // tap for everything" merge onboarding's own location step already does (js/onboarding.js).
+    // A repeat landing-page visit with consent already settled falls through to the plain
+    // immediate-fire branch below, same as any other returning visit.
+    //
+    // Awaited directly, unbounded, exactly like showOnboarding() below -- this is waiting on the
+    // user's own tap, not a network request, so it must not be raced through
+    // withBootLocationTimeout the way the live geolocation request it starts afterward still is.
+    const gateResult = await showCombinedConsentGate();
+    if (gateResult.locationPromise) {
+      setLoadStep("location", "loading");
+      locationPromise = gateResult.locationPromise;
+      locationAlreadyAsked = true;
     }
   } else if (navigator.geolocation) {
-    // Returning user, or a first-visit landing-page arrival: start location request
-    // immediately so the browser dialog appears while data loads — no tap needed to trigger it.
+    // Returning user, or a landing-page revisit with consent already settled: start location
+    // request immediately so the browser dialog appears while data loads — no tap needed.
     setLoadStep("location", "loading");
     locationPromise = new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
@@ -1067,9 +1272,10 @@ async function boot() {
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
       );
     });
-  } else {
-    setLocationGateVisible(true, "This browser does not support location access.");
   }
+  // No geolocation at all: nothing to await, so this falls straight through to
+  // revealNoRealLocation() below (locationPromise stays null) -- which is also where its gate
+  // copy gets written, after the map itself is already up rather than before.
 
   try {
     await mapPromise;
@@ -1110,69 +1316,19 @@ async function boot() {
         }
 
         // Populate overview list and render map while overlay is still up.
-        selectOverview();
-        draw();
-
-        // Snap the camera onto the walking-radius circle before the reveal animation --
-        // the same thing the Nearby view frames once it is live (see nearbyCameraFitPoints),
-        // so the reveal eases from a slightly wider version of the final view rather than
-        // starting on a tight fit of whichever items happened to be nearest and then pulling
-        // back out to the circle.
-        {
-          const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-          const targetScale = maxScaleForRadiusVisible(focusRect);
-          centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
-        }
-        draw();
-
-        // Brief pause so the user sees the completed step list.
-        await new Promise((resolve) => setTimeout(resolve, 320));
-
-        // Apply the launch URL's own screen after the wait so it overrides the overview snap.
-        applySelectionFromHash();
-
-        // Fade overlay and animate camera to final position simultaneously.
-        // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
-        // to a wider viewport if a GPS update arrived during the 320 ms wait.
-        if (state.selected) {
-          ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
-        } else {
-          ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
-        }
-        triggerInspectorEntry();
-        hideWithFade(els.loadingOverlay);
+        await revealMapCenteredOnUser();
       } else {
-        // Location denied or timed out — reveal map without centering.
-        // On first visit the user already had the chance to grant via the onboarding
-        // button, so we don't show a second blocking prompt; the "Use my location"
-        // button in the inspector is available if they change their mind.
-        // On returning visits the auto-request failed, so show the gate so they can retry.
+        // Location denied or timed out. Brief pause so the user sees the completed step list
+        // (here, that it failed) before the fallback reveal below takes over.
         setLoadStep("location", "error");
-        if (!locationAskedInOnboarding) {
-          setLocationGateVisible(
-            true,
-            "Tap below to allow location so the map can centre on you and show nearby finds.",
-            "Enable location"
-          );
-        }
         await new Promise((resolve) => setTimeout(resolve, 300));
-        selectOverview();
-        draw();
-        applySelectionFromHash();
-        if (!fitMapToSingleFilterIfNoLocation()) triggerMapRevealZoom();
-        triggerInspectorEntry();
-        hideWithFade(els.loadingOverlay);
-        updateLocateButtonVisibility();
+        await revealNoRealLocation({ locationAlreadyAsked });
       }
     } else {
-      // No geolocation support or user opted out — reveal map without location.
+      // No geolocation support, or a first-time user skipped it (onboarding, or the landing-page
+      // combined gate).
       setStatus("Offline map data loaded.");
-      selectOverview();
-      draw();
-      applySelectionFromHash();
-      if (!fitMapToSingleFilterIfNoLocation()) triggerMapRevealZoom();
-      triggerInspectorEntry();
-      hideWithFade(els.loadingOverlay);
+      await revealNoRealLocation({ locationAlreadyAsked: false });
     }
     showFilterHintIfFirstVisit();
 
@@ -1366,6 +1522,19 @@ function applyLocationFix(position) {
   state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
   state.selected = null;
   return { latitude, longitude, previousPoint };
+}
+
+// Stands in for a real fix (see revealNoRealLocation) by running DEFAULT_LOCATION through the
+// exact same pipeline applyLocationFix uses -- nearest-tree/cow/pub/etc, state.userInMapArea --
+// so the Nearby list, distances and walking-radius ring all work immediately. isDefault is the
+// one thing that pipeline never sets on its own, and is what hasRealLocation() (js/nav.js) reads
+// to tell this apart from an actual GPS fix.
+function applyDefaultLocation() {
+  applyLocationFix({ coords: { latitude: DEFAULT_LOCATION.latitude, longitude: DEFAULT_LOCATION.longitude, accuracy: null } });
+  state.userLocation.isDefault = true;
+  if (state.walkingDistanceMinutes === DEFAULT_WALKING_DISTANCE_MINUTES) {
+    state.walkingDistanceMinutes = DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES;
+  }
 }
 
 function triggerInspectorEntry() {
@@ -2736,7 +2905,11 @@ function updateReportLocationLabel() {
 }
 
 async function populateReportLocation() {
-  if (state.userLocation) return;
+  // hasRealLocation(), not state.userLocation's bare truthiness: a report drafted while only
+  // DEFAULT_LOCATION's High Beach stand-in is active should still try for the real fix the
+  // report is actually about, rather than silently settling for an anchor the reader was never
+  // actually standing at.
+  if (hasRealLocation()) return;
   if (!navigator.geolocation) return;
   await new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition((position) => {
@@ -3433,16 +3606,20 @@ function overviewHeadingText() {
     ? (filterMeta(activePointFilters[0])?.title || "items")
     : null;
   const singleFilterTitle = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : null;
+  // "around you" would misname applyDefaultLocation()'s High Beach stand-in as the reader's
+  // own position -- only reachable with showAllOutsideRadius on, since radiusLabel otherwise
+  // always names the radius instead, but worth getting right for that case too.
+  const aroundOrigin = state.userLocation.isDefault ? "around High Beach" : "around you";
   // A single category (the common case on a /nearby/<slug> page) gets its count named too --
   // "5 Pubs and bars within 5 min walk" says at a glance whether the radius is worth widening,
   // which "Pubs and bars within 5 min walk" alone left the reader to count for themselves.
   return singleFilterTitle
     ? (radiusLabel
         ? `${overviewItemsForActiveFilter().length} ${singleFilterTitle} within ${radiusLabel}`
-        : `Nearest ${singleFilterTitle} around you`)
+        : `Nearest ${singleFilterTitle} ${aroundOrigin}`)
     : state.overviewFilters.length > 0
-      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : "Nearest selected filters around you")
-      : (radiusLabel ? `Nearest within ${radiusLabel}` : "Nearest around you");
+      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : `Nearest selected filters ${aroundOrigin}`)
+      : (radiusLabel ? `Nearest within ${radiusLabel}` : `Nearest ${aroundOrigin}`);
 }
 
 // True when the active filter set should be shown in full even without a location fix: either
