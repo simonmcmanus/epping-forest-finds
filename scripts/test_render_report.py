@@ -381,7 +381,7 @@ class AiNoteTests(unittest.TestCase):
 
     def test_links_into_the_apps_own_report_screen_naming_this_report(self):
         html = rr.render_ai_note("https://www.eppingforestfinds.uk/app", "Monday, 15 September 2026")
-        self.assertIn("https://www.eppingforestfinds.uk/app#report=", html)
+        self.assertIn("https://www.eppingforestfinds.uk/report#report=", html)
         self.assertIn("Monday%2C%2015%20September%202026", html)
 
     def test_is_the_last_thing_on_the_page(self):

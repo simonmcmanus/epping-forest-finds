@@ -544,7 +544,13 @@ def render_ai_note(app_link, date_display):
     straight into the app's own report-a-problem screen, pre-filled so we know
     which week it came from."""
     subject = f"Mistake in the Epping Forest Ledger for {date_display}" if date_display else "Mistake in the Epping Forest Ledger"
-    deep_link = f"{app_link.rstrip('/')}#report={quote(subject, safe='')}"
+    # The Report screen has its own real path now (/report), not a #report= hash on /app --
+    # /app itself is a bare redirect with nothing to carry a hash through to. Same origin as
+    # app_link, so a custom one (a staging site, say) is still respected.
+    report_base = app_link.rstrip('/')
+    if report_base.endswith('/app'):
+        report_base = report_base[: -len('/app')]
+    deep_link = f"{report_base}/report#report={quote(subject, safe='')}"
     return (
         '<aside class="ai-note">'
         '<h4>Written by AI — please tell us if it is wrong</h4>'

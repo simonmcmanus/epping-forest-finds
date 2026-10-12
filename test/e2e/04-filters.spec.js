@@ -18,28 +18,28 @@ test.describe("Filter panel", () => {
       .toHaveText("Choose what appears on the map");
   });
 
-  test("URL hash becomes #filters when the filter screen opens", async ({ page }) => {
+  test("the URL becomes /nearby/filter when the filter screen opens", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page).toHaveURL(/#filters$/);
+    await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
   });
 
   test("filter screen stays open when the map canvas is tapped", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page).toHaveURL(/#filters$/);
+    await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
     // Tap the canvas — filter screen must not close
     await page.locator("#mapCanvas").click({ position: { x: 200, y: 200 } });
-    await expect(page).toHaveURL(/#filters$/);
+    await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
   });
 
   test("Nearby button closes the filter screen and returns to overview", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page).toHaveURL(/#filters$/);
+    await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
     await page.click("#nearbyToggle");
     // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
     await page.waitForFunction(
       () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
     );
-    await expect(page).not.toHaveURL(/#filters$/);
+    await expect(page).not.toHaveURL(/\/nearby\/filter(\?|$)/);
   });
 
   test("filter button shows active count badge when filters are toggled on", async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe("Filter panel", () => {
       await page.locator('.filter-chip[data-filter-subfilter="trees"]').click();
 
       await expect(countEl).not.toHaveText(before);
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await expect(page.locator("#filterNearestListSection")).toBeVisible();
     });
 
@@ -184,7 +184,7 @@ test.describe("Filter panel", () => {
   test("snapshot: filter screen open", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.click("#filterToggle");
-    await expect(page).toHaveURL(/#filters$/);
+    await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
     await page.waitForTimeout(300);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("filter-screen.png", { fullPage: false });

@@ -36,7 +36,7 @@ test.describe("Cookie consent banner", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await denyGeolocationUnlessGranted(page);
-    await page.goto("/app");
+    await page.goto("/nearby");
     await expect(page.locator("#cookieConsentBanner")).toBeVisible();
   });
 
@@ -47,7 +47,7 @@ test.describe("Cookie consent banner", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await denyGeolocationUnlessGranted(page);
-    await page.goto("/app");
+    await page.goto("/nearby");
     await expect(page.locator("#cookieConsentBanner")).toBeHidden();
   });
 
@@ -64,7 +64,7 @@ test.describe("Cookie consent banner", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await denyGeolocationUnlessGranted(page);
-    await page.goto("/app");
+    await page.goto("/nearby");
     await page.locator("#cookieConsentBanner [data-action=\"decline\"]").click();
     // The in-app tracker consent key is independent of the cookie-consent banner's choice.
     expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBeNull();
@@ -73,7 +73,7 @@ test.describe("Cookie consent banner", () => {
   test("on first-run onboarding, the standalone banner is suppressed and 'Enable location' grants cookie consent too", async ({ page }) => {
     // Do NOT call skipOnboarding() — the merge only applies to the real first-visit overlay.
     await mockCowApi(page);
-    await page.goto("/app");
+    await page.goto("/nearby");
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
     await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
 
@@ -85,7 +85,7 @@ test.describe("Cookie consent banner", () => {
 
   test("on first-run onboarding, 'Skip for now' declines cookie consent too with no banner afterward", async ({ page }) => {
     await mockCowApi(page);
-    await page.goto("/app");
+    await page.goto("/nearby");
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
 
     await page.locator("#onboardingOverlay .ob-location-skip").click();

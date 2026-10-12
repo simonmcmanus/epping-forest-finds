@@ -42,8 +42,10 @@ restriction has to be real even though the secret is shared.
 | Path | Serves | Gated |
 | --- | --- | --- |
 | `/` | Marketing homepage (`index.html`) | No |
-| `/app` | The map application (`app.html`) | Yes |
-| `/app.html` | Same, the underlying file | Yes |
+| `/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/report` | The map application's five screens, each its own URL (see spec.md "Routing") | Yes |
+| `/app` | Bare redirect (301) to `/nearby` — the app's old entry point, kept working for old links and bookmarks | No (nothing to gate; it carries no content) |
+| `/app.html` | The underlying file every screen path rewrites to | Yes |
+| `/nearby/<slug>` | Category pages (spec-marketing.md § "Category pages"), **not** gated — the gate's `path` list names the bare `/nearby`, `/nearby/search` and `/nearby/filter` paths exactly, so a category page nested one segment deeper is never caught by it | No |
 | `/reports/`, `/terms.html`, `/admin` | Unchanged | No |
 | `/js/*`, `/css/*`, `/data/*`, `/sw.js`, `/manifest.webmanifest` | Unchanged | No |
 
@@ -74,18 +76,23 @@ it cache `/js/*`, `/css/*` and `/data/*`. Moving the app into an `/app/`
 directory would collapse that scope to `/app/` and the app would stop working
 offline entirely — which is the product.
 
-`/app` is therefore a URL, produced by a rewrite, not a folder.
+Each screen path (`/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/report`) is
+therefore a URL, produced by a rewrite, not a folder — all five rewrite to the
+same `app.html` at the root (spec.md "Routing"). `/app` is a bare redirect to
+`/nearby` kept for old links; it is not itself a rewrite target and carries no
+content, so it needs no gate of its own.
 The root-scoped service worker must bypass all `/assets/home/` requests before
 its cache handling, so returning app users receive independently deployed
 marketing assets without an app release.
 
-`manifest.webmanifest`'s `start_url` moves to `/app` so an installed app opens
-the map rather than the marketing homepage. `scope` stays at the root, which is
+`manifest.webmanifest`'s `start_url` is `/nearby` so an installed app opens the
+map rather than the marketing homepage. `scope` stays at the root, which is
 what keeps the installed app able to reach `/js`, `/css` and `/data`.
 
 ## 3. The gate
 
-`netlify/edge-functions/alpha-gate.js`, configured for `/app` and `/app.html`.
+`netlify/edge-functions/alpha-gate.js`, configured for `/nearby`, `/nearby/search`,
+`/nearby/filter`, `/settings`, `/report` and `/app.html`.
 
 ### 3.1 Secrets
 
@@ -115,7 +122,7 @@ reverse — once a secret is live, it must not become site copy.
 
 ### 3.2 Behaviour
 
-On a request to `/app` or `/app.html`:
+On a request to any of the five screen paths or `/app.html`:
 
 1. No secrets configured → pass through. The app is open.
 2. `?k=<value>` matches a configured secret → set the access cookie and
@@ -143,8 +150,9 @@ with no extra bookkeeping.
 ### 3.4 Local development
 
 `server.js` does not run Netlify edge functions, so **the gate does not exist
-in local dev** — `/app` is always served. This is deliberate: it keeps the e2e
-suite and `npm run dev` simple, and the gate is a deployment concern.
+in local dev** — every screen path is always served. This is deliberate: it
+keeps the e2e suite and `npm run dev` simple, and the gate is a deployment
+concern.
 
 The consequence is that the gate cannot be verified by a local run. Exercise it
 with `npm run netlify:dev` or on a deploy preview.
@@ -161,9 +169,10 @@ change.
 would be served the app instead of the new homepage, and the homepage would be
 invisible to exactly the people most likely to look.
 
-The handler is now scoped to the app's own routes (`/app`, `/app.html`).
-Navigations to anything else — the homepage, the reports, the terms — fall
-through to the network and are not served from the app cache.
+The handler is now scoped to the app's own routes (`/nearby`, `/nearby/search`,
+`/nearby/filter`, `/settings`, `/report`, `/app.html`). Navigations to anything else
+— the homepage, the reports, the terms, `/app` itself — fall through to the
+network and are not served from the app cache.
 
 ### 4.2 The app shell
 
@@ -190,25 +199,40 @@ cache versions are never bumped by hand or on a branch.
 
 `netlify.toml`:
 
-- An edge function declaration binding `alpha-gate` to `/app` and `/app.html`.
-- A 200 rewrite from `/app` to `/app.html`, so the pretty URL serves the file.
+- An edge function declaration binding `alpha-gate` to each of `/nearby`,
+  `/nearby/search`, `/nearby/filter`, `/settings`, `/report` and to `/app.html`.
+- A 200 rewrite from each of those five screen paths to `/app.html`, so every
+  pretty URL serves the same file.
+- `/app` is a separate 301 redirect to `/nearby` — not a rewrite, and not bound
+  to the gate — so old links and bookmarks keep working. It carries
+  `force = true`: without it, Netlify's own clean-URL resolution (which tries
+  `<path>.html` for an extension-less path) matches `/app` to the static file
+  `app.html` on disk before this redirect rule ever runs, serving that file
+  directly at a 200 and skipping both the redirect and the gate.
 
-`server.js` mirrors the rewrite for local dev with a `/app` route serving
-`app.html`, following the existing `/admin` precedent. It does **not** mirror
-the gate (§3.4).
+`server.js` mirrors the five rewrites for local dev, serving `app.html` at
+each screen path, following the existing `/admin` precedent, and mirrors the
+`/app` redirect to `/nearby`. It does **not** mirror the gate (§3.4).
 
 ## 6. Search
 
 `scripts/generate-sitemap.js`:
 
 - `/` stays at priority 1.0 and is now the marketing homepage.
-- `/app` is **not** listed in `sitemap.xml` and **is** added to
-  `DISALLOWED_PATHS` in `robots.txt`. A gated path that answers crawlers with a
-  redirect to the homepage is a soft-404 signal with nothing to gain.
+- Each of the five screen paths is **not** listed in `sitemap.xml` and **is**
+  added to `DISALLOWED_PATHS` in `robots.txt`. A gated path that answers
+  crawlers with a redirect to the homepage is a soft-404 signal with nothing to
+  gain.
+- `/app` carries no entry in either file: it is a bare redirect with no
+  content of its own, so there is nothing to allow or disallow.
 
-When the alpha ends, `/app` can be removed from `DISALLOWED_PATHS` — but there
-is little reason to: the homepage is the page that should rank, and the app has
-no indexable content.
+When the alpha ends, the five screen paths can be removed from
+`DISALLOWED_PATHS` — but there is little reason to: the homepage is the page
+that should rank, and the app has no indexable content (`/nearby/<slug>` is
+the exception — spec-marketing.md § "Category pages" — and is never
+disallowed; the three `/nearby...` entries in `DISALLOWED_PATHS` carry a
+trailing `$` for exactly this reason — see spec-marketing.md § "Category
+pages").
 
 ## 7. Testing
 
@@ -219,10 +243,11 @@ no indexable content.
   Extracting them to a shared module would mean duplicating it for Deno, which
   is worse than the gap.
 - **E2E** — the suite runs against `server.js`, where the gate is absent, so
-  specs navigate to `/app` directly. `test/e2e/helpers.js` defaults to `/app`
-  and every spec that navigated to `/` now navigates to `/app`.
-- **Sitemap** — `test/sitemap.test.js` asserts `/app` is absent from the
-  sitemap and present in the robots disallow list.
+  specs navigate to the screen paths directly. `test/e2e/helpers.js` defaults
+  to `/nearby`, the app's entry point.
+- **Sitemap** — `test/sitemap.test.js` asserts each of the five screen paths is
+  absent from the sitemap and present in the robots disallow list, and that
+  `/app` is in neither.
 
 Gate behaviour is therefore not covered by either suite: the e2e suite cannot
 see it (§3.4) and the unit suite cannot import it. **It is verified by hand on

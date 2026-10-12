@@ -5,7 +5,7 @@ const { setup, FIXTURE_TREE, settleMapIconsAndDraw } = require("./helpers");
 test.describe("Selection and Inspector", () => {
   test.describe("tree selected via URL hash", () => {
     test.beforeEach(async ({ page }) => {
-      await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     });
 
     test("inspector title changes to the selected tree name", async ({ page }) => {
@@ -55,7 +55,7 @@ test.describe("Selection and Inspector", () => {
 
   test.describe("returning to overview", () => {
     test.beforeEach(async ({ page }) => {
-      await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     });
 
     test("back button returns inspector to overview mode", async ({ page }) => {
@@ -96,7 +96,7 @@ test.describe("Selection and Inspector", () => {
 
   test.describe("inspector state when location is selected", () => {
     test.beforeEach(async ({ page }) => {
-      await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     });
 

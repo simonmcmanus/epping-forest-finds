@@ -476,7 +476,7 @@ test.describe("Overview / Nearby screen", () => {
 
     test("pinching resizes the walking radius from the filter screen", async ({ page }) => {
       await page.click("#filterToggle");
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
 
       const before = await page.evaluate(() => state.walkingDistanceMinutes);
       await firePinch(page, { startHalfGap: 140, endHalfGap: 20 });
@@ -485,7 +485,7 @@ test.describe("Overview / Nearby screen", () => {
       expect(grown).toBeGreaterThan(before);
       // The screen it was performed on survives: refreshNearbyRadiusView must not re-render
       // the Nearby list over the top of it.
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await expect(page.locator("#inspectorTitle")).toContainText("Filters");
     });
   });
@@ -737,7 +737,7 @@ test.describe("Overview / Nearby screen", () => {
     });
 
     test("pinching is ignored while a real selection is open", async ({ page }) => {
-      await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       await page.waitForFunction(
         (name) => document.getElementById("inspectorTitle")?.textContent?.includes(name),
         FIXTURE_TREE.commonName

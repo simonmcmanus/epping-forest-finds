@@ -631,6 +631,7 @@ function setupFilterPanelHandlers() {
   document.addEventListener("change", (event) => {
     if (event.target.id === "nearestItemsSelect") {
       state.walkingDistanceMinutes = parseInt(event.target.value, 10);
+      syncLiveQueryStringForScreen();
       selectOverview();
       if (state.userLocation) {
         const { latitude, longitude } = state.userLocation;
@@ -846,6 +847,7 @@ function refreshNearbyRadiusView(options = {}) {
 function applyWalkingRadiusChange(minutes, options = {}) {
   if (state.walkingDistanceMinutes === minutes) return;
   state.walkingDistanceMinutes = minutes;
+  syncLiveQueryStringForScreen();
   // Resizing the ring is the user taking the camera back: whatever out-of-radius match a
   // just-added filter had the fit reaching for (outOfRadiusFitPoints, js/app.js), the ring they
   // are now dragging is the thing they want framed. Same reasoning drops an expanded cluster:
@@ -1298,6 +1300,7 @@ function applyWalkingRadiusGesture(rawMinutes) {
   // own members regardless -- the camera and list silently stopped tracking the gesture.
   exitClusterExpansion({ restoreRadius: false });
   state.walkingDistanceMinutes = minutes;
+  syncLiveQueryStringForScreen();
   state.outOfRadiusRevealFilters = [];
   ensureOverviewTargetsVisible({ animate: false, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
   requestDraw();
@@ -1845,6 +1848,11 @@ function goToInitialView(updateHash = true) {
   exitClusterExpansion();
   state.filterScreenOpen = false;
   state.searchScreenOpen = false;
+  // A /nearby/<slug> page's single category is that page's own lens, not a preference the reader
+  // chose -- the Nearby nav button is "take me to the real Nearby", so it puts their actual
+  // filters back rather than carrying that category over (see setOverviewFilters' persist:false
+  // comment, js/app.js).
+  if (state.overviewFiltersEphemeral) setOverviewFilters(loadStoredOverviewFilters());
   selectOverview(true);
   setInspectorMinimized(false);
   const refitOverview = () => {

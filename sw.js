@@ -7,7 +7,7 @@
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v98";
+const APP_CACHE_NAME = "forest-finds-app-v99";
 const DATA_CACHE_NAME = "forest-finds-data-v31";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
@@ -200,11 +200,15 @@ const DATA_CACHE_OPPORTUNISTIC = [
 ];
 
 // Helper: determine if a path is app code vs data
-// The map application's own navigable URLs. /app is the pretty URL (rewritten to
-// /app.html by netlify.toml and server.js); anything else -- the homepage, the
-// reports, the terms page -- is a network page the app cache must not answer for.
+// The map application's own navigable URLs -- its five screen paths, each a pretty URL
+// rewritten to /app.html by netlify.toml and server.js, plus the underlying file itself.
+// /app is NOT one of these any more: it is a bare redirect to /nearby (netlify.toml,
+// server.js), so it is deliberately left to the network like any other unrecognised path.
+// Anything else -- the homepage, the reports, the terms page -- is a network page the app
+// cache must not answer for.
+const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/report"]);
 function isAppNavigation(pathname) {
-  return pathname === "/app" || pathname === "/app.html" || pathname.endsWith("/app.html");
+  return APP_SCREEN_PATHS.has(pathname) || pathname === "/app.html" || pathname.endsWith("/app.html");
 }
 
 function isAppCodePath(pathname) {
@@ -215,7 +219,7 @@ function isAppCodePath(pathname) {
     pathname.endsWith(".html") ||
     pathname.endsWith(".svg") ||
     pathname.endsWith(".webmanifest") ||
-    pathname === "/app"
+    APP_SCREEN_PATHS.has(pathname)
   );
 }
 
