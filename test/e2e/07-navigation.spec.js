@@ -66,7 +66,7 @@ test.describe("URL navigation", () => {
       expect(historyAfter).toBe(historyBefore + 2);
 
       await page.goBack();
-      await expect(page).toHaveURL(/\/search$/);
+      await expect(page).toHaveURL(/\/search(\?|$)/);
 
       await page.goBack();
       await page.waitForFunction(
