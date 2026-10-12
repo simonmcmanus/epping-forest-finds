@@ -8,6 +8,30 @@ const { skipOnboarding, mockCowApi, denyGeolocationUnlessGranted } = require("./
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe("Cookie consent banner", () => {
+  test("early testing notice is omitted from the homepage, then shown once elsewhere with feedback and mailing-list links", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("#earlyTestingBanner")).toHaveCount(0);
+
+    await page.goto("/terms.html");
+    const banner = page.locator("#earlyTestingBanner");
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText("a few map details may be a bit off");
+    await expect(banner.getByRole("link", { name: "Report feedback" })).toHaveAttribute("href", "/report");
+    await expect(banner.getByRole("link", { name: "get email updates" })).toHaveAttribute("href", "/#signup");
+
+    await page.reload();
+    await expect(page.locator("#earlyTestingBanner")).toHaveCount(0);
+  });
+
+  test("the short /report link opens the app feedback screen", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await denyGeolocationUnlessGranted(page);
+    await page.goto("/report");
+    await expect(page.locator("#reportForm")).toBeVisible();
+    await expect(page.locator("#inspectorTitle")).toHaveText("Report");
+  });
+
   test("is shown on first visit to the homepage, and Accept hides it and persists", async ({ page }) => {
     await page.goto("/");
     const banner = page.locator("#cookieConsentBanner");
