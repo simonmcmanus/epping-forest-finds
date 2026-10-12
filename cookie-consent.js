@@ -154,6 +154,9 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
 
   function renderEarlyTestingBanner() {
     if (earlyTestingBannerSeen() || document.getElementById("earlyTestingBanner")) return;
+    // The homepage already explains the trial and has its own sign-up invitation, so keep this
+    // extra notice for people arriving elsewhere on the site.
+    if (location.pathname === "/" || location.pathname === "/index.html") return;
     // Do not layer a site notice over the app's first-run onboarding dialog. It is shown once
     // that dialog has been completed instead.
     const onboarding = document.getElementById("onboardingOverlay");
@@ -165,8 +168,8 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
     banner.setAttribute("aria-label", "Early testing notice");
     banner.innerHTML =
       '<div class="early-testing-copy">' +
-      "<strong>Early testing</strong>" +
-      '<p>This site is in an early testing phase. Some data may not be correct and you may find bugs. ' +
+      "<strong>A quick heads-up</strong>" +
+      '<p>We’re still trying things out around the forest, so a few map details may be a bit off and you might spot the odd bug. ' +
       '<a href="/report">Report feedback</a> or <a href="/#signup">get email updates</a> by joining the mailing list.</p>' +
       "</div>" +
       '<button type="button" data-action="dismiss" aria-label="Dismiss early testing notice">×</button>';
@@ -178,6 +181,7 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
   }
 
   function initEarlyTestingBanner() {
+    if (location.pathname === "/" || location.pathname === "/index.html") return;
     renderEarlyTestingBanner();
     const onboarding = document.getElementById("onboardingOverlay");
     if (onboarding && !onboarding.hidden && !earlyTestingBannerSeen()) {
