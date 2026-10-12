@@ -7,7 +7,7 @@
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v99";
+const APP_CACHE_NAME = "forest-finds-app-v101";
 const DATA_CACHE_NAME = "forest-finds-data-v31";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
@@ -206,7 +206,7 @@ const DATA_CACHE_OPPORTUNISTIC = [
 // server.js), so it is deliberately left to the network like any other unrecognised path.
 // Anything else -- the homepage, the reports, the terms page -- is a network page the app
 // cache must not answer for.
-const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/report"]);
+const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback"]);
 function isAppNavigation(pathname) {
   return APP_SCREEN_PATHS.has(pathname) || pathname === "/app.html" || pathname.endsWith("/app.html");
 }

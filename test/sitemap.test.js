@@ -108,7 +108,7 @@ test("the gated app screens are kept out of the sitemap and disallowed to crawle
   const sitemap = fs.readFileSync(path.join(root, "sitemap.xml"), "utf8");
   const robots = fs.readFileSync(path.join(root, "robots.txt"), "utf8");
 
-  for (const screen of ["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/report"]) {
+  for (const screen of ["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback"]) {
     assert.ok(!sitemap.includes(`<loc>https://www.eppingforestfinds.uk${screen}<`), `sitemap.xml must not advertise ${screen}`);
     // "$" anchors the end of the path (robots.txt's own end-of-url syntax) so this disallows
     // exactly the screen, not every /nearby/<slug>/ category page nested under the same prefix.

@@ -9,9 +9,13 @@ test.describe("Feedback / Report screen", () => {
     await expect(page.locator("#reportDetails")).toBeVisible();
   });
 
-  test("feedback button opens the report form", async ({ page }) => {
+  test("feedback button opens a clearly labelled feedback form", async ({ page }) => {
     await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
+    await expect(page.locator("#inspectorTitle")).toHaveText("Feedback");
     await expect(page.locator("#reportForm")).toBeVisible();
+    await expect(page.locator(".report-intro")).toHaveText(
+      "We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone."
+    );
   });
 
   test("report form includes the current app version", async ({ page }) => {
@@ -258,13 +262,13 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
 
 test.describe("Reporting a mistake from a weekly report", () => {
   test("a #report link opens the report form straight away", async ({ page }) => {
-    await setup(page, "/report");
+    await setup(page, "/feedback");
     await expect(page.locator("#reportForm")).toBeVisible();
     await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
   });
 
   test("the link says which report the reader was looking at", async ({ page }) => {
-    await setup(page, "/report#report=Mistake%20in%20the%20Epping%20Forest%20Ledger%20for%2015%20September%202026");
+    await setup(page, "/feedback#report=Mistake%20in%20the%20Epping%20Forest%20Ledger%20for%2015%20September%202026");
     await expect(page.locator("#reportDetails")).toHaveValue(
       /Mistake in the Epping Forest Ledger for 15 September 2026/
     );
@@ -277,7 +281,7 @@ test.describe("Reporting a mistake from a weekly report", () => {
         JSON.stringify({ details: "Half-written note I came back to" })
       );
     });
-    await setup(page, "/report#report=Mistake%20in%20the%20ledger");
+    await setup(page, "/feedback#report=Mistake%20in%20the%20ledger");
     await expect(page.locator("#reportDetails")).toHaveValue("Half-written note I came back to");
   });
 });

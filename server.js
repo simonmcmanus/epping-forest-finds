@@ -243,10 +243,16 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (url.pathname === "/report") {
+    res.writeHead(301, { Location: "/feedback" + url.search, "Cache-Control": "no-store" });
+    res.end();
+    return;
+  }
+
   // Mirrors the five screen-path -> app.html rewrites in netlify.toml. The alpha gate is NOT
   // mirrored: it is a Netlify edge function, so local dev and the e2e suite always reach the
   // app. See spec/spec-alpha-access.md section 3.4.
-  if (["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/report"].includes(url.pathname)) {
+  if (["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback"].includes(url.pathname)) {
     const appFile = path.join(ROOT, "app.html");
     if (!fs.existsSync(appFile)) { send(res, 404, "App not found"); return; }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
