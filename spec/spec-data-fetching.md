@@ -64,7 +64,7 @@ Data fetching is **not** responsible for:
 
 ### Parallel Fetch
 
-All static datasets are fetched in parallel at boot time. Loading progress is reported per-step:
+All static datasets are fetched in parallel at boot time. The non-tree layers form the interactive bootstrap; the tree register continues loading after that bootstrap so place-focused navigation is not blocked by tree chunks. A `#tree=` deep link waits for the tree register before resolving. Loading progress is reported per-step:
 
 Steps: `trees`, `places`, `paths`, `roads`, `environment`, `forest`, `cows`
 
