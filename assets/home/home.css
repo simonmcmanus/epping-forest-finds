@@ -137,7 +137,10 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .offline-note strong { display: block; margin-bottom: 2px; font-size: .96rem; }
 .offline-note p { max-width: 60em; margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.5; }
 .faq-list { margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
-.faq-item { padding: 20px 22px; }
+.faq-item { padding: 20px 22px; scroll-margin-top: 24px; }
+.faq-item:target { background: #f6f1e7; }
+.faq-item dt a { color: inherit; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+.faq-item dt a:hover { color: var(--tree-deep); text-decoration-color: currentColor; }
 .faq-item + .faq-item { border-top: 1px solid var(--line); }
 .faq-item dt { margin: 0; font-size: 1.02rem; font-weight: 700; line-height: 1.4; }
 .faq-item dd { max-width: 42em; margin: 6px 0 0; color: var(--muted); }
