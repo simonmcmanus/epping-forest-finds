@@ -132,8 +132,8 @@ test.describe("the marketing homepage", () => {
     const spacing = await row.evaluate(el => {
       const header = el.querySelector("dt").getBoundingClientRect();
       const search = el.querySelector("input").getBoundingClientRect();
-      const list = el.querySelector("ul").getBoundingClientRect();
-      return { above: search.top - header.bottom, below: el.getBoundingClientRect().bottom - list.bottom };
+      const content = el.querySelector(".inventory-content").getBoundingClientRect();
+      return { above: search.top - header.bottom, below: el.getBoundingClientRect().bottom - content.bottom };
     });
     expect(spacing.above).toBeLessThanOrEqual(14);
     expect(spacing.below).toBeLessThanOrEqual(14);
@@ -150,6 +150,10 @@ test.describe("the marketing homepage", () => {
     await button.click();
     const panel = page.locator("#inventory-churches");
     const churches = require("../../assets/home/inventory/churches.json");
+    await expect(panel.getByRole("listitem")).toHaveCount(Math.min(churches.length, 50));
+    while (await panel.getByRole("listitem").count() < churches.length) {
+      await panel.getByRole("button", { name: "Show more" }).click();
+    }
     await expect(panel.getByRole("listitem")).toHaveText(churches.map(item => item.name + item.detail));
     await expect(button).toHaveAttribute("aria-expanded", "true");
     await button.focus();
