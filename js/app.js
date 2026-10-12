@@ -30,6 +30,9 @@ const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
 // Matches onboarding.js's own default selection and spec.md's "Default filters" section:
 // only Trees, Cows and Events are pre-selected before onboarding ever runs.
 const DEFAULT_FILTERS = ["trees", "cows", "events"];
+// The radius state starts at and the URL (searchStringForPath) omits -- matching state's own
+// walkingDistanceMinutes: 5 below, so a plain /nearby stays plain for the common case.
+const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
 const COW_REFRESH_MS = 5 * 60 * 1000;
 const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -245,7 +248,7 @@ const state = {
   searchHighlightResults: [],
   distanceWarningShown: false,
   nearestItemsCount: 10,
-  walkingDistanceMinutes: 5,
+  walkingDistanceMinutes: DEFAULT_WALKING_DISTANCE_MINUTES,
   walkingRadiusAtFloor: false,
   // The wheel/trackpad radius gesture's running (unrounded) value and its settle timer --
   // a wheel has no pointerup to end on, so the gesture ends on a timeout instead
@@ -441,12 +444,15 @@ const ROUTE_SETTINGS = "settings";
 const ROUTE_REPORT = "report";
 
 // Each of the four screens above now has a real path of its own (netlify.toml, server.js --
-// both rewrite these to app.html, same as /app used to). Nearby (no screen name, "" in the
+// all rewrite these to app.html, same as /app used to). Nearby (no screen name, "" in the
 // route vocabulary below) is the one with no entry here: it is NEARBY_PATH, the app's new
-// place-agnostic entry point, replacing /app (now a bare redirect to it).
+// place-agnostic entry point, replacing /app (now a bare redirect to it). Filter and Search
+// nest under /nearby/ -- both only ever change what Nearby itself is showing (a filtered set,
+// a typed query), never a destination of their own -- while Settings and Report stay top-level,
+// general app screens with nothing to do with the Nearby view underneath them.
 const ROUTE_PATHS = {
-  [ROUTE_FILTERS]: "/filter",
-  [ROUTE_SEARCH]: "/search",
+  [ROUTE_FILTERS]: "/nearby/filter",
+  [ROUTE_SEARCH]: "/nearby/search",
   [ROUTE_SETTINGS]: "/settings",
   [ROUTE_REPORT]: "/report",
 };
@@ -632,18 +638,36 @@ function urlPartsForRouteValue(value) {
   return { pathname: NEARBY_PATH, hash: value ? `#${value}` : "" };
 }
 
-// The live, shareable description of exactly what's showing. "/filter" carries the active set
-// ("?show=pubs", comma-joined with more, nothing when none are on) and "/search" carries the
-// typed query ("?q=<text>") so either can be copied out of the address bar and still land on
-// the same thing; every other path never carries one.
+// The live, shareable description of exactly what's showing, as the query string for
+// whichever of Nearby's own paths (NEARBY_PATH itself, or its /filter and /search sub-paths)
+// window.location.pathname names. "radius" (walking minutes) travels on all three, since it
+// describes the Nearby view underneath every one of them, not a particular screen; "show" (the
+// active filter set, comma-joined) is /filter's own, and "q" (the typed text) is /search's --
+// built by hand rather than with URLSearchParams so a multi-value "show" keeps its plain commas
+// instead of being percent-encoded. Every other path never carries any of this.
 function searchStringForPath(pathname) {
-  if (pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
-    return state.overviewFilters.length ? `?show=${state.overviewFilters.join(",")}` : "";
+  const onNearbyFamily = pathname === NEARBY_PATH
+    || pathname === ROUTE_PATHS[ROUTE_FILTERS]
+    || pathname === ROUTE_PATHS[ROUTE_SEARCH];
+  const parts = [];
+  // While a cluster tap has borrowed the radius to cover the group (focusNearbyOnClusterGroup),
+  // state.walkingDistanceMinutes is that borrowed value, not the reader's real one -- the same
+  // reasoning exitClusterExpansion already restores on the way out. Reading past it to
+  // preClusterWalkingDistanceMinutes here keeps that borrowed ring out of the address bar, so a
+  // history entry written while a group is expanded never bakes it in as if it were chosen.
+  const realRadius = state.clusterExpanded && state.preClusterWalkingDistanceMinutes != null
+    ? state.preClusterWalkingDistanceMinutes
+    : state.walkingDistanceMinutes;
+  if (onNearbyFamily && realRadius !== DEFAULT_WALKING_DISTANCE_MINUTES) {
+    parts.push(`radius=${realRadius}`);
   }
-  if (pathname === ROUTE_PATHS[ROUTE_SEARCH]) {
-    return state.searchQuery ? `?q=${encodeURIComponent(state.searchQuery)}` : "";
+  if (pathname === ROUTE_PATHS[ROUTE_FILTERS] && state.overviewFilters.length) {
+    parts.push(`show=${state.overviewFilters.join(",")}`);
   }
-  return "";
+  if (pathname === ROUTE_PATHS[ROUTE_SEARCH] && state.searchQuery) {
+    parts.push(`q=${encodeURIComponent(state.searchQuery)}`);
+  }
+  return parts.length ? `?${parts.join("&")}` : "";
 }
 
 // The reverse of urlPartsForRouteValue: reconstructs the bare route value currentScreenRoute()
@@ -735,6 +759,7 @@ function applyRouteFromUrl() {
   try {
     applyShowFilterFromQuery();
     applySearchQueryFromQuery();
+    applyRadiusFromQuery();
     raw = routeValueFromLocation();
     if (urlMatchesCurrentScreen(raw)) return true;
   } finally {
@@ -843,15 +868,25 @@ function showRoutedSelection(route, item) {
 
 boot();
 
-// A /find/<slug> category page IS the app (scripts/generate-find-pages.js templates it off
+// A /nearby/<slug> category page IS the app (scripts/generate-find-pages.js templates it off
 // this same app.html), so the path itself names the category to land already filtered to --
 // slugFor() in that script turns an underscore into a hyphen, this is the reverse. ?show=
 // stays as a fallback entry point for any older link still using the query-param form.
-function filterKeyFromFindPath(pathname) {
-  const match = /^\/find\/([a-z0-9-]+)\/?$/.exec(String(pathname || ""));
-  if (!match) return null;
+// /nearby/<slug> is either one subfilter's own page or a whole top-level group's page
+// (collectPages in scripts/generate-find-pages.js generates both) -- this is the reverse of
+// either: the filter keys to apply, one for a subfilter slug, every member key for a group
+// slug (e.g. /nearby/food resolves to ["pubs", "restaurants", "cafes", "shops"]). "filter" and
+// "search" never match a real category (RESERVED_SLUGS in that script keeps it that way), so
+// this falls through to [] for /nearby/filter and /nearby/search exactly as it should --
+// those two are screens in their own right, not categories.
+function filterKeysFromFindPath(pathname) {
+  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(String(pathname || ""));
+  if (!match) return [];
   const key = match[1].replace(/-/g, "_");
-  return ALL_OVERVIEW_FILTER_KEYS.has(key) ? key : null;
+  if (ALL_OVERVIEW_FILTER_KEYS.has(key)) return [key];
+  const group = FILTER_GROUPS_BY_KEY.get(key);
+  if (!group) return [];
+  return group.subfilters.map((s) => s.key).filter((k) => ALL_OVERVIEW_FILTER_KEYS.has(k));
 }
 
 // ?show=pubs,cafes -- /filter's own live query string (searchStringForPath) writes exactly
@@ -865,9 +900,9 @@ function filterKeysFromQuery(search) {
 }
 
 function applyShowFilterFromQuery() {
-  const fromPath = filterKeyFromFindPath(window.location.pathname);
-  if (fromPath) {
-    setOverviewFilters([fromPath], { persist: false });
+  const fromPath = filterKeysFromFindPath(window.location.pathname);
+  if (fromPath.length) {
+    setOverviewFilters(fromPath, { persist: false });
     return;
   }
   const fromQuery = filterKeysFromQuery(window.location.search);
@@ -882,6 +917,22 @@ function applyShowFilterFromQuery() {
 function applySearchQueryFromQuery() {
   const query = new URLSearchParams(window.location.search).get("q");
   if (query) state.searchQuery = query;
+}
+
+// ?radius=<minutes> -- searchStringForPath's reverse, on any of Nearby's own paths (see its
+// comment). Clamped to the slider's own bounds (js/nav.js) rather than trusted outright: a
+// shared link is as editable as any URL, and the dynamic per-origin floor corrects a value
+// that's merely too tight for the actual nearest match on the next fix, the same way the
+// Settings slider and the pinch gesture already self-correct (see "radius widens itself back
+// out as you walk" in spec.md).
+function applyRadiusFromQuery() {
+  // Number(null) is 0, not NaN -- read the raw param first so a missing ?radius= is left alone
+  // instead of silently clamping every other navigation's radius down to the 1-minute floor.
+  const param = new URLSearchParams(window.location.search).get("radius");
+  if (param == null) return;
+  const raw = Number(param);
+  if (!Number.isFinite(raw)) return;
+  state.walkingDistanceMinutes = clamp(raw, WALKING_RADIUS_MIN_MINUTES, WALKING_RADIUS_MAX_MINUTES);
 }
 
 async function boot() {
@@ -950,6 +1001,7 @@ async function boot() {
     state.dataLoaded = true;
     applyShowFilterFromQuery();
     applySearchQueryFromQuery();
+    applyRadiusFromQuery();
 
     if (locationPromise) {
       // Await the location request that was started in parallel with data loading,
@@ -1251,16 +1303,17 @@ function triggerMapRevealZoom(durationMs = FIRST_LOAD_REVEAL_ANIMATION_MS) {
   animateViewportTo(target, durationMs);
 }
 
-// Companion to allEntriesForFilterKey's no-location list in overviewNearestHtml: without an
+// Companion to allEntriesForActiveFilters' no-location list in overviewNearestHtml: without an
 // origin, boot's default framing (fitToBounds, called earlier) is the whole forest boundary --
-// correct in general, but not "zoomed out to this category" for a /find/<slug> page with
-// exactly one filter active. Fits the camera to every matching pin instead, so the map actually
-// shows the category rather than an origin-less default. Returns false (doing nothing) when
-// there is no single active filter, nothing matches it, or a specific item is already selected
-// (e.g. from a deep-link hash) whose own framing should not be overridden.
+// correct in general, but not "zoomed out to this category" for a /nearby/<slug> page or a
+// deliberate single-filter choice. Fits the camera to every matching pin instead, so the map
+// actually shows the category (or categories) rather than an origin-less default. Returns
+// false (doing nothing) when activeFiltersShowFullListWithoutLocation() says this isn't one of
+// those cases, nothing matches, or a specific item is already selected (e.g. from a deep-link
+// hash) whose own framing should not be overridden.
 function fitMapToSingleFilterIfNoLocation(options = {}) {
-  if (state.userLocation || state.selected || state.overviewFilters.length !== 1) return false;
-  const points = allEntriesForFilterKey(state.overviewFilters[0])
+  if (state.userLocation || state.selected || !activeFiltersShowFullListWithoutLocation()) return false;
+  const points = allEntriesForActiveFilters()
     .filter((entry) => Number.isFinite(entry.item.latitude) && Number.isFinite(entry.item.longitude))
     .map((entry) => projectLonLat(entry.item.longitude, entry.item.latitude));
   if (!points.length) return false;
@@ -2079,7 +2132,7 @@ function saveFilterState() {
 }
 
 // The reader's own real filters -- read once for the initial state object below, and again by
-// goToInitialView to put them back after a /find/<slug> page's own ephemeral single category.
+// goToInitialView to put them back after a /nearby/<slug> page's own ephemeral single category.
 function loadStoredOverviewFilters() {
   try {
     const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
@@ -2088,7 +2141,7 @@ function loadStoredOverviewFilters() {
   return DEFAULT_FILTERS.slice();
 }
 
-// persist:false is for a URL-driven pre-filter (a /find/<slug> page, or a shared ?show= link)
+// persist:false is for a URL-driven pre-filter (a /nearby/<slug> page, or a shared ?show= link)
 // -- landing on one of those names what that page shows, not a preference the reader chose, so
 // it must not overwrite their own saved filters (saveFilterState) for every later visit to
 // /nearby. An actual chip tap, on that page or anywhere else, always persists as before.
@@ -2097,7 +2150,7 @@ function setOverviewFilters(nextFilters, { persist = true } = {}) {
   state.overviewFilters = sanitizeOverviewFilters(nextFilters);
   // Marks the current filters as a page's own lens rather than the reader's choice, so
   // goToInitialView (the Nearby nav button) knows to put their real filters back rather than
-  // carrying a /find/<slug> page's single category over to the plain Nearby screen. Any real
+  // carrying a /nearby/<slug> page's single category over to the plain Nearby screen. Any real
   // change -- a chip tap, anywhere, persist:false page included -- clears it again.
   state.overviewFiltersEphemeral = !persist;
   // Before the camera work below: a filter switched on with nothing inside the walking radius
@@ -3295,7 +3348,7 @@ function overviewHeadingText() {
     ? (filterMeta(activePointFilters[0])?.title || "items")
     : null;
   const singleFilterTitle = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : null;
-  // A single category (the common case on a /find/<slug> page) gets its count named too --
+  // A single category (the common case on a /nearby/<slug> page) gets its count named too --
   // "5 Pubs and bars within 5 min walk" says at a glance whether the radius is worth widening,
   // which "Pubs and bars within 5 min walk" alone left the reader to count for themselves.
   return singleFilterTitle
@@ -3307,8 +3360,21 @@ function overviewHeadingText() {
       : (radiusLabel ? `Nearest within ${radiusLabel}` : "Nearest around you");
 }
 
+// True when the active filter set should be shown in full even without a location fix: either
+// exactly one filter -- a subfilter's own /nearby/<slug> page, or a reader's own deliberate single
+// choice, both reading better as "show me everything in this one category" than a generic
+// "enable location" prompt -- or more than one filter, but only when a /nearby/<slug> group
+// page's own pre-filter set them (state.overviewFiltersEphemeral). Never the reader's own
+// multi-filter choice, and never the 1-3 filter default state nobody chose at all
+// (DEFAULT_FILTERS) -- either of those taking this path would try to fit or list the entire
+// matching dataset (25,000+ trees, in the default case).
+function activeFiltersShowFullListWithoutLocation() {
+  const count = state.overviewFilters.length;
+  return count === 1 || (count > 1 && state.overviewFiltersEphemeral);
+}
+
 // Every place/tree/water matching one filter key, dataset order, no distance -- there is no
-// origin to measure from. Used only for the no-location /find/<slug> fallback below; the normal
+// origin to measure from. Used only for the no-location /nearby/<slug> fallback below; the normal
 // Nearby list always has an origin and goes through overviewItemsForActiveFilter() instead.
 function allEntriesForFilterKey(filterKey) {
   if (filterKey === "trees") {
@@ -3322,8 +3388,17 @@ function allEntriesForFilterKey(filterKey) {
     .map((place) => ({ kind: filterKey, type: "landmark", item: place }));
 }
 
+// allEntriesForFilterKey, unioned across every active filter -- a /nearby/<slug> group page
+// (e.g. /nearby/food) arrives with several filters active at once, not the one a subfilter page
+// sets, and the no-location fallbacks below need every one of them listed, not just the first.
+// A place matching two active filters at once is listed under each, same as the normal
+// with-location path (overviewItemsForActiveFilter) already does -- not deduplicated here either.
+function allEntriesForActiveFilters() {
+  return state.overviewFilters.flatMap(allEntriesForFilterKey);
+}
+
 // One <li> per nearest-list entry -- shared by the normal (has an origin, sorted, distance
-// chips) and the no-location /find/<slug> fallback (no origin, dataset order, no distance chip:
+// chips) and the no-location /nearby/<slug> fallback (no origin, dataset order, no distance chip:
 // walkInfoHtml(undefined) already renders as "") paths below.
 function renderNearestItemsHtml(entries) {
   return entries.map((entry) => {
@@ -3367,13 +3442,15 @@ function renderNearestItemsHtml(entries) {
 
 function overviewNearestHtml() {
   if (!state.userLocation) {
-    // A /find/<slug> category page lands here with exactly one filter active and no location
-    // yet (no prompt answered, or declined) -- list what the category actually contains rather
-    // than the generic "use your location" prompt, which would otherwise hide real, specific
-    // content (the whole point of that page) behind a request nobody has answered. Anyone with
-    // more than one filter on, or none, still sees the generic prompt exactly as before.
-    if (state.overviewFilters.length === 1) {
-      const entries = allEntriesForFilterKey(state.overviewFilters[0]);
+    // A /nearby/<slug> category page -- a subfilter's own, or a whole group's -- lands here with
+    // no location yet (no prompt answered, or declined), as does a reader who has deliberately
+    // narrowed to one filter of their own -- list what it actually contains rather than the
+    // generic "use your location" prompt, which would otherwise hide real, specific content
+    // (the whole point of a /nearby/<slug> page) behind a request nobody has answered. See
+    // activeFiltersShowFullListWithoutLocation's comment for exactly which filter sets this
+    // covers, and why the default boot state must not also take this branch.
+    if (activeFiltersShowFullListWithoutLocation()) {
+      const entries = allEntriesForActiveFilters();
       if (entries.length) {
         return `<p class="source-note">Enable location to sort these by distance and get walking directions.</p><ul class="nearest-list">${renderNearestItemsHtml(entries)}</ul>`;
       }

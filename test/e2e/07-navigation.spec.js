@@ -4,11 +4,11 @@ const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE } = r
 
 test.describe("URL navigation", () => {
   test.describe("a URL opens the screen it names", () => {
-    test("navigating to /filter opens the filter screen on load", async ({ page }) => {
+    test("navigating to /nearby/filter opens the filter screen on load", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
-      await gotoAndWaitForMap(page, "/filter");
-      await expect(page).toHaveURL(/\/filter(\?|$)/);
+      await gotoAndWaitForMap(page, "/nearby/filter");
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
     });
 
@@ -56,7 +56,7 @@ test.describe("URL navigation", () => {
       // Select the tree from the search screen. Search is a screen in its own right, so the
       // trail is Nearby → Search → tree and back retraces it one screen at a time.
       await page.click("#searchToggle");
-      await expect(page).toHaveURL(/\/search$/);
+      await expect(page).toHaveURL(/\/nearby\/search$/);
       await page.fill("#mapSearchInput", FIXTURE_TREE.tagNumber);
       await page.locator("#mapSearchResults .nearest-item").first().click();
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
@@ -66,7 +66,7 @@ test.describe("URL navigation", () => {
       expect(historyAfter).toBe(historyBefore + 2);
 
       await page.goBack();
-      await expect(page).toHaveURL(/\/search(\?|$)/);
+      await expect(page).toHaveURL(/\/nearby\/search(\?|$)/);
 
       await page.goBack();
       await page.waitForFunction(
@@ -81,13 +81,13 @@ test.describe("URL navigation", () => {
       await setup(page);
 
       await page.click("#filterToggle");
-      await expect(page).toHaveURL(/\/filter(\?|$)/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
 
       await page.click("#settingsToggle");
       await expect(page).toHaveURL(/\/settings$/);
 
       await page.goBack();
-      await expect(page).toHaveURL(/\/filter(\?|$)/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
 
       await page.goBack();
@@ -98,12 +98,12 @@ test.describe("URL navigation", () => {
     test("forward replays it", async ({ page }) => {
       await setup(page);
       await page.click("#filterToggle");
-      await expect(page).toHaveURL(/\/filter(\?|$)/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await page.goBack();
       await expect(page).toHaveURL(/\/nearby$/);
 
       await page.goForward();
-      await expect(page).toHaveURL(/\/filter(\?|$)/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
     });
 
@@ -114,7 +114,7 @@ test.describe("URL navigation", () => {
       await expect(page.locator("#inspectorBack")).toBeVisible();
 
       await page.click("#inspectorBack");
-      await expect(page).toHaveURL(/\/filter(\?|$)/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
     });
 
@@ -144,7 +144,7 @@ test.describe("URL navigation", () => {
       // there is no hash left to hand-edit here -- back is the way to leave it in-page.
       await setup(page);
       await page.click("#filterToggle");
-      await expect(page).toHaveURL(/\/filter(\?|$)/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await page.goBack();
       await expect(page.locator("#nearbyToggle")).toHaveClass(/screen-active/);
       await expect(page.locator("#filterToggle")).not.toHaveClass(/screen-active/);

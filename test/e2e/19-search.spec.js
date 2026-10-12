@@ -24,7 +24,7 @@ test.describe("Searching the map", () => {
     );
     await expect(page.locator("#mapSearchInput")).toBeVisible();
     await expect(page.locator("#searchToggle")).toHaveClass(/screen-active/);
-    await expect(page).toHaveURL(/\/search$/);
+    await expect(page).toHaveURL(/\/nearby\/search$/);
   });
 
   test("results are listed the way the nearby view lists places", async ({ page }) => {

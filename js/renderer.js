@@ -2128,10 +2128,10 @@ let _nearbyIconLookupCache = null;
 function nearbyIconLookupCacheKey(reachesPastRing) {
   const origin = typeof nearbyOrigin === "function" ? nearbyOrigin() : state.userLocation;
   if (!origin) {
-    // No origin to scan from -- but with exactly one filter active (a /find/<slug> arrival, or
-    // any single filter chosen before location is granted) buildFullNearbyIconLookup's fallback
-    // below still shows every match for it, so the key must still tell two different filters
-    // apart rather than every no-location state colliding on one constant "none".
+    // No origin to scan from -- but on a /nearby/<slug> arrival (subfilter or group page alike)
+    // buildFullNearbyIconLookup's fallback below still shows every match for the active
+    // filter(s), so the key must still tell different filter sets apart rather than every
+    // no-location state colliding on one constant "none".
     return `none|${state.overviewFilters.join(",")}`;
   }
   // The radius is part of the key on every screen now, Filters/Settings/Report included: their
@@ -2288,10 +2288,11 @@ function buildFullNearbyIconLookup() {
   const treeCandidates = [];
   // Mirrors overviewNearestHtml's own no-location fallback (js/app.js): without an origin,
   // overviewItemsForActiveFilter() always returns nothing to scan from, which used to mean the
-  // map drew no pins at all for a /find/<slug> page -- the list showed every match, the map
-  // showed none of them. With exactly one filter active, show every match here too.
-  const sourceEntries = (!state.userLocation && state.overviewFilters.length === 1)
-    ? allEntriesForFilterKey(state.overviewFilters[0])
+  // map drew no pins at all for a /nearby/<slug> page -- the list showed every match, the map
+  // showed none of them. Gated the same way that fallback is -- see
+  // activeFiltersShowFullListWithoutLocation's comment (js/app.js).
+  const sourceEntries = (!state.userLocation && activeFiltersShowFullListWithoutLocation())
+    ? allEntriesForActiveFilters()
     : overviewItemsForActiveFilter();
   for (const entry of sourceEntries) {
     if (!entry || !entry.item) continue;

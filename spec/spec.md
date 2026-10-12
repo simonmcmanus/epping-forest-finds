@@ -251,33 +251,48 @@ Marker rules:
 The URL is the app's navigation state: every screen has one, and the URL is what puts the app
 on that screen. Nearby, Search, Filters, Settings and Report are each a real path of their own
 (GA4 fires a pageview on a path change, not on a hash-only one, so each screen and each
-`/find/<slug>` category is distinguishable in analytics); a selected thing — a tree, a place, a
+`/nearby/<slug>` category is distinguishable in analytics); a selected thing — a tree, a place, a
 cow, a street — stays a URL fragment on top of whichever path it was selected from, since none of
-those are a "screen" of their own. Implemented by the router in `js/app.js` (see the
-`--- Router ---` block there).
+those are a "screen" of their own. Filters and Search nest under `/nearby/` — both only ever
+change what the Nearby view itself is showing (a filtered set, a typed query), never a
+destination of their own — while Settings and Report stay top-level, general app screens with
+nothing to do with the Nearby view underneath them. Implemented by the router in `js/app.js`
+(see the `--- Router ---` block there).
 
 | URL | Screen |
 | --- | --- |
 | `/nearby` | Nearby — the app's home screen and entry point |
-| `/search` | Search — carries the typed text as a live `?q=<text>` query string (see below) |
-| `/filter` | Filters — carries the active set as a live `?show=<key>,<key>` query string (see below) |
+| `/nearby/search` | Search — carries the typed text as a live `?q=<text>` query string (see below) |
+| `/nearby/filter` | Filters — carries the active set as a live `?show=<key>,<key>` query string (see below) |
 | `/settings` | Settings |
 | `/report` | Feedback / Report |
 | `/nearby#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway`, on top of whichever screen's path it was selected from |
-| `/find/<slug>` | The same app, served at its own URL and pre-filtered to one category — a `/find/<slug>` category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it |
-| `/filter?show=<filterKey>` | Filters, pre-filtered to one or more categories — also accepted as a fallback entry point on any path for a link still using the query-param form, superseded by `/find/<slug>` above for the single-category case |
-| `/search?q=<text>` | Search, with the box already filled in and showing that text's results, so a search is shareable the same way a filter set is |
+| `/nearby/<slug>` | The same app, served at its own URL and pre-filtered to one category (a subfilter's own slug, e.g. `pubs`, or a whole top-level group's, e.g. `food`) — a `/nearby/<slug>` category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it. `<slug>` is never `filter` or `search`: those two are the screens below, not categories |
+| `/nearby/filter?show=<filterKey>` | Filters, pre-filtered to one or more categories — also accepted as a fallback entry point on any path for a link still using the query-param form, superseded by `/nearby/<slug>` above for the single-category case |
+| `/nearby/search?q=<text>` | Search, with the box already filled in and showing that text's results, so a search is shareable the same way a filter set is |
+| `/nearby?radius=<minutes>` | Nearby (or its `/filter`/`/search` sub-paths) with the walking radius already set to that many minutes, instead of the 5-minute default |
 | `/app` | Bare redirect (301) to `/nearby`, kept working for old links and bookmarks |
 
-- **`/filter` and `/search` each track their own live query string.** Every change to
-  `state.overviewFilters` while on Filters, or to `state.searchQuery` while on Search, rewrites
-  the URL's `?show=`/`?q=` to match with `history.replaceState` (`syncLiveQueryStringForScreen`)
-  rather than `pushState` — toggling a chip or typing a character is one continuous action, not a
-  sequence of back-stops — so the address bar, and anything built from it (a shared link, GA4's
-  page path), always names exactly what is currently showing.
-- **A `/find/<slug>` page's single category never becomes the reader's own default.**
+- **`/nearby`, `/nearby/filter` and `/nearby/search` each track their own live query string.**
+  Every change to `state.overviewFilters` while on Filters, to `state.searchQuery` while on
+  Search, or to `state.walkingDistanceMinutes` on any of the three, rewrites the URL's
+  `?show=`/`?q=`/`?radius=` to match with `history.replaceState` (`syncLiveQueryStringForScreen`)
+  rather than `pushState` — toggling a chip, typing a character, or resizing the ring is one
+  continuous action, not a sequence of back-stops — so the address bar, and anything built from
+  it (a shared link, GA4's page path), always names exactly what is currently showing.
+  `?radius=` travels on all three paths, since the radius describes the Nearby view underneath
+  each of them, not a particular screen; `?show=` is `/nearby/filter`'s own and `?q=` is
+  `/nearby/search`'s own. The radius param is omitted at the 5-minute default, same as `?show=`
+  and `?q=` are omitted with nothing to carry — a plain `/nearby` link stays plain for the common
+  case. While an expanded cluster badge has borrowed the radius to cover the tapped group
+  (`focusNearbyOnClusterGroup`, "Cluster tap interaction" in `spec-data-rendering.md`), that
+  borrowed value is excluded from `?radius=` in favour of the reader's own radius
+  (`state.preClusterWalkingDistanceMinutes`) — the same reasoning that radius is restored to on
+  leaving the group — so a history entry written mid-expansion never bakes the group's borrowed
+  ring into the address bar as if the reader had chosen it.
+- **A `/nearby/<slug>` page's single category never becomes the reader's own default.**
   `setOverviewFilters` takes a `persist: false` option, used only when the filter set comes from
-  the URL itself (a `/find/<slug>` path or a `?show=` link) rather than a chip the reader tapped
+  the URL itself (a `/nearby/<slug>` path or a `?show=` link) rather than a chip the reader tapped
   — so arriving at a category page is never saved as the reader's new default for a later, plain
   visit to `/nearby`. The Nearby nav button goes further for the current visit too: landing on
   one of these pages marks the filters `state.overviewFiltersEphemeral`, and tapping "Nearby"

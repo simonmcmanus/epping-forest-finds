@@ -282,9 +282,11 @@ globalThis.__forestFindsTest = {
   setOverviewFilters,
   loadStoredOverviewFilters,
   applyShowFilterFromQuery,
-  filterKeyFromFindPath,
+  filterKeysFromFindPath,
   filterKeysFromQuery,
   allEntriesForFilterKey,
+  allEntriesForActiveFilters,
+  activeFiltersShowFullListWithoutLocation,
   renderNearestItemsHtml,
   fitMapToSingleFilterIfNoLocation,
   urlPartsForRouteValue,
@@ -292,6 +294,8 @@ globalThis.__forestFindsTest = {
   routeValueFromLocation,
   syncLiveQueryStringForScreen,
   applySearchQueryFromQuery,
+  applyRadiusFromQuery,
+  DEFAULT_WALKING_DISTANCE_MINUTES,
   ROUTE_PATHS,
   NEARBY_PATH,
   applyWalkingRadiusChange,
@@ -1632,7 +1636,7 @@ test("a filter with nothing inside the radius pulls the nearby camera out far en
   app.state.walkingDistanceMinutes = 5;
 });
 
-test("a ?show=<filterKey> query param filters Nearby to that category on arrival, from a /find/<slug> category page", () => {
+test("a ?show=<filterKey> query param filters Nearby to that category on arrival, from a /nearby/<slug> category page", () => {
   resetData(app);
   app.setOverviewFilters(["trees"]);
   app.location.search = "?show=pubs";
@@ -1653,10 +1657,10 @@ test("an unknown or missing ?show= value leaves the current filters alone", () =
   assert.deepEqual(Array.from(app.state.overviewFilters), ["cafes"], "no ?show= param at all leaves filters untouched");
 });
 
-test("visiting a /find/<slug> page never overwrites the reader's own saved filters", () => {
+test("visiting a /nearby/<slug> page never overwrites the reader's own saved filters", () => {
   resetData(app);
   app.localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["cafes"], expandedGroups: [] }));
-  app.location.pathname = "/find/pubs/";
+  app.location.pathname = "/nearby/pubs/";
   app.applyShowFilterFromQuery();
   assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "the page itself still shows its one category");
   assert.equal(
@@ -1667,11 +1671,11 @@ test("visiting a /find/<slug> page never overwrites the reader's own saved filte
   app.location.pathname = "/";
 });
 
-test("the Nearby nav button restores the reader's real filters after a /find/<slug> page's own single category", () => {
+test("the Nearby nav button restores the reader's real filters after a /nearby/<slug> page's own single category", () => {
   resetData(app);
   resetRouter(app);
   app.localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["cafes"], expandedGroups: [] }));
-  app.location.pathname = "/find/pubs/";
+  app.location.pathname = "/nearby/pubs/";
   app.applyShowFilterFromQuery();
   assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "arrives pre-filtered to the page's own category");
 
@@ -1705,12 +1709,12 @@ test("a missing ?q= leaves the search text alone", () => {
   assert.equal(app.state.searchQuery, "oak", "nothing to restore, so the existing text is untouched");
 });
 
-test("typing into search updates /search's own URL live, the same way toggling a filter updates /filter's", () => {
+test("typing into search updates /nearby/search's own URL live, the same way toggling a filter updates /nearby/filter's", () => {
   resetData(app);
   resetRouter(app);
   app.openSearchScreen();
   app.setSearchQuery("oak");
-  assert.equal(app.location.pathname, "/search", "still on its own path");
+  assert.equal(app.location.pathname, "/nearby/search", "still on its own path");
   assert.equal(app.location.search, "?q=oak", "the typed text is shareable straight out of the address bar");
 
   app.setSearchQuery("oak tree");
@@ -1720,19 +1724,89 @@ test("typing into search updates /search's own URL live, the same way toggling a
   assert.equal(app.location.search, "", "clearing the box clears the query string too");
 });
 
-test("filterKeyFromFindPath reads the category straight from a /find/<slug> path, hyphens back to underscores", () => {
-  assert.equal(app.filterKeyFromFindPath("/find/pubs"), "pubs");
-  assert.equal(app.filterKeyFromFindPath("/find/pubs/"), "pubs", "the trailing slash Netlify serves it at is accepted too");
-  assert.equal(app.filterKeyFromFindPath("/find/national-rail"), "national_rail");
-  assert.equal(app.filterKeyFromFindPath("/find/not-a-real-filter"), null, "an unrecognised slug is not a filter key");
-  assert.equal(app.filterKeyFromFindPath("/app"), null, "a non-/find/ path never matches");
-  assert.equal(app.filterKeyFromFindPath(""), null);
+test("a ?radius=<minutes> query param restores the walking radius on arrival at a Nearby path", () => {
+  resetData(app);
+  app.location.search = "?radius=10";
+  app.applyRadiusFromQuery();
+  assert.equal(app.state.walkingDistanceMinutes, 10, "the query param sets the radius");
+  app.location.search = "";
 });
 
-test("arriving at a /find/<slug> page pre-filters Nearby to that category, taking priority over any ?show= param", () => {
+test("?radius= is clamped to the slider's own bounds, and a missing or invalid value leaves the radius alone", () => {
+  resetData(app);
+  app.state.walkingDistanceMinutes = 7;
+  app.location.search = "?radius=not-a-number";
+  app.applyRadiusFromQuery();
+  assert.equal(app.state.walkingDistanceMinutes, 7, "an invalid value is ignored");
+
+  app.location.search = "";
+  app.applyRadiusFromQuery();
+  assert.equal(app.state.walkingDistanceMinutes, 7, "no ?radius= param at all leaves the radius untouched");
+
+  app.location.search = "?radius=999";
+  app.applyRadiusFromQuery();
+  assert.equal(app.state.walkingDistanceMinutes, 30, "clamped to the slider's own maximum");
+  app.location.search = "";
+});
+
+test("resizing the walking radius updates /nearby's own URL live, the same way a filter or a search does", () => {
+  resetData(app);
+  resetRouter(app);
+  app.location.pathname = "/nearby";
+  app.applyWalkingRadiusChange(10, { animate: false });
+  assert.equal(app.location.search, "?radius=10", "shareable straight out of the address bar");
+
+  app.applyWalkingRadiusChange(app.DEFAULT_WALKING_DISTANCE_MINUTES, { animate: false });
+  assert.equal(app.location.search, "", "back at the default, the param drops rather than reading ?radius=5");
+  app.location.pathname = "/";
+});
+
+test("an expanded cluster's borrowed radius never leaks into the URL", () => {
+  // Regression: focusNearbyOnClusterGroup borrows a tight radius to cover the tapped group
+  // (stashing the reader's real one in preClusterWalkingDistanceMinutes), and selectOverview's
+  // own syncHashFromSelection call wrote that borrowed value straight into a /nearby?radius=
+  // history entry -- so going back later re-applied the group's borrowed radius as if the
+  // reader had chosen it, through the same ?radius= query this feature reads on arrival.
+  resetData(app);
+  app.state.walkingDistanceMinutes = 5;
+  app.state.clusterExpanded = { itemType: "tree", items: [] };
+  app.state.preClusterWalkingDistanceMinutes = 5;
+  // The borrowed value a real cluster tap would have set -- see clusterFocusTarget.
+  app.state.walkingDistanceMinutes = 0.25;
+  assert.equal(app.searchStringForPath("/nearby"), "", "the borrowed radius is never written out");
+
+  app.state.clusterExpanded = null;
+  app.state.walkingDistanceMinutes = 0.25;
+  assert.equal(app.searchStringForPath("/nearby"), "?radius=0.25", "once it's the reader's own radius, it is");
+});
+
+test("filterKeysFromFindPath reads a subfilter's category straight from a /nearby/<slug> path, hyphens back to underscores", () => {
+  assert.deepEqual(Array.from(app.filterKeysFromFindPath("/nearby/pubs")), ["pubs"]);
+  assert.deepEqual(Array.from(app.filterKeysFromFindPath("/nearby/pubs/")), ["pubs"], "the trailing slash Netlify serves it at is accepted too");
+  assert.deepEqual(Array.from(app.filterKeysFromFindPath("/nearby/national-rail")), ["national_rail"]);
+  assert.deepEqual(Array.from(app.filterKeysFromFindPath("/nearby/not-a-real-filter")), [], "an unrecognised slug is not a filter key");
+  assert.deepEqual(Array.from(app.filterKeysFromFindPath("/app")), [], "a non-/nearby/ path never matches");
+  assert.deepEqual(Array.from(app.filterKeysFromFindPath("")), []);
+});
+
+test("filterKeysFromFindPath reads a top-level group's page as every one of its member keys", () => {
+  assert.deepEqual(
+    Array.from(app.filterKeysFromFindPath("/nearby/food")),
+    ["pubs", "restaurants", "cafes", "shops"],
+    "the whole group, not just one subfilter"
+  );
+  assert.deepEqual(Array.from(app.filterKeysFromFindPath("/nearby/transport/")), ["bus", "underground", "national_rail", "parking"]);
+});
+
+test("filterKeysFromFindPath never mistakes the /nearby/filter or /nearby/search screens for a category", () => {
+  assert.deepEqual(Array.from(app.filterKeysFromFindPath("/nearby/filter")), [], "/nearby/filter is a screen, not a category");
+  assert.deepEqual(Array.from(app.filterKeysFromFindPath("/nearby/search")), [], "/nearby/search is a screen, not a category");
+});
+
+test("arriving at a /nearby/<slug> page pre-filters Nearby to that category, taking priority over any ?show= param", () => {
   resetData(app);
   app.setOverviewFilters(["trees"]);
-  app.location.pathname = "/find/pubs/";
+  app.location.pathname = "/nearby/pubs/";
   app.location.search = "?show=cafes";
   app.applyShowFilterFromQuery();
   assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "the path, not the query param, is the category page's own category");
@@ -1839,6 +1913,45 @@ test("fitMapToSingleFilterIfNoLocation fits the camera to every match, but only 
   app.state.selected = { type: "landmark", item: app.state.landmarks[0] };
   assert.equal(app.fitMapToSingleFilterIfNoLocation(), false, "never overrides a deep-linked selection's own framing");
   app.state.selected = null;
+});
+
+test("a /nearby/<slug> group page's several filters also get the full-list/fit treatment without location, unlike a reader's own multi-filter choice", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.selected = null;
+  const pubA = { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) };
+  const cafeA = { id: "cafe-a", name: "Cafe A", category: "cafe", ...makePoint(app, 0.05, 0.05) };
+  app.state.landmarks.push(pubA, cafeA);
+
+  // A reader's own multi-filter choice (persist defaults to true) never takes this path --
+  // already covered above, restated here for the contrast with the ephemeral case below.
+  app.setOverviewFilters(["pubs", "cafes"]);
+  assert.equal(app.activeFiltersShowFullListWithoutLocation(), false, "a deliberate choice is not a /nearby/<slug> arrival");
+  assert.equal(app.fitMapToSingleFilterIfNoLocation(), false);
+  assert.doesNotMatch(app.overviewNearestHtml(), /Pub A/);
+
+  // The same two filters, but arrived at the way a /nearby/food group page actually sets them.
+  app.setOverviewFilters(["pubs", "cafes"], { persist: false });
+  assert.equal(app.activeFiltersShowFullListWithoutLocation(), true);
+  assert.equal(app.fitMapToSingleFilterIfNoLocation(), true, "fits to every match across both filters");
+  const html = app.overviewNearestHtml();
+  assert.ok(html.includes("Pub A") && html.includes("Cafe A"), "both categories are listed, not just one");
+  app.setOverviewFilters([]);
+});
+
+test("the 1-3 filter default state nobody chose never gets the full-list/fit treatment without location", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.selected = null;
+  app.state.overviewFilters = app.DEFAULT_FILTERS.slice();
+  app.state.overviewFiltersEphemeral = false;
+  assert.equal(
+    app.activeFiltersShowFullListWithoutLocation(),
+    false,
+    "the default filter set is never mistaken for a /nearby/<slug> arrival or a deliberate single choice"
+  );
+  assert.equal(app.fitMapToSingleFilterIfNoLocation(), false);
+  app.state.overviewFilters = [];
 });
 
 test("nearby heading-up viewport shows the whole walking-radius circle, leaving the corners outside it", () => {
@@ -3609,7 +3722,7 @@ test("the nearby heading names the walking radius, not just the filter", () => {
   app.state.showAllOutsideRadius = false;
 });
 
-test("the nearby heading names the count too, so a /find/<slug> page answers 'how many' at a glance", () => {
+test("the nearby heading names the count too, so a /nearby/<slug> page answers 'how many' at a glance", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.walkingDistanceMinutes = 5;
@@ -4053,7 +4166,7 @@ test("opening Search is a screen of its own, and leaving it hands the map back t
   assert.equal(app.isOverviewScreenActive(), false, "so map taps do not move the nearby anchor");
   assert.equal(app.secondaryScreenActive(), true, "and the map keeps the nearby framing behind it");
   assert.equal(app.els.inspectorTitle.textContent, "Search");
-  assert.equal(app.location.pathname, "/search", "the screen has its own URL, so back leaves it");
+  assert.equal(app.location.pathname, "/nearby/search", "the screen has its own URL, so back leaves it");
 
   app.goToInitialView();
   assert.equal(app.state.searchScreenOpen, false);
@@ -4708,17 +4821,17 @@ test("walking radius circle fits in visible area even with inspector open", () =
   assert.ok(center.y + radiusPx <= canvasHeight, `bottom edge of radius circle off screen: ${center.y + radiusPx} > ${canvasHeight}`);
 });
 
-test("filter screen sets the URL to /filter", () => {
+test("filter screen sets the URL to /nearby/filter", () => {
   resetData(app);
   app.openFiltersScreen();
-  assert.equal(app.location.pathname, "/filter", "filter screen has its own path");
+  assert.equal(app.location.pathname, "/nearby/filter", "filter screen has its own path");
 });
 
-test("the /filter path opens the filter screen on load", () => {
+test("the /nearby/filter path opens the filter screen on load", () => {
   resetData(app);
-  app.location.pathname = "/filter";
+  app.location.pathname = "/nearby/filter";
   const opened = app.applySelectionFromHash(false);
-  assert.ok(opened, "applySelectionFromHash returns true for /filter");
+  assert.ok(opened, "applySelectionFromHash returns true for /nearby/filter");
   assert.ok(app.state.filterScreenOpen, "filter screen is open");
   assert.equal(app.els.inspectorTitle.textContent, "Filters", "inspector shows Filters title");
   app.location.pathname = "/";
@@ -4727,7 +4840,7 @@ test("the /filter path opens the filter screen on load", () => {
 test("returning to nearby screen goes back to /nearby with no hash", () => {
   resetData(app);
   app.openFiltersScreen();
-  assert.equal(app.location.pathname, "/filter", "path is set to /filter");
+  assert.equal(app.location.pathname, "/nearby/filter", "path is set to /nearby/filter");
   app.goToInitialView();
   assert.equal(app.location.pathname, "/nearby", "path returns to /nearby");
   assert.equal(app.location.hash, "", "and carries no hash");

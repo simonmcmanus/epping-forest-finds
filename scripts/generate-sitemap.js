@@ -45,7 +45,13 @@ const STATIC_PAGES = [
 // that should rank. /app itself needs no entry here: it is a bare redirect to /nearby with
 // no content of its own, so there is nothing for a crawler to index there either way.
 // See spec/spec-alpha-access.md.
-const DISALLOWED_PATHS = ["/admin.html", "/nearby", "/search", "/filter", "/settings", "/report", "/api/", "/.netlify/"];
+//
+// The three /nearby... entries carry a trailing "$" (robots.txt's end-of-path anchor) rather
+// than the bare path a plain Disallow would otherwise prefix-match: /nearby/<slug>/ category
+// pages (scripts/generate-find-pages.js) live under that same /nearby/ prefix and must stay
+// crawlable, so "Disallow: /nearby" alone would silently swallow every one of them too.
+// /admin.html, /api/ and /.netlify/ have no such children to protect, so they stay bare.
+const DISALLOWED_PATHS = ["/admin.html", "/nearby$", "/nearby/search$", "/nearby/filter$", "/settings$", "/report$", "/api/", "/.netlify/"];
 
 function isoDate(ms) {
   return new Date(ms).toISOString().slice(0, 10);
@@ -96,7 +102,7 @@ function collectUrls(siteRoot, now = Date.now()) {
   // output already exists on disk here. Their count changes with the data, same as the
   // static pages above, so they share "now" as a build-time lastmod rather than a per-page one.
   for (const slug of listFindSlugs(siteRoot)) {
-    urls.push({ loc: `/find/${slug}/`, lastmod: isoDate(now), changefreq: "weekly", priority: "0.5" });
+    urls.push({ loc: `/nearby/${slug}/`, lastmod: isoDate(now), changefreq: "weekly", priority: "0.5" });
   }
 
   return urls;

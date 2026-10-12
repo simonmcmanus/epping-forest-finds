@@ -83,13 +83,13 @@ test("generate writes both files into the site root", () => {
   assert.ok(fs.existsSync(path.join(dir, ROBOTS_FILE_NAME)));
 });
 
-test("a generated /find/<slug> category page is listed in the sitemap, unlike the gated app", () => {
+test("a generated /nearby/<slug> category page is listed in the sitemap, unlike the gated app", () => {
   const dir = makeSite();
-  fs.mkdirSync(path.join(dir, "find", "pubs"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "find", "pubs", "index.html"), "<!doctype html>");
+  fs.mkdirSync(path.join(dir, "nearby", "pubs"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "nearby", "pubs", "index.html"), "<!doctype html>");
   const locs = collectUrls(dir).map((url) => url.loc);
   assert.ok(
-    locs.includes("/find/pubs/"),
+    locs.includes("/nearby/pubs/"),
     "a generated category page is advertised to crawlers at the trailing-slash URL Netlify actually serves it at",
   );
 });
@@ -108,10 +108,20 @@ test("the gated app screens are kept out of the sitemap and disallowed to crawle
   const sitemap = fs.readFileSync(path.join(root, "sitemap.xml"), "utf8");
   const robots = fs.readFileSync(path.join(root, "robots.txt"), "utf8");
 
-  for (const screen of ["/nearby", "/search", "/filter", "/settings", "/report"]) {
+  for (const screen of ["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/report"]) {
     assert.ok(!sitemap.includes(`<loc>https://www.eppingforestfinds.uk${screen}<`), `sitemap.xml must not advertise ${screen}`);
-    assert.match(robots, new RegExp(`^Disallow: ${screen}$`, "m"), `robots.txt must disallow ${screen}`);
+    // "$" anchors the end of the path (robots.txt's own end-of-url syntax) so this disallows
+    // exactly the screen, not every /nearby/<slug>/ category page nested under the same prefix.
+    assert.match(robots, new RegExp(`^Disallow: ${screen.replace(/\//g, "\\/")}\\$$`, "m"), `robots.txt must disallow ${screen} (and only exactly that path)`);
   }
   // /app itself carries no entry of its own: it is a bare redirect, not a page with content.
   assert.ok(!robots.includes("Disallow: /app\n"), "/app is a redirect, not a gated page -- it needs no disallow entry");
+});
+
+test("robots.txt's /nearby disallow never swallows a /nearby/<slug> category page", () => {
+  // Disallow: /nearby (no end anchor) would prefix-match /nearby/pubs/ too and make every
+  // category page invisible to crawlers -- the whole point of generating them. The "$" anchor
+  // in DISALLOWED_PATHS is what keeps the gated screen and the public category pages apart.
+  const robots = buildRobotsTxt();
+  assert.ok(!/^Disallow: \/nearby$/m.test(robots), "the /nearby disallow line must be end-anchored");
 });

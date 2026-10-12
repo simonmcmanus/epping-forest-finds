@@ -42,10 +42,10 @@ restriction has to be real even though the secret is shared.
 | Path | Serves | Gated |
 | --- | --- | --- |
 | `/` | Marketing homepage (`index.html`) | No |
-| `/nearby`, `/search`, `/filter`, `/settings`, `/report` | The map application's five screens, each its own URL (see spec.md "Routing") | Yes |
+| `/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/report` | The map application's five screens, each its own URL (see spec.md "Routing") | Yes |
 | `/app` | Bare redirect (301) to `/nearby` — the app's old entry point, kept working for old links and bookmarks | No (nothing to gate; it carries no content) |
 | `/app.html` | The underlying file every screen path rewrites to | Yes |
-| `/find/<slug>` | Category pages (spec-marketing.md § "Category pages"), **not** gated | No |
+| `/nearby/<slug>` | Category pages (spec-marketing.md § "Category pages"), **not** gated — the gate's `path` list names the bare `/nearby`, `/nearby/search` and `/nearby/filter` paths exactly, so a category page nested one segment deeper is never caught by it | No |
 | `/reports/`, `/terms.html`, `/admin` | Unchanged | No |
 | `/js/*`, `/css/*`, `/data/*`, `/sw.js`, `/manifest.webmanifest` | Unchanged | No |
 
@@ -76,7 +76,7 @@ it cache `/js/*`, `/css/*` and `/data/*`. Moving the app into an `/app/`
 directory would collapse that scope to `/app/` and the app would stop working
 offline entirely — which is the product.
 
-Each screen path (`/nearby`, `/search`, `/filter`, `/settings`, `/report`) is
+Each screen path (`/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/report`) is
 therefore a URL, produced by a rewrite, not a folder — all five rewrite to the
 same `app.html` at the root (spec.md "Routing"). `/app` is a bare redirect to
 `/nearby` kept for old links; it is not itself a rewrite target and carries no
@@ -91,8 +91,8 @@ what keeps the installed app able to reach `/js`, `/css` and `/data`.
 
 ## 3. The gate
 
-`netlify/edge-functions/alpha-gate.js`, configured for `/nearby`, `/search`,
-`/filter`, `/settings`, `/report` and `/app.html`.
+`netlify/edge-functions/alpha-gate.js`, configured for `/nearby`, `/nearby/search`,
+`/nearby/filter`, `/settings`, `/report` and `/app.html`.
 
 ### 3.1 Secrets
 
@@ -169,8 +169,8 @@ change.
 would be served the app instead of the new homepage, and the homepage would be
 invisible to exactly the people most likely to look.
 
-The handler is now scoped to the app's own routes (`/nearby`, `/search`,
-`/filter`, `/settings`, `/report`, `/app.html`). Navigations to anything else
+The handler is now scoped to the app's own routes (`/nearby`, `/nearby/search`,
+`/nearby/filter`, `/settings`, `/report`, `/app.html`). Navigations to anything else
 — the homepage, the reports, the terms, `/app` itself — fall through to the
 network and are not served from the app cache.
 
@@ -200,7 +200,7 @@ cache versions are never bumped by hand or on a branch.
 `netlify.toml`:
 
 - An edge function declaration binding `alpha-gate` to each of `/nearby`,
-  `/search`, `/filter`, `/settings`, `/report` and to `/app.html`.
+  `/nearby/search`, `/nearby/filter`, `/settings`, `/report` and to `/app.html`.
 - A 200 rewrite from each of those five screen paths to `/app.html`, so every
   pretty URL serves the same file.
 - `/app` is a separate 301 redirect to `/nearby` — not a rewrite, and not bound
@@ -224,8 +224,11 @@ each screen path, following the existing `/admin` precedent, and mirrors the
 
 When the alpha ends, the five screen paths can be removed from
 `DISALLOWED_PATHS` — but there is little reason to: the homepage is the page
-that should rank, and the app has no indexable content (`/find/<slug>` is the
-exception — spec-marketing.md § "Category pages" — and is never disallowed).
+that should rank, and the app has no indexable content (`/nearby/<slug>` is
+the exception — spec-marketing.md § "Category pages" — and is never
+disallowed; the three `/nearby...` entries in `DISALLOWED_PATHS` carry a
+trailing `$` for exactly this reason — see spec-marketing.md § "Category
+pages").
 
 ## 7. Testing
 

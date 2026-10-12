@@ -2,6 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!-- Filter and Search nest under /nearby/ (ROUTE_PATHS, js/app.js), one path segment deeper
+       than every other screen -- without this, the CSS/JS/icon references below (and the ones
+       js/app.js and js/nav.js build at runtime: FOLKLORE_URL, navigator.serviceWorker.register)
+       resolve against /nearby/ instead of the site root and 404. Also what lets a /nearby/<slug>
+       category page, templated off this same file one path segment deeper again, resolve them
+       correctly too -- scripts/generate-find-pages.js relies on finding this tag already here
+       rather than inserting its own. -->
+  <base href="/">
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB"></script>
   <script>

@@ -19,11 +19,11 @@
 
 [[edge_functions]]
   function = "alpha-gate"
-  path = "/search"
+  path = "/nearby/search"
 
 [[edge_functions]]
   function = "alpha-gate"
-  path = "/filter"
+  path = "/nearby/filter"
 
 [[edge_functions]]
   function = "alpha-gate"
@@ -49,19 +49,22 @@
 # rather than moving into a directory: js/nav.js registers the service
 # worker relatively, so a directory move would collapse its scope and the
 # app would stop working offline entirely. js/app.js's router reads
-# location.pathname to know which of these it was asked for.
+# location.pathname to know which of these it was asked for. Filter and
+# Search nest under /nearby/ -- both only ever change what Nearby shows,
+# never a destination in their own right -- while Settings and Report stay
+# top-level, general app screens with nothing to do with Nearby itself.
 [[redirects]]
   from = "/nearby"
   to = "/app.html"
   status = 200
 
 [[redirects]]
-  from = "/search"
+  from = "/nearby/search"
   to = "/app.html"
   status = 200
 
 [[redirects]]
-  from = "/filter"
+  from = "/nearby/filter"
   to = "/app.html"
   status = 200
 
