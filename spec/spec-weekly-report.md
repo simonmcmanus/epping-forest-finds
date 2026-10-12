@@ -69,9 +69,12 @@ system's:
   than a silence), and our places now trading under a different name or type.
   That last signal is the one that matters most and the one nothing used to
   catch: when a unit changes hands the map element is *edited in place*, so
-  the site looks neither missing nor new. Covers food, shops, and community
-  venues (halls, libraries, arts centres), which were previously out of scope
-  entirely.
+  the site looks neither missing nor new. Covers food, shops, community
+  venues (halls, libraries, arts centres) and places of worship (churches,
+  synagogues, mosques), which were previously out of scope entirely — the
+  gap that meant none of the churches on Loughton High Road were showing on
+  the map until the Overpass query and this watch were both taught to ask
+  for `amenity=place_of_worship`.
 - `scripts/fsa_business_diff.py` — the councils' food-hygiene register.
   Openings only, never removals: the register holds the name a business
   registered under rather than the name over the door, so "absent from the

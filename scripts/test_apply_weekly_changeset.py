@@ -274,6 +274,17 @@ class VenueCategoryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             awc.apply_changeset(master, changeset, self.segments, self.ref_lat_rad)
 
+    def test_a_place_of_worship_is_a_category_that_can_be_added(self):
+        # Churches on Loughton High Road were missing from the map entirely
+        # because nothing watched for amenity=place_of_worship; the weekly
+        # run must be able to add one, not just the original regen.
+        master = make_master()
+        changeset = {"add": [{"name": "Loughton Baptist Church", "category": "place_of_worship",
+                               "lon": 0.0505, "lat": 51.6442}]}
+        log = awc.apply_changeset(master, changeset, self.segments, self.ref_lat_rad)
+        self.assertEqual(len(log["added"]), 1)
+        self.assertEqual(master["features"][0]["properties"]["amenity"], "place_of_worship")
+
 
 class FileRoutingTests(unittest.TestCase):
     """With no master file to re-split from (the unattended path), each entry
@@ -282,6 +293,7 @@ class FileRoutingTests(unittest.TestCase):
     def test_food_and_venues_go_to_different_files(self):
         self.assertEqual(awc.file_for_category("cafe"), awc.FOOD_FILE)
         self.assertEqual(awc.file_for_category("public_hall"), awc.MISC_FILE)
+        self.assertEqual(awc.file_for_category("place_of_worship"), awc.MISC_FILE)
 
     def test_a_removal_is_routed_to_whichever_file_holds_it(self):
         datasets = {

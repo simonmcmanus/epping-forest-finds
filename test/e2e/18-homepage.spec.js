@@ -11,6 +11,39 @@ const { buildInventory } = require("../../scripts/report/map-inventory.js");
 const { formatCount } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
+  test("links directly to every FAQ answer without requiring JavaScript", async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    try {
+      for (const key of ["offline", "free", "tree-data", "cattle", "coverage"]) {
+        await page.goto("/#faq-" + key);
+        const answer = page.locator("#faq-" + key);
+        await expect(answer).toBeInViewport();
+        await expect(answer).toHaveCSS("background-color", "rgb(246, 241, 231)");
+        await expect(answer.locator("dt a")).toHaveAttribute("href", "#faq-" + key);
+      }
+      await page.goto("/");
+      await page.locator("#faq-tree-data dt a").click();
+      await expect(page).toHaveURL(/#faq-tree-data$/);
+      await expect(page.locator("#faq-tree-data")).toBeInViewport();
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("explains tree-data limitations and the trial's feedback to the City of London", async ({ page }) => {
+    await page.goto("/");
+    const answer = page.locator(".faq-item").filter({ hasText: "Where does the tree data come from?" }).locator("dd");
+    await expect(answer).toContainText("provided by the City of London");
+    await expect(answer).toContainText("some of the data may not be completely accurate");
+    await expect(answer).toContainText("working to understand the issues and improve the data");
+    await expect(answer).toContainText("report our findings back to the City of London");
+    const data = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent());
+    const question = data["@graph"].find(item => item["@type"] === "FAQPage").mainEntity
+      .find(item => item.name === "Where does the tree data come from?");
+    await expect(answer).toHaveText(question.acceptedAnswer.text);
+  });
+
   test("smoothly reverses category transitions and closes immediately with reduced motion", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto("/");
@@ -99,8 +132,8 @@ test.describe("the marketing homepage", () => {
     const spacing = await row.evaluate(el => {
       const header = el.querySelector("dt").getBoundingClientRect();
       const search = el.querySelector("input").getBoundingClientRect();
-      const list = el.querySelector("ul").getBoundingClientRect();
-      return { above: search.top - header.bottom, below: el.getBoundingClientRect().bottom - list.bottom };
+      const content = el.querySelector(".inventory-content").getBoundingClientRect();
+      return { above: search.top - header.bottom, below: el.getBoundingClientRect().bottom - content.bottom };
     });
     expect(spacing.above).toBeLessThanOrEqual(14);
     expect(spacing.below).toBeLessThanOrEqual(14);
@@ -117,6 +150,10 @@ test.describe("the marketing homepage", () => {
     await button.click();
     const panel = page.locator("#inventory-churches");
     const churches = require("../../assets/home/inventory/churches.json");
+    await expect(panel.getByRole("listitem")).toHaveCount(Math.min(churches.length, 50));
+    while (await panel.getByRole("listitem").count() < churches.length) {
+      await panel.getByRole("button", { name: "Show more" }).click();
+    }
     await expect(panel.getByRole("listitem")).toHaveText(churches.map(item => item.name + item.detail));
     await expect(button).toHaveAttribute("aria-expanded", "true");
     await button.focus();

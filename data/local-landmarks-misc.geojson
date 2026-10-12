@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-10-11T06:56:01.677181Z",
+  "generatedAt": "2026-10-12T05:37:01.171203Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -3502,6 +3502,3570 @@
         "address": "25 Woodbine Place London",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 120.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/60099694",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0767718,
+          51.7305383
+        ]
+      },
+      "properties": {
+        "id": "node/60099694",
+        "osmType": "node",
+        "osmId": 60099694,
+        "name": "Epping Green Chapel",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 464.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/354838751",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0169362,
+          51.6232631
+        ]
+      },
+      "properties": {
+        "id": "node/354838751",
+        "osmType": "node",
+        "osmId": 354838751,
+        "name": "Chingford Mount Baptist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "1a Leadale Avenue, London E4 8AT",
+        "distanceToForestBoundaryMetres": 333.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/2349228867",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0040506,
+          51.6312377
+        ]
+      },
+      "properties": {
+        "id": "node/2349228867",
+        "osmType": "node",
+        "osmId": 2349228867,
+        "name": "North Chingford Methodist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 416.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/3094362121",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0195111,
+          51.5994756
+        ]
+      },
+      "properties": {
+        "id": "node/3094362121",
+        "osmType": "node",
+        "osmId": 3094362121,
+        "name": "Woodford Methodist church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Derby Road, London E18 2PU",
+        "distanceToForestBoundaryMetres": 465.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/4709481293",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0425383,
+          51.6269121
+        ]
+      },
+      "properties": {
+        "id": "node/4709481293",
+        "osmType": "node",
+        "osmId": 4709481293,
+        "name": "Buckhurst Hill Baptist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 431.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9162750523",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0448371,
+          51.5541378
+        ]
+      },
+      "properties": {
+        "id": "node/9162750523",
+        "osmType": "node",
+        "osmId": 9162750523,
+        "name": "Coptic Orthodox Patriarchate of St. George and St. Mary",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.smasg.org.uk/",
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 464.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/9590878745",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0251953,
+          51.5650872
+        ]
+      },
+      "properties": {
+        "id": "node/9590878745",
+        "osmType": "node",
+        "osmId": 9590878745,
+        "name": "Wat Buddharam",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 458.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11267096109",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0139282,
+          51.5706623
+        ]
+      },
+      "properties": {
+        "id": "node/11267096109",
+        "osmType": "node",
+        "osmId": 11267096109,
+        "name": "Forest Baptist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://forestbaptist.org.uk/",
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 465.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11446979351",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0196984,
+          51.6031549
+        ]
+      },
+      "properties": {
+        "id": "node/11446979351",
+        "osmType": "node",
+        "osmId": 11446979351,
+        "name": "Salway Evangelical Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 458.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12658145491",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0453347,
+          51.5504445
+        ]
+      },
+      "properties": {
+        "id": "node/12658145491",
+        "osmType": "node",
+        "osmId": 12658145491,
+        "name": "Streams of Joy East London",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://streamsofjoyeastlondon.org/",
+        "phone": null,
+        "address": "Faith Mews, London E12 5FD",
+        "distanceToForestBoundaryMetres": 307.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12658145492",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0452967,
+          51.5502794
+        ]
+      },
+      "properties": {
+        "id": "node/12658145492",
+        "osmType": "node",
+        "osmId": 12658145492,
+        "name": "Agape Christian Fellowship",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 325.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/13897776361",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0086582,
+          51.5722835
+        ]
+      },
+      "properties": {
+        "id": "node/13897776361",
+        "osmType": "node",
+        "osmId": 13897776361,
+        "name": "Noor Ul Islam",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.noorulislam.org.uk/",
+        "phone": null,
+        "address": "711-715 High Road, London E10 5AB",
+        "distanceToForestBoundaryMetres": 153.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/4962595",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0452552,
+          51.5513846
+        ]
+      },
+      "properties": {
+        "id": "way/4962595",
+        "osmType": "way",
+        "osmId": 4962595,
+        "name": "Church of God UK",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 466.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/28808111",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0109453,
+          51.5687656
+        ]
+      },
+      "properties": {
+        "id": "way/28808111",
+        "osmType": "way",
+        "osmId": 28808111,
+        "name": "St. John the Baptist, Leytonstone",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 466.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/28836269",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0128357,
+          51.568253
+        ]
+      },
+      "properties": {
+        "id": "way/28836269",
+        "osmType": "way",
+        "osmId": 28836269,
+        "name": "Leytonstone Mosque",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "9 Dacre Road, London E11 3AG",
+        "distanceToForestBoundaryMetres": 465.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/28836500",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0106341,
+          51.5657092
+        ]
+      },
+      "properties": {
+        "id": "way/28836500",
+        "osmType": "way",
+        "osmId": 28836500,
+        "name": "Leytonstone Methodist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "578 High Road Leytonstone, London",
+        "distanceToForestBoundaryMetres": 465.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/39460411",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0325628,
+          51.5713087
+        ]
+      },
+      "properties": {
+        "id": "way/39460411",
+        "osmType": "way",
+        "osmId": 39460411,
+        "name": "St Mary the Virgin",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Overton Drive, London E11 2LW",
+        "distanceToForestBoundaryMetres": 459.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/58960445",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.018724,
+          51.5944384
+        ]
+      },
+      "properties": {
+        "id": "way/58960445",
+        "osmType": "way",
+        "osmId": 58960445,
+        "name": "Saint Anne Line Roman Catholic Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Grove Crescent, London E18 2JR",
+        "distanceToForestBoundaryMetres": 462.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/58960446",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0187324,
+          51.5949128
+        ]
+      },
+      "properties": {
+        "id": "way/58960446",
+        "osmType": "way",
+        "osmId": 58960446,
+        "name": "Woodford Spiritualist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 464.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/60449365",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0127562,
+          51.5607845
+        ]
+      },
+      "properties": {
+        "id": "way/60449365",
+        "osmType": "way",
+        "osmId": 60449365,
+        "name": "Kingdom Hall of Jehovah's Witnesses",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Sansom Road, London E11 3HE",
+        "distanceToForestBoundaryMetres": 464.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/75113752",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0258564,
+          51.58123
+        ]
+      },
+      "properties": {
+        "id": "way/75113752",
+        "osmType": "way",
+        "osmId": 75113752,
+        "name": "Wanstead Baptist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Wellington Road, London E11 2AS",
+        "distanceToForestBoundaryMetres": 200.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/75114360",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0147583,
+          51.594774
+        ]
+      },
+      "properties": {
+        "id": "way/75114360",
+        "osmType": "way",
+        "osmId": 75114360,
+        "name": "Grove Hill Evangelical Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Grove Hill, London E18 2HY",
+        "distanceToForestBoundaryMetres": 437.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/79015961",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0022825,
+          51.6095515
+        ]
+      },
+      "properties": {
+        "id": "way/79015961",
+        "osmType": "way",
+        "osmId": 79015961,
+        "name": "All Saints Church of England Highams Park",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Castle Avenue, London E4 9QD",
+        "distanceToForestBoundaryMetres": 465.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/85586005",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.001532,
+          51.6492237
+        ]
+      },
+      "properties": {
+        "id": "way/85586005",
+        "osmType": "way",
+        "osmId": 85586005,
+        "name": "Roman Catholic Chapel",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 408.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/85586019",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0009687,
+          51.6493342
+        ]
+      },
+      "properties": {
+        "id": "way/85586019",
+        "osmType": "way",
+        "osmId": 85586019,
+        "name": "Gilwell Park Synagogue",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 395.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/91302691",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0286139,
+          51.592929
+        ]
+      },
+      "properties": {
+        "id": "way/91302691",
+        "osmType": "way",
+        "osmId": 91302691,
+        "name": "Qurani Murkuz",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 466.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/94148588",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0266424,
+          51.5906844
+        ]
+      },
+      "properties": {
+        "id": "way/94148588",
+        "osmType": "way",
+        "osmId": 94148588,
+        "name": "East London and Essex Liberal Synagogue",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Marlborough Road, London E18 1AR",
+        "distanceToForestBoundaryMetres": 456.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/94339904",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.008532,
+          51.5733657
+        ]
+      },
+      "properties": {
+        "id": "way/94339904",
+        "osmType": "way",
+        "osmId": 94339904,
+        "name": "Barclay Christian Centre",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "752 High Road Leyton, London E10 6AA",
+        "distanceToForestBoundaryMetres": 443.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/94339914",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.011383,
+          51.5785492
+        ]
+      },
+      "properties": {
+        "id": "way/94339914",
+        "osmType": "way",
+        "osmId": 94339914,
+        "name": "St Stephen's, Walthamstow",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Copeland Road, London",
+        "distanceToForestBoundaryMetres": 256.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/105604916",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0566107,
+          51.6496228
+        ]
+      },
+      "properties": {
+        "id": "way/105604916",
+        "osmType": "way",
+        "osmId": 105604916,
+        "name": "Loughton Methodist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 270.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/105604923",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0578589,
+          51.6489335
+        ]
+      },
+      "properties": {
+        "id": "way/105604923",
+        "osmType": "way",
+        "osmId": 105604923,
+        "name": "St Edmund Of Canterbury",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 345.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/132965369",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0010772,
+          51.6311754
+        ]
+      },
+      "properties": {
+        "id": "way/132965369",
+        "osmType": "way",
+        "osmId": 132965369,
+        "name": "St Peter's & St Paul's",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 210.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/136548552",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0044081,
+          51.5570147
+        ]
+      },
+      "properties": {
+        "id": "way/136548552",
+        "osmType": "way",
+        "osmId": 136548552,
+        "name": "Holy Trinity with St Augustine",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "4 Holloway Road, London E11 4LD",
+        "distanceToForestBoundaryMetres": 192.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/142241622",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0129576,
+          51.5725279
+        ]
+      },
+      "properties": {
+        "id": "way/142241622",
+        "osmType": "way",
+        "osmId": 142241622,
+        "name": "Charis Christian Centre",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Capworth Street, London E10 7HA",
+        "distanceToForestBoundaryMetres": 295.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/142241623",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0145614,
+          51.5757671
+        ]
+      },
+      "properties": {
+        "id": "way/142241623",
+        "osmType": "way",
+        "osmId": 142241623,
+        "name": "Kingsway International Christian Centre",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.kicc.org.uk/",
+        "phone": null,
+        "address": "468-474 Hoe Street, London E17 9AH",
+        "distanceToForestBoundaryMetres": 445.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/144358913",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0210002,
+          51.551947
+        ]
+      },
+      "properties": {
+        "id": "way/144358913",
+        "osmType": "way",
+        "osmId": 144358913,
+        "name": "St Saviours Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 466.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/146355475",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0281438,
+          51.5504007
+        ]
+      },
+      "properties": {
+        "id": "way/146355475",
+        "osmType": "way",
+        "osmId": 146355475,
+        "name": "ARC Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.arc4u.org.uk/forestgate",
+        "phone": null,
+        "address": "66a Sebert Road",
+        "distanceToForestBoundaryMetres": 463.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/147638384",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0466261,
+          51.6899188
+        ]
+      },
+      "properties": {
+        "id": "way/147638384",
+        "osmType": "way",
+        "osmId": 147638384,
+        "name": "Saint Thomas, Upshire",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Waltham Abbey EN9 3SN",
+        "distanceToForestBoundaryMetres": 366.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/148526268",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1104469,
+          51.6987013
+        ]
+      },
+      "properties": {
+        "id": "way/148526268",
+        "osmType": "way",
+        "osmId": 148526268,
+        "name": "St John the Baptist",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.eppinganglicans.org.uk/stjohn",
+        "phone": null,
+        "address": "Epping CM16 4BL",
+        "distanceToForestBoundaryMetres": 442.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/148680758",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0333525,
+          51.6291325
+        ]
+      },
+      "properties": {
+        "id": "way/148680758",
+        "osmType": "way",
+        "osmId": 148680758,
+        "name": "St John the Baptist, Buckhurst Hill",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "IG9 5RX",
+        "distanceToForestBoundaryMetres": 317.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/148888449",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0825422,
+          51.6548689
+        ]
+      },
+      "properties": {
+        "id": "way/148888449",
+        "osmType": "way",
+        "osmId": 148888449,
+        "name": "Trinity Church, Loughton",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 464.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/148890455",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0648314,
+          51.6530189
+        ]
+      },
+      "properties": {
+        "id": "way/148890455",
+        "osmType": "way",
+        "osmId": 148890455,
+        "name": "St John the Baptist",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "IG10 1PD",
+        "distanceToForestBoundaryMetres": 423.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/148893503",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0547734,
+          51.6464428
+        ]
+      },
+      "properties": {
+        "id": "way/148893503",
+        "osmType": "way",
+        "osmId": 148893503,
+        "name": "St Mary the Virgin",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "IG10 1BB",
+        "distanceToForestBoundaryMetres": 466.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/148900165",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0478012,
+          51.6251866
+        ]
+      },
+      "properties": {
+        "id": "way/148900165",
+        "osmType": "way",
+        "osmId": 148900165,
+        "name": "St Stephen, Buckhurst Hill",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Buckhurst Hill IG9 6FD",
+        "distanceToForestBoundaryMetres": 460.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/148900299",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0471615,
+          51.6189859
+        ]
+      },
+      "properties": {
+        "id": "way/148900299",
+        "osmType": "way",
+        "osmId": 148900299,
+        "name": "St Elisabeth, Buckhurst Hill",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 466.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/163414013",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0062845,
+          51.5871763
+        ]
+      },
+      "properties": {
+        "id": "way/163414013",
+        "osmType": "way",
+        "osmId": 163414013,
+        "name": "St Peter-in-the-Forest",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.stpeterintheforest.org/",
+        "phone": null,
+        "address": "Woodford New Road, London E17 3PP",
+        "distanceToForestBoundaryMetres": 454.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/172449085",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0505314,
+          51.644247
+        ]
+      },
+      "properties": {
+        "id": "way/172449085",
+        "osmType": "way",
+        "osmId": 172449085,
+        "name": "Loughton Baptist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://loughtonbaptistchurch.co.uk/",
+        "phone": null,
+        "address": "92 High Road, Loughton IG10 4QU",
+        "distanceToForestBoundaryMetres": 466.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/175063666",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0109277,
+          51.5768812
+        ]
+      },
+      "properties": {
+        "id": "way/175063666",
+        "osmType": "way",
+        "osmId": 175063666,
+        "name": "Shree Nathji Sanatan",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "159-161 Whipps Cross Road, London E11 1NP",
+        "distanceToForestBoundaryMetres": 406.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/189052941",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.007481,
+          51.5584477
+        ]
+      },
+      "properties": {
+        "id": "way/189052941",
+        "osmType": "way",
+        "osmId": 189052941,
+        "name": "Wesleyan Christian Centre",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "http://harrowgreenwesleyan.co.uk/",
+        "phone": "+44 20 8558 5632",
+        "address": "1 Harrow Green, London E11 3HP",
+        "distanceToForestBoundaryMetres": 80.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/205588582",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0071197,
+          51.5826828
+        ]
+      },
+      "properties": {
+        "id": "way/205588582",
+        "osmType": "way",
+        "osmId": 205588582,
+        "name": "Our Lady and St George",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 396.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/205961875",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0458809,
+          51.6022042
+        ]
+      },
+      "properties": {
+        "id": "way/205961875",
+        "osmType": "way",
+        "osmId": 205961875,
+        "name": "Broadmead Baptist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": "+44 20 8505 7151",
+        "address": null,
+        "distanceToForestBoundaryMetres": 354.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/217323588",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0450996,
+          51.5775917
+        ]
+      },
+      "properties": {
+        "id": "way/217323588",
+        "osmType": "way",
+        "osmId": 217323588,
+        "name": "Roding Lane Free Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 463.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/217609944",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0009957,
+          51.5891212
+        ]
+      },
+      "properties": {
+        "id": "way/217609944",
+        "osmType": "way",
+        "osmId": 217609944,
+        "name": "Double Edge Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "5 Stocksfield Road, London E17 3LJ",
+        "distanceToForestBoundaryMetres": 415.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/219041020",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0037205,
+          51.5825863
+        ]
+      },
+      "properties": {
+        "id": "way/219041020",
+        "osmType": "way",
+        "osmId": 219041020,
+        "name": "Shern Hall Methodist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Shernhall Street, London E17 9HX",
+        "distanceToForestBoundaryMetres": 466.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/219244517",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0948085,
+          51.6718861
+        ]
+      },
+      "properties": {
+        "id": "way/219244517",
+        "osmType": "way",
+        "osmId": 219244517,
+        "name": "Theydon Bois Baptist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 277.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/228435770",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0109284,
+          51.5635506
+        ]
+      },
+      "properties": {
+        "id": "way/228435770",
+        "osmType": "way",
+        "osmId": 228435770,
+        "name": "Gospel Generation",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://cacgospelgeneration.org.uk/",
+        "phone": null,
+        "address": "12-14 Ferndale Road, London E11 3DN",
+        "distanceToForestBoundaryMetres": 459.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/240484337",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0263511,
+          51.6141983
+        ]
+      },
+      "properties": {
+        "id": "way/240484337",
+        "osmType": "way",
+        "osmId": 240484337,
+        "name": "All Saints' Woodford Wells",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://asww.org.uk",
+        "phone": null,
+        "address": "Inmans Row, Woodford Green IG8 0NH",
+        "distanceToForestBoundaryMetres": 305.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/261373566",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0244268,
+          51.5775937
+        ]
+      },
+      "properties": {
+        "id": "way/261373566",
+        "osmType": "way",
+        "osmId": 261373566,
+        "name": "Christ Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 153.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/275414904",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0263027,
+          51.5849096
+        ]
+      },
+      "properties": {
+        "id": "way/275414904",
+        "osmType": "way",
+        "osmId": 275414904,
+        "name": "Sukkat Shalom Reform Synagogue",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 458.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/290976944",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0020443,
+          51.5751431
+        ]
+      },
+      "properties": {
+        "id": "way/290976944",
+        "osmType": "way",
+        "osmId": 290976944,
+        "name": "The Cornerstone (St Catherine & St Paul)",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "149 Canterbury Road, London E10 6EH",
+        "distanceToForestBoundaryMetres": 466.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/290976971",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0075932,
+          51.5755113
+        ]
+      },
+      "properties": {
+        "id": "way/290976971",
+        "osmType": "way",
+        "osmId": 290976971,
+        "name": "St Andrew's Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.standrewsleytonstone.org/",
+        "phone": null,
+        "address": "153 Colworth Road, London E11 1JD",
+        "distanceToForestBoundaryMetres": 466.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/292414426",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0101071,
+          51.5716543
+        ]
+      },
+      "properties": {
+        "id": "way/292414426",
+        "osmType": "way",
+        "osmId": 292414426,
+        "name": "International Pentecostal City Mission",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "6 Colworth Road, London E11 1HY",
+        "distanceToForestBoundaryMetres": 466.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/333062173",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0141192,
+          51.5706376
+        ]
+      },
+      "properties": {
+        "id": "way/333062173",
+        "osmType": "way",
+        "osmId": 333062173,
+        "name": "Moreia Leytonstone",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "881 High Road Leytonstone, London E11 1HR",
+        "distanceToForestBoundaryMetres": 462.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/336668275",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0016323,
+          51.6302355
+        ]
+      },
+      "properties": {
+        "id": "way/336668275",
+        "osmType": "way",
+        "osmId": 336668275,
+        "name": "Our Lady of Grace and St Teresa",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Station Road",
+        "distanceToForestBoundaryMetres": 261.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/336669858",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0245503,
+          51.615221
+        ]
+      },
+      "properties": {
+        "id": "way/336669858",
+        "osmType": "way",
+        "osmId": 336669858,
+        "name": "St Thomas of Canterbury Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "557-559 High Road, Woodford Green IG8 0RB",
+        "distanceToForestBoundaryMetres": 219.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/361409704",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0324742,
+          51.5632521
+        ]
+      },
+      "properties": {
+        "id": "way/361409704",
+        "osmType": "way",
+        "osmId": 361409704,
+        "name": "St Gabriel's Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Aldersbrook Road, London E12 5HH",
+        "distanceToForestBoundaryMetres": 462.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/361411921",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0170101,
+          51.6225047
+        ]
+      },
+      "properties": {
+        "id": "way/361411921",
+        "osmType": "way",
+        "osmId": 361411921,
+        "name": "All Saints (The Old Church)",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 410.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/361412081",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0007426,
+          51.6173154
+        ]
+      },
+      "properties": {
+        "id": "way/361412081",
+        "osmType": "way",
+        "osmId": 361412081,
+        "name": "St Anne's",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 338.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/375283646",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0150385,
+          51.5999721
+        ]
+      },
+      "properties": {
+        "id": "way/375283646",
+        "osmType": "way",
+        "osmId": 375283646,
+        "name": "Rivers Of Life Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "107 Roberts Road, London E17 4LP",
+        "distanceToForestBoundaryMetres": 310.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/409398318",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.017086,
+          51.60181
+        ]
+      },
+      "properties": {
+        "id": "way/409398318",
+        "osmType": "way",
+        "osmId": 409398318,
+        "name": "The Catholic Church of Christ the King, South Chingford and Walthamstow",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 316.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/421875079",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0012822,
+          51.5852897
+        ]
+      },
+      "properties": {
+        "id": "way/421875079",
+        "osmType": "way",
+        "osmId": 421875079,
+        "name": "Grace Community Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "209 Wood Street, London E17 3NU",
+        "distanceToForestBoundaryMetres": 466.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/421929651",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0017871,
+          51.584987
+        ]
+      },
+      "properties": {
+        "id": "way/421929651",
+        "osmType": "way",
+        "osmId": 421929651,
+        "name": "Wood Street Tabernacle",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "www.cogic-woodst.co.uk",
+        "phone": null,
+        "address": "216-218 Wood Street, London E17 3NA",
+        "distanceToForestBoundaryMetres": 458.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/431435503",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0015732,
+          51.6498721
+        ]
+      },
+      "properties": {
+        "id": "way/431435503",
+        "osmType": "way",
+        "osmId": 431435503,
+        "name": "Gilwell Mosque",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 466.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/431435515",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0015721,
+          51.6500173
+        ]
+      },
+      "properties": {
+        "id": "way/431435515",
+        "osmType": "way",
+        "osmId": 431435515,
+        "name": "Buddist Sala",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "London E4 7QW",
+        "distanceToForestBoundaryMetres": 461.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/431666316",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0246779,
+          51.5808848
+        ]
+      },
+      "properties": {
+        "id": "way/431666316",
+        "osmType": "way",
+        "osmId": 431666316,
+        "name": "Hermon Hill Methodist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Hermon Hill, London E11 2AR",
+        "distanceToForestBoundaryMetres": 281.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/449922619",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0521898,
+          51.6450974
+        ]
+      },
+      "properties": {
+        "id": "way/449922619",
+        "osmType": "way",
+        "osmId": 449922619,
+        "name": "Forest Hall",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "2 High Beech Road",
+        "distanceToForestBoundaryMetres": 465.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/450071859",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0263556,
+          51.57904
+        ]
+      },
+      "properties": {
+        "id": "way/450071859",
+        "osmType": "way",
+        "osmId": 450071859,
+        "name": "Wanstead United Reformed Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Nightingale Lane, London E11 2HD",
+        "distanceToForestBoundaryMetres": 276.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/455027125",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1150562,
+          51.7005758
+        ]
+      },
+      "properties": {
+        "id": "way/455027125",
+        "osmType": "way",
+        "osmId": 455027125,
+        "name": "Epping Friends Meeting House",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "CM16 4LL",
+        "distanceToForestBoundaryMetres": 262.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/462698083",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0049326,
+          51.5796535
+        ]
+      },
+      "properties": {
+        "id": "way/462698083",
+        "osmType": "way",
+        "osmId": 462698083,
+        "name": "Faizan-e-Islam Centre",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.faizaneislam.com/",
+        "phone": null,
+        "address": "757 Lea Bridge Road, London E17 9DZ",
+        "distanceToForestBoundaryMetres": 335.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/475595562",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0119076,
+          51.6076117
+        ]
+      },
+      "properties": {
+        "id": "way/475595562",
+        "osmType": "way",
+        "osmId": 475595562,
+        "name": "Highams Park & Chingford Synagogue",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "83A Marlborough Road, London",
+        "distanceToForestBoundaryMetres": 433.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/483999281",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0128207,
+          51.5578856
+        ]
+      },
+      "properties": {
+        "id": "way/483999281",
+        "osmType": "way",
+        "osmId": 483999281,
+        "name": "St Margaret with Saint Columba",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Woodhouse Road, London E11 3NG",
+        "distanceToForestBoundaryMetres": 437.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/490698756",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1153949,
+          51.7025893
+        ]
+      },
+      "properties": {
+        "id": "way/490698756",
+        "osmType": "way",
+        "osmId": 490698756,
+        "name": "Epping Catholic Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 81.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/490926854",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1154389,
+          51.7044762
+        ]
+      },
+      "properties": {
+        "id": "way/490926854",
+        "osmType": "way",
+        "osmId": 490926854,
+        "name": "Epping URC Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://eppingurc.org/",
+        "phone": "+44 1992 578344",
+        "address": "Lindsey Street, CM16 6RB",
+        "distanceToForestBoundaryMetres": 191.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/508295197",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0081931,
+          51.5616905
+        ]
+      },
+      "properties": {
+        "id": "way/508295197",
+        "osmType": "way",
+        "osmId": 508295197,
+        "name": "The Salvation Army",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.salvationarmy.org.uk/leytonstone",
+        "phone": "+44 20 8558 7290",
+        "address": "7 Southwell Grove Road, London E11 4PP",
+        "distanceToForestBoundaryMetres": 436.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/510883003",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0126218,
+          51.5693163
+        ]
+      },
+      "properties": {
+        "id": "way/510883003",
+        "osmType": "way",
+        "osmId": 510883003,
+        "name": "Palace of Liberty",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "696 High Road Leytonstone, London",
+        "distanceToForestBoundaryMetres": 465.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/550447512",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0351729,
+          51.5622934
+        ]
+      },
+      "properties": {
+        "id": "way/550447512",
+        "osmType": "way",
+        "osmId": 550447512,
+        "name": "Aldersbrook Baptist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "http://www.aldersbrookbaptist.org.uk/",
+        "phone": null,
+        "address": "4 Aldersbrook Road, London E12 5DY",
+        "distanceToForestBoundaryMetres": 380.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/668087208",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.019644,
+          51.5694731
+        ]
+      },
+      "properties": {
+        "id": "way/668087208",
+        "osmType": "way",
+        "osmId": 668087208,
+        "name": "Wanstead Quaker Meeting House",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://wansteadquakers.com/",
+        "phone": null,
+        "address": "Bush Road, London E11 3AU",
+        "distanceToForestBoundaryMetres": 258.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/678624921",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0015746,
+          51.6291877
+        ]
+      },
+      "properties": {
+        "id": "way/678624921",
+        "osmType": "way",
+        "osmId": 678624921,
+        "name": "Kings Road Baptist Church, Chingford",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.kingsroadbc.co.uk",
+        "phone": null,
+        "address": "16 King's Road, London E4 7EY",
+        "distanceToForestBoundaryMetres": 314.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/678624959",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0125074,
+          51.6389714
+        ]
+      },
+      "properties": {
+        "id": "way/678624959",
+        "osmType": "way",
+        "osmId": 678624959,
+        "name": "Sewardstone Evangelical Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Sewardstone Road, London",
+        "distanceToForestBoundaryMetres": 466.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/678685307",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0192927,
+          51.6108836
+        ]
+      },
+      "properties": {
+        "id": "way/678685307",
+        "osmType": "way",
+        "osmId": 678685307,
+        "name": "Saint Andrew",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "IG8 9QP",
+        "distanceToForestBoundaryMetres": 113.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/679216824",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0162875,
+          51.5575034
+        ]
+      },
+      "properties": {
+        "id": "way/679216824",
+        "osmType": "way",
+        "osmId": 679216824,
+        "name": "Cann Hall Methodist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 322.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/696348917",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0110061,
+          51.5549211
+        ]
+      },
+      "properties": {
+        "id": "way/696348917",
+        "osmType": "way",
+        "osmId": 696348917,
+        "name": "Church of Jesus Christ Apostolic",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Tavistock Road, London E7 9EL",
+        "distanceToForestBoundaryMetres": 430.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/696362576",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0112749,
+          51.5551558
+        ]
+      },
+      "properties": {
+        "id": "way/696362576",
+        "osmType": "way",
+        "osmId": 696362576,
+        "name": "Cann Hall Masjid",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.cannhall.org/en/",
+        "phone": null,
+        "address": "145 Cann Hall Road, London E11 3NJ",
+        "distanceToForestBoundaryMetres": 424.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/772428920",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0329562,
+          51.5528896
+        ]
+      },
+      "properties": {
+        "id": "way/772428920",
+        "osmType": "way",
+        "osmId": 772428920,
+        "name": "St Mark's Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.stmarksforestgate.org.uk/",
+        "phone": null,
+        "address": "Lorne Road, London E7 0LJ",
+        "distanceToForestBoundaryMetres": 406.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/772432842",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0556292,
+          51.5532369
+        ]
+      },
+      "properties": {
+        "id": "way/772432842",
+        "osmType": "way",
+        "osmId": 772432842,
+        "name": "Celestial Church of Christ",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 318.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/887069968",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0222748,
+          51.5547667
+        ]
+      },
+      "properties": {
+        "id": "way/887069968",
+        "osmType": "way",
+        "osmId": 887069968,
+        "name": "Masjid Isa Ibn Maryam",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://isaibnmaryam.co.uk/",
+        "phone": null,
+        "address": "98 Dames Road",
+        "distanceToForestBoundaryMetres": 198.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/930420089",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.035267,
+          51.6277541
+        ]
+      },
+      "properties": {
+        "id": "way/930420089",
+        "osmType": "way",
+        "osmId": 930420089,
+        "name": "St. James' United Reformed Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Russell Road, Buckhurst Hill",
+        "distanceToForestBoundaryMetres": 203.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/947913541",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0797405,
+          51.6591665
+        ]
+      },
+      "properties": {
+        "id": "way/947913541",
+        "osmType": "way",
+        "osmId": 947913541,
+        "name": "Epping Forest Community Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://efcchurch.org.uk/",
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 257.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/952753109",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0537631,
+          51.5672238
+        ]
+      },
+      "properties": {
+        "id": "way/952753109",
+        "osmType": "way",
+        "osmId": 952753109,
+        "name": "St. John the Baptist Catholic Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "http://sjbilford.org.uk",
+        "phone": "+44 20 8554 3763",
+        "address": "349-351 Wanstead Park Road, Ilford IG1 3TS",
+        "distanceToForestBoundaryMetres": 457.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/955328131",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0485575,
+          51.5519135
+        ]
+      },
+      "properties": {
+        "id": "way/955328131",
+        "osmType": "way",
+        "osmId": 955328131,
+        "name": "Shri Guru Ravi Dass Bhawan",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "http://www.gururavidas.org/",
+        "phone": null,
+        "address": "28 Carlyle Road, London E12 6BN",
+        "distanceToForestBoundaryMetres": 357.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/955331464",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0497573,
+          51.5511382
+        ]
+      },
+      "properties": {
+        "id": "way/955331464",
+        "osmType": "way",
+        "osmId": 955331464,
+        "name": "Manor Park Methodist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Herbert Road, London E12 6AY",
+        "distanceToForestBoundaryMetres": 397.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/961337902",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0482912,
+          51.5496943
+        ]
+      },
+      "properties": {
+        "id": "way/961337902",
+        "osmType": "way",
+        "osmId": 961337902,
+        "name": "Rivival House",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "500 High Street North, London",
+        "distanceToForestBoundaryMetres": 382.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/961391727",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0528359,
+          51.5522457
+        ]
+      },
+      "properties": {
+        "id": "way/961391727",
+        "osmType": "way",
+        "osmId": 961391727,
+        "name": "Shah Jalal Mosque",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.mpicc.org.uk/",
+        "phone": null,
+        "address": "Romford Road, London E12 6BT",
+        "distanceToForestBoundaryMetres": 270.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1056478910",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0560604,
+          51.5539529
+        ]
+      },
+      "properties": {
+        "id": "way/1056478910",
+        "osmType": "way",
+        "osmId": 1056478910,
+        "name": "Saint Michael & All Angels",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 319.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1092467180",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0016291,
+          51.6496951
+        ]
+      },
+      "properties": {
+        "id": "way/1092467180",
+        "osmType": "way",
+        "osmId": 1092467180,
+        "name": "Open Air Chapel",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 454.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1135247647",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0561185,
+          51.5652678
+        ]
+      },
+      "properties": {
+        "id": "way/1135247647",
+        "osmType": "way",
+        "osmId": 1135247647,
+        "name": "Masjid-e-Owais-e-Qarni",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "103-107 Belgrave Road, Ilford",
+        "distanceToForestBoundaryMetres": 452.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1362351492",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0242388,
+          51.5746028
+        ]
+      },
+      "properties": {
+        "id": "way/1362351492",
+        "osmType": "way",
+        "osmId": 1362351492,
+        "name": "Our Lady of Lourdes Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 455.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "relation/6891786",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0030473,
+          51.603806
+        ]
+      },
+      "properties": {
+        "id": "relation/6891786",
+        "osmType": "relation",
+        "osmId": 6891786,
+        "name": "Winchester Road Methodist Church",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 403.6,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
