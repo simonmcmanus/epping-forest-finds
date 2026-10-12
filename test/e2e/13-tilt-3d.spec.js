@@ -225,13 +225,13 @@ test.describe("3D tilt view", () => {
   });
 
   test("the walking radius dimming edge lies on the ground plane and foreshortens with it", async ({ page }) => {
-    // drawWalkingRadiusDimming cuts the radius shape out of a canvas-wide dark wash and blurs
-    // the result, so the edge itself is the only soft transition (no separate boundary line).
+    // drawWalkingRadiusDimming cuts the radius shape out of a canvas-wide dark wash, leaving a
+    // crisp edge (no separate boundary line).
     // ctx.arc() takes one scalar radius, so if that cutout were drawn as a plain screen-space
     // circle the edge would look identical at every tilt angle instead of foreshortening with
     // the ground. Measured by walking outward from the shape's own centre along each cardinal
     // direction to find where the before/after delta first rises above a small fixed noise
-    // floor -- i.e. the inner edge of the blurred transition band in that direction -- and
+    // floor -- i.e. the edge of the dimmed area in that direction -- and
     // comparing those four radii. This used to compare against a "fully dark, far outside"
     // reference sampled at a canvas corner, but the corners turned out to carry their own
     // small unrelated diffs (something else redraws slightly differently there between the
