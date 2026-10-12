@@ -171,7 +171,15 @@ async function setup(page, urlPath = "/nearby") {
     if (state.userLocation && state.userLocation.isDefault) {
       state.userLocation = null;
       state.walkingDistanceMinutes = DEFAULT_WALKING_DISTANCE_MINUTES;
-      selectOverview();
+      // Only reset to the overview when the test actually asked for the bare /nearby screen --
+      // boot() already routed a URL like /nearby#tree=... or /settings to its own screen, and
+      // resetting unconditionally here threw that away again, back to the plain overview.
+      if (window.location.pathname === "/nearby" && !window.location.hash) selectOverview();
+      // boot()'s own reveal already zoomed the camera tight around DEFAULT_LOCATION's 30-minute
+      // radius before this runs -- clearing the location above doesn't undo that framing on its
+      // own, so a screen (Settings/Report included) is left zoomed in on a single, now-stale
+      // patch of map instead of the whole-forest view the old no-location baseline expects.
+      fitToBounds(false);
       updateLocateButtonVisibility();
       draw();
     }
