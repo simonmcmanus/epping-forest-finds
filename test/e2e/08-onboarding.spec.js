@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { mockCowApi } = require("./helpers");
+const { mockCowApi, gotoAndWaitForMap } = require("./helpers");
 
 test.describe("Onboarding", () => {
   test.describe("first visit", () => {
@@ -57,6 +57,25 @@ test.describe("Onboarding", () => {
       await expect(page.locator("#onboardingOverlay .ob-location")).toHaveCount(0);
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBe("1");
+    });
+  });
+
+  test.describe("landing-page arrival", () => {
+    // Do NOT call skipOnboarding() — this is still a first-ever visit, just one that already
+    // names its own category (a /nearby/<slug> page's path, or a first-touch ?show= link).
+    test.beforeEach(async ({ page }) => {
+      await mockCowApi(page);
+    });
+
+    test("onboarding is skipped on a first visit that already names its own category", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+      await expect(page.locator("#onboardingOverlay")).toBeHidden();
+    });
+
+    test("skipping onboarding here does not mark onboarding as completed, so plain Nearby still shows it next", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+      await expect(page.locator("#onboardingOverlay")).toBeHidden();
+      expect(await page.evaluate(() => localStorage.getItem("forest-finds-onboarding-v1"))).toBeNull();
     });
   });
 
