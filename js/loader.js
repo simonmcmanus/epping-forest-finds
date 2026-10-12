@@ -126,6 +126,30 @@ async function loadMapData() {
       return { trees: [], historicalNamedTreeEnrichment: null };
     });
 
+  // Trees are the largest download by a wide margin. Keep that work in flight, but do not
+  // make places (and their deep links) wait for every tree chunk to arrive. The map's other
+  // layers below are sufficient to open and use a places-only view; when trees finish they
+  // join the already interactive map without moving the user's camera.
+  treePromise.then((treeData) => {
+    state.trees = treeData.trees
+      .filter((tree) => tree.location && tree.location.wgs84)
+      .map((tree) => ({
+        ...tree,
+        latitude: Number(tree.location.wgs84.latitude),
+        longitude: Number(tree.location.wgs84.longitude),
+        point: projectLonLat(Number(tree.location.wgs84.longitude), Number(tree.location.wgs84.latitude)),
+      }))
+      .filter((tree) => Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)
+        && !(tree.latitude === 0 && tree.longitude === 0));
+    state.namedTreeStoriesByName = buildNamedTreeStoryIndex(treeData.historicalNamedTreeEnrichment);
+
+    if (state.dataLoaded) {
+      state.bounds = calculateBounds();
+      if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) selectOverview();
+      requestDraw();
+    }
+  });
+
   const landmarkPromise = Promise.all(
     LANDMARK_URLS.map(url =>
       fetch(url)
@@ -199,8 +223,7 @@ async function loadMapData() {
       .catch(() => ({ ...layer, data: { type: "FeatureCollection", features: [] } }))
   );
 
-  const [treeData, landmarkData, folkloreData, eventsData, pathsData, roadsData, environmentData, ...resolvedLayers] = await Promise.all([
-    treePromise,
+  const [landmarkData, folkloreData, eventsData, pathsData, roadsData, environmentData, ...resolvedLayers] = await Promise.all([
     landmarkPromise,
     folklorePromise,
     eventsPromise,
@@ -216,24 +239,6 @@ async function loadMapData() {
   setLoadStep("forest", "done", layerFeatureCount);
 
   state.layers = resolvedLayers;
-
-  // A handful of Veteran Tree Register records carry no survey position at all
-  // (location.wgs84.latitude/longitude both null). Number(null) is 0, so mapping them
-  // straight through put those trees on Null Island -- a real entry in state.trees that
-  // every nearest/within-radius scan then had to measure against. Drop them: a tree with no
-  // coordinate cannot be shown on the map or walked to, so it has nothing to contribute.
-  state.trees = treeData.trees
-    .filter((tree) => tree.location && tree.location.wgs84)
-    .map((tree) => ({
-      ...tree,
-      latitude: Number(tree.location.wgs84.latitude),
-      longitude: Number(tree.location.wgs84.longitude),
-      point: projectLonLat(Number(tree.location.wgs84.longitude), Number(tree.location.wgs84.latitude)),
-    }))
-    .filter((tree) => Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)
-      && !(tree.latitude === 0 && tree.longitude === 0));
-
-  state.namedTreeStoriesByName = buildNamedTreeStoryIndex(treeData.historicalNamedTreeEnrichment);
 
   const osmLandmarks = (landmarkData.features || [])
     .filter((feature) => feature.geometry && feature.geometry.type === "Point")
@@ -272,6 +277,8 @@ async function loadMapData() {
 
   state.environmentFeatures = (environmentData.features || []).filter((feature) => feature && feature.geometry && feature.properties);
   state.waterFeatures = extractWaterFeatures(environmentData.features || []);
+
+  return { treePromise };
 }
 
 function loadBuildingsIfNeeded() {

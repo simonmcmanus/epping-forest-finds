@@ -1252,7 +1252,13 @@ async function boot() {
   // copy gets written, after the map itself is already up rather than before.
 
   try {
-    await mapPromise;
+    const mapData = await mapPromise;
+    // A tree deep link cannot be resolved until its register has arrived. Other screens,
+    // including places and Filters, intentionally become usable while tree chunks continue
+    // downloading in the background.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("tree")) {
+      await mapData.treePromise;
+    }
 
     state.bounds = calculateBounds();
     const cowBootstrapOk = await cowPromise;
