@@ -153,8 +153,10 @@ async function gotoAndWaitForMap(page, path = "/nearby", { timeout = 30_000 } = 
 
 /**
  * Full standard setup: skip onboarding, mock cows, navigate, wait for map.
- * Also force-hides the location gate if it appeared (location fails in any test that
- * has not granted the permission — see denyGeolocationUnlessGranted), and clears
+ * Also force-hides the location gate and the location-only consent banner if either
+ * appeared (location fails in any test that has not granted the permission — see
+ * denyGeolocationUnlessGranted; revealNoRealLocation() shows one or the other once no
+ * real fix exists, see showLocationOnlyConsentBanner in js/app.js), and clears
  * applyDefaultLocation()'s High Beach stand-in (js/app.js) that boot falls back to
  * whenever there is no real fix — restoring the "no location at all" baseline most of
  * this suite is written against, including the overview empty-state assertion in
@@ -168,6 +170,8 @@ async function setup(page, urlPath = "/nearby") {
   await page.evaluate(() => {
     const gate = document.getElementById("locationGate");
     if (gate && !gate.hidden) gate.hidden = true;
+    const banner = document.getElementById("consentBanner");
+    if (banner && !banner.hidden) banner.hidden = true;
     if (state.userLocation && state.userLocation.isDefault) {
       state.userLocation = null;
       state.walkingDistanceMinutes = DEFAULT_WALKING_DISTANCE_MINUTES;
