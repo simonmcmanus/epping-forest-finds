@@ -154,6 +154,25 @@ test.describe("Location and GPS — happy path", () => {
       });
       expect(drewYouDot).toBe(false);
     });
+
+    test("a landing-page arrival (/nearby/<slug>, simulated here via ?show=) with no real fix is centred on High Beach too, sorted by distance rather than an unsorted full category list", async ({ page }) => {
+      // scripts/generate-find-pages.js's static /nearby/<slug>/ pages aren't built for this test
+      // server (they're a production/Netlify-build concern, gitignored locally) -- a ?show= link
+      // on the plain Nearby path is the same landing-page-arrival code path (isLandingPageArrival(),
+      // js/app.js) and, unlike /nearby/filter?show=, lands on the Nearby screen itself.
+      await page.goto("/nearby?show=pubs");
+      await page.waitForFunction(
+        () => document.getElementById("loadingOverlay")?.hidden === true,
+        { timeout: 30_000 }
+      );
+      const isDefault = await page.evaluate(() => state.userLocation?.isDefault);
+      expect(isDefault).toBe(true);
+      const firstItem = page.locator("#inspectorBody .nearest-list li").first();
+      await expect(firstItem).toBeVisible();
+      // A walk-time chip only renders when the list has a real origin to measure from -- the
+      // old "list the whole category" fallback for landing pages rendered no distance at all.
+      await expect(firstItem.locator(".walk-chip")).toBeVisible();
+    });
   });
 
   test.describe("the location request never answers", () => {
@@ -190,5 +209,39 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#locationGate")).toBeVisible();
       await expect(page.locator("#locationGateButton")).toBeEnabled();
     });
+  });
+});
+
+test.describe("permission revoked mid-session", () => {
+  // Granted at boot (so ensureLocationWatch() starts a real watch), then the watch itself is
+  // overridden to simulate the OS/browser revoking permission after the first fix -- the one
+  // case watchPosition's own error callback distinguishes (error.code === 1) from an ordinary
+  // timeout. The app must keep working on what it already had rather than blocking everything
+  // behind a gate for a permission that was never required in the first place.
+  test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
+
+  test.beforeEach(async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await page.addInitScript(() => {
+      navigator.geolocation.watchPosition = (success, error) => {
+        setTimeout(() => success({
+          coords: { latitude: 51.6650, longitude: 0.0450, accuracy: 10 },
+          timestamp: Date.now(),
+        }), 0);
+        setTimeout(() => error({ code: 1, PERMISSION_DENIED: 1, message: "User denied Geolocation" }), 300);
+        return 1;
+      };
+      navigator.geolocation.clearWatch = () => {};
+    });
+  });
+
+  test("does not show the blocking location gate, and the map stays usable", async ({ page }) => {
+    await gotoAndWaitForMap(page);
+    await expect(page.locator("#locationGate")).toBeHidden();
+    await page.waitForTimeout(500); // past the simulated revoke at 300ms
+    await expect(page.locator("#locationGate")).toBeHidden();
+    await expect(page.locator("#mapCanvas")).toBeVisible();
+    await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
   });
 });
