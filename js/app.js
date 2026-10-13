@@ -770,6 +770,17 @@ async function boot() {
   const cowPromise = IS_LOCAL_COW_CACHE_MODE && hasCachedCowData
     ? Promise.resolve(true)
     : refreshCowData({ force: true, timeoutMs: 7000 });
+  // Live cattle are useful when they arrive, but must never hold up the static map or a
+  // place-focused visit. Treat every live refresh as a progressive layer instead of part of
+  // the interactive bootstrap.
+  cowPromise.then((cowBootstrapOk) => {
+    setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
+    scheduleCowRefresh();
+    if (state.dataLoaded) {
+      if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) selectOverview();
+      requestDraw();
+    }
+  });
   const mapPromise = loadMapData();
 
   // Kick off location request — this fires the browser permission dialog automatically
@@ -816,9 +827,6 @@ async function boot() {
     }
 
     state.bounds = calculateBounds();
-    const cowBootstrapOk = await cowPromise;
-    setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
-    scheduleCowRefresh();
     fitToBounds();
     els.locateButton.disabled = false;
     updateLocateButtonVisibility();
