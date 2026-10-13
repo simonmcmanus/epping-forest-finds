@@ -362,6 +362,10 @@ function setupPwa() {
   if (els.installButton) {
     els.installButton.hidden = true;
   }
+  // installButton is the only content .inspector-tools can show now that the standalone locate
+  // button is gone -- apply the empty-row collapse once up front since nothing else drives it at
+  // boot.
+  syncInspectorToolsVisibility();
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
@@ -520,11 +524,6 @@ function setupInspectorHandlers() {
     setInspectorMinimized(false);
   });
 
-  els.locateButton.addEventListener("click", () => {
-    ensureTrackingConsent();
-    locateUser({ initial: false });
-  });
-
   if (els.locationGateButton) {
     els.locationGateButton.addEventListener("click", async () => {
       els.locationGateButton.disabled = true;
@@ -545,12 +544,6 @@ function setupInspectorHandlers() {
           if (els.locationGateButton.disabled) els.locationGateButton.disabled = false;
         }
       }
-    });
-  }
-
-  if (els.locationGateDismiss) {
-    els.locationGateDismiss.addEventListener("click", () => {
-      setLocationGateVisible(false);
     });
   }
 
@@ -1899,24 +1892,17 @@ function goToInitialView(updateHash = true) {
 
 // True once a real GPS fix exists -- false while state.userLocation is unset, or is only
 // applyDefaultLocation()'s High Beach stand-in (js/app.js). Everything that means "do we
-// already know where the user actually is" (the locate button, the location gate's own retry
-// button) reads this instead of state.userLocation's bare truthiness; everything that just
-// wants coordinates to measure or draw from (distances, the Nearby list, the walking-radius
-// ring) keeps reading state.userLocation directly, stand-in included -- that's the point of it.
+// already know where the user actually is" (the location gate's own retry button) reads this
+// instead of state.userLocation's bare truthiness; everything that just wants coordinates to
+// measure or draw from (distances, the Nearby list, the walking-radius ring) keeps reading
+// state.userLocation directly, stand-in included -- that's the point of it.
 function hasRealLocation() {
   return Boolean(state.userLocation) && !state.userLocation.isDefault;
 }
 
-function updateLocateButtonVisibility() {
-  const geolocationAvailable = typeof navigator !== "undefined" && Boolean(navigator.geolocation);
-  els.locateButton.hidden = !geolocationAvailable || hasRealLocation();
-  syncInspectorToolsVisibility();
-}
-
 function syncInspectorToolsVisibility() {
   if (!els.inspectorTools || els.inspectorTools.hidden) return;
-  const hasContent = !els.locateButton.hidden
-    || (els.installButton && getComputedStyle(els.installButton).display !== "none");
+  const hasContent = Boolean(els.installButton) && getComputedStyle(els.installButton).display !== "none";
   els.inspectorTools.classList.toggle("tools-empty", !hasContent);
 }
 
@@ -1980,23 +1966,19 @@ function activateModalFocus(container, { onEscape } = {}) {
 }
 if (typeof globalThis !== "undefined") globalThis.activateModalFocus = activateModalFocus;
 
-// dismissible (js/app.js's revealNoRealLocation) shows the "Maybe later" button and answers
-// Escape the same way, for the invite-only prompts shown once DEFAULT_LOCATION's High Beach
-// stand-in has already made the map usable. Every hard-stop case (blocked permission, no
-// geolocation support at all, the compass-only prompt) still omits it, since there the map
-// has nothing of its own to fall back on and the button is the only way forward.
-function setLocationGateVisible(visible, message, buttonLabel, title, { dismissible = false } = {}) {
+// Every case left reaching this is a hard stop (blocked permission, no geolocation support at
+// all, the compass-only prompt): the soft, dismissible "would you like to enable location" ask
+// lives in #consentBanner now (showLocationOnlyConsentBanner, js/app.js), not here -- so this
+// gate has no "Maybe later" of its own and traps focus with no Escape route out, the same as
+// every other hard-stop modal in the app.
+function setLocationGateVisible(visible, message, buttonLabel, title) {
   if (!els.locationGate) return;
   if (visible) {
     els.locationGate.classList.remove("fading-out");
     els.locationGate.hidden = false;
     if (els.locationGateButton) els.locationGateButton.disabled = false;
-    if (els.locationGateDismiss) els.locationGateDismiss.hidden = !dismissible;
     if (!els.locationGate._deactivateFocus) {
-      els.locationGate._deactivateFocus = activateModalFocus(
-        els.locationGate,
-        dismissible ? { onEscape: () => setLocationGateVisible(false) } : undefined
-      );
+      els.locationGate._deactivateFocus = activateModalFocus(els.locationGate);
     }
   } else {
     if (els.locationGate._deactivateFocus) {

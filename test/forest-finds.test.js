@@ -303,7 +303,6 @@ globalThis.__forestFindsTest = {
   DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
   applyDefaultLocation,
   hasRealLocation,
-  updateLocateButtonVisibility,
   setLocationGateVisible,
   ROUTE_PATHS,
   NEARBY_PATH,
@@ -2067,48 +2066,6 @@ test("applyDefaultLocation widens the plain 5-minute default radius to 30 minute
   app.state.walkingDistanceMinutes = app.LANDING_PAGE_WALKING_DISTANCE_MINUTES;
   app.applyDefaultLocation();
   assert.equal(app.state.walkingDistanceMinutes, app.LANDING_PAGE_WALKING_DISTANCE_MINUTES, "already-30 from the landing-page default is left alone too");
-});
-
-test("updateLocateButtonVisibility keeps the locate button visible for the default location, hides it only once a real fix lands", () => {
-  resetData(app);
-  app.state.userLocation = null;
-  // The sandbox's navigator stub has no geolocation by default (matching a real browser that
-  // lacks the API); give it one here so the button's visibility turns on hasRealLocation()
-  // rather than being hidden by that outer check regardless.
-  const previousGeolocation = app.navigator.geolocation;
-  app.navigator.geolocation = {};
-  // syncInspectorToolsVisibility's getComputedStyle call is a real-browser-only path this
-  // sandbox doesn't stub; hidden inspectorTools short-circuits it before that's reached, same
-  // as it does whenever the inspector itself is closed.
-  app.els.inspectorTools.hidden = true;
-
-  try {
-    app.updateLocateButtonVisibility();
-    assert.equal(app.els.locateButton.hidden, false, "no fix yet: offer the button");
-
-    app.applyDefaultLocation();
-    app.updateLocateButtonVisibility();
-    assert.equal(app.els.locateButton.hidden, false, "the High Beach stand-in is not a reason to hide the button -- a real fix is still worth asking for");
-
-    app.state.userLocation = makePoint(app, 51.6, 0.03);
-    app.updateLocateButtonVisibility();
-    assert.equal(app.els.locateButton.hidden, true, "a real fix hides it as before");
-  } finally {
-    app.navigator.geolocation = previousGeolocation;
-  }
-});
-
-test("setLocationGateVisible shows its dismiss button only when told the prompt is dismissible", () => {
-  const localApp = loadAppForTests();
-
-  localApp.setLocationGateVisible(true, "Permission was blocked.", "Enable location");
-  assert.equal(localApp.els.locationGateDismiss.hidden, true, "a hard-stop prompt offers no way to brush it off");
-
-  localApp.setLocationGateVisible(true, "Share your location for more.", "Enable location", "Get a more custom experience", { dismissible: true });
-  assert.equal(localApp.els.locationGateDismiss.hidden, false, "an invite-only prompt, shown once the map already has a usable default, can be dismissed");
-
-  localApp.setLocationGateVisible(true, "Permission was blocked again.", "Enable location");
-  assert.equal(localApp.els.locationGateDismiss.hidden, true, "a later hard-stop call hides it again rather than leaking the previous call's flag");
 });
 
 test("the location gate button asks for location whenever there is no real fix, default location included", () => {

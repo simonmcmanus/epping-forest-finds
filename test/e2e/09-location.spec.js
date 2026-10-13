@@ -59,61 +59,68 @@ test.describe("Location and GPS — happy path", () => {
       await mockCowApi(page);
     });
 
-    test("location gate is shown after geolocation is denied or times out", async ({ page }) => {
+    test("the non-blocking consent banner is shown after geolocation is denied or times out, not the full-screen gate", async ({ page }) => {
       await gotoAndWaitForMap(page);
-      // The location gate should become visible once the error/timeout path runs
-      await expect(page.locator("#locationGate")).toBeVisible();
+      // revealNoRealLocation()'s soft "would you like to enable location" ask now uses the same
+      // #consentBanner as the landing-page combined ask (see 29-cookie-consent.spec.js), not the
+      // full-screen #locationGate -- that's reserved for the hard-stop cases below.
+      const banner = page.locator("#consentBanner");
+      await expect(banner).toBeVisible();
+      await expect(banner).toContainText("Get a more custom experience");
+      await expect(banner).toHaveAttribute("role", "group");
+      await expect(page.locator("#locationGate")).toBeHidden();
     });
 
-    test("location gate button re-enables after the gate re-appears", async ({ page }) => {
+    test("the banner never traps focus, and the map behind it is already usable centred on High Beach", async ({ page }) => {
       await gotoAndWaitForMap(page);
-      await expect(page.locator("#locationGateButton")).toBeEnabled();
-    });
+      await expect(page.locator("#consentBanner")).toBeVisible();
 
-    test("location gate is a labelled, keyboard-focus-trapped dialog", async ({ page }) => {
-      await gotoAndWaitForMap(page);
-      const gate = page.locator("#locationGate");
-      await expect(gate).toHaveAttribute("role", "dialog");
-      await expect(gate).toHaveAttribute("aria-modal", "true");
-      await expect(gate).toHaveAttribute("aria-labelledby", "locationGateTitle");
-
-      // Opening the gate should have moved focus into it, onto its first control.
-      await expect(page.locator("#locationGateButton")).toBeFocused();
-
-      // A returning visit with no real fix now falls back to DEFAULT_LOCATION, so this gate
-      // is the dismissible invite (see "No real location fix" in spec.md) — Tab visits its
-      // "Maybe later" button next, then the privacy note's policy link...
-      await page.keyboard.press("Tab");
-      await expect(page.locator("#locationGateDismiss")).toBeFocused();
-      await page.keyboard.press("Tab");
-      await expect(gate.locator(".privacy-note a")).toBeFocused();
-
-      // ...and a further Tab cycles back to the first button rather than escaping to the map
-      // behind it.
-      await page.keyboard.press("Tab");
-      await expect(page.locator("#locationGateButton")).toBeFocused();
-    });
-
-    test("the gate is dismissible, and the map behind it is already usable centred on High Beach", async ({ page }) => {
-      await gotoAndWaitForMap(page);
-      const gate = page.locator("#locationGate");
-      const dismiss = page.locator("#locationGateDismiss");
-      await expect(dismiss).toBeVisible();
-
-      await dismiss.click();
-      await expect(gate).toBeHidden();
-
-      // Dismissing the invite never granted location — DEFAULT_LOCATION's stand-in is still
-      // what the map and Nearby list are centred on, not a real fix.
+      // Unlike #locationGate, showLocationOnlyConsentBanner() never calls activateModalFocus --
+      // the map stays fully interactive underneath while the banner is on screen.
+      await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
       const isDefault = await page.evaluate(() => Boolean(state.userLocation && state.userLocation.isDefault));
       expect(isDefault).toBe(true);
-      await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
+    });
+
+    test("'Maybe later' hides the banner without granting location", async ({ page }) => {
+      await gotoAndWaitForMap(page);
+      const banner = page.locator("#consentBanner");
+      await expect(banner).toBeVisible();
+
+      await page.locator("#consentBannerDecline").click();
+      await expect(banner).toBeHidden();
+
+      // Declining the invite never granted location — DEFAULT_LOCATION's stand-in is still what
+      // the map and Nearby list are centred on, not a real fix.
+      const isDefault = await page.evaluate(() => Boolean(state.userLocation && state.userLocation.isDefault));
+      expect(isDefault).toBe(true);
+    });
+
+    test("tapping Enable re-asks for location, and a renewed denial surfaces the hard-stop gate", async ({ page }) => {
+      await gotoAndWaitForMap(page);
+      const banner = page.locator("#consentBanner");
+      await expect(banner).toBeVisible();
+      await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location");
+
+      await page.locator("#consentBannerAccept").click();
+      await expect(banner).toBeHidden();
+
+      // denyGeolocationUnlessGranted answers every request the same way, so the retry this tap
+      // triggers is denied again -- this time as an explicit, in-the-moment blocked permission,
+      // which is a true hard stop (unlike the soft invite above) and so still uses the
+      // full-screen, focus-trapped #locationGate.
+      const gate = page.locator("#locationGate");
+      await expect(gate).toBeVisible();
+      await expect(gate).toHaveAttribute("role", "dialog");
+      await expect(gate).toHaveAttribute("aria-modal", "true");
+      await expect(page.locator("#locationGateMessage")).toContainText("blocked");
+      await expect(page.locator("#locationGateButton")).toBeFocused();
     });
   });
 
   test.describe("no real fix falls back to DEFAULT_LOCATION (High Beach)", () => {
     // Same denied-geolocation setup as "geolocation denied" above, but these tests are about
-    // what the fallback itself looks like rather than the gate's own dialog mechanics.
+    // what the fallback itself looks like rather than the banner/gate mechanics.
     test.beforeEach(async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
@@ -140,8 +147,7 @@ test.describe("Location and GPS — happy path", () => {
       expect(minutes).toBe(30);
     });
 
-    test("the locate button stays visible, and the \"You\" dot is never drawn for the stand-in", async ({ page }) => {
-      await expect(page.locator("#locateButton")).toBeVisible();
+    test("the \"You\" dot is never drawn for the stand-in", async ({ page }) => {
       const drewYouDot = await page.evaluate(() => {
         let arcCount = 0;
         const ctx = {
@@ -185,10 +191,10 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#mapCanvas")).toBeVisible();
     });
 
-    test("and the gate offers a retry rather than leaving the reader stuck", async ({ page }) => {
+    test("and the consent banner offers a retry rather than leaving the reader stuck", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby", { timeout: 45_000 });
-      await expect(page.locator("#locationGate")).toBeVisible();
-      await expect(page.locator("#locationGateButton")).toBeEnabled();
+      await expect(page.locator("#consentBanner")).toBeVisible();
+      await expect(page.locator("#consentBannerAccept")).toBeEnabled();
     });
   });
 });

@@ -403,15 +403,15 @@ const els = {
   filterToggle: document.getElementById("filterToggle"),
   filterCount: document.getElementById("filterCount"),
   nearbyToggle: document.getElementById("nearbyToggle"),
-  locateButton: document.getElementById("locateButton"),
   installButton: document.getElementById("installButton"),
   loadingOverlay: document.getElementById("loadingOverlay"),
   locationGate: document.getElementById("locationGate"),
   locationGateTitle: document.getElementById("locationGateTitle"),
   locationGateMessage: document.getElementById("locationGateMessage"),
   locationGateButton: document.getElementById("locationGateButton"),
-  locationGateDismiss: document.getElementById("locationGateDismiss"),
   consentBanner: document.getElementById("consentBanner"),
+  consentBannerTitle: document.getElementById("consentBannerTitle"),
+  consentBannerMessage: document.getElementById("consentBannerMessage"),
   consentBannerAccept: document.getElementById("consentBannerAccept"),
   consentBannerDecline: document.getElementById("consentBannerDecline"),
   distanceWarning: document.getElementById("distanceWarning"),
@@ -1075,11 +1075,12 @@ async function revealMapCenteredOnUser() {
 // treatment (activeFiltersShowFullListWithoutLocation, fitMapToSingleFilterIfNoLocation) --
 // anything else gets a usable map straight away by standing in at DEFAULT_LOCATION (High Beach)
 // instead, with the same walking-radius-circle reveal a real fix gets (revealMapCenteredOnUser).
-// Either way, a dismissible gate invites a real fix for the exact same view centred on the user
-// -- skipped only when this boot already asked through one of the other two prompts (onboarding's
-// own location step, or showCombinedConsentBanner's landing-page equivalent) and failed, so
-// hitting Skip/Maybe later there (or getting denied, or just ignoring the banner) doesn't draw
-// two prompts in a row.
+// Either way, a dismissible invite (showLocationOnlyConsentBanner, the #consentBanner used for
+// everywhere this question is asked -- see its own comment) offers a real fix for the exact same
+// view centred on the user -- skipped only when this boot already asked through one of the other
+// two prompts (onboarding's own location step, or showCombinedConsentBanner's landing-page
+// equivalent) and failed, so hitting Skip/Maybe later there (or getting denied, or just ignoring
+// the banner) doesn't draw two prompts in a row.
 async function revealNoRealLocation({ locationAlreadyAsked }) {
   const isLandingPage = activeFiltersShowFullListWithoutLocation();
   if (!isLandingPage) applyDefaultLocation();
@@ -1100,11 +1101,9 @@ async function revealNoRealLocation({ locationAlreadyAsked }) {
     triggerInspectorEntry();
     hideWithFade(els.loadingOverlay);
   }
-  updateLocateButtonVisibility();
 
   if (locationAlreadyAsked) return;
   const title = "Get a more custom experience";
-  const buttonLabel = "Enable location";
   const message = isLandingPage
     ? (navigator.geolocation
         ? "Share your location for a more custom experience — sorted by distance, with walking directions."
@@ -1112,7 +1111,7 @@ async function revealNoRealLocation({ locationAlreadyAsked }) {
     : (navigator.geolocation
         ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
         : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.");
-  setLocationGateVisible(true, message, buttonLabel, title, { dismissible: true });
+  showLocationOnlyConsentBanner(title, message);
 }
 
 // Read directly rather than through window.ForestFindsCookieConsent.get(): js/app.js's own
@@ -1131,27 +1130,29 @@ function cookieConsentIsUndecided() {
   }
 }
 
-// Non-blocking merged cookie/location/compass ask for a landing-page arrival whose cookie
-// consent is still undecided -- the SEO landing-page counterpart to onboarding's own merged
-// .ob-location step, but shown as a bottom banner (#consentBanner, styled like cookie-consent.js's
-// own banner) rather than a blocking modal: unlike #locationGate (a full-screen, opaque-background
-// dialog used for hard-stop/retry prompts elsewhere), this leaves the map fully visible and
-// interactive underneath, and boot() doesn't wait for an answer before revealing it -- see its
-// call site. A reader who ignores the banner just keeps browsing with the map's existing
-// no-location view (a landing page's own "list the whole category" treatment); a real
-// default-location stand-in for that case is left for a follow-up PR.
-function showCombinedConsentBanner() {
+// Shared wiring for #consentBanner, the single non-blocking bottom banner used for every "would
+// you like to enable location" ask in the app -- unlike #locationGate (a full-screen, opaque-
+// background modal reserved for hard-stop/retry prompts: a blocked permission, no geolocation
+// support, the compass-only ask), this leaves the map fully visible and interactive underneath.
+// It has two callers: showCombinedConsentBanner() (location + cookies together, for a
+// landing-page arrival whose cookie consent is still undecided) and
+// showLocationOnlyConsentBanner() (location alone, once cookie consent is already settled --
+// replaces what used to be a second, differently-styled "enable location" prompt stacked on top
+// of a standalone locate button). A reader who ignores either just keeps browsing with the map's
+// existing no-location view.
+function showConsentBanner({ ariaLabel, title, message, acceptLabel, onAccept, onDecline }) {
   const banner = els.consentBanner;
   if (!banner) return;
 
   // cookie-consent.js runs as a deferred <head> script, ahead of this one -- by the time boot()
-  // reaches here the banner has very likely already rendered once; this one replaces it rather
-  // than stacking alongside it.
+  // reaches here the standalone cookie banner has very likely already rendered once; this one
+  // replaces it rather than stacking alongside it.
   document.getElementById("cookieConsentBanner")?.remove();
 
-  if (els.consentBannerAccept) {
-    els.consentBannerAccept.textContent = "Enable location & cookies";
-  }
+  banner.setAttribute("aria-label", ariaLabel);
+  if (els.consentBannerTitle) els.consentBannerTitle.textContent = title;
+  if (els.consentBannerMessage) els.consentBannerMessage.innerHTML = message;
+  if (els.consentBannerAccept) els.consentBannerAccept.textContent = acceptLabel;
 
   function hideBanner() {
     banner.classList.add("fading-out");
@@ -1162,35 +1163,69 @@ function showCombinedConsentBanner() {
   }
 
   function cleanup() {
-    els.consentBannerAccept?.removeEventListener("click", onAccept);
-    els.consentBannerDecline?.removeEventListener("click", onDecline);
+    els.consentBannerAccept?.removeEventListener("click", handleAccept);
+    els.consentBannerDecline?.removeEventListener("click", handleDecline);
   }
 
-  function onAccept() {
+  function handleAccept() {
     cleanup();
     hideBanner();
-    ensureTrackingConsent();
-    window.ForestFindsCookieConsent?.set(true);
-    // Compass (on iOS) is asked separately, exactly the way the post-reveal "Get a more custom
-    // experience" gate's own button already does it once a real fix exists -- locateUser() shows
-    // that gate itself if still needed. Folding the ungestured-by-then compass ask into this
-    // banner's own tap wouldn't satisfy iOS's requestPermission() gesture requirement anyway, so
-    // there is nothing to gain by special-casing it here: one small prompt at a time, reusing an
-    // already-proven path, instead of two asks racing out of the same tap.
-    locateUser({ initial: false });
+    onAccept();
   }
 
-  function onDecline() {
+  function handleDecline() {
     cleanup();
-    window.ForestFindsCookieConsent?.set(false);
     hideBanner();
+    if (onDecline) onDecline();
   }
 
-  els.consentBannerAccept?.addEventListener("click", onAccept);
-  els.consentBannerDecline?.addEventListener("click", onDecline);
+  els.consentBannerAccept?.addEventListener("click", handleAccept);
+  els.consentBannerDecline?.addEventListener("click", handleDecline);
 
   banner.classList.remove("fading-out");
   banner.hidden = false;
+}
+
+// The SEO landing-page counterpart to onboarding's own merged .ob-location step: boot() doesn't
+// wait for an answer before revealing the map behind it -- see its call site.
+function showCombinedConsentBanner() {
+  showConsentBanner({
+    ariaLabel: "Location and cookies",
+    title: "Allow location & cookies",
+    message: "Epping Forest Finds uses your location to show nearby finds and their distance from you, and uses analytics cookies to understand how people use this site — enabling covers both. <a href=\"/terms.html\" target=\"_blank\" rel=\"noopener\">Privacy Policy</a>",
+    acceptLabel: "Enable location & cookies",
+    onAccept: () => {
+      ensureTrackingConsent();
+      window.ForestFindsCookieConsent?.set(true);
+      // Compass (on iOS) is asked separately, exactly the way the post-reveal "Get a more custom
+      // experience" banner's own button already does it once a real fix exists -- locateUser()
+      // shows that prompt itself if still needed. Folding the ungestured-by-then compass ask into
+      // this banner's own tap wouldn't satisfy iOS's requestPermission() gesture requirement
+      // anyway, so there is nothing to gain by special-casing it here: one small prompt at a
+      // time, reusing an already-proven path, instead of two asks racing out of the same tap.
+      locateUser({ initial: false });
+    },
+    onDecline: () => {
+      window.ForestFindsCookieConsent?.set(false);
+    },
+  });
+}
+
+// Location-only counterpart, used once cookie consent is already decided -- there's nothing left
+// to ask about cookies -- but no real GPS fix exists yet. This is revealNoRealLocation()'s own
+// "Get a more custom experience" invite, and anywhere else a returning visitor with settled
+// cookie consent still needs a nudge toward a real fix.
+function showLocationOnlyConsentBanner(title, message) {
+  showConsentBanner({
+    ariaLabel: "Location",
+    title,
+    message,
+    acceptLabel: "Enable location",
+    onAccept: () => {
+      ensureTrackingConsent();
+      locateUser({ initial: false });
+    },
+  });
 }
 
 async function boot() {
@@ -1274,8 +1309,6 @@ async function boot() {
     setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
     scheduleCowRefresh();
     fitToBounds();
-    els.locateButton.disabled = false;
-    updateLocateButtonVisibility();
 
     state.dataLoaded = true;
     applyShowFilterFromQuery();
@@ -1290,7 +1323,6 @@ async function boot() {
       if (locResult.ok) {
         const { latitude, longitude } = applyLocationFix(locResult.position);
         setLoadStep("location", "done");
-        updateLocateButtonVisibility();
         setLocationGateVisible(false);
         checkDistanceToForest(latitude, longitude);
         ensureLocationWatch();
@@ -1592,14 +1624,11 @@ function locateUser({ initial }) {
     return;
   }
 
-  els.locateButton.disabled = true;
   setStatus(initial ? "Finding your location..." : "Getting your location...");
   navigator.geolocation.getCurrentPosition(
     (position) => {
-      els.locateButton.disabled = false;
       const { latitude, longitude, previousPoint } = applyLocationFix(position);
       setLocationGateVisible(false);
-      updateLocateButtonVisibility();
       ensureLocationWatch();
       if (compassPermissionCanBeRequested()) {
         // iOS: requestPermission() must come from a real user-gesture call stack.
@@ -1636,7 +1665,6 @@ function locateUser({ initial }) {
       requestDraw();
     },
     (error) => {
-      els.locateButton.disabled = false;
       const denied = error && error.code === 1;
       if (denied) {
         const gateMessage = "Location permission was blocked. Use the browser site settings to allow location for this page, then tap Enable location again.";
@@ -4577,7 +4605,6 @@ function ensureLocationWatch() {
       const previousPoint = state.userLocation && state.userLocation.point;
       state.userLocation = ingestLocationFix(latitude, longitude, accuracy);
       const point = state.userLocation.point;
-      updateLocateButtonVisibility();
       state.userInMapArea = pointInsideBounds(point, state.bounds);
       const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
       state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;

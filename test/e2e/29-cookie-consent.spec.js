@@ -37,12 +37,12 @@ test.describe("Cookie consent banner", () => {
     await expect(banner.locator("..")).toHaveAttribute("id", "earlyTestingNoticeSlot");
     await expect(banner).toHaveCSS("position", "static");
 
-    // A no-location visit can receive the app's separate location invite. It is asynchronous,
-    // so CI may instead reach the completed no-location state without showing that prompt.
-    // Clear it when present before exercising the notice's own control.
+    // A no-location visit can receive the app's separate location invite (#consentBanner). It is
+    // asynchronous, so CI may instead reach the completed no-location state without showing that
+    // prompt. Clear it when present before exercising the notice's own control.
     await expect(page.locator("#loadingOverlay")).toBeHidden({ timeout: 30_000 });
-    const locationGateDismiss = page.locator("#locationGateDismiss");
-    if (await locationGateDismiss.isVisible()) await locationGateDismiss.click();
+    const consentBannerDecline = page.locator("#consentBannerDecline");
+    if (await consentBannerDecline.isVisible()) await consentBannerDecline.click();
     await banner.getByRole("button", { name: "Dismiss early testing notice" }).evaluate(button => button.click());
     await expect(banner).toBeHidden();
   });
@@ -204,7 +204,7 @@ test.describe("Cookie consent banner", () => {
       await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
     });
 
-    test("a repeat landing-page visit with consent already settled skips the banner", async ({ page }) => {
+    test("a repeat landing-page visit with consent already settled skips the combined ask, but still offers the location-only invite", async ({ page }) => {
       await page.addInitScript(() => localStorage.setItem("ff-cookie-consent", "granted"));
       await denyGeolocationUnlessGranted(page);
       await mockCowApi(page);
@@ -214,9 +214,14 @@ test.describe("Cookie consent banner", () => {
         { timeout: 30_000 }
       );
       // Consent was already decided, so this falls through to the ordinary immediate-fire
-      // location request instead -- no banner tap needed, and no cookie banner either since
-      // consent is already stored.
-      await expect(page.locator("#consentBanner")).toBeHidden();
+      // location request instead of the combined ask -- no cookie banner, and no tap needed to
+      // see it coming. revealNoRealLocation()'s own soft "enable location" invite still shows
+      // once that silent request fails, reusing #consentBanner but asking about location alone
+      // (showLocationOnlyConsentBanner, js/app.js) since there's nothing left to ask about
+      // cookies.
+      const banner = page.locator("#consentBanner");
+      await expect(banner).toBeVisible();
+      await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location");
       await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
     });
   });

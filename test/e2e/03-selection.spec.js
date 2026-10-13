@@ -101,9 +101,9 @@ test.describe("Selection and Inspector", () => {
     });
 
     test("inspector tools section is hidden in selected-detail mode", async ({ page }) => {
-      // .inspector-tools (count selector, locate button) are hidden when a detail view is shown;
-      // the nav row (#searchToggle etc) remains accessible in .inspector-actions, while
-      // #filterToggle -- inline with the Nearby heading, not part of that row -- hides too.
+      // .inspector-tools is hidden when a detail view is shown; the nav row (#searchToggle etc)
+      // remains accessible in .inspector-actions, while #filterToggle -- inline with the Nearby
+      // heading, not part of that row -- hides too.
       await expect(page.locator(".inspector-tools")).toBeHidden();
     });
 
