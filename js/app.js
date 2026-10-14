@@ -2764,6 +2764,7 @@ function reportFormHtml() {
       <label for="reportDetails">What did you notice?
         <textarea id="reportDetails" class="report-textarea" placeholder="Describe what's missing or what you'd like to see…" required>${escapeHtml(detailsValue)}</textarea>
       </label>
+      ${reportPhotoFieldHtml("reportPhoto")}
       <p id="reportStatus" class="report-status" aria-live="polite"></p>
       <p id="reportOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Your report is saved and will be ready to submit when you\'re back online.</p>
       <div class="report-form-actions">
@@ -2771,6 +2772,19 @@ function reportFormHtml() {
         <button id="reportSubmit" class="button" type="submit"${online ? "" : " disabled"}>Submit</button>
       </div>
     </form>`;
+}
+
+// `capture="environment"` asks a phone for its rear camera, where supported. Browsers which
+// do not expose a camera still present their normal image picker, so reporting stays simple on
+// desktop and for users who already have a useful picture.
+function reportPhotoFieldHtml(inputId) {
+  return `<div class="report-photo-field">
+      <label for="${inputId}">Photo (optional)
+        <input id="${inputId}" class="report-photo-input" type="file" accept="image/*" capture="environment">
+      </label>
+      <p class="report-note report-photo-note">Take a photo of the tree tag, or choose an existing picture.</p>
+      <p class="report-photo-status" aria-live="polite"></p>
+    </div>`;
 }
 
 function bindReportFormHandlers() {
@@ -2802,6 +2816,7 @@ function bindReportFormHandlers() {
   }
   const detailsInput = document.getElementById("reportDetails");
   if (detailsInput) detailsInput.addEventListener("input", saveDraft);
+  bindReportPhotoInput(document.getElementById("reportPhoto"));
   // A browser's own scroll-into-view-on-focus is free to pick an odd ancestor/offset in the
   // cramped landscape keyboard-avoiding layout; re-assert our own nearest-both-axes scroll
   // whenever the field is (re)focused, however that focus happened, so it's deterministic.
@@ -2820,6 +2835,53 @@ function bindReportFormHandlers() {
   }
   window.addEventListener("online", updateOnlineState);
   window.addEventListener("offline", updateOnlineState);
+}
+
+function bindReportPhotoInput(input) {
+  if (!input) return;
+  const status = input.closest(".report-photo-field")?.querySelector(".report-photo-status");
+  input.addEventListener("change", () => {
+    const file = input.files && input.files[0];
+    if (!status) return;
+    status.textContent = file ? `Photo ready: ${file.name}` : "";
+  });
+}
+
+const REPORT_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read photo"));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Modern phone photos are much larger than an issue report needs. Scale them down before
+// posting so a tree-tag picture works on ordinary mobile connections and within function limits.
+async function prepareReportPhoto(file) {
+  if (!file) return null;
+  if (!String(file.type || "").startsWith("image/")) throw new Error("Please choose an image file.");
+  try {
+    const image = await createImageBitmap(file);
+    const longestSide = Math.max(image.width, image.height);
+    const scale = Math.min(1, 1600 / longestSide);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    image.close();
+    if (blob && blob.size <= REPORT_PHOTO_MAX_BYTES) {
+      return { contentType: "image/jpeg", dataUrl: await readFileAsDataUrl(blob) };
+    }
+  } catch {
+    // Some phones expose HEIC files that this browser cannot draw. A modest original still
+    // works, and a larger one gets a clear message instead of silently dropping the evidence.
+  }
+  if (file.size > REPORT_PHOTO_MAX_BYTES) throw new Error("That photo is too large. Please choose a smaller image.");
+  return { contentType: file.type, dataUrl: await readFileAsDataUrl(file) };
 }
 
 function setReportStatus(message, tone = "", issueUrl = null) {
@@ -2922,6 +2984,18 @@ async function submitReportForm() {
     return;
   }
 
+  // Claim the submission before awaiting photo processing: even an empty-photo async
+  // preparation yields once, which otherwise lets two rapid submit events both proceed.
+  state.reportSubmitting = true;
+  let photo;
+  try {
+    photo = await prepareReportPhoto(document.getElementById("reportPhoto")?.files?.[0]);
+  } catch (error) {
+    state.reportSubmitting = false;
+    setReportStatus(error.message || "Could not prepare that photo.", "error");
+    return;
+  }
+
   const payload = {
     reportType: "feedback",
     details,
@@ -2932,9 +3006,9 @@ async function submitReportForm() {
     // Stable per-report ID: stays the same across retries of this same
     // report so the server can recognise and skip a resubmission.
     requestId: getOrCreateReportRequestId(),
+    photo,
   };
 
-  state.reportSubmitting = true;
   const submitButton = document.getElementById("reportSubmit");
   if (submitButton) submitButton.disabled = true;
   setReportStatus("Submitting report…");
@@ -2957,6 +3031,12 @@ async function submitReportForm() {
 
     setReportStatus("Report submitted successfully.", "success", data && data.issueUrl);
     reportDetailsInput.value = "";
+    const photoInput = document.getElementById("reportPhoto");
+    if (photoInput) {
+      photoInput.value = "";
+      const photoStatus = photoInput.closest(".report-photo-field")?.querySelector(".report-photo-status");
+      if (photoStatus) photoStatus.textContent = "";
+    }
     try {
       localStorage.removeItem(REPORT_DRAFT_KEY);
       localStorage.removeItem(REPORT_REQUEST_ID_KEY);
@@ -2985,6 +3065,7 @@ function locationIssueFormHtml() {
   return `<div class="report-form">
       <p class="report-issue-question">What's wrong with this location?</p>
       <textarea class="report-textarea" placeholder="Describe the problem…"></textarea>
+      ${reportPhotoFieldHtml("locationIssuePhoto")}
       <p class="report-status" aria-live="polite"></p>
       <p class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Try again once you\'re back online.</p>
       <div class="report-form-actions">
@@ -2999,6 +3080,7 @@ function toggleLocationIssueForm(toggleButton) {
   if (!wrapper) return;
   wrapper.innerHTML = locationIssueFormHtml();
   const textarea = wrapper.querySelector(".report-textarea");
+  bindReportPhotoInput(wrapper.querySelector(".report-photo-input"));
   if (textarea) {
     textarea.focus();
     textarea.scrollIntoView({ block: "nearest" });
@@ -3031,6 +3113,17 @@ async function submitLocationIssueReport(wrapper) {
     return;
   }
 
+  wrapper.dataset.submitting = "true";
+  let photo;
+  try {
+    photo = await prepareReportPhoto(wrapper.querySelector(".report-photo-input")?.files?.[0]);
+  } catch (error) {
+    wrapper.dataset.submitting = "false";
+    statusEl.textContent = error.message || "Could not prepare that photo.";
+    statusEl.className = "report-status error";
+    return;
+  }
+
   if (!wrapper.dataset.requestId) wrapper.dataset.requestId = generateRequestId();
 
   const payload = {
@@ -3048,9 +3141,9 @@ async function submitLocationIssueReport(wrapper) {
     userAgent: navigator.userAgent,
     pageUrl: window.location.href,
     requestId: wrapper.dataset.requestId,
+    photo,
   };
 
-  wrapper.dataset.submitting = "true";
   if (submitButton) submitButton.disabled = true;
   statusEl.textContent = "Submitting report…";
   statusEl.className = "report-status";
@@ -3072,6 +3165,8 @@ async function submitLocationIssueReport(wrapper) {
 
     applyReportStatusContent(statusEl, "Report submitted successfully.", "success", data && data.issueUrl);
     textarea.value = "";
+    const photoInput = wrapper.querySelector(".report-photo-input");
+    if (photoInput) photoInput.value = "";
   } catch (error) {
     statusEl.textContent = "Could not submit report. Please try again.";
     statusEl.className = "report-status error";
