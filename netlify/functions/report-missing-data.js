@@ -31,7 +31,10 @@ function parsePhoto(photo) {
 }
 
 function reportPhotoUrl(photoId, pageUrl) {
-  let origin = process.env.URL || process.env.DEPLOY_PRIME_URL || "";
+  // `URL` is the production site even during a deploy preview, while Blobs are scoped to
+  // the active deploy context. Prefer the deploy's own URL so a preview report points back to
+  // the preview function that can read its photo, rather than production returning 405.
+  let origin = process.env.DEPLOY_PRIME_URL || process.env.URL || "";
   if (!origin && /^https:\/\//.test(pageUrl)) {
     try { origin = new URL(pageUrl).origin; } catch {}
   }

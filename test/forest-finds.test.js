@@ -4943,6 +4943,12 @@ test("a submitted report's issue URL renders as a real clickable link, not plain
   assert.match(source, /link\.href = issueUrl/);
 });
 
+test("report-photo links use the active deploy before the production site", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "netlify", "functions", "report-missing-data.js"), "utf8");
+  assert.match(source, /process\.env\.DEPLOY_PRIME_URL \|\| process\.env\.URL/,
+    "a preview's Blob photo must link to its own deploy, not production");
+});
+
 test("a tree or landmark's detail view offers to report a problem with its own coordinates", () => {
   const withPoint = app.reportIssueHtml({ type: "Veteran tree", name: "Hangman's Oak", latitude: 51.65, longitude: 0.03 });
   assert.match(withPoint, /Noticed a problem with this location\?/);
