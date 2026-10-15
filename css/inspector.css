@@ -746,6 +746,28 @@ button.settings-toggle.has-update::after {
   padding: 9px 10px;
 }
 
+.report-photo-field {
+  display: grid;
+  gap: 4px;
+}
+
+.report-photo-input {
+  width: 100%;
+  font: inherit;
+  font-weight: 400;
+}
+
+.report-photo-note,
+.report-photo-status {
+  margin: 0;
+}
+
+.report-photo-status {
+  color: #204735;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
 .report-textarea {
   min-height: 120px;
   resize: vertical;

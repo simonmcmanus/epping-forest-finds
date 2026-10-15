@@ -1,4 +1,63 @@
 const DEFAULT_REPO = "simonmcmanus/epping-forest-finds";
+const { randomUUID } = require("crypto");
+const { connectLambda, getStore } = require("@netlify/blobs");
+const REPORT_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
+const REPORT_PHOTO_STORE = "report-photos";
+
+function configureBlobContext(event) {
+  if (!event?.blobs) return false;
+  try {
+    const headers = Object.fromEntries(
+      Object.entries(event.headers || {}).map(([key, value]) => [key.toLowerCase(), value])
+    );
+    connectLambda({ ...event, headers });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function parsePhoto(photo) {
+  if (photo == null) return null;
+  if (!photo || typeof photo !== "object") throw new Error("Photo must be an image file");
+  const contentType = String(photo.contentType || "").toLowerCase();
+  const extensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+  if (!extensions[contentType]) throw new Error("Please use a JPEG, PNG, or WebP photo");
+  const match = /^data:([^;,]+);base64,([a-z0-9+/=]+)$/i.exec(String(photo.dataUrl || ""));
+  if (!match || match[1].toLowerCase() !== contentType) throw new Error("Photo data is invalid");
+  const bytes = Buffer.from(match[2], "base64");
+  if (!bytes.length || bytes.length > REPORT_PHOTO_MAX_BYTES) throw new Error("Photo is too large");
+  return { contentType, extension: extensions[contentType], bytes };
+}
+
+function reportPhotoUrl(photoId, pageUrl) {
+  // `URL` is the production site even during a deploy preview, while Blobs are scoped to
+  // the active deploy context. Prefer the deploy's own URL so a preview report points back to
+  // the preview function that can read its photo, rather than production returning 405.
+  let origin = process.env.DEPLOY_PRIME_URL || process.env.URL || "";
+  if (!origin && /^https:\/\//.test(pageUrl)) {
+    try { origin = new URL(pageUrl).origin; } catch {}
+  }
+  return origin ? `${origin.replace(/\/$/, "")}/.netlify/functions/report-missing-data?photo=${encodeURIComponent(photoId)}` : "";
+}
+
+async function sendPhoto(event, photoId) {
+  if (!/^[a-f0-9-]+\.(jpg|png|webp)$/.test(photoId)) return response(404, { error: "Photo not found" });
+  if (!configureBlobContext(event)) return response(404, { error: "Photo not found" });
+  try {
+    const bytes = await getStore(REPORT_PHOTO_STORE).get(`photos/${photoId}`, { type: "arrayBuffer" });
+    if (!bytes) return response(404, { error: "Photo not found" });
+    const contentType = photoId.endsWith(".png") ? "image/png" : photoId.endsWith(".webp") ? "image/webp" : "image/jpeg";
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": contentType, "Cache-Control": "public, max-age=31536000, immutable" },
+      body: Buffer.from(bytes).toString("base64"),
+      isBase64Encoded: true,
+    };
+  } catch {
+    return response(404, { error: "Photo not found" });
+  }
+}
 
 function normalizedToken(value) {
   if (typeof value !== "string") return "";
@@ -20,6 +79,9 @@ function response(statusCode, body) {
 }
 
 exports.handler = async (event) => {
+  if (event.httpMethod === "GET" && event.queryStringParameters?.photo) {
+    return sendPhoto(event, String(event.queryStringParameters.photo));
+  }
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 204,
@@ -57,6 +119,12 @@ exports.handler = async (event) => {
   const userAgent = String(payload.userAgent || "").trim();
   const rawRequestId = String(payload.requestId || "").trim().slice(0, 100);
   const requestId = /^[a-zA-Z0-9-]+$/.test(rawRequestId) ? rawRequestId : "";
+  let photo;
+  try {
+    photo = parsePhoto(payload.photo);
+  } catch (error) {
+    return response(400, { error: error.message });
+  }
 
   if (!details) {
     return response(400, { error: "Details are required" });
@@ -145,6 +213,21 @@ exports.handler = async (event) => {
       }
     }
 
+    if (photo) {
+      if (!configureBlobContext(event)) {
+        return response(503, { error: "Photo storage is unavailable. Please try again without the photo." });
+      }
+      const photoId = `${randomUUID()}.${photo.extension}`;
+      try {
+        await getStore(REPORT_PHOTO_STORE).set(`photos/${photoId}`, photo.bytes, { metadata: { contentType: photo.contentType } });
+      } catch {
+        return response(503, { error: "Could not save the photo. Please try again." });
+      }
+      const photoUrl = reportPhotoUrl(photoId, pageUrl);
+      if (!photoUrl) return response(503, { error: "Could not link the photo. Please try again." });
+      issuePayload.body += `\n\n## Photo\n![Photo attached to report](${photoUrl})`;
+    }
+
     const issueResponse = await fetch(`https://api.github.com/repos/${githubRepo}/issues`, {
       method: "POST",
       headers: { ...apiHeaders, "Content-Type": "application/json" },
@@ -168,3 +251,7 @@ exports.handler = async (event) => {
     return response(502, { error: "Failed to reach GitHub API" });
   }
 };
+
+exports.REPORT_PHOTO_MAX_BYTES = REPORT_PHOTO_MAX_BYTES;
+exports.parsePhoto = parsePhoto;
+exports.reportPhotoUrl = reportPhotoUrl;
