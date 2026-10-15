@@ -41,15 +41,11 @@ jobs:
             const htmlLink = (path) => `<a href="${previewUrl}${path}">${path}</a>`;
             const icon = (path) => `<img src="${previewUrl}/${path}" width="18" height="18" alt="">`;
             const routeIcon = (value) => value.startsWith("data/") ? icon(value) : value;
-            const categoryLinks = `<table>${categoryGroups.filter((_, index) => index % 2 === 0).flatMap((left, pairIndex) => {
-              const right = categoryGroups[pairIndex * 2 + 1];
-              const rowCount = Math.max(left[2].length, right?.[2].length || 0);
-              return Array.from({ length: rowCount }, (_, rowIndex) => {
-                const subcategory = (group) => group?.[2][rowIndex]
-                  ? `<td>${icon(`data/icons/${group[2][rowIndex][1]}.png`)} ${htmlLink(`/nearby/${group[2][rowIndex][0]}`)}</td>`
-                  : "<td></td>";
-                return `<tr>${rowIndex === 0 ? `<td rowspan="${rowCount}">${icon(left[1])} ${htmlLink(`/nearby/${left[0]}`)}</td>` : ""}${subcategory(left)}${right && rowIndex === 0 ? `<td rowspan="${rowCount}">${icon(right[1])} ${htmlLink(`/nearby/${right[0]}`)}</td>` : ""}${subcategory(right)}</tr>`;
-              });
+            const categoryCell = ([slug, categoryIcon, subcategories]) =>
+              `<td>${icon(categoryIcon)} ${htmlLink(`/nearby/${slug}`)}<br>${subcategories.map(([subSlug, subIcon]) => `${icon(`data/icons/${subIcon}.png`)} ${htmlLink(`/nearby/${subSlug}`)}`).join("<br>")}</td>`;
+            const categoryLinks = `<table>${categoryGroups.filter((_, index) => index % 3 === 0).map((left, rowIndex) => {
+              const groups = categoryGroups.slice(rowIndex * 3, rowIndex * 3 + 3);
+              return `<tr>${groups.map(categoryCell).join("")}${"<td></td>".repeat(3 - groups.length)}</tr>`;
             }).join("")}</table>`;
             const routes = [
               ["/", "data/icons/home.png"], ["/nearby", "data/icons/nearby.png"],
