@@ -36,6 +36,20 @@ test.describe("Searching the map", () => {
     await expect(result).toContainText("Pubs");
   });
 
+  test("category groups and subcategories discover places whose names are unknown", async ({ page }) => {
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", "Cafés");
+
+    await expect(page.locator('#mapSearchResults [data-search-type="landmark"]').first()).toBeVisible();
+    const matchesCafe = await page.evaluate(() => {
+      return state.searchHighlightResults.some((result) => result.item?.category === "cafe");
+    });
+    expect(matchesCafe).toBe(true);
+
+    await page.fill("#mapSearchInput", "Food");
+    await expect(page.locator('#mapSearchResults [data-search-type="landmark"]').first()).toBeVisible();
+  });
+
   test("arrow keys step from the search field into the results, and Enter opens the focused row", async ({ page }) => {
     await page.click("#searchToggle");
     await page.fill("#mapSearchInput", "oak");

@@ -7333,6 +7333,42 @@ function searchIndexEntry(type, item, rawFields) {
   return { type, item, fields, blob: fields.join(" ") };
 }
 
+// Search is also a way to browse the map, so index the human-readable taxonomy as well as
+// names. The source values cover OSM's precise classifications (such as `amenity=cafe`),
+// while the filter metadata supplies the broader category and its subcategory labels.
+// Deliberately exclude contact details and URLs: neither helps someone find a place on the map.
+function searchLandmarkFields(place) {
+  const fields = [
+    place.name,
+    place.transportStopName,
+    place.category,
+    place.categoryLabel,
+    ...(place.categoryTags || []),
+    place.amenity,
+    place.shop,
+    place.tourism,
+    place.historic,
+    place.railway,
+    place.highway,
+    place.barrier,
+    place.entrance,
+    place.heritage,
+    place.address,
+    place.folkloreCategory,
+    ...(place.folkloreTopics || []),
+    place.type,
+    place.area,
+    place.description,
+  ];
+
+  for (const filterKey of PLACE_FILTER_KEYS) {
+    if (!matchesPlaceFilter(place, filterKey)) continue;
+    const meta = filterMeta(filterKey);
+    if (meta) fields.push(meta.label, meta.title, meta.groupLabel);
+  }
+  return fields;
+}
+
 function buildSearchIndex() {
   const entries = [];
   const push = (type, item, rawFields) => {
@@ -7341,24 +7377,24 @@ function buildSearchIndex() {
   };
 
   for (const tree of state.trees) {
-    push("tree", tree, [tree.commonName, tree.tagNumber, tree.nationalDatabaseTagNumber, tree.recordNumber]);
+    push("tree", tree, [tree.commonName, tree.latinName, tree.tagNumber, tree.nationalDatabaseTagNumber, tree.recordNumber]);
   }
   for (const place of state.landmarks) {
-    push("landmark", place, [place.name, place.transportStopName, place.categoryLabel]);
+    push("landmark", place, searchLandmarkFields(place));
   }
   for (const path of state.paths) {
-    push("path", path, [path.name, path.ref]);
+    push("path", path, [path.name, path.ref, path.pathType, path.highway, path.foot, path.horse, path.access]);
   }
   for (const road of state.roads) {
-    push("road", road, [road.name, road.ref]);
+    push("road", road, [road.name, road.ref, road.roadType, road.highway, road.service]);
   }
   for (const water of state.waterFeatures) {
-    push("water", water, [water.name]);
+    push("water", water, [water.name, water.featureType, water.waterway]);
   }
   for (const feature of state.environmentFeatures) {
     const props = feature && feature.properties;
     if (!props || props.featureType !== "railway") continue;
-    push("railway", feature, [props.name, props.ref]);
+    push("railway", feature, [props.name, props.ref, props.railway, props.service]);
   }
   return entries;
 }
