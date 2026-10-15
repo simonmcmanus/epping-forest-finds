@@ -28,6 +28,9 @@ permissions: {}
 
 jobs:
   bump:
+    # The marker commit changes a file under js/**, which matches the push
+    # trigger above. It must not turn that automatic commit into another bump.
+    if: "${{ github.event.head_commit.message != 'chore: bump cache version' }}"
     runs-on: ubuntu-latest
     steps:
       - name: Create a short-lived cache-version app token
