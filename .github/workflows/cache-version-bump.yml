@@ -2,12 +2,12 @@ name: Bump cache versions after merge
 
 # This runs only after a commit has reached main. It never mutates a pull
 # request, so cache versions cannot create merge conflicts with application or
-# data work. The GITHUB_TOKEN is deliberately scoped to this job and repository;
-# do not replace it with a personal access token.
+# data work. It mints a short-lived token from the dedicated, repository-limited
+# GitHub App; do not replace it with a personal access token.
 #
-# Repository setup required: add github-actions[bot] to main's ruleset bypass
-# list. GitHub's bypass permissions are repository-wide, not path-scoped, so
-# this workflow defensively validates and stages only the two files below.
+# Repository setup required: add Epping Cache Version Bot to main's ruleset
+# bypass list. GitHub's bypass permissions are repository-wide, not path-scoped,
+# so this workflow defensively validates and stages only the two files below.
 on:
   push:
     branches: [main]
@@ -24,17 +24,24 @@ concurrency:
   group: cache-version-bump-main
   cancel-in-progress: false
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   bump:
     runs-on: ubuntu-latest
     steps:
+      - name: Create a short-lived cache-version app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.CACHE_VERSION_APP_ID }}
+          private-key: ${{ secrets.CACHE_VERSION_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 2
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Bump only the versions affected by this merge
         env:
@@ -69,8 +76,8 @@ jobs:
         run: |
           set -euo pipefail
           git diff --quiet && exit 0
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "Epping Cache Version Bot"
+          git config user.email "cache-version-bot@users.noreply.github.com"
           git add -- js/app-cache-version.js js/data-cache-version.js
           git commit -m "chore: bump cache version"
           git push origin HEAD:main
