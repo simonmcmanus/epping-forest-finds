@@ -215,7 +215,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
     await expect(page.locator(".hero-sub")).toHaveText("A free, offline map of Epping Forest. Find 24,906 veteran trees, forest paths, pubs and grazing cattle.");
     await expect(page.locator("#signupForm")).toBeVisible();
-    await expect(page.locator("#find-trees")).toContainText("Search its tag number.");
+    await expect(page.locator("#find-trees")).toContainText("Search veteran trees by tag, common or Latin name");
     await expect(page.locator(".signup-intro")).toContainText("early testing opens");
 
     await context.close();
@@ -297,18 +297,20 @@ test.describe("the marketing homepage", () => {
     await page.goto("/");
     const trees = page.locator("#find-trees");
     await expect(trees.getByRole("heading", { name: "What’s with the tree tags?" })).toBeVisible();
-    await expect(trees).toContainText("Search its tag number.");
+    await expect(trees).toContainText("Search veteran trees by tag, common or Latin name");
     await expect(trees).toContainText("Find your way there.");
+    await expect(trees).toContainText("Some of the data may not be completely accurate.");
+    await expect(trees).toContainText("we’ll pass them on to the City of London.");
     await expect(trees).toContainText("recorded girth and species");
     await expect(trees).toContainText("not an exact birthday");
     await expect(trees.locator(".tag-story figcaption")).toHaveText([
-      "1. Search its tag number. Find its record on the map.",
+      "Search veteran trees by tag, common or Latin name — or find places by name or category. Results are ranked by relevance and nearby distance.",
       "2. Find your way there. Get a route that aims to favour forest paths and alleyways. Check the tag when you arrive.",
       "3. See its estimated age. An estimate from recorded girth and species, where available — not an exact birthday."
     ]);
     await expect(trees.locator(".app-shot img")).toHaveCount(3);
     const shots = await trees.locator(".app-shot img").evaluateAll(images => images.map(img => img.getAttribute("src")));
-    expect(shots).toEqual(["assets/home/app-search.jpg", "assets/home/app-nearby-route.jpg", "assets/home/app-tree-age.jpg"]);
+    expect(shots).toEqual(["assets/home/app-search.jpg", "assets/home/app-nearby-route.png", "assets/home/app-tree-age.png"]);
     for (const shot of await trees.locator(".app-shot img").all()) {
       await expect(shot).toHaveCSS("border-top-color", "rgb(29, 74, 47)");
       await expect(shot).toHaveCSS("border-top-width", "4px");
