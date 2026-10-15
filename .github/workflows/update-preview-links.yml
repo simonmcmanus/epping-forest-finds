@@ -1,0 +1,69 @@
+name: Update deploy preview links
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  update-pr:
+    # Netlify's deploy-preview status includes the per-PR environment URL. Production and
+    # branch deploys must not rewrite PR descriptions.
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment_status.environment == 'deploy-preview' &&
+      github.event.deployment_status.environment_url
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add deploy-preview test links to the pull request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const previewUrl = context.payload.deployment_status.environment_url.replace(/\/$/, "");
+            const sha = context.payload.deployment.sha;
+            const { data: pullRequests } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: sha,
+            });
+
+            const categoryGroups = [
+              ["Nature", "nature", [["Trees", "trees"], ["Cows", "cows"], ["Ponds & streams", "ponds-streams"]]],
+              ["Food", "food", [["Pubs & bars", "pubs"], ["Restaurants", "restaurants"], ["Cafés", "cafes"], ["Shops", "shops"]]],
+              ["Transport", "transport", [["Bus stops", "bus"], ["Underground", "underground"], ["National Rail", "national-rail"], ["Car parks", "parking"]]],
+              ["History", "history", [["Historic sites", "historic"], ["Plaques", "plaques"], ["Monuments", "monuments"], ["WWII sites", "ww2"]]],
+              ["Locations", "locations", [["Churches", "churches"], ["Education", "education"], ["Medical sites", "medicine"], ["Campsites", "campsites"]]],
+              ["Stories", "stories", [["Legends", "legends"], ["Literature", "literature"], ["Film & TV", "film-tv"], ["Art", "art"]]],
+              ["Events", "events", [["Events", "events"]]],
+            ];
+            const link = (label, path) => `[${label}](${previewUrl}${path})`;
+            const categoryLinks = categoryGroups.map(([label, slug, subcategories]) =>
+              `- ${link(label, `/nearby/${slug}`)} — ${subcategories.map(([subLabel, subSlug]) => link(subLabel, `/nearby/${subSlug}`)).join(" · ")}`
+            ).join("\n");
+            const links = [
+              "### Deploy preview",
+              "",
+              `${link("Homepage", "/")} · ${link("Nearby", "/nearby")} · ${link("Search", "/nearby/search")} · ${link("Filters", "/nearby/filter")} · ${link("Settings", "/settings")} · ${link("Feedback", "/feedback")} · ${link("Admin", "/admin")} · ${link("Reports", "/reports/")} · ${link("Terms", "/terms.html")} · ${link("Legacy /app redirect", "/app")}`,
+              "",
+              "#### Categories and subcategories",
+              "",
+              categoryLinks,
+            ].join("\n");
+            const marker = /<!-- preview-links:start -->[\s\S]*?<!-- preview-links:end -->/;
+
+            for (const pr of pullRequests.filter((candidate) => candidate.state === "open")) {
+              const body = pr.body || "";
+              const replacement = `<!-- preview-links:start -->\n${links}\n<!-- preview-links:end -->`;
+              const nextBody = marker.test(body)
+                ? body.replace(marker, replacement)
+                : `${body.trim()}\n\n${replacement}\n`;
+              if (nextBody === body) continue;
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                body: nextBody,
+              });
+            }
