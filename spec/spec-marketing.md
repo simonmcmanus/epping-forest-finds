@@ -253,8 +253,10 @@ Sections, in order:
    icons from `assets/home/`, with centred headings. Use three equal columns
    on wide screens and stack them on mobile.
 4. **What’s with the tree tags?** — directly after the feature cards, explain
-   searching physical tag numbers, navigating to a specific tree and checking
-   its tag on arrival. Note that some tree data may be inaccurate, invite issue
+   searching physical tag numbers, names, species and place terms, navigating
+   to a specific tree and checking its tag on arrival. The search caption
+   explains that results are ranked by relevance and nearby distance before
+   appearing on the map. Note that some tree data may be inaccurate, invite issue
    reports, and say that these will be passed on to the City of London. Show
    three app screenshots: searching its number,
    following its route and viewing its estimated age. Use each screenshot

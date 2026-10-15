@@ -215,7 +215,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
     await expect(page.locator(".hero-sub")).toHaveText("A free, offline map of Epping Forest. Find 24,906 veteran trees, forest paths, pubs and grazing cattle.");
     await expect(page.locator("#signupForm")).toBeVisible();
-    await expect(page.locator("#find-trees")).toContainText("Search its tag number.");
+    await expect(page.locator("#find-trees")).toContainText("Search for a veteran tree by its tag number, common name or Latin species name");
     await expect(page.locator(".signup-intro")).toContainText("early testing opens");
 
     await context.close();
@@ -297,14 +297,14 @@ test.describe("the marketing homepage", () => {
     await page.goto("/");
     const trees = page.locator("#find-trees");
     await expect(trees.getByRole("heading", { name: "What’s with the tree tags?" })).toBeVisible();
-    await expect(trees).toContainText("Search its tag number.");
+    await expect(trees).toContainText("Search for a veteran tree by its tag number, common name or Latin species name");
     await expect(trees).toContainText("Find your way there.");
     await expect(trees).toContainText("Some of the data may not be completely accurate.");
     await expect(trees).toContainText("we’ll pass them on to the City of London.");
     await expect(trees).toContainText("recorded girth and species");
     await expect(trees).toContainText("not an exact birthday");
     await expect(trees.locator(".tag-story figcaption")).toHaveText([
-      "1. Search its tag number. Find its record on the map.",
+      "Search for a veteran tree by its tag number, common name or Latin species name — then discover places by name, category or what you remember about them. Search for “Food”, “Cafés”, “pubs”, a street name, road, trail, water feature or railway. Results are ranked by relevance and nearby distance, then shown on the map so you can quickly choose where to go.",
       "2. Find your way there. Get a route that aims to favour forest paths and alleyways. Check the tag when you arrive.",
       "3. See its estimated age. An estimate from recorded girth and species, where available — not an exact birthday."
     ]);
