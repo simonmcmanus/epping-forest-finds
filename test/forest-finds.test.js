@@ -5609,12 +5609,20 @@ test("local dev version markers prefix cache names with dev- so the About screen
   // edit — since CACHE_NAME bumps are CI-only, and now main-only (see the network-first dev
   // test above). The "dev-" prefix is what makes a locally served version visibly local.
   const root = path.join(__dirname, "..");
-  const context = { __DEV__: true };
-  vm.createContext(context);
-  vm.runInContext(fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8"), context);
-  vm.runInContext(fs.readFileSync(path.join(root, "js", "data-cache-version.js"), "utf8"), context);
-  assert.equal(vm.runInContext("APP_CACHE_VERSION", context), "dev-v109");
-  assert.equal(vm.runInContext("DATA_CACHE_VERSION", context), "dev-v32");
+  const markerFiles = ["app-cache-version.js", "data-cache-version.js"];
+  const readVersions = (isDev) => {
+    const context = { __DEV__: isDev };
+    vm.createContext(context);
+    for (const file of markerFiles) vm.runInContext(fs.readFileSync(path.join(root, "js", file), "utf8"), context);
+    return {
+      app: vm.runInContext("APP_CACHE_VERSION", context),
+      data: vm.runInContext("DATA_CACHE_VERSION", context)
+    };
+  };
+  const production = readVersions(false);
+  const local = readVersions(true);
+  assert.equal(local.app, `dev-${production.app}`);
+  assert.equal(local.data, `dev-${production.data}`);
 });
 
 test("local dev server serves sw.js with its own dev-flagging route, not the generic static handler", () => {
