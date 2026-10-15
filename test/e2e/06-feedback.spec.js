@@ -27,6 +27,13 @@ test.describe("Feedback / Report screen", () => {
     await expect(page.locator("#reportDetails")).toBeVisible();
   });
 
+  test("report form offers a rear-camera photo control for tree-tag evidence", async ({ page }) => {
+    const photo = page.locator("#reportPhoto");
+    await expect(photo).toHaveAttribute("accept", "image/*");
+    await expect(photo).toHaveAttribute("capture", "environment");
+    await expect(page.locator("#reportForm")).toContainText("Take a photo of the tree tag");
+  });
+
   test("report form has a Submit button", async ({ page }) => {
     await expect(page.locator("#reportSubmit")).toBeVisible();
   });
@@ -92,6 +99,24 @@ test.describe("Feedback / Report screen", () => {
     const issueLink = page.locator("#reportStatus a");
     await expect(issueLink).toHaveAttribute("href", "https://github.com/simonmcmanus/epping-forest-finds/issues/7");
     await expect(issueLink).toHaveAttribute("target", "_blank");
+  });
+
+  test("a chosen photo is reduced and sent with the report", async ({ page }) => {
+    let postedPayload;
+    await page.route("**/.netlify/functions/report-missing-data", async (route) => {
+      postedPayload = route.request().postDataJSON();
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+    await page.setInputFiles("#reportPhoto", {
+      name: "tree-tag.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("tiny-image"),
+    });
+    await page.fill("#reportDetails", "The tag is difficult to read");
+    await page.click("#reportSubmit");
+    await expect(page.locator("#reportStatus")).toContainText("submitted successfully");
+    expect(postedPayload.photo).toMatchObject({ contentType: "image/png" });
+    expect(postedPayload.photo.dataUrl).toMatch(/^data:image\/png;base64,/);
   });
 
   test("a failed submission keeps the same request id for a safe retry", async ({ page }) => {
