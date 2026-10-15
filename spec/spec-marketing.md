@@ -253,16 +253,20 @@ Sections, in order:
    icons from `assets/home/`, with centred headings. Use three equal columns
    on wide screens and stack them on mobile.
 4. **What’s with the tree tags?** — directly after the feature cards, explain
-   searching physical tag numbers, navigating to a specific tree and checking
-   its tag on arrival, with three app screenshots: searching its number,
+   searching physical tag numbers, names, species and place terms, navigating
+   to a specific tree and checking its tag on arrival. The search caption
+   explains that results are ranked by relevance and nearby distance before
+   appearing on the map. Note that some tree data may be inaccurate, invite issue
+   reports, and say that these will be passed on to the City of London. Show
+   three app screenshots: searching its number,
    following its route and viewing its estimated age. Use each screenshot
    caption for the matching explanation rather than repeating the same three
    points in a separate list. On wide screens, keep the three cards in one
    row. Load these supporting images lazily. The navigation caption explains
    that routes try to favour scenic forest paths and alleyways, without
    guaranteeing them. The screenshots are interim real captures from the app
-   (`app-search.jpg`, `app-nearby-route.jpg`, `app-tree-age.jpg`), scaled to
-   600px wide, until final marketing captures replace them. Each is framed as a
+   (`app-search.jpg`, `app-nearby-route.png`, `app-tree-age.png`), scaled to
+   600px wide. Each is framed as a
    phone with a 4px dark-green rounded border and no card around it; its white
    caption card, exactly the phone's width, tucks behind the bottom of the
    phone, and the three caption cards stretch to a common height on wide
