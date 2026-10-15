@@ -34,6 +34,21 @@ test.describe("Searching the map", () => {
     const result = page.locator("#mapSearchResults .nearest-item").first();
     await expect(result).toContainText(FIXTURE_PLACE);
     await expect(result).toContainText("Pubs");
+    await expect(result.locator(":scope > .nearest-icon + .nearest-content")).toBeVisible();
+  });
+
+  test("category groups and subcategories discover places whose names are unknown", async ({ page }) => {
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", "Cafés");
+
+    await expect(page.locator('#mapSearchResults [data-search-type="landmark"]').first()).toBeVisible();
+    const matchesCafe = await page.evaluate(() => {
+      return state.searchHighlightResults.some((result) => result.item?.category === "cafe");
+    });
+    expect(matchesCafe).toBe(true);
+
+    await page.fill("#mapSearchInput", "Food");
+    await expect(page.locator('#mapSearchResults [data-search-type="landmark"]').first()).toBeVisible();
   });
 
   test("arrow keys step from the search field into the results, and Enter opens the focused row", async ({ page }) => {
@@ -135,6 +150,13 @@ test.describe("Searching the map", () => {
       FIXTURE_TREE.commonName
     );
     await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
+  });
+
+  test("a species and generic tree type can be searched together", async ({ page }) => {
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", "oak tree");
+
+    await expect(page.locator('#mapSearchResults [data-search-type="tree"]').first()).toBeVisible();
   });
 
   test("a street split across many map ways is offered once, and can be navigated to", async ({ page }) => {

@@ -4119,6 +4119,35 @@ test("search finds a shop, a road and a tree tag, the three things the map is se
   assert.equal(tree[0].item.id, "oak-near");
 });
 
+test("search combines a tree's species and generic type", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+
+  const results = app.searchMapFeatures("oak tree").filter((result) => result.type === "tree");
+
+  assert.equal(results.length, 2);
+  assert.equal(results[0].item.id, "oak-near");
+});
+
+test("search finds places through their category group, subcategory and source metadata", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.landmarks.push({
+    id: "cafe-1",
+    name: "The Hidden Kettle",
+    category: "cafe",
+    categoryTags: ["cafe"],
+    amenity: "cafe",
+    address: "42 Forest Lane",
+    ...makePoint(app, 0.002, 0),
+  });
+
+  assert.equal(app.searchMapFeatures("food")[0].item.id, "cafe-1", "the parent category is searchable");
+  assert.equal(app.searchMapFeatures("cafes")[0].item.id, "cafe-1", "the filter subcategory is searchable");
+  assert.equal(app.searchMapFeatures("forest lane")[0].item.id, "cafe-1", "useful source metadata is searchable");
+});
+
 test("a street split across many OSM ways is one result, the nearest piece of it", () => {
   resetSearchData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -4175,6 +4204,7 @@ test("search results carry the same walk chip and type label the nearby list use
   assert.match(html, /class="nearest-item"/, "results reuse the nearby list row");
   assert.match(html, /data-search-type="landmark"/);
   assert.match(html, /The Royal Forest/);
+  assert.match(html, /nearest-icon[\s\S]*nearest-content/, "results use the Nearby row's icon and content columns");
   assert.match(html, /walk-chip/, "with the distance and walk time");
   assert.match(html, /Pubs &amp; bars/, "and the filter label the place is listed under");
 });

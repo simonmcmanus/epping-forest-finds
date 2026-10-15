@@ -443,14 +443,18 @@ main navigation (`#searchToggle`) or directly at `/app#search`. It replaced the 
 search that used to float over the map on mobile: a tree tag is one of the things it finds, not
 the only one.
 
-- **What it searches:** veteran trees (species and tag number), places (shops, pubs, cafés,
-  stations, car parks, plaques, gates and every other landmark), roads, waymarked trails, water
-  features, railway lines, and the live cows by serial number. Roads and railway lines are only
-  in reach this way — the Nearby list does not carry them.
-- **Results are the Nearby list's own rows** (`.nearest-item`), with the same icon, name, walk
-  chip, type label and direction arrow, so a find looks the same whether it was searched for or
-  walked past. Choosing one opens exactly the screen a map tap or a deep link would, through the
-  same `SELECTION_ROUTES` table, and the map animates to it.
+- **What it searches:** veteran trees (common or Latin species name, generic “tree”/“trees”
+  type, and tag number), places
+  (name, category group and subcategory, and useful source metadata such as address and OSM
+  classification), roads, waymarked trails, water features, railway lines, and the live cows by
+  serial number. This means searches such as “Food”, “Cafés”, or a venue's street can discover
+  a location even when its name is unknown. Roads and railway lines are only in reach this way —
+  the Nearby list does not carry them.
+- **Results use the Nearby list's exact row layout** (`.nearest-item`): its icon column and
+  name/meta content column, walk chip, type label and direction arrow. A find therefore looks
+  the same whether it was searched for or walked past. Choosing one opens exactly the screen a
+  map tap or a deep link would, through the same `SELECTION_ROUTES` table, and the map animates
+  to it.
 - **Matching ignores case, accents and punctuation**, so "st marys" finds "St Mary's" and
   "cafe" finds "Café". Each field is ranked on its own — exact, then prefix, then whole-word,
   then substring — so a tree's tag can match exactly without its species name diluting it. A bare
