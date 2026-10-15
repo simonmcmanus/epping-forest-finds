@@ -30,17 +30,17 @@ jobs:
             });
 
             const categoryGroups = [
-              ["nature", "data/icons/nature.png", ["trees", "cows", "ponds-streams"]],
-              ["food", "data/icons/food.png", ["pubs", "restaurants", "cafes", "shops"]],
-              ["transport", "data/icons/bus.png", ["bus", "underground", "national-rail", "parking"]],
-              ["history", "data/icons/history.png", ["historic", "plaques", "monuments", "ww2"]],
-              ["locations", "data/icons/landmark-parking.png", ["churches", "education", "medicine", "campsites"]],
-              ["stories", "data/icons/legends.png", ["legends", "literature", "film-tv", "art"]],
-              ["events", "data/icons/event.png", ["events"]],
+              ["nature", "data/icons/nature.png", [["trees", "tree"], ["cows", "cow"], ["ponds-streams", "ponds"]]],
+              ["food", "data/icons/food.png", [["pubs", "beer"], ["restaurants", "restaurant"], ["cafes", "cafe"], ["shops", "shop"]]],
+              ["transport", "data/icons/bus.png", [["bus", "bus"], ["underground", "underground"], ["national-rail", "national-rail"], ["parking", "landmark-parking"]]],
+              ["history", "data/icons/history.png", [["historic", "historic"], ["plaques", "plaques"], ["monuments", "landmark-monument"], ["ww2", "historic"]]],
+              ["locations", "data/icons/landmark-parking.png", [["churches", "church"], ["education", "education"], ["medicine", "medicine"], ["campsites", "campsite"]]],
+              ["stories", "data/icons/legends.png", [["legends", "legends"], ["literature", "literature"], ["film-tv", "film"], ["art", "art"]]],
+              ["events", "data/icons/event.png", [["events", "event"]]],
             ];
             const link = (path) => `[${path}](${previewUrl}${path})`;
             const categoryCell = ([slug, icon, subcategories]) =>
-              `<img src="${previewUrl}/${icon}" width="18" height="18" alt=""> ${link(`/nearby/${slug}`)}<br>${subcategories.map((subSlug) => link(`/nearby/${subSlug}`)).join(" · ")}`;
+              `<img src="${previewUrl}/${icon}" width="18" height="18" alt=""> ${link(`/nearby/${slug}`)}<br>${subcategories.map(([subSlug, subIcon]) => `<img src="${previewUrl}/data/icons/${subIcon}.png" width="18" height="18" alt=""> ${link(`/nearby/${subSlug}`)}`).join(" · ")}`;
             const categoryLinks = categoryGroups.reduce((rows, group, index) => {
               if (index % 2 === 0) rows.push(`| ${categoryCell(group)} | ${categoryGroups[index + 1] ? categoryCell(categoryGroups[index + 1]) : ""} |`);
               return rows;
