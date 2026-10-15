@@ -34,6 +34,7 @@ test.describe("Searching the map", () => {
     const result = page.locator("#mapSearchResults .nearest-item").first();
     await expect(result).toContainText(FIXTURE_PLACE);
     await expect(result).toContainText("Pubs");
+    await expect(result.locator(":scope > .nearest-icon + .nearest-content")).toBeVisible();
   });
 
   test("category groups and subcategories discover places whose names are unknown", async ({ page }) => {

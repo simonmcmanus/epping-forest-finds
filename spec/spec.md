@@ -450,10 +450,11 @@ the only one.
   serial number. This means searches such as “Food”, “Cafés”, or a venue's street can discover
   a location even when its name is unknown. Roads and railway lines are only in reach this way —
   the Nearby list does not carry them.
-- **Results are the Nearby list's own rows** (`.nearest-item`), with the same icon, name, walk
-  chip, type label and direction arrow, so a find looks the same whether it was searched for or
-  walked past. Choosing one opens exactly the screen a map tap or a deep link would, through the
-  same `SELECTION_ROUTES` table, and the map animates to it.
+- **Results use the Nearby list's exact row layout** (`.nearest-item`): its icon column and
+  name/meta content column, walk chip, type label and direction arrow. A find therefore looks
+  the same whether it was searched for or walked past. Choosing one opens exactly the screen a
+  map tap or a deep link would, through the same `SELECTION_ROUTES` table, and the map animates
+  to it.
 - **Matching ignores case, accents and punctuation**, so "st marys" finds "St Mary's" and
   "cafe" finds "Café". Each field is ranked on its own — exact, then prefix, then whole-word,
   then substring — so a tree's tag can match exactly without its species name diluting it. A bare

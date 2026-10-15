@@ -4204,6 +4204,7 @@ test("search results carry the same walk chip and type label the nearby list use
   assert.match(html, /class="nearest-item"/, "results reuse the nearby list row");
   assert.match(html, /data-search-type="landmark"/);
   assert.match(html, /The Royal Forest/);
+  assert.match(html, /nearest-icon[\s\S]*nearest-content/, "results use the Nearby row's icon and content columns");
   assert.match(html, /walk-chip/, "with the distance and walk time");
   assert.match(html, /Pubs &amp; bars/, "and the filter label the place is listed under");
 });

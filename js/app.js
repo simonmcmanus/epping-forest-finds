@@ -7662,13 +7662,15 @@ function searchResultsHtml(query) {
     const treeTag = result.type === "tree" ? treeTagLabel(result.item) : null;
     const treeTagChip = treeTag ? ` · #${escapeHtml(treeTag)}` : "";
     return `<li><button class="nearest-item" type="button" data-search-type="${escapeHtml(result.type)}" data-search-key="${escapeHtml(result.key)}">
-      <div class="nearest-header">
-        <span class="nearest-icon" aria-hidden="true">${searchResultIconHtml(result.type, result.item)}</span>
-        <span class="nearest-name">${escapeHtml(searchResultName(result.type, result.item))}</span>
-      </div>
-      <div class="nearest-footer">
-        <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
-        <span class="nearest-arrow" data-item-lat="${position ? position.latitude : ""}" data-item-lon="${position ? position.longitude : ""}" aria-hidden="true">↑</span>
+      <span class="nearest-icon" aria-hidden="true">${searchResultIconHtml(result.type, result.item)}</span>
+      <div class="nearest-content">
+        <div class="nearest-header">
+          <span class="nearest-name">${escapeHtml(searchResultName(result.type, result.item))}</span>
+        </div>
+        <div class="nearest-footer">
+          <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
+          <span class="nearest-arrow" data-item-lat="${position ? position.latitude : ""}" data-item-lon="${position ? position.longitude : ""}" aria-hidden="true">↑</span>
+        </div>
       </div>
     </button></li>`;
   }).join("");
