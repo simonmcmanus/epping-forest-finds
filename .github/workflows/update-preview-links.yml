@@ -30,17 +30,17 @@ jobs:
             });
 
             const categoryGroups = [
-              ["nature", ["trees", "cows", "ponds-streams"]],
-              ["food", ["pubs", "restaurants", "cafes", "shops"]],
-              ["transport", ["bus", "underground", "national-rail", "parking"]],
-              ["history", ["historic", "plaques", "monuments", "ww2"]],
-              ["locations", ["churches", "education", "medicine", "campsites"]],
-              ["stories", ["legends", "literature", "film-tv", "art"]],
-              ["events", ["events"]],
+              ["nature", "data/icons/nature.png", ["trees", "cows", "ponds-streams"]],
+              ["food", "data/icons/food.png", ["pubs", "restaurants", "cafes", "shops"]],
+              ["transport", "data/icons/bus.png", ["bus", "underground", "national-rail", "parking"]],
+              ["history", "data/icons/history.png", ["historic", "plaques", "monuments", "ww2"]],
+              ["locations", "data/icons/landmark-parking.png", ["churches", "education", "medicine", "campsites"]],
+              ["stories", "data/icons/legends.png", ["legends", "literature", "film-tv", "art"]],
+              ["events", "data/icons/event.png", ["events"]],
             ];
             const link = (path) => `[${path}](${previewUrl}${path})`;
-            const categoryCell = ([slug, subcategories]) =>
-              `${link(`/nearby/${slug}`)}<br>${subcategories.map((subSlug) => link(`/nearby/${subSlug}`)).join(" · ")}`;
+            const categoryCell = ([slug, icon, subcategories]) =>
+              `<img src="${previewUrl}/${icon}" width="18" height="18" alt=""> ${link(`/nearby/${slug}`)}<br>${subcategories.map((subSlug) => link(`/nearby/${subSlug}`)).join(" · ")}`;
             const categoryLinks = categoryGroups.reduce((rows, group, index) => {
               if (index % 2 === 0) rows.push(`| ${categoryCell(group)} | ${categoryGroups[index + 1] ? categoryCell(categoryGroups[index + 1]) : ""} |`);
               return rows;
