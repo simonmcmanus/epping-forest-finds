@@ -9,9 +9,13 @@ test.describe("Feedback / Report screen", () => {
     await expect(page.locator("#reportDetails")).toBeVisible();
   });
 
-  test("feedback button opens the report form", async ({ page }) => {
+  test("feedback button opens a clearly labelled feedback form", async ({ page }) => {
     await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
+    await expect(page.locator("#inspectorTitle")).toHaveText("Feedback");
     await expect(page.locator("#reportForm")).toBeVisible();
+    await expect(page.locator(".report-intro")).toHaveText(
+      "We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone."
+    );
   });
 
   test("report form includes the current app version", async ({ page }) => {
@@ -21,6 +25,13 @@ test.describe("Feedback / Report screen", () => {
 
   test("report form has a text area for the user's description", async ({ page }) => {
     await expect(page.locator("#reportDetails")).toBeVisible();
+  });
+
+  test("report form offers a rear-camera photo control for tree-tag evidence", async ({ page }) => {
+    const photo = page.locator("#reportPhoto");
+    await expect(photo).toHaveAttribute("accept", "image/*");
+    await expect(photo).toHaveAttribute("capture", "environment");
+    await expect(page.locator("#reportForm")).toContainText("Take a photo of the tree tag");
   });
 
   test("report form has a Submit button", async ({ page }) => {
@@ -88,6 +99,24 @@ test.describe("Feedback / Report screen", () => {
     const issueLink = page.locator("#reportStatus a");
     await expect(issueLink).toHaveAttribute("href", "https://github.com/simonmcmanus/epping-forest-finds/issues/7");
     await expect(issueLink).toHaveAttribute("target", "_blank");
+  });
+
+  test("a chosen photo is reduced and sent with the report", async ({ page }) => {
+    let postedPayload;
+    await page.route("**/.netlify/functions/report-missing-data", async (route) => {
+      postedPayload = route.request().postDataJSON();
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+    await page.setInputFiles("#reportPhoto", {
+      name: "tree-tag.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("tiny-image"),
+    });
+    await page.fill("#reportDetails", "The tag is difficult to read");
+    await page.click("#reportSubmit");
+    await expect(page.locator("#reportStatus")).toContainText("submitted successfully");
+    expect(postedPayload.photo).toMatchObject({ contentType: "image/png" });
+    expect(postedPayload.photo.dataUrl).toMatch(/^data:image\/png;base64,/);
   });
 
   test("a failed submission keeps the same request id for a safe retry", async ({ page }) => {
@@ -258,13 +287,13 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
 
 test.describe("Reporting a mistake from a weekly report", () => {
   test("a #report link opens the report form straight away", async ({ page }) => {
-    await setup(page, "/app#report");
+    await setup(page, "/feedback");
     await expect(page.locator("#reportForm")).toBeVisible();
     await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
   });
 
   test("the link says which report the reader was looking at", async ({ page }) => {
-    await setup(page, "/app#report=Mistake%20in%20the%20Epping%20Forest%20Ledger%20for%2015%20September%202026");
+    await setup(page, "/feedback#report=Mistake%20in%20the%20Epping%20Forest%20Ledger%20for%2015%20September%202026");
     await expect(page.locator("#reportDetails")).toHaveValue(
       /Mistake in the Epping Forest Ledger for 15 September 2026/
     );
@@ -277,14 +306,14 @@ test.describe("Reporting a mistake from a weekly report", () => {
         JSON.stringify({ details: "Half-written note I came back to" })
       );
     });
-    await setup(page, "/app#report=Mistake%20in%20the%20ledger");
+    await setup(page, "/feedback#report=Mistake%20in%20the%20ledger");
     await expect(page.locator("#reportDetails")).toHaveValue("Half-written note I came back to");
   });
 });
 
 test.describe("Reporting a problem with a selected location", () => {
   test.beforeEach(async ({ page }) => {
-    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
   });
 
   test("a tree's detail view offers to report a problem with it", async ({ page }) => {

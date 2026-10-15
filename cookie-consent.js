@@ -11,6 +11,7 @@
 // whether to show the banner and relays the visitor's choice to gtag.
 (function () {
   const CONSENT_KEY = "ff-cookie-consent";
+  const EARLY_TESTING_BANNER_KEY = "ff-early-testing-banner-v1";
 
   function getStoredConsent() {
     try {
@@ -93,6 +94,12 @@ background:#fff;color:#2f6f4e}
     // Stacking this banner on top of that overlay would ask twice for the same thing.
     const onboarding = document.getElementById("onboardingOverlay");
     if (onboarding && !onboarding.hidden) return;
+    // Same reasoning for a landing-page arrival's merged location/cookie ask
+    // (showCombinedConsentBanner in js/app.js) -- it already asks this and decides consent
+    // itself, normally by removing this banner outright the moment it opens, but this also
+    // covers the rare case where that happens before this script's own deferred init() has run.
+    const consentBanner = document.getElementById("consentBanner");
+    if (consentBanner && !consentBanner.hidden) return;
     injectStyle();
     const banner = document.createElement("div");
     banner.id = "cookieConsentBanner";
@@ -114,6 +121,90 @@ background:#fff;color:#2f6f4e}
     banner.querySelector('[data-action="decline"]').addEventListener("click", () => setConsent(false));
   }
 
+  function earlyTestingBannerSeen() {
+    try {
+      return localStorage.getItem(EARLY_TESTING_BANNER_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function markEarlyTestingBannerSeen() {
+    try {
+      localStorage.setItem(EARLY_TESTING_BANNER_KEY, "1");
+    } catch {}
+  }
+
+  function injectEarlyTestingStyle() {
+    if (document.getElementById("earlyTestingBannerStyle")) return;
+    const style = document.createElement("style");
+    style.id = "earlyTestingBannerStyle";
+    style.textContent = `
+#earlyTestingBanner{margin:18px 0;padding:14px 18px;border-radius:14px;
+background:#fff;color:#17221e;border:1px solid rgba(23,34,30,.18);border-left:5px solid #c58b16;
+box-shadow:0 2px 8px rgba(19,31,25,.12);
+font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,ui-sans-serif,system-ui,sans-serif;
+display:flex;gap:12px 18px;align-items:flex-start}
+#earlyTestingNoticeSlot #earlyTestingBanner{margin:12px 12px 0;background:linear-gradient(120deg,rgba(197,139,22,.13),rgba(255,255,255,.86))}
+#earlyTestingBanner .early-testing-copy{flex:1 1 320px;min-width:0}
+#earlyTestingBanner strong{display:block;margin:0 0 3px;font-size:.95rem;font-weight:800}
+#earlyTestingBanner p{margin:0;color:#5d6a62}
+#earlyTestingBanner a{color:#1d4a2f;font-weight:700;text-decoration:underline}
+#earlyTestingBanner button{flex:0 0 auto;border:0;background:transparent;color:#405048;padding:2px;
+font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
+#earlyTestingBanner button:hover{color:#17221e}
+@media (max-width:480px){#earlyTestingBanner{padding:13px 14px;gap:10px}}
+`;
+    document.head.appendChild(style);
+  }
+
+  function renderEarlyTestingBanner() {
+    if (earlyTestingBannerSeen() || document.getElementById("earlyTestingBanner")) return;
+    // The homepage already explains the trial and has its own sign-up invitation, so keep this
+    // extra notice for people arriving elsewhere on the site.
+    if (location.pathname === "/" || location.pathname === "/index.html") return;
+    // A notice belongs in the page's reading flow. The app supplies a dedicated inspector slot;
+    // standalone public pages use their main content container. Do not add it to the admin UI,
+    // which has neither public-facing content nor an appropriate non-overlaying home for it.
+    const noticeSlot = document.getElementById("earlyTestingNoticeSlot") ||
+      document.querySelector("main, .page");
+    if (!noticeSlot) return;
+    // Do not layer a site notice over the app's first-run onboarding dialog. It is shown once
+    // that dialog has been completed instead.
+    const onboarding = document.getElementById("onboardingOverlay");
+    if (onboarding && !onboarding.hidden) return;
+    injectEarlyTestingStyle();
+    const banner = document.createElement("aside");
+    banner.id = "earlyTestingBanner";
+    banner.setAttribute("role", "status");
+    banner.setAttribute("aria-label", "Early testing notice");
+    banner.innerHTML =
+      '<div class="early-testing-copy">' +
+      "<strong>Epping Forest Finds is still a work in progress</strong>" +
+      '<p>You may find data problems or bugs — please <a href="/report">report any you find</a>.</p>' +
+      "</div>" +
+      '<button type="button" data-action="dismiss" aria-label="Dismiss early testing notice">×</button>';
+    noticeSlot.prepend(banner);
+    // This is an informational notice, not a consent choice: recording it at first display
+    // means visitors never see it again when they navigate to another page.
+    markEarlyTestingBannerSeen();
+    banner.querySelector('[data-action="dismiss"]').addEventListener("click", () => banner.remove());
+  }
+
+  function initEarlyTestingBanner() {
+    if (location.pathname === "/" || location.pathname === "/index.html") return;
+    renderEarlyTestingBanner();
+    const onboarding = document.getElementById("onboardingOverlay");
+    if (onboarding && !onboarding.hidden && !earlyTestingBannerSeen()) {
+      const observer = new MutationObserver(() => {
+        if (!onboarding.hidden) return;
+        observer.disconnect();
+        renderEarlyTestingBanner();
+      });
+      observer.observe(onboarding, { attributes: true, attributeFilter: ["hidden"] });
+    }
+  }
+
   function init() {
     const stored = getStoredConsent();
     if (stored === "granted") {
@@ -126,8 +217,12 @@ background:#fff;color:#2f6f4e}
 
   if (document.body) {
     init();
+    initEarlyTestingBanner();
   } else {
-    document.addEventListener("DOMContentLoaded", init, { once: true });
+    document.addEventListener("DOMContentLoaded", () => {
+      init();
+      initEarlyTestingBanner();
+    }, { once: true });
   }
 
   // Exposed so a page can offer a "manage cookie preferences" control (see terms.html, and

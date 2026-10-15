@@ -2119,7 +2119,13 @@ let _nearbyIconLookupCache = null;
 
 function nearbyIconLookupCacheKey(reachesPastRing) {
   const origin = typeof nearbyOrigin === "function" ? nearbyOrigin() : state.userLocation;
-  if (!origin) return "none";
+  if (!origin) {
+    // No origin to scan from -- but on a /nearby/<slug> arrival (subfilter or group page alike)
+    // buildFullNearbyIconLookup's fallback below still shows every match for the active
+    // filter(s), so the key must still tell different filter sets apart rather than every
+    // no-location state colliding on one constant "none".
+    return `none|${state.overviewFilters.join(",")}`;
+  }
   // The radius is part of the key on every screen now, Filters/Settings/Report included: their
   // highlighted set is the in-radius one, so a ring resized from any of them has to invalidate
   // this. The old filter-screen key named neither the radius nor the active filters, which is
@@ -2272,7 +2278,15 @@ function buildFullNearbyIconLookup() {
   // the lookup's record of the distinction, which the specs assert against.
   const outOfRadius = new Set();
   const treeCandidates = [];
-  for (const entry of overviewItemsForActiveFilter()) {
+  // Mirrors overviewNearestHtml's own no-location fallback (js/app.js): without an origin,
+  // overviewItemsForActiveFilter() always returns nothing to scan from, which used to mean the
+  // map drew no pins at all for a /nearby/<slug> page -- the list showed every match, the map
+  // showed none of them. Gated the same way that fallback is -- see
+  // activeFiltersShowFullListWithoutLocation's comment (js/app.js).
+  const sourceEntries = (!state.userLocation && activeFiltersShowFullListWithoutLocation())
+    ? allEntriesForActiveFilters()
+    : overviewItemsForActiveFilter();
+  for (const entry of sourceEntries) {
     if (!entry || !entry.item) continue;
     if (entry.outOfRadius) {
       outOfRadius.add(entry.item);
@@ -2496,7 +2510,10 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
 // facing (forward in heading-up mode, or the compass heading in flat mode) — the dotted
 // route line, not the radar cone, is what shows the bearing to a selected target.
 function drawUserRadarMainCanvas(ctx) {
-  if (!state.userLocation || !state.userInMapArea) return;
+  // isDefault: see drawUser's own comment -- the device's real heading pointing out of a
+  // High Beach stand-in the reader isn't actually standing at would be its own false signal,
+  // not just a mislabelled dot.
+  if (!state.userLocation || state.userLocation.isDefault || !state.userInMapArea) return;
   if (!Number.isFinite(state.compassHeading)) return;
   if (typeof tiltActive === "function" && tiltActive()) return;
   const dpr = pixelRatio();
@@ -2543,7 +2560,7 @@ function drawUserRadarMainCanvas(ctx) {
 // projectCanvasPoint (same math the pins use) rather than relying on CSS rotateX, which
 // produces a visually ambiguous fin shape for simple geometric arcs.
 function drawUserRadarOverlayTilted(ctx) {
-  if (!state.userLocation || !state.userInMapArea) return;
+  if (!state.userLocation || state.userLocation.isDefault || !state.userInMapArea) return;
   if (typeof tiltActive !== "function" || !tiltActive()) return;
   if (typeof projectCanvasPoint !== "function") return;
 
@@ -2837,7 +2854,10 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
 }
 
 function drawUser(ctx, toScreen, isTilted) {
-  if (!state.userLocation || !state.userInMapArea) return;
+  // isDefault (applyDefaultLocation, js/app.js): DEFAULT_LOCATION's High Beach stand-in, not a
+  // real fix -- drawing "You" there would tell the reader they've been located somewhere they
+  // are not actually standing.
+  if (!state.userLocation || state.userLocation.isDefault || !state.userInMapArea) return;
   const dpr = pixelRatio();
   // Use provided toScreen function (handles tilt projection), fallback to worldToScreen
   if (!toScreen) toScreen = worldToScreen;

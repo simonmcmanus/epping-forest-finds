@@ -30,6 +30,27 @@ const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
 // Matches onboarding.js's own default selection and spec.md's "Default filters" section:
 // only Trees, Cows and Events are pre-selected before onboarding ever runs.
 const DEFAULT_FILTERS = ["trees", "cows", "events"];
+// The radius state starts at and the URL (searchStringForPath) omits -- matching state's own
+// walkingDistanceMinutes: 5 below, so a plain /nearby stays plain for the common case.
+const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
+// A /nearby/<slug> landing page (a category's own, or a whole group's) is judged on its own --
+// "is there enough near here to be worth a visit" -- which the ordinary 5-minute default can
+// easily come up empty within for a single category. 30 gives it a fair showing without the
+// reader having to touch the radius control themselves.
+const LANDING_PAGE_WALKING_DISTANCE_MINUTES = 30;
+// Centre used by applyDefaultLocation() until a real GPS fix exists (denied, unavailable, or not
+// yet asked) outside the /nearby/<slug> landing-page case above -- the "high-beach-general" area
+// anchor in data/epping_forest_folklore_locations.json, a well-known, central, historic spot in
+// the forest rather than an arbitrary coordinate. Lets the map open already populated -- Nearby
+// list, distances, the walking-radius ring -- instead of the bare whole-forest outline, with the
+// location gate inviting a real fix for the same view centred on the user instead.
+const DEFAULT_LOCATION = { latitude: 51.667591, longitude: 0.037454 };
+// Matches LANDING_PAGE_WALKING_DISTANCE_MINUTES's own reasoning (a fair showing without the
+// reader touching the radius control) for the same reason: DEFAULT_LOCATION isn't tied to
+// anywhere the user actually stands, so the ordinary 5-minute default would show very little of
+// it. A separate constant from that one on purpose -- the two features' radii may need to diverge
+// later even though they start at the same number.
+const DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES = 30;
 const COW_REFRESH_MS = 5 * 60 * 1000;
 const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -53,7 +74,7 @@ const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up ali
 const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigationViewport's duration
 const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
 const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for animateViewportTo's duration
-const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user, or the no-location zoom pulse)
+const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
 const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
 const DEFAULT_FIT_PADDING_PX = 54; // default screen-space padding for fitToPoints (around content bounds)
 const OVERVIEW_FIT_PADDING_PX = 28; // tighter padding for overview targets fit
@@ -99,7 +120,7 @@ const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind tr
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
 const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
-const APP_VERSION = "v106"; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js) — keep in sync with APP_CACHE_NAME in sw.js.
+const APP_VERSION = APP_CACHE_VERSION; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js).
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
@@ -222,13 +243,9 @@ const state = {
   // Filter keys just switched on that have nothing inside the walking radius, so the Nearby
   // camera reaches their nearest match once -- see refreshOutOfRadiusReveal/outOfRadiusFitPoints.
   outOfRadiusRevealFilters: [],
-  overviewFilters: (() => {
-    try {
-      const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
-      if (d && Array.isArray(d.filters)) return sanitizeOverviewFilters(d.filters);
-    } catch {}
-    return DEFAULT_FILTERS.slice();
-  })(),
+  overviewFilters: loadStoredOverviewFilters(),
+  // Set by setOverviewFilters(persist:false) -- see its comment -- never true on first load.
+  overviewFiltersEphemeral: false,
   overviewExpandedGroups: (() => {
     try {
       const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
@@ -249,7 +266,7 @@ const state = {
   searchHighlightResults: [],
   distanceWarningShown: false,
   nearestItemsCount: 10,
-  walkingDistanceMinutes: 5,
+  walkingDistanceMinutes: DEFAULT_WALKING_DISTANCE_MINUTES,
   walkingRadiusAtFloor: false,
   // The wheel/trackpad radius gesture's running (unrounded) value and its settle timer --
   // a wheel has no pointerup to end on, so the gesture ends on a timeout instead
@@ -393,6 +410,10 @@ const els = {
   locationGateTitle: document.getElementById("locationGateTitle"),
   locationGateMessage: document.getElementById("locationGateMessage"),
   locationGateButton: document.getElementById("locationGateButton"),
+  locationGateDismiss: document.getElementById("locationGateDismiss"),
+  consentBanner: document.getElementById("consentBanner"),
+  consentBannerAccept: document.getElementById("consentBannerAccept"),
+  consentBannerDecline: document.getElementById("consentBannerDecline"),
   distanceWarning: document.getElementById("distanceWarning"),
   distanceWarningMessage: document.getElementById("distanceWarningMessage"),
   distanceWarningButton: document.getElementById("distanceWarningButton"),
@@ -444,6 +465,21 @@ const ROUTE_SEARCH = "search";
 const ROUTE_SETTINGS = "settings";
 const ROUTE_REPORT = "report";
 
+// Each of the four screens above now has a real path of its own (netlify.toml, server.js --
+// all rewrite these to app.html, same as /app used to). Nearby (no screen name, "" in the
+// route vocabulary below) is the one with no entry here: it is NEARBY_PATH, the app's new
+// place-agnostic entry point, replacing /app (now a bare redirect to it). Filter and Search
+// nest under /nearby/ -- both only ever change what Nearby itself is showing (a filtered set,
+// a typed query), never a destination of their own -- while Settings and Report stay top-level,
+// general app screens with nothing to do with the Nearby view underneath them.
+const ROUTE_PATHS = {
+  [ROUTE_FILTERS]: "/nearby/filter",
+  [ROUTE_SEARCH]: "/nearby/search",
+  [ROUTE_SETTINGS]: "/settings",
+  [ROUTE_REPORT]: "/feedback",
+};
+const NEARBY_PATH = "/nearby";
+
 // How deep inside the app's own history the current entry sits, carried in history.state.
 // 0 means "this is where the user arrived", so there is nothing behind it to go back to and
 // the in-app back arrow must return to Nearby itself rather than leaving the site.
@@ -460,6 +496,33 @@ const NEARBY_ANCHOR_KEY = "forestNearbyAnchor";
 function nearbyAnchorSnapshot() {
   const anchor = state.nearbyAnchor;
   return anchor ? { latitude: anchor.latitude, longitude: anchor.longitude } : null;
+}
+
+// "near=<lat>,<lon>" -- state.nearbyAnchor's own hash route, so a tapped browse point
+// (focusNearbyOnMapPoint, js/nav.js) is shareable like any real selection instead of living only
+// in history.state (nearbyAnchorSnapshot above, which back/forward within one session already
+// covered on its own). Kept out of SELECTION_ROUTES below: every entry there resolves to a real
+// state.selected item, where this never does -- "browse around here", not "look at this one
+// thing" -- so it gets its own narrower value/parse pair rather than a find/show pair.
+const NEARBY_ANCHOR_PARAM = "near";
+
+// Same toFixed(6) precision placeHashKey's own "ll:" fallback already uses for a place with no
+// id -- plenty for this app's pin-level accuracy, and short enough not to make the address bar
+// unwieldy.
+function nearbyAnchorRouteValue(anchor) {
+  return routeParam(NEARBY_ANCHOR_PARAM, `${anchor.latitude.toFixed(6)},${anchor.longitude.toFixed(6)}`);
+}
+
+// nearbyAnchorRouteValue's reverse. Rejects anything that isn't exactly two finite numbers --
+// a shared link is as editable as any URL, and a malformed one should read as "no anchor named
+// here" rather than throw.
+function parseNearbyAnchorParam(raw) {
+  const parts = String(raw || "").split(",");
+  if (parts.length !== 2) return null;
+  const latitude = Number(parts[0]);
+  const longitude = Number(parts[1]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { latitude, longitude };
 }
 
 // Every selectable thing, with the URL parameter that names it, the key it is written as and
@@ -577,12 +640,21 @@ function routeName(raw) {
   return separator === -1 ? value : value.slice(0, separator);
 }
 
-// The canonical route for whatever is on screen right now.
+// The canonical route for whatever is on screen right now -- unchanged by the four screens
+// having real paths now (ROUTE_PATHS): this still speaks the same bare vocabulary
+// ("filters"/"search"/"settings"/"report"/"tree=<key>"/"near=<lat>,<lon>"/"") it always has.
+// Serialising that to the real URL, and reading it back, is
+// urlPartsForRouteValue/routeValueFromLocation below -- everything in between (this function,
+// applyRouteToScreen, SELECTION_ROUTES) never needs to know paths exist at all.
 function currentScreenRoute() {
   if (state.searchScreenOpen) return ROUTE_SEARCH;
   if (state.filterScreenOpen) return ROUTE_FILTERS;
   const selection = state.selected;
-  if (!selection || !selection.type) return "";
+  if (!selection || !selection.type) {
+    // A browse anchor is the plain Nearby screen's own lens, not a selection -- see
+    // NEARBY_ANCHOR_PARAM above.
+    return state.nearbyAnchor ? nearbyAnchorRouteValue(state.nearbyAnchor) : "";
+  }
   if (selection.type === "settings") return ROUTE_SETTINGS;
   if (selection.type === "report") return ROUTE_REPORT;
   if (!selection.item) return "";
@@ -603,6 +675,66 @@ function urlMatchesCurrentScreen(raw) {
   return current === ROUTE_REPORT && routeName(raw) === ROUTE_REPORT;
 }
 
+// value -> the real URL it lives at. The four screens each have their own path and (bar
+// Report's prefill, below) no hash of their own; everything else -- Nearby itself, or a
+// selection -- stays on NEARBY_PATH, with the value (if any) carried as the hash fragment,
+// exactly as it was universally before paths existed.
+function urlPartsForRouteValue(value) {
+  const name = routeName(value);
+  const path = ROUTE_PATHS[name];
+  if (path) {
+    // report=<text> (a prefill) is the one screen value that still carries a hash alongside
+    // its own path -- everywhere else, reaching a screen's path is the whole story.
+    const hash = name === ROUTE_REPORT && value !== name ? `#${value}` : "";
+    return { pathname: path, hash };
+  }
+  return { pathname: NEARBY_PATH, hash: value ? `#${value}` : "" };
+}
+
+// The live, shareable description of exactly what's showing, as the query string for
+// whichever of Nearby's own paths (NEARBY_PATH itself, or its /filter and /search sub-paths)
+// window.location.pathname names. "radius" (walking minutes) travels on all three, since it
+// describes the Nearby view underneath every one of them, not a particular screen; "show" (the
+// active filter set, comma-joined) is /filter's own, and "q" (the typed text) is /search's --
+// built by hand rather than with URLSearchParams so a multi-value "show" keeps its plain commas
+// instead of being percent-encoded. Every other path never carries any of this.
+function searchStringForPath(pathname) {
+  const onNearbyFamily = pathname === NEARBY_PATH
+    || pathname === ROUTE_PATHS[ROUTE_FILTERS]
+    || pathname === ROUTE_PATHS[ROUTE_SEARCH];
+  const parts = [];
+  // While a cluster tap has borrowed the radius to cover the group (focusNearbyOnClusterGroup),
+  // state.walkingDistanceMinutes is that borrowed value, not the reader's real one -- the same
+  // reasoning exitClusterExpansion already restores on the way out. Reading past it to
+  // preClusterWalkingDistanceMinutes here keeps that borrowed ring out of the address bar, so a
+  // history entry written while a group is expanded never bakes it in as if it were chosen.
+  const realRadius = state.clusterExpanded && state.preClusterWalkingDistanceMinutes != null
+    ? state.preClusterWalkingDistanceMinutes
+    : state.walkingDistanceMinutes;
+  if (onNearbyFamily && realRadius !== DEFAULT_WALKING_DISTANCE_MINUTES) {
+    parts.push(`radius=${realRadius}`);
+  }
+  if (pathname === ROUTE_PATHS[ROUTE_FILTERS] && state.overviewFilters.length) {
+    parts.push(`show=${state.overviewFilters.join(",")}`);
+  }
+  if (pathname === ROUTE_PATHS[ROUTE_SEARCH] && state.searchQuery) {
+    parts.push(`q=${encodeURIComponent(state.searchQuery)}`);
+  }
+  return parts.length ? `?${parts.join("&")}` : "";
+}
+
+// The reverse of urlPartsForRouteValue: reconstructs the bare route value currentScreenRoute()
+// and applyRouteToScreen() already speak, from the real URL on screen right now.
+function routeValueFromLocation() {
+  const pathname = window.location.pathname;
+  const screenName = Object.keys(ROUTE_PATHS).find((name) => ROUTE_PATHS[name] === pathname);
+  if (screenName) {
+    const hash = window.location.hash.replace(/^#/, "").trim();
+    return screenName === ROUTE_REPORT && hash ? hash : screenName;
+  }
+  return window.location.hash.replace(/^#/, "").trim();
+}
+
 function syncHashFromSelection(options) {
   setHashFromSelection(currentScreenRoute(), options);
 }
@@ -612,34 +744,50 @@ function syncHashFromSelection(options) {
 // the back button has to be able to leave.
 function setHashFromSelection(value, { force = false } = {}) {
   if (routeApplyDepth > 0 || routerBooting) return;
-  const nextHash = value ? `#${value}` : "";
-  if (!force && window.location.hash === nextHash) return;
-  const url = `${window.location.pathname}${window.location.search}${nextHash}`;
+  const { pathname, hash } = urlPartsForRouteValue(value);
+  const nextUrl = `${pathname}${searchStringForPath(pathname)}${hash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (!force && currentUrl === nextUrl) return;
   history.pushState(
     { [NAV_DEPTH_KEY]: navDepth() + 1, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
     "",
-    url
+    nextUrl
   );
 }
 
-// The anchor-only counterpart to setHashFromSelection, for a Nearby browse move (a cluster tap
-// or a tap on open ground moving state.nearbyAnchor): the hash never changes, so it always
-// pushes rather than relying on setHashFromSelection's "hash unchanged" short-circuit, which
-// would otherwise skip it entirely.
+// Called after every Nearby browse move (a cluster tap, a tap on open ground, or clearing the
+// anchor) to record it in history -- named for that purpose rather than left as a bare
+// syncHashFromSelection() call so each call site still reads as "record this anchor move".
+// Safe to call even when selectOverview()'s own trailing syncHashFromSelection() (via
+// refreshNearbyRadiusView) already pushed the very same URL moments earlier: now that
+// currentScreenRoute() carries state.nearbyAnchor itself (nearbyAnchorRouteValue), a second call
+// here is just setHashFromSelection's own "URL unchanged" no-op rather than a duplicate entry --
+// unlike before this existed, when the anchor had no hash of its own and every move needed a
+// forced push to get a back-button step at all.
 function pushNearbyAnchorHistory() {
-  if (routeApplyDepth > 0 || routerBooting) return;
-  const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  history.pushState(
-    { [NAV_DEPTH_KEY]: navDepth() + 1, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
-    "",
-    url
-  );
+  syncHashFromSelection();
 }
 
 // Corrects the current entry's URL without adding one, keeping the entry's depth.
 function replaceHashInPlace(value) {
-  const nextHash = value ? (value.startsWith("#") ? value : `#${value}`) : "";
-  const url = `${window.location.pathname}${window.location.search}${nextHash}`;
+  const { pathname, hash } = urlPartsForRouteValue(value);
+  const url = `${pathname}${searchStringForPath(pathname)}${hash}`;
+  history.replaceState(history.state, "", url);
+}
+
+// While the Filters screen is open, every change to state.overviewFilters corrects /filter's
+// own query string in place -- replaces rather than pushes, or every checkbox toggle would add
+// its own back-button step. Arriving at Filters already gets the right query string for free
+// (setHashFromSelection/replaceHashInPlace above both run searchStringForPath on push); this
+// is only for a change that happens without a screen transition alongside it.
+// Shared by setOverviewFilters (while on /filter) and setSearchQuery (while on /search) --
+// searchStringForPath already returns "" for a path with nothing live to carry, so this is a
+// no-op on every other screen without needing to ask which one called it.
+function syncLiveQueryStringForScreen() {
+  if (routeApplyDepth > 0 || routerBooting) return;
+  const search = searchStringForPath(window.location.pathname);
+  if (window.location.search === search) return;
+  const url = `${window.location.pathname}${search}${window.location.hash}`;
   history.replaceState(history.state, "", url);
 }
 
@@ -649,8 +797,26 @@ function replaceHashInPlace(value) {
 // Re-applying a route the app is already on is the same as doing nothing, so the shared
 // entry point simply checks first.
 function applyRouteFromUrl() {
-  const raw = window.location.hash.replace(/^#/, "").trim();
-  if (urlMatchesCurrentScreen(raw)) return true;
+  // A ?show= on whichever path was just navigated to (back/forward, or a hand-typed URL) is
+  // applied before the route itself, the same way boot() applies it once up front -- so e.g.
+  // routing to /nearby?show=pubs,cafes or /filter?show=pubs lands with the right filters on.
+  // Guarded the same way applyRoute() guards its own screen change: setOverviewFilters() (called
+  // from applyShowFilterFromQuery) looks at state.filterScreenOpen to decide whether to refresh
+  // the live overview or the Filter screen's own list, and at this point that flag still
+  // describes the screen being left, not the one the URL is about to open -- unguarded, that
+  // stale read pushed a /nearby correction of its own before the real route ever ran, stomping
+  // the forward-navigation entry the browser had just restored.
+  routeApplyDepth += 1;
+  let raw;
+  try {
+    applyShowFilterFromQuery();
+    applySearchQueryFromQuery();
+    applyRadiusFromQuery();
+    raw = routeValueFromLocation();
+    if (urlMatchesCurrentScreen(raw)) return true;
+  } finally {
+    routeApplyDepth -= 1;
+  }
   return applyRoute(raw, false);
 }
 
@@ -658,7 +824,7 @@ function applyRouteFromUrl() {
 // empty hash alone: at boot the Nearby screen has already been built behind the loading
 // overlay, and there is nothing to navigate away from.
 function applySelectionFromHash(announceMissing = true) {
-  const raw = window.location.hash.replace(/^#/, "").trim();
+  const raw = routeValueFromLocation();
   if (!raw) return false;
   return applyRoute(raw, announceMissing);
 }
@@ -724,6 +890,20 @@ function applyRouteToScreen(raw, announceMissing) {
     break;
   }
 
+  // "near=<lat>,<lon>" -- a shared or hand-edited browse-anchor link, not a selection (see
+  // NEARBY_ANCHOR_PARAM). A popstate normally never reaches this: restoreNearbyAnchorFromHistory
+  // (js/nav.js) already applied the target entry's anchor before applyRouteFromUrl ran, so
+  // urlMatchesCurrentScreen short-circuits above. This is what actually resolves it for a fresh
+  // load and for a hashchange with no matching history traversal (a hand-edited fragment, or a
+  // future in-page link straight to a "near=" hash).
+  if (params.has(NEARBY_ANCHOR_PARAM)) {
+    const anchor = parseNearbyAnchorParam(params.get(NEARBY_ANCHOR_PARAM));
+    if (anchor) {
+      applyNearbyAnchorFromRoute(anchor);
+      return true;
+    }
+  }
+
   if (announceMissing) setStatus("Linked location was not found in this dataset.");
   // The URL names something this dataset has no answer for (a stale share link, an item
   // dropped by a data update). Leaving it in the address bar would leave the app on a screen
@@ -754,6 +934,250 @@ function showRoutedSelection(route, item) {
 
 boot();
 
+// A /nearby/<slug> category page IS the app (scripts/generate-find-pages.js templates it off
+// this same app.html), so the path itself names the category to land already filtered to --
+// slugFor() in that script turns an underscore into a hyphen, this is the reverse. ?show=
+// stays as a fallback entry point for any older link still using the query-param form.
+// /nearby/<slug> is either one subfilter's own page or a whole top-level group's page
+// (collectPages in scripts/generate-find-pages.js generates both) -- this is the reverse of
+// either: the filter keys to apply, one for a subfilter slug, every member key for a group
+// slug (e.g. /nearby/food resolves to ["pubs", "restaurants", "cafes", "shops"]). "filter" and
+// "search" never match a real category (RESERVED_SLUGS in that script keeps it that way), so
+// this falls through to [] for /nearby/filter and /nearby/search exactly as it should --
+// those two are screens in their own right, not categories.
+function filterKeysFromFindPath(pathname) {
+  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(String(pathname || ""));
+  if (!match) return [];
+  const key = match[1].replace(/-/g, "_");
+  if (ALL_OVERVIEW_FILTER_KEYS.has(key)) return [key];
+  const group = FILTER_GROUPS_BY_KEY.get(key);
+  if (!group) return [];
+  return group.subfilters.map((s) => s.key).filter((k) => ALL_OVERVIEW_FILTER_KEYS.has(k));
+}
+
+// ?show=pubs,cafes -- /filter's own live query string (searchStringForPath) writes exactly
+// this comma-joined form, and this is its reverse: every key /filter or a shared link named,
+// filtered to ones ALL_OVERVIEW_FILTER_KEYS actually recognises so a typo or a stale key drops
+// silently rather than breaking the parse.
+function filterKeysFromQuery(search) {
+  const raw = new URLSearchParams(search).get("show");
+  if (!raw) return [];
+  return raw.split(",").map((key) => key.trim()).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key));
+}
+
+// True when this load's own URL already names a landing-page pre-filter -- a /nearby/<slug>
+// page's own path, or a first-touch ?show= link -- read straight off the URL rather than off
+// state.overviewFilters/overviewFiltersEphemeral (what activeFiltersShowFullListWithoutLocation()
+// checks): boot() needs this answer before applyShowFilterFromQuery() has run, at the point
+// where it decides whether to show onboarding at all. A reader arriving this way already has
+// their own category pre-selected for them; the first-run setup wizard (pick what to see, enable
+// location) doesn't fit that arrival and is saved for a first visit to the plain Nearby screen.
+function isLandingPageArrival() {
+  return filterKeysFromFindPath(window.location.pathname).length > 0
+    || filterKeysFromQuery(window.location.search).length > 0;
+}
+
+function applyShowFilterFromQuery() {
+  const fromPath = filterKeysFromFindPath(window.location.pathname);
+  if (fromPath.length) {
+    setOverviewFilters(fromPath, { persist: false });
+    return;
+  }
+  // /nearby/filter's own ?show= (searchStringForPath) is a live mirror of whatever is already
+  // active, not an external pre-filter -- real only when it is how the reader first arrived
+  // (routeApplyDepth is still 0: boot(), or a shared /nearby/filter?show= link read fresh).
+  // Retracing a history entry on /nearby/filter itself (back/forward, routeApplyDepth > 0 inside
+  // applyRouteFromUrl) reads the exact value this same reader's own earlier action wrote, so
+  // reapplying it would wrongly flag already-active filters -- the ordinary 1-3 filter default
+  // state included -- as a page's own ephemeral lens, handing them the no-location full-list/fit
+  // treatment meant only for an actual single-category or group-page arrival (for the default
+  // filters, that means trying to list and fit every tree in the forest). Nothing has changed on
+  // this path, so there is nothing to (re)apply.
+  if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS] && routeApplyDepth > 0) return;
+  const fromQuery = filterKeysFromQuery(window.location.search);
+  if (fromQuery.length) setOverviewFilters(fromQuery, { persist: false });
+}
+
+// ?q=<text> -- /search's own live query string (searchStringForPath), reversed: whatever a
+// shared link named, set directly rather than through setSearchQuery so a query arriving before
+// the Search screen itself has opened (a fresh /search?q=... load, or back/forward onto it)
+// needs no element on the page yet -- openSearchScreen's own render picks up state.searchQuery
+// the same way it already does for a query restored within the same session (see its comment).
+function applySearchQueryFromQuery() {
+  const query = new URLSearchParams(window.location.search).get("q");
+  if (query) state.searchQuery = query;
+}
+
+// ?radius=<minutes> -- searchStringForPath's reverse, on any of Nearby's own paths (see its
+// comment). Clamped to the slider's own bounds (js/nav.js) rather than trusted outright: a
+// shared link is as editable as any URL, and the dynamic per-origin floor corrects a value
+// that's merely too tight for the actual nearest match on the next fix, the same way the
+// Settings slider and the pinch gesture already self-correct (see "radius widens itself back
+// out as you walk" in spec.md).
+function applyRadiusFromQuery() {
+  // Number(null) is 0, not NaN -- read the raw param first so a missing ?radius= is left alone
+  // instead of silently clamping every other navigation's radius down to the 1-minute floor.
+  const param = new URLSearchParams(window.location.search).get("radius");
+  if (param == null) {
+    // A /nearby/<slug> landing page gets the wider default unless the link itself already named
+    // a radius above -- the same "arrival sets the lens" treatment applyShowFilterFromQuery
+    // already gives that page's filters, so it applies every time this path is landed on, boot
+    // or popstate alike, consistently with how the filters themselves are re-applied there too.
+    if (filterKeysFromFindPath(window.location.pathname).length) {
+      state.walkingDistanceMinutes = LANDING_PAGE_WALKING_DISTANCE_MINUTES;
+    }
+    return;
+  }
+  const raw = Number(param);
+  if (!Number.isFinite(raw)) return;
+  state.walkingDistanceMinutes = clamp(raw, WALKING_RADIUS_MIN_MINUTES, WALKING_RADIUS_MAX_MINUTES);
+}
+
+// Snaps the camera onto the walking-radius circle around state.userLocation, pauses on it, then
+// animates to the final framing -- shared by boot's real-fix success path and, via
+// applyDefaultLocation(), its no-real-fix one (revealNoRealLocation below), so both get the same
+// polished reveal rather than one of them settling for a plain zoom pulse.
+async function revealMapCenteredOnUser() {
+  selectOverview();
+  draw();
+
+  // Snap the camera onto the walking-radius circle before the reveal animation -- the same
+  // thing the Nearby view frames once it is live (see nearbyCameraFitPoints), so the reveal
+  // eases from a slightly wider version of the final view rather than starting on a tight fit
+  // of whichever items happened to be nearest and then pulling back out to the circle.
+  {
+    const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+    const targetScale = maxScaleForRadiusVisible(focusRect);
+    centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
+  }
+  draw();
+
+  // Brief pause so the user sees the completed step list.
+  await new Promise((resolve) => setTimeout(resolve, 320));
+
+  // Apply the launch URL's own screen after the wait so it overrides the overview snap.
+  applySelectionFromHash();
+
+  // Fade overlay and animate camera to final position simultaneously.
+  // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
+  // to a wider viewport if a GPS update arrived during the 320 ms wait.
+  if (state.selected) {
+    ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
+  } else {
+    ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
+  }
+  triggerInspectorEntry();
+  hideWithFade(els.loadingOverlay);
+}
+
+// Boot reached here with no real GPS fix -- denied, timed out, unsupported, or skipped in
+// onboarding. Every page, including a /nearby/<slug> landing page, gets a usable map straight
+// away by standing in at DEFAULT_LOCATION (High Beach), with the same walking-radius-circle
+// reveal a real fix gets (revealMapCenteredOnUser) -- a landing page already defaults its radius
+// to 30 minutes (LANDING_PAGE_WALKING_DISTANCE_MINUTES, applyRadiusFromQuery), so this just gives
+// it an origin to actually measure that radius from instead of listing the whole category
+// unsorted. A dismissible gate invites a real fix for the exact same view centred on the user --
+// skipped only when this boot already asked through one of the other two prompts (onboarding's
+// own location step, or showCombinedConsentBanner's landing-page equivalent) and failed, so
+// hitting Skip/Maybe later there (or getting denied, or just ignoring the banner) doesn't draw
+// two prompts in a row.
+async function revealNoRealLocation({ locationAlreadyAsked }) {
+  applyDefaultLocation();
+
+  selectOverview();
+  draw();
+  applySelectionFromHash();
+  await revealMapCenteredOnUser();
+  updateLocateButtonVisibility();
+
+  if (locationAlreadyAsked) return;
+  const title = "Get a more custom experience";
+  const buttonLabel = "Enable location";
+  const message = navigator.geolocation
+    ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
+    : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.";
+  setLocationGateVisible(true, message, buttonLabel, title, { dismissible: true });
+}
+
+// Read directly rather than through window.ForestFindsCookieConsent.get(): js/app.js's own
+// <script> tags (app.html) are plain, synchronous ones, not deferred, so they run while the
+// document is still parsing -- before cookie-consent.js's deferred <head> script has run and
+// defined that global. boot()'s own top-level call happens from that same synchronous parse, so
+// checking the global here would read it as always unset (optional-chaining to undefined, which
+// == null) regardless of what's actually stored. localStorage itself has no such ordering
+// dependency. window.ForestFindsCookieConsent.set() further down is safe to use as-is -- it only
+// ever runs from a later user gesture, long after every script has finished loading.
+function cookieConsentIsUndecided() {
+  try {
+    return localStorage.getItem("ff-cookie-consent") == null;
+  } catch {
+    return true;
+  }
+}
+
+// Non-blocking merged cookie/location/compass ask for a landing-page arrival whose cookie
+// consent is still undecided -- the SEO landing-page counterpart to onboarding's own merged
+// .ob-location step, but shown as an inline notice card (#consentBanner, in the inspector
+// chrome right under #earlyTestingNoticeSlot's "still a work in progress" notice -- app.html,
+// css/loading.css) rather than a blocking modal: unlike #locationGate (a full-screen,
+// opaque-background dialog used for hard-stop/retry prompts elsewhere), this leaves the map
+// fully visible and interactive underneath, and boot() doesn't wait for an answer before
+// revealing it -- see its call site. A reader who ignores the banner just keeps browsing with
+// the map's existing no-location view (DEFAULT_LOCATION's High Beach stand-in, same as any other
+// no-fix arrival -- see "No real location fix" in spec.md).
+function showCombinedConsentBanner() {
+  const banner = els.consentBanner;
+  if (!banner) return;
+
+  // cookie-consent.js runs as a deferred <head> script, ahead of this one -- by the time boot()
+  // reaches here the banner has very likely already rendered once; this one replaces it rather
+  // than stacking alongside it.
+  document.getElementById("cookieConsentBanner")?.remove();
+
+  if (els.consentBannerAccept) {
+    els.consentBannerAccept.textContent = "Enable location & cookies";
+  }
+
+  function hideBanner() {
+    banner.classList.add("fading-out");
+    banner.addEventListener("transitionend", () => {
+      banner.hidden = true;
+      banner.classList.remove("fading-out");
+    }, { once: true });
+  }
+
+  function cleanup() {
+    els.consentBannerAccept?.removeEventListener("click", onAccept);
+    els.consentBannerDecline?.removeEventListener("click", onDecline);
+  }
+
+  function onAccept() {
+    cleanup();
+    hideBanner();
+    ensureTrackingConsent();
+    window.ForestFindsCookieConsent?.set(true);
+    // Compass (on iOS) is asked separately, exactly the way the post-reveal "Get a more custom
+    // experience" gate's own button already does it once a real fix exists -- locateUser() shows
+    // that gate itself if still needed. Folding the ungestured-by-then compass ask into this
+    // banner's own tap wouldn't satisfy iOS's requestPermission() gesture requirement anyway, so
+    // there is nothing to gain by special-casing it here: one small prompt at a time, reusing an
+    // already-proven path, instead of two asks racing out of the same tap.
+    locateUser({ initial: false });
+  }
+
+  function onDecline() {
+    cleanup();
+    window.ForestFindsCookieConsent?.set(false);
+    hideBanner();
+  }
+
+  els.consentBannerAccept?.addEventListener("click", onAccept);
+  els.consentBannerDecline?.addEventListener("click", onDecline);
+
+  banner.classList.remove("fading-out");
+  banner.hidden = false;
+}
+
 async function boot() {
   initSelectedIconMotion();
   initRouter();
@@ -770,26 +1194,21 @@ async function boot() {
   const cowPromise = IS_LOCAL_COW_CACHE_MODE && hasCachedCowData
     ? Promise.resolve(true)
     : refreshCowData({ force: true, timeoutMs: 7000 });
-  // Live cattle are useful when they arrive, but must never hold up the static map or a
-  // place-focused visit. Treat every live refresh as a progressive layer instead of part of
-  // the interactive bootstrap.
-  cowPromise.then((cowBootstrapOk) => {
-    setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
-    scheduleCowRefresh();
-    if (state.dataLoaded) {
-      if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) selectOverview();
-      requestDraw();
-    }
-  });
   const mapPromise = loadMapData();
 
   // Kick off location request — this fires the browser permission dialog automatically
   // and runs in parallel with data loading so the map can open centred on the user.
   let locationPromise = null;
-  let locationAskedInOnboarding = false;
+  // Set once an interactive prompt -- onboarding's own location step, or its landing-page
+  // equivalent showCombinedConsentBanner() -- actually asked this boot, win or lose, so
+  // revealNoRealLocation() below knows not to draw a second prompt for the same question.
+  let locationAlreadyAsked = false;
 
-  if (!hasCompletedOnboarding()) {
-    // First visit: show onboarding while data loads behind it.
+  if (!hasCompletedOnboarding() && !isLandingPageArrival()) {
+    // First visit to the plain Nearby screen: show onboarding while data loads behind it.
+    // A landing-page arrival (/nearby/<slug>, or a first-touch ?show= link) skips this --
+    // see isLandingPageArrival() -- and is treated like a returning visit below instead, so
+    // the setup wizard is saved for whenever this reader first reaches plain Nearby itself.
     // The location request is fired from within the onboarding tap handler so the
     // browser dialog appears at the natural moment; we just pick up the live promise.
     if (els.loadingOverlay) els.loadingOverlay.hidden = true;
@@ -800,11 +1219,25 @@ async function boot() {
     if (onboardResult.locationPromise) {
       setLoadStep("location", "loading");
       locationPromise = onboardResult.locationPromise;
-      locationAskedInOnboarding = true;
+      locationAlreadyAsked = true;
     }
+  } else if (navigator.geolocation && isLandingPageArrival() && cookieConsentIsUndecided()) {
+    // A landing-page arrival (/nearby/<slug>, or a first-touch ?show= link) whose cookie
+    // consent is still undecided would otherwise show the standalone cookie banner, then fire
+    // the browser's own location prompt silently, and then -- once that resolves -- a third,
+    // separate in-app compass prompt on iOS: three stacked asks for what is really one
+    // decision. showCombinedConsentBanner() folds all three into a single tap on a non-blocking
+    // bottom banner instead, the same "one tap for everything" merge onboarding's own location
+    // step already does (js/onboarding.js) -- except here it doesn't hold up the reveal: it's
+    // fired and left running, and boot() falls straight through to the no-location-yet branch
+    // below so the map (the landing page's own "list the whole category" view) appears right
+    // away behind it. A repeat landing-page visit with consent already settled falls through to
+    // the plain immediate-fire branch instead, same as any other returning visit.
+    showCombinedConsentBanner();
+    locationAlreadyAsked = true;
   } else if (navigator.geolocation) {
-    // Returning user: start location request immediately so the browser dialog
-    // appears while data loads — no tap needed to trigger it.
+    // Returning user, or a landing-page revisit with consent already settled: start location
+    // request immediately so the browser dialog appears while data loads — no tap needed.
     setLoadStep("location", "loading");
     locationPromise = new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
@@ -813,25 +1246,26 @@ async function boot() {
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
       );
     });
-  } else {
-    setLocationGateVisible(true, "This browser does not support location access.");
   }
+  // No geolocation at all: nothing to await, so this falls straight through to
+  // revealNoRealLocation() below (locationPromise stays null) -- which is also where its gate
+  // copy gets written, after the map itself is already up rather than before.
 
   try {
-    const mapData = await mapPromise;
-    // A tree deep link cannot be resolved until its register has arrived. Other screens,
-    // including places and Filters, intentionally become usable while tree chunks continue
-    // downloading in the background.
-    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("tree")) {
-      await mapData.treePromise;
-    }
+    await mapPromise;
 
     state.bounds = calculateBounds();
+    const cowBootstrapOk = await cowPromise;
+    setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
+    scheduleCowRefresh();
     fitToBounds();
     els.locateButton.disabled = false;
     updateLocateButtonVisibility();
 
     state.dataLoaded = true;
+    applyShowFilterFromQuery();
+    applySearchQueryFromQuery();
+    applyRadiusFromQuery();
 
     if (locationPromise) {
       // Await the location request that was started in parallel with data loading,
@@ -856,69 +1290,20 @@ async function boot() {
         }
 
         // Populate overview list and render map while overlay is still up.
-        selectOverview();
-        draw();
-
-        // Snap the camera onto the walking-radius circle before the reveal animation --
-        // the same thing the Nearby view frames once it is live (see nearbyCameraFitPoints),
-        // so the reveal eases from a slightly wider version of the final view rather than
-        // starting on a tight fit of whichever items happened to be nearest and then pulling
-        // back out to the circle.
-        {
-          const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-          const targetScale = maxScaleForRadiusVisible(focusRect);
-          centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
-        }
-        draw();
-
-        // Brief pause so the user sees the completed step list.
-        await new Promise((resolve) => setTimeout(resolve, 320));
-
-        // Apply the launch URL's own screen after the wait so it overrides the overview snap.
-        applySelectionFromHash();
-
-        // Fade overlay and animate camera to final position simultaneously.
-        // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
-        // to a wider viewport if a GPS update arrived during the 320 ms wait.
-        if (state.selected) {
-          ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
-        } else {
-          ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
-        }
-        triggerInspectorEntry();
-        hideWithFade(els.loadingOverlay);
+        await revealMapCenteredOnUser();
       } else {
-        // Location denied or timed out — reveal map without centering.
-        // On first visit the user already had the chance to grant via the onboarding
-        // button, so we don't show a second blocking prompt; the "Use my location"
-        // button in the inspector is available if they change their mind.
-        // On returning visits the auto-request failed, so show the gate so they can retry.
+        // Location denied or timed out. Brief pause so the user sees the completed step list
+        // (here, that it failed) before the fallback reveal below takes over.
         setLoadStep("location", "error");
-        if (!locationAskedInOnboarding) {
-          setLocationGateVisible(
-            true,
-            "Tap below to allow location so the map can centre on you and show nearby finds.",
-            "Enable location"
-          );
-        }
         await new Promise((resolve) => setTimeout(resolve, 300));
-        selectOverview();
-        draw();
-        applySelectionFromHash();
-        triggerMapRevealZoom();
-        triggerInspectorEntry();
-        hideWithFade(els.loadingOverlay);
-        updateLocateButtonVisibility();
+        await revealNoRealLocation({ locationAlreadyAsked });
       }
     } else {
-      // No geolocation support or user opted out — reveal map without location.
+      // No geolocation support, a first-time user skipped it in onboarding, or the landing-page
+      // combined banner is up (locationAlreadyAsked true in that last case, so the banner is the
+      // only ask rather than also drawing the post-reveal invite gate below).
       setStatus("Offline map data loaded.");
-      selectOverview();
-      draw();
-      applySelectionFromHash();
-      triggerMapRevealZoom();
-      triggerInspectorEntry();
-      hideWithFade(els.loadingOverlay);
+      await revealNoRealLocation({ locationAlreadyAsked });
     }
     showFilterHintIfFirstVisit();
 
@@ -1114,6 +1499,19 @@ function applyLocationFix(position) {
   return { latitude, longitude, previousPoint };
 }
 
+// Stands in for a real fix (see revealNoRealLocation) by running DEFAULT_LOCATION through the
+// exact same pipeline applyLocationFix uses -- nearest-tree/cow/pub/etc, state.userInMapArea --
+// so the Nearby list, distances and walking-radius ring all work immediately. isDefault is the
+// one thing that pipeline never sets on its own, and is what hasRealLocation() (js/nav.js) reads
+// to tell this apart from an actual GPS fix.
+function applyDefaultLocation() {
+  applyLocationFix({ coords: { latitude: DEFAULT_LOCATION.latitude, longitude: DEFAULT_LOCATION.longitude, accuracy: null } });
+  state.userLocation.isDefault = true;
+  if (state.walkingDistanceMinutes === DEFAULT_WALKING_DISTANCE_MINUTES) {
+    state.walkingDistanceMinutes = DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES;
+  }
+}
+
 function triggerInspectorEntry() {
   const el = els.inspector;
   if (!el) return;
@@ -1123,14 +1521,22 @@ function triggerInspectorEntry() {
   el.addEventListener("animationend", () => el.classList.remove("entering"), { once: true });
 }
 
-function triggerMapRevealZoom(durationMs = FIRST_LOAD_REVEAL_ANIMATION_MS) {
-  const target = { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
-  const f = 0.85;
-  state.viewport.scale = target.scale * f;
-  state.viewport.tx = target.tx + els.canvas.width * (1 - f) / 2;
-  state.viewport.ty = target.ty + els.canvas.height * (1 - f) / 2;
-  draw();
-  animateViewportTo(target, durationMs);
+// Companion to allEntriesForActiveFilters' no-location list in overviewNearestHtml: without an
+// origin, boot's default framing (fitToBounds, called earlier) is the whole forest boundary --
+// correct in general, but not "zoomed out to this category" for a /nearby/<slug> page or a
+// deliberate single-filter choice. Fits the camera to every matching pin instead, so the map
+// actually shows the category (or categories) rather than an origin-less default. Returns
+// false (doing nothing) when activeFiltersShowFullListWithoutLocation() says this isn't one of
+// those cases, nothing matches, or a specific item is already selected (e.g. from a deep-link
+// hash) whose own framing should not be overridden.
+function fitMapToSingleFilterIfNoLocation(options = {}) {
+  if (state.userLocation || state.selected || !activeFiltersShowFullListWithoutLocation()) return false;
+  const points = allEntriesForActiveFilters()
+    .filter((entry) => Number.isFinite(entry.item.latitude) && Number.isFinite(entry.item.longitude))
+    .map((entry) => projectLonLat(entry.item.longitude, entry.item.latitude));
+  if (!points.length) return false;
+  fitToPoints(points, false, options);
+  return true;
 }
 
 // The Geolocation API's own `timeout` option does not start counting until the
@@ -1943,14 +2349,34 @@ function saveFilterState() {
   } catch {}
 }
 
-function setOverviewFilters(nextFilters) {
+// The reader's own real filters -- read once for the initial state object below, and again by
+// goToInitialView to put them back after a /nearby/<slug> page's own ephemeral single category.
+function loadStoredOverviewFilters() {
+  try {
+    const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
+    if (d && Array.isArray(d.filters)) return sanitizeOverviewFilters(d.filters);
+  } catch {}
+  return DEFAULT_FILTERS.slice();
+}
+
+// persist:false is for a URL-driven pre-filter (a /nearby/<slug> page, or a shared ?show= link)
+// -- landing on one of those names what that page shows, not a preference the reader chose, so
+// it must not overwrite their own saved filters (saveFilterState) for every later visit to
+// /nearby. An actual chip tap, on that page or anywhere else, always persists as before.
+function setOverviewFilters(nextFilters, { persist = true } = {}) {
   const previousFilters = state.overviewFilters;
   state.overviewFilters = sanitizeOverviewFilters(nextFilters);
+  // Marks the current filters as a page's own lens rather than the reader's choice, so
+  // goToInitialView (the Nearby nav button) knows to put their real filters back rather than
+  // carrying a /nearby/<slug> page's single category over to the plain Nearby screen. Any real
+  // change -- a chip tap, anywhere, persist:false page included -- clears it again.
+  state.overviewFiltersEphemeral = !persist;
   // Before the camera work below: a filter switched on with nothing inside the walking radius
   // is what lets the fit reach its nearest match (outOfRadiusFitPoints).
   refreshOutOfRadiusReveal(previousFilters);
-  saveFilterState();
+  if (persist) saveFilterState();
   updateFilterUi();
+  syncLiveQueryStringForScreen();
   if (isOverviewScreenActive() && !state.filterScreenOpen) {
     selectOverview();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
@@ -2304,8 +2730,8 @@ function openReportModal() {
   setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.reportToggle);
   els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = "Report";
-  els.inspectorType.textContent = "Missing data / feature request";
+  els.inspectorTitle.textContent = "Feedback";
+  els.inspectorType.textContent = "Help improve the data for everyone";
   transitionInspectorBody(reportFormHtml(), "forward", () => {
     const detailsInput = document.getElementById("reportDetails");
     if (detailsInput) {
@@ -2334,9 +2760,11 @@ function reportFormHtml() {
   const detailsValue = draft.details || "";
   const online = navigator.onLine;
   return `<form id="reportForm" class="report-form">
+      <p class="report-intro">We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone.</p>
       <label for="reportDetails">What did you notice?
         <textarea id="reportDetails" class="report-textarea" placeholder="Describe what's missing or what you'd like to see…" required>${escapeHtml(detailsValue)}</textarea>
       </label>
+      ${reportPhotoFieldHtml("reportPhoto")}
       <p id="reportStatus" class="report-status" aria-live="polite"></p>
       <p id="reportOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Your report is saved and will be ready to submit when you\'re back online.</p>
       <div class="report-form-actions">
@@ -2344,6 +2772,19 @@ function reportFormHtml() {
         <button id="reportSubmit" class="button" type="submit"${online ? "" : " disabled"}>Submit</button>
       </div>
     </form>`;
+}
+
+// `capture="environment"` asks a phone for its rear camera, where supported. Browsers which
+// do not expose a camera still present their normal image picker, so reporting stays simple on
+// desktop and for users who already have a useful picture.
+function reportPhotoFieldHtml(inputId) {
+  return `<div class="report-photo-field">
+      <label for="${inputId}">Photo (optional)
+        <input id="${inputId}" class="report-photo-input" type="file" accept="image/*" capture="environment">
+      </label>
+      <p class="report-note report-photo-note">Take a photo of the tree tag, or choose an existing picture.</p>
+      <p class="report-photo-status" aria-live="polite"></p>
+    </div>`;
 }
 
 function bindReportFormHandlers() {
@@ -2375,6 +2816,7 @@ function bindReportFormHandlers() {
   }
   const detailsInput = document.getElementById("reportDetails");
   if (detailsInput) detailsInput.addEventListener("input", saveDraft);
+  bindReportPhotoInput(document.getElementById("reportPhoto"));
   // A browser's own scroll-into-view-on-focus is free to pick an odd ancestor/offset in the
   // cramped landscape keyboard-avoiding layout; re-assert our own nearest-both-axes scroll
   // whenever the field is (re)focused, however that focus happened, so it's deterministic.
@@ -2393,6 +2835,53 @@ function bindReportFormHandlers() {
   }
   window.addEventListener("online", updateOnlineState);
   window.addEventListener("offline", updateOnlineState);
+}
+
+function bindReportPhotoInput(input) {
+  if (!input) return;
+  const status = input.closest(".report-photo-field")?.querySelector(".report-photo-status");
+  input.addEventListener("change", () => {
+    const file = input.files && input.files[0];
+    if (!status) return;
+    status.textContent = file ? `Photo ready: ${file.name}` : "";
+  });
+}
+
+const REPORT_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read photo"));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Modern phone photos are much larger than an issue report needs. Scale them down before
+// posting so a tree-tag picture works on ordinary mobile connections and within function limits.
+async function prepareReportPhoto(file) {
+  if (!file) return null;
+  if (!String(file.type || "").startsWith("image/")) throw new Error("Please choose an image file.");
+  try {
+    const image = await createImageBitmap(file);
+    const longestSide = Math.max(image.width, image.height);
+    const scale = Math.min(1, 1600 / longestSide);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    image.close();
+    if (blob && blob.size <= REPORT_PHOTO_MAX_BYTES) {
+      return { contentType: "image/jpeg", dataUrl: await readFileAsDataUrl(blob) };
+    }
+  } catch {
+    // Some phones expose HEIC files that this browser cannot draw. A modest original still
+    // works, and a larger one gets a clear message instead of silently dropping the evidence.
+  }
+  if (file.size > REPORT_PHOTO_MAX_BYTES) throw new Error("That photo is too large. Please choose a smaller image.");
+  return { contentType: file.type, dataUrl: await readFileAsDataUrl(file) };
 }
 
 function setReportStatus(message, tone = "", issueUrl = null) {
@@ -2443,7 +2932,11 @@ function updateReportLocationLabel() {
 }
 
 async function populateReportLocation() {
-  if (state.userLocation) return;
+  // hasRealLocation(), not state.userLocation's bare truthiness: a report drafted while only
+  // DEFAULT_LOCATION's High Beach stand-in is active should still try for the real fix the
+  // report is actually about, rather than silently settling for an anchor the reader was never
+  // actually standing at.
+  if (hasRealLocation()) return;
   if (!navigator.geolocation) return;
   await new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition((position) => {
@@ -2491,6 +2984,18 @@ async function submitReportForm() {
     return;
   }
 
+  // Claim the submission before awaiting photo processing: even an empty-photo async
+  // preparation yields once, which otherwise lets two rapid submit events both proceed.
+  state.reportSubmitting = true;
+  let photo;
+  try {
+    photo = await prepareReportPhoto(document.getElementById("reportPhoto")?.files?.[0]);
+  } catch (error) {
+    state.reportSubmitting = false;
+    setReportStatus(error.message || "Could not prepare that photo.", "error");
+    return;
+  }
+
   const payload = {
     reportType: "feedback",
     details,
@@ -2501,9 +3006,9 @@ async function submitReportForm() {
     // Stable per-report ID: stays the same across retries of this same
     // report so the server can recognise and skip a resubmission.
     requestId: getOrCreateReportRequestId(),
+    photo,
   };
 
-  state.reportSubmitting = true;
   const submitButton = document.getElementById("reportSubmit");
   if (submitButton) submitButton.disabled = true;
   setReportStatus("Submitting report…");
@@ -2526,6 +3031,12 @@ async function submitReportForm() {
 
     setReportStatus("Report submitted successfully.", "success", data && data.issueUrl);
     reportDetailsInput.value = "";
+    const photoInput = document.getElementById("reportPhoto");
+    if (photoInput) {
+      photoInput.value = "";
+      const photoStatus = photoInput.closest(".report-photo-field")?.querySelector(".report-photo-status");
+      if (photoStatus) photoStatus.textContent = "";
+    }
     try {
       localStorage.removeItem(REPORT_DRAFT_KEY);
       localStorage.removeItem(REPORT_REQUEST_ID_KEY);
@@ -2554,6 +3065,7 @@ function locationIssueFormHtml() {
   return `<div class="report-form">
       <p class="report-issue-question">What's wrong with this location?</p>
       <textarea class="report-textarea" placeholder="Describe the problem…"></textarea>
+      ${reportPhotoFieldHtml("locationIssuePhoto")}
       <p class="report-status" aria-live="polite"></p>
       <p class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Try again once you\'re back online.</p>
       <div class="report-form-actions">
@@ -2568,6 +3080,7 @@ function toggleLocationIssueForm(toggleButton) {
   if (!wrapper) return;
   wrapper.innerHTML = locationIssueFormHtml();
   const textarea = wrapper.querySelector(".report-textarea");
+  bindReportPhotoInput(wrapper.querySelector(".report-photo-input"));
   if (textarea) {
     textarea.focus();
     textarea.scrollIntoView({ block: "nearest" });
@@ -2600,6 +3113,17 @@ async function submitLocationIssueReport(wrapper) {
     return;
   }
 
+  wrapper.dataset.submitting = "true";
+  let photo;
+  try {
+    photo = await prepareReportPhoto(wrapper.querySelector(".report-photo-input")?.files?.[0]);
+  } catch (error) {
+    wrapper.dataset.submitting = "false";
+    statusEl.textContent = error.message || "Could not prepare that photo.";
+    statusEl.className = "report-status error";
+    return;
+  }
+
   if (!wrapper.dataset.requestId) wrapper.dataset.requestId = generateRequestId();
 
   const payload = {
@@ -2617,9 +3141,9 @@ async function submitLocationIssueReport(wrapper) {
     userAgent: navigator.userAgent,
     pageUrl: window.location.href,
     requestId: wrapper.dataset.requestId,
+    photo,
   };
 
-  wrapper.dataset.submitting = "true";
   if (submitButton) submitButton.disabled = true;
   statusEl.textContent = "Submitting report…";
   statusEl.className = "report-status";
@@ -2641,6 +3165,8 @@ async function submitLocationIssueReport(wrapper) {
 
     applyReportStatusContent(statusEl, "Report submitted successfully.", "success", data && data.issueUrl);
     textarea.value = "";
+    const photoInput = wrapper.querySelector(".report-photo-input");
+    if (photoInput) photoInput.value = "";
   } catch (error) {
     statusEl.textContent = "Could not submit report. Please try again.";
     statusEl.className = "report-status error";
@@ -3140,51 +3666,64 @@ function overviewHeadingText() {
     ? (filterMeta(activePointFilters[0])?.title || "items")
     : null;
   const singleFilterTitle = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : null;
+  // "around you" would misname applyDefaultLocation()'s High Beach stand-in as the reader's
+  // own position -- only reachable with showAllOutsideRadius on, since radiusLabel otherwise
+  // always names the radius instead, but worth getting right for that case too.
+  const aroundOrigin = state.userLocation.isDefault ? "around High Beach" : "around you";
+  // A single category (the common case on a /nearby/<slug> page) gets its count named too --
+  // "5 Pubs and bars within 5 min walk" says at a glance whether the radius is worth widening,
+  // which "Pubs and bars within 5 min walk" alone left the reader to count for themselves.
   return singleFilterTitle
-    ? (radiusLabel ? `${singleFilterTitle} within ${radiusLabel}` : `Nearest ${singleFilterTitle} around you`)
+    ? (radiusLabel
+        ? `${overviewItemsForActiveFilter().length} ${singleFilterTitle} within ${radiusLabel}`
+        : `Nearest ${singleFilterTitle} ${aroundOrigin}`)
     : state.overviewFilters.length > 0
-      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : "Nearest selected filters around you")
-      : (radiusLabel ? `Nearest within ${radiusLabel}` : "Nearest around you");
+      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : `Nearest selected filters ${aroundOrigin}`)
+      : (radiusLabel ? `Nearest within ${radiusLabel}` : `Nearest ${aroundOrigin}`);
 }
 
-function overviewNearestHtml() {
-  if (!state.userLocation) {
-    return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
+// True when the active filter set should be shown in full even without a location fix: either
+// exactly one filter -- a subfilter's own /nearby/<slug> page, or a reader's own deliberate single
+// choice, both reading better as "show me everything in this one category" than a generic
+// "enable location" prompt -- or more than one filter, but only when a /nearby/<slug> group
+// page's own pre-filter set them (state.overviewFiltersEphemeral). Never the reader's own
+// multi-filter choice, and never the 1-3 filter default state nobody chose at all
+// (DEFAULT_FILTERS) -- either of those taking this path would try to fit or list the entire
+// matching dataset (25,000+ trees, in the default case).
+function activeFiltersShowFullListWithoutLocation() {
+  const count = state.overviewFilters.length;
+  return count === 1 || (count > 1 && state.overviewFiltersEphemeral);
+}
+
+// Every place/tree/water matching one filter key, dataset order, no distance -- there is no
+// origin to measure from. Used only for the no-location /nearby/<slug> fallback below; the normal
+// Nearby list always has an origin and goes through overviewItemsForActiveFilter() instead.
+function allEntriesForFilterKey(filterKey) {
+  if (filterKey === "trees") {
+    return state.trees.map((tree) => ({ kind: "tree", type: "tree", item: tree }));
   }
-
-  // The "showing places near where you tapped / use my location" notice is no longer part of
-  // this list -- it is the persistent #nearbyAnchorBar in the inspector chrome, so it stays
-  // reachable from Filters/Settings/Report too (updateNearbyAnchorBar, js/nav.js).
-
-  // Set by the pinch-to-resize gesture (updateNearbyRadiusPinch, js/nav.js) while the user
-  // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
-  // that has no slider to show it on. Transient: cleared as soon as the pinch ends.
-  const floorNotice = state.walkingRadiusAtFloor
-    ? `<p class="source-note walk-radius-floor-notice">This is as close as it gets — nothing closer to show.</p>`
-    : "";
-
-  // overviewItemsForActiveFilter() now returns every match within the radius (see its
-  // comment) so the map can show all of them -- this scrollable text list still only
-  // wants to display the nearest handful, so cap it here instead.
-  // Heads-up ordering is applied to the *whole* in-radius set before the display cap, so a
-  // find you are walking straight at can climb into the visible handful rather than being
-  // cut off by a closer one behind your shoulder.
-  const allEntries = headsUpSortedEntries(overviewItemsForActiveFilter());
-  const entries = allEntries.slice(0, state.nearestItemsCount);
-  const activePointFilters = getActivePointFilterKeys();
-  if (!allEntries.length) {
-    if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
-      return `<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
-    }
-    if (activePointFilters.length === 1) {
-      const meta = filterMeta(activePointFilters[0]);
-      return `<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
-    }
-    return `<p class="empty">No nearby places found.</p>`;
+  if (filterKey === "ponds_streams") {
+    return state.waterFeatures.map((water) => ({ kind: "ponds_streams", type: "water", item: water }));
   }
+  return state.landmarks
+    .filter((place) => matchesPlaceFilter(place, filterKey))
+    .map((place) => ({ kind: filterKey, type: "landmark", item: place }));
+}
 
+// allEntriesForFilterKey, unioned across every active filter -- a /nearby/<slug> group page
+// (e.g. /nearby/food) arrives with several filters active at once, not the one a subfilter page
+// sets, and the no-location fallbacks below need every one of them listed, not just the first.
+// A place matching two active filters at once is listed under each, same as the normal
+// with-location path (overviewItemsForActiveFilter) already does -- not deduplicated here either.
+function allEntriesForActiveFilters() {
+  return state.overviewFilters.flatMap(allEntriesForFilterKey);
+}
 
-  const itemsHtml = entries.map((entry) => {
+// One <li> per nearest-list entry -- shared by the normal (has an origin, sorted, distance
+// chips) and the no-location /nearby/<slug> fallback (no origin, dataset order, no distance chip:
+// walkInfoHtml(undefined) already renders as "") paths below.
+function renderNearestItemsHtml(entries) {
+  return entries.map((entry) => {
     const name = entry.type === "tree"
       ? treeDisplayName(entry.item)
       : entry.type === "cow"
@@ -3221,6 +3760,59 @@ function overviewNearestHtml() {
       </div>
     </button></li>`;
   }).join("");
+}
+
+function overviewNearestHtml() {
+  if (!state.userLocation) {
+    // A /nearby/<slug> category page -- a subfilter's own, or a whole group's -- lands here with
+    // no location yet (no prompt answered, or declined), as does a reader who has deliberately
+    // narrowed to one filter of their own -- list what it actually contains rather than the
+    // generic "use your location" prompt, which would otherwise hide real, specific content
+    // (the whole point of a /nearby/<slug> page) behind a request nobody has answered. See
+    // activeFiltersShowFullListWithoutLocation's comment for exactly which filter sets this
+    // covers, and why the default boot state must not also take this branch.
+    if (activeFiltersShowFullListWithoutLocation()) {
+      const entries = allEntriesForActiveFilters();
+      if (entries.length) {
+        return `<p class="source-note">Enable location to sort these by distance and get walking directions.</p><ul class="nearest-list">${renderNearestItemsHtml(entries)}</ul>`;
+      }
+    }
+    return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
+  }
+
+  // The "showing places near where you tapped / use my location" notice is no longer part of
+  // this list -- it is the persistent #nearbyAnchorBar in the inspector chrome, so it stays
+  // reachable from Filters/Settings/Report too (updateNearbyAnchorBar, js/nav.js).
+
+  // Set by the pinch-to-resize gesture (updateNearbyRadiusPinch, js/nav.js) while the user
+  // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
+  // that has no slider to show it on. Transient: cleared as soon as the pinch ends.
+  const floorNotice = state.walkingRadiusAtFloor
+    ? `<p class="source-note walk-radius-floor-notice">This is as close as it gets — nothing closer to show.</p>`
+    : "";
+
+  // overviewItemsForActiveFilter() now returns every match within the radius (see its
+  // comment) so the map can show all of them -- this scrollable text list still only
+  // wants to display the nearest handful, so cap it here instead.
+  // Heads-up ordering is applied to the *whole* in-radius set before the display cap, so a
+  // find you are walking straight at can climb into the visible handful rather than being
+  // cut off by a closer one behind your shoulder.
+  const allEntries = headsUpSortedEntries(overviewItemsForActiveFilter());
+  const entries = allEntries.slice(0, state.nearestItemsCount);
+  const activePointFilters = getActivePointFilterKeys();
+  if (!allEntries.length) {
+    if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
+      return `<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
+    }
+    if (activePointFilters.length === 1) {
+      const meta = filterMeta(activePointFilters[0]);
+      return `<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
+    }
+    return `<p class="empty">No nearby places found.</p>`;
+  }
+
+
+  const itemsHtml = renderNearestItemsHtml(entries);
 
   const fallbackNotice = state.overviewOutsideRadiusFallback
     ? `<p class="source-note"><strong>Nothing found within ${formatWalkingRadius(state.walkingDistanceMinutes)} walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
@@ -4094,10 +4686,13 @@ function ensureLocationWatch() {
     },
     (error) => {
       if (error && error.code === 1) {
-        // Permission revoked mid-session — clear the watch and surface the gate.
+        // Permission revoked mid-session — clear the watch. No blocking gate: the app stays
+        // usable on the last fix it had (or the High Beach stand-in) rather than forcing a
+        // retry wall for a permission that was never required in the first place. The locate
+        // button already reflects "no real fix" and re-requests on tap if the reader wants to.
         navigator.geolocation.clearWatch(state.locationWatchId);
         state.locationWatchId = null;
-        setLocationGateVisible(true, "Location permission was blocked. Check browser settings and tap below to try again.");
+        updateLocateButtonVisibility();
       }
       // Timeout / position-unavailable: watchPosition continues automatically.
     },
@@ -6833,6 +7428,42 @@ function searchIndexEntry(type, item, rawFields) {
   return { type, item, fields, blob: fields.join(" ") };
 }
 
+// Search is also a way to browse the map, so index the human-readable taxonomy as well as
+// names. The source values cover OSM's precise classifications (such as `amenity=cafe`),
+// while the filter metadata supplies the broader category and its subcategory labels.
+// Deliberately exclude contact details and URLs: neither helps someone find a place on the map.
+function searchLandmarkFields(place) {
+  const fields = [
+    place.name,
+    place.transportStopName,
+    place.category,
+    place.categoryLabel,
+    ...(place.categoryTags || []),
+    place.amenity,
+    place.shop,
+    place.tourism,
+    place.historic,
+    place.railway,
+    place.highway,
+    place.barrier,
+    place.entrance,
+    place.heritage,
+    place.address,
+    place.folkloreCategory,
+    ...(place.folkloreTopics || []),
+    place.type,
+    place.area,
+    place.description,
+  ];
+
+  for (const filterKey of PLACE_FILTER_KEYS) {
+    if (!matchesPlaceFilter(place, filterKey)) continue;
+    const meta = filterMeta(filterKey);
+    if (meta) fields.push(meta.label, meta.title, meta.groupLabel);
+  }
+  return fields;
+}
+
 function buildSearchIndex() {
   const entries = [];
   const push = (type, item, rawFields) => {
@@ -6841,24 +7472,24 @@ function buildSearchIndex() {
   };
 
   for (const tree of state.trees) {
-    push("tree", tree, [tree.commonName, tree.tagNumber, tree.nationalDatabaseTagNumber, tree.recordNumber]);
+    push("tree", tree, ["tree", "trees", tree.commonName, tree.latinName, tree.tagNumber, tree.nationalDatabaseTagNumber, tree.recordNumber]);
   }
   for (const place of state.landmarks) {
-    push("landmark", place, [place.name, place.transportStopName, place.categoryLabel]);
+    push("landmark", place, searchLandmarkFields(place));
   }
   for (const path of state.paths) {
-    push("path", path, [path.name, path.ref]);
+    push("path", path, [path.name, path.ref, path.pathType, path.highway, path.foot, path.horse, path.access]);
   }
   for (const road of state.roads) {
-    push("road", road, [road.name, road.ref]);
+    push("road", road, [road.name, road.ref, road.roadType, road.highway, road.service]);
   }
   for (const water of state.waterFeatures) {
-    push("water", water, [water.name]);
+    push("water", water, [water.name, water.featureType, water.waterway]);
   }
   for (const feature of state.environmentFeatures) {
     const props = feature && feature.properties;
     if (!props || props.featureType !== "railway") continue;
-    push("railway", feature, [props.name, props.ref]);
+    push("railway", feature, [props.name, props.ref, props.railway, props.service]);
   }
   return entries;
 }
@@ -7126,13 +7757,15 @@ function searchResultsHtml(query) {
     const treeTag = result.type === "tree" ? treeTagLabel(result.item) : null;
     const treeTagChip = treeTag ? ` · #${escapeHtml(treeTag)}` : "";
     return `<li><button class="nearest-item" type="button" data-search-type="${escapeHtml(result.type)}" data-search-key="${escapeHtml(result.key)}">
-      <div class="nearest-header">
-        <span class="nearest-icon" aria-hidden="true">${searchResultIconHtml(result.type, result.item)}</span>
-        <span class="nearest-name">${escapeHtml(searchResultName(result.type, result.item))}</span>
-      </div>
-      <div class="nearest-footer">
-        <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
-        <span class="nearest-arrow" data-item-lat="${position ? position.latitude : ""}" data-item-lon="${position ? position.longitude : ""}" aria-hidden="true">↑</span>
+      <span class="nearest-icon" aria-hidden="true">${searchResultIconHtml(result.type, result.item)}</span>
+      <div class="nearest-content">
+        <div class="nearest-header">
+          <span class="nearest-name">${escapeHtml(searchResultName(result.type, result.item))}</span>
+        </div>
+        <div class="nearest-footer">
+          <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
+          <span class="nearest-arrow" data-item-lat="${position ? position.latitude : ""}" data-item-lon="${position ? position.longitude : ""}" aria-hidden="true">↑</span>
+        </div>
       </div>
     </button></li>`;
   }).join("");
@@ -7215,6 +7848,7 @@ function setSearchQuery(value) {
   const next = String(value ?? "");
   if (state.searchQuery === next) return;
   state.searchQuery = next;
+  syncLiveQueryStringForScreen();
   if (_searchRenderFrame != null) cancelAnimationFrame(_searchRenderFrame);
   _searchRenderFrame = requestAnimationFrame(() => {
     _searchRenderFrame = null;

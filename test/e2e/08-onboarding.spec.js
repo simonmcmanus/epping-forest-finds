@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { mockCowApi } = require("./helpers");
+const { mockCowApi, gotoAndWaitForMap } = require("./helpers");
 
 test.describe("Onboarding", () => {
   test.describe("first visit", () => {
@@ -10,19 +10,19 @@ test.describe("Onboarding", () => {
     });
 
     test("onboarding overlay is shown on first visit", async ({ page }) => {
-      await page.goto("/app");
+      await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
     });
 
     test("the location/compass opt-in step is shown first", async ({ page }) => {
-      await page.goto("/app");
+      await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       // The first step asks the user to enable location — look for the enable button or location text
       await expect(page.locator("#onboardingOverlay")).toContainText(/location|compass/i);
     });
 
     test("map data loads in the background while onboarding is visible", async ({ page }) => {
-      await page.goto("/app");
+      await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       // Loading overlay may already be hidden (data loaded behind onboarding) — either state is valid,
       // but the loading overlay must not block onboarding visibility
@@ -32,7 +32,7 @@ test.describe("Onboarding", () => {
     });
 
     test("'Skip for now' advances past the location step without granting permission", async ({ page }) => {
-      await page.goto("/app");
+      await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       const skipBtn = page.locator("#onboardingOverlay .onboarding-skip-btn, #onboardingOverlay [class*='skip']").first();
       await skipBtn.click();
@@ -43,14 +43,14 @@ test.describe("Onboarding", () => {
     });
 
     test("the location step shows the same privacy disclosure the in-map location gate uses", async ({ page }) => {
-      await page.goto("/app");
+      await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("We collect anonymous usage data");
       await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("Settings → Privacy");
     });
 
     test("tapping 'Enable location' grants consent immediately and advances onboarding with no second screen", async ({ page }) => {
-      await page.goto("/app");
+      await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await page.locator("#onboardingOverlay .ob-location").click();
       // No separate accept/decline screen — onboarding moves straight to the next step.
@@ -60,13 +60,32 @@ test.describe("Onboarding", () => {
     });
   });
 
+  test.describe("landing-page arrival", () => {
+    // Do NOT call skipOnboarding() — this is still a first-ever visit, just one that already
+    // names its own category (a /nearby/<slug> page's path, or a first-touch ?show= link).
+    test.beforeEach(async ({ page }) => {
+      await mockCowApi(page);
+    });
+
+    test("onboarding is skipped on a first visit that already names its own category", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+      await expect(page.locator("#onboardingOverlay")).toBeHidden();
+    });
+
+    test("skipping onboarding here does not mark onboarding as completed, so plain Nearby still shows it next", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+      await expect(page.locator("#onboardingOverlay")).toBeHidden();
+      expect(await page.evaluate(() => localStorage.getItem("forest-finds-onboarding-v1"))).toBeNull();
+    });
+  });
+
   test.describe("returning visit", () => {
     test("onboarding is skipped entirely on a returning visit", async ({ page }) => {
       await mockCowApi(page);
       await page.addInitScript(() => {
         localStorage.setItem("forest-finds-onboarding-v1", "done");
       });
-      await page.goto("/app");
+      await page.goto("/nearby");
       // Onboarding overlay must remain hidden
       await expect(page.locator("#onboardingOverlay")).toBeHidden();
     });
@@ -76,7 +95,7 @@ test.describe("Onboarding", () => {
       await page.addInitScript(() => {
         localStorage.setItem("forest-finds-onboarding-v1", "done");
       });
-      await page.goto("/app");
+      await page.goto("/nearby");
       await page.waitForFunction(
         () => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; },
         { timeout: 30_000 }

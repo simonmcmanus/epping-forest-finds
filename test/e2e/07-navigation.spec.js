@@ -4,28 +4,28 @@ const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE } = r
 
 test.describe("URL navigation", () => {
   test.describe("a URL opens the screen it names", () => {
-    test("navigating to /#filters opens the filter screen on load", async ({ page }) => {
+    test("navigating to /nearby/filter opens the filter screen on load", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
-      await gotoAndWaitForMap(page, "/app#filters");
-      await expect(page).toHaveURL(/#filters$/);
+      await gotoAndWaitForMap(page, "/nearby/filter");
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
     });
 
-    test("navigating to /#settings opens the settings screen on load", async ({ page }) => {
+    test("navigating to /settings opens the settings screen on load", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
-      await gotoAndWaitForMap(page, "/app#settings");
-      await expect(page).toHaveURL(/#settings$/);
+      await gotoAndWaitForMap(page, "/settings");
+      await expect(page).toHaveURL(/\/settings$/);
       await expect(page.locator("#settingsToggle")).toHaveClass(/screen-active/);
       await expect(page.locator("#settingsWalkMins")).toBeVisible();
     });
 
-    test("navigating to /#report opens the report screen on load", async ({ page }) => {
+    test("navigating to /feedback opens the feedback screen on load", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
-      await gotoAndWaitForMap(page, "/app#report");
-      await expect(page).toHaveURL(/#report$/);
+      await gotoAndWaitForMap(page, "/feedback");
+      await expect(page).toHaveURL(/\/feedback$/);
       await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
       await expect(page.locator("#reportDetails")).toBeVisible();
     });
@@ -35,7 +35,7 @@ test.describe("URL navigation", () => {
     test("navigating with a tree hash selects that tree", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
-      await gotoAndWaitForMap(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+      await gotoAndWaitForMap(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     });
 
@@ -45,7 +45,7 @@ test.describe("URL navigation", () => {
       // to share the number.
       await skipOnboarding(page);
       await mockCowApi(page);
-      await gotoAndWaitForMap(page, `/app#tree=${FIXTURE_TREE.legacyHashKey}`);
+      await gotoAndWaitForMap(page, `/nearby#tree=${FIXTURE_TREE.legacyHashKey}`);
       await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     });
 
@@ -56,7 +56,7 @@ test.describe("URL navigation", () => {
       // Select the tree from the search screen. Search is a screen in its own right, so the
       // trail is Nearby → Search → tree and back retraces it one screen at a time.
       await page.click("#searchToggle");
-      await expect(page).toHaveURL(/#search$/);
+      await expect(page).toHaveURL(/\/nearby\/search$/);
       await page.fill("#mapSearchInput", FIXTURE_TREE.tagNumber);
       await page.locator("#mapSearchResults .nearest-item").first().click();
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
@@ -66,13 +66,13 @@ test.describe("URL navigation", () => {
       expect(historyAfter).toBe(historyBefore + 2);
 
       await page.goBack();
-      await expect(page).toHaveURL(/#search$/);
+      await expect(page).toHaveURL(/\/nearby\/search(\?|$)/);
 
       await page.goBack();
       await page.waitForFunction(
         () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
       );
-      await expect(page).toHaveURL(/\/app$/);
+      await expect(page).toHaveURL(/\/nearby$/);
     });
   });
 
@@ -81,29 +81,29 @@ test.describe("URL navigation", () => {
       await setup(page);
 
       await page.click("#filterToggle");
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
 
       await page.click("#settingsToggle");
-      await expect(page).toHaveURL(/#settings$/);
+      await expect(page).toHaveURL(/\/settings$/);
 
       await page.goBack();
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
 
       await page.goBack();
-      await expect(page).toHaveURL(/\/app$/);
+      await expect(page).toHaveURL(/\/nearby$/);
       await expect(page.locator("#nearbyToggle")).toHaveClass(/screen-active/);
     });
 
     test("forward replays it", async ({ page }) => {
       await setup(page);
       await page.click("#filterToggle");
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await page.goBack();
-      await expect(page).toHaveURL(/\/app$/);
+      await expect(page).toHaveURL(/\/nearby$/);
 
       await page.goForward();
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
     });
 
@@ -114,23 +114,23 @@ test.describe("URL navigation", () => {
       await expect(page.locator("#inspectorBack")).toBeVisible();
 
       await page.click("#inspectorBack");
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
     });
 
     test("the inspector back arrow returns to Nearby when the app was opened straight onto a screen", async ({ page }) => {
       // Nothing of this app's own sits behind a link opened in a fresh tab, so the arrow must
       // not hand the user back to whatever they were browsing before.
-      await setup(page, "/app#settings");
+      await setup(page, "/settings");
       await page.click("#inspectorBack");
-      await expect(page).toHaveURL(/\/app$/);
+      await expect(page).toHaveURL(/\/nearby$/);
       await expect(page.locator("#nearbyToggle")).toHaveClass(/screen-active/);
     });
   });
 
   test.describe("a hash edited by hand still drives the app", () => {
     test("clearing the hash returns to Nearby", async ({ page }) => {
-      await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
       await page.evaluate(() => { window.location.hash = ""; });
       // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
@@ -139,11 +139,13 @@ test.describe("URL navigation", () => {
       );
     });
 
-    test("clearing the hash closes the filter screen, because the URL is what says which screen is open", async ({ page }) => {
+    test("going back from the filter screen's own path returns to Nearby", async ({ page }) => {
+      // Filters now lives at its own path (/filter) rather than a hash on top of Nearby, so
+      // there is no hash left to hand-edit here -- back is the way to leave it in-page.
       await setup(page);
       await page.click("#filterToggle");
-      await expect(page).toHaveURL(/#filters$/);
-      await page.evaluate(() => { window.location.hash = ""; });
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
+      await page.goBack();
       await expect(page.locator("#nearbyToggle")).toHaveClass(/screen-active/);
       await expect(page.locator("#filterToggle")).not.toHaveClass(/screen-active/);
     });
@@ -171,7 +173,7 @@ test.describe("URL navigation", () => {
     test("the nav row stays reachable with a place selected, and the filter toggle drops out of the order", async ({ page }) => {
       // #filterToggle only ever changes what Nearby/Filters show, so it is hidden -- and so
       // skipped by Tab -- whenever a place is selected.
-      await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       await page.locator("body").evaluate((el) => el.focus());
       const order = ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle", "inspectorBack"];
       for (const id of order) {

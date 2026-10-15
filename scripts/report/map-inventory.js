@@ -167,4 +167,4 @@ if (require.main === module) {
   process.stdout.write(JSON.stringify(inventory, null, pretty ? 2 : 0) + "\n");
 }
 
-module.exports = { buildInventory };
+module.exports = { buildInventory, loadAppRules };

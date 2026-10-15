@@ -19,6 +19,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { listReportFiles } = require("./generate-reports-index.js");
+const { listFindSlugs } = require("./generate-find-pages.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITEMAP_FILE_NAME = "sitemap.xml";
@@ -38,11 +39,19 @@ const STATIC_PAGES = [
   { loc: "/terms.html", changefreq: "yearly", priority: "0.2" },
 ];
 
-// /app is the map application. It is gated during the closed alpha and answers
-// crawlers with a redirect to the homepage, which is a soft-404 signal with
-// nothing to gain -- and the app has no indexable content in any case. The
-// homepage at / is the page that should rank. See spec/spec-alpha-access.md.
-const DISALLOWED_PATHS = ["/admin.html", "/app", "/api/", "/.netlify/"];
+// The map application's five screen paths are gated during the closed alpha and answer
+// crawlers with a redirect to the homepage, which is a soft-404 signal with nothing to
+// gain -- and the app has no indexable content in any case. The homepage at / is the page
+// that should rank. /app itself needs no entry here: it is a bare redirect to /nearby with
+// no content of its own, so there is nothing for a crawler to index there either way.
+// See spec/spec-alpha-access.md.
+//
+// The three /nearby... entries carry a trailing "$" (robots.txt's end-of-path anchor) rather
+// than the bare path a plain Disallow would otherwise prefix-match: /nearby/<slug>/ category
+// pages (scripts/generate-find-pages.js) live under that same /nearby/ prefix and must stay
+// crawlable, so "Disallow: /nearby" alone would silently swallow every one of them too.
+// /admin.html, /api/ and /.netlify/ have no such children to protect, so they stay bare.
+const DISALLOWED_PATHS = ["/admin.html", "/nearby$", "/nearby/search$", "/nearby/filter$", "/settings$", "/feedback$", "/api/", "/.netlify/"];
 
 function isoDate(ms) {
   return new Date(ms).toISOString().slice(0, 10);
@@ -87,6 +96,13 @@ function collectUrls(siteRoot, now = Date.now()) {
       changefreq: "yearly", // a published report never changes again
       priority: "0.6",
     });
+  }
+
+  // Category pages (scripts/generate-find-pages.js), run earlier in `npm run build` so their
+  // output already exists on disk here. Their count changes with the data, same as the
+  // static pages above, so they share "now" as a build-time lastmod rather than a per-page one.
+  for (const slug of listFindSlugs(siteRoot)) {
+    urls.push({ loc: `/nearby/${slug}/`, lastmod: isoDate(now), changefreq: "weekly", priority: "0.5" });
   }
 
   return urls;

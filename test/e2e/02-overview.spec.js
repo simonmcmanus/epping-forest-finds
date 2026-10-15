@@ -104,7 +104,7 @@ test.describe("Overview / Nearby screen", () => {
 
   test("navigation announces the current screen with a gold highlight and keeps filter status separate", async ({ page }) => {
     const nav = page.getByRole("navigation", { name: "Main navigation" });
-    for (const [id, title] of [["searchToggle", "Search"], ["reportToggle", "Report"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
+    for (const [id, title] of [["searchToggle", "Search"], ["reportToggle", "Feedback"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
       await page.locator(`#${id}`).click();
       await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
       await expect(page.locator(`#${id}`)).toHaveAttribute("aria-current", "page");
@@ -424,6 +424,43 @@ test.describe("Overview / Nearby screen", () => {
       expect(boxes.button.left, "the button sits beside the text, not wrapped under it").toBeGreaterThanOrEqual(boxes.text.right);
       expect(boxes.button.height, "the button is a comfortable tap target").toBeGreaterThanOrEqual(36);
     });
+
+    test("moving the browsed spot updates the URL hash so it can be shared", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+
+      const moved = await page.evaluate(() => {
+        const origin = state.userLocation;
+        // Well outside any walking-radius option -- same offset the other anchor tests in this
+        // file use -- so the Nearby list content always differs from the real-location one and
+        // selectOverview()'s own "nothing changed" short-circuit can never mask a missed push.
+        const latitude = origin.latitude + 0.02;
+        const longitude = origin.longitude;
+        setNearbyAnchor(latitude, longitude, projectLonLat(longitude, latitude));
+        return { latitude, longitude, hash: window.location.hash };
+      });
+
+      const params = new URLSearchParams(moved.hash.replace(/^#/, ""));
+      const [hashLat, hashLon] = (params.get("near") || "").split(",").map(Number);
+      expect(hashLat, "the hash names the anchor's own latitude").toBeCloseTo(moved.latitude, 5);
+      expect(hashLon, "the hash names the anchor's own longitude").toBeCloseTo(moved.longitude, 5);
+
+      // Clearing the anchor takes the hash back to plain Nearby.
+      await page.click("[data-action='reset-nearby-anchor']");
+      await expect.poll(() => page.evaluate(() => window.location.hash)).toBe("");
+    });
+
+    test("a link carrying a browse anchor in its hash restores that spot on a fresh load", async ({ page }) => {
+      const latitude = FOREST_LOCATION.latitude + 0.02;
+      const longitude = FOREST_LOCATION.longitude;
+      await setup(page, `/nearby#near=${latitude},${longitude}`);
+
+      const anchor = await page.evaluate(() => state.nearbyAnchor);
+      expect(anchor, "the shared link's anchor is restored").not.toBeNull();
+      expect(anchor.latitude).toBeCloseTo(latitude, 5);
+      expect(anchor.longitude).toBeCloseTo(longitude, 5);
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+    });
   });
 
   // Filters, Settings and Report all keep drawing the walking-radius ring around the browse
@@ -476,7 +513,7 @@ test.describe("Overview / Nearby screen", () => {
 
     test("pinching resizes the walking radius from the filter screen", async ({ page }) => {
       await page.click("#filterToggle");
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
 
       const before = await page.evaluate(() => state.walkingDistanceMinutes);
       await firePinch(page, { startHalfGap: 140, endHalfGap: 20 });
@@ -485,7 +522,7 @@ test.describe("Overview / Nearby screen", () => {
       expect(grown).toBeGreaterThan(before);
       // The screen it was performed on survives: refreshNearbyRadiusView must not re-render
       // the Nearby list over the top of it.
-      await expect(page).toHaveURL(/#filters$/);
+      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
       await expect(page.locator("#inspectorTitle")).toContainText("Filters");
     });
   });
@@ -737,7 +774,7 @@ test.describe("Overview / Nearby screen", () => {
     });
 
     test("pinching is ignored while a real selection is open", async ({ page }) => {
-      await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       await page.waitForFunction(
         (name) => document.getElementById("inspectorTitle")?.textContent?.includes(name),
         FIXTURE_TREE.commonName

@@ -2,6 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!-- Filter and Search nest under /nearby/ (ROUTE_PATHS, js/app.js), one path segment deeper
+       than every other screen -- without this, the CSS/JS/icon references below (and the ones
+       js/app.js and js/nav.js build at runtime: FOLKLORE_URL, navigator.serviceWorker.register)
+       resolve against /nearby/ instead of the site root and 404. Also what lets a /nearby/<slug>
+       category page, templated off this same file one path segment deeper again, resolve them
+       correctly too -- scripts/generate-find-pages.js relies on finding this tag already here
+       rather than inserting its own. -->
+  <base href="/">
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB"></script>
   <script>
@@ -22,13 +30,13 @@
        Kept to head tags only: no filler copy on a page whose whole job is to
        be a map. -->
   <meta name="description" content="A free offline map of Epping Forest. Find veteran trees, pubs, cafés, car parks, toilets, paths and stations near you, see where the forest's grazing cattle are, and keep working with no phone signal.">
-  <link rel="canonical" href="https://www.eppingforestfinds.uk/app">
+  <link rel="canonical" href="https://www.eppingforestfinds.uk/nearby">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Epping Forest Finds">
   <meta property="og:locale" content="en_GB">
   <meta property="og:title" content="Epping Forest Finds — offline map of Epping Forest">
   <meta property="og:description" content="A free offline map of Epping Forest: veteran trees, pubs and cafés, paths, car parks and the forest's grazing cattle — working with no phone signal.">
-  <meta property="og:url" content="https://www.eppingforestfinds.uk/app">
+  <meta property="og:url" content="https://www.eppingforestfinds.uk/nearby">
   <meta property="og:image" content="https://www.eppingforestfinds.uk/data/icons/icon-512.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="manifest" href="manifest.webmanifest">
@@ -95,6 +103,7 @@
           <h2 id="locationGateTitle" class="location-gate-title">Allow location access</h2>
           <p id="locationGateMessage" class="location-gate-text">Epping Forest Finds uses your location to show nearby trees and point you toward them with compass directions.</p>
           <button id="locationGateButton" class="button" type="button">Enable location to continue</button>
+          <button id="locationGateDismiss" class="onboarding-skip-btn" type="button" hidden>Maybe later</button>
           <p class="privacy-note">We collect anonymous usage data (GPS position, navigation, interactions) to improve the app. You can withdraw anytime via Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
         </div>
       </div>
@@ -175,6 +184,24 @@
           <span class="nearby-anchor-bar-text">Showing places near where you tapped</span>
           <button class="walk-chip walk-chip-btn" type="button" data-action="reset-nearby-anchor"><svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Use my location</button>
         </div>
+        <!-- Shared early-testing notice is inserted here by cookie-consent.js. Keeping a slot in
+             the inspector makes it part of the app's readable chrome, rather than a floating
+             layer over the map or navigation. -->
+        <div id="earlyTestingNoticeSlot"></div>
+        <!-- Non-blocking merged cookie/location ask for a landing-page arrival
+             (showCombinedConsentBanner, js/app.js). Sits in the same inspector-chrome slot as
+             #earlyTestingNoticeSlot just above, rather than floating over the map, so the two
+             read as one stack of notices instead of competing asks. -->
+        <div id="consentBanner" class="consent-banner" role="group" aria-label="Location and cookies" hidden>
+          <div class="consent-banner-copy">
+            <strong>Allow location &amp; cookies</strong>
+            <p>Shows nearby finds and their distance from you, and understands how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+          </div>
+          <div class="consent-banner-actions">
+            <button id="consentBannerDecline" class="onboarding-skip-btn" type="button">Maybe later</button>
+            <button id="consentBannerAccept" class="button" type="button">Enable location &amp; cookies</button>
+          </div>
+        </div>
         <div class="inspector-tools">
           <div class="search-shell">
             <button id="locateButton" class="button" type="button" disabled hidden>Use my location</button>
@@ -207,6 +234,8 @@
     </main>
   </div>
 
+  <script src="js/app-cache-version.js"></script>
+  <script src="js/data-cache-version.js"></script>
   <script src="js/categories.js"></script>
   <script src="js/normalize.js"></script>
   <script src="js/tracker.js"></script>

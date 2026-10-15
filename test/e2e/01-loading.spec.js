@@ -15,19 +15,19 @@ test.describe("Loading experience", () => {
       await new Promise((r) => setTimeout(r, 1_500));
       await route.continue();
     });
-    await page.goto("/app");
+    await page.goto("/nearby");
     await expect(page.locator("#loadingOverlay")).toBeVisible();
   });
 
   test("overlay shows a version badge element", async ({ page }) => {
-    await page.goto("/app");
+    await page.goto("/nearby");
     await expect(page.locator("#sw-version")).toBeAttached();
   });
 
   test("loading indicators use clear artwork and respect reduced motion", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.route("**/data/**/*.json", route => route.abort());
-    await page.goto("/app");
+    await page.goto("/nearby");
     const indicators = await page.evaluate(async () => {
       setLoadStep("trees", "loading");
       setLoadStep("places", "done");
@@ -50,12 +50,12 @@ test.describe("Loading experience", () => {
   });
 
   test("overlay dismisses automatically after all steps complete", async ({ page }) => {
-    await page.goto("/app");
+    await page.goto("/nearby");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
   });
 
   test("map canvas is visible once loading completes", async ({ page }) => {
-    await page.goto("/app");
+    await page.goto("/nearby");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
     await expect(page.locator("#mapCanvas")).toBeVisible();
   });
@@ -74,7 +74,7 @@ test.describe("Loading experience", () => {
   });
 
   test("cows step completes with fixture data count", async ({ page }) => {
-    await page.goto("/app");
+    await page.goto("/nearby");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
     // The fixture has 2 cows; the step-count badge should reflect that
     await expect(page.locator("[data-step-count='cows']")).toContainText("2");
@@ -82,7 +82,7 @@ test.describe("Loading experience", () => {
 
   test("snapshot: map ready state", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
-    await page.goto("/app");
+    await page.goto("/nearby");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
     await page.waitForTimeout(600);
     await settleMapIconsAndDraw(page);

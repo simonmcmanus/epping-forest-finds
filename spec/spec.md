@@ -246,19 +246,77 @@ Marker rules:
 - Tapping the Nearby button always calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone. It is the one-tap way home; the header's back arrow steps back through the trail instead (see "URL hash / navigation state").
 - Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) plays a spring bounce animation (`.nav-reselect`) on the button instead of re-entering the screen. This gives tactile confirmation that the user is already on that screen.
 
-### URL hash / navigation state
+### URL / navigation state
 
 The URL is the app's navigation state: every screen has one, and the URL is what puts the app
-on that screen. Implemented by the router in `js/app.js` (see the `--- Router ---` block there).
+on that screen. Nearby, Search, Filters, Settings and Report are each a real path of their own
+(GA4 fires a pageview on a path change, not on a hash-only one, so each screen and each
+`/nearby/<slug>` category is distinguishable in analytics); a selected thing — a tree, a place, a
+cow, a street — stays a URL fragment on top of whichever path it was selected from, since none of
+those are a "screen" of their own. Filters and Search nest under `/nearby/` — both only ever
+change what the Nearby view itself is showing (a filtered set, a typed query), never a
+destination of their own — while Settings and Report stay top-level, general app screens with
+nothing to do with the Nearby view underneath them. Implemented by the router in `js/app.js`
+(see the `--- Router ---` block there).
 
 | URL | Screen |
 | --- | --- |
-| `/app` | Nearby — the app's home screen |
-| `/app#search` | Search |
-| `/app#filters` | Filters |
-| `/app#settings` | Settings |
-| `/app#report` | Feedback / Report |
-| `/app#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway` |
+| `/nearby` | Nearby — the app's home screen and entry point |
+| `/nearby/search` | Search — carries the typed text as a live `?q=<text>` query string (see below) |
+| `/nearby/filter` | Filters — carries the active set as a live `?show=<key>,<key>` query string (see below) |
+| `/settings` | Settings |
+| `/feedback` | Feedback |
+| `/nearby#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway`, on top of whichever screen's path it was selected from |
+| `/nearby#near=<lat>,<lon>` | the Nearby view's browse anchor (tap-to-relocate, or an expanded cluster's centre) — shareable and restored on a fresh load, same as a selection |
+| `/nearby/<slug>` | The same app, served at its own URL and pre-filtered to one category (a subfilter's own slug, e.g. `pubs`, or a whole top-level group's, e.g. `food`) — a `/nearby/<slug>` category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it. `<slug>` is never `filter` or `search`: those two are the screens below, not categories |
+| `/nearby/filter?show=<filterKey>` | Filters, pre-filtered to one or more categories — also accepted as a fallback entry point on any path for a link still using the query-param form, superseded by `/nearby/<slug>` above for the single-category case |
+| `/nearby/search?q=<text>` | Search, with the box already filled in and showing that text's results, so a search is shareable the same way a filter set is |
+| `/nearby?radius=<minutes>` | Nearby (or its `/filter`/`/search` sub-paths) with the walking radius already set to that many minutes, instead of the 5-minute default |
+| `/nearby/<slug>?radius=<minutes>` | A category or group page, with the radius set to that many minutes instead of its own 30-minute default (see below) |
+| `/app` | Bare redirect (301) to `/nearby`, kept working for old links and bookmarks |
+
+- **`/nearby`, `/nearby/filter` and `/nearby/search` each track their own live query string.**
+  Every change to `state.overviewFilters` while on Filters, to `state.searchQuery` while on
+  Search, or to `state.walkingDistanceMinutes` on any of the three, rewrites the URL's
+  `?show=`/`?q=`/`?radius=` to match with `history.replaceState` (`syncLiveQueryStringForScreen`)
+  rather than `pushState` — toggling a chip, typing a character, or resizing the ring is one
+  continuous action, not a sequence of back-stops — so the address bar, and anything built from
+  it (a shared link, GA4's page path), always names exactly what is currently showing.
+  `?radius=` travels on all three paths, since the radius describes the Nearby view underneath
+  each of them, not a particular screen; `?show=` is `/nearby/filter`'s own and `?q=` is
+  `/nearby/search`'s own. The radius param is omitted at the 5-minute default, same as `?show=`
+  and `?q=` are omitted with nothing to carry — a plain `/nearby` link stays plain for the common
+  case. While an expanded cluster badge has borrowed the radius to cover the tapped group
+  (`focusNearbyOnClusterGroup`, "Cluster tap interaction" in `spec-data-rendering.md`), that
+  borrowed value is excluded from `?radius=` in favour of the reader's own radius
+  (`state.preClusterWalkingDistanceMinutes`) — the same reasoning that radius is restored to on
+  leaving the group — so a history entry written mid-expansion never bakes the group's borrowed
+  ring into the address bar as if the reader had chosen it.
+- **A `/nearby/<slug>` landing page defaults the radius to 30 minutes, not the ordinary
+  5-minute default.** `applyRadiusFromQuery()` applies this (`LANDING_PAGE_WALKING_DISTANCE_MINUTES`,
+  `js/app.js`) whenever the path itself names a category or group and the URL carries no explicit
+  `?radius=` of its own — a single category is otherwise too easy to come up empty within the
+  ordinary 5-minute default, which would undersell a landing page meant to answer "is there
+  enough near here to be worth a visit". An explicit `?radius=` always wins, the same as it does
+  everywhere else. Applied the same way on every arrival at the path, boot or popstate alike,
+  matching the filters' own "arrival sets the lens" treatment just below.
+- **A `/nearby/<slug>` page's single category never becomes the reader's own default.**
+  `setOverviewFilters` takes a `persist: false` option, used only when the filter set comes from
+  the URL itself (a `/nearby/<slug>` path or a `?show=` link) rather than a chip the reader tapped
+  — so arriving at a category page is never saved as the reader's new default for a later, plain
+  visit to `/nearby`. The Nearby nav button goes further for the current visit too: landing on
+  one of these pages marks the filters `state.overviewFiltersEphemeral`, and tapping "Nearby"
+  while that is set restores whatever the reader's own saved filters were
+  (`loadStoredOverviewFilters`) rather than carrying the page's one category over to the plain
+  Nearby screen. A filter the reader actually chose — on that same page's own Filters screen
+  included — always persists and is never treated as ephemeral. `/nearby/filter`'s own live
+  `?show=` (the line above) round-trips through the same `?show=` fallback on every popstate,
+  including a plain back/forward retracing a history entry the reader's own filterToggle click
+  already created — `applyShowFilterFromQuery()` skips that fallback entirely while on
+  `/nearby/filter` itself during a route application (`routeApplyDepth > 0`), so retracing the
+  trail back to Filters is never mistaken for a fresh `/nearby/<slug>` arrival. Without this, the
+  ordinary 1-3 filter default state got the no-location full-list/fit treatment above on every
+  single back-navigation to Filters with no location granted.
 
 - **A screen change pushes a history entry** (`setHashFromSelection` → `history.pushState`), so
   browser back, the phone's back gesture and the inspector's own back arrow all retrace the same
@@ -269,17 +327,21 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
   one-tap way home. With nothing of this app's own behind the current screen — a link opened in
   a fresh tab, where `history.state` carries depth 0 — it returns to Nearby rather than leaving
   the site.
-- **The hash stays `/app` while browsing a different spot, but the back arrow still appears.**
-  Moving the Nearby view's browse anchor (tap-to-relocate, or expanding a cluster) pushes a
-  history entry without changing the route, so there is nothing in the table above to show it —
-  `selectOverview()` instead shows `#inspectorBack` whenever `state.nearbyAnchor` is set, giving
-  that moved view the same back arrow as every other screen (see "Browsing Another Spot" above).
+- **Browsing a different spot carries the anchor in the hash, so it can be shared like a
+  selection.** Moving the Nearby view's browse anchor (tap-to-relocate, or expanding a cluster)
+  writes `#near=<lat>,<lon>` (`nearbyAnchorRouteValue`/`currentScreenRoute`, `js/app.js`) and
+  pushes a history entry, exactly as selecting a real location does — `selectOverview()` also
+  shows `#inspectorBack` whenever `state.nearbyAnchor` is set, giving that moved view the same
+  back arrow as every other screen (see "Browsing Another Spot" above). Opening a `#near=` link
+  fresh restores the anchor the same way a `#tree=` link restores a selection
+  (`applyNearbyAnchorFromRoute`, `js/nav.js`), reusing the same tap-to-relocate machinery
+  (`setNearbyAnchor`) so the view it produces is identical to tapping that spot by hand.
 - **`popstate` and `hashchange` both apply whatever the URL now says** (`applyRouteFromUrl`).
-  A history traversal fires `popstate` (and `hashchange` too when the fragment differs), while a
-  fragment edited by hand fires `hashchange` alone; applying a route the app is already on is a
-  no-op, so being called twice for one change costs nothing. Clearing the hash therefore returns
-  to Nearby from any screen, the Filter screen included — the URL is what says which screen is
-  open, so there is no longer a `secondaryScreenActive()` exception.
+  A history traversal fires `popstate` (and `hashchange` too when only the fragment differs),
+  while a fragment edited by hand fires `hashchange` alone; applying a route the app is already
+  on is a no-op, so being called twice for one change costs nothing. Clearing a selection's hash
+  therefore returns to whichever screen's path is current — Nearby included — the URL is what
+  says which screen is open and what, if anything, is selected on top of it.
 - **Screen changes made by the URL do not write history entries.** `applyRoute` and the boot
   sequence both suppress URL writes (`routeApplyDepth`, `routerBooting`), so replaying a route
   never buries the entry behind it, and the launch URL survives the Nearby screen being built
@@ -299,7 +361,7 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 - **A URL naming something the dataset does not have** (a stale share link) falls back to Nearby
   and corrects the entry in place with `replaceState`, rather than leaving the app on a screen
   its URL does not describe.
-- `#report` opens the Feedback / Report screen directly. `#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
+- `/feedback` opens the Feedback screen directly (the old `/report` path 301-redirects to it, keeping the hash, so published ledger links still work). `/feedback#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
 
 ### Camera behavior
 
@@ -331,8 +393,9 @@ on that screen. Implemented by the router in `js/app.js` (see the `--- Router --
 - **The list is a heads-up view, not a distance table.** Items are ranked by how near they are *and* by whether you are facing them: of two finds the same walk away, the one in front of you is listed above the one behind you. Distance still leads — something at your back only drops below something more than twice as far ahead — and the ranking is applied before the list is capped, so a find you are walking straight at can reach the list instead of being crowded out by closer ones over your shoulder. Turning on the spot re-orders the list (with the same animated reorder GPS movement uses), but only once you have genuinely turned, so it never shuffles under your thumb as the compass drifts. Without a compass the list is plain nearest-first.
 - If nothing is found within the selected walking-radius range, the nearest list shows the closest available item for each active type and displays a notice explaining that no matches were found within the selected walking time.
 - **The radius widens itself back out as you walk.** A radius closed right down onto one find is an empty circle once you have walked away from it, so any position fix that leaves nothing inside the ring grows it back to just past whatever is nearest now, and the map zooms out to match. Only ever outwards, and only as far as it has to: a wide radius you chose is never pulled in, and a ring that still has something in it is left exactly as you set it.
-- **Onboarding (first visit):** On first visit (`forest-finds-onboarding-v1` not in localStorage), a full-screen onboarding overlay is shown while map data loads in the background. Steps: Location + compass opt-in (first, shown immediately as data loads) → Welcome → one step per filter group (Nature, Food, Transport, History, Locations, Stories). The location step is deliberately first so the browser permission dialog fires as soon as possible — the single "Enable location & compass" button is the only tap the user needs for permissions. Pressing "Enable location & compass" fires `getCurrentPosition` (browser dialog) and (on iOS) `DeviceOrientationEvent.requestPermission()` in the same synchronous gesture context, then advances to the welcome step so the user can personalise filters while data loads. "Skip for now" also advances to the welcome step without granting. A one-line `.privacy-note` under the step's subtitle states what's collected (GPS position, navigation, interactions) — the same wording the location gate shows next to its own button — since tapping "Enable location & compass" is itself the consent action. Each category step shows all subfilters as toggle chips (all on by default); the user deselects anything unwanted. A skip option is available on every step except the last, where the "Next" button becomes "Done" and finishes onboarding directly. If location is denied or times out after the onboarding button tap, the map is revealed without a second blocking prompt — the "Use my location" button in the inspector is available if they change their mind. On completion (or skip), selected filters are saved and onboarding is marked done. Implemented in `js/onboarding.js` + `css/onboarding.css`. **Icon performance:** All `data/icons/` PNGs (excluding PWA manifest icons) are capped at 256×256px — sufficient for the largest canvas draw size at retina zoom — reducing per-icon sizes from 400KB–1.4MB to under 100KB. `pin.png` and `trees/logo.png` are preloaded via `<link rel="preload">` in `index.html`. Each step also eagerly preloads the next step's icons via `new Image()` so images are in-flight while the user reads the current screen.
-- **Proactive location + compass on every load:** On returning visits, `getCurrentPosition` is called immediately when the app starts, running in parallel with map data loading so the browser's native permission dialog appears during the loading screen rather than after a tap. By the time data finishes loading the location is usually already resolved and the map opens centred on the user. If the auto-request is denied or times out, the location gate is shown after the map reveals so the user can retry. Immediately after a successful location fix at boot, compass permission is also requested: non-iOS browsers auto-grant; iOS shows the gate so the user can tap from a real gesture context (required by iOS for `DeviceOrientationEvent.requestPermission`).
+- **Onboarding (first visit):** On first visit (`forest-finds-onboarding-v1` not in localStorage) to the plain Nearby screen, a full-screen onboarding overlay is shown while map data loads in the background. A landing-page arrival — a `/nearby/<slug>` page's own path, or a first-touch `?show=` link (`isLandingPageArrival()`, `js/app.js`) — skips the overlay even on a first-ever visit and is treated like a returning visit instead (immediate `getCurrentPosition`, no setup wizard) — except when cookie consent is also still undecided, covered in the next bullet: that reader already arrived with their own category pre-selected, and onboarding's own filter-picking steps don't fit. Skipping it this way does not mark onboarding as done, so the setup wizard still runs the first time this reader reaches plain Nearby itself. Steps: Location + compass opt-in (first, shown immediately as data loads) → Welcome → one step per filter group (Nature, Food, Transport, History, Locations, Stories). The location step is deliberately first so the browser permission dialog fires as soon as possible — the single "Enable location & compass" button is the only tap the user needs for permissions. Pressing "Enable location & compass" fires `getCurrentPosition` (browser dialog) and (on iOS) `DeviceOrientationEvent.requestPermission()` in the same synchronous gesture context, then advances to the welcome step so the user can personalise filters while data loads. "Skip for now" also advances to the welcome step without granting. A one-line `.privacy-note` under the step's subtitle states what's collected (GPS position, navigation, interactions) — the same wording the location gate shows next to its own button — since tapping "Enable location & compass" is itself the consent action. Each category step shows all subfilters as toggle chips (all on by default); the user deselects anything unwanted. A skip option is available on every step except the last, where the "Next" button becomes "Done" and finishes onboarding directly. If location is denied or times out after the onboarding button tap, the map is revealed centred on `DEFAULT_LOCATION` (see "No real location fix" below) without a second blocking prompt — the "Use my location" button in the inspector is available if they change their mind. Tapping "Skip for now" instead does show that prompt, since onboarding never actually asked. On completion (or skip), selected filters are saved and onboarding is marked done. Implemented in `js/onboarding.js` + `css/onboarding.css`. **Icon performance:** All `data/icons/` PNGs (excluding PWA manifest icons) are capped at 256×256px — sufficient for the largest canvas draw size at retina zoom — reducing per-icon sizes from 400KB–1.4MB to under 100KB. `pin.png` and `trees/logo.png` are preloaded via `<link rel="preload">` in `index.html`. Each step also eagerly preloads the next step's icons via `new Image()` so images are in-flight while the user reads the current screen.
+- **Proactive location + compass on every load:** On returning visits, `getCurrentPosition` is called immediately when the app starts, running in parallel with map data loading so the browser's native permission dialog appears during the loading screen rather than after a tap. By the time data finishes loading the location is usually already resolved and the map opens centred on the user. If the auto-request is denied or times out, the map opens centred on `DEFAULT_LOCATION` instead (see "No real location fix" below) and a dismissible location gate invites a real fix. Immediately after a successful location fix at boot, compass permission is also requested: non-iOS browsers auto-grant; iOS shows the gate so the user can tap from a real gesture context (required by iOS for `DeviceOrientationEvent.requestPermission`). **Exception — a landing-page arrival with cookie consent still undecided:** firing the browser's location prompt silently here would otherwise stack the standalone cookie banner (see "Google tag (gtag.js) and the cookie-consent banner" below) and a silent location prompt on screen together. `showCombinedConsentBanner()` (`js/app.js`) merges the two into a single tap on `#consentBanner` instead — a non-blocking notice card inline in the inspector chrome, directly under `#earlyTestingNoticeSlot`'s "still a work in progress" notice so the two read as one stack rather than two separate asks, *not* the opaque, full-screen `#locationGate` modal used for the hard-stop/retry prompts elsewhere on this page. It is shown and then left running rather than awaited: boot() falls straight through to the map's own no-location view behind it (`DEFAULT_LOCATION`'s High Beach stand-in, the same as any other no-fix arrival — see "No real location fix" below), so the map is interactive immediately and a reader who ignores the banner can keep browsing. Tapping **Enable location & cookies** grants cookie consent and calls `locateUser()` to request a real fix, applying it live the same way the locate button and the post-reveal invite gate already do; if that device still needs compass permission (iOS), the existing single compass-only prompt follows afterward from `locateUser()`'s own gesture-gated flow, rather than this banner's own tap trying to also cover compass. **Maybe later** declines cookie consent the same way onboarding's "Skip for now" does, and also counts as this boot's one location ask, so `revealNoRealLocation()`'s own separate invite gate doesn't draw a second prompt in its place. A repeat landing-page visit with cookie consent already settled skips this and falls through to the plain immediate-fire behaviour above.
+- **No real location fix:** denied, timed out, unsupported, or skipped in onboarding — the map still opens usable rather than bare. `applyDefaultLocation()` (`js/app.js`) stands in with `DEFAULT_LOCATION`, a well-known central forest spot (High Beach), run through the same pipeline a real fix uses (nearest-tree/cow/pub/etc, the Nearby list, the walking-radius ring), so everything works immediately; the walking radius itself defaults to 30 minutes rather than the ordinary 5 (`DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES`), since an anchor nobody is actually standing at needs a wider net to be worth looking at, unless something more specific (an explicit `?radius=`, or a `/nearby/<slug>` landing page's own 30-minute default — see "URL / navigation state" below) already set one. The stand-in is flagged (`state.userLocation.isDefault`) so `hasRealLocation()` (`js/nav.js`) can tell it apart from an actual fix: the "You" dot and the facing-direction radar cone never draw for it (they would misrepresent where the reader actually is), and the locate button and the location gate's own retry button keep treating "no real fix" as the reason to ask for one, rather than being satisfied by the stand-in. The gate shown alongside it is dismissible ("Maybe later") — unlike the hard-stop gate shown for a blocked permission or an unsupported browser reached by tapping the locate button directly, this one already has a usable map behind it. A `/nearby/<slug>` landing page takes the same stand-in too, rather than listing its whole category unsorted: it already defaults its own walking radius to 30 minutes regardless of location (see "URL / navigation state" below), so this just gives that radius a real centre to measure distance from.
 - **Compass permission — iOS per-session requirement:** On iOS, `DeviceOrientationEvent.requestPermission()` must be called from a synchronous user-gesture handler every page load before orientation events are fired — even when the user has previously granted permission. The stored `forest-finds-compass-permission-v1` value of `"granted"` is therefore treated as `"unknown"` at boot on iOS-like browsers (those where `DeviceOrientationEvent.requestPermission` is a function), so the compass gate is shown and the per-session call happens from the gate button click (a real user gesture). On non-iOS browsers no user gesture is required and the stored value is used as-is.
 - **Default filters:** On first visit, only **Trees**, **Cows** and **Events** are pre-selected in the onboarding chip screens. All other subfilters start deselected. If onboarding is skipped without changes, only Trees, Cows and Events are active.
 - **Filter persistence:** Active filters and expanded groups are saved to `localStorage` under `forest-finds-filter-state-v1` and restored on next visit.
@@ -380,14 +443,18 @@ main navigation (`#searchToggle`) or directly at `/app#search`. It replaced the 
 search that used to float over the map on mobile: a tree tag is one of the things it finds, not
 the only one.
 
-- **What it searches:** veteran trees (species and tag number), places (shops, pubs, cafés,
-  stations, car parks, plaques, gates and every other landmark), roads, waymarked trails, water
-  features, railway lines, and the live cows by serial number. Roads and railway lines are only
-  in reach this way — the Nearby list does not carry them.
-- **Results are the Nearby list's own rows** (`.nearest-item`), with the same icon, name, walk
-  chip, type label and direction arrow, so a find looks the same whether it was searched for or
-  walked past. Choosing one opens exactly the screen a map tap or a deep link would, through the
-  same `SELECTION_ROUTES` table, and the map animates to it.
+- **What it searches:** veteran trees (common or Latin species name, generic “tree”/“trees”
+  type, and tag number), places
+  (name, category group and subcategory, and useful source metadata such as address and OSM
+  classification), roads, waymarked trails, water features, railway lines, and the live cows by
+  serial number. This means searches such as “Food”, “Cafés”, or a venue's street can discover
+  a location even when its name is unknown. Roads and railway lines are only in reach this way —
+  the Nearby list does not carry them.
+- **Results use the Nearby list's exact row layout** (`.nearest-item`): its icon column and
+  name/meta content column, walk chip, type label and direction arrow. A find therefore looks
+  the same whether it was searched for or walked past. Choosing one opens exactly the screen a
+  map tap or a deep link would, through the same `SELECTION_ROUTES` table, and the map animates
+  to it.
 - **Matching ignores case, accents and punctuation**, so "st marys" finds "St Mary's" and
   "cafe" finds "Café". Each field is ranked on its own — exact, then prefix, then whole-word,
   then substring — so a tree's tag can match exactly without its species name diluting it. A bare
@@ -425,12 +492,13 @@ the only one.
 - Changing the walking radius stays on the settings screen, immediately animates the map to fit the new radius, updates the nearby list and nearest tree selection, and keeps the walking radius ring visible.
 - Opening Settings shows the same map view as the Filter and Feedback screens (see below).
 
-## Feedback / Report Screen
+## Feedback Screen
 
 - Accessible via the generated feedback icon button in the inspector header, and by a direct link to `#report` (see "URL hash / navigation state" above).
-- Allows users to report missing data or request features; submissions are tracked as GitHub issues.
+- Welcomes feedback, bug reports, and anything strange users notice, explaining that it helps improve the data for everyone; submissions are tracked as GitHub issues.
 - The current app version is displayed in the form so the user can see which version will be reported.
 - The app version, user agent, page URL, and optional geolocation are included in every submission payload.
+- Reports may include one optional photo. On phones the photo control prefers the rear camera, making it easy to photograph a tree tag in place; browsers without that camera option offer their usual image picker. The app reduces large camera images before submission, stores the attachment in the report-photo Blob store, and adds its link to the filed GitHub issue.
 - **Duplicate-submission prevention:** the Submit button is disabled and re-entrant submits are ignored for the duration of a request, so a double-tap cannot fire two GitHub issue creations. Each report also carries a `requestId` generated once and persisted (`localStorage`) until the report succeeds, so a retry after a dropped/failed response (e.g. flaky connection) reuses the same ID instead of minting a new one. The `report-missing-data` Netlify function searches existing GitHub issues for that ID before creating a new one and returns the existing issue if found, rather than filing a duplicate.
 - On iOS Safari, the on-screen keyboard opening over the report textarea does not obscure it — the inspector sheet repositions using the `VisualViewport` API to keep the focused field visible above the keyboard, in both portrait and landscape (see "Keyboard avoidance" under Inspector Panel in `spec-data-rendering.md`).
 - Opening Feedback shows the same map view as the Filter and Settings screens (see below).
@@ -438,7 +506,7 @@ the only one.
 ### Reporting a problem with a specific location
 
 - A tree's or landmark's detail view offers a "Noticed a problem with this location?" link (e.g. below its details), letting a user flag that item's own data as wrong — a mis-plotted landmark, a tree in the wrong spot — without leaving the detail screen or losing their place.
-- Tapping it expands an inline form in place: a textarea and Submit/Cancel buttons, styled and behaving like the full Feedback form but never navigating away from the selected item. Cancel collapses it back to the link.
+- Tapping it expands an inline form in place: a textarea, optional camera/photo control, and Submit/Cancel buttons, styled and behaving like the full Feedback form but never navigating away from the selected item. Cancel collapses it back to the link.
 - Submission goes to the same `report-missing-data` Netlify function as the Feedback form, as `reportType: "location-issue"`: the `location` sent is the flagged item's own coordinates, not the reporter's GPS fix, and the payload also carries a `locationContext` (the item's type and name) so the filed GitHub issue names exactly what was flagged. Double-tap/retry protection matches the Feedback form's mechanism (disabled Submit button, in-flight guard, stable `requestId` reused on retry) but the ID is not persisted to `localStorage` — this form is opened, filled and submitted (or abandoned) in one sitting, unlike the Feedback form's saved draft.
 - Only offered for point-feature, curated-data items with a fixed position to be wrong about — veteran trees and landmarks. Not offered for cows (a live GPS position, not curated data) or line/area features without a single point (paths, roads, railways, water).
 
@@ -534,7 +602,7 @@ Legend reflects active marker semantics:
 ## Offline, Caching, and Refresh
 
 - Service worker caches app shell and offline datasets in two separate caches as of 2026-09-04: `forest-finds-app-vN` (app code) and `forest-finds-data-vN` (data). This allows weekly data updates without re-downloading app code.
-- App cache is bumped on code changes via `.github/workflows/sw-bump.yml` and `sw-release.yml`; data cache is bumped on data changes via `.github/workflows/data-bump.yml` (path-triggered on `data/**`).
+- Cache versions live in `js/app-cache-version.js` and `js/data-cache-version.js`. `.github/workflows/cache-version-bump.yml` runs after a merge to `main`, mints a short-lived token from the dedicated cache-version GitHub App, increments the applicable marker(s), and commits only those files; app changes and data changes therefore never create version-line conflicts in `sw.js`. The marker commit itself is excluded from the bump job, so it cannot trigger a second bump. Netlify skips the intermediate Git-triggered production build for those changes, then the workflow calls its dedicated build hook after the marker commit reaches `main`, so the only production deploy contains both changes together.
 - Cow proxy endpoint bypasses service-worker caching.
 - Cow data is cached in browser storage and refreshed on interval (every 5 minutes).
 
@@ -621,7 +689,11 @@ GA's own cookies (`_ga`, `_ga_*`) are not "strictly necessary", so UK PECR/GDPR 
 
 This cookie-consent flow is independent of the location/usage-tracking consent below: different legal basis (PECR cookie consent vs. a contextual browser permission grant), different storage key, different UI. Outside onboarding, they're asked at different times and accepting or declining one has no effect on the other.
 
-**During first-run onboarding, the two are merged into one click.** The onboarding overlay's location step (`js/onboarding.js`) is itself a full-screen dialog, so showing the independent cookie banner behind it at the same time stacked two consent prompts on screen together. Instead, `cookie-consent.js`'s banner stays suppressed for as long as `#onboardingOverlay` is visible (checked by id, a no-op on every page but `app.html`), and the location step's own privacy note is worded to cover both asks. Tapping **Enable location** sets tracking consent *and* calls `window.ForestFindsCookieConsent.set(true)`; **Skip for now** calls `.set(false)`. A returning visitor who already decided cookie consent before this merge shipped, or who reaches the app with onboarding already complete, still gets the plain standalone banner exactly as described above — the merge only applies to the one screen where both would otherwise appear at once.
+**Early-testing notice:** The homepage is excluded because it already explains the trial and invites sign-up. On the first other public page a visitor opens, a dismissible notice says that Epping Forest Finds is still a work in progress, so visitors may find data problems or bugs, and links to the Feedback form. It is part of the page rather than an overlay: in the app, `cookie-consent.js` inserts it into `#earlyTestingNoticeSlot` in the inspector; standalone public pages receive it at the start of their main reading container. This is informational rather than a consent choice: it records that it has been shown immediately, so it stays available on that first page but never appears again on a reload or another public page. The app defers it until first-run onboarding closes, so the notice never competes with that dialog.
+
+**During first-run onboarding, the two are merged into one click.** The onboarding overlay's location step (`js/onboarding.js`) is itself a full-screen dialog, so showing the independent cookie banner behind it at the same time stacked two consent prompts on screen together. Instead, `cookie-consent.js`'s banner stays suppressed for as long as `#onboardingOverlay` is visible (checked by id, a no-op on every page but `app.html`), and the location step's own privacy note is worded to cover both asks. Tapping **Enable location** sets tracking consent *and* calls `window.ForestFindsCookieConsent.set(true)`; **Skip for now** calls `.set(false)`. A returning visitor who already decided cookie consent before this merge shipped, or who reaches the app with onboarding already complete, still gets the plain standalone banner exactly as described above.
+
+**A landing-page arrival merges the same way, via a non-blocking bottom banner instead of onboarding's full-screen step.** `isLandingPageArrival()` skips onboarding (see "Onboarding (first visit)" above), so without its own handling a first-time `/nearby/<slug>` reader would see the standalone cookie banner stacked with a silent location prompt. `showCombinedConsentBanner()` (`js/app.js`) covers that case: it removes `#cookieConsentBanner` the moment it opens (`cookie-consent.js`'s own `renderBanner()` also checks `#consentBanner`'s visibility, the same way it already checks `#onboardingOverlay`, as a second line of defence against the two racing on load) and its single tap grants cookie consent alongside a real location fix. Unlike onboarding's own merge, this one doesn't block anything: `#consentBanner` is a non-blocking notice card inline in the inspector chrome, not a full-screen modal, and the map is already interactive behind it by the time it appears. The merge therefore applies to two screens, not one — the onboarding overlay's location step, and this landing-page banner — and only a visit that reaches neither (a returning visit to plain Nearby with onboarding already done) gets the plain standalone banner.
 
 #### App usage events sent to GA
 Besides automatic pageviews, `js/tracker.js` fires two custom GA events via `gtag('event', ...)`, gated by the same cookie-consent state as everything else GA does — never by the location/usage-tracking consent:

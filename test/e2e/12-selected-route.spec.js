@@ -13,7 +13,7 @@ test.describe("Selected route line follows the road/path network", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 
   test("routes to a selected tree along mapped paths/roads instead of a straight line once the routing graph is ready", async ({ page }) => {
-    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
 
     // Building the ~120k-node regional graph from the full roads+paths GeoJSON is deliberately
@@ -72,7 +72,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // placeholder for "we have not looked yet". Flashing it up and swapping it for a winding
     // route a moment later reads as the app changing its mind -- and points the walker the
     // wrong way in the meantime.
-    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
 
     const whileBuilding = await page.evaluate(() => {
@@ -111,7 +111,7 @@ test.describe("Selected route line follows the road/path network", () => {
   });
 
   test("the drawn route starts where the walker is now, not where the journey began", async ({ page }) => {
-    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
     await page.waitForFunction(
@@ -140,7 +140,7 @@ test.describe("Selected route line follows the road/path network", () => {
   });
 
   test("re-fits the viewport once the routing graph is ready so the whole routed line stays on screen", async ({ page }) => {
-    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
 
     // The selection's own viewport fit runs immediately, while the graph is still building, so it
@@ -190,7 +190,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // into a fraction of it, worsening with tilt (measured 1.06x too wide at beta 20, 1.96x at
     // 60, 5.27x at 85). Reported from the field as the selected-route view being far too
     // zoomed out. See claude/heading-up-tilt-aware-fit.md.
-    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
 
@@ -276,7 +276,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // for is never still. Zoom-*in* was eased, but any zoom-out -- however slight -- was
     // applied in a single frame, so the camera sawtoothed: snap out, ease back in, snap out.
     // See resolveHeadingUpTargetScale in js/app.js.
-    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
 
@@ -380,7 +380,7 @@ test.describe("Selected route line follows the road/path network", () => {
     //
     // The heading is held still throughout, so every pixel measured here is the position
     // moving the camera and nothing else.
-    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     await page.waitForFunction(() => state.routingGraphReady === true, { timeout: 20_000 });
 
@@ -476,7 +476,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // report ("very zoomed out ... better slightly zoomed out but its too much") that the flat
     // 220x cap itself produced for a close selection, fixed by replacing it with a scale tied
     // to MIN_SELECTION_VIEW_METRES rather than to the whole-forest baseFitScale.
-    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
 
     const result = await page.evaluate(() => {
@@ -519,7 +519,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // an otherwise empty, still forest-wide-looking view: at the camera's hardest possible
     // zoom-in, yet reading as "very zoomed out". minSelectionFitScale (js/app.js) now gives
     // this fit its own, much closer ceiling instead.
-    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
 
     const result = await page.evaluate(() => {
@@ -562,7 +562,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // the rest of the reserved area empty. Measured against a real 335 m routed destination
     // (27 points, winding through real streets): as little as 11% of the reserved room used,
     // across roughly half of all possible compass headings.
-    await setup(page, `/app#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     // selectedRoutePoints (js/renderer.js) checks state.routingGraph itself, not just the
     // ready flag, before it will even look at a cache override -- so the real graph must have

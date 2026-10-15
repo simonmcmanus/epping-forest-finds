@@ -10,10 +10,11 @@ consistent wording, not a shared runtime dependency: changing marketing copy
 does not require editing app files. Cross-surface wording changes are handed
 to the app owner for a separate change. See `spec/agents.md` for file ownership.
 
-It does **not** own the alpha access gate — who may reach `/app`, how the
-shared secret link works, or the edge function that enforces it. That belongs
-in `spec-alpha-access.md` (to be written). This spec only defines the *call to
-action* that the gate's state selects between (§8).
+It does **not** own the alpha access gate — who may reach the app's screens
+(`/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/feedback`), how the shared
+secret link works, or the edge function that enforces it. That belongs in
+`spec-alpha-access.md`. This spec only defines the *call to action* that the
+gate's state selects between (§8).
 
 ## 1. Why the homepage exists
 
@@ -32,7 +33,7 @@ front door:
 | Path | Role | Audience |
 | --- | --- | --- |
 | `/` | Marketing homepage — explains the app, ranks in search, collects sign-ups | Everyone |
-| `/app` | The map application | Invited alpha users; everyone after launch |
+| `/nearby` | The map application's entry point (`/app` redirects here) | Invited alpha users; everyone after launch |
 | `/reports/` | Weekly Epping Forest Ledger | Everyone — the main organic discovery path |
 | `/terms.html` | Privacy & terms | Everyone |
 
@@ -96,7 +97,7 @@ Epping Forest." so the first line leads.
 > See the latest reported cattle locations from their GPS collars. Positions refresh while online; offline, you’ll see the last saved positions, which may be out of date.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 1,357 pubs, cafés and shops. 1,596 car parks,
+> 9,162 paths and bridleways. 1,356 pubs, cafés and shops. 1,596 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -135,7 +136,7 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 1,357 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 1,356 food & drink | feature count, `data/local-landmarks-food.geojson` |
 | 1,596 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
@@ -252,16 +253,20 @@ Sections, in order:
    icons from `assets/home/`, with centred headings. Use three equal columns
    on wide screens and stack them on mobile.
 4. **What’s with the tree tags?** — directly after the feature cards, explain
-   searching physical tag numbers, navigating to a specific tree and checking
-   its tag on arrival, with three app screenshots: searching its number,
+   searching physical tag numbers, names, species and place terms, navigating
+   to a specific tree and checking its tag on arrival. The search caption
+   explains that results are ranked by relevance and nearby distance before
+   appearing on the map. Note that some tree data may be inaccurate, invite issue
+   reports, and say that these will be passed on to the City of London. Show
+   three app screenshots: searching its number,
    following its route and viewing its estimated age. Use each screenshot
    caption for the matching explanation rather than repeating the same three
    points in a separate list. On wide screens, keep the three cards in one
    row. Load these supporting images lazily. The navigation caption explains
    that routes try to favour scenic forest paths and alleyways, without
    guaranteeing them. The screenshots are interim real captures from the app
-   (`app-search.jpg`, `app-nearby-route.jpg`, `app-tree-age.jpg`), scaled to
-   600px wide, until final marketing captures replace them. Each is framed as a
+   (`app-search.jpg`, `app-nearby-route.png`, `app-tree-age.png`), scaled to
+   600px wide. Each is framed as a
    phone with a 4px dark-green rounded border and no card around it; its white
    caption card, exactly the phone's width, tucks behind the bottom of the
    phone, and the three caption cards stretch to a common height on wide
@@ -383,7 +388,7 @@ the FAQ and pillar sections cover these because they are the honest answers.
 - One `<h1>`, carrying the headline (§3.1).
 - `<title>` and `meta description` from §3.3.
 - `link rel=canonical` → `https://www.eppingforestfinds.uk/`. The homepage owns
-  the root URL; `app.html` canonicalises to `/app`.
+  the root URL; `app.html` canonicalises to `/nearby`, its entry point.
 - Semantic headings in order, descriptive `alt` text, real `<a>` elements.
 
 ### 6.3 Structured data
@@ -409,12 +414,156 @@ generated report links back to the homepage. This is what lifts both.
 `scripts/generate-sitemap.js` changes:
 
 - `/` stays priority 1.0 — now with content actually behind it.
-- `/app` is **not** listed, and is added to `DISALLOWED_PATHS` for the duration
-  of the alpha. A gated path that serves crawlers a landing page or a 403 is a
-  soft-404 signal with no upside.
+- The app's five screen paths (`/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`,
+  `/feedback`) are **not** listed, and are added to `DISALLOWED_PATHS` for the
+  duration of the alpha. A gated path that serves crawlers a landing page or a
+  403 is a soft-404 signal with no upside. `/app` itself is a bare redirect
+  with no content, so it needs no entry either way.
 - `/reports/` and `/terms.html` are unchanged.
 
 `test/sitemap.test.js` updates alongside.
+
+### 6.6 Category pages (`/nearby/<slug>`)
+
+One crawlable page per POI filter subfilter — "Pubs & bars in Epping
+Forest", "Historic sites in Epping Forest" — plus one per top-level filter
+*group* — "Food in Epping Forest", "Transport in Epping Forest" — pre-
+filtering Nearby to every subfilter in that group at once. A group page is a
+broader entry point than any single subfilter and has real search volume of
+its own ("things to do in Epping Forest" reads at this level, not "pubs in
+Epping Forest"). Both kinds are generated by `scripts/generate-find-pages.js`
+and wired into `npm run build` (after `generate-reports-index.js`, before
+`generate-sitemap.js`, which lists them via `listFindSlugs`). Never gated
+during the closed alpha: these pages are real content, not the gated part
+of the app.
+
+These pages live under `/nearby/` rather than `/find/` because that is the
+screen they actually land on — the Nearby view, pre-filtered — and `/find/`
+is reserved for individual businesses and points of interest (not yet
+built), never for a category. A category slug can therefore never be
+`filter` or `search`: those two are the Filters and Search screens' own
+paths at that same depth (`/nearby/filter`, `/nearby/search` — spec.md
+"Routing"), not categories, and `collectPages` (`scripts/generate-find-pages.js`,
+`RESERVED_SLUGS`) throws at build time if a subfilter or group key's slug
+ever collided with either.
+
+**A category page IS the app, not a separate marketing page that links to
+it.** The generator templates its output directly off `app.html` — same DOM
+(the real map canvas, nav, inspector), same `<script src>` list — rather than
+writing a standalone page. Only two things are swapped:
+
+- The `<head>`'s SEO tags: `<title>`, meta description, canonical URL (see
+  below), Open Graph `title`/`description`/`url` (app.html's own `og:image`
+  is left as-is), and an inserted `CollectionPage`/`ItemList` JSON-LD block
+  with `numberOfItems` set to the live count.
+- The app's own "nothing selected yet" placeholder inside `#inspectorBody`
+  (the one static, pre-boot paragraph `app.html` ships) is replaced with real,
+  specific, crawlable text — the category's count and description, plus
+  cross-links. A subfilter page links sideways to its siblings in the same
+  group and up to that group's own page ("More in Food: ..."); a group page
+  links down to each of its member subfilters ("Browse by type: ..."). This
+  is exactly what a crawler or a slow-JS visitor sees; `transitionInspectorBody`
+  (`js/inspector.js`) overwrites it unconditionally once the real Nearby list
+  renders, the same way it already overwrites that paragraph on `/nearby`
+  today.
+
+`js/app.js`'s boot sequence (`applyShowFilterFromQuery`) reads the category
+straight out of the URL path (`filterKeysFromFindPath`, reversing the
+hyphen-for-underscore slug) and calls the existing `setOverviewFilters(keys)`
+— a subfilter page resolves to that one key, a group page to every member
+subfilter's key at once — so the page lands already filtered on its own URL,
+with no redirect through `/nearby` and no separate `?show=` hop (that query
+param still works as a fallback on any screen path for any older link).
+The same boot step also widens the walking radius to 30 minutes
+(`applyRadiusFromQuery`, `LANDING_PAGE_WALKING_DISTANCE_MINUTES`) unless the
+URL already named one with `?radius=` — the ordinary 5-minute default is
+too easy for a single category to come up empty within, which would
+undersell a page whose whole job is answering "is there enough near here to
+be worth a visit".
+
+`app.html`'s CSS/JS/icon references, and several of the app's own
+runtime-constructed ones (`FOLKLORE_URL`/`PATHS_URL`/etc. in `js/app.js`,
+`navigator.serviceWorker.register("sw.js")` in `js/nav.js`), are relative
+paths — correct from a one-segment path like `/nearby` but not from one
+directory deeper, where the browser resolves `"css/base.css"` against the
+page's own directory and 404s. That reach extends further than `/nearby/<slug>/`:
+`/nearby/filter` and `/nearby/search` (spec.md "Routing") are one segment
+deep in exactly the same way. Rewriting every `href`/`src` in the markup
+alone isn't enough, since it can't reach the paths JS constructs at runtime
+(this was found by the service worker registration itself 404ing on a live
+page). `app.html` carries `<base href="/">` as the first thing after
+`<meta charset>` for exactly this reason — one tag that changes what *every*
+relative URL on the page resolves against, markup and script-constructed
+alike, for every path the file is ever served at, without touching any of
+`app.html`'s or the JS files' existing relative-path code. The generator
+inherits it for free by templating off that same file, so it has nothing of
+its own left to insert.
+
+**Without location, a category page lists and shows everything in its
+category anyway — it does not sit behind the "enable location" prompt.**
+`overviewNearestHtml()` (`js/app.js`) special-cases exactly this:
+`activeFiltersShowFullListWithoutLocation()` is true with no `state.userLocation`
+and either exactly one active filter (a subfilter page, or a reader's own
+deliberate single choice) or several filters but only when
+`state.overviewFiltersEphemeral` is set (a group page's own pre-filter —
+never a reader's own multi-filter choice, and never the 1-3 filter default
+state nobody chose, which would otherwise try to list the entire matching
+dataset). In that case it lists every match via `allEntriesForActiveFilters`
+(dataset order, no distance — there is no origin to measure from) instead of
+the generic prompt, and `fitMapToSingleFilterIfNoLocation` fits the camera to
+all of them instead of the forest-wide default `fitToBounds` leaves in
+place, so the map is genuinely zoomed to the category (or categories) rather
+than an arbitrary framing. Granting location is unaffected — same
+radius-based nearest list and camera behaviour as everywhere else in the app.
+
+**The map pins themselves need the same fallback as the list, separately.**
+`buildFullNearbyIconLookup()` (`js/renderer.js`) is the one source every pin
+draw and hit-test reads from, and on its own it only ever scans
+`overviewItemsForActiveFilter()` — origin-only, same as the list — so the
+list could show every restaurant while the map, reading a lookup built from
+nothing, drew none of them. It takes the same `allEntriesForActiveFilters`
+fallback under the same condition. Its cache key (`nearbyIconLookupCacheKey`)
+needed the matching fix: without an origin it used to collide on one
+constant key regardless of which filter(s) were active, harmless while that
+case was always empty, but a real bug once it was not — switching from one
+category page to another with no location would have kept showing the first
+one's pins. The key now stays `state.overviewFilters`-aware in both
+branches.
+
+- **Slugs**: a subfilter or group key with underscores turned to hyphens
+  (`national_rail` → `/nearby/national-rail`). The canonical URL carries a
+  trailing slash (`/nearby/pubs/`), matching `/reports/`: Netlify's static
+  hosting serves `nearby/<slug>/index.html` directly only at that
+  trailing-slash path, 301-redirecting the bare one to it, so the
+  canonical/OG/JSON-LD `url` and every sitemap entry and cross-link use the
+  slash form, not the one that redirects.
+- **Counts and labels** come from `scripts/report/map-inventory.js`'s
+  `buildInventory()` — the same classification the weekly report and the
+  homepage's dataset counts use, so a category page's number is never a
+  second, separately-computed guess (a group page's count is its members'
+  counts summed). This also means the same two exclusions apply: `cows`
+  (live-tracked, no fixed count) and the whole `events` group (time-bound,
+  not a static map fact) get no category page — nor, since it has nothing
+  left to describe once `cows` drops out of it, does a group page for
+  `events`, or for any other group `GROUP_TITLES` (`scripts/generate-find-pages.js`)
+  has no hand-picked description phrase for.
+- **Output**: `nearby/<slug>/index.html`, gitignored like `sitemap.xml` and
+  `reports/index.html` — regenerated fresh on every build, never committed.
+  Sharing a path prefix with the Nearby, Filters and Search screens needs
+  one more piece of care that `/find/<slug>/` never did:
+  `scripts/generate-sitemap.js`'s `DISALLOWED_PATHS` disallows the three
+  gated screens (`/nearby`, `/nearby/search`, `/nearby/filter`) with a
+  trailing `$` — robots.txt's own end-of-path anchor — rather than the bare
+  path a plain `Disallow: /nearby` would otherwise prefix-match. Without the
+  anchor, that one line would also swallow every `/nearby/<slug>/` category
+  page nested under the same prefix, silently undoing the entire point of
+  generating them.
+- **Not yet done** (tracked separately, not part of this page's own
+  behaviour): the service worker has no offline case for `/nearby/<slug>`
+  yet (it falls straight through to the network, same as any unrecognised
+  path) — its own, larger piece of work. `/find/<slug>` itself — pages for
+  individual businesses and points of interest, as distinct from these
+  category pages — is also not yet built.
 
 ## 7. The hero image
 
@@ -452,7 +601,7 @@ the site runs in.
 | State | CTA | Supporting line |
 | --- | --- | --- |
 | `closed` | Keep me in the loop → sign-up form | "Sign up to hear when early testing opens." |
-| `open` | Open the map → `/app` | "Free, and it works offline." |
+| `open` | Open the map → `/nearby` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
 links — is written to be true in all three states and does not change.
@@ -582,10 +731,13 @@ The social image, the homepage, `robots.txt`, `sitemap.xml` and `/reports/*`
 must all be reachable **without the alpha gate**. Crawlers and link unfurlers
 carry no invite cookie. Gating any of them breaks every share preview.
 
-The gate therefore covers `/app` only. This is a deliberate trade recorded in
-`spec-alpha-access.md`: the loose assets under `/js`, `/css` and `/data` stay
-public, because the data is public OpenStreetMap and a public tree register,
-and because gated asset responses would poison the service worker's caches.
+The gate therefore covers only the app's five screen paths (`/nearby`,
+`/nearby/search`, `/nearby/filter`, `/settings`, `/feedback`) and `/app.html`, never `/app`
+itself (a bare redirect, not a gated page). This is a deliberate trade
+recorded in `spec-alpha-access.md`: the loose assets under `/js`, `/css` and
+`/data` stay public, because the data is public OpenStreetMap and a public
+tree register, and because gated asset responses would poison the service
+worker's caches.
 
 ## 11. Colour and type
 
@@ -630,7 +782,8 @@ Per the project's completion checklist:
   come from a Linux CI runner rather than a developer sandbox. Add one via the
   `Update Snapshots` action in the same change as the hero image, on the
   `mobile` project only.
-- **Sitemap** — `test/sitemap.test.js` updated for the `/app` disallow.
+- **Sitemap** — `test/sitemap.test.js` updated for the five screen paths'
+  disallow.
 - **Accessibility** — a "Skip to content" link is the first focusable element
   in `<body>`, hidden off-screen until focused and jumping to `<main id="main"
   tabindex="-1">` so keyboard users can bypass the header. Heading order runs

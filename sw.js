@@ -3,12 +3,15 @@
 // production/Netlify deploy (which serves this file untouched) always gets
 // IS_DEV === false. This lets local testing bypass the cache-first strategy
 // below without needing a CACHE_NAME bump, which only ever happens in CI
-// (.github/workflows/sw-bump.yml and sw-release.yml) and so never fires
+// (.github/workflows/cache-version-bump.yml) and so never fires
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v106";
-const DATA_CACHE_NAME = "forest-finds-data-v31";
+// Imported separately so post-merge automation can change just the applicable
+// version file, rather than colliding with ordinary app and data edits in this file.
+importScripts("./js/app-cache-version.js", "./js/data-cache-version.js");
+const APP_CACHE_NAME = `forest-finds-app-${APP_CACHE_VERSION}`;
+const DATA_CACHE_NAME = `forest-finds-data-${DATA_CACHE_VERSION}`;
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
 // "./" is deliberately absent: after the alpha URL split it resolves to the
@@ -26,6 +29,8 @@ const APP_SHELL = [
   "./css/onboarding.css",
   "./css/tracking.css",
   "./js/categories.js",
+  "./js/app-cache-version.js",
+  "./js/data-cache-version.js",
   "./js/normalize.js",
   "./js/loader.js",
   "./js/routing.js",
@@ -200,11 +205,15 @@ const DATA_CACHE_OPPORTUNISTIC = [
 ];
 
 // Helper: determine if a path is app code vs data
-// The map application's own navigable URLs. /app is the pretty URL (rewritten to
-// /app.html by netlify.toml and server.js); anything else -- the homepage, the
-// reports, the terms page -- is a network page the app cache must not answer for.
+// The map application's own navigable URLs -- its five screen paths, each a pretty URL
+// rewritten to /app.html by netlify.toml and server.js, plus the underlying file itself.
+// /app is NOT one of these any more: it is a bare redirect to /nearby (netlify.toml,
+// server.js), so it is deliberately left to the network like any other unrecognised path.
+// Anything else -- the homepage, the reports, the terms page -- is a network page the app
+// cache must not answer for.
+const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback"]);
 function isAppNavigation(pathname) {
-  return pathname === "/app" || pathname === "/app.html" || pathname.endsWith("/app.html");
+  return APP_SCREEN_PATHS.has(pathname) || pathname === "/app.html" || pathname.endsWith("/app.html");
 }
 
 function isAppCodePath(pathname) {
@@ -215,7 +224,7 @@ function isAppCodePath(pathname) {
     pathname.endsWith(".html") ||
     pathname.endsWith(".svg") ||
     pathname.endsWith(".webmanifest") ||
-    pathname === "/app"
+    APP_SCREEN_PATHS.has(pathname)
   );
 }
 
