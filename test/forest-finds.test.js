@@ -4119,6 +4119,17 @@ test("search finds a shop, a road and a tree tag, the three things the map is se
   assert.equal(tree[0].item.id, "oak-near");
 });
 
+test("search combines a tree's species and generic type", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+
+  const results = app.searchMapFeatures("oak tree").filter((result) => result.type === "tree");
+
+  assert.equal(results.length, 2);
+  assert.equal(results[0].item.id, "oak-near");
+});
+
 test("search finds places through their category group, subcategory and source metadata", () => {
   resetSearchData(app);
   app.state.userLocation = makePoint(app, 0, 0);

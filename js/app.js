@@ -7377,7 +7377,7 @@ function buildSearchIndex() {
   };
 
   for (const tree of state.trees) {
-    push("tree", tree, [tree.commonName, tree.latinName, tree.tagNumber, tree.nationalDatabaseTagNumber, tree.recordNumber]);
+    push("tree", tree, ["tree", "trees", tree.commonName, tree.latinName, tree.tagNumber, tree.nationalDatabaseTagNumber, tree.recordNumber]);
   }
   for (const place of state.landmarks) {
     push("landmark", place, searchLandmarkFields(place));

@@ -151,6 +151,13 @@ test.describe("Searching the map", () => {
     await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
   });
 
+  test("a species and generic tree type can be searched together", async ({ page }) => {
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", "oak tree");
+
+    await expect(page.locator('#mapSearchResults [data-search-type="tree"]').first()).toBeVisible();
+  });
+
   test("a street split across many map ways is offered once, and can be navigated to", async ({ page }) => {
     await page.click("#searchToggle");
     await page.fill("#mapSearchInput", FIXTURE_ROAD);

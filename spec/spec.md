@@ -443,7 +443,8 @@ main navigation (`#searchToggle`) or directly at `/app#search`. It replaced the 
 search that used to float over the map on mobile: a tree tag is one of the things it finds, not
 the only one.
 
-- **What it searches:** veteran trees (common or Latin species name and tag number), places
+- **What it searches:** veteran trees (common or Latin species name, generic “tree”/“trees”
+  type, and tag number), places
   (name, category group and subcategory, and useful source metadata such as address and OSM
   classification), roads, waymarked trails, water features, railway lines, and the live cows by
   serial number. This means searches such as “Food”, “Cafés”, or a venue's street can discover
