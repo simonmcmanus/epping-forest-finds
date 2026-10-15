@@ -299,6 +299,8 @@ test.describe("the marketing homepage", () => {
     await expect(trees.getByRole("heading", { name: "What’s with the tree tags?" })).toBeVisible();
     await expect(trees).toContainText("Search its tag number.");
     await expect(trees).toContainText("Find your way there.");
+    await expect(trees).toContainText("Some of the data may not be completely accurate.");
+    await expect(trees).toContainText("we’ll pass them on to the City of London.");
     await expect(trees).toContainText("recorded girth and species");
     await expect(trees).toContainText("not an exact birthday");
     await expect(trees.locator(".tag-story figcaption")).toHaveText([

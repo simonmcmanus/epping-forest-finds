@@ -254,7 +254,9 @@ Sections, in order:
    on wide screens and stack them on mobile.
 4. **What’s with the tree tags?** — directly after the feature cards, explain
    searching physical tag numbers, navigating to a specific tree and checking
-   its tag on arrival, with three app screenshots: searching its number,
+   its tag on arrival. Note that some tree data may be inaccurate, invite issue
+   reports, and say that these will be passed on to the City of London. Show
+   three app screenshots: searching its number,
    following its route and viewing its estimated age. Use each screenshot
    caption for the matching explanation rather than repeating the same three
    points in a separate list. On wide screens, keep the three cards in one
