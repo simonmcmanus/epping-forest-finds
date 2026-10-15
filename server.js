@@ -111,12 +111,11 @@ async function handleCowProxy(req, res, url) {
 // Flags the service worker as running under this local dev server, so sw.js can switch
 // to a network-first fetch strategy instead of its production cache-first one. Local edits
 // to cached files (JS, CSS, data) then show up on refresh without needing a CACHE_NAME
-// bump — that bump only ever happens in CI (see .github/workflows/sw-bump.yml and
-// sw-release.yml), so it never fires while iterating locally before a commit/push. A
+// bump — that bump only ever happens in CI (see cache-version-bump.yml), so it never
+// fires while iterating locally before a commit/push. A
 // production deploy (Netlify) serves sw.js as a static file, untouched by this function.
 //
-// Also prefixes CACHE_NAME with "dev-" (mirroring the branch prefix sw-bump.yml already
-// applies for preview builds) so the About screen's app-version display — and any bug
+// The imported version markers prefix cache names with "dev-" here so the About screen's app-version display — and any bug
 // report submitted while testing locally, see appVersion in js/app.js — reads e.g.
 // "dev-v274" instead of a bare version number that never changes between local edits.
 function injectDevFlag(source) {
@@ -125,11 +124,7 @@ function injectDevFlag(source) {
   // too late to be seen, so IS_DEV was false even locally and the dev server's whole
   // network-first path never ran -- local edits were served from the production cache-first
   // strategy until the cache happened to be cleared by hand.
-  return source
-    .replace(/^const IS_DEV/m, "self.__DEV__ = true;\nconst IS_DEV")
-    // Both caches, so neither local store can collide with a real one (the app cache alone was
-    // being prefixed, leaving the data cache sharing production's name).
-    .replace(/"forest-finds-/g, '"forest-finds-dev-');
+  return source.replace(/^const IS_DEV/m, "self.__DEV__ = true;\nconst IS_DEV");
 }
 
 function handleStatic(req, res, url) {

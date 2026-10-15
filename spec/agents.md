@@ -59,7 +59,8 @@ Before finishing any implementation task:
 ## Technical Constraints
 - Vanilla HTML/CSS/JS only — no client build step, no external JS dependencies.
 - Mobile performance is a priority.
-- **Cache versions in `sw.js` are bumped by CI on the pull request, never by hand.** The two caches move independently so returning users re-download only what changed:
+- **Current cache-marker policy: never edit `js/app-cache-version.js` or `js/data-cache-version.js` by hand.** `.github/workflows/cache-version-bump.yml` owns both files. After a qualifying merge to `main`, its dedicated GitHub App increments only the relevant marker(s) and triggers the Netlify release build hook. Agents must not add marker changes to a PR, resolve a conflict by changing a version number, or use `WEEKLY_LEDGER_PAT` for this flow. App changes (`app.html`, app shell CSS/JS, `sw.js`, the manifest or icon) move the app marker; `data/**` moves the data marker. `index.html` is marketing and must not move the app marker.
+- **Historical policy — superseded; retained only for incident context:** Cache versions in `sw.js` were bumped by CI on the pull request, never by hand. The two caches moved independently so returning users re-downloaded only what changed:
   - `APP_CACHE_NAME` — `.github/workflows/sw-release.yml`, on a pull request touching `app.html`, `css/**`, `js/**`, `sw.js`, `manifest.webmanifest` or `tree-icon.svg` (the `APP_SHELL` contents). Note it watches `app.html`, not `index.html`: since the alpha URL split `index.html` is the marketing homepage and is deliberately not part of the app shell. It also syncs `APP_VERSION` in `js/app.js`, the fallback the About screen and bug reports show before `caches.keys()` resolves.
   - `DATA_CACHE_NAME` — `.github/workflows/data-bump.yml`, on a pull request touching `data/**`. That covers the Monday ledger merge and any regeneration script's output.
 

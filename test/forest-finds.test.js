@@ -570,7 +570,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/categories.js", "js/normalize.js", "js/tracker.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/tracker.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -5587,7 +5587,7 @@ test("local dev server flags sw.js with self.__DEV__ without touching the produc
   // local edit was served from the production cache-first strategy until someone cleared the
   // cache by hand. Evaluate it rather than pattern-match a position, so the next reshuffle of
   // sw.js's top lines cannot quietly break it again.
-  const head = served.slice(0, served.indexOf("const APP_CACHE_NAME"));
+  const head = served.slice(0, served.indexOf("importScripts("));
   const context = { self: {} };
   vm.createContext(context);
   assert.equal(vm.runInContext(`${head}\nIS_DEV`, context), true, "IS_DEV must evaluate true under the dev server");
@@ -5596,31 +5596,25 @@ test("local dev server flags sw.js with self.__DEV__ without touching the produc
   // set the flag — only the local dev server's response does.
   assert.doesNotMatch(original, /self\.__DEV__\s*=\s*true/, "sw.js on disk must not hardcode the dev flag");
   assert.equal(
-    vm.runInContext(original.slice(0, original.indexOf("const APP_CACHE_NAME")) + "\nIS_DEV", vm.createContext({ self: {} })),
+    vm.runInContext(original.slice(0, original.indexOf("importScripts(")) + "\nIS_DEV", vm.createContext({ self: {} })),
     false,
     "and production must stay cache-first"
   );
 });
 
-test("local dev server prefixes CACHE_NAME with dev- so the About screen and bug reports read as local, not a stuck release version", () => {
+test("local dev version markers prefix cache names with dev- so the About screen and bug reports read as local", () => {
   // Without this, the About screen's app-version display (js/app.js) and any bug report's
   // appVersion (both read the live CACHE_NAME via caches.keys() in setupPwa, js/nav.js) would
   // show whatever version number happened to be in sw.js on disk, unchanged across every local
   // edit — since CACHE_NAME bumps are CI-only, and now main-only (see the network-first dev
   // test above). The "dev-" prefix is what makes a locally served version visibly local.
-  const { _private } = require("../server.js");
-  const original = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const originalNameMatch = original.match(/const APP_CACHE_NAME = "forest-finds-([^"]+)"/);
-  assert.ok(originalNameMatch, "sw.js must declare APP_CACHE_NAME as \"forest-finds-<version>\"");
-
-  const served = _private.injectDevFlag(original);
-  assert.match(
-    served,
-    new RegExp(`const APP_CACHE_NAME = "forest-finds-dev-${originalNameMatch[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`),
-    "served sw.js must prefix the on-disk version with dev-, keeping the rest unchanged"
-  );
-  // The data cache too, or a local run shares production's data store name.
-  assert.match(served, /const DATA_CACHE_NAME = "forest-finds-dev-/, "the data cache is prefixed as well");
+  const root = path.join(__dirname, "..");
+  const context = { __DEV__: true };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "data-cache-version.js"), "utf8"), context);
+  assert.equal(vm.runInContext("APP_CACHE_VERSION", context), "dev-v109");
+  assert.equal(vm.runInContext("DATA_CACHE_VERSION", context), "dev-v32");
 });
 
 test("local dev server serves sw.js with its own dev-flagging route, not the generic static handler", () => {
@@ -7186,30 +7180,16 @@ test("detour slack is dropped once the routing graph resolves, including when th
   assert.ok(buildingScale < failedScale, "while the graph is still building the fit should keep its slack");
 });
 
-test("APP_VERSION in js/app.js stays in sync with APP_CACHE_NAME in sw.js", () => {
-  // These two are duplicated by design (the app needs a fallback before caches.keys()
-  // resolves) and the "Sync APP_VERSION" step in sw-release.yml keeps them together. That
-  // workflow sat disabled (on.push.branches: [__disabled__]) for a long while, which is how
-  // APP_VERSION sat at "v3" while sw.js climbed to v15. A stale fallback is user-visible:
-  // it is what the About screen and every submitted bug report show until the caches
-  // resolve, so this guard stays whether or not CI is doing its job.
+test("app fallback and service worker share the independent app cache version marker", () => {
   const root = path.join(__dirname, "..");
   const swSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const appSource = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
+  const marker = fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8");
 
-  // Only sw-release.yml writes this, always unslugged. It sets the version to one past
-  // the base branch on the pull request itself, so anything else here is a hand-edit
-  // that should be caught.
-  const cacheMatch = swSource.match(/APP_CACHE_NAME = "forest-finds-app-(v\d+)"/);
-  const fallbackMatch = appSource.match(/const APP_VERSION = "(v\d+)"/);
-
-  assert.ok(cacheMatch, "sw.js should declare APP_CACHE_NAME as forest-finds-app-vN");
-  assert.ok(fallbackMatch, "js/app.js should declare APP_VERSION as vN");
-  assert.equal(
-    fallbackMatch[1],
-    cacheMatch[1],
-    `js/app.js APP_VERSION (${fallbackMatch[1]}) must match sw.js APP_CACHE_NAME (${cacheMatch[1]})`
-  );
+  assert.match(marker, /const APP_CACHE_VERSION = .*v\d+/, "app marker should hold a version");
+  assert.match(swSource, /importScripts\("\.\/js\/app-cache-version\.js"/, "service worker should import the app marker");
+  assert.match(swSource, /forest-finds-app-\$\{APP_CACHE_VERSION\}/, "service worker should derive its cache name from the app marker");
+  assert.match(appSource, /const APP_VERSION = APP_CACHE_VERSION/, "app fallback should use the same marker");
 });
 
 test("cache version label reads dev-server cache names as well as production ones", () => {

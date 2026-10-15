@@ -1,0 +1,98 @@
+name: Bump cache versions after merge
+
+# This runs only after a commit has reached main. It never mutates a pull
+# request, so cache versions cannot create merge conflicts with application or
+# data work. It mints a short-lived token from the dedicated, repository-limited
+# GitHub App; do not replace it with a personal access token.
+#
+# Repository setup required: add Epping Cache Version Bot to main's ruleset
+# bypass list. GitHub's bypass permissions are repository-wide, not path-scoped,
+# so this workflow defensively validates and stages only the two files below.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app.html'
+      - 'manifest.webmanifest'
+      - 'tree-icon.svg'
+      - 'css/**'
+      - 'js/**'
+      - 'sw.js'
+      - 'data/**'
+
+concurrency:
+  group: cache-version-bump-main
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create a short-lived cache-version app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.CACHE_VERSION_APP_ID }}
+          private-key: ${{ secrets.CACHE_VERSION_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 2
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Bump only the versions affected by this merge
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "$BEFORE" "$AFTER")
+          app_changed=false
+          data_changed=false
+          if printf '%s\n' "$changed" | grep -Eq '^(app\.html|manifest\.webmanifest|tree-icon\.svg|css/|js/|sw\.js)'; then
+            app_changed=true
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^data/'; then
+            data_changed=true
+          fi
+
+          $app_changed && perl -0pi -e 's/(v)(\d+)/$1 . ($2 + 1)/e' js/app-cache-version.js
+          $data_changed && perl -0pi -e 's/(v)(\d+)/$1 . ($2 + 1)/e' js/data-cache-version.js
+
+          git diff --check
+          changed_files=$(git diff --name-only)
+          if [ -z "$changed_files" ]; then
+            echo "No cache version needs bumping."
+            exit 0
+          fi
+          test "$changed_files" = "js/app-cache-version.js" \
+            || test "$changed_files" = "js/data-cache-version.js" \
+            || test "$changed_files" = $'js/app-cache-version.js\njs/data-cache-version.js'
+
+      - name: Commit cache version markers
+        id: commit
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "Epping Cache Version Bot"
+          git config user.email "cache-version-bot@users.noreply.github.com"
+          git add -- js/app-cache-version.js js/data-cache-version.js
+          git commit -m "chore: bump cache version"
+          git push origin HEAD:main
+          echo "bumped=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger the release deploy after the cache bump
+        if: steps.commit.outputs.bumped == 'true'
+        env:
+          NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_CACHE_VERSION_BUILD_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NETLIFY_BUILD_HOOK_URL"
+          curl --fail-with-body --retry 3 --retry-all-errors --request POST --data '{}' \
+            "${NETLIFY_BUILD_HOOK_URL}?trigger_branch=main&trigger_title=cache-version-release"

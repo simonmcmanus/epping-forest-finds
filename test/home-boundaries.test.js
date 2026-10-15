@@ -17,6 +17,11 @@ test("returning app users fetch marketing assets without consulting app caches",
     },
     caches: new Proxy({}, { get() { throw new Error("Marketing must not access caches"); } }),
   });
+  context.importScripts = (...scripts) => {
+    for (const script of scripts) {
+      vm.runInContext(fs.readFileSync(path.join(ROOT, script.replace(/^\.\//, "")), "utf8"), context);
+    }
+  };
   vm.runInContext(fs.readFileSync(path.join(ROOT, "sw.js"), "utf8"), context);
   for (const filename of fs.readdirSync(path.join(ROOT, "assets/home"))) {
     handlers.fetch({
