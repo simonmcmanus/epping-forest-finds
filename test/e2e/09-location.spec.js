@@ -175,6 +175,10 @@ test.describe("Location and GPS — happy path", () => {
     });
 
     test("a nested category URL applies only its own subcategory filter", async ({ page }) => {
+      // Generated category pages are a production-build artifact, while this dev server only
+      // serves checked-in files. Fulfil the nested document with the app shell so this exercises
+      // the real URL parser without making every Playwright shard run the site build.
+      await page.route("**/nearby/food/pubs/", (route) => route.fulfill({ path: "app.html" }));
       await page.goto("/nearby/food/pubs/");
       await page.waitForFunction(() => document.getElementById("loadingOverlay")?.hidden === true, { timeout: 30_000 });
       await expect.poll(() => page.evaluate(() => state.overviewFilters)).toEqual(["pubs"]);
