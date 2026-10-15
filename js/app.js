@@ -934,11 +934,11 @@ function showRoutedSelection(route, item) {
 
 boot();
 
-// A /nearby/<slug> category page IS the app (scripts/generate-find-pages.js templates it off
+// A /nearby/<group>/<slug> category page IS the app (scripts/generate-find-pages.js templates it off
 // this same app.html), so the path itself names the category to land already filtered to --
 // slugFor() in that script turns an underscore into a hyphen, this is the reverse. ?show=
 // stays as a fallback entry point for any older link still using the query-param form.
-// /nearby/<slug> is either one subfilter's own page or a whole top-level group's page
+// /nearby/<group>/<slug> is a subfilter page; /nearby/<group> is a whole top-level group's page
 // (collectPages in scripts/generate-find-pages.js generates both) -- this is the reverse of
 // either: the filter keys to apply, one for a subfilter slug, every member key for a group
 // slug (e.g. /nearby/food resolves to ["pubs", "restaurants", "cafes", "shops"]). "filter" and
@@ -946,12 +946,16 @@ boot();
 // this falls through to [] for /nearby/filter and /nearby/search exactly as it should --
 // those two are screens in their own right, not categories.
 function filterKeysFromFindPath(pathname) {
-  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(String(pathname || ""));
+  const match = /^\/nearby\/([a-z0-9-]+)(?:\/([a-z0-9-]+))?\/?$/.exec(String(pathname || ""));
   if (!match) return [];
-  const key = match[1].replace(/-/g, "_");
-  if (ALL_OVERVIEW_FILTER_KEYS.has(key)) return [key];
-  const group = FILTER_GROUPS_BY_KEY.get(key);
+  const group = FILTER_GROUPS_BY_KEY.get(match[1].replace(/-/g, "_"));
   if (!group) return [];
+  if (match[2]) {
+    const key = match[2].replace(/-/g, "_");
+    return group.subfilters.some((subfilter) => subfilter.key === key) && ALL_OVERVIEW_FILTER_KEYS.has(key)
+      ? [key]
+      : [];
+  }
   return group.subfilters.map((s) => s.key).filter((k) => ALL_OVERVIEW_FILTER_KEYS.has(k));
 }
 

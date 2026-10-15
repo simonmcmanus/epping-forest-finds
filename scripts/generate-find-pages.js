@@ -3,7 +3,7 @@
 
 /**
  * Generates one crawlable category page per POI filter subfilter -- e.g.
- * nearby/pubs/index.html, served at /nearby/pubs/ -- plus one per top-level
+ * nearby/food/pubs/index.html, served at /nearby/food/pubs/ -- plus one per top-level
  * group (nearby/food/, nearby/transport/, ...), pre-filtering Nearby to every
  * subfilter in it at once. Both kinds live under /nearby/ rather than /find/
  * because that is the UI they land on -- the Nearby screen, pre-filtered --
@@ -13,7 +13,7 @@
  * same <script src> list, same CSS. Only the <head>'s SEO tags and the
  * inspector's initial (pre-boot) content are swapped in, so a crawler or a
  * visitor arriving before JS has booted sees real, specific content, and
- * js/app.js's filterKeysFromFindPath() then reads the category (or, for a
+ * js/app.js's filterKeysFromFindPath() then reads the group and subcategory (or, for a
  * group page, every category in it) straight out of the URL path once it
  * does boot, pre-filtering Nearby to it -- no separate marketing page, no
  * redirect through /nearby.
@@ -119,7 +119,7 @@ function replaceOnce(html, needle, replacement, label) {
  * Builds the flat list of pages to generate: one per subfilter already in
  * the inventory (which itself excludes "cows", live-tracked with no fixed
  * count, and the whole "events" group, time-bound rather than a map fact),
- * each carrying its sibling subfilters for "See also" cross-links -- plus
+ * each nested below its parent group and carrying its sibling subfilters for "See also" cross-links -- plus
  * one page per top-level group (e.g. /nearby/food/), pre-filtering Nearby to
  * every subfilter in it at once. A broader entry point than any single
  * subfilter, and real search volume of its own ("things to do in Epping
@@ -150,6 +150,7 @@ function collectPages(rules, inventory) {
         count: subfilter.count,
         groupLabel: group.label,
         groupSlug,
+        path: `${groupSlug}/${slugFor(subfilter.key)}`,
         siblings: members.filter((s) => s.key !== subfilter.key),
       });
     }
@@ -158,6 +159,7 @@ function collectPages(rules, inventory) {
       pages.push({
         key: group.key,
         slug: groupSlug,
+        path: groupSlug,
         label: group.label,
         title: groupTitle,
         count: group.subfilters.reduce((sum, s) => sum + s.count, 0),
@@ -174,7 +176,7 @@ function renderPage(page, appHtml) {
   // /nearby/<slug>/, 301-redirecting the bare path to it (the same convention /reports/ already
   // uses, STATIC_PAGES in generate-sitemap.js) -- the canonical/OG/JSON-LD url must be the one
   // actually served, not the one that redirects to it.
-  const canonical = `${SITE_ORIGIN}/nearby/${page.slug}/`;
+  const canonical = `${SITE_ORIGIN}/nearby/${page.path}/`;
   const titleTag = `${page.label} in Epping Forest | ${SITE_NAME}`;
   const description = `Find all ${page.count} ${page.title} in Epping Forest, mapped and ready to walk to.`;
   const jsonLd = {
@@ -190,7 +192,7 @@ function renderPage(page, appHtml) {
   // A group page (e.g. /nearby/food/) cross-links down into its own member subfilters; a
   // subfilter page cross-links sideways to its siblings and up to its own group page.
   const crossLinks = (page.isGroup ? page.members : page.siblings)
-    .map((s) => `<a href="/nearby/${escapeHtml(s.slug)}/">${escapeHtml(s.label)}</a>`)
+    .map((s) => `<a href="/nearby/${page.isGroup ? `${page.slug}/` : `${page.groupSlug}/`}${escapeHtml(s.slug)}/">${escapeHtml(s.label)}</a>`)
     .join(", ");
 
   // What a crawler, or a visitor, sees before js/app.js boots and replaces #inspectorBody with
@@ -242,31 +244,33 @@ function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInvent
   const categoryDir = path.join(siteRoot, CATEGORY_DIR_NAME);
   fs.mkdirSync(categoryDir, { recursive: true });
   for (const page of pages) {
-    const pageDir = path.join(categoryDir, page.slug);
+    const pageDir = path.join(categoryDir, ...page.path.split("/"));
     fs.mkdirSync(pageDir, { recursive: true });
     fs.writeFileSync(path.join(pageDir, "index.html"), renderPage(page, appHtml), "utf8");
   }
   return pages;
 }
 
-/** Slugs of already-generated category pages, for generate-sitemap.js to list -- mirrors
- * generate-reports-index.js's listReportFiles rather than re-deriving the page set. */
-function listFindSlugs(siteRoot) {
+/** Relative paths of already-generated category pages, for generate-sitemap.js to list. */
+function listFindPaths(siteRoot) {
   const categoryDir = path.join(siteRoot, CATEGORY_DIR_NAME);
   if (!fs.existsSync(categoryDir)) return [];
-  return fs
-    .readdirSync(categoryDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .filter((entry) => fs.existsSync(path.join(categoryDir, entry.name, "index.html")))
-    .map((entry) => entry.name)
-    .sort();
+  const paths = [];
+  function visit(directory, relativePath = "") {
+    if (fs.existsSync(path.join(directory, "index.html"))) paths.push(relativePath);
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (entry.isDirectory()) visit(path.join(directory, entry.name), relativePath ? `${relativePath}/${entry.name}` : entry.name);
+    }
+  }
+  visit(categoryDir);
+  return paths.sort();
 }
 
 module.exports = {
   collectPages,
   renderPage,
   generate,
-  listFindSlugs,
+  listFindPaths,
   slugFor,
   buildTitleIndex,
   CATEGORY_DIR_NAME,

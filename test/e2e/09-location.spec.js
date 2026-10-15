@@ -173,6 +173,12 @@ test.describe("Location and GPS — happy path", () => {
       // old "list the whole category" fallback for landing pages rendered no distance at all.
       await expect(firstItem.locator(".walk-chip")).toBeVisible();
     });
+
+    test("a nested category URL applies only its own subcategory filter", async ({ page }) => {
+      await page.goto("/nearby/food/pubs/");
+      await page.waitForFunction(() => document.getElementById("loadingOverlay")?.hidden === true, { timeout: 30_000 });
+      await expect.poll(() => page.evaluate(() => state.overviewFilters)).toEqual(["pubs"]);
+    });
   });
 
   test.describe("the location request never answers", () => {

@@ -8,7 +8,7 @@ const {
   collectPages,
   renderPage,
   generate,
-  listFindSlugs,
+  listFindPaths,
   slugFor,
 } = require("../scripts/generate-find-pages.js");
 
@@ -56,6 +56,7 @@ test("collectPages produces one page per subfilter, each carrying its siblings b
   assert.equal(pubs.title, "pubs and bars");
   assert.equal(pubs.groupLabel, "Food");
   assert.equal(pubs.groupSlug, "food", "a subfilter page can link back up to its own group page");
+  assert.equal(pubs.path, "food/pubs", "a subfilter lives below its parent group");
   assert.deepEqual(pubs.siblings.map((s) => s.key), ["cafes"], "a page lists its siblings, never itself");
 });
 
@@ -107,8 +108,8 @@ test("renderPage swaps in the category's own title, canonical, OG and JSON-LD, n
   const html = renderPage(pubs, APP_HTML);
 
   assert.match(html, /<title>Pubs &amp; bars in Epping Forest \| Epping Forest Finds<\/title>/);
-  assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/pubs\/">/);
-  assert.match(html, /<meta property="og:url" content="https:\/\/www\.eppingforestfinds\.uk\/nearby\/pubs\/">/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/food\/pubs\/">/);
+  assert.match(html, /<meta property="og:url" content="https:\/\/www\.eppingforestfinds\.uk\/nearby\/food\/pubs\/">/);
   assert.match(html, /"numberOfItems":42/);
   assert.ok(!html.includes("offline map of Epping Forest</title>"), "the generic /nearby title is gone");
   assert.ok(!html.includes('href="https://www.eppingforestfinds.uk/nearby">'), "the generic /nearby canonical is gone");
@@ -120,7 +121,7 @@ test("renderPage replaces the app's initial empty-state message with real, crawl
 
   assert.ok(!html.includes("All veteran trees are shown"), "the generic placeholder text is gone");
   assert.match(html, /Find all 42 pubs and bars in Epping Forest/);
-  assert.match(html, /href="\/nearby\/cafes\/"/, "a sibling cross-link uses the trailing slash Netlify serves directly");
+  assert.match(html, /href="\/nearby\/food\/cafes\/"/, "a sibling cross-link stays below its parent group");
   assert.match(html, /More in <a href="\/nearby\/food\/">Food<\/a>/, "and links back up to its own group page");
 });
 
@@ -132,20 +133,20 @@ test("renderPage renders a group page's own title, count and member cross-links"
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/food\/">/);
   assert.match(html, /"numberOfItems":49/, "the group's count is its members' counts summed");
   assert.match(html, /Find all 49 places to eat, drink and shop in Epping Forest/);
-  assert.match(html, /Browse by type: <a href="\/nearby\/pubs\/">Pubs &amp; bars<\/a>, <a href="\/nearby\/cafes\/">Cafés<\/a>/);
+  assert.match(html, /Browse by type: <a href="\/nearby\/food\/pubs\/">Pubs &amp; bars<\/a>, <a href="\/nearby\/food\/cafes\/">Cafés<\/a>/);
 });
 
-test("generate writes one index.html per page under nearby/<slug>/, and listFindSlugs finds them back", () => {
+test("generate writes subcategory pages below their parent category, and listFindPaths finds them back", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "find-pages-test-"));
   fs.copyFileSync(path.join(REPO_ROOT, "app.html"), path.join(dir, "app.html"));
   const pages = generate(dir, FAKE_INVENTORY);
   assert.equal(pages.length, 3);
 
-  assert.ok(fs.existsSync(path.join(dir, "nearby", "pubs", "index.html")));
-  assert.ok(fs.existsSync(path.join(dir, "nearby", "cafes", "index.html")));
+  assert.ok(fs.existsSync(path.join(dir, "nearby", "food", "pubs", "index.html")));
+  assert.ok(fs.existsSync(path.join(dir, "nearby", "food", "cafes", "index.html")));
   assert.ok(fs.existsSync(path.join(dir, "nearby", "food", "index.html")), "the group page too");
 
-  assert.deepEqual(listFindSlugs(dir), ["cafes", "food", "pubs"]);
+  assert.deepEqual(listFindPaths(dir), ["food", "food/cafes", "food/pubs"]);
 });
 
 test("no generated category slug ever collides with the /nearby/filter or /nearby/search screens", () => {
@@ -156,7 +157,7 @@ test("no generated category slug ever collides with the /nearby/filter or /nearb
   }
 });
 
-test("listFindSlugs returns nothing for a site that has not generated any category pages yet", () => {
+test("listFindPaths returns nothing for a site that has not generated any category pages yet", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "find-pages-empty-"));
-  assert.deepEqual(listFindSlugs(dir), []);
+  assert.deepEqual(listFindPaths(dir), []);
 });

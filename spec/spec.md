@@ -251,7 +251,7 @@ Marker rules:
 The URL is the app's navigation state: every screen has one, and the URL is what puts the app
 on that screen. Nearby, Search, Filters, Settings and Report are each a real path of their own
 (GA4 fires a pageview on a path change, not on a hash-only one, so each screen and each
-`/nearby/<slug>` category is distinguishable in analytics); a selected thing — a tree, a place, a
+`/nearby/<group>` or `/nearby/<group>/<slug>` category is distinguishable in analytics); a selected thing — a tree, a place, a
 cow, a street — stays a URL fragment on top of whichever path it was selected from, since none of
 those are a "screen" of their own. Filters and Search nest under `/nearby/` — both only ever
 change what the Nearby view itself is showing (a filtered set, a typed query), never a
@@ -268,11 +268,12 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 | `/feedback` | Feedback |
 | `/nearby#tree=<key>` | a selected tree; likewise `place`, `cow`, `path`, `water`, `road`, `railway`, on top of whichever screen's path it was selected from |
 | `/nearby#near=<lat>,<lon>` | the Nearby view's browse anchor (tap-to-relocate, or an expanded cluster's centre) — shareable and restored on a fresh load, same as a selection |
-| `/nearby/<slug>` | The same app, served at its own URL and pre-filtered to one category (a subfilter's own slug, e.g. `pubs`, or a whole top-level group's, e.g. `food`) — a `/nearby/<slug>` category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it. `<slug>` is never `filter` or `search`: those two are the screens below, not categories |
-| `/nearby/filter?show=<filterKey>` | Filters, pre-filtered to one or more categories — also accepted as a fallback entry point on any path for a link still using the query-param form, superseded by `/nearby/<slug>` above for the single-category case |
+| `/nearby/<group>` | The same app, served at its own URL and pre-filtered to every subcategory in that top-level group (e.g. `/nearby/food`) |
+| `/nearby/<group>/<slug>` | The same app, served at its own URL and pre-filtered to one subcategory (e.g. `/nearby/food/pubs`) — a category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it. `<group>` is never `filter` or `search`: those two are the screens below, not categories |
+| `/nearby/filter?show=<filterKey>` | Filters, pre-filtered to one or more categories — also accepted as a fallback entry point on any path for a link still using the query-param form, superseded by the nested category URL above for the single-category case |
 | `/nearby/search?q=<text>` | Search, with the box already filled in and showing that text's results, so a search is shareable the same way a filter set is |
 | `/nearby?radius=<minutes>` | Nearby (or its `/filter`/`/search` sub-paths) with the walking radius already set to that many minutes, instead of the 5-minute default |
-| `/nearby/<slug>?radius=<minutes>` | A category or group page, with the radius set to that many minutes instead of its own 30-minute default (see below) |
+| `/nearby/<group>` or `/nearby/<group>/<slug>` with `?radius=<minutes>` | A category or group page, with the radius set to that many minutes instead of its own 30-minute default (see below) |
 | `/app` | Bare redirect (301) to `/nearby`, kept working for old links and bookmarks |
 
 - **`/nearby`, `/nearby/filter` and `/nearby/search` each track their own live query string.**
@@ -292,7 +293,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   (`state.preClusterWalkingDistanceMinutes`) — the same reasoning that radius is restored to on
   leaving the group — so a history entry written mid-expansion never bakes the group's borrowed
   ring into the address bar as if the reader had chosen it.
-- **A `/nearby/<slug>` landing page defaults the radius to 30 minutes, not the ordinary
+- **A `/nearby/<group>` or `/nearby/<group>/<slug>` landing page defaults the radius to 30 minutes, not the ordinary
   5-minute default.** `applyRadiusFromQuery()` applies this (`LANDING_PAGE_WALKING_DISTANCE_MINUTES`,
   `js/app.js`) whenever the path itself names a category or group and the URL carries no explicit
   `?radius=` of its own — a single category is otherwise too easy to come up empty within the
@@ -300,9 +301,9 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   enough near here to be worth a visit". An explicit `?radius=` always wins, the same as it does
   everywhere else. Applied the same way on every arrival at the path, boot or popstate alike,
   matching the filters' own "arrival sets the lens" treatment just below.
-- **A `/nearby/<slug>` page's single category never becomes the reader's own default.**
+- **A `/nearby/<group>/<slug>` page's single category never becomes the reader's own default.**
   `setOverviewFilters` takes a `persist: false` option, used only when the filter set comes from
-  the URL itself (a `/nearby/<slug>` path or a `?show=` link) rather than a chip the reader tapped
+  the URL itself (a `/nearby/<group>/<slug>` path or a `?show=` link) rather than a chip the reader tapped
   — so arriving at a category page is never saved as the reader's new default for a later, plain
   visit to `/nearby`. The Nearby nav button goes further for the current visit too: landing on
   one of these pages marks the filters `state.overviewFiltersEphemeral`, and tapping "Nearby"
