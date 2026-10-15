@@ -602,7 +602,7 @@ Legend reflects active marker semantics:
 ## Offline, Caching, and Refresh
 
 - Service worker caches app shell and offline datasets in two separate caches as of 2026-09-04: `forest-finds-app-vN` (app code) and `forest-finds-data-vN` (data). This allows weekly data updates without re-downloading app code.
-- App cache is bumped on code changes via `.github/workflows/sw-bump.yml` and `sw-release.yml`; data cache is bumped on data changes via `.github/workflows/data-bump.yml` (path-triggered on `data/**`).
+- Cache versions live in `js/app-cache-version.js` and `js/data-cache-version.js`. `.github/workflows/cache-version-bump.yml` runs after a merge to `main`, increments the applicable marker(s), and commits only those files; app changes and data changes therefore never create version-line conflicts in `sw.js`.
 - Cow proxy endpoint bypasses service-worker caching.
 - Cow data is cached in browser storage and refreshed on interval (every 5 minutes).
 

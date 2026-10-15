@@ -187,13 +187,12 @@ of app releases, and it must never be able to satisfy an app navigation.
 ### 4.3 Cache versions
 
 `APP_CACHE_NAME` must move when this lands, because every returning user needs
-the new worker for the navigation fix. That happens through the existing
-`.github/workflows/sw-release.yml` on merge to `main`. **That workflow's path
-filter changes with this**: it watched `index.html`, which is now the marketing
-homepage and not part of the app shell at all, so it watches `app.html`
-instead. Left unchanged, a change to the app would not have bumped the cache
-and returning users would have kept the old worker. Per [agents.md](agents.md),
-cache versions are never bumped by hand or on a branch.
+the new worker for the navigation fix. Its marker is incremented by
+`cache-version-bump.yml` after the relevant change merges to `main`, without
+editing the application service-worker file itself. Its app-path filter watches
+`app.html`, not `index.html`: the latter is the marketing homepage and must not
+invalidate the app cache. Cache versions are never bumped by hand or on a
+feature branch.
 
 ## 5. Routing
 

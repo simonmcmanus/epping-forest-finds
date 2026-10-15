@@ -1,0 +1,76 @@
+name: Bump cache versions after merge
+
+# This runs only after a commit has reached main. It never mutates a pull
+# request, so cache versions cannot create merge conflicts with application or
+# data work. The GITHUB_TOKEN is deliberately scoped to this job and repository;
+# do not replace it with a personal access token.
+#
+# Repository setup required: add github-actions[bot] to main's ruleset bypass
+# list. GitHub's bypass permissions are repository-wide, not path-scoped, so
+# this workflow defensively validates and stages only the two files below.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app.html'
+      - 'manifest.webmanifest'
+      - 'tree-icon.svg'
+      - 'css/**'
+      - 'js/**'
+      - 'sw.js'
+      - 'data/**'
+
+concurrency:
+  group: cache-version-bump-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Bump only the versions affected by this merge
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "$BEFORE" "$AFTER")
+          app_changed=false
+          data_changed=false
+          if printf '%s\n' "$changed" | grep -Eq '^(app\.html|manifest\.webmanifest|tree-icon\.svg|css/|js/|sw\.js)'; then
+            app_changed=true
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^data/'; then
+            data_changed=true
+          fi
+
+          $app_changed && perl -0pi -e 's/(v)(\d+)/$1 . ($2 + 1)/e' js/app-cache-version.js
+          $data_changed && perl -0pi -e 's/(v)(\d+)/$1 . ($2 + 1)/e' js/data-cache-version.js
+
+          git diff --check
+          changed_files=$(git diff --name-only)
+          if [ -z "$changed_files" ]; then
+            echo "No cache version needs bumping."
+            exit 0
+          fi
+          test "$changed_files" = "js/app-cache-version.js" \
+            || test "$changed_files" = "js/data-cache-version.js" \
+            || test "$changed_files" = $'js/app-cache-version.js\njs/data-cache-version.js'
+
+      - name: Commit cache version markers
+        run: |
+          set -euo pipefail
+          git diff --quiet && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- js/app-cache-version.js js/data-cache-version.js
+          git commit -m "chore: bump cache version"
+          git push origin HEAD:main

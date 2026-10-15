@@ -3,12 +3,15 @@
 // production/Netlify deploy (which serves this file untouched) always gets
 // IS_DEV === false. This lets local testing bypass the cache-first strategy
 // below without needing a CACHE_NAME bump, which only ever happens in CI
-// (.github/workflows/sw-bump.yml and sw-release.yml) and so never fires
+// (.github/workflows/cache-version-bump.yml) and so never fires
 // while iterating locally before a commit/push.
 const IS_DEV = self.__DEV__ === true;
 
-const APP_CACHE_NAME = "forest-finds-app-v109";
-const DATA_CACHE_NAME = "forest-finds-data-v32";
+// Imported separately so post-merge automation can change just the applicable
+// version file, rather than colliding with ordinary app and data edits in this file.
+importScripts("./js/app-cache-version.js", "./js/data-cache-version.js");
+const APP_CACHE_NAME = `forest-finds-app-${APP_CACHE_VERSION}`;
+const DATA_CACHE_NAME = `forest-finds-data-${DATA_CACHE_VERSION}`;
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
 // "./" is deliberately absent: after the alpha URL split it resolves to the
@@ -26,6 +29,8 @@ const APP_SHELL = [
   "./css/onboarding.css",
   "./css/tracking.css",
   "./js/categories.js",
+  "./js/app-cache-version.js",
+  "./js/data-cache-version.js",
   "./js/normalize.js",
   "./js/loader.js",
   "./js/routing.js",
