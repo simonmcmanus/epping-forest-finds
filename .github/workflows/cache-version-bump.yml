@@ -73,11 +73,26 @@ jobs:
             || test "$changed_files" = $'js/app-cache-version.js\njs/data-cache-version.js'
 
       - name: Commit cache version markers
+        id: commit
         run: |
           set -euo pipefail
-          git diff --quiet && exit 0
+          if git diff --quiet; then
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           git config user.name "Epping Cache Version Bot"
           git config user.email "cache-version-bot@users.noreply.github.com"
           git add -- js/app-cache-version.js js/data-cache-version.js
           git commit -m "chore: bump cache version"
           git push origin HEAD:main
+          echo "bumped=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger the release deploy after the cache bump
+        if: steps.commit.outputs.bumped == 'true'
+        env:
+          NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_CACHE_VERSION_BUILD_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NETLIFY_BUILD_HOOK_URL"
+          curl --fail-with-body --retry 3 --retry-all-errors --request POST --data '{}' \
+            "${NETLIFY_BUILD_HOOK_URL}?trigger_branch=main&trigger_title=cache-version-release"
