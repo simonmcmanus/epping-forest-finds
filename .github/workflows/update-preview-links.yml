@@ -30,22 +30,31 @@ jobs:
             });
 
             const categoryGroups = [
-              ["Nature", "nature", "data/icons/nature.png", [["Trees", "trees"], ["Cows", "cows"], ["Ponds & streams", "ponds-streams"]]],
-              ["Food", "food", "data/icons/food.png", [["Pubs & bars", "pubs"], ["Restaurants", "restaurants"], ["Cafés", "cafes"], ["Shops", "shops"]]],
-              ["Transport", "transport", "data/icons/bus.png", [["Bus stops", "bus"], ["Underground", "underground"], ["National Rail", "national-rail"], ["Car parks", "parking"]]],
-              ["History", "history", "data/icons/history.png", [["Historic sites", "historic"], ["Plaques", "plaques"], ["Monuments", "monuments"], ["WWII sites", "ww2"]]],
-              ["Locations", "locations", "data/icons/landmark-parking.png", [["Churches", "churches"], ["Education", "education"], ["Medical sites", "medicine"], ["Campsites", "campsites"]]],
-              ["Stories", "stories", "data/icons/legends.png", [["Legends", "legends"], ["Literature", "literature"], ["Film & TV", "film-tv"], ["Art", "art"]]],
-              ["Events", "events", "data/icons/event.png", [["Events", "events"]]],
+              ["nature", ["trees", "cows", "ponds-streams"]],
+              ["food", ["pubs", "restaurants", "cafes", "shops"]],
+              ["transport", ["bus", "underground", "national-rail", "parking"]],
+              ["history", ["historic", "plaques", "monuments", "ww2"]],
+              ["locations", ["churches", "education", "medicine", "campsites"]],
+              ["stories", ["legends", "literature", "film-tv", "art"]],
+              ["events", ["events"]],
             ];
-            const link = (path) => `[${previewUrl}${path}](${previewUrl}${path})`;
-            const categoryLinks = categoryGroups.map(([label, slug, icon, subcategories]) =>
-              `- ![${label} icon](${previewUrl}/${icon}) ${link(`/nearby/${slug}`)} — ${subcategories.map(([, subSlug]) => link(`/nearby/${subSlug}`)).join(" · ")}`
-            ).join("\n");
+            const link = (path) => `[${path}](${previewUrl}${path})`;
+            const categoryCell = ([slug, subcategories]) =>
+              `${link(`/nearby/${slug}`)}<br>${subcategories.map((subSlug) => link(`/nearby/${subSlug}`)).join(" · ")}`;
+            const categoryLinks = categoryGroups.reduce((rows, group, index) => {
+              if (index % 2 === 0) rows.push(`| ${categoryCell(group)} | ${categoryGroups[index + 1] ? categoryCell(categoryGroups[index + 1]) : ""} |`);
+              return rows;
+            }, ["| Category pages | Category pages |", "| --- | --- |"]).join("\n");
             const links = [
               "### Deploy preview",
               "",
-              `${link("/")} · ${link("/nearby")} · ${link("/nearby/search")} · ${link("/nearby/filter")} · ${link("/settings")} · ${link("/feedback")} · ${link("/admin")} · ${link("/reports/")} · ${link("/terms.html")} · ${link("/app")}`,
+              "| Routes | Routes |",
+              "| --- | --- |",
+              `| ${link("/")} | ${link("/nearby")} |`,
+              `| ${link("/nearby/search")} | ${link("/nearby/filter")} |`,
+              `| ${link("/settings")} | ${link("/feedback")} |`,
+              `| ${link("/admin")} | ${link("/reports/")} |`,
+              `| ${link("/terms.html")} | ${link("/app")} |`,
               "",
               "#### Categories and subcategories",
               "",
