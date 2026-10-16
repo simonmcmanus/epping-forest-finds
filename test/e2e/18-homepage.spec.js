@@ -583,6 +583,32 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator('a[href="/terms.html"]').first()).toBeVisible();
   });
 
+  test("summarises and links directly to the latest Ledger edition", async ({ page }) => {
+    await page.route("**/reports/", route => route.fulfill({ contentType: "text/html", body: `
+      <a class="report-link" href="./epping-forest-ledger-2026-10-11.html"><span class="report-name">11 October 2026</span></a>
+    ` }));
+    await page.route("**/reports/epping-forest-ledger-2026-10-11.html", route => route.fulfill({ contentType: "text/html", body: `
+      <p class="banner">This week’s useful forest news. No event updates are included this week beyond the listings below.</p>
+      <section id="businesses"><div class="card"><h3>The Belgian Brewer</h3><span class="status-label">Already trading</span><p class="addr">Epping High Street</p><p>A new local pub find.</p></div></section>
+      <section id="road"><div class="card"><h3>Water mains replacement</h3><span class="status-label">Ongoing</span><p class="addr">Loughton</p><p>Plan ahead for road works.</p></div></section>
+      <section id="event"><div class="card"><h3>Apple Day</h3><span class="status-label">Saturday 18 October</span><p class="addr">Copped Hall</p><p>A family day out.</p></div></section>
+    ` }));
+    await page.goto("/");
+
+    const preview = page.locator("#ledgerLatest");
+    await expect(preview).toContainText("11 October 2026");
+    await expect(preview).toContainText("The Belgian Brewer");
+    await expect(preview).toContainText("Water mains replacement");
+    await expect(preview).toContainText("Apple Day");
+    await expect(preview).toContainText("This week’s Ledger: This week’s useful forest news.");
+    await expect(preview).toContainText("Read the full edition for the complete round-up.");
+    await expect(preview).not.toContainText("listings below");
+    await expect(preview).toContainText("Saturday 18 October");
+    await expect(preview).not.toContainText("A family day out.");
+    await expect(page.locator("#latestLedgerLink")).toHaveAttribute("href", "/reports/epping-forest-ledger-2026-10-11.html");
+    await expect(page.locator(".ledger-archive-link")).toHaveAttribute("href", "/reports/");
+  });
+
   for (const reducedMotion of ["reduce", "no-preference"]) {
     test(`replaces the signup form with focused inbox guidance (motion: ${reducedMotion})`, async ({ page }) => {
       await page.emulateMedia({ reducedMotion });
