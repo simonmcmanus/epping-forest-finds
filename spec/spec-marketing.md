@@ -316,9 +316,16 @@ Sections, in order:
 8. **From the Ledger** — the last section before the footer, after the FAQ: an
    inset editorial card matching the sign-up card's layout: responsive padding, a green left border and shadow, the “Round the forest · Every week”
    eyebrow above a 44px newspaper icon (`assets/home/ledger.png`, same style as
-   the envelope) centred beside the heading, aligned like the sign-up card, and a solid green "Read the Ledger →"
-   button linking to `/reports/` (§6.4).
-   The index carries individual reports; the homepage remains static.
+   the envelope) centred beside the heading, aligned like the sign-up card.
+   It progressively loads the newest report listed at `/reports/` and displays
+   its date and a full-width homepage adaptation of its opening summary (which
+   starts “This week's Ledger” and removes references to report content below), followed by the leading local find,
+   visit-planning update and upcoming event. Each preview shows only its
+   category, title, date/status and place; it does not duplicate the report's
+   longer descriptions. The primary button
+   links directly to that latest edition; an “All editions” link still leads to
+   `/reports/`. Without JavaScript, the primary link remains a working route to
+   the editions index and the summary is omitted rather than becoming stale.
 9. **Footer** — "Created and curated by AI with oversight from Simon McManus"
    (linking to `simonmcmanus.com`), an "AI can make mistakes, please report
    them here" GitHub issues link, and `/terms.html`. No separate
