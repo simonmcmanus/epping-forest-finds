@@ -182,7 +182,7 @@ job is to be a map:
   - roads & streets
   - forest/buffer boundaries
   - live cows
-- Once loading completes, the map is rendered first, then the overlay fades out (0.32s opacity transition) so the map is revealed beneath the dissolving card.
+- The overlay waits for the non-tree static map and place layers, then the map is rendered first and the overlay fades out (0.32s opacity transition) so the map is revealed beneath the dissolving card. Veteran-tree chunks and live cattle positions continue as progressive layers, allowing place-focused screens such as Filters and its pubs option to open without waiting for the full tree register or a cattle API response; tree deep links still wait for the register so they resolve correctly.
 - A small version badge (`#sw-version`, `.version` class) is shown at the bottom-right of the loading overlay, populated via `caches.keys()` once the service worker is active. Displays the cache version (e.g. `v120`). Hidden until the SW is ready.
 - A ~500ms pause after all steps complete lets the user see the finished state before the fade begins.
 - The location gate (shown when geolocation permission is not pre-granted) also fades out on dismissal.
