@@ -88,6 +88,21 @@ test.describe("Cookie consent banner", () => {
     await expect(page.locator("#cookieConsentBanner")).toBeVisible();
   });
 
+  test("mobile keeps the early-testing notice above the map and out of the Nearby sheet", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "Mobile layout only");
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await denyGeolocationUnlessGranted(page);
+    await page.goto("/app");
+
+    const notice = page.locator("#earlyTestingBanner");
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText("Epping Forest Finds is still a work in progress");
+    expect(await notice.evaluate((element) => element.parentElement === document.body)).toBe(true);
+    await expect(page.locator("#locateButton")).toHaveCount(0);
+    expect((await notice.boundingBox()).y).toBeLessThan(80);
+  });
+
   test("a choice made on the homepage carries over to the app without asking again", async ({ page }) => {
     await page.goto("/");
     await page.locator("#cookieConsentBanner [data-action=\"accept\"]").click();

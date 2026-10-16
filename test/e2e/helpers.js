@@ -180,7 +180,6 @@ async function setup(page, urlPath = "/nearby") {
       // own, so a screen (Settings/Report included) is left zoomed in on a single, now-stale
       // patch of map instead of the whole-forest view the old no-location baseline expects.
       fitToBounds(false);
-      updateLocateButtonVisibility();
       draw();
     }
   });

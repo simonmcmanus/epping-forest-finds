@@ -153,7 +153,7 @@ display:flex;gap:12px 18px;align-items:flex-start}
 #earlyTestingBanner button{flex:0 0 auto;border:0;background:transparent;color:#405048;padding:2px;
 font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
 #earlyTestingBanner button:hover{color:#17221e}
-@media (max-width:480px){#earlyTestingBanner{padding:13px 14px;gap:10px}}
+@media (max-width:760px){#earlyTestingBanner{position:fixed;top:max(12px,env(safe-area-inset-top,0px));left:12px;right:12px;z-index:109;max-width:560px;margin:0 auto;padding:13px 14px;gap:10px;box-shadow:0 18px 42px rgba(19,31,25,.24),0 2px 8px rgba(19,31,25,.12)}}
 `;
     document.head.appendChild(style);
   }
@@ -163,11 +163,12 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
     // The homepage already explains the trial and has its own sign-up invitation, so keep this
     // extra notice for people arriving elsewhere on the site.
     if (location.pathname === "/" || location.pathname === "/index.html") return;
-    // A notice belongs in the page's reading flow. The app supplies a dedicated inspector slot;
-    // standalone public pages use their main content container. Do not add it to the admin UI,
-    // which has neither public-facing content nor an appropriate non-overlaying home for it.
-    const noticeSlot = document.getElementById("earlyTestingNoticeSlot") ||
-      document.querySelector("main, .page");
+    // Fixed descendants are scoped by a transformed inspector sheet, so on mobile this must be
+    // mounted directly under <body>: otherwise it is fixed to the sheet and covers the location
+    // notice inside it. Desktop keeps the notice in the inspector's reading flow.
+    const noticeSlot = window.matchMedia("(max-width: 760px)").matches
+      ? document.body
+      : document.getElementById("earlyTestingNoticeSlot") || document.querySelector("main, .page");
     if (!noticeSlot) return;
     // Do not layer a site notice over the app's first-run onboarding dialog. It is shown once
     // that dialog has been completed instead.
