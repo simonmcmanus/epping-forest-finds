@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-10-15T05:41:17.074181Z",
+  "generatedAt": "2026-10-16T05:38:09.730608Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -45526,6 +45526,108 @@
         "address": "3 Signal Walk London E4 9BW",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 347.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/the-belgian-brewer-epping",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1107471,
+          51.6988005
+        ]
+      },
+      "properties": {
+        "id": "manual/the-belgian-brewer-epping",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "The Belgian Brewer Epping",
+        "category": "pub",
+        "categoryLabel": "Pub",
+        "amenity": "pub",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "The Belgian Brewer, 175 High Street, Epping, Essex, CM16 4BL",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 360.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/baza",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0090371,
+          51.5712806
+        ]
+      },
+      "properties": {
+        "id": "manual/baza",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Baza",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "679 - 691 High Road Leyton, Leyton, London, E10 6RA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 263.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/garden-fresh",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0254989,
+          51.5522011
+        ]
+      },
+      "properties": {
+        "id": "manual/garden-fresh",
+        "osmType": "node",
+        "osmId": 12535753269,
+        "name": "Garden Fresh",
+        "category": "greengrocer",
+        "categoryLabel": "Greengrocer",
+        "amenity": null,
+        "shop": "greengrocer",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 204.3,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }

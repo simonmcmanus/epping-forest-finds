@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-10-12T05:37:01.171203Z",
+  "generatedAt": "2026-10-16T05:38:09.809378Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -7066,6 +7066,40 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 403.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/the-immaculate-conception",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1153949,
+          51.7025893
+        ]
+      },
+      "properties": {
+        "id": "manual/the-immaculate-conception",
+        "osmType": "way",
+        "osmId": 490698756,
+        "name": "The Immaculate Conception",
+        "category": "place_of_worship",
+        "categoryLabel": "Place Of Worship",
+        "amenity": "place_of_worship",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 22.0,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     }
