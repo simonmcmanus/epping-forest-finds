@@ -1,7 +1,7 @@
 {
   "entries": {
     "fsa/1038192": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "5 - 6 Broadway Parade The Broadway, Chingford, London, E4 9LG",
         "authority": "Waltham Forest",
@@ -13,17 +13,17 @@
         "name": "Highams Park Food & Wine",
         "ratingDate": "2025-11-19T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Highams Park Food & Wine",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/1071120": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "12 - 14 Burnside Avenue, Chingford, London, E4 8YJ",
         "authority": "Waltham Forest",
@@ -35,17 +35,17 @@
         "name": "Food 4 All",
         "ratingDate": "2026-07-28T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Food 4 All",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/1171299": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "11 - 12 The Broadway, Chingford, London, E4 9LQ",
         "authority": "Waltham Forest",
@@ -57,17 +57,17 @@
         "name": "The Stag & Lantern",
         "ratingDate": "2024-08-07T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "The Stag & Lantern",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/1544809": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Ground Floor 647 - 661 High Road Leytonstone, Leytonstone, London, E11 4RD",
         "authority": "Waltham Forest",
@@ -79,17 +79,17 @@
         "name": "Mattcup Roastery",
         "ratingDate": "2025-10-18T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Mattcup Roastery",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/1814778": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Ground Floor 262 High Road Leytonstone, Leytonstone, London, E11 3HS",
         "authority": "Waltham Forest",
@@ -101,17 +101,17 @@
         "name": "Upfull Foodzone & Juice Bar",
         "ratingDate": "2025-10-28T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Upfull Foodzone & Juice Bar",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/1936036": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "206 High Road, Loughton, Essex, IG10 1DZ",
         "authority": "Epping Forest",
@@ -123,14 +123,14 @@
         "name": "CHAPTER 21",
         "ratingDate": "2026-04-28T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "CHAPTER 21",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/1941605": {
       "confident": false,
@@ -142,20 +142,40 @@
         "fhrsId": 1941605,
         "lat": 51.6150043,
         "lon": 0.0242832,
-        "name": "n/a – Scout leaders will run",
+        "name": "n/a \u2013 Scout leaders will run",
         "ratingDate": "1901-01-01T00:00:00"
       },
       "dismissed": true,
       "dismissedReason": "Register entry is a placeholder (\"n/a - Scout leaders will run\"), not a public food business.",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-11",
-      "name": "n/a – Scout leaders will run",
+      "name": "n/a \u2013 Scout leaders will run",
       "runs": 10,
       "signal": "new",
       "source": "fsa"
     },
-    "fsa/443319": {
+    "fsa/2001360": {
       "confident": true,
+      "detail": {
+        "address": "The Belgian Brewer, 175 High Street, Epping, Essex, CM16 4BL",
+        "authority": "Epping Forest",
+        "businessType": "Pub/bar/nightclub",
+        "category": "pub",
+        "fhrsId": 2001360,
+        "lat": 51.6988005,
+        "lon": 0.1107471,
+        "name": "The Belgian Brewer Epping",
+        "ratingDate": "1901-01-01T00:00:00"
+      },
+      "firstSeen": "2026-10-16",
+      "lastSeen": "2026-10-16",
+      "name": "The Belgian Brewer Epping",
+      "runs": 1,
+      "signal": "new",
+      "source": "fsa"
+    },
+    "fsa/443319": {
+      "confident": false,
       "detail": {
         "address": "76-78 High Road, South Woodford, E18 2NA",
         "authority": "Redbridge",
@@ -167,17 +187,17 @@
         "name": "Pizza Express",
         "ratingDate": "2026-08-26T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Pizza Express",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/443368": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "The George, 159 High Street, Wanstead, E11 2RL",
         "authority": "Redbridge",
@@ -189,17 +209,17 @@
         "name": "The George & Dragon",
         "ratingDate": "2026-08-05T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "The George & Dragon",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/443427": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "39 High Street, Wanstead, E11 2AA",
         "authority": "Redbridge",
@@ -211,17 +231,37 @@
         "name": "Bobo and Wild",
         "ratingDate": "2025-06-11T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Bobo and Wild",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
+    },
+    "fsa/514611": {
+      "confident": true,
+      "detail": {
+        "address": "679 - 691 High Road Leyton, Leyton, London, E10 6RA",
+        "authority": "Waltham Forest",
+        "businessType": "Retailers - other",
+        "category": "convenience",
+        "fhrsId": 514611,
+        "lat": 51.5712806,
+        "lon": -0.0090371,
+        "name": "Baza",
+        "ratingDate": "2026-09-10T00:00:00"
+      },
+      "firstSeen": "2026-10-16",
+      "lastSeen": "2026-10-16",
+      "name": "Baza",
+      "runs": 1,
+      "signal": "new",
+      "source": "fsa"
     },
     "fsa/515100": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "5 The Avenue, Chingford, London, E4 9LB",
         "authority": "Waltham Forest",
@@ -233,17 +273,17 @@
         "name": "Avenue Food & Wine",
         "ratingDate": "2025-11-19T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Avenue Food & Wine",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/515162": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "131 Hale End Road, Walthamstow, London, E17 4DP",
         "authority": "Waltham Forest",
@@ -255,17 +295,17 @@
         "name": "News Plus Food & Wine",
         "ratingDate": "2026-02-28T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "News Plus Food & Wine",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/629879": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "140 High Road, Loughton, Essex, IG10 4BE",
         "authority": "Epping Forest",
@@ -277,17 +317,17 @@
         "name": "The Holly Bush",
         "ratingDate": "2025-03-07T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "The Holly Bush",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/657793": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Warren Wood Public House, Epping New Road, Buckhurst Hill, Essex, IG9 5UA",
         "authority": "Epping Forest",
@@ -299,17 +339,17 @@
         "name": "Simply Sea Food",
         "ratingDate": "2025-09-18T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Simply Sea Food",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/733694": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "208-212 High Street, Epping, Essex, CM16 4AQ",
         "authority": "Epping Forest",
@@ -321,17 +361,17 @@
         "name": "Pizza Express",
         "ratingDate": "2025-09-12T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Pizza Express",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "fsa/985072": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "60 Billet Road, Walthamstow, London, E17 5DN",
         "authority": "Waltham Forest",
@@ -343,14 +383,14 @@
         "name": "O'Cha Thai",
         "ratingDate": "2025-03-27T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "O'Cha Thai",
       "runs": 11,
       "signal": "new",
-      "source": "fsa",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "fsa"
     },
     "node/10005125311": {
       "confident": true,
@@ -365,9 +405,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Baden-Powell Bust",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -379,14 +419,14 @@
         "id": "node/10005216811",
         "lat": 51.6501691,
         "lon": 0.0014846,
-        "name": "The Chief’s Drum",
+        "name": "The Chief\u2019s Drum",
         "osmId": 10005216811,
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
-      "name": "The Chief’s Drum",
-      "runs": 9,
+      "lastSeen": "2026-10-16",
+      "name": "The Chief\u2019s Drum",
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -403,9 +443,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Baden-Powell Statue",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -422,9 +462,28 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
+      "signal": "missing",
+      "source": "osm"
+    },
+    "node/11237737253": {
+      "confident": false,
+      "detail": {
+        "address": "66 Station Road, London E7 0AD",
+        "category": "cafe",
+        "id": "node/11237737253",
+        "lat": 51.5527187,
+        "lon": 0.0216593,
+        "name": "Shake a Shake",
+        "osmId": 11237737253,
+        "osmType": "node"
+      },
+      "firstSeen": "2026-10-16",
+      "lastSeen": "2026-10-16",
+      "name": "Shake a Shake",
+      "runs": 2,
       "signal": "missing",
       "source": "osm"
     },
@@ -441,14 +500,36 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
-    "node/12895043436": {
+    "node/12535753269": {
       "confident": true,
+      "detail": {
+        "address": null,
+        "category": "greengrocer",
+        "lat": 51.5522011,
+        "lon": 0.0254989,
+        "name": "Garden Fresh",
+        "openingHours": null,
+        "osmId": 12535753269,
+        "osmType": "node",
+        "phone": null,
+        "status": "open",
+        "website": null
+      },
+      "firstSeen": "2026-10-16",
+      "lastSeen": "2026-10-16",
+      "name": "Garden Fresh",
+      "runs": 2,
+      "signal": "new",
+      "source": "osm"
+    },
+    "node/12895043436": {
+      "confident": false,
       "detail": {
         "address": "67 High Street Epping CM16 4BA",
         "category": "cafe",
@@ -466,14 +547,14 @@
         "status": "open",
         "website": null
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Olive Kitchen",
       "runs": 9,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "node/13359149195": {
       "confident": true,
@@ -488,14 +569,14 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
     "node/14241803101": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "622 Lea Bridge Road E10 6AP",
         "category": "cafe",
@@ -509,14 +590,14 @@
         "status": "open",
         "website": "https://www.soulbowl.cafe/home"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-10-03",
       "lastSeen": "2026-10-15",
       "name": "Soul Bowl",
       "runs": 5,
       "signal": "new",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "node/1587291199": {
       "confident": true,
@@ -531,14 +612,14 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
     "node/2091280682": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "11 Mulberry Way London E18 1EB",
         "category": "cafe",
@@ -556,17 +637,17 @@
         "status": "open",
         "website": "https://www.freshasadaisyltd.co.uk/"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Fresh as a Daisy",
       "runs": 9,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "node/2711239366": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Whipps Cross Road London E11 1NJ",
         "category": "cafe",
@@ -584,14 +665,14 @@
         "status": "open",
         "website": null
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Boat House Kiosk",
       "runs": 9,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "node/4313670399": {
       "confident": true,
@@ -606,9 +687,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -625,9 +706,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -644,9 +725,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -663,14 +744,14 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Tesco Express",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
     "node/533979253": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "242 High Street Epping CM16 4AP",
         "category": "cafe",
@@ -688,14 +769,14 @@
         "status": "open",
         "website": "https://belgiqueshop.co.uk/"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Belgique",
       "runs": 9,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "node/5814136911": {
       "confident": true,
@@ -710,9 +791,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-10-08",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Mr Bakery",
-      "runs": 3,
+      "runs": 5,
       "signal": "missing",
       "source": "osm"
     },
@@ -729,9 +810,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Loughton BBQ",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -776,22 +857,22 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Bishops",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
     "node/7168896391": {
       "confident": false,
       "detail": {
-        "name": "Green’s Steakhouse"
+        "name": "Green\u2019s Steakhouse"
       },
       "dismissed": true,
       "dismissedReason": "Closed. Checked on the ground in Loughton, September 2026. Removed from the map by hand; parked so an automatic check cannot put it back.",
       "firstSeen": "2026-09-20",
       "lastSeen": "2026-09-20",
-      "name": "Green’s Steakhouse",
+      "name": "Green\u2019s Steakhouse",
       "runs": 1,
       "signal": "closed",
       "source": "manual"
@@ -823,9 +904,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "El Cafecito/Belle Juin",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -842,9 +923,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -861,9 +942,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -880,14 +961,14 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "High Beech Kiosk",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
     "node/9579021663": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": null,
         "category": "cafe",
@@ -905,14 +986,14 @@
         "status": "open",
         "website": "https://www.thefarmcommunitykitchen.com/"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "The Farm Community Kitchen",
       "runs": 9,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "relation/12023345": {
       "confident": true,
@@ -927,9 +1008,9 @@
         "osmType": "relation"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -946,9 +1027,9 @@
         "osmType": "relation"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Ripley Grange",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -965,9 +1046,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -998,9 +1079,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1017,9 +1098,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1036,9 +1117,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Drinking Fountain",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1055,9 +1136,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "The Pigsty",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1069,14 +1150,14 @@
         "id": "way/1092472354",
         "lat": 51.650621,
         "lon": 0.0018897,
-        "name": "Eccles (Baden-Powell’s Caravan)",
+        "name": "Eccles (Baden-Powell\u2019s Caravan)",
         "osmId": 1092472354,
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
-      "name": "Eccles (Baden-Powell’s Caravan)",
-      "runs": 9,
+      "lastSeen": "2026-10-16",
+      "name": "Eccles (Baden-Powell\u2019s Caravan)",
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1093,9 +1174,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Columbarium",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1112,14 +1193,14 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Promise Path",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
     "way/1275206081": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "270 High Road Leytonstone London E11 3HS",
         "category": "restaurant",
@@ -1137,14 +1218,14 @@
         "status": "open",
         "website": null
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-10-08",
       "lastSeen": "2026-10-15",
       "name": "Restaurant Acasa",
       "runs": 3,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "way/219244505": {
       "confident": true,
@@ -1159,9 +1240,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1178,9 +1259,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1197,9 +1278,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1240,9 +1321,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "The Larder at the Butler's Retreat",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1259,9 +1340,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Manor House",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1278,9 +1359,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Dower House",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1297,14 +1378,14 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Arabin House",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
     "way/452993162": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "628 Lea Bridge Road London E10 6AP",
         "category": "cafe",
@@ -1322,17 +1403,17 @@
         "status": "open",
         "website": null
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Min Zhong Hoo Oriental Supermarket",
       "runs": 9,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "way/452993163": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "626 Lea Bridge Road London E10 6AP",
         "category": "cafe",
@@ -1350,17 +1431,17 @@
         "status": "open",
         "website": null
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Johnston's Cafe",
       "runs": 9,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "way/490698756": {
-      "confident": false,
+      "confident": true,
       "detail": {
         "address": null,
         "category": "place_of_worship",
@@ -1379,9 +1460,9 @@
         "website": null
       },
       "firstSeen": "2026-10-15",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "The Immaculate Conception",
-      "runs": 1,
+      "runs": 3,
       "signal": "changed",
       "source": "osm"
     },
@@ -1398,9 +1479,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "The Black Cottage",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1417,31 +1498,14 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "City of London Cemetery and Crematorium",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
-    "way/507664568": {
-      "confident": true,
-      "detail": {
-        "category": "restaurant",
-        "id": "way/507664568",
-        "name": "Butt Karahi",
-        "osmId": 507664568,
-        "osmType": "way",
-        "reason": "marked closed in OpenStreetMap"
-      },
-      "firstSeen": "2026-10-08",
-      "lastSeen": "2026-10-15",
-      "name": "Butt Karahi",
-      "runs": 3,
-      "signal": "closed",
-      "source": "osm"
-    },
     "way/508020413": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "471 High Road Leytonstone London E11 4JU",
         "category": "restaurant",
@@ -1459,14 +1523,14 @@
         "status": "open",
         "website": null
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-10-08",
       "lastSeen": "2026-10-15",
       "name": "Adana",
       "runs": 3,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "way/509602217": {
       "confident": true,
@@ -1481,9 +1545,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1500,14 +1564,14 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
     "way/513305723": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "719 High Road Leytonstone London E11 4RD",
         "category": "bar",
@@ -1525,14 +1589,14 @@
         "status": "open",
         "website": null
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Stone Mini Market",
       "runs": 9,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "way/550447411": {
       "confident": true,
@@ -1547,9 +1611,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "St Nicholas' Chapel",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1566,9 +1630,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Copped Hall Temple",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1585,14 +1649,14 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Double Bubble",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
     "way/694987876": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "688 High Road Leyton London E10 6JP",
         "category": "cafe",
@@ -1610,14 +1674,14 @@
         "status": "open",
         "website": null
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "Afters",
       "runs": 9,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "way/696379753": {
       "confident": true,
@@ -1632,14 +1696,14 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
     "way/702992302": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": null,
         "category": "cafe",
@@ -1657,14 +1721,14 @@
         "status": "open",
         "website": "https://gails.com/pages/loughton"
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
       "name": "GAIL's",
       "runs": 9,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "way/705000852": {
       "confident": true,
@@ -1679,9 +1743,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1698,9 +1762,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "The Warren",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1717,9 +1781,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1736,9 +1800,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "The Farm",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1851,9 +1915,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1870,9 +1934,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "The Royal Regency",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1889,9 +1953,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1908,9 +1972,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Ladderstile Farmhouse",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1927,9 +1991,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1946,9 +2010,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Park Cottage",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1965,9 +2029,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -1984,9 +2048,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -2003,9 +2067,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Pakes Farmhouse",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -2022,9 +2086,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "The Cottage",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -2041,9 +2105,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Heathfield Cottage",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
@@ -2060,39 +2124,39 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": "Baldocks",
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     },
     "way/913318929": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "3 Signal Walk London E4 9BW",
         "category": "cafe",
         "id": "way/913318929",
         "lat": 51.6077611,
         "lon": -0.0016624,
-        "name": "Ziggy’s Gift Shop",
+        "name": "Ziggy\u2019s Gift Shop",
         "openingHours": null,
         "osmId": 913318929,
         "osmType": "way",
         "phone": null,
         "previousCategory": "chemist",
-        "previousName": "Ziggy’s Gift Shop",
+        "previousName": "Ziggy\u2019s Gift Shop",
         "reason": "listed under a different type now",
         "status": "open",
         "website": null
       },
+      "dismissed": true,
+      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
-      "name": "Ziggy’s Gift Shop",
+      "name": "Ziggy\u2019s Gift Shop",
       "runs": 9,
       "signal": "changed",
-      "source": "osm",
-      "dismissed": true,
-      "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record)."
+      "source": "osm"
     },
     "way/930420087": {
       "confident": true,
@@ -2107,9 +2171,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-10-15",
+      "lastSeen": "2026-10-16",
       "name": null,
-      "runs": 9,
+      "runs": 11,
       "signal": "missing",
       "source": "osm"
     }
@@ -2129,7 +2193,7 @@
     {
       "issue": 157,
       "name": "Location issue: Hangman's Hill Haunted Road Cluster: this is not where hangman's hill is",
-      "note": "**Describe the bug**\nThe \"Hangman's Hill Haunted Road Cluster\" folklore legend is pinned at 51.6545, 0.0565, which is not where Hangman's Hill is.\n\n**To Reproduce**\n1. Open https://www.eppingforestfinds.uk/app#filters and enable the Folklore · Legend places.\n2. Find \"Hangman's Hill Haunted Road Cluster\".\n3. Compare its pin with the real Hangman's Hill (https://maps.google.com/?q=51.6545,0.0565 is the reported, wrong, location).\n\n**Expected behavior**\n- A single pin at **51.666227, 0.025257**, per https://www.atlasobscura.com/places/hangmans-hill-essex.\n- The legend text, name and description stay the same; only the position changes.\n- The correction must survive data regeneration and the weekly ledger (cite the Atlas Obscura source wherever the data is produced, so it isn't overwritten).\n- Also audit the other folklore/legend pins for wrong positions and report or fix any found.\n\n**Screenshots**\nn/a\n\n**Desktop / Smartphone**\n - Safari 26.6.2 on macOS (Macintosh; Intel Mac OS X 10_15_7)\n - App version: app v62, data v15\n\n**Additional context**\n- Reported item: Folklore · Legend — Hangman's Hill Haunted Road Cluster\n- Request ID: request-id:adf61353-fb95-4c28-9629-946bc95f65de\n- Source for the correct position: https://www.atlasobscura.com/places/hangmans-hill-essex\n- This is a data-only fix: it touches `data/**`, so CI bumps `DATA_CACHE_NAME`. The homepage dataset count is unchanged (no pins added or removed).",
+      "note": "**Describe the bug**\nThe \"Hangman's Hill Haunted Road Cluster\" folklore legend is pinned at 51.6545, 0.0565, which is not where Hangman's Hill is.\n\n**To Reproduce**\n1. Open https://www.eppingforestfinds.uk/app#filters and enable the Folklore \u00b7 Legend places.\n2. Find \"Hangman's Hill Haunted Road Cluster\".\n3. Compare its pin with the real Hangman's Hill (https://maps.google.com/?q=51.6545,0.0565 is the reported, wrong, location).\n\n**Expected behavior**\n- A single pin at **51.666227, 0.025257**, per https://www.atlasobscura.com/places/hangmans-hill-essex.\n- The legend text, name and description stay the same; only the position changes.\n- The correction must survive data regeneration and the weekly ledger (cite the Atlas Obscura source wherever the data is produced, so it isn't overwritten).\n- Also audit the other folklore/legend pins for wrong positions and report or fix any found.\n\n**Screenshots**\nn/a\n\n**Desktop / Smartphone**\n - Safari 26.6.2 on macOS (Macintosh; Intel Mac OS X 10_15_7)\n - App version: app v62, data v15\n\n**Additional context**\n- Reported item: Folklore \u00b7 Legend \u2014 Hangman's Hill Haunted Road Cluster\n- Request ID: request-id:adf61353-fb95-4c28-9629-946bc95f65de\n- Source for the correct position: https://www.atlasobscura.com/places/hangmans-hill-essex\n- This is a data-only fix: it touches `data/**`, so CI bumps `DATA_CACHE_NAME`. The homepage dataset count is unchanged (no pins added or removed).",
       "reportedOn": "2026-10-01",
       "source": "report",
       "url": "https://github.com/simonmcmanus/epping-forest-finds/issues/157"
@@ -2207,14 +2271,14 @@
   ],
   "sources": {
     "fsa": {
-      "checkedAt": "2026-10-15",
-      "population": 928
+      "checkedAt": "2026-10-16",
+      "population": 929
     },
     "osm": {
-      "checkedAt": "2026-10-15",
+      "checkedAt": "2026-10-16",
       "population": 2575
     }
   },
-  "updatedAt": "2026-10-15",
+  "updatedAt": "2026-10-16",
   "version": 1
 }
