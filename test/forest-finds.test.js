@@ -2094,6 +2094,29 @@ test("applyDefaultLocation widens the plain 5-minute default radius to 30 minute
   assert.equal(app.state.walkingDistanceMinutes, app.LANDING_PAGE_WALKING_DISTANCE_MINUTES, "already-30 from the landing-page default is left alone too");
 });
 
+test("the Nearby list says it is showing High Beach while the stand-in is active, and says nothing once a real fix replaces it", () => {
+  resetData(app);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push({ id: "t1", commonName: "Nearby tree", ...makePoint(app, 0.0005, 0) });
+
+  // Built directly with the isDefault flag (same as the "hasRealLocation" test above) rather
+  // than via applyDefaultLocation(), which would centre on DEFAULT_LOCATION's real-world
+  // coordinates -- far outside this fixture tree's synthetic (0,0)-based test coordinates.
+  app.state.userLocation = { ...makePoint(app, 0, 0), isDefault: true };
+  assert.match(
+    app.overviewNearestHtml(),
+    /Showing things near High Beach — you haven't shared your location\./,
+    "explains why the list is centred on High Beach, not just the one-time dismissible gate"
+  );
+
+  app.state.userLocation = makePoint(app, 0, 0);
+  assert.doesNotMatch(
+    app.overviewNearestHtml(),
+    /Showing things near High Beach/,
+    "a real fix needs no explanation for where the list is centred"
+  );
+});
+
 test("the inspector has no standalone location button", () => {
   assert.equal(app.els.locateButton, undefined, "location permission is requested from the focused gate, not a second Nearby control");
 });

@@ -3811,6 +3811,14 @@ function overviewNearestHtml() {
   // this list -- it is the persistent #nearbyAnchorBar in the inspector chrome, so it stays
   // reachable from Filters/Settings/Report too (updateNearbyAnchorBar, js/nav.js).
 
+  // applyDefaultLocation()'s High Beach stand-in -- unlike the dismissible invite gate
+  // (revealNoRealLocation), which the reader can tap away and never see again this session,
+  // this sits with the list itself for as long as the stand-in is what it's actually measuring
+  // from, so "why is this centred on High Beach?" has an answer on screen the whole time.
+  const defaultLocationNotice = state.userLocation.isDefault
+    ? `<p class="source-note">Showing things near High Beach — you haven't shared your location.</p>`
+    : "";
+
   // Set by the pinch-to-resize gesture (updateNearbyRadiusPinch, js/nav.js) while the user
   // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
   // that has no slider to show it on. Transient: cleared as soon as the pinch ends.
@@ -3850,7 +3858,7 @@ function overviewNearestHtml() {
     : `Showing all distances — tap to filter to ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
   const chipLabel = radiusActive ? formatWalkingRadius(state.walkingDistanceMinutes) : "All";
   const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
-  return `${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+  return `${defaultLocationNotice}${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
 }
 
 // The icon the Nearby list, search results and cluster detail show for a

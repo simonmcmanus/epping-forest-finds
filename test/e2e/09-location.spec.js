@@ -28,6 +28,10 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#locationGate")).toBeHidden();
     });
 
+    test("the High Beach stand-in notice is not shown with a real fix", async ({ page }) => {
+      await expect(page.locator("#inspectorBody")).not.toContainText("Showing things near High Beach");
+    });
+
     test("distance info appears as an always-visible combined distance and walk chip after a GPS fix", async ({ page }) => {
       // Navigate to a tree via URL hash (tree search toggle is hidden on desktop viewports)
       await page.goto("/nearby#tree=11383");
@@ -133,6 +137,12 @@ test.describe("Location and GPS — happy path", () => {
       expect(result.longitude).toBeCloseTo(result.defaultLongitude, 5);
       await expect(page.locator("#inspectorBody .empty")).not.toBeVisible();
       await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
+    });
+
+    test("the list says it is showing High Beach because no location was shared, for as long as the stand-in is active", async ({ page }) => {
+      await expect(page.locator("#inspectorBody .source-note")).toContainText(
+        "Showing things near High Beach — you haven't shared your location."
+      );
     });
 
     test("the walking radius defaults to 30 minutes, not the ordinary 5, since the anchor isn't tied to anywhere real", async ({ page }) => {
