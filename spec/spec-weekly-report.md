@@ -418,6 +418,12 @@ remain under their public report URLs. These addresses are built from
 
 ## Sections that are always there
 
+Individual editions lead with a small uppercase “Epping Forest Ledger” label
+above a large date headline. The longhorn photograph is a supporting thumbnail
+(152 × 114px on desktop, 112 × 84px on phones), not a full hero panel.
+The summary and statistics remain in the masthead. The archive index keeps its
+existing title and layout.
+
 Openings/closures, road & access, and events each render whether or not the
 week turned anything up; an empty one says so in plain English
 (`EMPTY_SECTION_NOTES`). A missing "Events" heading reads as "nobody looked";

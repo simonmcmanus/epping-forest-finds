@@ -7,6 +7,19 @@ const path = require("node:path");
 const { test, expect } = require("@playwright/test");
 const { generate } = require("../../scripts/generate-reports-index.js");
 
+for (const width of [390, 1280]) {
+  test(`individual editions lead with their date and a small cattle photograph at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/reports/epping-forest-ledger-2026-10-16.html");
+    await expect(page.locator(".masthead h1")).toHaveText("Friday, 16 October 2026");
+    await expect(page.locator(".ledger-name")).toHaveText("Epping Forest Ledger");
+    const photo = await page.locator(".hero-photo img").boundingBox();
+    expect(photo.width).toBeLessThanOrEqual(152);
+    expect(photo.height).toBeLessThanOrEqual(114);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
+
 test.describe("the Ledger listing", () => {
   // reports/index.html is a build output (gitignored, written by `npm run
   // build`), and CI's e2e job does not build. Generate it the way the build
