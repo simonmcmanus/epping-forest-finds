@@ -725,17 +725,24 @@ use for the homepage's counts.
   alone (`standaloneNearbySectionHtml`, "Selected Detail Content" in
   `spec-data-rendering.md`) — the walk-radius card itself is never scoped
   to `findSlug`.
-- **The cows link carries the selected place's own position**, via
-  `/nearby/cows/`'s existing `near=<lat>,<lon>` browse-anchor route
-  (`nearbyAnchorRouteValue`, `js/app.js` — the same one a map tap or a shared
-  link already use): `#near=${lat.toFixed(6)},${lon.toFixed(6)}` on both the
-  static page's link (`scripts/generate-business-pages.js`, falling back to
-  a bare `/nearby/cows/` when the entry has no coordinates) and the live
-  card's href (`js/inspector.js`). Without it, landing on `/nearby/cows/`
-  re-anchored to the reader's own GPS fix, showing cow distances that didn't
-  match the one the card just quoted. Trees has no equivalent mismatch to
-  fix — `/nearby/trees/` already lists everything near wherever the reader
-  actually is, not one distance a card promised — so it stays unanchored.
+- **The trees and cows links both carry the selected place's own position**,
+  via `/nearby/trees/`'s and `/nearby/cows/`'s existing `near=<lat>,<lon>`
+  browse-anchor route (`nearbyAnchorRouteValue`, `js/app.js` — the same one a
+  map tap or a shared link already use): `#near=${lat.toFixed(6)},${lon.toFixed(6)}`
+  on both the static page's links (`scripts/generate-business-pages.js`,
+  falling back to a bare `/nearby/<slug>/` when the entry has no
+  coordinates) and the live cards' hrefs (`js/inspector.js`). Without it,
+  landing on either page re-anchored to the reader's own GPS fix, showing a
+  distance to the nearest tree/cow from *there* rather than from the
+  business the card's own distance was quoted against — reported live as
+  "nearest grazing cattle... is doing the correct behaviour... but for
+  veteran trees it's still using the current user's location" once the cows
+  link was fixed first and the trees link, which carried the identical bug,
+  was initially assumed not to need the same fix (an earlier version of this
+  spec said so explicitly, reasoning that `/nearby/trees/` already lists
+  everything nearby rather than promising one distance — true of the page in
+  general, but not of the one card linking to it, which does quote a single
+  distance to a single nearest tree the same way the cows card does).
 - **Every in-app link rendered into the inspector is a real SPA transition,
   not a full page reload.** A plain `<a href="/...">` (every link above,
   plus `fullDetailsLinkHtml`'s own "Full details") used to fall straight

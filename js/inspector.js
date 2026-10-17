@@ -1111,21 +1111,21 @@ function relatedCategoryLinksHtml(place) {
 
   const nearestTree = nearestTreeTo(place.latitude, place.longitude);
   const nearestCow = state.cows.length ? nearestCowTo(place.latitude, place.longitude) : null;
-  // The cows link carries this place's own position as /nearby/cows/'s existing "near=<lat>,<lon>"
+  // Both links carry this place's own position as the target page's existing "near=<lat>,<lon>"
   // anchor route (nearbyAnchorRouteValue, js/app.js -- the same one a map tap or a shared link
   // already use) -- otherwise landing there re-anchors to the reader's own GPS fix, which both
-  // shows cow distances that don't match the one this card just quoted and strands the reader's
-  // actual reason for coming here (how far from *this place*) the moment they arrive. Trees has
-  // no such mismatch to fix: /nearby/trees/ already lists everything near wherever the reader
-  // actually is, not a single distance this card promised.
-  const cowsHref = `/nearby/cows/#${nearbyAnchorRouteValue({ latitude: place.latitude, longitude: place.longitude })}`;
+  // shows a distance that doesn't match the one this card just quoted and strands the reader's
+  // actual reason for coming here (how far from *this place*) the moment they arrive.
+  const anchorHash = nearbyAnchorRouteValue({ latitude: place.latitude, longitude: place.longitude });
+  const treesHref = `/nearby/trees/#${anchorHash}`;
+  const cowsHref = `/nearby/cows/#${anchorHash}`;
   // The walk-radius card (nearbyWithinWalkHtml) joins the same "Nearby" list rather than getting
   // its own heading here -- this place already has one whenever it has coordinates, so there is
   // always at least this card even when no tree/cow is close enough to show.
   const walkCardHtml = nearbyWithinWalkHtml(place.latitude, place.longitude);
   const nearbySectionHtml = (nearestTree || nearestCow || walkCardHtml)
     ? `<h3 class="detail-section-heading">Nearby</h3><ul class="nearest-list related-cards">` +
-      (nearestTree ? cardHtml("/nearby/trees/", "tree", "Nearest veteran tree", walkInfoHtml(nearestTree.metres)) : "") +
+      (nearestTree ? cardHtml(treesHref, "tree", "Nearest veteran tree", walkInfoHtml(nearestTree.metres)) : "") +
       (nearestCow ? cardHtml(cowsHref, "cow", "The grazing cattle", walkInfoHtml(nearestCow.metres)) : "") +
       walkCardHtml +
       `</ul>`

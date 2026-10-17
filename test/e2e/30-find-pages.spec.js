@@ -150,7 +150,9 @@ test.describe("generated find/nearby pages", () => {
       // a different pill style -- one consistent list under each heading.
       await expect(body.locator('a.nearest-item[href="/nearby/pubs/"]')).toHaveCount(1);
       await expect(body.locator('a.nearest-item[href="/nearby/food/"]')).toHaveCount(1);
-      await expect(body.locator('a.nearest-item[href="/nearby/trees/"]')).toHaveCount(1);
+      // Carries the business's own position via the near= hash (see the dedicated test below),
+      // so this is a prefix match rather than an exact href.
+      await expect(body.locator('a.nearest-item[href^="/nearby/trees/#near="]')).toHaveCount(1);
       // "Everything within 15 min walk" lives in the Nearby section too now, as the same card
       // style -- not the separate top-row pill it used to be.
       const walkCard = body.locator("button.nearest-item[data-action='walk-radius']");
@@ -180,10 +182,32 @@ test.describe("generated find/nearby pages", () => {
       // (new document, fresh JS realm) -- a more direct proof than counting events, which fire
       // for both pushState and a real navigation.
       await page.evaluate(() => { window.__noReloadMarker = "still-here"; });
-      await page.locator('#inspectorBody a.nearest-item[href="/nearby/trees/"]').click();
-      await expect(page).toHaveURL(/\/nearby\/trees\/$/);
+      await page.locator('#inspectorBody a.nearest-item[href^="/nearby/trees/"]').click();
+      await expect(page).toHaveURL(/\/nearby\/trees\/#near=/);
       const markerSurvived = await page.evaluate(() => window.__noReloadMarker).catch(() => null);
       expect(markerSurvived).toBe("still-here");
+    });
+
+    test("the nearest-tree link carries the business's own position via the near= hash, and the live view anchors Nearby there", async ({ page }) => {
+      await setup(page, `/find/${EXAMPLE_PUB.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
+
+      const placeCoords = await page.evaluate(() => ({
+        latitude: Number(state.selected.item.latitude.toFixed(6)),
+        longitude: Number(state.selected.item.longitude.toFixed(6)),
+      }));
+      const treesLink = page.locator('#inspectorBody a.nearest-item[href^="/nearby/trees/"]');
+      await expect(treesLink).toHaveCount(1);
+      const href = await treesLink.getAttribute("href");
+      expect(href).toBe(`/nearby/trees/#near=${placeCoords.latitude}%2C${placeCoords.longitude}`);
+
+      await treesLink.click();
+      await expect(page).toHaveURL(new RegExp(`/nearby/trees/#near=${placeCoords.latitude}%2C${placeCoords.longitude}$`));
+      const anchor = await page.evaluate(() => ({
+        latitude: state.nearbyAnchor && Number(state.nearbyAnchor.latitude.toFixed(6)),
+        longitude: state.nearbyAnchor && Number(state.nearbyAnchor.longitude.toFixed(6)),
+      }));
+      expect(anchor).toEqual(placeCoords);
     });
 
     test("the nearest-cow link carries the business's own position via the near= hash, and the live view anchors Nearby there", async ({ page }) => {

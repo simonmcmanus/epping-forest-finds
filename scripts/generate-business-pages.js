@@ -167,19 +167,20 @@ function renderBusinessPage(entry, appHtml, rules, index) {
         .join("")}</ul>`
     : "";
 
-  // No walk-time here -- cattle move, so a build-time distance would be wrong by the time anyone
-  // reads it. The live page (js/inspector.js's relatedCategoryLinksHtml) upgrades this same link
-  // with a real, freshly-computed "X min walk to the cows" once JS boots and the live GPS
-  // positions are loaded; this is the honest no-JS version of it. The cows link still carries
-  // this place's own position via /nearby/cows/'s existing "near=<lat>,<lon>" anchor route
-  // (nearbyAnchorRouteValue, js/app.js -- same format, reproduced here since this runs in Node,
-  // not the browser) -- once JS boots on whichever page this link lands on, it anchors the cows
-  // view to this business's own spot rather than the reader's GPS fix. Trees has no equivalent
-  // mismatch to fix (see js/inspector.js's own version of this link).
-  const cowsHref = entry.lat != null && entry.lon != null
-    ? `/nearby/cows/#near=${entry.lat.toFixed(6)}%2C${entry.lon.toFixed(6)}`
-    : "/nearby/cows/";
-  const seeAlso = `See also <a href="/nearby/trees/">veteran trees</a> and <a href="${cowsHref}">grazing cattle</a> near Epping Forest.`;
+  // No walk-time here -- cattle move (and even a tree's isn't worth computing build-time, since
+  // the live page recomputes it anyway), so this is the honest no-JS version of the link. The
+  // live page (js/inspector.js's relatedCategoryLinksHtml) upgrades both links with a real,
+  // freshly-computed walk time once JS boots. Both links still carry this place's own position via
+  // the target page's existing "near=<lat>,<lon>" anchor route (nearbyAnchorRouteValue, js/app.js
+  // -- same format, reproduced here since this runs in Node, not the browser) -- once JS boots on
+  // whichever page a link lands on, it anchors that view to this business's own spot rather than
+  // the reader's GPS fix.
+  const anchorHash = entry.lat != null && entry.lon != null
+    ? `#near=${entry.lat.toFixed(6)}%2C${entry.lon.toFixed(6)}`
+    : "";
+  const treesHref = `/nearby/trees/${anchorHash}`;
+  const cowsHref = `/nearby/cows/${anchorHash}`;
+  const seeAlso = `See also <a href="${treesHref}">veteran trees</a> and <a href="${cowsHref}">grazing cattle</a> near Epping Forest.`;
   const upLinks = subfilter && group
     ? `<p>Part of <a href="/nearby/${escapeHtml(subfilterSlug)}/">${escapeHtml(subfilter.label)}</a> in <a href="/nearby/${escapeHtml(groupSlug)}/">${escapeHtml(group.label)}</a>. ${seeAlso}</p>`
     : `<p>${seeAlso}</p>`;

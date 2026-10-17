@@ -917,11 +917,11 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   `.nearest-item` card — see `spec-marketing.md` § 6.7, "Related-content links, both
   server-rendered and live, as two headed sections". Neither section names a data source for its
   distances (computed entirely from this site's own data, not fetched from anywhere). The
-  nearest-cow link carries this place's own position via `/nearby/cows/`'s `near=<lat>,<lon>`
-  anchor route, and every in-app link rendered into the inspector — this one included — is a real
-  SPA transition rather than a full page reload — see `spec-marketing.md` § 6.7, "The cows link
-  carries the selected place's own position" and "Every in-app link rendered into the inspector is
-  a real SPA transition".
+  nearest-tree and nearest-cow links both carry this place's own position via `/nearby/trees/`'s
+  and `/nearby/cows/`'s own `near=<lat>,<lon>` anchor route, and every in-app link rendered into
+  the inspector — these included — is a real SPA transition rather than a full page reload — see
+  `spec-marketing.md` § 6.7, "The trees and cows links both carry the selected place's own
+  position" and "Every in-app link rendered into the inspector is a real SPA transition".
 
 #### Cow Details
 

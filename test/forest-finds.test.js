@@ -10554,9 +10554,10 @@ test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, the wa
   const relatedHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Related</h3>');
   assert.ok(nearbyHeadingIndex >= 0 && relatedHeadingIndex > nearbyHeadingIndex, "Nearby heading comes before Related");
 
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/">[\s\S]*?Nearest veteran tree[\s\S]*?<\/a>/);
-  // The cows link carries this pub's own position via /nearby/cows/'s existing "near=<lat>,<lon>"
-  // anchor route, so landing there re-centres on the pub rather than the reader's own GPS fix.
+  // Both the tree and cows links carry this pub's own position via the target page's existing
+  // "near=<lat>,<lon>" anchor route, so landing there re-centres on the pub rather than the
+  // reader's own GPS fix.
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000">[\s\S]*?Nearest veteran tree[\s\S]*?<\/a>/);
   assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?The grazing cattle[\s\S]*?<\/a>/);
   assert.match(html, /walk-chip/, "the nearby cards carry a real walk-time chip, not bare text");
 
