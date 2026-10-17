@@ -51,13 +51,15 @@ REPORT_CSS = """
   .skip-link:focus{top:10px;}
   a:focus-visible{outline:3px solid var(--forest);outline-offset:4px;}
   header.masthead{max-width:992px;margin:8px auto 48px;padding:0;display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:0;align-items:center;background:var(--forest-deep);color:var(--bg);border-radius:18px;overflow:hidden;}
-  header.masthead .inner{padding:36px 28px;min-width:0;display:flex;flex-direction:column;justify-content:center;}
+  header.masthead .inner{padding:28px 28px 16px;min-width:0;display:flex;flex-direction:column;justify-content:center;}
+  header.masthead h1.title{margin-bottom:0;}
+  header.masthead > .banner{grid-column:1 / -1;max-width:none;margin:0;padding:0 28px 28px;}
   .eyebrow{color:#c9dfc9;font-size:.82rem;font-weight:600;letter-spacing:.06em;margin:0 0 16px;}
   h1.title{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(2.6rem,5vw,4rem);letter-spacing:-.04em;line-height:1.05;margin:0 0 20px;text-wrap:balance;}
   .meta-row{display:flex;flex-direction:column;gap:10px;font-size:.9rem;color:#d8e5d3;}
   .meta-row .coverage{font-size:.78rem;line-height:1.6;}
   .ledger-name{margin:0 0 12px;font-size:.85rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#d8e5d3;}
-  .hero-photo{margin:28px 28px 28px 0;overflow:hidden;border-radius:8px;background:var(--forest-deep);display:flex;flex-direction:column;}
+  .hero-photo{align-self:start;margin:28px 28px 16px 0;overflow:hidden;border-radius:8px;background:var(--forest-deep);display:flex;flex-direction:column;}
   .hero-photo picture{display:contents;}
   .hero-photo img{display:block;width:100%;height:114px;object-fit:cover;}
   .hero-photo figcaption{padding:12px 16px;font-size:.75rem;color:#d8e5d3;}
@@ -66,10 +68,12 @@ REPORT_CSS = """
   .newsletter img{flex:0 0 80px;}
   @media(max-width:1040px){header.masthead{margin-left:24px;margin-right:24px;}}
   @media(max-width:650px){
-    header.masthead{grid-template-columns:1fr;gap:0;margin-bottom:32px;}
+    header.masthead{grid-template-columns:minmax(0,1fr) 112px;gap:0;margin-bottom:32px;}
     header.masthead .inner{padding:28px 24px 16px;}
-    .hero-photo{width:112px;margin:0 24px 24px;}
-    .hero-photo img{height:84px;}
+    header.masthead h1.title{font-size:clamp(1.9rem,7vw,2.6rem);}
+    header.masthead > .banner{padding:0 24px 24px;}
+    .hero-photo{width:88px;margin:28px 24px 16px 0;}
+    .hero-photo img{height:66px;}
     .site-head{font-size:.8rem;gap:10px;}
     .brand{gap:8px;}
     .brand img{width:34px;height:34px;}

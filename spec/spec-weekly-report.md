@@ -420,8 +420,9 @@ remain under their public report URLs. These addresses are built from
 
 Individual editions lead with a small uppercase “Epping Forest Ledger” label
 above a large date headline. The longhorn photograph is a supporting thumbnail
-(152 × 114px on desktop, 112 × 84px on phones), not a full hero panel.
-The summary and statistics remain in the masthead. The archive index keeps its
+(152 × 114px on desktop, 88 × 66px on phones), aligned at the top right beside
+the date. The summary spans the full width below the title and photograph,
+with statistics beneath it. The archive index keeps its
 existing title and layout.
 
 Openings/closures, road & access, and events each render whether or not the

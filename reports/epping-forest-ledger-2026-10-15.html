@@ -148,13 +148,15 @@
   .skip-link:focus{top:10px;}
   a:focus-visible{outline:3px solid var(--forest);outline-offset:4px;}
   header.masthead{max-width:992px;margin:8px auto 48px;padding:0;display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:0;align-items:center;background:var(--forest-deep);color:var(--bg);border-radius:18px;overflow:hidden;}
-  header.masthead .inner{padding:36px 28px;min-width:0;display:flex;flex-direction:column;justify-content:center;}
+  header.masthead .inner{padding:28px 28px 16px;min-width:0;display:flex;flex-direction:column;justify-content:center;}
+  header.masthead h1.title{margin-bottom:0;}
+  header.masthead > .banner{grid-column:1 / -1;max-width:none;margin:0;padding:0 28px 28px;}
   .eyebrow{color:#c9dfc9;font-size:.82rem;font-weight:600;letter-spacing:.06em;margin:0 0 16px;}
   h1.title{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(2.6rem,5vw,4rem);letter-spacing:-.04em;line-height:1.05;margin:0 0 20px;text-wrap:balance;}
   .meta-row{display:flex;flex-direction:column;gap:10px;font-size:.9rem;color:#d8e5d3;}
   .meta-row .coverage{font-size:.78rem;line-height:1.6;}
   .ledger-name{margin:0 0 12px;font-size:.85rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#d8e5d3;}
-  .hero-photo{margin:28px 28px 28px 0;overflow:hidden;border-radius:8px;background:var(--forest-deep);display:flex;flex-direction:column;}
+  .hero-photo{align-self:start;margin:28px 28px 16px 0;overflow:hidden;border-radius:8px;background:var(--forest-deep);display:flex;flex-direction:column;}
   .hero-photo picture{display:contents;}
   .hero-photo img{display:block;width:100%;height:114px;object-fit:cover;}
   .hero-photo figcaption{padding:12px 16px;font-size:.75rem;color:#d8e5d3;}
@@ -163,10 +165,12 @@
   .newsletter img{flex:0 0 80px;}
   @media(max-width:1040px){header.masthead{margin-left:24px;margin-right:24px;}}
   @media(max-width:650px){
-    header.masthead{grid-template-columns:1fr;gap:0;margin-bottom:32px;}
+    header.masthead{grid-template-columns:minmax(0,1fr) 112px;gap:0;margin-bottom:32px;}
     header.masthead .inner{padding:28px 24px 16px;}
-    .hero-photo{width:112px;margin:0 24px 24px;}
-    .hero-photo img{height:84px;}
+    header.masthead h1.title{font-size:clamp(1.9rem,7vw,2.6rem);}
+    header.masthead > .banner{padding:0 24px 24px;}
+    .hero-photo{width:88px;margin:28px 24px 16px 0;}
+    .hero-photo img{height:66px;}
     .site-head{font-size:.8rem;gap:10px;}
     .brand{gap:8px;}
     .brand img{width:34px;height:34px;}
@@ -629,9 +633,9 @@
   <div class="inner">
     <p class="ledger-name">Epping Forest Ledger</p>
     <h1 class="title">Thursday, 15 October 2026</h1>
-    <p class="banner">One restaurant on Leytonstone High Road is reported closed, and the forest's grazing cattle have moved to a new area near Sewardstone. Water mains work in Loughton and carriageway work in Epping are ongoing, with their current status not confirmed this week. No new openings are included.</p>
   </div>
   <figure class="hero-photo"><picture><source type="image/webp" srcset="/assets/home/epping-longhorns-480.webp 480w, /assets/home/epping-longhorns-768.webp 768w, /assets/home/epping-longhorns-960.webp 960w, /assets/home/epping-longhorns-1280.webp 1280w, /assets/home/epping-longhorns-1600.webp 1600w" sizes="(min-width: 1040px) 451px, (max-width: 650px) calc(100vw - 48px), calc((100vw - 48px) / 2.2)"><img src="/assets/home/epping-longhorns.jpg" width="1600" height="1200" fetchpriority="high" alt="English Longhorn cattle grazing in Epping Forest."></picture></figure>
+    <p class="banner">One restaurant on Leytonstone High Road is reported closed, and the forest's grazing cattle have moved to a new area near Sewardstone. Water mains work in Loughton and carriageway work in Epping are ongoing, with their current status not confirmed this week. No new openings are included.</p>
   <div class="stat-strip cols-6"><div class="stat"><div class="n mono">1356</div><div class="lbl">Places to eat, drink &amp; shop</div></div><div class="stat"><div class="n mono good">0</div><div class="lbl">Local finds</div></div><div class="stat"><div class="n mono critical">1</div><div class="lbl">Closure updates</div></div><div class="stat"><div class="n mono warning">5</div><div class="lbl">Road &amp; access changes</div></div><div class="stat"><div class="n mono event">2</div><div class="lbl">Upcoming events</div></div><div class="stat"><div class="n mono grazing">Moved</div><div class="lbl">Cattle grazing area</div></div></div>
 </header>
 

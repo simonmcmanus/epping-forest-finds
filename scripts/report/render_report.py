@@ -736,9 +736,9 @@ def render_report(report_data, repo_root):
   <div class="inner">
     <p class="ledger-name">Epping Forest Ledger</p>
     <h1 class="title">{escape(date_display)}</h1>
-    {banner_html}
   </div>
   {render_hero_photo()}
+  {banner_html}
   {stat_strip}
 </header>
 

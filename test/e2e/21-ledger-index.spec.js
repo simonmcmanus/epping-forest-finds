@@ -16,6 +16,11 @@ for (const width of [390, 1280]) {
     const photo = await page.locator(".hero-photo img").boundingBox();
     expect(photo.width).toBeLessThanOrEqual(152);
     expect(photo.height).toBeLessThanOrEqual(114);
+    const summary = await page.locator(".masthead > .banner").boundingBox();
+    const masthead = await page.locator(".masthead").boundingBox();
+    expect(summary.width).toBeCloseTo(masthead.width, 0);
+    expect(summary.y).toBeGreaterThanOrEqual(photo.y + photo.height);
+    expect(photo.x + photo.width).toBeGreaterThan(masthead.x + masthead.width - 30);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }
