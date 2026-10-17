@@ -370,8 +370,9 @@ function showTreeDetails(tree, distance, label) {
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
   const namedTreeHtml = namedTreeDetailsHtml(tree);
+  const nearbySectionHtml = standaloneNearbySectionHtml(tree.latitude, tree.longitude);
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
-  transitionInspectorBody(topRow + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + issueHtml, "forward");
+  transitionInspectorBody(topRow + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + nearbySectionHtml + issueHtml, "forward");
 }
 
 function showLandmarkDetails(place, distance) {
@@ -394,16 +395,24 @@ function showLandmarkDetails(place, distance) {
         ["Type", place.type],
         ["Area", place.area],
         ["Confidence", place.confidence],
+        ["Opening hours", place.openingHours],
         ["Website", place.website],
         ["Phone", place.phone],
       ];
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
-  const topRow = (distancePill || mapsLink || shareBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}</div>` : "";
+  const fullDetailsLink = fullDetailsLinkHtml(place.findSlug);
+  const topRow = (distancePill || mapsLink || shareBtn || fullDetailsLink) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}${fullDetailsLink}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
-  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + issueHtml;
+  // relatedCategoryLinksHtml already folds the walk-radius card into its own "Nearby" section for
+  // a findSlug place; everything else (trees/transport/history/stories places, events) has no
+  // such section of its own, so it gets a standalone one carrying just that card.
+  const relatedLinksHtml = place.findSlug
+    ? relatedCategoryLinksHtml(place)
+    : standaloneNearbySectionHtml(place.latitude, place.longitude);
+  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
   transitionInspectorBody(landmarkHtml, "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
     loadTransportDepartures(place);
@@ -425,7 +434,8 @@ function showCowDetails(cow, distance) {
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(cow.latitude, cow.longitude, `Cow ${cow.serialNo}`);
   const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}</div>`;
-  transitionInspectorBody(topRow + detailsHtml(rows), "forward");
+  const nearbySectionHtml = standaloneNearbySectionHtml(cow.latitude, cow.longitude);
+  transitionInspectorBody(topRow + detailsHtml(rows) + nearbySectionHtml, "forward");
 
   if (state.cowDetailTimerId != null) clearInterval(state.cowDetailTimerId);
   state.cowDetailTimerId = setInterval(() => {
@@ -1042,6 +1052,108 @@ function shareLocationHtml() {
   return `<button class="detail-map-link" type="button" data-action="share-location">Share link</button>`;
 }
 
+// One tap to browse everything within a fixed 15-minute walk of exactly this spot -- reuses the
+// same anchor-move (setNearbyAnchor) and radius-change (applyWalkingRadiusChange) mechanisms a
+// map tap on open ground and the Settings walking-radius slider already use, combined into one
+// state update by focusNearbyWithinWalkMinutes (js/nav.js), wired through the same delegated
+// click handler as Share link/Open in Maps (data-action, js/nav.js). Shares the Nearby list's own
+// .nearest-item card shape (see relatedCategoryLinksHtml below) rather than the unrelated
+// .detail-map-link pill an earlier version used -- it lives under a "Nearby" heading alongside
+// whatever else is nearby, not as a disconnected top-row action. A <button>, not an <a>: it drives
+// a live state change (moving the browse anchor and resizing the radius), not a navigation, so the
+// .nearest-item styling (written for a <button> in the Nearby list itself) needs no anchor-tag
+// override the way relatedCategoryLinksHtml's own cards do.
+function nearbyWithinWalkHtml(lat, lon) {
+  if (lat == null || lon == null) return "";
+  return `<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}">` +
+    `<span class="nearest-icon" aria-hidden="true">${appIconHtml("walking")}</span>` +
+    `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Everything within 15 min walk</span></div></div>` +
+    `</button></li>`;
+}
+
+// nearbyWithinWalkHtml's own card, in its own headed "Nearby" section -- for a selection with no
+// relatedCategoryLinksHtml section of its own (every tree, every cow, and a landmark with no
+// findSlug). A findSlug place's own "Nearby" section already exists there and gets this same card
+// appended into its existing list instead, rather than a second "Nearby" heading stacked under it.
+function standaloneNearbySectionHtml(lat, lon) {
+  const card = nearbyWithinWalkHtml(lat, lon);
+  return card ? `<h3 class="detail-section-heading">Nearby</h3><ul class="nearest-list related-cards">${card}</ul>` : "";
+}
+
+// Two headed sections -- "Nearby" (live walk-time cards to the nearest tree and, when any are
+// currently loaded, the cows) and "Related" (this place's own subfilter/group) -- both using the
+// same .nearest-item card the Nearby list itself uses, rather than mixing that card style with
+// the unrelated .detail-map-link pill the way an earlier version of this did: one visual
+// language, not two. Food/locations places only (findSlug) -- the same scope the static
+// /find/<slug>/ page's own "Nearby"/"Part of" content already covers before JS boots; this is
+// that content's live continuation once the business is actually selected on screen, using the
+// app's own real nearest-neighbour distance (nearestTreeTo/nearestCowTo, js/app.js) rather than a
+// second approximation of "how far" the static page had no way to compute at build time -- no
+// external source to credit for it, so neither section names one.
+function relatedCategoryLinksHtml(place) {
+  if (!place.findSlug || place.latitude == null) return "";
+  const subfilterKey = placePrimaryFilterKey(place);
+  const subfilter = subfilterKey ? FILTER_SUBFILTERS_BY_KEY.get(subfilterKey) : null;
+  const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : null;
+
+  // One shared card shape for both sections -- icon, name and an optional meta line (a walk-time
+  // chip for "Nearby", nothing for "Related", which has no distance of its own to show) -- plain
+  // <a> elements carrying the Nearby list's own .nearest-item class rather than the
+  // <button data-overview-type> it's usually paired with, which is safe (every handler keyed to
+  // that class also requires the data-overview-type attribute in its own selector, per js/nav.js)
+  // and gets the same hover lift and arrow-key list navigation for free.
+  const cardHtml = (href, icon, name, meta) =>
+    `<li><a class="nearest-item" href="${href}">` +
+    `<span class="nearest-icon" aria-hidden="true">${appIconHtml(icon)}</span>` +
+    `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div>` +
+    (meta ? `<div class="nearest-footer"><span class="nearest-meta">${meta}</span></div>` : "") +
+    `</div></a></li>`;
+
+  const nearestTree = nearestTreeTo(place.latitude, place.longitude);
+  const nearestCow = state.cows.length ? nearestCowTo(place.latitude, place.longitude) : null;
+  // Both links carry this place's own position as the target page's existing "near=<lat>,<lon>"
+  // anchor route (nearbyAnchorRouteValue, js/app.js -- the same one a map tap or a shared link
+  // already use) -- otherwise landing there re-anchors to the reader's own GPS fix, which both
+  // shows a distance that doesn't match the one this card just quoted and strands the reader's
+  // actual reason for coming here (how far from *this place*) the moment they arrive.
+  const anchorHash = nearbyAnchorRouteValue({ latitude: place.latitude, longitude: place.longitude });
+  const treesHref = `/nearby/trees/#${anchorHash}`;
+  const cowsHref = `/nearby/cows/#${anchorHash}`;
+  // The walk-radius card (nearbyWithinWalkHtml) joins the same "Nearby" list rather than getting
+  // its own heading here -- this place already has one whenever it has coordinates, so there is
+  // always at least this card even when no tree/cow is close enough to show.
+  const walkCardHtml = nearbyWithinWalkHtml(place.latitude, place.longitude);
+  const nearbySectionHtml = (nearestTree || nearestCow || walkCardHtml)
+    ? `<h3 class="detail-section-heading">Nearby</h3><ul class="nearest-list related-cards">` +
+      (nearestTree ? cardHtml(treesHref, "tree", "Nearest veteran tree", walkInfoHtml(nearestTree.metres)) : "") +
+      (nearestCow ? cardHtml(cowsHref, "cow", "The grazing cattle", walkInfoHtml(nearestCow.metres)) : "") +
+      walkCardHtml +
+      `</ul>`
+    : "";
+
+  const relatedSectionHtml = subfilter && group
+    ? `<h3 class="detail-section-heading">Related</h3><ul class="nearest-list related-cards">` +
+      cardHtml(`/nearby/${subfilter.key.replace(/_/g, "-")}/`, subfilter.icon, subfilter.label) +
+      cardHtml(`/nearby/${subfilter.groupKey.replace(/_/g, "-")}/`, group.icon, group.label) +
+      `</ul>`
+    : "";
+
+  return nearbySectionHtml + relatedSectionHtml;
+}
+
+// A link to this place's own crawlable /find/<slug>/ page, when it has one (findSlug is set at
+// load time, js/loader.js, from data/business-slugs.json -- the same index that page itself was
+// built from). Only food/locations places get one; everything else (trees, transport, history)
+// has no individual page, so this is absent there. Also absent when the page on screen already
+// IS that place's own /find/ page (landing there selects it automatically -- see
+// applySelectionFromHash's own routeValueFromLocation resolution, js/app.js): a link to the
+// current page would be a dead end, not a useful action.
+function fullDetailsLinkHtml(findSlug) {
+  if (!findSlug) return "";
+  if (window.location.pathname === `/find/${findSlug}/`) return "";
+  return `<a class="detail-map-link" href="/find/${escapeHtml(findSlug)}/">Full details</a>`;
+}
+
 // A "Noticed a problem with this location?" link on point-feature detail screens (trees,
 // landmarks) that expands into an inline report form in place, rather than navigating to the
 // full Report screen. Submission mechanics mirror that screen (js/app.js), but the location
@@ -1087,6 +1199,11 @@ function detailsHtml(rows) {
       let display;
       try { display = new URL(value).hostname.replace(/^www\./, ""); } catch (_) { display = value; }
       ddContent = `<a href="${escapeHtml(value)}" target="_blank" rel="noreferrer">${escapeHtml(display)}</a>`;
+    } else if (label === "Phone" && typeof value === "string" && value.trim()) {
+      // A tel: link is the one piece of contact detail worth a direct tap on a phone --
+      // the static /find/<slug>/ page already does this (scripts/generate-business-pages.js);
+      // this brings the live detail view to the same place rather than leaving it as inert text.
+      ddContent = `<a href="tel:${escapeHtml(value)}">${escapeHtml(shown)}</a>`;
     } else {
       ddContent = escapeHtml(shown);
     }

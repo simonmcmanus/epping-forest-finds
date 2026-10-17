@@ -97,7 +97,7 @@ Epping Forest." so the first line leads.
 > See the latest reported cattle locations from their GPS collars. Positions refresh while online; offline, you’ll see the last saved positions, which may be out of date.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 1,359 pubs, cafés and shops. 1,596 car parks,
+> 9,162 paths and bridleways. 1,358 pubs, cafés and shops. 1,597 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -136,8 +136,8 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 1,359 food & drink | feature count, `data/local-landmarks-food.geojson` |
-| 1,596 facilities | feature count, `data/local-landmarks-facilities.geojson` |
+| 1,358 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 1,597 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
 **The homepage must never be able to quote a stale number.** `spec.md` states
@@ -530,10 +530,16 @@ branches.
   second, separately-computed guess (a group page's count is its members'
   counts summed). This also means the same two exclusions apply: `cows`
   (live-tracked, no fixed count) and the whole `events` group (time-bound,
-  not a static map fact) get no category page — nor, since it has nothing
-  left to describe once `cows` drops out of it, does a group page for
-  `events`, or for any other group `GROUP_TITLES` (`scripts/generate-find-pages.js`)
-  has no hand-picked description phrase for.
+  not a static map fact) never flow through this inventory-driven path, and
+  no group page is generated for `events` or for any other group
+  `GROUP_TITLES` (`scripts/generate-find-pages.js`) has no hand-picked
+  description phrase for. `cows` and `events` do each still get their own
+  page (`/nearby/cows/`, `/nearby/events/`) — `renderCowsPage`/`renderEventsPage`
+  generate them directly in `generate()`, outside `collectPages`, since both
+  are real filter keys `filterKeysFromFindPath` (`js/app.js`) already
+  resolves like any other subfilter slug; their content is honest about
+  having no fixed count/list to show rather than one manufactured to look
+  like a normal category page's.
 - **Output**: `nearby/<slug>/index.html`, gitignored like `sitemap.xml` and
   `reports/index.html` — regenerated fresh on every build, never committed.
   Sharing a path prefix with the Nearby, Filters and Search screens needs
@@ -545,12 +551,265 @@ branches.
   anchor, that one line would also swallow every `/nearby/<slug>/` category
   page nested under the same prefix, silently undoing the entire point of
   generating them.
-- **Not yet done** (tracked separately, not part of this page's own
-  behaviour): the service worker has no offline case for `/nearby/<slug>`
-  yet (it falls straight through to the network, same as any unrecognised
-  path) — its own, larger piece of work. `/find/<slug>` itself — pages for
-  individual businesses and points of interest, as distinct from these
-  category pages — is also not yet built.
+- **Offline fallback, without inflating the app cache.** `isAppNavigation()`
+  (`sw.js`) recognises `/nearby/<slug>/` and `/find/<slug>/` (any single-
+  segment path under either prefix) as app navigations, alongside the app's
+  fixed screens, so a navigation to one of them never falls through to the
+  browser's own network-error page. But unlike the five fixed screens (which
+  share one `./app.html` cache entry because they're genuinely byte-identical
+  content), none of these ~1,500+ generated pages are ever written into that
+  shared slot — each has its own distinct title and JSON-LD, so caching any
+  one of them there would make that slot's content depend on whichever page
+  was last loaded. They're fetched
+  network-first instead (so an online visitor always gets that exact page's
+  real content) and only fall back to the generic shared shell when offline —
+  the real app still boots and works, just unfiltered rather than
+  pre-filtered to that one category/business, which is the honest trade-off
+  available without precaching 1,500 individual pages. The app's working set
+  stays the JSON data plus the one shared shell either way; none of this
+  shows up as extra cache weight.
+- **Also not yet done** (tracked separately): per-page content (the specific
+  category or business's own title/body) itself has no offline case —
+  the fallback above is the generic app shell, not that page's own HTML.
+- **Category pages now list every individual place they cover**, not just a
+  count sentence: `renderPage` (`scripts/generate-find-pages.js`) reads
+  `listBusinessesForFilterKey(page.key)` (`scripts/generate-business-pages.js`)
+  and, when that subfilter/group falls inside the `/find/` scope below, prints
+  a plain `<ul>` of every place's name, each linking to its own
+  `/find/<slug>/` page. A category outside that scope (transport, history,
+  nature, stories) gets an empty list and falls back to the summary sentence
+  it always had — this is conditional on the business index actually
+  covering the key, not a second hand-maintained list.
+- **Every category/subcategory page also links onward to veteran trees and
+  grazing cattle** — `natureSeeAlsoHtml()` (`scripts/generate-find-pages.js`)
+  appends the same "See also veteran trees and grazing cattle near Epping
+  Forest" up-link every `/find/<slug>/` business page already carries
+  (§6.7), on every subfilter page, every group page, `/nearby/events/` and
+  `/nearby/cows/`. Previously these pages cross-linked only sideways to
+  sibling subfilters and up to their own group, so (say) `/nearby/pubs/` had
+  no path to either — cows in particular is excluded from every group's own
+  member list (`map-inventory.js`'s live-tracked exclusion), so no category
+  page ever linked to it before. `/nearby/trees/` omits the self-link
+  (`omitTreesLink`) rather than linking to itself; `/nearby/cows/` carries
+  only the trees half of the same link for the same reason. This static
+  version's sibling-cross-link and group up-link (`crossLinks`/"More in
+  `<group>`") are also reproduced for the live view that replaces this whole
+  body the moment JS boots — see §6.7, "Category/subcategory pages keep
+  their own up-links once JS boots".
+- **Title tags state the page's own real content, not a repeated generic
+  phrase.** A subfilter page's title leads with its count (`"129 Pubs & Bars
+  in Epping Forest | Epping Forest Finds"` — a plural noun reads naturally
+  with a number in front); a group page's count sits after its label instead
+  (`"Food in Epping Forest — 1,359 places | Epping Forest Finds"`, since a
+  group label like "Food" isn't grammatically a plural noun). Both are the
+  most concrete, searched-for fact the page has to offer, computed from the
+  same live count the page's own content shows.
+
+## 6.7 Individual business/location pages (`/find/<slug>/`)
+
+One crawlable page per individual place, for the two groups where a
+place's own name is itself worth searching: **Food** (pubs, restaurants,
+cafés, shops) and **Locations** (churches, education, medical sites,
+campsites). Never trees, transport, history or stories — scoped out
+deliberately: trees alone are 24,906 records with no individual page of
+their own (an order of magnitude bigger than this whole feature, and far
+thinner — a tag number and a species, nothing else), and a bus stop or a
+war memorial has no comparable "find this exact one" search intent the way
+a named pub does.
+
+**Why a committed index, not build-time-only output.** Every other `/find/`
+or `/nearby/` artifact (the pages themselves, `sitemap.xml`) is build-time
+output, gitignored and regenerated fresh by `npm run build` — but three
+independent consumers need the *same* slug for the same place without
+running a build: the live app (a map pin's inspector links to its own
+page), the weekly Ledger renderer (a business mention links to its page),
+and the page generator itself. `data/business-slugs.json`
+(`scripts/regenerate-business-slugs.js`) is therefore **committed**, the one
+exception to the gitignored-build-output rule above, and is the single
+source every one of those three reads rather than recomputing its own
+slug. Run `npm run regen:business-slugs` after any change to the underlying
+place data (a landmark regen, a weekly business-watch merge);
+`test/business-slugs.test.js` fails the build if the committed file goes
+stale, the same drift guard `sync-homepage-counts.js`/`home-counts.test.js`
+use for the homepage's counts.
+
+- **Slugs**: the place's name, lowercased and hyphenated. A name collision
+  (chain branches — Costa, Boots, Londis) is disambiguated first by the
+  address's UK postcode outward code (`costa-e4`, `costa-e11`) when that's
+  unique per branch, and only falls back to a numeric suffix
+  (`boots`, `boots-2`) when even that doesn't separate two branches (no
+  usable address, or two branches sharing one outward code).
+- **Content, server-rendered, no JS required**: name, category, address,
+  phone (`tel:` link) and website where known, distance from the forest
+  boundary, a "Nearby" list of the real closest other `/find/` places by
+  haversine distance (genuinely unique per page — two pages never share this
+  list), and up-links to the place's own subfilter and group category pages.
+  This swaps the same `app.html` "nothing selected yet" paragraph the
+  category pages replace (§6.6) — a `/find/` page is the same templated app
+  shell, not a separate static page.
+- **Two more fields, shown only when the source data actually has them —
+  never manufactured copy to pad a page out**: raw OSM `opening_hours`
+  (~80 of 1,500 entries today), and, for the handful of entries sourced from
+  the folklore dataset rather than OSM, that record's own narrative
+  (`folkloreSummary` — genuinely unique text no other page shares, not a
+  second description computed from the same name/address/category fields
+  every page already shows). A third field, `verifiedAt` (a verification
+  date from `data/verification.json`'s `confirmed` map), still rides along
+  in `data/business-slugs.json` and `js/loader.js`'s live place object, but
+  is no longer rendered anywhere — an earlier "Checked against OpenStreetMap
+  on \<date\>" note was removed (both the static page and the live view) for
+  sitting directly beside the Nearby/Related distance cards below and
+  reading as if it were crediting OpenStreetMap as their source, when those
+  distances are computed entirely from this site's own data. Fixed a related bug in the same change:
+  `normalizeFolkloreLocations` (`js/normalize.js`) returns
+  `latitude`/`longitude`, not `lat`/`lon` like an OSM record, so every
+  folklore-sourced business entry previously got `lat: null, lon: null` --
+  no coordinates, no "Nearby" list of its own, never appearing in anyone
+  else's either. `scripts/regenerate-business-slugs.js` now remaps this
+  explicitly.
+- **Opening hours and a tappable phone number are not static-page-only —
+  the live view shows the same thing.** Once JS boots and a place is
+  selected (on `/find/<slug>/` itself, or anywhere else in the app),
+  `showLandmarkDetails` (`js/inspector.js`) adds an "Opening hours" row
+  alongside Address/Type/Area/Confidence (gated on `place.openingHours`,
+  same as the static page — never shown when absent); `detailsHtml`'s
+  generic row renderer wraps a `"Phone"` row's value in a `tel:` link
+  rather than leaving it as inert text, matching the static page's own
+  `tel:` link.
+- **Landing on `/find/<slug>/` selects that exact business, through the
+  app's own ordinary deep-link path — no separate mechanism of its own.**
+  `routeValueFromLocation()` (`js/app.js`) resolves the URL to the same
+  `place=<hashKey>` value a `#place=<key>` hash already would (via
+  `findPlaceByFindSlug`, a reverse lookup over the loaded landmarks), so
+  `applySelectionFromHash()` — the same boot step that opens a tree or place
+  named by any other deep link — selects and shows it. (An earlier version
+  of this page embedded its own coordinates for a dedicated
+  `applyFindPageOrigin()` step to anchor the Nearby screen; once this
+  selection path existed that anchor was always immediately overwritten by
+  the selection itself — `showRoutedSelection` clears `state.nearbyAnchor`
+  — so it was removed as dead weight.) The no-JS fallback is the
+  server-rendered content itself. `isLandingPageArrival()` (`js/app.js`,
+  "Onboarding" in `spec.md`) also recognises a `/find/<slug>/` path, the
+  same as `/nearby/<slug>/` — without it, a genuine first-time visitor
+  (not just a returning one) landed on the first-run onboarding wizard
+  instead of the business, since `boot()` awaits the wizard's own dismissal
+  before reaching the selection step above.
+- **Related-content links, both server-rendered and live, as two headed
+  sections.** The static page's own "Part of `<subfilter>` in `<group>`"
+  and "See also veteran trees and grazing cattle near Epping Forest"
+  (`scripts/generate-business-pages.js`) are real links even with no JS,
+  but carry no distance for the trees/cattle (a build-time figure would be
+  wrong for live-tracked cattle positions by the time anyone reads it).
+  Once JS boots and the business is selected, `relatedCategoryLinksHtml()`
+  (`js/inspector.js`) renders the live continuation as two
+  `<h3 class="detail-section-heading">`-headed lists — **Nearby** (the
+  nearest tree, when any cow positions are currently loaded the cows, each
+  with a real live walk-time via `nearestTreeTo`/`nearestCowTo`,
+  `js/app.js`, and always the "Everything within 15 min walk" card, below)
+  and **Related** (this place's own subfilter and group) — so the reader
+  always knows which kind of link they're looking at. Both sections render
+  the exact same `.nearest-item` card the Nearby list itself uses (icon,
+  name, and — Nearby only — a walk-time chip; Related has no distance of
+  its own to show), not the mismatched pill-chip/card pairing an earlier
+  version of this had: one visual language throughout, not two.
+  `a.nearest-item` gets a small `text-decoration: none; color: inherit;`
+  override in `css/map-ui.css` since that class is normally a `<button>`,
+  which has no default link underline to begin with. The cows card is
+  omitted entirely when no cow positions are currently loaded (`state.cows`
+  empty), rather than showing a distance to nothing. The two headed
+  sections (Nearby and Related together) are scoped to places with a
+  `findSlug` (the same food/locations groups throughout this section) —
+  any other selected place (a tree, a bus stop) has neither this static
+  server-rendered version nor `relatedCategoryLinksHtml()`'s live one, but
+  still gets its own one-card "Nearby" section for the walk-radius card
+  alone (`standaloneNearbySectionHtml`, "Selected Detail Content" in
+  `spec-data-rendering.md`) — the walk-radius card itself is never scoped
+  to `findSlug`.
+- **The trees and cows links both carry the selected place's own position**,
+  via `/nearby/trees/`'s and `/nearby/cows/`'s existing `near=<lat>,<lon>`
+  browse-anchor route (`nearbyAnchorRouteValue`, `js/app.js` — the same one a
+  map tap or a shared link already use): `#near=${lat.toFixed(6)},${lon.toFixed(6)}`
+  on both the static page's links (`scripts/generate-business-pages.js`,
+  falling back to a bare `/nearby/<slug>/` when the entry has no
+  coordinates) and the live cards' hrefs (`js/inspector.js`). Without it,
+  landing on either page re-anchored to the reader's own GPS fix, showing a
+  distance to the nearest tree/cow from *there* rather than from the
+  business the card's own distance was quoted against — reported live as
+  "nearest grazing cattle... is doing the correct behaviour... but for
+  veteran trees it's still using the current user's location" once the cows
+  link was fixed first and the trees link, which carried the identical bug,
+  was initially assumed not to need the same fix (an earlier version of this
+  spec said so explicitly, reasoning that `/nearby/trees/` already lists
+  everything nearby rather than promising one distance — true of the page in
+  general, but not of the one card linking to it, which does quote a single
+  distance to a single nearest tree the same way the cows card does).
+- **Every in-app link rendered into the inspector is a real SPA transition,
+  not a full page reload.** A plain `<a href="/...">` (every link above,
+  plus `fullDetailsLinkHtml`'s own "Full details") used to fall straight
+  through to the browser's own navigation — re-downloading and re-booting
+  the whole app shell for content already sitting in memory, the one thing
+  this whole feature's internal linking was supposed to avoid. A delegated
+  click handler on `#inspectorBody` (`js/nav.js`) now intercepts a click on
+  any such link (skipping `target="_blank"` links — Open in Maps, external
+  website/source rows — and a modified click, both left to the browser as
+  normal) and calls `navigateInApp(href)` (`js/app.js`): the same
+  `history.pushState` shape `setHashFromSelection` already uses, followed by
+  `applyRouteFromUrl()` — the same entry point the back/forward buttons and
+  a hand-edited hash already use — so an intercepted link behaves exactly
+  like landing on that URL any other way, just without the reload.
+- **Category/subcategory pages keep their own up-links once JS boots.** The
+  static page's "More in `<group>`: `<siblings>`" and "See also veteran
+  trees and grazing cattle" (§6.6) are real links with no JS, but
+  `selectOverview()` replaces that whole static body with the live,
+  interactive Nearby list the moment JS boots — which had no breadcrumb of
+  its own, so a real visitor's browser silently dropped them the instant it
+  finished loading the page. `categoryLandingLinksHtml()` (`js/app.js`)
+  reproduces the "up" half live: on a real `/nearby/<slug>/` landing (gated
+  on the URL's own path, same regex `filterKeysFromFindPath`/
+  `isLandingPageArrival` use — never a reader's own multi-filter choice from
+  the Filters screen, which has no single category to breadcrumb up from), a
+  subfilter page gets a `.detail-map-link` chip up to its group plus one
+  back to the full, unfiltered Nearby list; a group page (no group above it)
+  gets only the latter. Prepended to every one of `overviewNearestHtml`'s
+  return paths, the empty-list ones included, so it survives exactly the
+  states that most need a way out of a now-empty category list.
+- **Linked everywhere a business is mentioned, not only from its own page**:
+  `js/loader.js` fetches `data/business-slugs.json` alongside the other
+  datasets and attaches `findSlug` to each matching place; `showLandmarkDetails`
+  (`js/inspector.js`) renders a "Full details" link to it when present — so
+  tapping the pin on the map, or finding it through in-app search, links to
+  the same page. Suppressed only when the page already showing *is* that
+  business's own `/find/` page (landing there already selects it, per above),
+  where the link would otherwise be a dead end pointing at itself. The weekly
+  Ledger (`scripts/report/business_links.py`) resolves a finding's name (and,
+  for a name shared by more than one branch, its coordinate) against the
+  same index and links the business's name in the rendered report —
+  conservatively: an unresolvable or still-ambiguous name links to nothing
+  rather than risking a wrong link.
+- **Selecting such a business anywhere in the app navigates the address bar
+  to this same URL** — see "Routing" in `spec.md`.
+- **Events get one index page, not individual pages**: `/find/events/`
+  lists every entry from `data/forest-events.json` and `data/events.json`
+  with its date, place and source link. Time-bound events are a poor fit for
+  a permanent per-event URL (a page for a dated fair reads as dead content
+  once the date passes), and the dataset is currently small (single digits);
+  this is revisited if and when individual event pages would earn their own
+  URL.
+- **Title/meta/JSON-LD**: `"<name> – <category> in Epping Forest | Epping
+  Forest Finds"`, a description naming the category and distance from the
+  forest boundary, and a `LocalBusiness` JSON-LD block typed per category
+  (`BarOrPub`, `Restaurant`, `CafeOrCoffeeShop`, `Store`, `Church`, `School`,
+  `MedicalClinic`, `Campground`) with address/geo/telephone/sameAs where
+  known.
+- **Output**: `find/<slug>/index.html`, gitignored like `nearby/<slug>/` —
+  regenerated fresh on every build by `scripts/generate-business-pages.js`,
+  wired into `npm run build` after `generate-find-pages.js` and before
+  `generate-sitemap.js`, which lists every slug via `listBusinessSlugs`.
+  Sitemap priority is deliberately lower than the category pages and
+  reports (`0.3` against `0.5`/`0.6`): roughly 1,500 of these next to a few
+  dozen category pages would otherwise dilute crawl budget away from the
+  pages that actually drive discovery. `/find/events/` keeps the category
+  pages' own priority (`0.5`) as a hub rather than one of the 1,500.
 
 ## 7. The hero image
 

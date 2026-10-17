@@ -780,6 +780,15 @@ function setupSearchAndNavHandlers() {
     }
     const shareBtn = event.target.closest("[data-action='share-location']");
     if (shareBtn) { shareCurrentLocation(); return; }
+    const walkRadiusBtn = event.target.closest("[data-action='walk-radius']");
+    if (walkRadiusBtn) {
+      const lat = Number(walkRadiusBtn.dataset.lat);
+      const lon = Number(walkRadiusBtn.dataset.lon);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        focusNearbyWithinWalkMinutes(lat, lon, WALK_RADIUS_BUTTON_MINUTES);
+      }
+      return;
+    }
     const reportIssueToggle = event.target.closest("[data-action='report-issue']");
     if (reportIssueToggle) { toggleLocationIssueForm(reportIssueToggle); return; }
     const cancelIssueBtn = event.target.closest("[data-action='cancel-location-issue']");
@@ -794,6 +803,18 @@ function setupSearchAndNavHandlers() {
       selectOverview();
       ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
       requestDraw();
+      return;
+    }
+    // Any plain in-app link rendered into the inspector (relatedCategoryLinksHtml's category/
+    // group chips and nearest-tree/cow cards, fullDetailsLinkHtml's "Full details") -- an
+    // external link (Open in Maps, a website row, OSM attribution) always opens target="_blank"
+    // and is left to the browser untouched; so is a modified click (open in new tab/window),
+    // same as any ordinary link.
+    const internalLink = event.target.closest("a[href^='/']");
+    if (internalLink && internalLink.target !== "_blank"
+      && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+      event.preventDefault();
+      navigateInApp(internalLink.getAttribute("href"));
       return;
     }
     const button = event.target.closest("[data-overview-type][data-overview-key]");
@@ -944,6 +965,23 @@ function setNearbyAnchor(latitude, longitude, point) {
   // Same reasoning as applyWalkingRadiusChange: moving the browse point is the user choosing
   // what the camera should be looking at.
   state.outOfRadiusRevealFilters = [];
+  refreshNearbyRadiusView({ animate: false });
+  pushNearbyAnchorHistory();
+}
+
+// A selected place's own "Everything within 15 min walk" button (nearbyWithinWalkHtml,
+// js/inspector.js) -- folds setNearbyAnchor's anchor move and applyWalkingRadiusChange's radius
+// change into one state update and one refresh/history push, the same way
+// focusNearbyOnClusterGroup folds an anchor move and a radius change together for a cluster tap,
+// rather than calling each of those two functions in turn and refreshing twice.
+function focusNearbyWithinWalkMinutes(latitude, longitude, minutes) {
+  state.selected = null;
+  setInspectorMinimized(false);
+  startNearbyOriginTransition(nearbyRenderOriginPoint());
+  state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude) };
+  state.walkingDistanceMinutes = minutes;
+  state.outOfRadiusRevealFilters = [];
+  exitClusterExpansion({ restoreRadius: false });
   refreshNearbyRadiusView({ animate: false });
   pushNearbyAnchorHistory();
 }
@@ -1864,8 +1902,17 @@ function goToInitialView(updateHash = true) {
   // A /nearby/<slug> page's single category is that page's own lens, not a preference the reader
   // chose -- the Nearby nav button is "take me to the real Nearby", so it puts their actual
   // filters back rather than carrying that category over (see setOverviewFilters' persist:false
-  // comment, js/app.js).
-  if (state.overviewFiltersEphemeral) setOverviewFilters(loadStoredOverviewFilters());
+  // comment, js/app.js). Except when this goToInitialView() call is itself how the reader is
+  // *arriving* at a different /nearby/<slug> page (a SPA link click or a popstate, routed through
+  // applyRouteFromUrl -> applyRoute, both of which hold routeApplyDepth open across this call --
+  // see their own comments) and the URL already names that page's own category: that arrival's
+  // route value is also "", same as the plain Nearby screen's, so without this check the filters
+  // applyShowFilterFromQuery() just set moments ago in the very same pass would be restored right
+  // back over them before the reader ever saw the new page's own category. A direct call (the
+  // Nearby nav button, the Report form's Cancel, the inspector back arrow with no history to
+  // retrace) never runs inside that depth, so this never suppresses a genuine "leave" there.
+  const arrivingAtLandingPage = routeApplyDepth > 0 && filterKeysFromFindPath(window.location.pathname).length > 0;
+  if (state.overviewFiltersEphemeral && !arrivingAtLandingPage) setOverviewFilters(loadStoredOverviewFilters());
   selectOverview(true);
   setInspectorMinimized(false);
   const refitOverview = () => {

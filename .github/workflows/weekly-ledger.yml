@@ -620,12 +620,17 @@ jobs:
 
                     python3 scripts/apply_weekly_changeset.py <changeset.json>
                     node scripts/sync-homepage-counts.js
+                    node scripts/regenerate-business-slugs.js
 
-                  and confirm both report success. The second is not
-                  optional: the homepage quotes how many food places the map
-                  has, and a test holds the page to the real number, so a
-                  data change without it arrives with a failing test on it.
-                  Check apply_weekly_changeset.py's "skipped" list -- an
+                  and confirm all three report success. Neither of the last
+                  two is optional: the homepage quotes how many food places
+                  the map has, and data/business-slugs.json (the committed
+                  index behind every /find/<slug>/ business page, a map
+                  pin's "Full details" link, and the Ledger's own business-name
+                  links -- see spec-marketing.md section 6.7) must match the
+                  current place data byte-for-byte. A test holds each to the
+                  real data, so a data change without these arrives with a
+                  failing test on it. Check apply_weekly_changeset.py's "skipped" list -- an
                   entry there did NOT get applied, and saying in the report
                   or the pull request that it did would be false. This is
                   the script's own
@@ -642,7 +647,10 @@ jobs:
                c. git add the changed data file(s), index.html,
                   assets/home/inventory/ and
                   spec/spec-marketing.md if sync-homepage-counts.js touched
-                  them, data/business-watch.json and data/verification.json
+                  them, data/business-slugs.json (regenerate-business-slugs.js
+                  above -- commit it every run, even when its own diff is
+                  empty, the same as the other generated-but-committed files
+                  here), data/business-watch.json and data/verification.json
                   (always -- they are this run's memory, and leaving them out
                   is what makes next week start from nothing),
                   data/road-closures.json, data/forest-notices.json and

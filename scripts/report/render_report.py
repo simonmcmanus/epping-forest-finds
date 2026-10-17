@@ -22,15 +22,18 @@ from urllib.parse import quote
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from scripts.report import places, png_icon, svg_map, template  # noqa: E402
+    from scripts.report import business_links, places, png_icon, svg_map, template  # noqa: E402
     from scripts.report.categories import CATEGORY_STYLES, style_for  # noqa: E402
     from scripts.report.jargon_guard import assert_reader_friendly  # noqa: E402
     from scripts.report.text_utils import oxford_comma_join, pluralize_label  # noqa: E402
 else:
-    from . import places, png_icon, svg_map, template
+    from . import business_links, places, png_icon, svg_map, template
     from .categories import CATEGORY_STYLES, style_for
     from .jargon_guard import assert_reader_friendly
     from .text_utils import oxford_comma_join, pluralize_label
+
+# Loaded once per render, not per card -- data/business-slugs.json holds 1,500+ entries.
+_BUSINESS_LINKS = business_links.load()
 
 SITE_BASE = "https://www.eppingforestfinds.uk"
 DEFAULT_APP_LINK = SITE_BASE + "/app"
@@ -332,12 +335,21 @@ def render_card(finding):
     place_html = f'<p class="addr">{escape(finding["place"])}</p>' if finding.get("place") else ""
     body_html = f'<p>{escape(finding.get("body", ""))}</p>' if finding.get("body") else ""
     sources_html = render_sources_line(finding.get("sources"))
+    title = escape(finding.get("title", ""))
+    # Links a business mention to its own /find/<slug>/ page wherever the name resolves
+    # unambiguously (business_links.py) -- the same link a map tap or a category listing gives it.
+    link_url = business_links_url(finding)
+    title_html = f'<a href="{escape(link_url)}">{title}</a>' if link_url else title
     return (
         f'<div class="card {css_class}">'
-        f'<div class="card-head">{chip}<h3>{escape(finding.get("title", ""))}</h3>{status_html}</div>'
+        f'<div class="card-head">{chip}<h3>{title_html}</h3>{status_html}</div>'
         f'{place_html}{body_html}{sources_html}'
         f'</div>'
     )
+
+
+def business_links_url(finding):
+    return _BUSINESS_LINKS.url_for(finding.get("title"), finding.get("lat"), finding.get("lon"))
 
 
 def render_empty_card(section_key):

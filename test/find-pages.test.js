@@ -7,6 +7,8 @@ const path = require("node:path");
 const {
   collectPages,
   renderPage,
+  renderEventsPage,
+  renderCowsPage,
   generate,
   listFindSlugs,
   slugFor,
@@ -106,7 +108,7 @@ test("renderPage swaps in the category's own title, canonical, OG and JSON-LD, n
   const [pubs] = collectPages(FAKE_RULES, FAKE_INVENTORY);
   const html = renderPage(pubs, APP_HTML);
 
-  assert.match(html, /<title>Pubs &amp; bars in Epping Forest \| Epping Forest Finds<\/title>/);
+  assert.match(html, /<title>42 Pubs &amp; bars in Epping Forest \| Epping Forest Finds<\/title>/);
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/pubs\/">/);
   assert.match(html, /<meta property="og:url" content="https:\/\/www\.eppingforestfinds\.uk\/nearby\/pubs\/">/);
   assert.match(html, /"numberOfItems":42/);
@@ -128,11 +130,44 @@ test("renderPage renders a group page's own title, count and member cross-links"
   const food = collectPages(FAKE_RULES, FAKE_INVENTORY).find((p) => p.isGroup);
   const html = renderPage(food, APP_HTML);
 
-  assert.match(html, /<title>Food in Epping Forest \| Epping Forest Finds<\/title>/);
+  assert.match(html, /<title>Food in Epping Forest — 49 places \| Epping Forest Finds<\/title>/);
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/food\/">/);
   assert.match(html, /"numberOfItems":49/, "the group's count is its members' counts summed");
   assert.match(html, /Find all 49 places to eat, drink and shop in Epping Forest/);
   assert.match(html, /Browse by type: <a href="\/nearby\/pubs\/">Pubs &amp; bars<\/a>, <a href="\/nearby\/cafes\/">Cafés<\/a>/);
+});
+
+test("renderPage links out to veteran trees and grazing cattle, the same up-link every /find/<slug>/ business page carries", () => {
+  const [pubs] = collectPages(FAKE_RULES, FAKE_INVENTORY);
+  const html = renderPage(pubs, APP_HTML);
+  assert.match(html, /See also <a href="\/nearby\/trees\/">veteran trees<\/a> and <a href="\/nearby\/cows\/">grazing cattle<\/a> near Epping Forest\./);
+});
+
+test("renderPage's own See-also link omits a self-link when the page itself is /nearby/trees/", () => {
+  const treesPage = { key: "trees", slug: "trees", label: "Trees", title: "trees", count: 24906, groupLabel: "Nature", groupSlug: "nature", siblings: [] };
+  const html = renderPage(treesPage, APP_HTML);
+  assert.ok(!html.includes('href="/nearby/trees/">veteran trees</a>'), "the trees page never links to itself");
+  assert.match(html, /See also <a href="\/nearby\/cows\/">grazing cattle<\/a> near Epping Forest\./);
+});
+
+test("renderEventsPage lists real event titles/dates and links to the fuller /find/events/ listing", () => {
+  const events = [{ title: "Autumn Fair", date: "2026-10-13" }, { title: "Recurring litter pick", date: null }];
+  const html = renderEventsPage(APP_HTML, events);
+  assert.match(html, /<title>2 Events in Epping Forest \| Epping Forest Finds<\/title>/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/events\/">/);
+  assert.match(html, /Autumn Fair \(2026-10-13\)/);
+  assert.match(html, /Recurring litter pick<\/li>/, "an event with no date still lists, just without a parenthetical");
+  assert.match(html, /href="\/find\/events\/"/);
+  assert.match(html, /See also <a href="\/nearby\/trees\/">veteran trees<\/a> and <a href="\/nearby\/cows\/">grazing cattle<\/a> near Epping Forest\./);
+});
+
+test("renderCowsPage has no fixed count (live-tracked data) but is a real, linkable page", () => {
+  const html = renderCowsPage(APP_HTML);
+  assert.match(html, /<title>Grazing Cattle in Epping Forest \| Epping Forest Finds<\/title>/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/cows\/">/);
+  assert.match(html, /GPS collar/);
+  assert.ok(!html.includes('"numberOfItems"'), "no fixed count to quote for live-tracked positions");
+  assert.match(html, /See also <a href="\/nearby\/trees\/">veteran trees<\/a> near Epping Forest\./, "links onward to trees, but not to itself");
 });
 
 test("generate writes one index.html per page under nearby/<slug>/, and listFindSlugs finds them back", () => {
@@ -144,8 +179,10 @@ test("generate writes one index.html per page under nearby/<slug>/, and listFind
   assert.ok(fs.existsSync(path.join(dir, "nearby", "pubs", "index.html")));
   assert.ok(fs.existsSync(path.join(dir, "nearby", "cafes", "index.html")));
   assert.ok(fs.existsSync(path.join(dir, "nearby", "food", "index.html")), "the group page too");
+  assert.ok(fs.existsSync(path.join(dir, "nearby", "events", "index.html")), "events always gets its own page too, even outside collectPages");
+  assert.ok(fs.existsSync(path.join(dir, "nearby", "cows", "index.html")), "cows too, same reasoning");
 
-  assert.deepEqual(listFindSlugs(dir), ["cafes", "food", "pubs"]);
+  assert.deepEqual(listFindSlugs(dir), ["cafes", "cows", "events", "food", "pubs"]);
 });
 
 test("no generated category slug ever collides with the /nearby/filter or /nearby/search screens", () => {

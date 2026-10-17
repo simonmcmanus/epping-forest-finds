@@ -52689,6 +52689,39 @@
         "distanceToForestBoundaryMetres": 156.3,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/london-academy-of-sustainable-development-construction-college",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0013195,
+          51.5600074
+        ]
+      },
+      "properties": {
+        "id": "manual/london-academy-of-sustainable-development-construction-college",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "London Academy of Sustainable Development Construction College",
+        "category": "education",
+        "categoryLabel": "Education",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "442 Cathall Road, Leytonstone, London, E11 4LB",
+        "distanceToForestBoundaryMetres": 435.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
     }
   ]
 }
