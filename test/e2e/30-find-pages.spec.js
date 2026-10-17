@@ -8,7 +8,7 @@ const { test, expect } = require("@playwright/test");
 const { generate: generateCategoryPages } = require("../../scripts/generate-find-pages.js");
 const { generate: generateBusinessPages } = require("../../scripts/generate-business-pages.js");
 const businessIndex = require("../../data/business-slugs.json");
-const { gotoAndWaitForMap } = require("./helpers");
+const { gotoAndWaitForMap, skipOnboarding } = require("./helpers");
 
 const REPO_ROOT = path.join(__dirname, "..", "..");
 
@@ -94,6 +94,12 @@ test.describe("generated find/nearby pages", () => {
       // routeValueFromLocation (js/app.js) resolves /find/<slug>/ to the same place through the
       // ordinary "landmark" selection route applySelectionFromHash already applies at boot for
       // any other deep link (#tree=..., #place=...) -- no separate anchoring mechanism needed.
+      //
+      // Unlike /nearby/<slug>/, isLandingPageArrival() (js/app.js) does not recognise /find/<slug>/
+      // -- filterKeysFromFindPath only matches /nearby/... -- so boot() treats a fresh profile's
+      // first visit here as an ordinary first run and awaits the onboarding wizard's own dismissal
+      // before continuing. skipOnboarding is required on every /find/ test below for that reason.
+      await skipOnboarding(page);
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
 
       await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
@@ -104,12 +110,14 @@ test.describe("generated find/nearby pages", () => {
     });
 
     test("the inspector's Full details link is suppressed when already on that business's own /find/ page", async ({ page }) => {
+      await skipOnboarding(page);
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
       await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
       await expect(page.locator(`#inspectorBody a[href="/find/${EXAMPLE_PUB.slug}/"]`)).toHaveCount(0);
     });
 
     test("the live inspector shows the same opening hours, phone tel: link and verification date as the static page", async ({ page }) => {
+      await skipOnboarding(page);
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_VERIFIED.slug}/`);
       await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
 
@@ -120,6 +128,7 @@ test.describe("generated find/nearby pages", () => {
     });
 
     test("the live inspector links to the business's own category/group and the nearest tree", async ({ page }) => {
+      await skipOnboarding(page);
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
       await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
 
@@ -132,6 +141,7 @@ test.describe("generated find/nearby pages", () => {
     test("/find/<slug>/ boots without JS errors", async ({ page }) => {
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
+      await skipOnboarding(page);
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
       expect(errors).toEqual([]);
     });
