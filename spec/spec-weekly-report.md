@@ -20,6 +20,13 @@ The report is only half the weekly job. The other half is noticing that the
 high street has changed and putting that on the map, by pull request, without
 anyone asking.
 
+**Ledger provenance on map additions.** When a finding becomes a map place in
+the same public weekly change, its changeset entry carries `ledgerUrl` with the
+dated `/reports/epping-forest-ledger-YYYY-MM-DD.html` address. The map's place
+detail then shows a "Featured in the Epping Forest Ledger" link. The link lives
+on the map feature, not in a separate historical index, so it disappears with
+the place if a later weekly change removes that place.
+
 That half used to consist of a list of candidates and an instruction to
 "cross-check anything promising", which meant nothing was ever confident
 enough to act on: a restaurant that closed in 2024 and a pub that closed in
@@ -410,6 +417,12 @@ remain under their public report URLs. These addresses are built from
 `SITE_BASE` in `render_report.py`.
 
 ## Sections that are always there
+
+Individual editions lead with a small uppercase “Epping Forest Ledger” label
+above a large date headline. The longhorn photograph is a supporting thumbnail
+(152 × 114px on desktop, 112 × 84px on phones), not a full hero panel.
+The summary and statistics remain in the masthead. The archive index keeps its
+existing title and layout.
 
 Openings/closures, road & access, and events each render whether or not the
 week turned anything up; an empty one says so in plain English

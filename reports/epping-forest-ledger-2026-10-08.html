@@ -147,15 +147,16 @@
   .skip-link{position:absolute;top:-100px;left:16px;padding:12px;background:var(--surface);z-index:10;}
   .skip-link:focus{top:10px;}
   a:focus-visible{outline:3px solid var(--forest);outline-offset:4px;}
-  header.masthead{max-width:992px;margin:8px auto 48px;padding:0;display:grid;grid-template-columns:1.2fr 1fr;gap:0;align-items:stretch;background:var(--forest-deep);color:var(--bg);border-radius:18px;overflow:hidden;}
+  header.masthead{max-width:992px;margin:8px auto 48px;padding:0;display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:0;align-items:center;background:var(--forest-deep);color:var(--bg);border-radius:18px;overflow:hidden;}
   header.masthead .inner{padding:36px 28px;min-width:0;display:flex;flex-direction:column;justify-content:center;}
   .eyebrow{color:#c9dfc9;font-size:.82rem;font-weight:600;letter-spacing:.06em;margin:0 0 16px;}
   h1.title{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(2.6rem,5vw,4rem);letter-spacing:-.04em;line-height:1.05;margin:0 0 20px;text-wrap:balance;}
+  .ledger-name{margin:0 0 12px;font-size:.85rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#d8e5d3;}
   .meta-row{display:flex;flex-direction:column;gap:10px;font-size:.9rem;color:#d8e5d3;}
   .meta-row .coverage{font-size:.78rem;line-height:1.6;}
-  .hero-photo{margin:0;overflow:hidden;background:var(--forest-deep);display:flex;flex-direction:column;}
+  .hero-photo{margin:28px 28px 28px 0;overflow:hidden;border-radius:8px;background:var(--forest-deep);display:flex;flex-direction:column;}
   .hero-photo picture{display:contents;}
-  .hero-photo img{display:block;width:100%;height:300px;object-fit:cover;flex:1;min-height:0;}
+  .hero-photo img{display:block;width:100%;height:114px;object-fit:cover;}
   .hero-photo figcaption{padding:12px 16px;font-size:.75rem;color:#d8e5d3;}
   .newsletter{display:flex;align-items:flex-start;gap:24px;background:var(--surface-2);padding:28px;border-radius:16px;}
   .newsletter p{max-width:42em;color:var(--ink-soft);}
@@ -163,7 +164,9 @@
   @media(max-width:1040px){header.masthead{margin-left:24px;margin-right:24px;}}
   @media(max-width:650px){
     header.masthead{grid-template-columns:1fr;gap:0;margin-bottom:32px;}
-    .hero-photo img{height:240px;}
+    header.masthead .inner{padding:28px 24px 16px;}
+    .hero-photo{width:112px;margin:0 24px 24px;}
+    .hero-photo img{height:84px;}
     .site-head{font-size:.8rem;gap:10px;}
     .brand{gap:8px;}
     .brand img{width:34px;height:34px;}
@@ -615,12 +618,8 @@
 
 <header class="masthead">
   <div class="inner">
-    <p class="eyebrow">Field notes · Epping Forest &amp; its neighbours</p>
-    <h1 class="title">Epping Forest Ledger</h1>
-    <div class="meta-row">
-      <span>Thursday, 8 October 2026</span>
-
-    </div>
+    <p class="ledger-name">Epping Forest Ledger</p>
+    <h1 class="title">Thursday, 8 October 2026</h1>
 
   <p class="banner">A short edition covering a possible restaurant closure and ongoing water works around the forest, alongside a grazing update. Check the details below before planning a visit.</p>
 </div>

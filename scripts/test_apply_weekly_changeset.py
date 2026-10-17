@@ -94,6 +94,14 @@ class TestBuildFeature(unittest.TestCase):
         self.assertEqual(feature["properties"]["osmId"], 999)
         self.assertEqual(feature["id"], "manual/known-pub")  # id is independent of osmId unless entry sets "id" too
 
+    def test_ledger_url_is_kept_on_a_new_place(self):
+        entry = {
+            "name": "Ledger café", "category": "cafe", "lon": 0.057, "lat": 51.652,
+            "ledgerUrl": "/reports/epping-forest-ledger-2026-10-17.html",
+        }
+        feature = awc.build_feature(entry, self.segments, self.ref_lat_rad)
+        self.assertEqual(feature["properties"]["ledgerUrl"], entry["ledgerUrl"])
+
 
 class TestApplyChangeset(unittest.TestCase):
     def setUp(self):
