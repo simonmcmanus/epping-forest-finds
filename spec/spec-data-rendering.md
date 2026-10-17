@@ -1181,6 +1181,23 @@ Behavior:
   here blocks the user from the content while data loads in the background.
 - Both variants subscribe to the same `setLoadStep` callbacks from the data-fetching layer and
   dismiss the same way (`hideWithFade`) once loading finishes.
+- **The map canvas itself joins the first reveal rather than sitting there already fully drawn.**
+  A `.map-stage::after` pseudo-element veil (`css/base.css`, the same backdrop tone the stage
+  already shows through a transparent canvas, at reduced opacity) sits over the canvas area —
+  above both `#mapCanvas`/`#overlayCanvas`, below the inspector/nav/legend/banners — and fades
+  away over 240ms the moment `.map-stage` gets `.map-revealed`, added by
+  `revealMapCenteredOnUser()` in the same beat as the inspector's own entrance
+  (`triggerInspectorEntry()`) and the camera's animated pan/zoom into place — one choreographed
+  moment instead of three things finishing independently. In the non-blocking browser path
+  (above) the veil doubles as a loading cue in its own right while content is already visible
+  and interactive underneath. A separate overlay layer deliberately, not a `filter`/`opacity` on
+  the canvas itself: either one, even eventually set back to "none"/`1`, was measured to leave
+  Chromium's compositing of the canvas a few thousand pixels off from one that was never
+  filtered — a sibling layer never touches the canvas's own rasterisation, so once its opacity
+  reaches 0 the canvas is pixel-identical to before this existed. 240ms is deliberately short:
+  it has to finish well inside the shortest post-reveal wait any committed visual-snapshot
+  baseline uses (`02-overview.spec.js`'s 400ms) so a baseline is never captured mid-fade.
+  Respects `prefers-reduced-motion` (snaps instead of fading).
 - `revealNoRealLocation()`'s `applyDefaultLocation()` (the High Beach stand-in) is guarded by
   `hasRealLocation()`: because the non-blocking bar no longer holds up clicks on
   `showCombinedConsentBanner()`'s own "Enable" button the way the old full-screen overlay

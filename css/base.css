@@ -147,6 +147,50 @@ canvas {
   will-change: transform;
 }
 
+/* Pre-reveal veil: covers the canvas with the same backdrop tone .map-stage already shows
+   through a transparent canvas, then fades away the moment revealMapCenteredOnUser()
+   (js/app.js) adds .map-revealed -- the same beat as the inspector's own entrance
+   (triggerInspectorEntry) and the camera's animated pan/zoom into place, so the whole first
+   reveal reads as one choreographed moment rather than three things finishing independently.
+   In the non-blocking browser loading path (see isInstalledAppContext()) this also softens the
+   map underneath the thin top progress bar into a deliberate "still settling" look rather than
+   a flat, fully-rendered-but-incomplete one. A pseudo-element overlay rather than a filter/
+   opacity on the canvas itself: toHaveScreenshot() baselines compare raw canvas pixels, and a
+   filter/backdrop-filter ever applied to (or sampling) the canvas -- even transitioned back to
+   "none" -- was measured to leave Chromium's compositing of it a few thousand pixels off from a
+   canvas that was never filtered, which a snapshot taken after this veil has long finished
+   fading would otherwise have failed on forever. A plain opaque sibling layer never touches the
+   canvas's own rasterisation, so once its opacity reaches 0 the canvas underneath is pixel-
+   identical to before this existed. */
+.map-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Same layer as #overlayCanvas (both z-index: 1) -- paints above both canvases but still
+     below the inspector/nav/legend/banners (z-index: 2+), so it only ever tints the map area
+     and never washes out the static content or chrome that's already visible and interactive
+     during the non-blocking loading path. */
+  z-index: 1;
+  background:
+    linear-gradient(135deg, rgba(229, 236, 226, 0.65), rgba(205, 218, 203, 0.65)),
+    rgba(216, 225, 212, 0.65);
+  pointer-events: none;
+  opacity: 1;
+  /* Short enough to settle well inside the shortest post-reveal wait any snapshot test uses
+     (02-overview.spec.js's 400ms). */
+  transition: opacity 0.24s ease;
+}
+
+.map-stage.map-revealed::after {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-stage::after {
+    transition: none;
+  }
+}
+
 #overlayCanvas {
   position: absolute;
   top: 0;

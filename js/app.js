@@ -1168,6 +1168,11 @@ async function revealMapCenteredOnUser() {
     ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
   }
   triggerInspectorEntry();
+  // Fades away the pre-reveal veil over the canvas (css/base.css, .map-stage::after) in the
+  // same beat as the inspector's own entrance and the camera's animated pan/zoom above, so the
+  // whole first reveal reads as one choreographed moment rather than three separate things
+  // happening to independently finish loading.
+  els.mapStage?.classList.add("map-revealed");
   hideWithFade(els.loadingOverlay);
 }
 
