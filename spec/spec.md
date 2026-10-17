@@ -383,7 +383,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 - **A URL naming something the dataset does not have** (a stale share link) falls back to Nearby
   and corrects the entry in place with `replaceState`, rather than leaving the app on a screen
   its URL does not describe.
-- `/feedback` opens the Feedback screen directly (the old `/report` path 301-redirects to it, keeping the hash, so published ledger links still work). `/feedback#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
+- `/feedback` opens the Feedback screen directly, including on a first visit: onboarding, browser and in-app location prompts, the cookie-consent dialog and the early-testing notice are all suppressed so nothing prevents the reader from reaching the form. The old `/report` path 301-redirects to it, keeping the hash, so published ledger links still work. `/feedback#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
 
 ### Camera behavior
 
