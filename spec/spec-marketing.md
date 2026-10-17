@@ -595,6 +595,27 @@ branches.
   used this way for a plain `<a>` elsewhere (`relatedCategoryLinksHtml`,
   `js/inspector.js`'s "nearest tree"/"nearest cow" cards), so this is the
   same established pattern, not a new one.
+- **The static page also carries the same breadcrumb chip row the live Nearby
+  list shows at the very top of a `/nearby/<slug>/` landing** — a chip up to
+  the category's own group, and an "Everything nearby" chip back to the
+  unfiltered list (`breadcrumbChipsHtml`/`categoryLandingChipsHtml`,
+  `scripts/generate-find-pages.js`), reusing the exact classes and icons
+  `categoryLandingLinksHtml()` (`js/app.js`) renders live
+  (`.detail-top-row.related-chips`/`.detail-map-link`, `css/inspector.css`;
+  icons via `appIconHtml`, now also exposed by `loadAppRules()`). That live
+  function's own comment already explained why it exists separately from
+  this page's sibling/up-link `crossLinks` paragraph below — `selectOverview()`
+  drops that paragraph entirely the moment JS boots — but until now nothing
+  reproduced it statically, so a reader (or a crawler) never saw this
+  breadcrumb at all until JS had already swapped it in: another "looks like a
+  different page" gap, reported directly against `/nearby/shops/`. `/nearby/cows/`
+  and `/nearby/events/` (rendered outside `collectPages`/`renderPage`, so with
+  no `page.groupSlug` of their own) get it too, via `groupContainingSubfilter()`
+  — the same group lookup `FILTER_SUBFILTERS_BY_KEY` does live. `/nearby/events/`'s
+  chip points back to itself (its own subfilter and group share the "events"
+  key) — a pre-existing quirk of the live version this faithfully reproduces
+  rather than silently "fixing" only on the static side, which would be a new
+  mismatch, not a smaller one.
 - **`trees`, `ponds_streams` and the `nature` group get their own kind of
   real list instead** (`loadWaterFeatures`/`loadTreeSpeciesBreakdown`,
   `scripts/generate-find-pages.js`), because neither is a good fit for the

@@ -151,6 +151,40 @@ function waterListHtml(waterFeatures, rules) {
   ))}`;
 }
 
+// The exact chip row categoryLandingLinksHtml() (js/app.js) renders live at the top of the
+// Nearby list on a real /nearby/<slug>/ landing -- a chip up to the category's own group, and a
+// way back to the full, unfiltered list. That function's own comment explains why it exists
+// separately from this page's static crossLinks paragraph below: selectOverview() replaces this
+// whole body with the live list the moment JS boots, dropping crossLinks's sibling/up-link text
+// entirely, so without this a reader (or a crawler) never saw this breadcrumb row at all until
+// JS had already swapped it in -- the exact "looks like a different page" gap crossLinks itself
+// doesn't cover, since it links sideways/down, not up to "everything". Same classes
+// (.detail-top-row.related-chips/.detail-map-link, css/inspector.css), same icons
+// (rules.appIconHtml, via the group's own FILTER_GROUPS icon and the fixed "nearby" one), same
+// position (first, before any other content) as the live version.
+function breadcrumbChipsHtml(rules, group) {
+  const groupChip = group
+    ? `<a class="detail-map-link" href="/nearby/${slugFor(group.key)}/">${rules.appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
+    : "";
+  const allChip = `<a class="detail-map-link" href="/nearby">${rules.appIconHtml("nearby")}Everything nearby</a>`;
+  return `<div class="detail-top-row related-chips">${groupChip}${allChip}</div>`;
+}
+
+function categoryLandingChipsHtml(page, rules) {
+  const group = page.isGroup
+    ? null
+    : rules.FILTER_GROUPS.find((g) => g.key === page.groupSlug.replace(/-/g, "_"));
+  return breadcrumbChipsHtml(rules, group);
+}
+
+// Same lookup live code's FILTER_SUBFILTERS_BY_KEY does (js/categories.js), rebuilt here since
+// loadAppRules() exposes FILTER_GROUPS, not that derived map -- the group containing a given
+// subfilter key, for the two pages (cows, events) that don't go through collectPages/renderPage
+// and so have no page.groupSlug of their own to read.
+function groupContainingSubfilter(rules, subfilterKey) {
+  return rules.FILTER_GROUPS.find((g) => g.subfilters.some((s) => s.key === subfilterKey)) || null;
+}
+
 function treeSpeciesHtml(treeSpecies) {
   if (!treeSpecies || !treeSpecies.notable.length) return "";
   const rows = treeSpecies.notable
@@ -313,7 +347,8 @@ function renderPage(page, appHtml, enrichment = {}) {
   const showTrees = page.key === "trees" || page.key === "nature";
   const enrichedListHtml = (showTrees ? treeSpeciesHtml(treeSpecies) : "") + (showWater ? waterListHtml(waterFeatures, rules) : "");
 
-  const seoContent = `<p>Find all ${page.count} ${escapeHtml(page.title)} in Epping Forest, mapped and ready to walk to. Enable location to see how far each one is and get walking directions.</p>` +
+  const seoContent = categoryLandingChipsHtml(page, rules) +
+    `<p>Find all ${page.count} ${escapeHtml(page.title)} in Epping Forest, mapped and ready to walk to. Enable location to see how far each one is and get walking directions.</p>` +
     businessListHtml +
     enrichedListHtml +
     (page.isGroup
@@ -370,7 +405,7 @@ function renderPage(page, appHtml, enrichment = {}) {
  * here, full description and source link there) rather than a second copy of the same text --
  * this page's job is the live, pre-filtered map; /find/events/ is the crawlable reference.
  */
-function renderEventsPage(appHtml, events) {
+function renderEventsPage(appHtml, events, rules = loadAppRules()) {
   const canonical = `${SITE_ORIGIN}/nearby/events/`;
   const titleTag = `${events.length} Events in Epping Forest | ${SITE_NAME}`;
   const description = `${events.length} upcoming and recent events in and around Epping Forest, shown live on the map.`;
@@ -391,6 +426,7 @@ function renderEventsPage(appHtml, events) {
     : "";
 
   const seoContent =
+    breadcrumbChipsHtml(rules, groupContainingSubfilter(rules, "events")) +
     `<p>${escapeHtml(description)} Enable location to see how far away each one is and get walking directions.</p>` +
     eventListHtml +
     `<p>See the <a href="/find/events/">full events list</a> with descriptions and source links.</p>` +
@@ -418,7 +454,7 @@ function renderEventsPage(appHtml, events) {
  * "X min walk to the cows" link, js/inspector.js) have a real destination rather than a 404; its
  * own content is honest about having nothing to enumerate, not padded to look like it does.
  */
-function renderCowsPage(appHtml) {
+function renderCowsPage(appHtml, rules = loadAppRules()) {
   const canonical = `${SITE_ORIGIN}/nearby/cows/`;
   const titleTag = `Grazing Cattle in Epping Forest | ${SITE_NAME}`;
   const description = "Epping Forest's conservation-grazing cattle, tracked live by GPS collar and shown on the map wherever they currently are.";
@@ -432,6 +468,7 @@ function renderCowsPage(appHtml) {
   };
 
   const seoContent =
+    breadcrumbChipsHtml(rules, groupContainingSubfilter(rules, "cows")) +
     `<p>${escapeHtml(description)} Positions refresh periodically while online; offline, the map shows the last saved positions, which may be out of date.</p>` +
     `<p>See also <a href="/nearby/trees/">veteran trees</a> near Epping Forest.</p>`;
 
@@ -465,11 +502,11 @@ function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInvent
 
   const eventsDir = path.join(categoryDir, "events");
   fs.mkdirSync(eventsDir, { recursive: true });
-  fs.writeFileSync(path.join(eventsDir, "index.html"), renderEventsPage(appHtml, loadEvents(siteRoot)), "utf8");
+  fs.writeFileSync(path.join(eventsDir, "index.html"), renderEventsPage(appHtml, loadEvents(siteRoot), rules), "utf8");
 
   const cowsDir = path.join(categoryDir, "cows");
   fs.mkdirSync(cowsDir, { recursive: true });
-  fs.writeFileSync(path.join(cowsDir, "index.html"), renderCowsPage(appHtml), "utf8");
+  fs.writeFileSync(path.join(cowsDir, "index.html"), renderCowsPage(appHtml, rules), "utf8");
 
   return pages;
 }
