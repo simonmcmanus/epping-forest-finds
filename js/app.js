@@ -34,6 +34,10 @@ const DEFAULT_FILTERS = ["trees", "cows", "events"];
 // The radius state starts at and the URL (searchStringForPath) omits -- matching state's own
 // walkingDistanceMinutes: 5 below, so a plain /nearby stays plain for the common case.
 const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
+// The fixed radius behind a selected place's "Everything within 15 min walk" button
+// (nearbyWithinWalkHtml, js/inspector.js; focusNearbyWithinWalkMinutes, js/nav.js) -- a round,
+// recognisable number rather than reusing whatever radius the reader last had the slider set to.
+const WALK_RADIUS_BUTTON_MINUTES = 15;
 // A /nearby/<slug> landing page (a category's own, or a whole group's) is judged on its own --
 // "is there enough near here to be worth a visit" -- which the ordinary 5-minute default can
 // easily come up empty within for a single category. 30 gives it a fair showing without the

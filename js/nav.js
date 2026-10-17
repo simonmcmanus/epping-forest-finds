@@ -780,6 +780,15 @@ function setupSearchAndNavHandlers() {
     }
     const shareBtn = event.target.closest("[data-action='share-location']");
     if (shareBtn) { shareCurrentLocation(); return; }
+    const walkRadiusBtn = event.target.closest("[data-action='walk-radius']");
+    if (walkRadiusBtn) {
+      const lat = Number(walkRadiusBtn.dataset.lat);
+      const lon = Number(walkRadiusBtn.dataset.lon);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        focusNearbyWithinWalkMinutes(lat, lon, WALK_RADIUS_BUTTON_MINUTES);
+      }
+      return;
+    }
     const reportIssueToggle = event.target.closest("[data-action='report-issue']");
     if (reportIssueToggle) { toggleLocationIssueForm(reportIssueToggle); return; }
     const cancelIssueBtn = event.target.closest("[data-action='cancel-location-issue']");
@@ -944,6 +953,23 @@ function setNearbyAnchor(latitude, longitude, point) {
   // Same reasoning as applyWalkingRadiusChange: moving the browse point is the user choosing
   // what the camera should be looking at.
   state.outOfRadiusRevealFilters = [];
+  refreshNearbyRadiusView({ animate: false });
+  pushNearbyAnchorHistory();
+}
+
+// A selected place's own "Everything within 15 min walk" button (nearbyWithinWalkHtml,
+// js/inspector.js) -- folds setNearbyAnchor's anchor move and applyWalkingRadiusChange's radius
+// change into one state update and one refresh/history push, the same way
+// focusNearbyOnClusterGroup folds an anchor move and a radius change together for a cluster tap,
+// rather than calling each of those two functions in turn and refreshing twice.
+function focusNearbyWithinWalkMinutes(latitude, longitude, minutes) {
+  state.selected = null;
+  setInspectorMinimized(false);
+  startNearbyOriginTransition(nearbyRenderOriginPoint());
+  state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude) };
+  state.walkingDistanceMinutes = minutes;
+  state.outOfRadiusRevealFilters = [];
+  exitClusterExpansion({ restoreRadius: false });
   refreshNearbyRadiusView({ animate: false });
   pushNearbyAnchorHistory();
 }

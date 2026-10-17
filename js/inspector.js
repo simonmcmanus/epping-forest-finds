@@ -365,7 +365,7 @@ function showTreeDetails(tree, distance, label) {
   ].filter(([, value]) => value != null && value !== "");
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(tree.latitude, tree.longitude, tree.commonName || "Veteran tree");
-  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}${shareLocationHtml()}</div>`;
+  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}${shareLocationHtml()}${nearbyWithinWalkHtml(tree.latitude, tree.longitude)}</div>`;
   const technicalHtml = technicalRows.length
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
@@ -402,7 +402,8 @@ function showLandmarkDetails(place, distance) {
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
   const fullDetailsLink = fullDetailsLinkHtml(place.findSlug);
-  const topRow = (distancePill || mapsLink || shareBtn || fullDetailsLink) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}${fullDetailsLink}</div>` : "";
+  const walkRadiusBtn = place.latitude != null ? nearbyWithinWalkHtml(place.latitude, place.longitude) : "";
+  const topRow = (distancePill || mapsLink || shareBtn || fullDetailsLink || walkRadiusBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}${fullDetailsLink}${walkRadiusBtn}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
   const verifiedHtml = isEvent ? "" : verifiedNoteHtml(place);
@@ -428,7 +429,7 @@ function showCowDetails(cow, distance) {
   ];
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(cow.latitude, cow.longitude, `Cow ${cow.serialNo}`);
-  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}</div>`;
+  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}${nearbyWithinWalkHtml(cow.latitude, cow.longitude)}</div>`;
   transitionInspectorBody(topRow + detailsHtml(rows), "forward");
 
   if (state.cowDetailTimerId != null) clearInterval(state.cowDetailTimerId);
@@ -1044,6 +1045,16 @@ function shareLocationHtml() {
   if (typeof navigator === "undefined") return "";
   if (!("share" in navigator) && !("clipboard" in navigator)) return "";
   return `<button class="detail-map-link" type="button" data-action="share-location">Share link</button>`;
+}
+
+// One tap to browse everything within a fixed 15-minute walk of exactly this spot -- reuses the
+// same anchor-move (setNearbyAnchor) and radius-change (applyWalkingRadiusChange) mechanisms a
+// map tap on open ground and the Settings walking-radius slider already use, combined into one
+// state update by focusNearbyWithinWalkMinutes (js/nav.js), wired through the same delegated
+// click handler as Share link/Open in Maps (data-action, js/nav.js).
+function nearbyWithinWalkHtml(lat, lon) {
+  if (lat == null || lon == null) return "";
+  return `<button class="detail-map-link" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}">Everything within 15 min walk</button>`;
 }
 
 // Category chips plus live walk-time cards to the nearest tree and (when any are currently

@@ -298,6 +298,7 @@ globalThis.__forestFindsTest = {
   applySearchQueryFromQuery,
   applyRadiusFromQuery,
   DEFAULT_WALKING_DISTANCE_MINUTES,
+  WALK_RADIUS_BUTTON_MINUTES,
   LANDING_PAGE_WALKING_DISTANCE_MINUTES,
   DEFAULT_LOCATION,
   DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
@@ -433,6 +434,7 @@ globalThis.__forestFindsTest = {
   nearbyOrigin,
   setNearbyAnchor,
   clearNearbyAnchor,
+  focusNearbyWithinWalkMinutes,
   roadNavTarget,
   selectedCompassTarget,
   showRoadDetails,
@@ -451,6 +453,7 @@ globalThis.__forestFindsTest = {
   relatedCategoryLinksHtml,
   verifiedNoteHtml,
   detailsHtml,
+  nearbyWithinWalkHtml,
   filterKindIconSlug,
   PLACE_FILTER_KEYS,
   PLACE_FILTER_PRIORITY,
@@ -8774,6 +8777,30 @@ test("tapping open ground while a group is expanded returns to nearby mode ancho
   assert.equal(app.state.clusterExpanded, null, "the group detail is dropped for nearby mode");
   assert.equal(app.state.nearbyAnchor.latitude, lonLat.latitude);
   assert.equal(app.els.inspectorTitle.textContent, "Nearby");
+});
+
+test("focusNearbyWithinWalkMinutes drops any open selection and browses that exact spot at the fixed radius", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const tree = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6505, 0.05) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+  app.state.walkingDistanceMinutes = app.DEFAULT_WALKING_DISTANCE_MINUTES;
+
+  const spot = { latitude: 51.66, longitude: 0.06 };
+  app.focusNearbyWithinWalkMinutes(spot.latitude, spot.longitude, app.WALK_RADIUS_BUTTON_MINUTES);
+
+  assert.equal(app.state.selected, null, "the selection is dropped for the Nearby list");
+  assert.equal(app.state.nearbyAnchor.latitude, spot.latitude, "browsing is anchored on the button's own spot, not the selection or GPS fix");
+  assert.equal(app.state.nearbyAnchor.longitude, spot.longitude);
+  assert.equal(app.state.walkingDistanceMinutes, 15, "the radius is the fixed 15-minute button value");
+  assert.equal(app.state.userLocation.latitude, 51.65, "the real GPS fix is never moved");
+});
+
+test("nearbyWithinWalkHtml renders a button carrying the exact coordinates it should browse, and is empty without coordinates", () => {
+  const html = app.nearbyWithinWalkHtml(51.65, 0.05);
+  assert.match(html, /<button class="detail-map-link" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">Everything within 15 min walk<\/button>/);
+  assert.equal(app.nearbyWithinWalkHtml(null, null), "", "no button when there are no coordinates to browse from");
 });
 
 test("tapping a cluster shows exactly that cluster's own members, not every tree the walking-radius floor also reaches", () => {

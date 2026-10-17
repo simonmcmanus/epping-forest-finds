@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, tapCanvasPoint } = require("./helpers");
+const { setup, tapCanvasPoint, FIXTURE_TREE } = require("./helpers");
 
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -494,6 +494,27 @@ test.describe("Map interaction", () => {
       // checks state.nearbyAnchor) -- behind the new selection.
       const anchor = await page.evaluate(() => state.nearbyAnchor);
       expect(anchor, "the browse anchor is cleared once a real selection is made").toBeNull();
+    });
+
+    test("a selected place's \"Everything within 15 min walk\" button drops the selection and browses the Nearby list from its own spot at a 15-minute radius", async ({ page }) => {
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
+      const treeCoords = await page.evaluate(() => ({
+        latitude: state.selected.item.latitude,
+        longitude: state.selected.item.longitude,
+      }));
+
+      await page.locator("#inspectorBody [data-action='walk-radius']").click();
+
+      await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+      const after = await page.evaluate(() => ({
+        anchorLatitude: state.nearbyAnchor && state.nearbyAnchor.latitude,
+        anchorLongitude: state.nearbyAnchor && state.nearbyAnchor.longitude,
+        minutes: state.walkingDistanceMinutes,
+      }));
+      expect(after.anchorLatitude).toBeCloseTo(treeCoords.latitude, 6);
+      expect(after.anchorLongitude).toBeCloseTo(treeCoords.longitude, 6);
+      expect(after.minutes).toBe(15);
     });
   });
 
