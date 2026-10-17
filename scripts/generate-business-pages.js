@@ -119,6 +119,12 @@ function formatMetres(metres) {
   return metres >= 1000 ? `${(metres / 1000).toFixed(1)}km` : `${metres}m`;
 }
 
+function formatVerifiedDate(isoDate) {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return isoDate;
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 function renderBusinessPage(entry, appHtml, rules, index) {
   const canonical = `${SITE_ORIGIN}/find/${entry.slug}/`;
   const singular = SINGULAR_LABEL[entry.key] || "place";
@@ -143,15 +149,28 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     ...(entry.lat != null && entry.lon != null ? { geo: { "@type": "GeoCoordinates", latitude: entry.lat, longitude: entry.lon } } : {}),
     ...(entry.phone ? { telephone: entry.phone } : {}),
     ...(entry.website ? { sameAs: entry.website } : {}),
+    ...(entry.openingHours ? { openingHours: entry.openingHours } : {}),
   };
 
   const detailRows = [
     entry.address ? `<li>${escapeHtml(entry.address)}</li>` : "",
     entry.phone ? `<li><a href="tel:${escapeHtml(entry.phone)}">${escapeHtml(entry.phone)}</a></li>` : "",
     entry.website ? `<li><a href="${escapeHtml(entry.website)}" rel="noopener">${escapeHtml(entry.website)}</a></li>` : "",
+    entry.openingHours ? `<li>Opening hours: ${escapeHtml(entry.openingHours)}</li>` : "",
   ]
     .filter(Boolean)
     .join("");
+
+  // A folklore-sourced record's own narrative -- genuinely unique text, not computed from the
+  // same name/address/category fields every other page already shows. Only ~1% of entries have
+  // one, so this is additive, never a gap on the other 99%.
+  const summaryHtml = entry.summary ? `<p>${escapeHtml(entry.summary)}</p>` : "";
+
+  // "osm@2026-10-16" (data/verification.json) covers roughly half of all in-scope entries today
+  // -- a real freshness/trust signal, not manufactured copy, so it's only ever shown when present.
+  const verifiedHtml = entry.verifiedAt
+    ? `<p class="verified-note">Checked against OpenStreetMap on ${escapeHtml(formatVerifiedDate(entry.verifiedAt))}.</p>`
+    : "";
 
   const nearby = nearestBusinesses(entry, index).filter((n) => n.metres <= 1000);
   const nearbyHtml = nearby.length
@@ -166,7 +185,9 @@ function renderBusinessPage(entry, appHtml, rules, index) {
 
   const seoContent =
     `<p>${escapeHtml(description)}</p>` +
+    summaryHtml +
     (detailRows ? `<ul>${detailRows}</ul>` : "") +
+    verifiedHtml +
     nearbyHtml +
     upLinks;
 

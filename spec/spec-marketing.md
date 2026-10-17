@@ -97,7 +97,7 @@ Epping Forest." so the first line leads.
 > See the latest reported cattle locations from their GPS collars. Positions refresh while online; offline, you’ll see the last saved positions, which may be out of date.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 1,359 pubs, cafés and shops. 1,596 car parks,
+> 9,162 paths and bridleways. 1,358 pubs, cafés and shops. 1,597 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -136,8 +136,8 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 1,359 food & drink | feature count, `data/local-landmarks-food.geojson` |
-| 1,596 facilities | feature count, `data/local-landmarks-facilities.geojson` |
+| 1,358 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 1,597 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
 **The homepage must never be able to quote a stale number.** `spec.md` states
@@ -609,6 +609,22 @@ use for the homepage's counts.
   This swaps the same `app.html` "nothing selected yet" paragraph the
   category pages replace (§6.6) — a `/find/` page is the same templated app
   shell, not a separate static page.
+- **Three more fields, shown only when the source data actually has them —
+  never manufactured copy to pad a page out**: raw OSM `opening_hours`
+  (~80 of 1,500 entries today), a verification date from
+  `data/verification.json`'s `confirmed` map ("Checked against OpenStreetMap
+  on \<date\>" — covers roughly half of all entries, the single highest-
+  coverage addition available), and, for the handful of entries sourced from
+  the folklore dataset rather than OSM, that record's own narrative
+  (`folkloreSummary` — genuinely unique text no other page shares, not a
+  second description computed from the same name/address/category fields
+  every page already shows). Fixed a related bug in the same change:
+  `normalizeFolkloreLocations` (`js/normalize.js`) returns
+  `latitude`/`longitude`, not `lat`/`lon` like an OSM record, so every
+  folklore-sourced business entry previously got `lat: null, lon: null` --
+  no coordinates, no "Nearby" list of its own, never appearing in anyone
+  else's either. `scripts/regenerate-business-slugs.js` now remaps this
+  explicitly.
 - **Nearby trees reuse the app's own live Nearby screen rather than a second,
   build-time approximation of it.** Each page embeds its own coordinates in
   an inline `<script type="application/json" id="find-page-origin">`; once

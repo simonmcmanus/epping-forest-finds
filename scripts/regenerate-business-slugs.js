@@ -71,8 +71,28 @@ function loadPlaces(rules, root) {
       }));
   });
   const folkloreData = readJsonIfPresent(root, "data/epping_forest_folklore_locations.json");
-  const folklore = folkloreData ? rules.normalizeFolkloreLocations(folkloreData) : [];
+  // normalizeFolkloreLocations returns latitude/longitude (js/normalize.js), not lat/lon like the
+  // OSM records above -- without this remap every folklore-sourced business entry silently got
+  // lat: null, lon: null, which meant it could never appear in anyone's "Nearby" list or have one
+  // of its own, and its page fell back to the generic "near Epping Forest" distance phrase.
+  const folklore = folkloreData
+    ? rules.normalizeFolkloreLocations(folkloreData).map((place) => ({ ...place, lat: place.latitude, lon: place.longitude }))
+    : [];
   return [...osm, ...folklore];
+}
+
+/** id -> verification date ("2026-10-16"), from the committed data/verification.json's
+ * `confirmed` map ("osm@2026-10-16" -> source + date). A real trust/freshness signal already
+ * computed for roughly half of all in-scope places, costing nothing extra to surface. */
+function loadVerifiedDates(root) {
+  const data = readJsonIfPresent(root, "data/verification.json");
+  const confirmed = (data && data.confirmed) || {};
+  const byId = new Map();
+  for (const [id, value] of Object.entries(confirmed)) {
+    const date = String(value).split("@")[1];
+    if (date) byId.set(id, date);
+  }
+  return byId;
 }
 
 /** subfilter key -> top-level group key ("pubs" -> "food"), read off the app's own
@@ -153,6 +173,7 @@ function buildIndex(root = APP_ROOT) {
   const rules = loadAppRules(root);
   const groupKeyOf = buildGroupKeyIndex(rules);
   const places = loadPlaces(rules, root);
+  const verifiedDates = loadVerifiedDates(root);
 
   const classified = [];
   for (const place of places) {
@@ -172,6 +193,12 @@ function buildIndex(root = APP_ROOT) {
           distanceToForestBoundaryMetres: Number.isFinite(place.distanceToForestBoundaryMetres)
             ? place.distanceToForestBoundaryMetres
             : null,
+          openingHours: place.openingHours || null,
+          // A folklore-sourced record's own narrative, when it has one -- genuinely unique text no
+          // other place in the index shares, not a second description computed from the same
+          // fields every other page already shows.
+          summary: place.folkloreSummary || null,
+          verifiedAt: (place.id && verifiedDates.get(place.id)) || null,
         });
         break; // same first-match-wins rule as the app's own classification priority
       }
@@ -179,7 +206,7 @@ function buildIndex(root = APP_ROOT) {
   }
 
   const withSlugs = dedupeSlugs(classified)
-    .map(({ key, groupKey, slug, name, address, phone, website, lat, lon, distanceToForestBoundaryMetres, id }) => ({
+    .map(({ key, groupKey, slug, name, address, phone, website, lat, lon, distanceToForestBoundaryMetres, openingHours, summary, verifiedAt, id }) => ({
       slug,
       key,
       groupKey,
@@ -190,6 +217,9 @@ function buildIndex(root = APP_ROOT) {
       lat,
       lon,
       distanceToForestBoundaryMetres,
+      openingHours,
+      summary,
+      verifiedAt,
       id,
     }))
     .sort((a, b) => a.slug.localeCompare(b.slug));

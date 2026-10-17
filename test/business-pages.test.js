@@ -19,9 +19,9 @@ const REPO_ROOT = path.join(__dirname, "..");
 const APP_HTML = fs.readFileSync(path.join(REPO_ROOT, "app.html"), "utf8");
 
 const FAKE_INDEX = [
-  { slug: "the-forresters", key: "pubs", groupKey: "food", name: "The Forresters", address: "1 High St, Loughton", phone: "01234", website: "https://example.com", lat: 51.65, lon: 0.05, distanceToForestBoundaryMetres: 120, id: "node/1" },
-  { slug: "the-oak-cafe", key: "cafes", groupKey: "food", name: "The Oak Café", address: null, phone: null, website: null, lat: 51.6501, lon: 0.0501, distanceToForestBoundaryMetres: 80, id: "node/2" },
-  { slug: "far-away-shop", key: "shops", groupKey: "food", name: "Far Away Shop", address: null, phone: null, website: null, lat: 52.0, lon: 1.0, distanceToForestBoundaryMetres: 5000, id: "node/3" },
+  { slug: "the-forresters", key: "pubs", groupKey: "food", name: "The Forresters", address: "1 High St, Loughton", phone: "01234", website: "https://example.com", lat: 51.65, lon: 0.05, distanceToForestBoundaryMetres: 120, openingHours: "Mo-Su 11:00-23:00", summary: "A folklore note about this pub.", verifiedAt: "2026-10-16", id: "node/1" },
+  { slug: "the-oak-cafe", key: "cafes", groupKey: "food", name: "The Oak Café", address: null, phone: null, website: null, lat: 51.6501, lon: 0.0501, distanceToForestBoundaryMetres: 80, openingHours: null, summary: null, verifiedAt: null, id: "node/2" },
+  { slug: "far-away-shop", key: "shops", groupKey: "food", name: "Far Away Shop", address: null, phone: null, website: null, lat: 52.0, lon: 1.0, distanceToForestBoundaryMetres: 5000, openingHours: null, summary: null, verifiedAt: null, id: "node/3" },
 ];
 
 test("haversineMetres returns a small distance for nearby points and a large one for far ones", () => {
@@ -80,6 +80,18 @@ test("renderBusinessPage links up to its subfilter and group category pages, and
   assert.match(html, /href="\/nearby\/pubs\/"/);
   assert.match(html, /href="\/nearby\/food\/"/);
   assert.match(html, /href="\/nearby\/trees\/"/);
+});
+
+test("renderBusinessPage shows opening hours, a folklore summary and a verification date when present, and omits them when absent", () => {
+  const rules = loadAppRules();
+  const withExtras = renderBusinessPage(FAKE_INDEX[0], APP_HTML, rules, FAKE_INDEX);
+  assert.match(withExtras, /Opening hours: Mo-Su 11:00-23:00/);
+  assert.match(withExtras, /A folklore note about this pub\./);
+  assert.match(withExtras, /Checked against OpenStreetMap on 16 October 2026\./);
+
+  const withoutExtras = renderBusinessPage(FAKE_INDEX[1], APP_HTML, rules, FAKE_INDEX);
+  assert.ok(!withoutExtras.includes("Opening hours:"));
+  assert.ok(!withoutExtras.includes("verified-note"));
 });
 
 test("renderBusinessPage embeds its own coordinates for applyFindPageOrigin (js/app.js) to read at boot", () => {

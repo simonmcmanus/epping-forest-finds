@@ -83,3 +83,19 @@ test("no entry is unnamed -- a place with no name is skipped rather than given a
     assert.ok(entry.name && entry.name.trim().length > 0);
   }
 });
+
+test("a folklore-sourced entry gets real coordinates, not null -- normalizeFolkloreLocations returns latitude/longitude, not lat/lon", () => {
+  const { entries } = buildIndex();
+  const folkloreEntries = entries.filter((e) => String(e.id).startsWith("folklore-"));
+  assert.ok(folkloreEntries.length > 0, "the real data has at least one folklore-sourced business entry");
+  for (const entry of folkloreEntries) {
+    assert.ok(Number.isFinite(entry.lat) && Number.isFinite(entry.lon), `"${entry.name}" has no coordinates`);
+  }
+});
+
+test("openingHours, summary and verifiedAt are carried through when the source data has them", () => {
+  const { entries } = buildIndex();
+  assert.ok(entries.some((e) => e.openingHours), "at least one real entry has opening hours");
+  assert.ok(entries.some((e) => e.summary), "at least one real entry has a folklore summary");
+  assert.ok(entries.some((e) => e.verifiedAt), "at least one real entry has a verification date");
+});
