@@ -1062,10 +1062,10 @@ function isInstalledAppContext() {
   return false;
 }
 
-function applyShowFilterFromQuery() {
+function applyShowFilterFromQuery({ render = true } = {}) {
   const fromPath = filterKeysFromFindPath(window.location.pathname);
   if (fromPath.length) {
-    setOverviewFilters(fromPath, { persist: false });
+    setOverviewFilters(fromPath, { persist: false, render });
     return;
   }
   // /nearby/filter's own ?show= (searchStringForPath) is a live mirror of whatever is already
@@ -1081,7 +1081,7 @@ function applyShowFilterFromQuery() {
   if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS] && routeApplyDepth > 0) return;
   const fromQuery = filterKeysFromQuery(window.location.search);
   if (fromQuery.length) {
-    setOverviewFilters(fromQuery, { persist: false });
+    setOverviewFilters(fromQuery, { persist: false, render });
     return;
   }
   // Landing on the bare Nearby path with nothing selected (no hash -- a tree/cow/landmark
@@ -1095,7 +1095,7 @@ function applyShowFilterFromQuery() {
   // urlMatchesCurrentScreen() reads it as no change and applyRouteFromUrl() returns before
   // applyRoute()/goToInitialView() ever run.
   if (window.location.pathname === NEARBY_PATH && !window.location.hash && state.overviewFiltersEphemeral) {
-    setOverviewFilters(loadStoredOverviewFilters());
+    setOverviewFilters(loadStoredOverviewFilters(), { render });
   }
 }
 
@@ -1399,7 +1399,11 @@ async function boot() {
     scheduleCowRefresh();
     fitToBounds();
     state.dataLoaded = true;
-    applyShowFilterFromQuery();
+    // render:false -- state.userLocation isn't set yet (the location/default-location branch
+    // below hasn't run), so selectOverview() would render the no-location dataset-order list and
+    // get thrown away the instant revealMapCenteredOnUser()/revealNoRealLocation() render the
+    // real one moments later. See setOverviewFilters' own comment.
+    applyShowFilterFromQuery({ render: false });
     applySearchQueryFromQuery();
     applyRadiusFromQuery();
 
@@ -2494,7 +2498,7 @@ function loadStoredOverviewFilters() {
 // -- landing on one of those names what that page shows, not a preference the reader chose, so
 // it must not overwrite their own saved filters (saveFilterState) for every later visit to
 // /nearby. An actual chip tap, on that page or anywhere else, always persists as before.
-function setOverviewFilters(nextFilters, { persist = true } = {}) {
+function setOverviewFilters(nextFilters, { persist = true, render = true } = {}) {
   const previousFilters = state.overviewFilters;
   state.overviewFilters = sanitizeOverviewFilters(nextFilters);
   // Marks the current filters as a page's own lens rather than the reader's choice, so
@@ -2508,6 +2512,18 @@ function setOverviewFilters(nextFilters, { persist = true } = {}) {
   if (persist) saveFilterState();
   updateFilterUi();
   syncLiveQueryStringForScreen();
+  // render:false -- boot()'s own call, before state.userLocation exists -- skips the render
+  // this would otherwise force here: without it, selectOverview() ran once against no location
+  // (activeFiltersShowFullListWithoutLocation()'s dataset-order full list) and then again
+  // moments later once applyDefaultLocation()/applyLocationFix() actually resolved, replacing the
+  // static server-rendered list with that unsorted one and then immediately replacing it again --
+  // a visible double-flicker on every /nearby/<slug> landing. boot() always calls selectOverview()
+  // itself right after, with the real state already in place, so the render here would just be
+  // thrown away.
+  if (!render) {
+    requestDraw();
+    return;
+  }
   if (isOverviewScreenActive() && !state.filterScreenOpen) {
     selectOverview();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
