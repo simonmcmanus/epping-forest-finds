@@ -548,9 +548,108 @@ branches.
 - **Not yet done** (tracked separately, not part of this page's own
   behaviour): the service worker has no offline case for `/nearby/<slug>`
   yet (it falls straight through to the network, same as any unrecognised
-  path) — its own, larger piece of work. `/find/<slug>` itself — pages for
-  individual businesses and points of interest, as distinct from these
-  category pages — is also not yet built.
+  path) — its own, larger piece of work.
+- **Category pages now list every individual place they cover**, not just a
+  count sentence: `renderPage` (`scripts/generate-find-pages.js`) reads
+  `listBusinessesForFilterKey(page.key)` (`scripts/generate-business-pages.js`)
+  and, when that subfilter/group falls inside the `/find/` scope below, prints
+  a plain `<ul>` of every place's name, each linking to its own
+  `/find/<slug>/` page. A category outside that scope (transport, history,
+  nature, stories) gets an empty list and falls back to the summary sentence
+  it always had — this is conditional on the business index actually
+  covering the key, not a second hand-maintained list.
+- **Title tags state the page's own real content, not a repeated generic
+  phrase.** A subfilter page's title leads with its count (`"129 Pubs & Bars
+  in Epping Forest | Epping Forest Finds"` — a plural noun reads naturally
+  with a number in front); a group page's count sits after its label instead
+  (`"Food in Epping Forest — 1,359 places | Epping Forest Finds"`, since a
+  group label like "Food" isn't grammatically a plural noun). Both are the
+  most concrete, searched-for fact the page has to offer, computed from the
+  same live count the page's own content shows.
+
+## 6.7 Individual business/location pages (`/find/<slug>/`)
+
+One crawlable page per individual place, for the two groups where a
+place's own name is itself worth searching: **Food** (pubs, restaurants,
+cafés, shops) and **Locations** (churches, education, medical sites,
+campsites). Never trees, transport, history or stories — scoped out
+deliberately: trees alone are 24,906 records with no individual page of
+their own (an order of magnitude bigger than this whole feature, and far
+thinner — a tag number and a species, nothing else), and a bus stop or a
+war memorial has no comparable "find this exact one" search intent the way
+a named pub does.
+
+**Why a committed index, not build-time-only output.** Every other `/find/`
+or `/nearby/` artifact (the pages themselves, `sitemap.xml`) is build-time
+output, gitignored and regenerated fresh by `npm run build` — but three
+independent consumers need the *same* slug for the same place without
+running a build: the live app (a map pin's inspector links to its own
+page), the weekly Ledger renderer (a business mention links to its page),
+and the page generator itself. `data/business-slugs.json`
+(`scripts/regenerate-business-slugs.js`) is therefore **committed**, the one
+exception to the gitignored-build-output rule above, and is the single
+source every one of those three reads rather than recomputing its own
+slug. Run `npm run regen:business-slugs` after any change to the underlying
+place data (a landmark regen, a weekly business-watch merge);
+`test/business-slugs.test.js` fails the build if the committed file goes
+stale, the same drift guard `sync-homepage-counts.js`/`home-counts.test.js`
+use for the homepage's counts.
+
+- **Slugs**: the place's name, lowercased and hyphenated. A name collision
+  (chain branches — Costa, Boots, Londis) is disambiguated first by the
+  address's UK postcode outward code (`costa-e4`, `costa-e11`) when that's
+  unique per branch, and only falls back to a numeric suffix
+  (`boots`, `boots-2`) when even that doesn't separate two branches (no
+  usable address, or two branches sharing one outward code).
+- **Content, server-rendered, no JS required**: name, category, address,
+  phone (`tel:` link) and website where known, distance from the forest
+  boundary, a "Nearby" list of the real closest other `/find/` places by
+  haversine distance (genuinely unique per page — two pages never share this
+  list), and up-links to the place's own subfilter and group category pages.
+  This swaps the same `app.html` "nothing selected yet" paragraph the
+  category pages replace (§6.6) — a `/find/` page is the same templated app
+  shell, not a separate static page.
+- **Nearby trees reuse the app's own live Nearby screen rather than a second,
+  build-time approximation of it.** Each page embeds its own coordinates in
+  an inline `<script type="application/json" id="find-page-origin">`; once
+  JS boots, `applyFindPageOrigin()` (`js/app.js`) reads it and calls
+  `setNearbyAnchor` (`js/nav.js`) — the same function a map tap on open
+  ground already uses — so a visitor who opens the Nearby screen from a
+  business page sees real nearest trees (and everything else) computed by
+  the app's existing code. The no-JS fallback is a plain link to
+  `/nearby/trees/`.
+- **Linked everywhere a business is mentioned, not only from its own page**:
+  `js/loader.js` fetches `data/business-slugs.json` alongside the other
+  datasets and attaches `findSlug` to each matching place; `showLandmarkDetails`
+  (`js/inspector.js`) renders a "Full details" link to it when present — so
+  tapping the pin on the map, or finding it through in-app search, links to
+  the same page. The weekly Ledger (`scripts/report/business_links.py`)
+  resolves a finding's name (and, for a name shared by more than one branch,
+  its coordinate) against the same index and links the business's name in
+  the rendered report — conservatively: an unresolvable or still-ambiguous
+  name links to nothing rather than risking a wrong link.
+- **Events get one index page, not individual pages**: `/find/events/`
+  lists every entry from `data/forest-events.json` and `data/events.json`
+  with its date, place and source link. Time-bound events are a poor fit for
+  a permanent per-event URL (a page for a dated fair reads as dead content
+  once the date passes), and the dataset is currently small (single digits);
+  this is revisited if and when individual event pages would earn their own
+  URL.
+- **Title/meta/JSON-LD**: `"<name> – <category> in Epping Forest | Epping
+  Forest Finds"`, a description naming the category and distance from the
+  forest boundary, and a `LocalBusiness` JSON-LD block typed per category
+  (`BarOrPub`, `Restaurant`, `CafeOrCoffeeShop`, `Store`, `Church`, `School`,
+  `MedicalClinic`, `Campground`) with address/geo/telephone/sameAs where
+  known.
+- **Output**: `find/<slug>/index.html`, gitignored like `nearby/<slug>/` —
+  regenerated fresh on every build by `scripts/generate-business-pages.js`,
+  wired into `npm run build` after `generate-find-pages.js` and before
+  `generate-sitemap.js`, which lists every slug via `listBusinessSlugs`.
+  Sitemap priority is deliberately lower than the category pages and
+  reports (`0.3` against `0.5`/`0.6`): roughly 1,500 of these next to a few
+  dozen category pages would otherwise dilute crawl budget away from the
+  pages that actually drive discovery. `/find/events/` keeps the category
+  pages' own priority (`0.5`) as a hub rather than one of the 1,500.
 
 ## 7. The hero image
 

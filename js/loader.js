@@ -172,6 +172,14 @@ async function loadMapData() {
     })
     .catch(() => ({ locations: [] }));
 
+  // Maps a place's OSM/folklore id to its own /find/<slug>/ page (data/business-slugs.json,
+  // scripts/regenerate-business-slugs.js) -- the same slugs that page itself was built with, so
+  // the inspector's "Full details" link (showLandmarkDetails, js/inspector.js) can never point
+  // somewhere that generator didn't also build. Missing or unreachable just means no link.
+  const businessSlugsPromise = fetch(BUSINESS_SLUGS_URL)
+    .then((r) => (r.ok ? r.json() : { entries: [] }))
+    .catch(() => ({ entries: [] }));
+
   const eventsPromise = fetch(EVENTS_URL)
     .then(async (r) => {
       if (!r.ok) throw new Error(`Events data HTTP ${r.status}`);
@@ -223,15 +231,18 @@ async function loadMapData() {
       .catch(() => ({ ...layer, data: { type: "FeatureCollection", features: [] } }))
   );
 
-  const [landmarkData, folkloreData, eventsData, pathsData, roadsData, environmentData, ...resolvedLayers] = await Promise.all([
+  const [landmarkData, folkloreData, eventsData, pathsData, roadsData, environmentData, businessSlugsData, ...resolvedLayers] = await Promise.all([
     landmarkPromise,
     folklorePromise,
     eventsPromise,
     pathsPromise,
     roadsPromise,
     environmentPromise,
+    businessSlugsPromise,
     ...layerPromises,
   ]);
+
+  const findSlugById = new Map((businessSlugsData.entries || []).map((entry) => [entry.id, entry.slug]));
 
   const layerFeatureCount = resolvedLayers.reduce((sum, layer) => {
     return sum + (layer.data.features ? layer.data.features.length : 0);
@@ -251,10 +262,14 @@ async function loadMapData() {
         latitude,
         longitude,
         point: projectLonLat(longitude, latitude),
+        findSlug: findSlugById.get(feature.properties.id) || null,
       };
     });
 
-  const folkloreLandmarks = normalizeFolkloreLocations(folkloreData);
+  const folkloreLandmarks = normalizeFolkloreLocations(folkloreData).map((place) => ({
+    ...place,
+    findSlug: findSlugById.get(place.id) || null,
+  }));
   const eventLandmarks = normalizeEventLocations(eventsData);
   state.landmarks = [...osmLandmarks, ...folkloreLandmarks, ...eventLandmarks];
   setLoadStep("places", "done", state.landmarks.length);

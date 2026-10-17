@@ -273,6 +273,8 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 | `/nearby/search?q=<text>` | Search, with the box already filled in and showing that text's results, so a search is shareable the same way a filter set is |
 | `/nearby?radius=<minutes>` | Nearby (or its `/filter`/`/search` sub-paths) with the walking radius already set to that many minutes, instead of the 5-minute default |
 | `/nearby/<slug>?radius=<minutes>` | A category or group page, with the radius set to that many minutes instead of its own 30-minute default (see below) |
+| `/find/<slug>` | The same app, served at its own URL for one individual business/location (`spec-marketing.md` § 6.7) — e.g. `/find/the-forresters`. Not a filtered Nearby view like `/nearby/<slug>`: the page describes one specific place, with its own title, JSON-LD and nearby-places list, server-rendered with no JS required |
+| `/find/events` | An index of upcoming/recent events near the forest — the one `/find/` path that lists several things rather than describing one place |
 | `/app` | Bare redirect (301) to `/nearby`, kept working for old links and bookmarks |
 
 - **`/nearby`, `/nearby/filter` and `/nearby/search` each track their own live query string.**

@@ -400,7 +400,8 @@ function showLandmarkDetails(place, distance) {
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
-  const topRow = (distancePill || mapsLink || shareBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}</div>` : "";
+  const fullDetailsLink = fullDetailsLinkHtml(place.findSlug);
+  const topRow = (distancePill || mapsLink || shareBtn || fullDetailsLink) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}${fullDetailsLink}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
   const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + issueHtml;
@@ -1040,6 +1041,15 @@ function shareLocationHtml() {
   if (typeof navigator === "undefined") return "";
   if (!("share" in navigator) && !("clipboard" in navigator)) return "";
   return `<button class="detail-map-link" type="button" data-action="share-location">Share link</button>`;
+}
+
+// A link to this place's own crawlable /find/<slug>/ page, when it has one (findSlug is set at
+// load time, js/loader.js, from data/business-slugs.json -- the same index that page itself was
+// built from). Only food/locations places get one; everything else (trees, transport, history)
+// has no individual page, so this is absent there.
+function fullDetailsLinkHtml(findSlug) {
+  if (!findSlug) return "";
+  return `<a class="detail-map-link" href="/find/${escapeHtml(findSlug)}/">Full details</a>`;
 }
 
 // A "Noticed a problem with this location?" link on point-feature detail screens (trees,

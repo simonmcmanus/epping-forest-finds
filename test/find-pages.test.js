@@ -106,7 +106,7 @@ test("renderPage swaps in the category's own title, canonical, OG and JSON-LD, n
   const [pubs] = collectPages(FAKE_RULES, FAKE_INVENTORY);
   const html = renderPage(pubs, APP_HTML);
 
-  assert.match(html, /<title>Pubs &amp; bars in Epping Forest \| Epping Forest Finds<\/title>/);
+  assert.match(html, /<title>42 Pubs &amp; bars in Epping Forest \| Epping Forest Finds<\/title>/);
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/pubs\/">/);
   assert.match(html, /<meta property="og:url" content="https:\/\/www\.eppingforestfinds\.uk\/nearby\/pubs\/">/);
   assert.match(html, /"numberOfItems":42/);
@@ -128,7 +128,7 @@ test("renderPage renders a group page's own title, count and member cross-links"
   const food = collectPages(FAKE_RULES, FAKE_INVENTORY).find((p) => p.isGroup);
   const html = renderPage(food, APP_HTML);
 
-  assert.match(html, /<title>Food in Epping Forest \| Epping Forest Finds<\/title>/);
+  assert.match(html, /<title>Food in Epping Forest — 49 places \| Epping Forest Finds<\/title>/);
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/food\/">/);
   assert.match(html, /"numberOfItems":49/, "the group's count is its members' counts summed");
   assert.match(html, /Find all 49 places to eat, drink and shop in Epping Forest/);

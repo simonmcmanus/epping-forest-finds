@@ -33,6 +33,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { buildInventory, loadAppRules } = require("./report/map-inventory.js");
+const { escapeHtml, replaceOnce } = require("./lib/html-template.js");
+const { listBusinessesForFilterKey } = require("./generate-business-pages.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITE_NAME = "Epping Forest Finds";
@@ -86,27 +88,6 @@ function buildTitleIndex(rules) {
     for (const subfilter of group.subfilters) titles.set(subfilter.key, subfilter.title);
   }
   return titles;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-/** Replaces the one occurrence of `needle` in `html`, throwing if app.html no longer has it. */
-function replaceOnce(html, needle, replacement, label) {
-  const count = html.split(needle).length - 1;
-  if (count !== 1) {
-    throw new Error(
-      `[generate-find-pages] expected exactly one "${label}" in app.html, found ${count} -- ` +
-        "app.html changed in a way this generator's template no longer matches."
-    );
-  }
-  return html.replace(needle, replacement);
 }
 
 // app.html's CSS/JS/icon references are relative ("css/base.css"), which resolves one level
@@ -175,7 +156,14 @@ function renderPage(page, appHtml) {
   // uses, STATIC_PAGES in generate-sitemap.js) -- the canonical/OG/JSON-LD url must be the one
   // actually served, not the one that redirects to it.
   const canonical = `${SITE_ORIGIN}/nearby/${page.slug}/`;
-  const titleTag = `${page.label} in Epping Forest | ${SITE_NAME}`;
+  // The count leads a subfilter's title ("129 Pubs & Bars...") -- a plural noun reads naturally
+  // with a number in front, and it's the most concrete, searched-for fact the page has to offer.
+  // A group label ("Food", "History") isn't grammatically a plural noun, so its count sits after
+  // instead ("Food in Epping Forest -- 1,359 places"). Either way the title states the page's own
+  // real content rather than a generic phrase repeated across every category page.
+  const titleTag = page.isGroup
+    ? `${page.label} in Epping Forest — ${page.count.toLocaleString("en-GB")} places | ${SITE_NAME}`
+    : `${page.count.toLocaleString("en-GB")} ${page.label} in Epping Forest | ${SITE_NAME}`;
   const description = `Find all ${page.count} ${page.title} in Epping Forest, mapped and ready to walk to.`;
   const jsonLd = {
     "@context": "https://schema.org",
@@ -196,7 +184,20 @@ function renderPage(page, appHtml) {
   // What a crawler, or a visitor, sees before js/app.js boots and replaces #inspectorBody with
   // the live Nearby list (transitionInspectorBody, js/inspector.js) -- real, specific, crawlable
   // text and links, in the exact spot the app's own "nothing selected yet" message lives today.
+  // Every individual business/location in this category, listed and linked to its own
+  // /find/<slug>/ page -- real, crawlable without JS, not just a count. Subfilters outside the
+  // confirmed /find/ scope (transport, history, nature, stories) have no entries in the business
+  // index, so this is naturally empty for them and the page falls back to the plain summary
+  // sentence it always had.
+  const businesses = listBusinessesForFilterKey(page.key);
+  const businessListHtml = businesses.length
+    ? `<ul class="category-listing">${businesses
+        .map((b) => `<li><a href="/find/${escapeHtml(b.slug)}/">${escapeHtml(b.name)}</a></li>`)
+        .join("")}</ul>`
+    : "";
+
   const seoContent = `<p>Find all ${page.count} ${escapeHtml(page.title)} in Epping Forest, mapped and ready to walk to. Enable location to see how far each one is and get walking directions.</p>` +
+    businessListHtml +
     (page.isGroup
       ? (crossLinks ? `<p>Browse by type: ${crossLinks}.</p>` : "")
       : (crossLinks ? `<p>More in <a href="/nearby/${escapeHtml(page.groupSlug)}/">${escapeHtml(page.groupLabel)}</a>: ${crossLinks}.</p>` : ""));
