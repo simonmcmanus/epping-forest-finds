@@ -1879,6 +1879,23 @@ test("isLandingPageArrival recognises a /nearby/<slug> path or a first-touch ?sh
   app.location.search = "";
 });
 
+test("isLandingPageArrival also recognises a /find/<slug>/ business page as a landing-page arrival, but not /find/events/", () => {
+  app.location.pathname = "/find/the-forresters/";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), true, "a business's own /find/ page is a landing page, same as /nearby/<slug>");
+
+  app.location.pathname = "/find/the-forresters";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), true, "without the trailing slash too");
+
+  app.location.pathname = "/find/events/";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), false, "events has no single business of its own to land on, same carve-out routeValueFromLocation makes");
+
+  app.location.pathname = "/";
+  app.location.search = "";
+});
+
 test("arriving at a /nearby/<slug> page pre-filters Nearby to that category, taking priority over any ?show= param", () => {
   resetData(app);
   app.setOverviewFilters(["trees"]);

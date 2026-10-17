@@ -688,7 +688,12 @@ use for the homepage's counts.
   selection path existed that anchor was always immediately overwritten by
   the selection itself — `showRoutedSelection` clears `state.nearbyAnchor`
   — so it was removed as dead weight.) The no-JS fallback is the
-  server-rendered content itself.
+  server-rendered content itself. `isLandingPageArrival()` (`js/app.js`,
+  "Onboarding" in `spec.md`) also recognises a `/find/<slug>/` path, the
+  same as `/nearby/<slug>/` — without it, a genuine first-time visitor
+  (not just a returning one) landed on the first-run onboarding wizard
+  instead of the business, since `boot()` awaits the wizard's own dismissal
+  before reaching the selection step above.
 - **Related-content links, both server-rendered and live.** The static
   page's own "Part of `<subfilter>` in `<group>`" and "See also veteran
   trees and grazing cattle near Epping Forest" (`scripts/generate-business-pages.js`)

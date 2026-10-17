@@ -987,15 +987,20 @@ function filterKeysFromQuery(search) {
 }
 
 // True when this load's own URL already names a landing-page pre-filter -- a /nearby/<slug>
-// page's own path, or a first-touch ?show= link -- read straight off the URL rather than off
-// state.overviewFilters/overviewFiltersEphemeral (what activeFiltersShowFullListWithoutLocation()
-// checks): boot() needs this answer before applyShowFilterFromQuery() has run, at the point
-// where it decides whether to show onboarding at all. A reader arriving this way already has
-// their own category pre-selected for them; the first-run setup wizard (pick what to see, enable
+// page's own path, a first-touch ?show= link, or a /find/<slug>/ business page's own path --
+// read straight off the URL rather than off state.overviewFilters/overviewFiltersEphemeral
+// (what activeFiltersShowFullListWithoutLocation() checks): boot() needs this answer before
+// applyShowFilterFromQuery() has run, at the point where it decides whether to show onboarding
+// at all. A reader arriving this way already has their own category -- or, for /find/, their
+// own exact business -- picked for them; the first-run setup wizard (pick what to see, enable
 // location) doesn't fit that arrival and is saved for a first visit to the plain Nearby screen.
+// "events" is the one /find/ path that isn't a business of its own (same carve-out
+// routeValueFromLocation's own findMatch makes) and falls through to the ordinary first-run check.
 function isLandingPageArrival() {
+  const findMatch = /^\/find\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
   return filterKeysFromFindPath(window.location.pathname).length > 0
-    || filterKeysFromQuery(window.location.search).length > 0;
+    || filterKeysFromQuery(window.location.search).length > 0
+    || (findMatch != null && findMatch[1] !== "events");
 }
 
 function applyShowFilterFromQuery() {
