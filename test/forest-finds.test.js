@@ -202,6 +202,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     // throwing on a missing global.
     Image: function Image() { this.complete = false; this.naturalWidth = 0; },
     URLSearchParams,
+    URL,
     localStorage,
   };
   context.globalThis = context;
@@ -508,6 +509,7 @@ globalThis.__forestFindsTest = {
   trackGaItemSelected,
   reportFormHtml,
   reportIssueHtml,
+  ledgerMentionHtml,
   openFiltersScreen,
   openSettings,
   openReportModal,
@@ -4997,6 +4999,13 @@ test("the tree and landmark detail screens both offer the report-a-problem link"
   const source = fs.readFileSync(path.join(__dirname, "..", "js", "inspector.js"), "utf8");
   assert.match(source, /function showTreeDetails[\s\S]*?reportIssueHtml\(/, "tree detail view should render the report-issue link");
   assert.match(source, /function showLandmarkDetails[\s\S]*?reportIssueHtml\(/, "landmark detail view should render the report-issue link");
+});
+
+test("a mapped place can link back to the Ledger edition that featured it", () => {
+  const html = app.ledgerMentionHtml({ ledgerUrl: "/reports/epping-forest-ledger-2026-10-17.html" });
+  assert.match(html, /href="\/reports\/epping-forest-ledger-2026-10-17\.html"/);
+  assert.match(html, /Featured in the Epping Forest Ledger/);
+  assert.equal(app.ledgerMentionHtml({ ledgerUrl: "https://example.com/reports/epping-forest-ledger-2026-10-17.html" }), "");
 });
 
 test("submitting a location-issue report sends the flagged item's own coordinates, not the reporter's GPS fix", () => {

@@ -402,12 +402,31 @@ function showLandmarkDetails(place, distance) {
   const shareBtn = shareLocationHtml();
   const topRow = (distancePill || mapsLink || shareBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
+  const ledgerHtml = ledgerMentionHtml(place);
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
-  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + issueHtml;
+  const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + issueHtml;
   transitionInspectorBody(landmarkHtml, "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
     loadTransportDepartures(place);
   }
+}
+
+function ledgerMentionHtml(place) {
+  const rawUrl = place && (place.ledgerUrl || place.ledger_url);
+  if (typeof rawUrl !== "string" || !rawUrl.trim()) return "";
+
+  const origin = window.location.origin || `https://${window.location.hostname || "www.eppingforestfinds.uk"}`;
+  let url;
+  try {
+    url = new URL(rawUrl, origin);
+  } catch (_) {
+    return "";
+  }
+  // Ledger provenance is deliberately limited to this site's dated editions;
+  // map data must not turn an arbitrary property into a navigation link.
+  if (url.origin !== origin || !/^\/reports\/epping-forest-ledger-\d{4}-\d{2}-\d{2}\.html$/.test(url.pathname)) return "";
+  const href = `${url.pathname}${url.search}${url.hash}`;
+  return `<p class="source-note ledger-mention"><a href="${escapeHtml(href)}">Featured in the Epping Forest Ledger</a></p>`;
 }
 
 function showCowDetails(cow, distance) {
