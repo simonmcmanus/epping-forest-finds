@@ -1054,23 +1054,6 @@ function applyRadiusFromQuery() {
   state.walkingDistanceMinutes = clamp(raw, WALKING_RADIUS_MIN_MINUTES, WALKING_RADIUS_MAX_MINUTES);
 }
 
-// /find/<slug>'s own inline origin (generate-business-pages.js) -- anchors the real Nearby
-// screen on this business's location using the same mechanism a map tap on open ground already
-// uses (setNearbyAnchor, js/nav.js), so "what's nearby" -- trees included -- comes from the
-// app's own live data rather than a second, build-time-only approximation of it.
-function applyFindPageOrigin() {
-  const node = document.getElementById("find-page-origin");
-  if (!node) return;
-  let origin;
-  try {
-    origin = JSON.parse(node.textContent);
-  } catch {
-    return;
-  }
-  if (!Number.isFinite(origin.lat) || !Number.isFinite(origin.lon)) return;
-  setNearbyAnchor(origin.lat, origin.lon, projectLonLat(origin.lon, origin.lat));
-}
-
 // Snaps the camera onto the walking-radius circle around state.userLocation, pauses on it, then
 // animates to the final framing -- shared by boot's real-fix success path and, via
 // applyDefaultLocation(), its no-real-fix one (revealNoRealLocation below), so both get the same
@@ -1306,7 +1289,6 @@ async function boot() {
     applyShowFilterFromQuery();
     applySearchQueryFromQuery();
     applyRadiusFromQuery();
-    applyFindPageOrigin();
 
     if (locationPromise) {
       // Await the location request that was started in parallel with data loading,

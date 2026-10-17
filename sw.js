@@ -227,9 +227,8 @@ function isStableAppShellPath(pathname) {
 // each other. Writing any single one of them into the shared "./app.html" cache slot the way the
 // stable paths above do would make that slot's content depend on whichever of these 1,500+ pages
 // a visitor last happened to load -- the next offline navigation to a *different* one of them
-// would then see that wrong page's title, JSON-LD and (worse) its find-page-origin script
-// anchoring the live Nearby screen to the wrong business entirely. So these are never written to
-// that cache slot; they're read from it only as a last-resort offline fallback (see the navigate
+// would then see that wrong page's title and JSON-LD. So these are never written to that cache
+// slot; they're read from it only as a last-resort offline fallback (see the navigate
 // branch below), keeping it exactly as generic as it already is for the five stable paths above.
 const FIND_PAGE_PATTERN = /^\/(nearby|find)\/[a-z0-9-]+\/?$/;
 function isGeneratedPageNavigation(pathname) {

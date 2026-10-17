@@ -73,13 +73,23 @@ test.describe("generated find/nearby pages", () => {
       await expect.poll(() => page.evaluate(() => isSubfilterActive("events"))).toBe(true);
     });
 
-    test("/find/<slug>/ boots the real app and anchors the live Nearby screen to that business's own coordinates", async ({ page }) => {
+    test("/find/<slug>/ boots the real app with that exact business already selected and shown", async ({ page }) => {
+      // routeValueFromLocation (js/app.js) resolves /find/<slug>/ to the same place through the
+      // ordinary "landmark" selection route applySelectionFromHash already applies at boot for
+      // any other deep link (#tree=..., #place=...) -- no separate anchoring mechanism needed.
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
 
-      await expect.poll(() => page.evaluate(() => state.nearbyAnchor != null)).toBe(true);
-      const anchor = await page.evaluate(() => ({ latitude: state.nearbyAnchor.latitude, longitude: state.nearbyAnchor.longitude }));
-      expect(anchor.latitude).toBeCloseTo(EXAMPLE_PUB.lat, 4);
-      expect(anchor.longitude).toBeCloseTo(EXAMPLE_PUB.lon, 4);
+      await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
+      const selected = await page.evaluate(() => ({ type: state.selected.type, findSlug: state.selected.item && state.selected.item.findSlug }));
+      expect(selected.type).toBe("landmark");
+      expect(selected.findSlug).toBe(EXAMPLE_PUB.slug);
+      await expect(page.locator("#inspectorTitle")).toHaveText(EXAMPLE_PUB.name);
+    });
+
+    test("the inspector's Full details link is suppressed when already on that business's own /find/ page", async ({ page }) => {
+      await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
+      await expect(page.locator(`#inspectorBody a[href="/find/${EXAMPLE_PUB.slug}/"]`)).toHaveCount(0);
     });
 
     test("/find/<slug>/ boots without JS errors", async ({ page }) => {

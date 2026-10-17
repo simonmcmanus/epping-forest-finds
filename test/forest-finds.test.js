@@ -5465,9 +5465,8 @@ test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own 
   // Each generated page has its own distinct title/JSON-LD/initial body -- caching any single one
   // of them under the one "./app.html" key the five stable screens share would make that slot's
   // content depend on whichever page a visitor last loaded, corrupting every other page's offline
-  // fallback (and, worse, its embedded find-page-origin script would anchor the live Nearby screen
-  // to the wrong business). Executes the real fetch handler against a fake navigate event and a
-  // cache spy, rather than inspecting the source, so a regression here would actually fail this.
+  // fallback. Executes the real fetch handler against a fake navigate event and a cache spy,
+  // rather than inspecting the source, so a regression here would actually fail this.
   const root = path.join(__dirname, "..");
   let fetchHandler = null;
   const cachePuts = [];

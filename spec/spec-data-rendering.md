@@ -888,7 +888,9 @@ The figure itself is the real road/path-following distance (and the walk time de
   and locations groups) shows a **"Full details"** link in `.detail-top-row` alongside Open in
   Maps/Share, linking to that page. `findSlug` is attached per place at load time (`js/loader.js`,
   from `data/business-slugs.json`) rather than resolved here, so a place outside that scope (a
-  bus stop, a tree, a historic site) simply has no `findSlug` and shows no link.
+  bus stop, a tree, a historic site) simply has no `findSlug` and shows no link. Also suppressed
+  when the page currently on screen already *is* that place's own `/find/` page (landing there
+  selects it automatically, `spec.md` "Routing"), where the link would point at itself.
 
 #### Cow Details
 

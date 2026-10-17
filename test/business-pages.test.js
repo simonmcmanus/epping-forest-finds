@@ -94,12 +94,6 @@ test("renderBusinessPage shows opening hours, a folklore summary and a verificat
   assert.ok(!withoutExtras.includes("verified-note"));
 });
 
-test("renderBusinessPage embeds its own coordinates for applyFindPageOrigin (js/app.js) to read at boot", () => {
-  const rules = loadAppRules();
-  const html = renderBusinessPage(FAKE_INDEX[0], APP_HTML, rules, FAKE_INDEX);
-  assert.match(html, /id="find-page-origin">\{"lat":51\.65,"lon":0\.05\}/);
-});
-
 test("renderEventsIndexPage lists every event with its date and source link", () => {
   const events = [{ title: "Autumn Fair", date: "2026-10-13", place: "Visitor Centre", body: "Stalls and crafts.", sourceUrl: "https://example.com/fair" }];
   const html = renderEventsIndexPage(APP_HTML, events);

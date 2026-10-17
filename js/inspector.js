@@ -1046,9 +1046,13 @@ function shareLocationHtml() {
 // A link to this place's own crawlable /find/<slug>/ page, when it has one (findSlug is set at
 // load time, js/loader.js, from data/business-slugs.json -- the same index that page itself was
 // built from). Only food/locations places get one; everything else (trees, transport, history)
-// has no individual page, so this is absent there.
+// has no individual page, so this is absent there. Also absent when the page on screen already
+// IS that place's own /find/ page (landing there selects it automatically -- see
+// applySelectionFromHash's own routeValueFromLocation resolution, js/app.js): a link to the
+// current page would be a dead end, not a useful action.
 function fullDetailsLinkHtml(findSlug) {
   if (!findSlug) return "";
+  if (window.location.pathname === `/find/${findSlug}/`) return "";
   return `<a class="detail-map-link" href="/find/${escapeHtml(findSlug)}/">Full details</a>`;
 }
 

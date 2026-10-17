@@ -191,15 +191,6 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     nearbyHtml +
     upLinks;
 
-  // Read by applyFindPageOrigin() (js/app.js) once JS boots, to anchor the
-  // real Nearby screen here -- the same mechanism a map tap on open ground
-  // uses (setNearbyAnchor, js/nav.js) -- rather than a second, build-time-only
-  // approximation of "what's near this point".
-  const originScript =
-    entry.lat != null && entry.lon != null
-      ? `<script type="application/json" id="find-page-origin">${JSON.stringify({ lat: entry.lat, lon: entry.lon })}</script>\n`
-      : "";
-
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
   html = replaceOnce(html, APP_DESCRIPTION_META, `<meta name="description" content="${escapeHtml(description)}">`, "meta description");
@@ -207,10 +198,15 @@ function renderBusinessPage(entry, appHtml, rules, index) {
   html = replaceOnce(html, APP_OG_TITLE, `<meta property="og:title" content="${escapeHtml(entry.name)} in Epping Forest">`, "og:title");
   html = replaceOnce(html, APP_OG_DESCRIPTION, `<meta property="og:description" content="${escapeHtml(description)}">`, "og:description");
   html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
+  // No separate inline origin script: landing on this page's own URL already selects this exact
+  // business through the ordinary deep-link boot path (applySelectionFromHash ->
+  // routeValueFromLocation's /find/<slug>/ case, js/app.js) -- a second, build-time-only
+  // "anchor near here" mechanism would only ever get immediately overwritten by that selection
+  // (showRoutedSelection clears state.nearbyAnchor), so it was dead weight.
   html = replaceOnce(
     html,
     "</head>",
-    `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n  ${originScript}</head>`,
+    `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`,
     "</head>"
   );
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");

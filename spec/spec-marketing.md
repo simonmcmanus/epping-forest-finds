@@ -552,10 +552,9 @@ branches.
   browser's own network-error page. But unlike the five fixed screens (which
   share one `./app.html` cache entry because they're genuinely byte-identical
   content), none of these ~1,500+ generated pages are ever written into that
-  shared slot — each has its own distinct title, JSON-LD and
-  `find-page-origin` script, so caching any one of them there would make that
-  slot's content, and consequently the next offline visitor's anchored
-  location, depend on whichever page was last loaded. They're fetched
+  shared slot — each has its own distinct title and JSON-LD, so caching any
+  one of them there would make that slot's content depend on whichever page
+  was last loaded. They're fetched
   network-first instead (so an online visitor always gets that exact page's
   real content) and only fall back to the generic shared shell when offline —
   the real app still boots and works, just unfiltered rather than
@@ -642,25 +641,35 @@ use for the homepage's counts.
   no coordinates, no "Nearby" list of its own, never appearing in anyone
   else's either. `scripts/regenerate-business-slugs.js` now remaps this
   explicitly.
-- **Nearby trees reuse the app's own live Nearby screen rather than a second,
-  build-time approximation of it.** Each page embeds its own coordinates in
-  an inline `<script type="application/json" id="find-page-origin">`; once
-  JS boots, `applyFindPageOrigin()` (`js/app.js`) reads it and calls
-  `setNearbyAnchor` (`js/nav.js`) — the same function a map tap on open
-  ground already uses — so a visitor who opens the Nearby screen from a
-  business page sees real nearest trees (and everything else) computed by
-  the app's existing code. The no-JS fallback is a plain link to
-  `/nearby/trees/`.
+- **Landing on `/find/<slug>/` selects that exact business, through the
+  app's own ordinary deep-link path — no separate mechanism of its own.**
+  `routeValueFromLocation()` (`js/app.js`) resolves the URL to the same
+  `place=<hashKey>` value a `#place=<key>` hash already would (via
+  `findPlaceByFindSlug`, a reverse lookup over the loaded landmarks), so
+  `applySelectionFromHash()` — the same boot step that opens a tree or place
+  named by any other deep link — selects and shows it, nearest trees and
+  everything else included, computed by the app's existing code rather than
+  a second, build-time-only approximation of it. (An earlier version of this
+  page embedded its own coordinates for a dedicated `applyFindPageOrigin()`
+  step to anchor the Nearby screen; once this selection path existed that
+  anchor was always immediately overwritten by the selection itself
+  — `showRoutedSelection` clears `state.nearbyAnchor` — so it was removed as
+  dead weight.) The no-JS fallback is the server-rendered content itself.
 - **Linked everywhere a business is mentioned, not only from its own page**:
   `js/loader.js` fetches `data/business-slugs.json` alongside the other
   datasets and attaches `findSlug` to each matching place; `showLandmarkDetails`
   (`js/inspector.js`) renders a "Full details" link to it when present — so
   tapping the pin on the map, or finding it through in-app search, links to
-  the same page. The weekly Ledger (`scripts/report/business_links.py`)
-  resolves a finding's name (and, for a name shared by more than one branch,
-  its coordinate) against the same index and links the business's name in
-  the rendered report — conservatively: an unresolvable or still-ambiguous
-  name links to nothing rather than risking a wrong link.
+  the same page. Suppressed only when the page already showing *is* that
+  business's own `/find/` page (landing there already selects it, per above),
+  where the link would otherwise be a dead end pointing at itself. The weekly
+  Ledger (`scripts/report/business_links.py`) resolves a finding's name (and,
+  for a name shared by more than one branch, its coordinate) against the
+  same index and links the business's name in the rendered report —
+  conservatively: an unresolvable or still-ambiguous name links to nothing
+  rather than risking a wrong link.
+- **Selecting such a business anywhere in the app navigates the address bar
+  to this same URL** — see "Routing" in `spec.md`.
 - **Events get one index page, not individual pages**: `/find/events/`
   lists every entry from `data/forest-events.json` and `data/events.json`
   with its date, place and source link. Time-bound events are a poor fit for
