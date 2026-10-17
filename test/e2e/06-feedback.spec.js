@@ -1,6 +1,19 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, waitForStableBoundingBox } = require("./helpers");
+const { setup, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE, waitForStableBoundingBox } = require("./helpers");
+
+test("a fresh /feedback visit opens the form without onboarding or blocking prompts", async ({ page }) => {
+  await mockCowApi(page);
+  await gotoAndWaitForMap(page, "/feedback");
+
+  await expect(page.locator("#reportForm")).toBeVisible();
+  await expect(page.locator("#onboardingOverlay")).toBeHidden();
+  await expect(page.locator("#locationGate")).toBeHidden();
+  await expect(page.locator("#distanceWarning")).toBeHidden();
+  await expect(page.locator("#consentBanner")).toBeHidden();
+  await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
+  await expect(page.locator("#earlyTestingBanner")).toHaveCount(0);
+});
 
 test.describe("Feedback / Report screen", () => {
   test.beforeEach(async ({ page }) => {

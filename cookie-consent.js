@@ -88,6 +88,9 @@ background:#fff;color:#2f6f4e}
   function renderBanner() {
     const existing = document.getElementById("cookieConsentBanner");
     if (existing) return;
+    // Feedback is a direct action route: no consent dialog should stand between a shared
+    // feedback link and its form. The visitor can still change cookie preferences in Settings.
+    if (location.pathname === "/feedback") return;
     // On the app's first-run onboarding (app.html only -- this id doesn't exist elsewhere),
     // the location step's own privacy note already asks this question and decides cookie
     // consent itself (see the .ob-location/.ob-location-skip handlers in js/onboarding.js).
@@ -160,6 +163,7 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
 
   function renderEarlyTestingBanner() {
     if (earlyTestingBannerSeen() || document.getElementById("earlyTestingBanner")) return;
+    if (location.pathname === "/feedback") return;
     // The homepage already explains the trial and has its own sign-up invitation, so keep this
     // extra notice for people arriving elsewhere on the site.
     if (location.pathname === "/" || location.pathname === "/index.html") return;

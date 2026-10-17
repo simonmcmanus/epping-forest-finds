@@ -1038,6 +1038,13 @@ function isLandingPageArrival() {
     || (findMatch != null && findMatch[1] !== "events");
 }
 
+// Feedback is an action route, not an app-discovery route. A link to it must let someone
+// describe a problem immediately, without first asking them to configure the map, share their
+// location, or decide on cookies. Its form still loads against the normal app shell and data.
+function isFeedbackArrival() {
+  return window.location.pathname === ROUTE_PATHS[ROUTE_REPORT];
+}
+
 function applyShowFilterFromQuery() {
   const fromPath = filterKeysFromFindPath(window.location.pathname);
   if (fromPath.length) {
@@ -1280,7 +1287,11 @@ async function boot() {
   // revealNoRealLocation() below knows not to draw a second prompt for the same question.
   let locationAlreadyAsked = false;
 
-  if (!hasCompletedOnboarding() && !isLandingPageArrival()) {
+  if (isFeedbackArrival()) {
+    // Do not start a browser location request either: a permission dialog would still interrupt
+    // the feedback form even though the route skipped the app's own onboarding.
+    locationAlreadyAsked = true;
+  } else if (!hasCompletedOnboarding() && !isLandingPageArrival()) {
     // First visit to the plain Nearby screen: show onboarding while data loads behind it.
     // A landing-page arrival (/nearby/<slug>, or a first-touch ?show= link) skips this --
     // see isLandingPageArrival() -- and is treated like a returning visit below instead, so
