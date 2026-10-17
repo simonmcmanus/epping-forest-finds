@@ -406,9 +406,8 @@ function showLandmarkDetails(place, distance) {
   const topRow = (distancePill || mapsLink || shareBtn || fullDetailsLink || walkRadiusBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}${fullDetailsLink}${walkRadiusBtn}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
-  const verifiedHtml = isEvent ? "" : verifiedNoteHtml(place);
   const relatedLinksHtml = relatedCategoryLinksHtml(place);
-  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + verifiedHtml + relatedLinksHtml + issueHtml;
+  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
   transitionInspectorBody(landmarkHtml, "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
     loadTransportDepartures(place);
@@ -1057,50 +1056,34 @@ function nearbyWithinWalkHtml(lat, lon) {
   return `<button class="detail-map-link" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}">Everything within 15 min walk</button>`;
 }
 
-// Category chips plus live walk-time cards to the nearest tree and (when any are currently
-// loaded) the cows. Food/locations places only (findSlug) -- the same scope the static
+// Two headed sections -- "Nearby" (live walk-time cards to the nearest tree and, when any are
+// currently loaded, the cows) and "Related" (this place's own subfilter/group) -- both using the
+// same .nearest-item card the Nearby list itself uses, rather than mixing that card style with
+// the unrelated .detail-map-link pill the way an earlier version of this did: one visual
+// language, not two. Food/locations places only (findSlug) -- the same scope the static
 // /find/<slug>/ page's own "Nearby"/"Part of" content already covers before JS boots; this is
 // that content's live continuation once the business is actually selected on screen, using the
 // app's own real nearest-neighbour distance (nearestTreeTo/nearestCowTo, js/app.js) rather than a
-// second approximation of "how far" the static page had no way to compute at build time.
-//
-// Mirrors scripts/generate-business-pages.js's formatVerifiedDate so the live view reads
-// identically to the static /find/<slug>/ page's own "Checked against OpenStreetMap on <date>" line.
-function formatVerifiedDate(isoDate) {
-  const date = new Date(`${isoDate}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return isoDate;
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-}
-
-function verifiedNoteHtml(place) {
-  if (!place.verifiedAt) return "";
-  return `<p class="verified-note">Checked against OpenStreetMap on ${escapeHtml(formatVerifiedDate(place.verifiedAt))}.</p>`;
-}
-
-// Styled from the same components the rest of the inspector already uses, not bespoke markup:
-// .detail-map-link (the Open in Maps/Share pill row) for the category chips, and .nearest-item
-// (the Nearby list's own card) for the tree/cow rows -- plain <a> elements carrying that class
-// rather than the <button data-overview-type> it's usually paired with, which is safe (every
-// handler keyed to that class also requires the data-overview-type attribute in its own selector,
-// per js/nav.js) and gets the same hover lift and arrow-key list navigation for free.
+// second approximation of "how far" the static page had no way to compute at build time -- no
+// external source to credit for it, so neither section names one.
 function relatedCategoryLinksHtml(place) {
   if (!place.findSlug || place.latitude == null) return "";
   const subfilterKey = placePrimaryFilterKey(place);
   const subfilter = subfilterKey ? FILTER_SUBFILTERS_BY_KEY.get(subfilterKey) : null;
   const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : null;
-  const categoryChipsHtml = subfilter && group
-    ? `<div class="detail-top-row related-chips">` +
-      `<a class="detail-map-link" href="/nearby/${subfilter.key.replace(/_/g, "-")}/">${appIconHtml(subfilter.icon)}${escapeHtml(subfilter.label)}</a>` +
-      `<a class="detail-map-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>` +
-      `</div>`
-    : "";
 
-  const nearbyCardHtml = (href, icon, name, metres) =>
+  // One shared card shape for both sections -- icon, name and an optional meta line (a walk-time
+  // chip for "Nearby", nothing for "Related", which has no distance of its own to show) -- plain
+  // <a> elements carrying the Nearby list's own .nearest-item class rather than the
+  // <button data-overview-type> it's usually paired with, which is safe (every handler keyed to
+  // that class also requires the data-overview-type attribute in its own selector, per js/nav.js)
+  // and gets the same hover lift and arrow-key list navigation for free.
+  const cardHtml = (href, icon, name, meta) =>
     `<li><a class="nearest-item" href="${href}">` +
     `<span class="nearest-icon" aria-hidden="true">${appIconHtml(icon)}</span>` +
     `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div>` +
-    `<div class="nearest-footer"><span class="nearest-meta">${walkInfoHtml(metres)}</span></div></div>` +
-    `</a></li>`;
+    (meta ? `<div class="nearest-footer"><span class="nearest-meta">${meta}</span></div>` : "") +
+    `</div></a></li>`;
 
   const nearestTree = nearestTreeTo(place.latitude, place.longitude);
   const nearestCow = state.cows.length ? nearestCowTo(place.latitude, place.longitude) : null;
@@ -1112,14 +1095,21 @@ function relatedCategoryLinksHtml(place) {
   // no such mismatch to fix: /nearby/trees/ already lists everything near wherever the reader
   // actually is, not a single distance this card promised.
   const cowsHref = `/nearby/cows/#${nearbyAnchorRouteValue({ latitude: place.latitude, longitude: place.longitude })}`;
-  const nearbyCardsHtml = (nearestTree || nearestCow)
-    ? `<ul class="nearest-list related-cards">` +
-      (nearestTree ? nearbyCardHtml("/nearby/trees/", "tree", "Nearest veteran tree", nearestTree.metres) : "") +
-      (nearestCow ? nearbyCardHtml(cowsHref, "cow", "The grazing cattle", nearestCow.metres) : "") +
+  const nearbySectionHtml = (nearestTree || nearestCow)
+    ? `<h3 class="detail-section-heading">Nearby</h3><ul class="nearest-list related-cards">` +
+      (nearestTree ? cardHtml("/nearby/trees/", "tree", "Nearest veteran tree", walkInfoHtml(nearestTree.metres)) : "") +
+      (nearestCow ? cardHtml(cowsHref, "cow", "The grazing cattle", walkInfoHtml(nearestCow.metres)) : "") +
       `</ul>`
     : "";
 
-  return categoryChipsHtml + nearbyCardsHtml;
+  const relatedSectionHtml = subfilter && group
+    ? `<h3 class="detail-section-heading">Related</h3><ul class="nearest-list related-cards">` +
+      cardHtml(`/nearby/${subfilter.key.replace(/_/g, "-")}/`, subfilter.icon, subfilter.label) +
+      cardHtml(`/nearby/${subfilter.groupKey.replace(/_/g, "-")}/`, group.icon, group.label) +
+      `</ul>`
+    : "";
+
+  return nearbySectionHtml + relatedSectionHtml;
 }
 
 // A link to this place's own crawlable /find/<slug>/ page, when it has one (findSlug is set at

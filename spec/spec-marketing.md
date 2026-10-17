@@ -647,39 +647,35 @@ use for the homepage's counts.
   This swaps the same `app.html` "nothing selected yet" paragraph the
   category pages replace (§6.6) — a `/find/` page is the same templated app
   shell, not a separate static page.
-- **Three more fields, shown only when the source data actually has them —
+- **Two more fields, shown only when the source data actually has them —
   never manufactured copy to pad a page out**: raw OSM `opening_hours`
-  (~80 of 1,500 entries today), a verification date from
-  `data/verification.json`'s `confirmed` map ("Checked against OpenStreetMap
-  on \<date\>" — covers roughly half of all entries, the single highest-
-  coverage addition available), and, for the handful of entries sourced from
+  (~80 of 1,500 entries today), and, for the handful of entries sourced from
   the folklore dataset rather than OSM, that record's own narrative
   (`folkloreSummary` — genuinely unique text no other page shares, not a
   second description computed from the same name/address/category fields
-  every page already shows). Fixed a related bug in the same change:
+  every page already shows). A third field, `verifiedAt` (a verification
+  date from `data/verification.json`'s `confirmed` map), still rides along
+  in `data/business-slugs.json` and `js/loader.js`'s live place object, but
+  is no longer rendered anywhere — an earlier "Checked against OpenStreetMap
+  on \<date\>" note was removed (both the static page and the live view) for
+  sitting directly beside the Nearby/Related distance cards below and
+  reading as if it were crediting OpenStreetMap as their source, when those
+  distances are computed entirely from this site's own data. Fixed a related bug in the same change:
   `normalizeFolkloreLocations` (`js/normalize.js`) returns
   `latitude`/`longitude`, not `lat`/`lon` like an OSM record, so every
   folklore-sourced business entry previously got `lat: null, lon: null` --
   no coordinates, no "Nearby" list of its own, never appearing in anyone
   else's either. `scripts/regenerate-business-slugs.js` now remaps this
   explicitly.
-- **Opening hours, a tappable phone number, and the verification date are
-  not static-page-only — the live view shows the same thing.** Once JS
-  boots and a place is selected (on `/find/<slug>/` itself, or anywhere else
-  in the app), `showLandmarkDetails` (`js/inspector.js`) adds an "Opening
-  hours" row alongside Address/Type/Area/Confidence (gated on
-  `place.openingHours`, same as the static page — never shown when absent);
-  `detailsHtml`'s generic row renderer wraps a `"Phone"` row's value in a
-  `tel:` link rather than leaving it as inert text, matching the static
-  page's own `tel:` link; and `verifiedNoteHtml` renders the identical
-  "Checked against OpenStreetMap on \<date\>" line (`.verified-note`,
-  reusing the `.report-note` muted-caption pattern) via a small
-  `formatVerifiedDate` helper that mirrors
-  `scripts/generate-business-pages.js`'s own formatter byte-for-byte, so the
-  date reads the same whether JS has run or not. `verifiedAt` reaches the
-  live place object the same zero-extra-fetch way `findSlug` already does:
-  `js/loader.js` reads it off the same `business-slugs.json` entry it reads
-  `findSlug` from, via a `businessById` map keyed on the OSM/folklore id.
+- **Opening hours and a tappable phone number are not static-page-only —
+  the live view shows the same thing.** Once JS boots and a place is
+  selected (on `/find/<slug>/` itself, or anywhere else in the app),
+  `showLandmarkDetails` (`js/inspector.js`) adds an "Opening hours" row
+  alongside Address/Type/Area/Confidence (gated on `place.openingHours`,
+  same as the static page — never shown when absent); `detailsHtml`'s
+  generic row renderer wraps a `"Phone"` row's value in a `tel:` link
+  rather than leaving it as inert text, matching the static page's own
+  `tel:` link.
 - **Landing on `/find/<slug>/` selects that exact business, through the
   app's own ordinary deep-link path — no separate mechanism of its own.**
   `routeValueFromLocation()` (`js/app.js`) resolves the URL to the same
@@ -698,29 +694,31 @@ use for the homepage's counts.
   (not just a returning one) landed on the first-run onboarding wizard
   instead of the business, since `boot()` awaits the wizard's own dismissal
   before reaching the selection step above.
-- **Related-content links, both server-rendered and live.** The static
-  page's own "Part of `<subfilter>` in `<group>`" and "See also veteran
-  trees and grazing cattle near Epping Forest" (`scripts/generate-business-pages.js`)
-  are real links even with no JS, but carry no distance for the trees/cattle
-  (a build-time figure would be wrong for live-tracked cattle positions by
-  the time anyone reads it). Once JS boots and the business is selected,
-  `relatedCategoryLinksHtml()` (`js/inspector.js`) renders the live
-  continuation of the same content with real distances —
-  `nearestTreeTo`/`nearestCowTo` (`js/app.js`, the same nearest-neighbour
-  code the Nearby screen itself uses) and `formatWalkTime` turn "See also
-  grazing cattle" into "12 mins walk to the cows", linking to `/nearby/cows/`.
-  The cows line is omitted entirely when no cow positions are currently
-  loaded (`state.cows` empty), rather than showing a distance to nothing.
-  Scoped to places with a `findSlug` (the same food/locations groups
-  throughout this section) — any other selected place (a tree, a bus stop)
-  has neither version of this content. The live version renders as the same
-  components used elsewhere in the inspector rather than bespoke markup: the
-  category/group links reuse the `.detail-map-link` pill (the same class the
-  Open in Maps/Share row already uses), and the nearest tree/cow reuse the
-  `.nearest-item` card the Nearby list itself uses — `a.nearest-item` gets a
-  small `text-decoration: none; color: inherit;` override in
-  `css/map-ui.css` since that class is normally a `<button>`, which has no
-  default link underline to begin with.
+- **Related-content links, both server-rendered and live, as two headed
+  sections.** The static page's own "Part of `<subfilter>` in `<group>`"
+  and "See also veteran trees and grazing cattle near Epping Forest"
+  (`scripts/generate-business-pages.js`) are real links even with no JS,
+  but carry no distance for the trees/cattle (a build-time figure would be
+  wrong for live-tracked cattle positions by the time anyone reads it).
+  Once JS boots and the business is selected, `relatedCategoryLinksHtml()`
+  (`js/inspector.js`) renders the live continuation as two
+  `<h3 class="detail-section-heading">`-headed lists — **Nearby** (the
+  nearest tree and, when any cow positions are currently loaded, the cows,
+  each with a real live walk-time via `nearestTreeTo`/`nearestCowTo`,
+  `js/app.js`) and **Related** (this place's own subfilter and group) — so
+  the reader always knows which kind of link they're looking at. Both
+  sections render the exact same `.nearest-item` card the Nearby list
+  itself uses (icon, name, and — Nearby only — a walk-time chip; Related
+  has no distance of its own to show), not the mismatched pill-chip/card
+  pairing an earlier version of this had: one visual language throughout,
+  not two. `a.nearest-item` gets a small `text-decoration: none; color:
+  inherit;` override in `css/map-ui.css` since that class is normally a
+  `<button>`, which has no default link underline to begin with. The cows
+  card is omitted entirely when no cow positions are currently loaded
+  (`state.cows` empty), rather than showing a distance to nothing. Scoped
+  to places with a `findSlug` (the same food/locations groups throughout
+  this section) — any other selected place (a tree, a bus stop) has
+  neither version of this content.
 - **The cows link carries the selected place's own position**, via
   `/nearby/cows/`'s existing `near=<lat>,<lon>` browse-anchor route
   (`nearbyAnchorRouteValue`, `js/app.js` — the same one a map tap or a shared

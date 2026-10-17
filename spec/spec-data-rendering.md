@@ -904,12 +904,14 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   bus stop, a tree, a historic site) simply has no `findSlug` and shows no link. Also suppressed
   when the page currently on screen already *is* that place's own `/find/` page (landing there
   selects it automatically, `spec.md` "Routing"), where the link would point at itself.
-- Opening hours (when known), a `tel:`-linked phone number, and a "Checked against OpenStreetMap
-  on \<date\>" note (when a verification date exists) — see `spec-marketing.md` § 6.7, "Opening
-  hours, a tappable phone number, and the verification date are not static-page-only".
-- A `findSlug` place also shows its category/group and nearest-tree/nearest-cow links below its
-  details — see `spec-marketing.md` § 6.7, "Related-content links, both server-rendered and live".
-  The nearest-cow link carries this place's own position via `/nearby/cows/`'s `near=<lat>,<lon>`
+- Opening hours (when known) and a `tel:`-linked phone number — see `spec-marketing.md` § 6.7,
+  "Opening hours and a tappable phone number are not static-page-only".
+- A `findSlug` place also shows a headed **Nearby** section (the nearest tree and, when loaded,
+  the cows) and a headed **Related** section (its own category/group), both rendered as the same
+  `.nearest-item` card — see `spec-marketing.md` § 6.7, "Related-content links, both
+  server-rendered and live, as two headed sections". Neither section names a data source for its
+  distances (computed entirely from this site's own data, not fetched from anywhere). The
+  nearest-cow link carries this place's own position via `/nearby/cows/`'s `near=<lat>,<lon>`
   anchor route, and every in-app link rendered into the inspector — this one included — is a real
   SPA transition rather than a full page reload — see `spec-marketing.md` § 6.7, "The cows link
   carries the selected place's own position" and "Every in-app link rendered into the inspector is

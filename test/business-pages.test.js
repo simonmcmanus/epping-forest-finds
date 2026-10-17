@@ -93,16 +93,17 @@ test("renderBusinessPage's cows link falls back to a plain /nearby/cows/ when th
   assert.ok(!html.includes("/nearby/cows/#near="));
 });
 
-test("renderBusinessPage shows opening hours, a folklore summary and a verification date when present, and omits them when absent", () => {
+test("renderBusinessPage shows opening hours and a folklore summary when present, and omits them when absent", () => {
   const rules = loadAppRules();
   const withExtras = renderBusinessPage(FAKE_INDEX[0], APP_HTML, rules, FAKE_INDEX);
   assert.match(withExtras, /Opening hours: Mo-Su 11:00-23:00/);
   assert.match(withExtras, /A folklore note about this pub\./);
-  assert.match(withExtras, /Checked against OpenStreetMap on 16 October 2026\./);
+  // Distances (the Nearby list, the trees/cows links) are computed from the site's own data, not
+  // fetched from OpenStreetMap, so nothing on the page credits it as a source for them.
+  assert.ok(!withExtras.includes("OpenStreetMap"));
 
   const withoutExtras = renderBusinessPage(FAKE_INDEX[1], APP_HTML, rules, FAKE_INDEX);
   assert.ok(!withoutExtras.includes("Opening hours:"));
-  assert.ok(!withoutExtras.includes("verified-note"));
 });
 
 test("renderEventsIndexPage lists every event with its date and source link", () => {

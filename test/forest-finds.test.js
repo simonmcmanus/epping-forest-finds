@@ -453,7 +453,6 @@ globalThis.__forestFindsTest = {
   nearestTreeTo,
   nearestCowTo,
   relatedCategoryLinksHtml,
-  verifiedNoteHtml,
   detailsHtml,
   nearbyWithinWalkHtml,
   filterKindIconSlug,
@@ -10487,20 +10486,32 @@ test("routeValueFromLocation never treats /find/events/ as a place lookup", () =
   }
 });
 
-test("relatedCategoryLinksHtml links up to category/group and down to the nearest tree and cow, with real live distances", () => {
+test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, real live distances) and a headed Related section (category/group), both as the same card style", () => {
   resetData(app);
   const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
   app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" }); // ~65m away
   app.state.cows.push({ latitude: 51.66, longitude: 0.06, id: "c1" }); // ~1.3km away
 
   const html = app.relatedCategoryLinksHtml(pub);
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars<\/a>/);
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
+  // Section order and headings: Nearby first, then Related -- both plain <h3 class="detail-section-heading">.
+  const nearbyHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Nearby</h3>');
+  const relatedHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Related</h3>');
+  assert.ok(nearbyHeadingIndex >= 0 && relatedHeadingIndex > nearbyHeadingIndex, "Nearby heading comes before Related");
+
   assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/">[\s\S]*?Nearest veteran tree[\s\S]*?<\/a>/);
   // The cows link carries this pub's own position via /nearby/cows/'s existing "near=<lat>,<lon>"
   // anchor route, so landing there re-centres on the pub rather than the reader's own GPS fix.
   assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?The grazing cattle[\s\S]*?<\/a>/);
   assert.match(html, /walk-chip/, "the nearby cards carry a real walk-time chip, not bare text");
+
+  // Category/group links are the same .nearest-item card as Nearby, not a different pill style.
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/food\/">[\s\S]*?Food[\s\S]*?<\/a>/);
+  assert.ok(!html.includes("detail-map-link"), "related links no longer use the pill style -- same card as Nearby");
+
+  // No mention of the data's source attached to these distances -- they're computed live, not
+  // fetched from anywhere that would need crediting.
+  assert.ok(!html.includes("OpenStreetMap"));
 });
 
 test("relatedCategoryLinksHtml omits the cows link when no cow positions are currently loaded", () => {
@@ -10517,15 +10528,6 @@ test("relatedCategoryLinksHtml is empty for a place with no /find/ page of its o
   resetData(app);
   const busStop = { findSlug: null, latitude: 51.65, longitude: 0.05, category: "bus_stop" };
   assert.equal(app.relatedCategoryLinksHtml(busStop), "");
-});
-
-test("verifiedNoteHtml shows the OpenStreetMap check date exactly as the static /find/ page phrases it", () => {
-  const html = app.verifiedNoteHtml({ verifiedAt: "2026-10-16" });
-  assert.equal(html, '<p class="verified-note">Checked against OpenStreetMap on 16 October 2026.</p>');
-});
-
-test("verifiedNoteHtml is empty when a place has no verification date", () => {
-  assert.equal(app.verifiedNoteHtml({ verifiedAt: null }), "");
 });
 
 test("detailsHtml links a Phone row as a tel: link rather than inert text", () => {

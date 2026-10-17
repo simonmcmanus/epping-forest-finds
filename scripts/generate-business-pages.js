@@ -119,12 +119,6 @@ function formatMetres(metres) {
   return metres >= 1000 ? `${(metres / 1000).toFixed(1)}km` : `${metres}m`;
 }
 
-function formatVerifiedDate(isoDate) {
-  const date = new Date(`${isoDate}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return isoDate;
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-}
-
 function renderBusinessPage(entry, appHtml, rules, index) {
   const canonical = `${SITE_ORIGIN}/find/${entry.slug}/`;
   const singular = SINGULAR_LABEL[entry.key] || "place";
@@ -166,12 +160,6 @@ function renderBusinessPage(entry, appHtml, rules, index) {
   // one, so this is additive, never a gap on the other 99%.
   const summaryHtml = entry.summary ? `<p>${escapeHtml(entry.summary)}</p>` : "";
 
-  // "osm@2026-10-16" (data/verification.json) covers roughly half of all in-scope entries today
-  // -- a real freshness/trust signal, not manufactured copy, so it's only ever shown when present.
-  const verifiedHtml = entry.verifiedAt
-    ? `<p class="verified-note">Checked against OpenStreetMap on ${escapeHtml(formatVerifiedDate(entry.verifiedAt))}.</p>`
-    : "";
-
   const nearby = nearestBusinesses(entry, index).filter((n) => n.metres <= 1000);
   const nearbyHtml = nearby.length
     ? `<p>Nearby:</p><ul>${nearby
@@ -200,7 +188,6 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     `<p>${escapeHtml(description)}</p>` +
     summaryHtml +
     (detailRows ? `<ul>${detailRows}</ul>` : "") +
-    verifiedHtml +
     nearbyHtml +
     upLinks;
 
