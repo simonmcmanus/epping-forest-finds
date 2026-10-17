@@ -10277,6 +10277,77 @@ test("a live event outside the walking radius or behind a disabled Events filter
   assert.equal(app.els.eventNearbyBanner.hidden, true, "Events filter turned off -- no alert");
 });
 
+test("urlPartsForRouteValue routes a selected place to its own /find/<slug>/ page when it has one", () => {
+  resetData(app);
+  const pub = { id: "node/1", name: "The Forresters", latitude: 51.65, longitude: 0.05, findSlug: "the-forresters" };
+  app.state.landmarks.push(pub);
+
+  const parts = app.urlPartsForRouteValue(`place=${app.placeHashKey(pub)}`);
+  assert.equal(parts.pathname, "/find/the-forresters/");
+  assert.equal(parts.hash, "");
+});
+
+test("urlPartsForRouteValue leaves a place with no /find/ page on the existing #place=<key> form", () => {
+  resetData(app);
+  const busStop = { id: "node/2", name: "Some Bus Stop", latitude: 51.65, longitude: 0.05, findSlug: null };
+  app.state.landmarks.push(busStop);
+
+  const key = app.placeHashKey(busStop);
+  const parts = app.urlPartsForRouteValue(`place=${key}`);
+  assert.equal(parts.pathname, app.NEARBY_PATH);
+  assert.equal(parts.hash, `#place=${key}`);
+});
+
+test("routeValueFromLocation resolves a /find/<slug>/ URL back to the same place's #place=<key> value", () => {
+  resetData(app);
+  const pub = { id: "node/1", name: "The Forresters", latitude: 51.65, longitude: 0.05, findSlug: "the-forresters" };
+  app.state.landmarks.push(pub);
+  const originalPathname = app.location.pathname;
+  const originalHash = app.location.hash;
+  try {
+    app.location.pathname = "/find/the-forresters/";
+    app.location.hash = "";
+    // routeParam (js/app.js) builds this the same way currentScreenRoute() already does for an
+    // ordinary landmark selection -- via URLSearchParams, so ":" and "/" in the id-based hash key
+    // come back percent-encoded. Built the same way here rather than hand-typed, so this test
+    // doesn't itself assume a particular encoding.
+    const expectedParams = new URLSearchParams();
+    expectedParams.set("place", app.placeHashKey(pub));
+    assert.equal(app.routeValueFromLocation(), expectedParams.toString());
+  } finally {
+    app.location.pathname = originalPathname;
+    app.location.hash = originalHash;
+  }
+});
+
+test("routeValueFromLocation on an unresolvable /find/<slug>/ URL (closed business, stale link) falls back to no selection rather than throwing", () => {
+  resetData(app);
+  const originalPathname = app.location.pathname;
+  const originalHash = app.location.hash;
+  try {
+    app.location.pathname = "/find/nothing-here/";
+    app.location.hash = "";
+    assert.equal(app.routeValueFromLocation(), "");
+  } finally {
+    app.location.pathname = originalPathname;
+    app.location.hash = originalHash;
+  }
+});
+
+test("routeValueFromLocation never treats /find/events/ as a place lookup", () => {
+  resetData(app);
+  const originalPathname = app.location.pathname;
+  const originalHash = app.location.hash;
+  try {
+    app.location.pathname = "/find/events/";
+    app.location.hash = "";
+    assert.equal(app.routeValueFromLocation(), "");
+  } finally {
+    app.location.pathname = originalPathname;
+    app.location.hash = originalHash;
+  }
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;

@@ -688,6 +688,16 @@ function urlPartsForRouteValue(value) {
     const hash = name === ROUTE_REPORT && value !== name ? `#${value}` : "";
     return { pathname: path, hash };
   }
+  // A selected place that has its own crawlable /find/<slug>/ page (findSlug, attached at load
+  // time from data/business-slugs.json -- the food/locations groups only) gets that real page as
+  // its address-bar URL instead of #place=<hashKey> on /nearby -- the same URL a search result
+  // would land on, so copying the address bar, sharing it, or search-engine indexing are all one
+  // and the same link. Anything else selectable (a tree, a cow, a bus stop, a historic site) has
+  // no such page and keeps the existing hash-on-/nearby form unchanged.
+  if (name === "place") {
+    const item = findPlaceByHashKey(new URLSearchParams(value).get("place"));
+    if (item && item.findSlug) return { pathname: `/find/${item.findSlug}/`, hash: "" };
+  }
   return { pathname: NEARBY_PATH, hash: value ? `#${value}` : "" };
 }
 
@@ -731,6 +741,17 @@ function routeValueFromLocation() {
   if (screenName) {
     const hash = window.location.hash.replace(/^#/, "").trim();
     return screenName === ROUTE_REPORT && hash ? hash : screenName;
+  }
+  // The reverse of urlPartsForRouteValue's own /find/<slug>/ case above: a popstate landing back
+  // on one of these (reached only via that pushState -- a hard page load of the real static file
+  // never runs this, since boot() hasn't happened yet) re-selects the same place through the
+  // ordinary "landmark" SELECTION_ROUTES entry, exactly as if #place=<hashKey> had named it.
+  // "events" is the one /find/ path that isn't a place (scripts/generate-business-pages.js's own
+  // RESERVED_SLUGS) and never reaches findPlaceByFindSlug.
+  const findMatch = /^\/find\/([a-z0-9-]+)\/?$/.exec(pathname);
+  if (findMatch && findMatch[1] !== "events") {
+    const item = findPlaceByFindSlug(findMatch[1]);
+    if (item) return routeParam("place", placeHashKey(item));
   }
   return window.location.hash.replace(/^#/, "").trim();
 }
@@ -7031,6 +7052,18 @@ function findPlaceByHashKey(key) {
   const probe = String(key).trim().toLowerCase();
   for (const place of state.landmarks) {
     if (placeHashKey(place).toLowerCase() === probe) return place;
+  }
+  return null;
+}
+
+// The reverse of a place's own findSlug (attached at load time, js/loader.js, from
+// data/business-slugs.json) -- used only to translate a /find/<slug>/ URL back into the place it
+// names (routeValueFromLocation), so popstate/back-forward within the SPA can re-select it through
+// the same "landmark" SELECTION_ROUTES entry every other place selection already uses.
+function findPlaceByFindSlug(slug) {
+  const probe = String(slug).trim().toLowerCase();
+  for (const place of state.landmarks) {
+    if (place.findSlug && place.findSlug.toLowerCase() === probe) return place;
   }
   return null;
 }
