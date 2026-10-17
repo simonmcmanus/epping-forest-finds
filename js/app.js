@@ -1038,6 +1038,30 @@ function isLandingPageArrival() {
     || (findMatch != null && findMatch[1] !== "events");
 }
 
+// True once this load is a dedicated app launch rather than an ordinary browser tab -- an
+// installed home-screen PWA (display-mode: standalone, or iOS's older navigator.standalone) or
+// a Capacitor native wrapper (spec-native.md; js/native.js doesn't exist yet, so this checks
+// window.Capacitor directly rather than depending on it). Only this context gets the full-screen
+// #loadingOverlay boot() has always shown: a deliberate app open, usually served from the service
+// worker's own caches, where a branded step-by-step wait reads as a splash screen rather than
+// something hiding content the visitor already has. Every ordinary browser tab -- including
+// every /nearby/<slug> and /find/<slug> SEO landing page -- never shows it: #loadingOverlay
+// starts `hidden` in app.html, so a no-JS visitor or a crawler sees the server-rendered content
+// immediately (spec-marketing.md §6.6/6.7), and boot() below only ever shows a thin, non-blocking
+// top progress bar (the same element, styled via the "inline" class in css/loading.css) while
+// the same data loads behind the map and static content, which stay visible and interactive the
+// whole time.
+function isInstalledAppContext() {
+  try {
+    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+  } catch {
+    // matchMedia missing or the query unsupported -- fall through to the other checks.
+  }
+  if (window.navigator && window.navigator.standalone === true) return true;
+  if (window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform()) return true;
+  return false;
+}
+
 function applyShowFilterFromQuery() {
   const fromPath = filterKeysFromFindPath(window.location.pathname);
   if (fromPath.length) {
@@ -1158,8 +1182,15 @@ async function revealMapCenteredOnUser() {
 // own location step, or showCombinedConsentBanner's landing-page equivalent) and failed, so
 // hitting Skip/Maybe later there (or getting denied, or just ignoring the banner) doesn't draw
 // two prompts in a row.
+//
+// hasRealLocation() guards applyDefaultLocation() because this path and a real fix can now
+// genuinely race: showCombinedConsentBanner()'s own tap fires locateUser() independently of
+// boot(), and the non-blocking loading bar (see isInstalledAppContext()) no longer holds up
+// clicks on that banner the way the old full-screen overlay incidentally did, so a fast tap can
+// land a real fix before boot() reaches this fallback. Without the guard, that real fix was
+// overwritten back to the High Beach stand-in the moment boot() got here.
 async function revealNoRealLocation({ locationAlreadyAsked }) {
-  applyDefaultLocation();
+  if (!hasRealLocation()) applyDefaultLocation();
 
   selectOverview();
   draw();
@@ -1263,6 +1294,16 @@ async function boot() {
   setupInteractions();
   resizeCanvas();
   draw();
+
+  // See isInstalledAppContext() above: an installed/native launch gets the full blocking
+  // loading modal exactly as before; an ordinary browser tab gets the same element styled as a
+  // non-blocking top progress bar instead (css/loading.css ".loading-overlay.inline"), with the
+  // map and the page's own static content visible underneath from the very first paint.
+  const blockingLoad = isInstalledAppContext();
+  if (els.loadingOverlay) {
+    els.loadingOverlay.classList.toggle("inline", !blockingLoad);
+    els.loadingOverlay.hidden = false;
+  }
 
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();

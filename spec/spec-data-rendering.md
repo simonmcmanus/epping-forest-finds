@@ -1159,11 +1159,33 @@ Behavior:
 
 ## Loading Overlay
 
-- Blocking overlay at startup
-- Shows step-by-step progress for each data source
-- Each step renders: icon (spinner/checkmark/error), label, count
-- Dismisses ~600ms after all steps complete
-- Subscribes to `setLoadStep` callbacks from data-fetching layer
+- `#loadingOverlay` starts `hidden` in `app.html`, so a no-JS visitor or a crawler sees the
+  server-rendered content already in `#inspectorBody` immediately, with nothing covering it
+  (`spec-marketing.md` §6.6/6.7's whole point for a `/nearby/<slug>` or `/find/<slug>` page) —
+  `boot()` (`js/app.js`) only ever un-hides it once JS actually runs.
+- **Installed/native launches only** (`isInstalledAppContext()`: `display-mode: standalone`,
+  iOS's older `navigator.standalone`, or a Capacitor `window.Capacitor.isNativePlatform()`) get
+  the full-screen blocking card: step-by-step progress per data source, each step rendering an
+  icon (spinner/checkmark/error), label and count, dismissing ~600ms after all steps complete.
+  This is a deliberate app open, usually served from the service worker's own caches, where the
+  branded wait reads as a splash screen rather than something hiding content the visitor already
+  has.
+- **Every ordinary browser tab** — including every `/nearby`, `/nearby/<slug>` and `/find/<slug>`
+  page — never shows the blocking card. The same element is styled via the `.inline` class
+  (`css/loading.css`) as a thin, non-blocking progress bar fixed to the very top edge of the
+  viewport instead, with `pointer-events: none` so it never intercepts a tap; the brand line,
+  intro copy and step checklist stay in the DOM (moved off-screen, not removed, so anything that
+  reads them — e.g. the step-icon artwork check in `test/e2e/01-loading.spec.js` — is unaffected)
+  but are not shown, since this variant has no room for them. The map and the page's own static
+  content stay visible and interactive underneath for the whole load, which is the point: nothing
+  here blocks the user from the content while data loads in the background.
+- Both variants subscribe to the same `setLoadStep` callbacks from the data-fetching layer and
+  dismiss the same way (`hideWithFade`) once loading finishes.
+- `revealNoRealLocation()`'s `applyDefaultLocation()` (the High Beach stand-in) is guarded by
+  `hasRealLocation()`: because the non-blocking bar no longer holds up clicks on
+  `showCombinedConsentBanner()`'s own "Enable" button the way the old full-screen overlay
+  incidentally did, a fast tap can land a real GPS fix before `boot()` reaches this fallback, and
+  without the guard that real fix was overwritten back to the stand-in the moment it got there.
 
 ---
 

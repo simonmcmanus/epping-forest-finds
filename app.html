@@ -58,7 +58,12 @@
       <canvas id="mapCanvas" aria-label="Interactive map of veteran trees and local landmarks"></canvas>
       <canvas id="overlayCanvas" aria-hidden="true"></canvas>
 
-      <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data">
+      <!-- Starts hidden so a no-JS visitor or a crawler sees the server-rendered content in
+           #inspectorBody immediately, with nothing covering it (spec-marketing.md §6.6/6.7) --
+           boot() (js/app.js) un-hides this only once JS actually runs, and even then only as a
+           full-screen blocking modal in an installed/native app context; an ordinary browser tab
+           gets the same element styled as a non-blocking top progress bar instead. -->
+      <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data" hidden>
         <div class="loading-card">
           <div class="loading-brand"><img class="loading-logo" src="data/icons/trees/logo.png" alt=""> Epping Forest Finds</div>
           <p class="loading-intro">Preparing your offline map — this is a one-time download. Once ready, the map works anywhere in the forest, even without phone signal.</p>
