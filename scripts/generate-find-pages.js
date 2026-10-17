@@ -66,6 +66,19 @@ function slugFor(key) {
   return key.replace(/_/g, "-");
 }
 
+// The same "See also veteran trees and grazing cattle near Epping Forest" up-link every
+// /find/<slug>/ business page already carries (scripts/generate-business-pages.js), so a
+// category/subcategory page gives a crawler or a visitor the same onward path -- these pages
+// previously cross-linked only sideways (siblings) and up (group), never out to trees/cows,
+// which sit outside every group but "nature" and so never appeared as a sibling anywhere else.
+// Self-link avoided only for /nearby/trees/ itself; every other page (including the "nature"
+// group page, whose own crossLinks cover trees but never cows -- cows has no fixed count and is
+// excluded from map-inventory.js's inventory.groups) gets both links.
+function natureSeeAlsoHtml(omitTreesLink = false) {
+  const treesLink = omitTreesLink ? "" : `<a href="/nearby/trees/">veteran trees</a> and `;
+  return `<p>See also ${treesLink}<a href="/nearby/cows/">grazing cattle</a> near Epping Forest.</p>`;
+}
+
 // A compact, generic phrase for each top-level group's own page (e.g. /nearby/food/) -- group
 // labels alone ("Food", "Transport") don't read as a sentence fragment the way each subfilter's
 // hand-picked title does ("pubs and bars"), so these are the group-level equivalent. "events" is
@@ -200,7 +213,8 @@ function renderPage(page, appHtml) {
     businessListHtml +
     (page.isGroup
       ? (crossLinks ? `<p>Browse by type: ${crossLinks}.</p>` : "")
-      : (crossLinks ? `<p>More in <a href="/nearby/${escapeHtml(page.groupSlug)}/">${escapeHtml(page.groupLabel)}</a>: ${crossLinks}.</p>` : ""));
+      : (crossLinks ? `<p>More in <a href="/nearby/${escapeHtml(page.groupSlug)}/">${escapeHtml(page.groupLabel)}</a>: ${crossLinks}.</p>` : "")) +
+    natureSeeAlsoHtml(page.key === "trees");
 
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
@@ -274,7 +288,8 @@ function renderEventsPage(appHtml, events) {
   const seoContent =
     `<p>${escapeHtml(description)} Enable location to see how far away each one is and get walking directions.</p>` +
     eventListHtml +
-    `<p>See the <a href="/find/events/">full events list</a> with descriptions and source links.</p>`;
+    `<p>See the <a href="/find/events/">full events list</a> with descriptions and source links.</p>` +
+    natureSeeAlsoHtml();
 
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
@@ -312,7 +327,8 @@ function renderCowsPage(appHtml) {
   };
 
   const seoContent =
-    `<p>${escapeHtml(description)} Positions refresh periodically while online; offline, the map shows the last saved positions, which may be out of date.</p>`;
+    `<p>${escapeHtml(description)} Positions refresh periodically while online; offline, the map shows the last saved positions, which may be out of date.</p>` +
+    `<p>See also <a href="/nearby/trees/">veteran trees</a> near Epping Forest.</p>`;
 
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");

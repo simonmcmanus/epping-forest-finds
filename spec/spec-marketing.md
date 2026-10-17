@@ -580,6 +580,18 @@ branches.
   nature, stories) gets an empty list and falls back to the summary sentence
   it always had — this is conditional on the business index actually
   covering the key, not a second hand-maintained list.
+- **Every category/subcategory page also links onward to veteran trees and
+  grazing cattle** — `natureSeeAlsoHtml()` (`scripts/generate-find-pages.js`)
+  appends the same "See also veteran trees and grazing cattle near Epping
+  Forest" up-link every `/find/<slug>/` business page already carries
+  (§6.7), on every subfilter page, every group page, `/nearby/events/` and
+  `/nearby/cows/`. Previously these pages cross-linked only sideways to
+  sibling subfilters and up to their own group, so (say) `/nearby/pubs/` had
+  no path to either — cows in particular is excluded from every group's own
+  member list (`map-inventory.js`'s live-tracked exclusion), so no category
+  page ever linked to it before. `/nearby/trees/` omits the self-link
+  (`omitTreesLink`) rather than linking to itself; `/nearby/cows/` carries
+  only the trees half of the same link for the same reason.
 - **Title tags state the page's own real content, not a repeated generic
   phrase.** A subfilter page's title leads with its count (`"129 Pubs & Bars
   in Epping Forest | Epping Forest Finds"` — a plural noun reads naturally

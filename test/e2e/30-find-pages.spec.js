@@ -42,6 +42,16 @@ test.describe("generated find/nearby pages", () => {
       expect(html).toMatch(/<title>\d[\d,]* Pubs &amp; [Bb]ars in Epping Forest \| Epping Forest Finds<\/title>/);
       expect(html).toContain('class="category-listing"');
       expect(html).toContain(`href="/find/${EXAMPLE_PUB.slug}/"`);
+      // Every category/subcategory page links onward to veteran trees and grazing cattle, the
+      // same up-link every /find/<slug>/ business page already carries.
+      expect(html).toContain('href="/nearby/trees/">veteran trees</a>');
+      expect(html).toContain('href="/nearby/cows/">grazing cattle</a>');
+    });
+
+    test("the trees category page links onward to the cows page but never links to itself", async ({ request }) => {
+      const html = await (await request.get("/nearby/trees/")).text();
+      expect(html).not.toContain('href="/nearby/trees/">veteran trees</a>');
+      expect(html).toContain('href="/nearby/cows/">grazing cattle</a>');
     });
 
     test("a business page's real content is server-rendered: unique title, LocalBusiness JSON-LD, address and a real nearby list", async ({ request }) => {
