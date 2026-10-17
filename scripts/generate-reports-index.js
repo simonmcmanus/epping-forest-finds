@@ -130,20 +130,13 @@ function renderRow(file, index) {
 }
 
 function buildIndexHtml(files) {
-  const sortedFiles = sortForListing(files);
-  const latestLedger = sortedFiles.find((file) => ledgerWeek(file.name) !== null);
-  const latestEdition = latestLedger
-    ? new Date(ledgerWeek(latestLedger.name)).toLocaleDateString("en-GB", {
-      day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
-    })
-    : "New editions soon";
   const body = files.length
-    ? `<ul class="report-list">${sortedFiles.map(renderRow).join("\n")}\n    </ul>`
+    ? `<ul class="report-list">${sortForListing(files).map(renderRow).join("\n")}\n    </ul>`
     : `<p class="empty-state">No reports have been published yet.</p>`;
 
-  // An editorial counterpart to the homepage: shared palette and type, but a
-  // compact, date-led masthead. Styles are inlined so this page loads nothing
-  // from the homepage or app except the small shared brand images and photo.
+  // Styled to match the homepage (assets/home/home.css): same palette, type,
+  // cards and header, inlined so this page loads nothing from the homepage or
+  // the app except shared brand images and forest photograph.
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -196,11 +189,12 @@ function buildIndexHtml(files) {
   .head-link { font-size: .92rem; font-weight: 700; text-decoration: none; }
   .head-link:hover { text-decoration: underline; }
   h1, h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; letter-spacing: -.028em; line-height: 1.1; text-wrap: balance; }
-  .ledger-masthead { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px; align-items: center; padding: 40px 0 36px; border-bottom: 1px solid var(--line-strong); color: var(--ink); }
-  .ledger-name { margin: 0 0 10px; color: var(--tree-deep); font-size: .76rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-  h1 { margin: 0 0 14px; font-size: clamp(3.2rem, 8vw, 5.8rem); letter-spacing: -.06em; line-height: .92; }
-  .hero-photo { display: block; width: clamp(112px, 16vw, 168px); height: clamp(84px, 12vw, 126px); object-fit: cover; border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: var(--shadow); }
-  @media (max-width: 650px) { .ledger-masthead { gap: 18px; padding: 28px 0; } h1 { font-size: clamp(2.7rem, 14vw, 4.2rem); } .hero-photo { width: 100px; height: 88px; } }
+  .hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: center; padding: 28px 0; color: var(--ink); }
+  .hero-photo { display: block; width: 100%; height: 300px; object-fit: cover; border-radius: 16px; }
+  @media (max-width: 650px) { .hero { grid-template-columns: 1fr; gap: 24px; } .hero-photo { height: 240px; } }
+  .eyebrow { display: flex; gap: 12px; align-items: center; margin: 0 0 14px; color: var(--tree-deep); font-family: "Fraunces", Georgia, serif; font-size: .98rem; font-style: italic; font-weight: 500; letter-spacing: .05em; }
+  .eyebrow img { flex: 0 0 34px; width: 34px; height: 34px; padding: 6px; border-radius: 50%; background: var(--paper); }
+  h1 { margin: 0 0 14px; font-size: clamp(2.2rem, 7vw, 3.4rem); letter-spacing: -.04em; line-height: 1.02; }
   .subtitle { max-width: 40em; margin: 0; color: var(--muted); font-size: 1.02rem; }
   .editions { padding: 44px 0 8px; }
   h2 { margin: 0 0 16px; font-size: clamp(1.55rem, 4vw, 2.15rem); }
@@ -239,9 +233,9 @@ function buildIndexHtml(files) {
   <a class="head-link" href="/#signup">Get updates</a>
 </header>
 <main>
-  <section class="ledger-masthead">
-    <div><p class="ledger-name">Epping Forest Ledger</p>
-    <h1>${latestEdition}</h1>
+  <section class="hero">
+    <div><p class="eyebrow"><img src="/assets/home/ledger.png" alt="" width="34" height="34">Field notes · Published weekly</p>
+    <h1>Epping Forest Ledger</h1>
     <p class="subtitle">Field notes on what's changing in and around Epping Forest — cattle grazing moves, shop and café openings and closures, road closures and events. Normally a weekly round-up, but appearing more often for now while we're testing it against real data.</p></div>
     <img class="hero-photo" src="/assets/home/epping-longhorns.jpg" alt="English Longhorn cattle grazing in Epping Forest." width="1600" height="1200">
   </section>

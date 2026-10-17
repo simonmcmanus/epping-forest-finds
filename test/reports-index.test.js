@@ -112,13 +112,11 @@ test("the newest edition is listed first, by the week in its name rather than it
   assert.ok(html.indexOf("report-latest") < html.indexOf("14 September 2026"));
 });
 
-test("the listing has a compact, date-led Ledger masthead and card list", () => {
+test("the listing wears the homepage's look: brand header, forest photograph and card list", () => {
   const html = buildIndexHtml([{ name: "epping-forest-ledger-2026-09-14.html", size: 1, mtimeMs: 0 }]);
   assert.match(html, /<a class="brand" href="\/">/);
   assert.match(html, /src="\/assets\/home\/map-icons\/oak\.png"/);
-  assert.match(html, /class="ledger-name">Epping Forest Ledger/);
-  assert.match(html, /<h1>14 September 2026<\/h1>/);
-  assert.match(html, /width: clamp\(112px, 16vw, 168px\); height: clamp\(84px, 12vw, 126px\)/);
+  assert.match(html, /src="\/assets\/home\/ledger\.png"/);
   assert.match(html, /--tree-deep: #1d4a2f/);
   assert.doesNotMatch(html, /\/(js|css)\//, "never loads the app's code or styles");
   assert.match(html, /href="\/#signup"/);
