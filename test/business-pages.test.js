@@ -80,7 +80,17 @@ test("renderBusinessPage links up to its subfilter and group category pages, and
   assert.match(html, /href="\/nearby\/pubs\/"/);
   assert.match(html, /href="\/nearby\/food\/"/);
   assert.match(html, /href="\/nearby\/trees\/"/);
+  // Carries this business's own position via /nearby/cows/'s existing "near=<lat>,<lon>" anchor
+  // route, so landing there re-centres on the business rather than the reader's own GPS fix.
+  assert.match(html, /href="\/nearby\/cows\/#near=51\.650000%2C0\.050000"/);
+});
+
+test("renderBusinessPage's cows link falls back to a plain /nearby/cows/ when the entry has no coordinates", () => {
+  const rules = loadAppRules();
+  const noCoords = { ...FAKE_INDEX[0], lat: null, lon: null };
+  const html = renderBusinessPage(noCoords, APP_HTML, rules, FAKE_INDEX);
   assert.match(html, /href="\/nearby\/cows\/"/);
+  assert.ok(!html.includes("/nearby/cows/#near="));
 });
 
 test("renderBusinessPage shows opening hours, a folklore summary and a verification date when present, and omits them when absent", () => {

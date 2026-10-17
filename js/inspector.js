@@ -1104,10 +1104,18 @@ function relatedCategoryLinksHtml(place) {
 
   const nearestTree = nearestTreeTo(place.latitude, place.longitude);
   const nearestCow = state.cows.length ? nearestCowTo(place.latitude, place.longitude) : null;
+  // The cows link carries this place's own position as /nearby/cows/'s existing "near=<lat>,<lon>"
+  // anchor route (nearbyAnchorRouteValue, js/app.js -- the same one a map tap or a shared link
+  // already use) -- otherwise landing there re-anchors to the reader's own GPS fix, which both
+  // shows cow distances that don't match the one this card just quoted and strands the reader's
+  // actual reason for coming here (how far from *this place*) the moment they arrive. Trees has
+  // no such mismatch to fix: /nearby/trees/ already lists everything near wherever the reader
+  // actually is, not a single distance this card promised.
+  const cowsHref = `/nearby/cows/#${nearbyAnchorRouteValue({ latitude: place.latitude, longitude: place.longitude })}`;
   const nearbyCardsHtml = (nearestTree || nearestCow)
     ? `<ul class="nearest-list related-cards">` +
       (nearestTree ? nearbyCardHtml("/nearby/trees/", "tree", "Nearest veteran tree", nearestTree.metres) : "") +
-      (nearestCow ? nearbyCardHtml("/nearby/cows/", "cow", "The grazing cattle", nearestCow.metres) : "") +
+      (nearestCow ? nearbyCardHtml(cowsHref, "cow", "The grazing cattle", nearestCow.metres) : "") +
       `</ul>`
     : "";
 

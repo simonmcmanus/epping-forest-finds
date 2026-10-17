@@ -909,6 +909,11 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   hours, a tappable phone number, and the verification date are not static-page-only".
 - A `findSlug` place also shows its category/group and nearest-tree/nearest-cow links below its
   details — see `spec-marketing.md` § 6.7, "Related-content links, both server-rendered and live".
+  The nearest-cow link carries this place's own position via `/nearby/cows/`'s `near=<lat>,<lon>`
+  anchor route, and every in-app link rendered into the inspector — this one included — is a real
+  SPA transition rather than a full page reload — see `spec-marketing.md` § 6.7, "The cows link
+  carries the selected place's own position" and "Every in-app link rendered into the inspector is
+  a real SPA transition".
 
 #### Cow Details
 

@@ -591,7 +591,11 @@ branches.
   member list (`map-inventory.js`'s live-tracked exclusion), so no category
   page ever linked to it before. `/nearby/trees/` omits the self-link
   (`omitTreesLink`) rather than linking to itself; `/nearby/cows/` carries
-  only the trees half of the same link for the same reason.
+  only the trees half of the same link for the same reason. This static
+  version's sibling-cross-link and group up-link (`crossLinks`/"More in
+  `<group>`") are also reproduced for the live view that replaces this whole
+  body the moment JS boots — see §6.7, "Category/subcategory pages keep
+  their own up-links once JS boots".
 - **Title tags state the page's own real content, not a repeated generic
   phrase.** A subfilter page's title leads with its count (`"129 Pubs & Bars
   in Epping Forest | Epping Forest Finds"` — a plural noun reads naturally
@@ -717,6 +721,47 @@ use for the homepage's counts.
   small `text-decoration: none; color: inherit;` override in
   `css/map-ui.css` since that class is normally a `<button>`, which has no
   default link underline to begin with.
+- **The cows link carries the selected place's own position**, via
+  `/nearby/cows/`'s existing `near=<lat>,<lon>` browse-anchor route
+  (`nearbyAnchorRouteValue`, `js/app.js` — the same one a map tap or a shared
+  link already use): `#near=${lat.toFixed(6)},${lon.toFixed(6)}` on both the
+  static page's link (`scripts/generate-business-pages.js`, falling back to
+  a bare `/nearby/cows/` when the entry has no coordinates) and the live
+  card's href (`js/inspector.js`). Without it, landing on `/nearby/cows/`
+  re-anchored to the reader's own GPS fix, showing cow distances that didn't
+  match the one the card just quoted. Trees has no equivalent mismatch to
+  fix — `/nearby/trees/` already lists everything near wherever the reader
+  actually is, not one distance a card promised — so it stays unanchored.
+- **Every in-app link rendered into the inspector is a real SPA transition,
+  not a full page reload.** A plain `<a href="/...">` (every link above,
+  plus `fullDetailsLinkHtml`'s own "Full details") used to fall straight
+  through to the browser's own navigation — re-downloading and re-booting
+  the whole app shell for content already sitting in memory, the one thing
+  this whole feature's internal linking was supposed to avoid. A delegated
+  click handler on `#inspectorBody` (`js/nav.js`) now intercepts a click on
+  any such link (skipping `target="_blank"` links — Open in Maps, external
+  website/source rows — and a modified click, both left to the browser as
+  normal) and calls `navigateInApp(href)` (`js/app.js`): the same
+  `history.pushState` shape `setHashFromSelection` already uses, followed by
+  `applyRouteFromUrl()` — the same entry point the back/forward buttons and
+  a hand-edited hash already use — so an intercepted link behaves exactly
+  like landing on that URL any other way, just without the reload.
+- **Category/subcategory pages keep their own up-links once JS boots.** The
+  static page's "More in `<group>`: `<siblings>`" and "See also veteran
+  trees and grazing cattle" (§6.6) are real links with no JS, but
+  `selectOverview()` replaces that whole static body with the live,
+  interactive Nearby list the moment JS boots — which had no breadcrumb of
+  its own, so a real visitor's browser silently dropped them the instant it
+  finished loading the page. `categoryLandingLinksHtml()` (`js/app.js`)
+  reproduces the "up" half live: on a real `/nearby/<slug>/` landing (gated
+  on the URL's own path, same regex `filterKeysFromFindPath`/
+  `isLandingPageArrival` use — never a reader's own multi-filter choice from
+  the Filters screen, which has no single category to breadcrumb up from), a
+  subfilter page gets a `.detail-map-link` chip up to its group plus one
+  back to the full, unfiltered Nearby list; a group page (no group above it)
+  gets only the latter. Prepended to every one of `overviewNearestHtml`'s
+  return paths, the empty-list ones included, so it survives exactly the
+  states that most need a way out of a now-empty category list.
 - **Linked everywhere a business is mentioned, not only from its own page**:
   `js/loader.js` fetches `data/business-slugs.json` alongside the other
   datasets and attaches `findSlug` to each matching place; `showLandmarkDetails`

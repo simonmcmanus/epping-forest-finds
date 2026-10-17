@@ -248,6 +248,8 @@ globalThis.__forestFindsTest = {
   formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
+  categoryLandingLinksHtml,
+  navigateInApp,
   overviewHeadingText,
   normalizeSearchText,
   searchQueryTokens,
@@ -1897,6 +1899,71 @@ test("isLandingPageArrival also recognises a /find/<slug>/ business page as a la
 
   app.location.pathname = "/";
   app.location.search = "";
+});
+
+test("categoryLandingLinksHtml links a subfilter page up to its group and back to the full Nearby list", () => {
+  app.location.pathname = "/nearby/pubs/";
+  const html = app.categoryLandingLinksHtml();
+  assert.match(html, /<a class="detail-map-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
+  assert.match(html, /<a class="detail-map-link" href="\/nearby">[\s\S]*?Everything nearby<\/a>/);
+  app.location.pathname = "/";
+});
+
+test("categoryLandingLinksHtml links a group page only back to the full Nearby list, with no group above it", () => {
+  app.location.pathname = "/nearby/food/";
+  const html = app.categoryLandingLinksHtml();
+  assert.ok(!html.includes("Food</a>"), "the food group page does not link to itself");
+  assert.match(html, /<a class="detail-map-link" href="\/nearby">[\s\S]*?Everything nearby<\/a>/);
+  app.location.pathname = "/";
+});
+
+test("categoryLandingLinksHtml is empty on the plain Nearby screen and on /nearby/filter or /nearby/search", () => {
+  for (const pathname of ["/nearby", "/nearby/filter", "/nearby/search", "/"]) {
+    app.location.pathname = pathname;
+    assert.equal(app.categoryLandingLinksHtml(), "", `expected no breadcrumb on ${pathname}`);
+  }
+});
+
+test("overviewNearestHtml carries the same category breadcrumb through every return path, including empty-list states", () => {
+  resetData(app);
+  // Set directly rather than through setOverviewFilters(), whose own selectOverview()/
+  // syncHashFromSelection() side effects would otherwise correct this test's manually-set
+  // pathname back to the plain /nearby the current (empty) selection/anchor actually describes --
+  // the real boot sequence never hits that, since routerBooting suppresses it until boot finishes.
+  app.state.overviewFilters = ["pubs"];
+  app.location.pathname = "/nearby/pubs/";
+  app.state.userLocation = null;
+  assert.match(app.overviewNearestHtml(), /href="\/nearby\/food\/"/, "no-location branch still shows the breadcrumb");
+
+  app.state.userLocation = makePoint(app, 51.9, 0.9); // far from any fixture data -- empty list
+  assert.match(app.overviewNearestHtml(), /href="\/nearby\/food\/"/, "empty-result branch still shows the breadcrumb");
+
+  app.location.pathname = "/";
+});
+
+test("navigateInApp pushes a real history entry and applies the new route, instead of leaving it to the browser's own navigation", () => {
+  resetData(app);
+  app.location.pathname = "/find/the-forresters/";
+  app.location.hash = "";
+
+  app.navigateInApp("/nearby/cows/#near=51.650000%2C0.050000");
+
+  assert.equal(app.location.pathname, "/nearby/cows/");
+  assert.equal(app.location.hash, "#near=51.650000%2C0.050000");
+  assert.equal(app.state.nearbyAnchor.latitude, 51.65, "the hash's position was actually applied, not just left in the URL");
+  assert.equal(app.state.nearbyAnchor.longitude, 0.05);
+
+  app.location.pathname = "/";
+  app.location.hash = "";
+});
+
+test("navigateInApp does nothing when the target is already the current URL", () => {
+  app.location.pathname = "/nearby/pubs/";
+  app.location.hash = "";
+  const depthBefore = app.history.length;
+  app.navigateInApp("/nearby/pubs/");
+  assert.equal(app.history.length, depthBefore, "no new history entry for a no-op navigation");
+  app.location.pathname = "/";
 });
 
 test("arriving at a /nearby/<slug> page pre-filters Nearby to that category, taking priority over any ?show= param", () => {
@@ -10430,7 +10497,9 @@ test("relatedCategoryLinksHtml links up to category/group and down to the neares
   assert.match(html, /<a class="detail-map-link" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars<\/a>/);
   assert.match(html, /<a class="detail-map-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
   assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/">[\s\S]*?Nearest veteran tree[\s\S]*?<\/a>/);
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/">[\s\S]*?The grazing cattle[\s\S]*?<\/a>/);
+  // The cows link carries this pub's own position via /nearby/cows/'s existing "near=<lat>,<lon>"
+  // anchor route, so landing there re-centres on the pub rather than the reader's own GPS fix.
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?The grazing cattle[\s\S]*?<\/a>/);
   assert.match(html, /walk-chip/, "the nearby cards carry a real walk-time chip, not bare text");
 });
 

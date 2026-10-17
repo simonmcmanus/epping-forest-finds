@@ -182,8 +182,16 @@ function renderBusinessPage(entry, appHtml, rules, index) {
   // No walk-time here -- cattle move, so a build-time distance would be wrong by the time anyone
   // reads it. The live page (js/inspector.js's relatedCategoryLinksHtml) upgrades this same link
   // with a real, freshly-computed "X min walk to the cows" once JS boots and the live GPS
-  // positions are loaded; this is the honest no-JS version of it.
-  const seeAlso = `See also <a href="/nearby/trees/">veteran trees</a> and <a href="/nearby/cows/">grazing cattle</a> near Epping Forest.`;
+  // positions are loaded; this is the honest no-JS version of it. The cows link still carries
+  // this place's own position via /nearby/cows/'s existing "near=<lat>,<lon>" anchor route
+  // (nearbyAnchorRouteValue, js/app.js -- same format, reproduced here since this runs in Node,
+  // not the browser) -- once JS boots on whichever page this link lands on, it anchors the cows
+  // view to this business's own spot rather than the reader's GPS fix. Trees has no equivalent
+  // mismatch to fix (see js/inspector.js's own version of this link).
+  const cowsHref = entry.lat != null && entry.lon != null
+    ? `/nearby/cows/#near=${entry.lat.toFixed(6)}%2C${entry.lon.toFixed(6)}`
+    : "/nearby/cows/";
+  const seeAlso = `See also <a href="/nearby/trees/">veteran trees</a> and <a href="${cowsHref}">grazing cattle</a> near Epping Forest.`;
   const upLinks = subfilter && group
     ? `<p>Part of <a href="/nearby/${escapeHtml(subfilterSlug)}/">${escapeHtml(subfilter.label)}</a> in <a href="/nearby/${escapeHtml(groupSlug)}/">${escapeHtml(group.label)}</a>. ${seeAlso}</p>`
     : `<p>${seeAlso}</p>`;

@@ -805,6 +805,18 @@ function setupSearchAndNavHandlers() {
       requestDraw();
       return;
     }
+    // Any plain in-app link rendered into the inspector (relatedCategoryLinksHtml's category/
+    // group chips and nearest-tree/cow cards, fullDetailsLinkHtml's "Full details") -- an
+    // external link (Open in Maps, a website row, OSM attribution) always opens target="_blank"
+    // and is left to the browser untouched; so is a modified click (open in new tab/window),
+    // same as any ordinary link.
+    const internalLink = event.target.closest("a[href^='/']");
+    if (internalLink && internalLink.target !== "_blank"
+      && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+      event.preventDefault();
+      navigateInApp(internalLink.getAttribute("href"));
+      return;
+    }
     const button = event.target.closest("[data-overview-type][data-overview-key]");
     if (!button) return;
     focusOverviewItem(button.dataset.overviewType, button.dataset.overviewKey);

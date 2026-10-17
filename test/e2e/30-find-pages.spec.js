@@ -8,7 +8,7 @@ const { test, expect } = require("@playwright/test");
 const { generate: generateCategoryPages } = require("../../scripts/generate-find-pages.js");
 const { generate: generateBusinessPages } = require("../../scripts/generate-business-pages.js");
 const businessIndex = require("../../data/business-slugs.json");
-const { gotoAndWaitForMap, skipOnboarding } = require("./helpers");
+const { gotoAndWaitForMap, skipOnboarding, mockCowApi } = require("./helpers");
 
 const REPO_ROOT = path.join(__dirname, "..", "..");
 
@@ -154,6 +154,78 @@ test.describe("generated find/nearby pages", () => {
       await skipOnboarding(page);
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
       expect(errors).toEqual([]);
+    });
+
+    test("clicking a related-content link is a real SPA transition, not a full page reload", async ({ page }) => {
+      await skipOnboarding(page);
+      await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
+
+      // A window global survives a pushState-based transition but is wiped by a real navigation
+      // (new document, fresh JS realm) -- a more direct proof than counting events, which fire
+      // for both pushState and a real navigation.
+      await page.evaluate(() => { window.__noReloadMarker = "still-here"; });
+      await page.locator('#inspectorBody a.nearest-item[href="/nearby/trees/"]').click();
+      await expect(page).toHaveURL(/\/nearby\/trees\/$/);
+      const markerSurvived = await page.evaluate(() => window.__noReloadMarker).catch(() => null);
+      expect(markerSurvived).toBe("still-here");
+    });
+
+    test("the nearest-cow link carries the business's own position via the near= hash, and the live view anchors Nearby there", async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected != null && state.cows.length > 0)).toBe(true);
+
+      const placeCoords = await page.evaluate(() => ({
+        latitude: Number(state.selected.item.latitude.toFixed(6)),
+        longitude: Number(state.selected.item.longitude.toFixed(6)),
+      }));
+      const cowsLink = page.locator('#inspectorBody a.nearest-item[href^="/nearby/cows/"]');
+      await expect(cowsLink).toHaveCount(1);
+      const href = await cowsLink.getAttribute("href");
+      expect(href).toBe(`/nearby/cows/#near=${placeCoords.latitude}%2C${placeCoords.longitude}`);
+
+      await cowsLink.click();
+      await expect(page).toHaveURL(new RegExp(`/nearby/cows/#near=${placeCoords.latitude}%2C${placeCoords.longitude}$`));
+      const anchor = await page.evaluate(() => ({
+        latitude: state.nearbyAnchor && Number(state.nearbyAnchor.latitude.toFixed(6)),
+        longitude: state.nearbyAnchor && Number(state.nearbyAnchor.longitude.toFixed(6)),
+      }));
+      expect(anchor).toEqual(placeCoords);
+    });
+  });
+
+  test.describe("category page breadcrumb links", () => {
+    test("the static /nearby/pubs/ page links up to /nearby/food/", async ({ request }) => {
+      const html = await (await request.get("/nearby/pubs/")).text();
+      expect(html).toContain('href="/nearby/food/"');
+    });
+
+    test("once JS boots, /nearby/pubs/ still links up to /nearby/food/ and back to the full Nearby list", async ({ page }) => {
+      // The live Nearby overview (selectOverview/overviewNearestHtml) replaces the static page's
+      // whole #inspectorBody the moment JS boots -- it had no breadcrumb of its own, so these
+      // links silently vanished the instant a real visitor's browser finished loading the page.
+      await skipOnboarding(page);
+      await gotoAndWaitForMap(page, "/nearby/pubs/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+
+      const body = page.locator("#inspectorBody");
+      await expect(body.locator('a.detail-map-link[href="/nearby/food/"]')).toHaveCount(1);
+      await expect(body.locator('a.detail-map-link[href="/nearby"]')).toHaveCount(1);
+
+      await page.evaluate(() => { window.__noReloadMarker = "still-here"; });
+      await body.locator('a.detail-map-link[href="/nearby/food/"]').click();
+      await expect(page).toHaveURL(/\/nearby\/food\/$/);
+      const markerSurvived = await page.evaluate(() => window.__noReloadMarker).catch(() => null);
+      expect(markerSurvived).toBe("still-here");
+    });
+
+    test("the /nearby/trees/ page's own breadcrumb has no group chip above it, and /nearby/cows/'s only ever has the full-list link", async ({ page }) => {
+      await skipOnboarding(page);
+      await gotoAndWaitForMap(page, "/nearby/trees/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await expect(page.locator('#inspectorBody a.detail-map-link[href="/nearby"]')).toHaveCount(1);
     });
   });
 });

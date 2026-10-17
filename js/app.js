@@ -845,6 +845,37 @@ function applyRouteFromUrl() {
   return applyRoute(raw, false);
 }
 
+// A click on a plain <a href="/..."> generated into the inspector (relatedCategoryLinksHtml's
+// category/group chips and nearest-tree/cow cards, fullDetailsLinkHtml) used to fall straight
+// through to the browser's own navigation -- a full page reload that re-downloads and re-boots
+// the whole app shell for content already sitting in memory, rather than the instant SPA
+// transition every other in-app move (a map tap, a search result, a Nearby-list item) already
+// gets. This is the click-handler counterpart to setHashFromSelection: push the target URL as a
+// new history entry in the same shape, then run it through applyRouteFromUrl -- the same entry
+// point the back/forward buttons and a hand-edited hash already use -- so an intercepted link
+// behaves exactly like landing on that URL any other way.
+function navigateInApp(href) {
+  // Every href this reaches is already a root-relative internal path (every generator above
+  // builds one, never a full URL), so this is plain string splitting -- same approach
+  // searchStringForPath/urlPartsForRouteValue already use -- rather than the URL class.
+  const raw = String(href || "");
+  const hashIndex = raw.indexOf("#");
+  const hash = hashIndex >= 0 ? raw.slice(hashIndex) : "";
+  const beforeHash = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
+  const searchIndex = beforeHash.indexOf("?");
+  const search = searchIndex >= 0 ? beforeHash.slice(searchIndex) : "";
+  const pathname = searchIndex >= 0 ? beforeHash.slice(0, searchIndex) : beforeHash;
+  const targetUrl = `${pathname}${search}${hash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (targetUrl === currentUrl) return;
+  history.pushState(
+    { [NAV_DEPTH_KEY]: navDepth() + 1, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
+    "",
+    targetUrl
+  );
+  applyRouteFromUrl();
+}
+
 // Applies the route named in the URL at load time. Unlike applyRouteFromUrl this leaves an
 // empty hash alone: at boot the Nearby screen has already been built behind the loading
 // overlay, and there is nothing to navigate away from.
@@ -3789,7 +3820,32 @@ function renderNearestItemsHtml(entries) {
   }).join("");
 }
 
+// "/nearby/<slug>/"'s own up-links -- a chip up to its group, and a way back to the full,
+// unfiltered Nearby list -- reproduced here because the static page's own version of this
+// (generate-find-pages.js's crossLinks/natureSeeAlsoHtml, what a crawler or a no-JS visitor
+// sees) is silently dropped the moment JS boots: selectOverview() replaces that content with
+// this live list, which had no up-links of its own. Shown only on a real /nearby/<slug>/
+// landing -- the plain /nearby screen, or a reader's own multi-filter choice from the Filters
+// screen, has no single category to breadcrumb up from, so filterKeysFromFindPath's own
+// pathname-only regex (never a reader's live filter selection) is what gates this, same as
+// isLandingPageArrival. A group page's own slug has no group above it, so it gets only the
+// "Everything nearby" link.
+function categoryLandingLinksHtml() {
+  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
+  if (!match) return "";
+  const key = match[1].replace(/-/g, "_");
+  const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
+  const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : FILTER_GROUPS_BY_KEY.get(key);
+  if (!group) return "";
+  const groupChip = subfilter
+    ? `<a class="detail-map-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
+    : "";
+  const allChip = `<a class="detail-map-link" href="/nearby">${appIconHtml("nearby")}Everything nearby</a>`;
+  return `<div class="detail-top-row related-chips">${groupChip}${allChip}</div>`;
+}
+
 function overviewNearestHtml() {
+  const breadcrumbHtml = categoryLandingLinksHtml();
   if (!state.userLocation) {
     // A /nearby/<slug> category page -- a subfilter's own, or a whole group's -- lands here with
     // no location yet (no prompt answered, or declined), as does a reader who has deliberately
@@ -3801,10 +3857,10 @@ function overviewNearestHtml() {
     if (activeFiltersShowFullListWithoutLocation()) {
       const entries = allEntriesForActiveFilters();
       if (entries.length) {
-        return `<p class="source-note">Enable location to sort these by distance and get walking directions.</p><ul class="nearest-list">${renderNearestItemsHtml(entries)}</ul>`;
+        return `${breadcrumbHtml}<p class="source-note">Enable location to sort these by distance and get walking directions.</p><ul class="nearest-list">${renderNearestItemsHtml(entries)}</ul>`;
       }
     }
-    return `<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
+    return `${breadcrumbHtml}<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
   }
 
   // The "showing places near where you tapped / use my location" notice is no longer part of
@@ -3837,13 +3893,13 @@ function overviewNearestHtml() {
   const activePointFilters = getActivePointFilterKeys();
   if (!allEntries.length) {
     if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
-      return `<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
+      return `${breadcrumbHtml}<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
     }
     if (activePointFilters.length === 1) {
       const meta = filterMeta(activePointFilters[0]);
-      return `<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
+      return `${breadcrumbHtml}<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
     }
-    return `<p class="empty">No nearby places found.</p>`;
+    return `${breadcrumbHtml}<p class="empty">No nearby places found.</p>`;
   }
 
 
@@ -3858,7 +3914,7 @@ function overviewNearestHtml() {
     : `Showing all distances — tap to filter to ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
   const chipLabel = radiusActive ? formatWalkingRadius(state.walkingDistanceMinutes) : "All";
   const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
-  return `${defaultLocationNotice}${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+  return `${breadcrumbHtml}${defaultLocationNotice}${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
 }
 
 // The icon the Nearby list, search results and cluster detail show for a
