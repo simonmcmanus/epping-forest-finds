@@ -213,7 +213,8 @@ Sections, in order:
    image. Preserve the full-width crop and intrinsic 4:3 dimensions.
 2. **What's on the map** — directly after the hero, one neutral inventory card, matching the Ledger's
    categorisation: a headline total with a 44px map-pin icon
-   (`map-icons/all-finds.png`) to its left, the six app filter groups (Nature, Food,
+   (`map-icons/all-finds.png`) to its left, a top-right `Send feedback` link to
+   `/feedback`, the six app filter groups (Nature, Food,
    Transport, History, Locations and Stories), every subfilter and count, then
    a full-width row for always-shown facilities. Each group heading uses an
    independent homepage copy of the corresponding app category icon, with a
@@ -257,7 +258,8 @@ Sections, in order:
    to a specific tree and checking its tag on arrival. The search caption
    explains that results are ranked by relevance and nearby distance before
    appearing on the map. Note that some tree data may be inaccurate, invite issue
-   reports, and say that these will be passed on to the City of London. Show
+   reports through `/feedback`, and say that these will be passed on to the City
+   of London. Show
    three app screenshots: searching its number,
    following its route and viewing its estimated age. Use each screenshot
    caption for the matching explanation rather than repeating the same three
@@ -321,7 +323,7 @@ Sections, in order:
    The index carries individual reports; the homepage remains static.
 9. **Footer** — "Created and curated by AI with oversight from Simon McManus"
    (linking to `simonmcmanus.com`), an "AI can make mistakes, please report
-   them here" GitHub issues link, and `/terms.html`. No separate
+   them here" link to `/feedback`, and `/terms.html`. No separate
    dataset-attribution paragraph; source explanations remain in the FAQ. The
    reports index (`scripts/generate-reports-index.js`) uses the same footer copy.
 
