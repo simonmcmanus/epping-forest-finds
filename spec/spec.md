@@ -319,6 +319,26 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   trail back to Filters is never mistaken for a fresh `/nearby/<slug>` arrival. Without this, the
   ordinary 1-3 filter default state got the no-location full-list/fit treatment above on every
   single back-navigation to Filters with no location granted.
+- **Navigating in-app straight from one `/nearby/<slug>` arrival to another never loses the new
+  page's own category.** A link out of a selected place's inspector (a business page's own
+  "Related" section, `js/inspector.js`) or a bare `near="" ` link like "Everything nearby"
+  (`js/app.js`'s `categoryLandingLinksHtml()`) routes through `navigateInApp()` →
+  `applyRouteFromUrl()` → `applyRoute()`, the same path a popstate takes. Both a `/nearby/<slug>`
+  arrival (its own route value is `""`, same as the plain Nearby screen's) and a tap on the Nearby
+  nav button land in `goToInitialView()`, whose own ephemeral-filter restore (above) would
+  otherwise fire for the *new* page's just-applied category too — `applyShowFilterFromQuery()` and
+  `goToInitialView()`'s restore run back to back in the very same pass when leaving a selection for
+  a new landing page, both seeing the same `""` route value with no way to tell "just arrived here"
+  from "actually leaving". `goToInitialView()` tells them apart by checking whether it is being run
+  *from inside* `applyRoute()`/`applyRouteFromUrl()` (`routeApplyDepth > 0`, held open across the
+  call) and the current path itself still names a category (`filterKeysFromFindPath`) — true only
+  for a fresh landing-page arrival, never for a direct call (the Nearby nav button, the Report
+  form's Cancel, the inspector back arrow with no history to retrace), which always runs outside
+  that depth. Landing on the bare `/nearby` path itself (no slug — "Everything nearby"'s own
+  target) is handled the other way round, in `applyShowFilterFromQuery()`: since its own route
+  value also never changes from the page being left, `goToInitialView()`'s restore never runs on
+  its own, so `applyShowFilterFromQuery()` restores the reader's stored filters itself whenever the
+  path is bare `/nearby` with no selection and the current filters are still marked ephemeral.
 
 - **A screen change pushes a history entry** (`setHashFromSelection` → `history.pushState`), so
   browser back, the phone's back gesture and the inspector's own back arrow all retrace the same

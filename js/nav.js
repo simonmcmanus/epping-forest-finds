@@ -1902,8 +1902,17 @@ function goToInitialView(updateHash = true) {
   // A /nearby/<slug> page's single category is that page's own lens, not a preference the reader
   // chose -- the Nearby nav button is "take me to the real Nearby", so it puts their actual
   // filters back rather than carrying that category over (see setOverviewFilters' persist:false
-  // comment, js/app.js).
-  if (state.overviewFiltersEphemeral) setOverviewFilters(loadStoredOverviewFilters());
+  // comment, js/app.js). Except when this goToInitialView() call is itself how the reader is
+  // *arriving* at a different /nearby/<slug> page (a SPA link click or a popstate, routed through
+  // applyRouteFromUrl -> applyRoute, both of which hold routeApplyDepth open across this call --
+  // see their own comments) and the URL already names that page's own category: that arrival's
+  // route value is also "", same as the plain Nearby screen's, so without this check the filters
+  // applyShowFilterFromQuery() just set moments ago in the very same pass would be restored right
+  // back over them before the reader ever saw the new page's own category. A direct call (the
+  // Nearby nav button, the Report form's Cancel, the inspector back arrow with no history to
+  // retrace) never runs inside that depth, so this never suppresses a genuine "leave" there.
+  const arrivingAtLandingPage = routeApplyDepth > 0 && filterKeysFromFindPath(window.location.pathname).length > 0;
+  if (state.overviewFiltersEphemeral && !arrivingAtLandingPage) setOverviewFilters(loadStoredOverviewFilters());
   selectOverview(true);
   setInspectorMinimized(false);
   const refitOverview = () => {

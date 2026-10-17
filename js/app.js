@@ -1056,7 +1056,23 @@ function applyShowFilterFromQuery() {
   // this path, so there is nothing to (re)apply.
   if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS] && routeApplyDepth > 0) return;
   const fromQuery = filterKeysFromQuery(window.location.search);
-  if (fromQuery.length) setOverviewFilters(fromQuery, { persist: false });
+  if (fromQuery.length) {
+    setOverviewFilters(fromQuery, { persist: false });
+    return;
+  }
+  // Landing on the bare Nearby path with nothing selected (no hash -- a tree/cow/landmark
+  // selection without its own /find/ page also lands on NEARBY_PATH, but always carries one,
+  // see urlPartsForRouteValue) while still showing a /nearby/<slug> page's own ephemeral category
+  // is the reader explicitly leaving that lens -- the "Everything nearby" breadcrumb chip, or any
+  // other link/back-nav straight to the plain Nearby screen -- so put their own filters back.
+  // goToInitialView() (js/nav.js) already does this same restore for the *selection* half of
+  // "leaving" (the Nearby nav button, the inspector back arrow), but can't cover this case: the
+  // route value is "" both before and after ("nothing selected" either way), so
+  // urlMatchesCurrentScreen() reads it as no change and applyRouteFromUrl() returns before
+  // applyRoute()/goToInitialView() ever run.
+  if (window.location.pathname === NEARBY_PATH && !window.location.hash && state.overviewFiltersEphemeral) {
+    setOverviewFilters(loadStoredOverviewFilters());
+  }
 }
 
 // ?q=<text> -- /search's own live query string (searchStringForPath), reversed: whatever a

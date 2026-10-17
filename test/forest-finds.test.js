@@ -1711,6 +1711,52 @@ test("the Nearby nav button leaves a filter the reader deliberately chose alone"
   assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "a real chip tap is never mistaken for a page's own ephemeral lens");
 });
 
+test("navigating in-app from a selection straight to a /nearby/<slug> page lands on that page's own category, not the reader's stored filters", () => {
+  resetData(app);
+  resetRouter(app);
+  app.localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["trees", "cows", "events"], expandedGroups: [] }));
+  // A selection (any type) makes currentScreenRoute() non-empty, so navigateInApp's own
+  // urlMatchesCurrentScreen check doesn't short-circuit before applyRoute()/goToInitialView()
+  // run -- the same shape as clicking a business page's own "Food" related link.
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  app.location.pathname = "/find/the-forresters/";
+  app.location.hash = "";
+
+  app.navigateInApp("/nearby/food/");
+
+  assert.equal(app.location.pathname, "/nearby/food/");
+  assert.deepEqual(
+    Array.from(app.state.overviewFilters).sort(),
+    ["cafes", "pubs", "restaurants", "shops"],
+    "lands pre-filtered to Food's own subfilters -- goToInitialView's own restore (fired in the same pass, since the route value is \"\" both before and after a selection) must not revert this"
+  );
+  app.location.pathname = "/";
+  app.location.hash = "";
+});
+
+test("navigating in-app from a selection straight to bare /nearby restores the reader's stored filters", () => {
+  resetData(app);
+  resetRouter(app);
+  app.localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["cafes"], expandedGroups: [] }));
+  // The precondition this exercises: currently showing /nearby/food/'s own ephemeral category
+  // (exactly what a real arrival there -- applyShowFilterFromQuery -- would have left behind).
+  app.setOverviewFilters(["pubs", "restaurants", "cafes", "shops"], { persist: false });
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  app.location.pathname = "/nearby/food/";
+  app.location.hash = "";
+
+  app.navigateInApp("/nearby");
+
+  assert.equal(app.location.pathname, "/nearby");
+  assert.deepEqual(
+    Array.from(app.state.overviewFilters),
+    ["cafes"],
+    "the \"Everything nearby\" link's own target (bare /nearby) is not itself a landing page, so applyShowFilterFromQuery must put the reader's own filters back -- its own route value (\"\") never changes between the /nearby/food/ page and bare /nearby, so goToInitialView's restore never runs on its own"
+  );
+  app.location.pathname = "/";
+  app.location.hash = "";
+});
+
 test("a ?q=<text> query param restores the search box's text on arrival at /search", () => {
   resetData(app);
   app.state.searchQuery = "";
