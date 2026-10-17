@@ -140,8 +140,8 @@ test.describe("Location and GPS — happy path", () => {
       expect(minutes).toBe(30);
     });
 
-    test("the locate button stays visible, and the \"You\" dot is never drawn for the stand-in", async ({ page }) => {
-      await expect(page.locator("#locateButton")).toBeVisible();
+    test("there is no duplicate location button, and the \"You\" dot is never drawn for the stand-in", async ({ page }) => {
+      await expect(page.locator("#locateButton")).toHaveCount(0);
       const drewYouDot = await page.evaluate(() => {
         let arcCount = 0;
         const ctx = {

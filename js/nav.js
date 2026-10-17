@@ -520,11 +520,6 @@ function setupInspectorHandlers() {
     setInspectorMinimized(false);
   });
 
-  els.locateButton.addEventListener("click", () => {
-    ensureTrackingConsent();
-    locateUser({ initial: false });
-  });
-
   if (els.locationGateButton) {
     els.locationGateButton.addEventListener("click", async () => {
       els.locationGateButton.disabled = true;
@@ -1897,26 +1892,15 @@ function goToInitialView(updateHash = true) {
   requestDraw();
 }
 
-// True once a real GPS fix exists -- false while state.userLocation is unset, or is only
-// applyDefaultLocation()'s High Beach stand-in (js/app.js). Everything that means "do we
-// already know where the user actually is" (the locate button, the location gate's own retry
-// button) reads this instead of state.userLocation's bare truthiness; everything that just
-// wants coordinates to measure or draw from (distances, the Nearby list, the walking-radius
-// ring) keeps reading state.userLocation directly, stand-in included -- that's the point of it.
+// A default High Beach location is useful for rendering nearby results, but is not a real GPS
+// fix: the location gate must still ask for permission in that case.
 function hasRealLocation() {
   return Boolean(state.userLocation) && !state.userLocation.isDefault;
 }
 
-function updateLocateButtonVisibility() {
-  const geolocationAvailable = typeof navigator !== "undefined" && Boolean(navigator.geolocation);
-  els.locateButton.hidden = !geolocationAvailable || hasRealLocation();
-  syncInspectorToolsVisibility();
-}
-
 function syncInspectorToolsVisibility() {
   if (!els.inspectorTools || els.inspectorTools.hidden) return;
-  const hasContent = !els.locateButton.hidden
-    || (els.installButton && getComputedStyle(els.installButton).display !== "none");
+  const hasContent = els.installButton && getComputedStyle(els.installButton).display !== "none";
   els.inspectorTools.classList.toggle("tools-empty", !hasContent);
 }
 

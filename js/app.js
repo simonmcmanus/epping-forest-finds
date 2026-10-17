@@ -403,7 +403,6 @@ const els = {
   filterToggle: document.getElementById("filterToggle"),
   filterCount: document.getElementById("filterCount"),
   nearbyToggle: document.getElementById("nearbyToggle"),
-  locateButton: document.getElementById("locateButton"),
   installButton: document.getElementById("installButton"),
   loadingOverlay: document.getElementById("loadingOverlay"),
   locationGate: document.getElementById("locationGate"),
@@ -1088,7 +1087,6 @@ async function revealNoRealLocation({ locationAlreadyAsked }) {
   draw();
   applySelectionFromHash();
   await revealMapCenteredOnUser();
-  updateLocateButtonVisibility();
 
   if (locationAlreadyAsked) return;
   const title = "Get a more custom experience";
@@ -1252,16 +1250,19 @@ async function boot() {
   // copy gets written, after the map itself is already up rather than before.
 
   try {
-    await mapPromise;
+    const mapData = await mapPromise;
+    // A tree deep link cannot be resolved until its register has arrived. Other screens,
+    // including places and Filters, intentionally become usable while tree chunks continue
+    // downloading in the background.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("tree")) {
+      await mapData.treePromise;
+    }
 
     state.bounds = calculateBounds();
     const cowBootstrapOk = await cowPromise;
     setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
     scheduleCowRefresh();
     fitToBounds();
-    els.locateButton.disabled = false;
-    updateLocateButtonVisibility();
-
     state.dataLoaded = true;
     applyShowFilterFromQuery();
     applySearchQueryFromQuery();
@@ -1275,7 +1276,6 @@ async function boot() {
       if (locResult.ok) {
         const { latitude, longitude } = applyLocationFix(locResult.position);
         setLoadStep("location", "done");
-        updateLocateButtonVisibility();
         setLocationGateVisible(false);
         checkDistanceToForest(latitude, longitude);
         ensureLocationWatch();
@@ -1567,14 +1567,11 @@ function locateUser({ initial }) {
     return;
   }
 
-  els.locateButton.disabled = true;
   setStatus(initial ? "Finding your location..." : "Getting your location...");
   navigator.geolocation.getCurrentPosition(
     (position) => {
-      els.locateButton.disabled = false;
       const { latitude, longitude, previousPoint } = applyLocationFix(position);
       setLocationGateVisible(false);
-      updateLocateButtonVisibility();
       ensureLocationWatch();
       if (compassPermissionCanBeRequested()) {
         // iOS: requestPermission() must come from a real user-gesture call stack.
@@ -1611,7 +1608,6 @@ function locateUser({ initial }) {
       requestDraw();
     },
     (error) => {
-      els.locateButton.disabled = false;
       const denied = error && error.code === 1;
       if (denied) {
         const gateMessage = "Location permission was blocked. Use the browser site settings to allow location for this page, then tap Enable location again.";
@@ -4647,7 +4643,6 @@ function ensureLocationWatch() {
       const previousPoint = state.userLocation && state.userLocation.point;
       state.userLocation = ingestLocationFix(latitude, longitude, accuracy);
       const point = state.userLocation.point;
-      updateLocateButtonVisibility();
       state.userInMapArea = pointInsideBounds(point, state.bounds);
       const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
       state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
@@ -4688,11 +4683,9 @@ function ensureLocationWatch() {
       if (error && error.code === 1) {
         // Permission revoked mid-session — clear the watch. No blocking gate: the app stays
         // usable on the last fix it had (or the High Beach stand-in) rather than forcing a
-        // retry wall for a permission that was never required in the first place. The locate
-        // button already reflects "no real fix" and re-requests on tap if the reader wants to.
+        // retry wall for a permission that was never required in the first place.
         navigator.geolocation.clearWatch(state.locationWatchId);
         state.locationWatchId = null;
-        updateLocateButtonVisibility();
       }
       // Timeout / position-unavailable: watchPosition continues automatically.
     },

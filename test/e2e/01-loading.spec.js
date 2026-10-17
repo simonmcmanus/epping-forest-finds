@@ -8,10 +8,11 @@ test.describe("Loading experience", () => {
     await mockCowApi(page);
   });
 
-  test("shows the loading overlay at startup before data arrives", async ({ page }) => {
-    // Throttle data files so the overlay stays up long enough to assert on
-    await page.route("**/data/**", async (route) => {
-      await new Promise((r) => setTimeout(r, 500));
+  test("shows the loading overlay at startup before interactive data arrives", async ({ page }) => {
+    // Places are part of the interactive bootstrap. Trees deliberately are not: they continue
+    // loading after the map is usable, so delaying them must not keep this overlay visible.
+    await page.route("**/data/local-landmarks-food.geojson", async (route) => {
+      await new Promise((r) => setTimeout(r, 1_500));
       await route.continue();
     });
     await page.goto("/nearby");
@@ -57,6 +58,19 @@ test.describe("Loading experience", () => {
     await page.goto("/nearby");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
     await expect(page.locator("#mapCanvas")).toBeVisible();
+  });
+
+  test("opens Filters and its pubs option while tree chunks are still downloading", async ({ page }) => {
+    await page.route("**/data/trees/chunk-*.json", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 8_000));
+      await route.continue();
+    });
+    await page.goto("/app#filters");
+
+    await page.waitForFunction(() => document.getElementById("loadingOverlay")?.hidden === true);
+    await expect(page.locator("#inspectorTitle")).toHaveText("Filters");
+    await expect(page.locator("#inspectorBody")).toContainText("Pubs & bars");
+    await expect(page.locator('[data-load-step="trees"]')).toHaveClass(/loading/);
   });
 
   test("cows step completes with fixture data count", async ({ page }) => {
