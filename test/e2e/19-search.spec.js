@@ -6,6 +6,7 @@ const { setup, FIXTURE_TREE } = require("./helpers");
 // OpenStreetMap as 164 separate ways, which is exactly the case the results list has to
 // collapse into one row.
 const FIXTURE_PLACE = "Railway Bell";
+const LEDGER_FEATURED_PLACE = "Fishfellas";
 const FIXTURE_ROAD = "Forest Road";
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -35,6 +36,14 @@ test.describe("Searching the map", () => {
     await expect(result).toContainText(FIXTURE_PLACE);
     await expect(result).toContainText("Pubs");
     await expect(result.locator(":scope > .nearest-icon + .nearest-content")).toBeVisible();
+  });
+
+  test("a place featured in the Ledger links back to its edition", async ({ page }) => {
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", LEDGER_FEATURED_PLACE);
+    await page.locator("#mapSearchResults .nearest-item").first().click();
+
+    await expect(page.locator(".ledger-mention a")).toHaveAttribute("href", "/reports/epping-forest-ledger-2026-09-03.html");
   });
 
   test("category groups and subcategories discover places whose names are unknown", async ({ page }) => {

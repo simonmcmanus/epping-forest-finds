@@ -51,6 +51,10 @@ Data fetching is **not** responsible for:
 | Forest boundary | `data/epping-forest-land.geojson` | GeoJSON |
 | Buffer land | `data/epping-buffer-land.geojson` | GeoJSON |
 
+Landmark feature properties can include an optional `ledgerUrl`: a same-site,
+dated Ledger-edition path carried through normalisation to identify the edition
+that featured a map addition.
+
 ### Live Remote Data
 
 | Dataset | Endpoint | Refresh |

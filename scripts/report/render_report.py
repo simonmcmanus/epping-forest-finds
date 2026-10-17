@@ -746,14 +746,11 @@ def render_report(report_data, repo_root):
 {render_brand_header()}
 <header class="masthead">
   <div class="inner">
-    <p class="eyebrow">Field notes · Epping Forest &amp; its neighbours</p>
-    <h1 class="title">Epping Forest Ledger</h1>
-    <div class="meta-row">
-      <span>{escape(date_display)}</span>
-    </div>
-    {banner_html}
+    <p class="ledger-name">Epping Forest Ledger</p>
+    <h1 class="title">{escape(date_display)}</h1>
   </div>
   {render_hero_photo()}
+  {banner_html}
   {stat_strip}
 </header>
 
