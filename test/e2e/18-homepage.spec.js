@@ -363,7 +363,7 @@ test.describe("the marketing homepage", () => {
       { besideTitle: true, centredOnTitle: true, flushWithEyebrow: null },
       { besideTitle: true, centredOnTitle: true, flushWithEyebrow: true }
     ]);
-    await expect(page.locator(".ledger").getByRole("link", { name: "Read the Ledger →" })).toHaveCSS("background-color", "rgb(46, 107, 68)");
+    await expect(page.locator(".ledger").getByRole("link", { name: "Read the latest edition →" })).toHaveCSS("background-color", "rgb(46, 107, 68)");
     await expect(page.locator("main > section:last-child")).toHaveClass(/\bledger\b/);
     await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
     await expect(page.locator(".site-foot")).not.toContainText("Map data ©");
