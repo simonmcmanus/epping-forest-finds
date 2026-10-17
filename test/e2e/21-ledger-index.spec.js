@@ -15,11 +15,12 @@ test.describe("the Ledger listing", () => {
     generate(path.join(__dirname, "..", "..", "reports"));
   });
 
-  test("lists every edition newest first, under the homepage's header and forest photograph", async ({ page }) => {
+  test("lists every edition newest first under its date-led Ledger masthead", async ({ page }) => {
     await page.goto("/reports/");
 
     await expect(page.locator(".site-head .brand")).toHaveAttribute("href", "/");
-    await expect(page.locator(".hero h1")).toHaveText("Epping Forest Ledger");
+    await expect(page.locator(".ledger-masthead .ledger-name")).toHaveText("Epping Forest Ledger");
+    await expect(page.locator(".ledger-masthead h1")).toHaveText(/\d{1,2} October 2026/);
     await expect(page.locator(".hero-photo")).toHaveAttribute("src", "/assets/home/epping-longhorns.jpg");
 
     const weeks = await page.locator(".report-name").allTextContents();
