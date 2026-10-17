@@ -8,7 +8,7 @@ const { test, expect } = require("@playwright/test");
 const { generate: generateCategoryPages } = require("../../scripts/generate-find-pages.js");
 const { generate: generateBusinessPages } = require("../../scripts/generate-business-pages.js");
 const businessIndex = require("../../data/business-slugs.json");
-const { gotoAndWaitForMap, skipOnboarding, mockCowApi } = require("./helpers");
+const { gotoAndWaitForMap, skipOnboarding, setup } = require("./helpers");
 
 const REPO_ROOT = path.join(__dirname, "..", "..");
 
@@ -157,8 +157,11 @@ test.describe("generated find/nearby pages", () => {
     });
 
     test("clicking a related-content link is a real SPA transition, not a full page reload", async ({ page }) => {
-      await skipOnboarding(page);
-      await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
+      // setup() (not gotoAndWaitForMap directly) because this test actually clicks something:
+      // without a granted geolocation permission, boot() leaves #locationGate on screen, which
+      // intercepts the click -- setup() force-hides it the same way every other clicking test
+      // in this suite already relies on.
+      await setup(page, `/find/${EXAMPLE_PUB.slug}/`);
       await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
 
       // A window global survives a pushState-based transition but is wiped by a real navigation
@@ -172,9 +175,9 @@ test.describe("generated find/nearby pages", () => {
     });
 
     test("the nearest-cow link carries the business's own position via the near= hash, and the live view anchors Nearby there", async ({ page }) => {
-      await skipOnboarding(page);
-      await mockCowApi(page);
-      await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
+      // setup() mocks the cow API itself and force-hides #locationGate (see the previous test's
+      // comment) -- both needed here, since this test also clicks a link.
+      await setup(page, `/find/${EXAMPLE_PUB.slug}/`);
       await expect.poll(() => page.evaluate(() => state.selected != null && state.cows.length > 0)).toBe(true);
 
       const placeCoords = await page.evaluate(() => ({
@@ -206,8 +209,9 @@ test.describe("generated find/nearby pages", () => {
       // The live Nearby overview (selectOverview/overviewNearestHtml) replaces the static page's
       // whole #inspectorBody the moment JS boots -- it had no breadcrumb of its own, so these
       // links silently vanished the instant a real visitor's browser finished loading the page.
-      await skipOnboarding(page);
-      await gotoAndWaitForMap(page, "/nearby/pubs/");
+      // setup() (not gotoAndWaitForMap directly) force-hides #locationGate, which otherwise
+      // intercepts the click below (no geolocation permission is granted in this spec file).
+      await setup(page, "/nearby/pubs/");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
 
       const body = page.locator("#inspectorBody");
