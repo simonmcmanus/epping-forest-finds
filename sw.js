@@ -212,8 +212,22 @@ const DATA_CACHE_OPPORTUNISTIC = [
 // Anything else -- the homepage, the reports, the terms page -- is a network page the app
 // cache must not answer for.
 const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback"]);
+// /nearby/<slug>/ (scripts/generate-find-pages.js -- ~29 category pages) and /find/<slug>/
+// (scripts/generate-business-pages.js -- ~1,500 business/location pages, plus /find/events/)
+// aren't fixed screens, so they can't live in APP_SCREEN_PATHS, but every one of them is
+// templated off this exact app.html (same DOM, JS and CSS -- only the <head> tags and the
+// inspector's initial text differ, generated at build time). Offline, there is no way to fetch
+// which specific page was wanted, so this falls back to the same cached shell every other app
+// navigation does: the real interactive map still boots and works, just unfiltered rather than
+// pre-filtered to that one category/business -- not the perfect per-page content, but not a dead
+// network-error page either, which a path this common (1,500+ pages sharing nothing else to fall
+// back to) cannot afford.
+const FIND_PAGE_PATTERN = /^\/(nearby|find)\/[a-z0-9-]+\/?$/;
 function isAppNavigation(pathname) {
-  return APP_SCREEN_PATHS.has(pathname) || pathname === "/app.html" || pathname.endsWith("/app.html");
+  return APP_SCREEN_PATHS.has(pathname)
+    || pathname === "/app.html"
+    || pathname.endsWith("/app.html")
+    || FIND_PAGE_PATTERN.test(pathname);
 }
 
 function isAppCodePath(pathname) {

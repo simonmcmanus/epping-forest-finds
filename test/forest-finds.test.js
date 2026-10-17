@@ -5429,6 +5429,38 @@ test("service worker answers app navigations only, so the homepage is not served
   );
 });
 
+test("service worker falls back to the cached app shell offline for /nearby/<slug>/ and /find/<slug>/ pages, never a network error", () => {
+  // Executes the real sw.js (not a regex match on its source) so a logic error in the pattern --
+  // wrong anchor, missing the trailing-slash variant, an inverted condition -- fails this test
+  // rather than shipping. These ~1,500+29 generated pages (scripts/generate-business-pages.js,
+  // scripts/generate-find-pages.js) are templated off the same app.html as /nearby itself, so
+  // offline they fall back to that same cached shell instead of the browser's own offline error
+  // page -- see isAppNavigation's own comment in sw.js for why a generic fallback is the right
+  // trade-off here rather than precaching every one of them.
+  const root = path.join(__dirname, "..");
+  const context = {
+    self: { addEventListener: () => {}, skipWaiting: () => {}, clients: { claim: () => {} }, registration: {} },
+    importScripts: () => {},
+    caches: { open: async () => ({}), match: async () => null, keys: async () => [] },
+    fetch: async () => ({ ok: false }),
+    console,
+    URL,
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "data-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "sw.js"), "utf8"), context, { filename: "sw.js" });
+
+  const isAppNavigation = (pathname) => vm.runInContext(`isAppNavigation(${JSON.stringify(pathname)})`, context);
+
+  for (const pathname of ["/nearby/pubs/", "/nearby/pubs", "/nearby/food/", "/nearby/events/", "/find/the-forresters/", "/find/events/", "/find/costa-e4/"]) {
+    assert.equal(isAppNavigation(pathname), true, `${pathname} should fall back to the cached app shell`);
+  }
+  for (const pathname of ["/", "/reports/", "/terms.html", "/find/pubs/nested", "/nearby/pubs/nested"]) {
+    assert.equal(isAppNavigation(pathname), false, `${pathname} must stay off the app cache`);
+  }
+});
+
 test("service worker app shell holds app.html and not the marketing homepage", () => {
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   const shell = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);

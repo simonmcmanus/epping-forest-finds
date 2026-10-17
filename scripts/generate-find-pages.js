@@ -34,7 +34,7 @@ const path = require("node:path");
 
 const { buildInventory, loadAppRules } = require("./report/map-inventory.js");
 const { escapeHtml, replaceOnce } = require("./lib/html-template.js");
-const { listBusinessesForFilterKey } = require("./generate-business-pages.js");
+const { listBusinessesForFilterKey, loadEvents } = require("./generate-business-pages.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITE_NAME = "Epping Forest Finds";
@@ -236,6 +236,58 @@ function renderPage(page, appHtml) {
   return html;
 }
 
+/**
+ * /nearby/events/ -- the one category page map-inventory.js's buildInventory() deliberately
+ * excludes from `inventory.groups` (time-bound, not a static map fact; see that file's own
+ * comment), so it can't flow through collectPages/renderPage like every other category: there is
+ * no "count that's a fact about the forest" the way "130 pubs" is. It still belongs under
+ * /nearby/ rather than only at /find/events/ (scripts/generate-business-pages.js) though --
+ * "events" is a real filter key (ALL_OVERVIEW_FILTER_KEYS, js/categories.js) and
+ * filterKeysFromFindPath (js/app.js) already resolves /nearby/events to it like any other
+ * subfilter slug, pre-filtering the live map the same way /nearby/pubs does; the only missing
+ * piece was this static page ever existing on disk.
+ *
+ * Content is deliberately brief and distinct from /find/events/'s fuller listing (title/date only
+ * here, full description and source link there) rather than a second copy of the same text --
+ * this page's job is the live, pre-filtered map; /find/events/ is the crawlable reference.
+ */
+function renderEventsPage(appHtml, events) {
+  const canonical = `${SITE_ORIGIN}/nearby/events/`;
+  const titleTag = `${events.length} Events in Epping Forest | ${SITE_NAME}`;
+  const description = `${events.length} upcoming and recent events in and around Epping Forest, shown live on the map.`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Events in Epping Forest",
+    description,
+    url: canonical,
+    isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${SITE_ORIGIN}/` },
+    mainEntity: { "@type": "ItemList", numberOfItems: events.length },
+  };
+
+  const eventListHtml = events.length
+    ? `<ul>${events
+        .map((e) => `<li>${escapeHtml(e.title)}${e.date ? ` (${escapeHtml(e.date)})` : ""}</li>`)
+        .join("")}</ul>`
+    : "";
+
+  const seoContent =
+    `<p>${escapeHtml(description)} Enable location to see how far away each one is and get walking directions.</p>` +
+    eventListHtml +
+    `<p>See the <a href="/find/events/">full events list</a> with descriptions and source links.</p>`;
+
+  let html = appHtml;
+  html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
+  html = replaceOnce(html, APP_DESCRIPTION_META, `<meta name="description" content="${escapeHtml(description)}">`, "meta description");
+  html = replaceOnce(html, APP_CANONICAL, `<link rel="canonical" href="${canonical}">`, "canonical link");
+  html = replaceOnce(html, APP_OG_TITLE, `<meta property="og:title" content="Events in Epping Forest">`, "og:title");
+  html = replaceOnce(html, APP_OG_DESCRIPTION, `<meta property="og:description" content="${escapeHtml(description)}">`, "og:description");
+  html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
+  html = replaceOnce(html, "</head>", `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`, "</head>");
+  html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
+  return html;
+}
+
 function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInventory(siteRoot)) {
   const rules = loadAppRules();
   const pages = collectPages(rules, inventory);
@@ -247,6 +299,11 @@ function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInvent
     fs.mkdirSync(pageDir, { recursive: true });
     fs.writeFileSync(path.join(pageDir, "index.html"), renderPage(page, appHtml), "utf8");
   }
+
+  const eventsDir = path.join(categoryDir, "events");
+  fs.mkdirSync(eventsDir, { recursive: true });
+  fs.writeFileSync(path.join(eventsDir, "index.html"), renderEventsPage(appHtml, loadEvents(siteRoot)), "utf8");
+
   return pages;
 }
 
@@ -266,6 +323,7 @@ function listFindSlugs(siteRoot) {
 module.exports = {
   collectPages,
   renderPage,
+  renderEventsPage,
   generate,
   listFindSlugs,
   slugFor,

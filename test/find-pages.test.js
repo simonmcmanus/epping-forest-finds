@@ -144,8 +144,9 @@ test("generate writes one index.html per page under nearby/<slug>/, and listFind
   assert.ok(fs.existsSync(path.join(dir, "nearby", "pubs", "index.html")));
   assert.ok(fs.existsSync(path.join(dir, "nearby", "cafes", "index.html")));
   assert.ok(fs.existsSync(path.join(dir, "nearby", "food", "index.html")), "the group page too");
+  assert.ok(fs.existsSync(path.join(dir, "nearby", "events", "index.html")), "events always gets its own page too, even outside collectPages");
 
-  assert.deepEqual(listFindSlugs(dir), ["cafes", "food", "pubs"]);
+  assert.deepEqual(listFindSlugs(dir), ["cafes", "events", "food", "pubs"]);
 });
 
 test("no generated category slug ever collides with the /nearby/filter or /nearby/search screens", () => {
