@@ -11,6 +11,13 @@ const { buildInventory } = require("../../scripts/report/map-inventory.js");
 const { formatCount } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
+  test("links homepage feedback prompts to the feedback screen", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".inventory-feedback")).toHaveAttribute("href", "/feedback");
+    await expect(page.getByRole("link", { name: "report any issues you find" })).toHaveAttribute("href", "/feedback");
+    await expect(page.getByRole("link", { name: "report them here" })).toHaveAttribute("href", "/feedback");
+  });
+
   test("links directly to every FAQ answer without requiring JavaScript", async ({ browser }) => {
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
