@@ -267,7 +267,9 @@ test("renderPage prints a species breakdown on /nearby/trees/ and a linked water
 
   const waterPage = { key: "ponds_streams", slug: "ponds-streams", label: "Ponds & streams", title: "ponds and streams", count: 111, groupLabel: "Nature", groupSlug: "nature", siblings: [] };
   const waterHtml = renderPage(waterPage, APP_HTML, enrichment);
-  assert.match(waterHtml, /<a href="\/nearby\/ponds-streams\/#water=way%2F1">Aldersbrook<\/a>/);
+  // The same .nearest-item card the live Nearby list renders (css/map-ui.css), not a bare <ul> --
+  // see nearestItemCardHtml's own comment for why.
+  assert.match(waterHtml, /<a class="nearest-item" href="\/nearby\/ponds-streams\/#water=way%2F1"><span class="nearest-icon">.*?<\/span><div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Aldersbrook<\/span><\/div><\/div><\/a>/);
   assert.ok(!waterHtml.includes("By species:"), "the water page gets no species breakdown of its own");
 
   const [pubs] = collectPages(FAKE_RULES, FAKE_INVENTORY);

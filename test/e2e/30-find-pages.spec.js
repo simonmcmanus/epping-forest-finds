@@ -47,8 +47,10 @@ test.describe("generated find/nearby pages", () => {
       const html = await response.text();
 
       expect(html).toMatch(/<title>\d[\d,]* Pubs &amp; [Bb]ars in Epping Forest \| Epping Forest Finds<\/title>/);
-      expect(html).toContain('class="category-listing"');
-      expect(html).toContain(`href="/find/${EXAMPLE_PUB.slug}/"`);
+      // The same .nearest-item card the live Nearby list renders (css/map-ui.css), not a plain
+      // browser-default-styled <ul> that then visibly restyled itself the instant JS booted.
+      expect(html).toContain('class="nearest-list"');
+      expect(html).toContain(`class="nearest-item" href="/find/${EXAMPLE_PUB.slug}/"`);
       // Every category/subcategory page links onward to veteran trees and grazing cattle, the
       // same up-link every /find/<slug>/ business page already carries.
       expect(html).toContain('href="/nearby/trees/">veteran trees</a>');
@@ -69,12 +71,14 @@ test.describe("generated find/nearby pages", () => {
       expect(trees).toMatch(/<li>[^<]+ — [\d,]+<\/li>/);
 
       const water = await (await request.get("/nearby/ponds-streams/")).text();
-      // Named water features are individually distinct, so these get a real itemized list, each
-      // linking to the app's existing #water= deep link (same mechanism as #tree=/#place=).
+      // Named water features are individually distinct, so these get a real .nearest-item card
+      // list (the same card the live Nearby list renders), each linking to the app's existing
+      // #water= deep link (same mechanism as #tree=/#place=).
       expect(water).toContain("Named ponds, lakes and streams:");
       expect(water).toContain(
-        `href="/nearby/ponds-streams/#water=${encodeURIComponent(EXAMPLE_WATER.key)}">${escapeHtml(EXAMPLE_WATER.name)}</a>`
+        `class="nearest-item" href="/nearby/ponds-streams/#water=${encodeURIComponent(EXAMPLE_WATER.key)}"`
       );
+      expect(water).toContain(`<span class="nearest-name">${escapeHtml(EXAMPLE_WATER.name)}</span>`);
 
       // The combined "nature" group page carries both.
       const nature = await (await request.get("/nearby/nature/")).text();

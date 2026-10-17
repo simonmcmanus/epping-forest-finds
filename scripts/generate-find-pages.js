@@ -128,11 +128,27 @@ function loadTreeSpeciesBreakdown(siteRoot, minCount = 5) {
   };
 }
 
-function waterListHtml(waterFeatures) {
+// The same card the live Nearby list renders for every place (.nearest-item/.nearest-icon/
+// .nearest-content/.nearest-header/.nearest-name, css/map-ui.css -- already reused for a plain
+// <a> by relatedCategoryLinksHtml in js/inspector.js), not a bare <ul> styled only by the
+// browser's own defaults. Without this, a reader -- or a crawler -- saw a plain blue-link list
+// that then visibly reflowed into cards the instant JS replaced it with the live Nearby list;
+// now the static page already looks like the screen it's showing. No distance/walk-time footer:
+// there is no origin to measure one from at build time.
+function nearestItemCardHtml(href, iconHtml, name) {
+  return `<a class="nearest-item" href="${escapeHtml(href)}"><span class="nearest-icon">${iconHtml || ""}</span><div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div></div></a>`;
+}
+
+function nearestListHtml(cards) {
+  return cards.length ? `<div class="nearest-list">${cards.join("")}</div>` : "";
+}
+
+function waterListHtml(waterFeatures, rules) {
   if (!waterFeatures.length) return "";
-  return `<p>Named ponds, lakes and streams:</p><ul class="category-listing">${waterFeatures
-    .map((w) => `<li><a href="/nearby/ponds-streams/#water=${encodeURIComponent(w.key)}">${escapeHtml(w.name)}</a></li>`)
-    .join("")}</ul>`;
+  const icon = rules.filterKindEmoji("ponds_streams");
+  return `<p>Named ponds, lakes and streams:</p>${nearestListHtml(waterFeatures.map((w) =>
+    nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(w.key)}`, icon, w.name)
+  ))}`;
 }
 
 function treeSpeciesHtml(treeSpecies) {
@@ -244,7 +260,7 @@ function collectPages(rules, inventory) {
 }
 
 function renderPage(page, appHtml, enrichment = {}) {
-  const { waterFeatures = [], treeSpecies = null } = enrichment;
+  const { waterFeatures = [], treeSpecies = null, rules = loadAppRules() } = enrichment;
   // Trailing slash: Netlify's static hosting serves nearby/<slug>/index.html directly only at
   // /nearby/<slug>/, 301-redirecting the bare path to it (the same convention /reports/ already
   // uses, STATIC_PAGES in generate-sitemap.js) -- the canonical/OG/JSON-LD url must be the one
@@ -284,11 +300,9 @@ function renderPage(page, appHtml, enrichment = {}) {
   // index, so this is naturally empty for them and the page falls back to the plain summary
   // sentence it always had.
   const businesses = listBusinessesForFilterKey(page.key);
-  const businessListHtml = businesses.length
-    ? `<ul class="category-listing">${businesses
-        .map((b) => `<li><a href="/find/${escapeHtml(b.slug)}/">${escapeHtml(b.name)}</a></li>`)
-        .join("")}</ul>`
-    : "";
+  const businessListHtml = nearestListHtml(businesses.map((b) =>
+    nearestItemCardHtml(`/find/${b.slug}/`, rules.filterKindEmoji(b.key), b.name)
+  ));
 
   // trees/ponds_streams/nature are outside the /find/ business scope above (listBusinessesForFilterKey
   // returns nothing for them) but aren't left with just the summary sentence either -- a named
@@ -297,7 +311,7 @@ function renderPage(page, appHtml, enrichment = {}) {
   // loadWaterFeatures/loadTreeSpeciesBreakdown above for why each gets a different shape.
   const showWater = page.key === "ponds_streams" || page.key === "nature";
   const showTrees = page.key === "trees" || page.key === "nature";
-  const enrichedListHtml = (showTrees ? treeSpeciesHtml(treeSpecies) : "") + (showWater ? waterListHtml(waterFeatures) : "");
+  const enrichedListHtml = (showTrees ? treeSpeciesHtml(treeSpecies) : "") + (showWater ? waterListHtml(waterFeatures, rules) : "");
 
   const seoContent = `<p>Find all ${page.count} ${escapeHtml(page.title)} in Epping Forest, mapped and ready to walk to. Enable location to see how far each one is and get walking directions.</p>` +
     businessListHtml +
@@ -442,7 +456,7 @@ function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInvent
   // Loaded once up front, not per page: both read a dataset no other part of this generator
   // touches (the tree chunks in particular are the largest files in the whole build), and only
   // the trees/ponds_streams/nature pages (renderPage's showTrees/showWater) ever use them.
-  const enrichment = { waterFeatures: loadWaterFeatures(rules, siteRoot), treeSpecies: loadTreeSpeciesBreakdown(siteRoot) };
+  const enrichment = { waterFeatures: loadWaterFeatures(rules, siteRoot), treeSpecies: loadTreeSpeciesBreakdown(siteRoot), rules };
   for (const page of pages) {
     const pageDir = path.join(categoryDir, page.slug);
     fs.mkdirSync(pageDir, { recursive: true });

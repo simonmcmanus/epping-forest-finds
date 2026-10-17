@@ -575,22 +575,37 @@ branches.
   count sentence: `renderPage` (`scripts/generate-find-pages.js`) reads
   `listBusinessesForFilterKey(page.key)` (`scripts/generate-business-pages.js`)
   and, when that subfilter/group falls inside the `/find/` scope below, prints
-  a plain `<ul>` of every place's name, each linking to its own
-  `/find/<slug>/` page. A category outside that scope (transport, history,
-  stories) gets an empty list and falls back to the summary sentence it
-  always had — this is conditional on the business index actually covering
-  the key, not a second hand-maintained list.
+  a card per place, each linking to its own `/find/<slug>/` page. A category
+  outside that scope (transport, history, stories) gets an empty list and
+  falls back to the summary sentence it always had — this is conditional on
+  the business index actually covering the key, not a second hand-maintained
+  list.
+- **Every such list reuses the live Nearby list's own `.nearest-item` card**
+  (`nearestItemCardHtml`, `scripts/generate-find-pages.js` — icon, name, no
+  distance/walk-time footer since there is no origin to measure one from at
+  build time), not a bare `<ul>` styled only by the browser's own defaults.
+  Before this, a reader — or a crawler — saw a plain, unstyled blue-link list
+  that then visibly reflowed into cards the instant `js/app.js` replaced it
+  with the live Nearby list; the static page now already looks like the
+  screen it's showing. The per-item icon is `filterKindEmoji(key)`
+  (`js/categories.js`, now also exposed by `loadAppRules()` —
+  `scripts/report/map-inventory.js`), read off each business's own
+  `key`/`groupKey` (a group page mixes several subfilters, so this is never
+  a single icon guessed from the page itself). `.nearest-item` is already
+  used this way for a plain `<a>` elsewhere (`relatedCategoryLinksHtml`,
+  `js/inspector.js`'s "nearest tree"/"nearest cow" cards), so this is the
+  same established pattern, not a new one.
 - **`trees`, `ponds_streams` and the `nature` group get their own kind of
   real list instead** (`loadWaterFeatures`/`loadTreeSpeciesBreakdown`,
   `scripts/generate-find-pages.js`), because neither is a good fit for the
   `/find/` list above:
   - **Named water features** (ponds, lakes, streams — ~111 of them) are as
     individually distinct as a business, so `/nearby/ponds-streams/` (and
-    `/nearby/nature/`) gets a real `<ul>` of every one, alphabetical, via the
-    same `extractWaterFeatures` classification the live app and the weekly
-    report already use (now also exposing `waterHashKey`,
-    `scripts/report/map-inventory.js`'s `loadAppRules()`) — never a second,
-    separately-computed list. Each links to
+    `/nearby/nature/`) gets the same `.nearest-item` card treatment, one per
+    feature, alphabetical, via the same `extractWaterFeatures` classification
+    the live app and the weekly report already use (now also exposing
+    `waterHashKey`, `scripts/report/map-inventory.js`'s `loadAppRules()`) —
+    never a second, separately-computed list. Each links to
     `/nearby/ponds-streams/#water=<hashKey>`, the app's own existing
     `water=` deep-link route (same mechanism as `#tree=`/`#place=`), so
     clicking one — static page or not — selects that exact feature live.
