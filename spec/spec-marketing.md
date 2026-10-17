@@ -577,9 +577,43 @@ branches.
   and, when that subfilter/group falls inside the `/find/` scope below, prints
   a plain `<ul>` of every place's name, each linking to its own
   `/find/<slug>/` page. A category outside that scope (transport, history,
-  nature, stories) gets an empty list and falls back to the summary sentence
-  it always had — this is conditional on the business index actually
-  covering the key, not a second hand-maintained list.
+  stories) gets an empty list and falls back to the summary sentence it
+  always had — this is conditional on the business index actually covering
+  the key, not a second hand-maintained list.
+- **`trees`, `ponds_streams` and the `nature` group get their own kind of
+  real list instead** (`loadWaterFeatures`/`loadTreeSpeciesBreakdown`,
+  `scripts/generate-find-pages.js`), because neither is a good fit for the
+  `/find/` list above:
+  - **Named water features** (ponds, lakes, streams — ~111 of them) are as
+    individually distinct as a business, so `/nearby/ponds-streams/` (and
+    `/nearby/nature/`) gets a real `<ul>` of every one, alphabetical, via the
+    same `extractWaterFeatures` classification the live app and the weekly
+    report already use (now also exposing `waterHashKey`,
+    `scripts/report/map-inventory.js`'s `loadAppRules()`) — never a second,
+    separately-computed list. Each links to
+    `/nearby/ponds-streams/#water=<hashKey>`, the app's own existing
+    `water=` deep-link route (same mechanism as `#tree=`/`#place=`), so
+    clicking one — static page or not — selects that exact feature live.
+  - **Trees are the opposite case**: ~24,900 individually anonymous Veteran
+    Tree Register records with no name and no page of their own (§6.7's
+    scope carve-out). An itemized list would be thousands of near-identical
+    lines ("Common Beech", "Common Beech", ...) — worse thin/duplicate
+    content than the plain summary sentence it would replace, not better. A
+    **species breakdown** is the genuinely useful, genuinely distinct fact
+    instead: real counts per species (name, count), computed from the same
+    chunked dataset `js/loader.js` streams into the live map — species with
+    fewer than 5 records fold into a trailing "Other species" row rather
+    than each getting its own line. `commonName` is matched
+    case-insensitively (the register has a handful of inconsistently cased
+    duplicates, e.g. "English oak" alongside "English Oak" — the most
+    common casing wins the display label) and any record whose "species"
+    looks like a stray data artifact rather than a real name (contains
+    `=`, seen on a handful of single-occurrence rows) is dropped, not
+    hand-excluded by name. No deep link — there is nothing for a species
+    row to select.
+  - Both are computed once per build (`generate()`), not once per page, since
+    the tree chunks in particular are the largest files the whole build
+    reads.
 - **Every category/subcategory page also links onward to veteran trees and
   grazing cattle** — `natureSeeAlsoHtml()` (`scripts/generate-find-pages.js`)
   appends the same "See also veteran trees and grazing cattle near Epping

@@ -5,8 +5,10 @@
 
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
-const { generate: generateCategoryPages } = require("../../scripts/generate-find-pages.js");
+const { generate: generateCategoryPages, loadWaterFeatures } = require("../../scripts/generate-find-pages.js");
 const { generate: generateBusinessPages } = require("../../scripts/generate-business-pages.js");
+const { loadAppRules } = require("../../scripts/report/map-inventory.js");
+const { escapeHtml } = require("../../scripts/lib/html-template.js");
 const businessIndex = require("../../data/business-slugs.json");
 const { gotoAndWaitForMap, skipOnboarding, setup } = require("./helpers");
 
@@ -16,6 +18,11 @@ const REPO_ROOT = path.join(__dirname, "..", "..");
 // the nearest the e2e suite comes to a fixture for the 1,500+ generated business pages. Picked
 // with a real address so the "Nearby" list and distance copy have something to assert on.
 const EXAMPLE_PUB = businessIndex.entries.find((e) => e.key === "pubs" && e.address && e.lat != null);
+
+// trees/ponds_streams/nature are outside the business index above (spec-marketing.md § 6.6's
+// "trees/water get a different kind of list" carve-out) -- a real named water feature instead,
+// the same way EXAMPLE_PUB is a real business, not a hardcoded name.
+const EXAMPLE_WATER = loadWaterFeatures(loadAppRules(), REPO_ROOT)[0];
 
 // A second example, picked for carrying the optional fields that are only ever shown when the
 // source data actually has them (spec-marketing.md § 6.7) -- opening hours and a phone number --
@@ -52,6 +59,27 @@ test.describe("generated find/nearby pages", () => {
       const html = await (await request.get("/nearby/trees/")).text();
       expect(html).not.toContain('href="/nearby/trees/">veteran trees</a>');
       expect(html).toContain('href="/nearby/cows/">grazing cattle</a>');
+    });
+
+    test("/nearby/trees/ and /nearby/ponds-streams/ server-render real content in place of trees/water's own plain summary sentence", async ({ request }) => {
+      const trees = await (await request.get("/nearby/trees/")).text();
+      // Trees are ~24,900 individually anonymous records with no name of their own, so this is a
+      // species breakdown (real counts), not an itemized list of thousands of identical rows.
+      expect(trees).toContain("By species:");
+      expect(trees).toMatch(/<li>[^<]+ — [\d,]+<\/li>/);
+
+      const water = await (await request.get("/nearby/ponds-streams/")).text();
+      // Named water features are individually distinct, so these get a real itemized list, each
+      // linking to the app's existing #water= deep link (same mechanism as #tree=/#place=).
+      expect(water).toContain("Named ponds, lakes and streams:");
+      expect(water).toContain(
+        `href="/nearby/ponds-streams/#water=${encodeURIComponent(EXAMPLE_WATER.key)}">${escapeHtml(EXAMPLE_WATER.name)}</a>`
+      );
+
+      // The combined "nature" group page carries both.
+      const nature = await (await request.get("/nearby/nature/")).text();
+      expect(nature).toContain("By species:");
+      expect(nature).toContain("Named ponds, lakes and streams:");
     });
 
     test("a business page's real content is server-rendered: unique title, LocalBusiness JSON-LD, address and a real nearby list", async ({ request }) => {
@@ -232,6 +260,15 @@ test.describe("generated find/nearby pages", () => {
         longitude: state.nearbyAnchor && Number(state.nearbyAnchor.longitude.toFixed(6)),
       }));
       expect(anchor).toEqual(placeCoords);
+    });
+
+    test("a water feature's link on /nearby/ponds-streams/ selects that exact feature live, through the app's own #water= deep link -- no separate mechanism of its own", async ({ page }) => {
+      await gotoAndWaitForMap(page, `/nearby/ponds-streams/#water=${encodeURIComponent(EXAMPLE_WATER.key)}`);
+      await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
+      const selected = await page.evaluate(() => ({ type: state.selected.type, name: state.selected.item && state.selected.item.name }));
+      expect(selected.type).toBe("water");
+      expect(selected.name).toBe(EXAMPLE_WATER.name);
+      await expect(page.locator("#inspectorTitle")).toHaveText(EXAMPLE_WATER.name);
     });
   });
 

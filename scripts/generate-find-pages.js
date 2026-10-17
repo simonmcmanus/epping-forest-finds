@@ -66,6 +66,86 @@ function slugFor(key) {
   return key.replace(/_/g, "-");
 }
 
+// Every named water feature (ponds, streams, lakes), alphabetical -- the same classification
+// extractWaterFeatures (js/normalize.js, via loadAppRules) already gives the live app and the
+// weekly report's own count, so this list is never a second, separately-computed guess. Named
+// water features are few (~100) and individually distinct the way a business is, unlike trees
+// below, so they get a real itemized list rather than a breakdown.
+function loadWaterFeatures(rules, siteRoot) {
+  const envPath = path.join(siteRoot, "data", "local-environment.geojson");
+  if (!fs.existsSync(envPath)) return [];
+  const data = JSON.parse(fs.readFileSync(envPath, "utf8"));
+  // extractWaterFeatures runs inside loadAppRules()'s vm sandbox, so it hands back an array
+  // built from that context's own Array constructor -- a different realm's Array than this
+  // file's. The spread here copies it into a plain array of this realm before anything chains
+  // off it, so the result behaves like an ordinary array everywhere downstream (a cross-realm
+  // one looks and prints identically but fails a strict structural comparison, e.g. in tests).
+  return [...rules.extractWaterFeatures(data.features || [])]
+    .map((water) => ({ name: water.name, key: rules.waterHashKey(water) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// Trees are the opposite case: ~24,900 individually anonymous records (no name, no page of
+// their own -- see spec-marketing.md §6.7's scope carve-out), so an itemized list would be
+// thousands of near-identical lines ("Common Beech", "Common Beech", ...), which is worse
+// thin/duplicate content than the summary sentence this replaces, not better. A species
+// breakdown is the genuinely useful, genuinely distinct fact instead: real counts, computed
+// from the same chunked dataset js/loader.js streams into the live map, not a second guess.
+// commonName is matched case-insensitively (the source register has a handful of inconsistently
+// cased duplicates, e.g. "English oak" alongside "English Oak") and anything whose own name
+// looks like a stray data artifact rather than a species (contains "=", seen on a few
+// single-occurrence rows -- e.g. "beech = 13,*") is dropped rather than hand-excluded by name.
+function loadTreeSpeciesBreakdown(siteRoot, minCount = 5) {
+  const indexPath = path.join(siteRoot, "data", "trees", "index.json");
+  if (!fs.existsSync(indexPath)) return { notable: [], otherCount: 0 };
+  const index = JSON.parse(fs.readFileSync(indexPath, "utf8"));
+  const groups = new Map(); // lowercased name -> { total, variants: Map<rawName, count> }
+  for (const chunk of index.chunks || []) {
+    const chunkPath = path.join(siteRoot, chunk.url);
+    if (!fs.existsSync(chunkPath)) continue;
+    const chunkData = JSON.parse(fs.readFileSync(chunkPath, "utf8"));
+    for (const tree of chunkData.trees || []) {
+      const raw = tree.commonName && String(tree.commonName).trim();
+      if (!raw || raw.includes("=")) continue;
+      const key = raw.toLowerCase();
+      const group = groups.get(key) || { total: 0, variants: new Map() };
+      group.total += 1;
+      group.variants.set(raw, (group.variants.get(raw) || 0) + 1);
+      groups.set(key, group);
+    }
+  }
+  const entries = [...groups.values()]
+    .map((group) => ({
+      // The most common casing of this species' name wins the display label, rather than
+      // whichever one happened to be seen first.
+      name: [...group.variants.entries()].sort((a, b) => b[1] - a[1])[0][0],
+      count: group.total,
+    }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  return {
+    notable: entries.filter((e) => e.count >= minCount),
+    otherCount: entries.filter((e) => e.count < minCount).reduce((sum, e) => sum + e.count, 0),
+  };
+}
+
+function waterListHtml(waterFeatures) {
+  if (!waterFeatures.length) return "";
+  return `<p>Named ponds, lakes and streams:</p><ul class="category-listing">${waterFeatures
+    .map((w) => `<li><a href="/nearby/ponds-streams/#water=${encodeURIComponent(w.key)}">${escapeHtml(w.name)}</a></li>`)
+    .join("")}</ul>`;
+}
+
+function treeSpeciesHtml(treeSpecies) {
+  if (!treeSpecies || !treeSpecies.notable.length) return "";
+  const rows = treeSpecies.notable
+    .map((s) => `<li>${escapeHtml(s.name)} — ${s.count.toLocaleString("en-GB")}</li>`)
+    .join("");
+  const otherRow = treeSpecies.otherCount > 0
+    ? `<li>Other species — ${treeSpecies.otherCount.toLocaleString("en-GB")}</li>`
+    : "";
+  return `<p>By species:</p><ul class="category-listing">${rows}${otherRow}</ul>`;
+}
+
 // The same "See also veteran trees and grazing cattle near Epping Forest" up-link every
 // /find/<slug>/ business page already carries (scripts/generate-business-pages.js), so a
 // category/subcategory page gives a crawler or a visitor the same onward path -- these pages
@@ -163,7 +243,8 @@ function collectPages(rules, inventory) {
   return pages;
 }
 
-function renderPage(page, appHtml) {
+function renderPage(page, appHtml, enrichment = {}) {
+  const { waterFeatures = [], treeSpecies = null } = enrichment;
   // Trailing slash: Netlify's static hosting serves nearby/<slug>/index.html directly only at
   // /nearby/<slug>/, 301-redirecting the bare path to it (the same convention /reports/ already
   // uses, STATIC_PAGES in generate-sitemap.js) -- the canonical/OG/JSON-LD url must be the one
@@ -209,8 +290,18 @@ function renderPage(page, appHtml) {
         .join("")}</ul>`
     : "";
 
+  // trees/ponds_streams/nature are outside the /find/ business scope above (listBusinessesForFilterKey
+  // returns nothing for them) but aren't left with just the summary sentence either -- a named
+  // water feature is as real and distinct as a business, and a tree species breakdown is the
+  // genuinely useful fact in place of ~24,900 anonymous, near-identical list rows. See
+  // loadWaterFeatures/loadTreeSpeciesBreakdown above for why each gets a different shape.
+  const showWater = page.key === "ponds_streams" || page.key === "nature";
+  const showTrees = page.key === "trees" || page.key === "nature";
+  const enrichedListHtml = (showTrees ? treeSpeciesHtml(treeSpecies) : "") + (showWater ? waterListHtml(waterFeatures) : "");
+
   const seoContent = `<p>Find all ${page.count} ${escapeHtml(page.title)} in Epping Forest, mapped and ready to walk to. Enable location to see how far each one is and get walking directions.</p>` +
     businessListHtml +
+    enrichedListHtml +
     (page.isGroup
       ? (crossLinks ? `<p>Browse by type: ${crossLinks}.</p>` : "")
       : (crossLinks ? `<p>More in <a href="/nearby/${escapeHtml(page.groupSlug)}/">${escapeHtml(page.groupLabel)}</a>: ${crossLinks}.</p>` : "")) +
@@ -348,10 +439,14 @@ function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInvent
   const appHtml = fs.readFileSync(path.join(siteRoot, APP_HTML_NAME), "utf8");
   const categoryDir = path.join(siteRoot, CATEGORY_DIR_NAME);
   fs.mkdirSync(categoryDir, { recursive: true });
+  // Loaded once up front, not per page: both read a dataset no other part of this generator
+  // touches (the tree chunks in particular are the largest files in the whole build), and only
+  // the trees/ponds_streams/nature pages (renderPage's showTrees/showWater) ever use them.
+  const enrichment = { waterFeatures: loadWaterFeatures(rules, siteRoot), treeSpecies: loadTreeSpeciesBreakdown(siteRoot) };
   for (const page of pages) {
     const pageDir = path.join(categoryDir, page.slug);
     fs.mkdirSync(pageDir, { recursive: true });
-    fs.writeFileSync(path.join(pageDir, "index.html"), renderPage(page, appHtml), "utf8");
+    fs.writeFileSync(path.join(pageDir, "index.html"), renderPage(page, appHtml, enrichment), "utf8");
   }
 
   const eventsDir = path.join(categoryDir, "events");
@@ -387,6 +482,8 @@ module.exports = {
   listFindSlugs,
   slugFor,
   buildTitleIndex,
+  loadWaterFeatures,
+  loadTreeSpeciesBreakdown,
   CATEGORY_DIR_NAME,
 };
 

@@ -12,7 +12,10 @@ const {
   generate,
   listFindSlugs,
   slugFor,
+  loadWaterFeatures,
+  loadTreeSpeciesBreakdown,
 } = require("../scripts/generate-find-pages.js");
+const { loadAppRules } = require("../scripts/report/map-inventory.js");
 
 const REPO_ROOT = path.join(__dirname, "..");
 const APP_HTML = fs.readFileSync(path.join(REPO_ROOT, "app.html"), "utf8");
@@ -196,4 +199,89 @@ test("no generated category slug ever collides with the /nearby/filter or /nearb
 test("listFindSlugs returns nothing for a site that has not generated any category pages yet", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "find-pages-empty-"));
   assert.deepEqual(listFindSlugs(dir), []);
+});
+
+function writeJson(filePath, data) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(data), "utf8");
+}
+
+test("loadWaterFeatures lists only named hydrology features, alphabetically, each with a real #water= hash key", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "find-pages-water-"));
+  writeJson(path.join(dir, "data", "local-environment.geojson"), {
+    features: [
+      { properties: { id: "way/2", name: "Baldwins Pond", featureType: "hydrology_area" }, geometry: { type: "Polygon", coordinates: [[[0, 51], [0.001, 51], [0.001, 51.001], [0, 51]]] } },
+      { properties: { id: "way/1", name: "Aldersbrook", featureType: "hydrology_line" }, geometry: { type: "LineString", coordinates: [[0, 51], [0.001, 51.001]] } },
+      // No name at all -- the live app's own extractWaterFeatures skips these, so this list must too.
+      { properties: { id: "way/3", featureType: "hydrology_area" }, geometry: { type: "Polygon", coordinates: [[[0, 51], [0.001, 51], [0.001, 51.001], [0, 51]]] } },
+      // Not a water feature -- a building, say -- must never leak into this list.
+      { properties: { id: "way/4", name: "Not water", featureType: "building" }, geometry: { type: "Polygon", coordinates: [[[0, 51], [0.001, 51], [0.001, 51.001], [0, 51]]] } },
+    ],
+  });
+  const result = loadWaterFeatures(loadAppRules(), dir);
+  assert.deepEqual(result.map((w) => w.name), ["Aldersbrook", "Baldwins Pond"], "alphabetical, unnamed/non-water features excluded");
+  assert.deepEqual(result.map((w) => w.key), ["way/1", "way/2"], "the same key waterHashKey/findWaterByHashKey (js/app.js) use for the live #water= deep link");
+});
+
+test("loadWaterFeatures returns nothing when there is no environment data to read", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "find-pages-water-empty-"));
+  assert.deepEqual(loadWaterFeatures(loadAppRules(), dir), []);
+});
+
+test("loadTreeSpeciesBreakdown groups case-insensitively, drops artifact rows, and folds rare species into otherCount", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "find-pages-trees-"));
+  writeJson(path.join(dir, "data", "trees", "index.json"), {
+    chunks: [{ key: "a", url: "data/trees/chunk-a.json" }, { key: "b", url: "data/trees/chunk-b.json" }],
+  });
+  const oaks = Array.from({ length: 6 }, () => ({ commonName: "English Oak" }));
+  writeJson(path.join(dir, "data", "trees", "chunk-a.json"), {
+    trees: [
+      ...oaks,
+      { commonName: "English oak" }, // a differently-cased duplicate of the majority spelling above
+      { commonName: "Holly" }, // below the cap (minCount 5 in the test below) -- folds into "other"
+      { commonName: "Oak = 7,794" }, // a stray data artifact, not a real species -- dropped entirely
+      { commonName: "" }, // no species recorded at all -- dropped, not counted as "Other"
+    ],
+  });
+  writeJson(path.join(dir, "data", "trees", "chunk-b.json"), { trees: [{ commonName: "english Oak" }] });
+
+  const result = loadTreeSpeciesBreakdown(dir, 5);
+  assert.deepEqual(result.notable, [{ name: "English Oak", count: 8 }], "6 + 1 + 1 case-insensitive duplicates, majority casing wins the label");
+  assert.equal(result.otherCount, 1, "just the single Holly -- the artifact row and the nameless tree are excluded entirely, not counted as other");
+});
+
+test("loadTreeSpeciesBreakdown returns an empty breakdown when there is no tree index to read", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "find-pages-trees-empty-"));
+  assert.deepEqual(loadTreeSpeciesBreakdown(dir), { notable: [], otherCount: 0 });
+});
+
+test("renderPage prints a species breakdown on /nearby/trees/ and a linked water list on /nearby/ponds-streams/ and /nearby/nature/, but neither on an ordinary business-scope page", () => {
+  const enrichment = {
+    treeSpecies: { notable: [{ name: "Common Beech", count: 13122 }], otherCount: 4 },
+    waterFeatures: [{ name: "Aldersbrook", key: "way/1" }],
+  };
+  const treesPage = { key: "trees", slug: "trees", label: "Trees", title: "trees", count: 24906, groupLabel: "Nature", groupSlug: "nature", siblings: [] };
+  const treesHtml = renderPage(treesPage, APP_HTML, enrichment);
+  assert.match(treesHtml, /By species:<\/p><ul class="category-listing"><li>Common Beech — 13,122<\/li><li>Other species — 4<\/li><\/ul>/);
+  assert.ok(!treesHtml.includes("Named ponds"), "the trees page gets no water list of its own");
+
+  const waterPage = { key: "ponds_streams", slug: "ponds-streams", label: "Ponds & streams", title: "ponds and streams", count: 111, groupLabel: "Nature", groupSlug: "nature", siblings: [] };
+  const waterHtml = renderPage(waterPage, APP_HTML, enrichment);
+  assert.match(waterHtml, /<a href="\/nearby\/ponds-streams\/#water=way%2F1">Aldersbrook<\/a>/);
+  assert.ok(!waterHtml.includes("By species:"), "the water page gets no species breakdown of its own");
+
+  const [pubs] = collectPages(FAKE_RULES, FAKE_INVENTORY);
+  const pubsHtml = renderPage(pubs, APP_HTML, enrichment);
+  assert.ok(!pubsHtml.includes("By species:") && !pubsHtml.includes("Named ponds"), "an ordinary business-scope page never gets either, even when enrichment data is passed in");
+});
+
+test("renderPage's nature group page carries both the tree species breakdown and the water list", () => {
+  const enrichment = {
+    treeSpecies: { notable: [{ name: "Common Beech", count: 13122 }], otherCount: 0 },
+    waterFeatures: [{ name: "Aldersbrook", key: "way/1" }],
+  };
+  const naturePage = { key: "nature", slug: "nature", label: "Nature", title: "trees and water features", count: 25017, isGroup: true, members: [] };
+  const html = renderPage(naturePage, APP_HTML, enrichment);
+  assert.match(html, /By species:/);
+  assert.match(html, /Named ponds/);
 });
