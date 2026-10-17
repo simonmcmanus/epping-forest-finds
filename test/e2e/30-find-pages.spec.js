@@ -138,7 +138,7 @@ test.describe("generated find/nearby pages", () => {
       await expect(body.locator(`a[href="tel:${EXAMPLE_WITH_HOURS.phone}"]`)).toHaveCount(1);
     });
 
-    test("the live inspector shows headed Nearby and Related sections, linking to the business's own category/group and the nearest tree", async ({ page }) => {
+    test("the live inspector shows headed Nearby and Related sections, linking to the business's own category/group and the nearest tree, with the walk-radius card inside Nearby", async ({ page }) => {
       await skipOnboarding(page);
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
       await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
@@ -151,6 +151,13 @@ test.describe("generated find/nearby pages", () => {
       await expect(body.locator('a.nearest-item[href="/nearby/pubs/"]')).toHaveCount(1);
       await expect(body.locator('a.nearest-item[href="/nearby/food/"]')).toHaveCount(1);
       await expect(body.locator('a.nearest-item[href="/nearby/trees/"]')).toHaveCount(1);
+      // "Everything within 15 min walk" lives in the Nearby section too now, as the same card
+      // style -- not the separate top-row pill it used to be.
+      const walkCard = body.locator("button.nearest-item[data-action='walk-radius']");
+      await expect(walkCard).toHaveCount(1);
+      await expect(walkCard).toContainText("Everything within 15 min walk");
+      const nearbySection = body.locator('h3.detail-section-heading:has-text("Nearby") + ul');
+      await expect(nearbySection.locator("button.nearest-item[data-action='walk-radius']")).toHaveCount(1);
     });
 
     test("/find/<slug>/ boots without JS errors", async ({ page }) => {

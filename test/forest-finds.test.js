@@ -455,6 +455,7 @@ globalThis.__forestFindsTest = {
   relatedCategoryLinksHtml,
   detailsHtml,
   nearbyWithinWalkHtml,
+  standaloneNearbySectionHtml,
   filterKindIconSlug,
   PLACE_FILTER_KEYS,
   PLACE_FILTER_PRIORITY,
@@ -8932,10 +8933,19 @@ test("focusNearbyWithinWalkMinutes drops any open selection and browses that exa
   assert.equal(app.state.userLocation.latitude, 51.65, "the real GPS fix is never moved");
 });
 
-test("nearbyWithinWalkHtml renders a button carrying the exact coordinates it should browse, and is empty without coordinates", () => {
+test("nearbyWithinWalkHtml renders a Nearby-list-styled card carrying the exact coordinates it should browse, and is empty without coordinates", () => {
   const html = app.nearbyWithinWalkHtml(51.65, 0.05);
-  assert.match(html, /<button class="detail-map-link" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">Everything within 15 min walk<\/button>/);
-  assert.equal(app.nearbyWithinWalkHtml(null, null), "", "no button when there are no coordinates to browse from");
+  assert.match(html, /<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">/);
+  assert.ok(html.includes("Everything within 15 min walk"));
+  assert.ok(!html.includes("detail-map-link"), "shares the Nearby list's own card styling, not the unrelated pill");
+  assert.equal(app.nearbyWithinWalkHtml(null, null), "", "no card when there are no coordinates to browse from");
+});
+
+test("standaloneNearbySectionHtml wraps the walk-radius card in its own headed Nearby section, and is empty without coordinates", () => {
+  const html = app.standaloneNearbySectionHtml(51.65, 0.05);
+  assert.ok(html.includes('<h3 class="detail-section-heading">Nearby</h3>'));
+  assert.ok(html.includes("Everything within 15 min walk"));
+  assert.equal(app.standaloneNearbySectionHtml(null, null), "", "no section when there are no coordinates to browse from");
 });
 
 test("tapping a cluster shows exactly that cluster's own members, not every tree the walking-radius floor also reaches", () => {
@@ -10532,7 +10542,7 @@ test("routeValueFromLocation never treats /find/events/ as a place lookup", () =
   }
 });
 
-test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, real live distances) and a headed Related section (category/group), both as the same card style", () => {
+test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, the walk-radius card, real live distances) and a headed Related section (category/group), both as the same card style", () => {
   resetData(app);
   const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
   app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" }); // ~65m away
@@ -10549,6 +10559,12 @@ test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, real l
   // anchor route, so landing there re-centres on the pub rather than the reader's own GPS fix.
   assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?The grazing cattle[\s\S]*?<\/a>/);
   assert.match(html, /walk-chip/, "the nearby cards carry a real walk-time chip, not bare text");
+
+  // The walk-radius card lives in this same Nearby section, as a <button> sharing the .nearest-item
+  // card shape, between where it comes out of the Nearby heading and before Related begins.
+  const walkCardIndex = html.indexOf('data-action="walk-radius"');
+  assert.ok(walkCardIndex > nearbyHeadingIndex && walkCardIndex < relatedHeadingIndex, "walk-radius card sits inside the Nearby section");
+  assert.match(html, /<button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">[\s\S]*?Everything within 15 min walk[\s\S]*?<\/button>/);
 
   // Category/group links are the same .nearest-item card as Nearby, not a different pill style.
   assert.match(html, /<a class="nearest-item" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/);

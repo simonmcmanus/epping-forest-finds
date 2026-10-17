@@ -703,22 +703,28 @@ use for the homepage's counts.
   Once JS boots and the business is selected, `relatedCategoryLinksHtml()`
   (`js/inspector.js`) renders the live continuation as two
   `<h3 class="detail-section-heading">`-headed lists — **Nearby** (the
-  nearest tree and, when any cow positions are currently loaded, the cows,
-  each with a real live walk-time via `nearestTreeTo`/`nearestCowTo`,
-  `js/app.js`) and **Related** (this place's own subfilter and group) — so
-  the reader always knows which kind of link they're looking at. Both
-  sections render the exact same `.nearest-item` card the Nearby list
-  itself uses (icon, name, and — Nearby only — a walk-time chip; Related
-  has no distance of its own to show), not the mismatched pill-chip/card
-  pairing an earlier version of this had: one visual language throughout,
-  not two. `a.nearest-item` gets a small `text-decoration: none; color:
-  inherit;` override in `css/map-ui.css` since that class is normally a
-  `<button>`, which has no default link underline to begin with. The cows
-  card is omitted entirely when no cow positions are currently loaded
-  (`state.cows` empty), rather than showing a distance to nothing. Scoped
-  to places with a `findSlug` (the same food/locations groups throughout
-  this section) — any other selected place (a tree, a bus stop) has
-  neither version of this content.
+  nearest tree, when any cow positions are currently loaded the cows, each
+  with a real live walk-time via `nearestTreeTo`/`nearestCowTo`,
+  `js/app.js`, and always the "Everything within 15 min walk" card, below)
+  and **Related** (this place's own subfilter and group) — so the reader
+  always knows which kind of link they're looking at. Both sections render
+  the exact same `.nearest-item` card the Nearby list itself uses (icon,
+  name, and — Nearby only — a walk-time chip; Related has no distance of
+  its own to show), not the mismatched pill-chip/card pairing an earlier
+  version of this had: one visual language throughout, not two.
+  `a.nearest-item` gets a small `text-decoration: none; color: inherit;`
+  override in `css/map-ui.css` since that class is normally a `<button>`,
+  which has no default link underline to begin with. The cows card is
+  omitted entirely when no cow positions are currently loaded (`state.cows`
+  empty), rather than showing a distance to nothing. The two headed
+  sections (Nearby and Related together) are scoped to places with a
+  `findSlug` (the same food/locations groups throughout this section) —
+  any other selected place (a tree, a bus stop) has neither this static
+  server-rendered version nor `relatedCategoryLinksHtml()`'s live one, but
+  still gets its own one-card "Nearby" section for the walk-radius card
+  alone (`standaloneNearbySectionHtml`, "Selected Detail Content" in
+  `spec-data-rendering.md`) — the walk-radius card itself is never scoped
+  to `findSlug`.
 - **The cows link carries the selected place's own position**, via
   `/nearby/cows/`'s existing `near=<lat>,<lon>` browse-anchor route
   (`nearbyAnchorRouteValue`, `js/app.js` — the same one a map tap or a shared

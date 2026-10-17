@@ -365,13 +365,14 @@ function showTreeDetails(tree, distance, label) {
   ].filter(([, value]) => value != null && value !== "");
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(tree.latitude, tree.longitude, tree.commonName || "Veteran tree");
-  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}${shareLocationHtml()}${nearbyWithinWalkHtml(tree.latitude, tree.longitude)}</div>`;
+  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}${shareLocationHtml()}</div>`;
   const technicalHtml = technicalRows.length
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
   const namedTreeHtml = namedTreeDetailsHtml(tree);
+  const nearbySectionHtml = standaloneNearbySectionHtml(tree.latitude, tree.longitude);
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
-  transitionInspectorBody(topRow + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + issueHtml, "forward");
+  transitionInspectorBody(topRow + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + nearbySectionHtml + issueHtml, "forward");
 }
 
 function showLandmarkDetails(place, distance) {
@@ -402,11 +403,15 @@ function showLandmarkDetails(place, distance) {
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
   const fullDetailsLink = fullDetailsLinkHtml(place.findSlug);
-  const walkRadiusBtn = place.latitude != null ? nearbyWithinWalkHtml(place.latitude, place.longitude) : "";
-  const topRow = (distancePill || mapsLink || shareBtn || fullDetailsLink || walkRadiusBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}${fullDetailsLink}${walkRadiusBtn}</div>` : "";
+  const topRow = (distancePill || mapsLink || shareBtn || fullDetailsLink) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}${fullDetailsLink}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
-  const relatedLinksHtml = relatedCategoryLinksHtml(place);
+  // relatedCategoryLinksHtml already folds the walk-radius card into its own "Nearby" section for
+  // a findSlug place; everything else (trees/transport/history/stories places, events) has no
+  // such section of its own, so it gets a standalone one carrying just that card.
+  const relatedLinksHtml = place.findSlug
+    ? relatedCategoryLinksHtml(place)
+    : standaloneNearbySectionHtml(place.latitude, place.longitude);
   const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
   transitionInspectorBody(landmarkHtml, "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
@@ -428,8 +433,9 @@ function showCowDetails(cow, distance) {
   ];
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(cow.latitude, cow.longitude, `Cow ${cow.serialNo}`);
-  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}${nearbyWithinWalkHtml(cow.latitude, cow.longitude)}</div>`;
-  transitionInspectorBody(topRow + detailsHtml(rows), "forward");
+  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}</div>`;
+  const nearbySectionHtml = standaloneNearbySectionHtml(cow.latitude, cow.longitude);
+  transitionInspectorBody(topRow + detailsHtml(rows) + nearbySectionHtml, "forward");
 
   if (state.cowDetailTimerId != null) clearInterval(state.cowDetailTimerId);
   state.cowDetailTimerId = setInterval(() => {
@@ -1050,10 +1056,28 @@ function shareLocationHtml() {
 // same anchor-move (setNearbyAnchor) and radius-change (applyWalkingRadiusChange) mechanisms a
 // map tap on open ground and the Settings walking-radius slider already use, combined into one
 // state update by focusNearbyWithinWalkMinutes (js/nav.js), wired through the same delegated
-// click handler as Share link/Open in Maps (data-action, js/nav.js).
+// click handler as Share link/Open in Maps (data-action, js/nav.js). Shares the Nearby list's own
+// .nearest-item card shape (see relatedCategoryLinksHtml below) rather than the unrelated
+// .detail-map-link pill an earlier version used -- it lives under a "Nearby" heading alongside
+// whatever else is nearby, not as a disconnected top-row action. A <button>, not an <a>: it drives
+// a live state change (moving the browse anchor and resizing the radius), not a navigation, so the
+// .nearest-item styling (written for a <button> in the Nearby list itself) needs no anchor-tag
+// override the way relatedCategoryLinksHtml's own cards do.
 function nearbyWithinWalkHtml(lat, lon) {
   if (lat == null || lon == null) return "";
-  return `<button class="detail-map-link" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}">Everything within 15 min walk</button>`;
+  return `<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}">` +
+    `<span class="nearest-icon" aria-hidden="true">${appIconHtml("walking")}</span>` +
+    `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Everything within 15 min walk</span></div></div>` +
+    `</button></li>`;
+}
+
+// nearbyWithinWalkHtml's own card, in its own headed "Nearby" section -- for a selection with no
+// relatedCategoryLinksHtml section of its own (every tree, every cow, and a landmark with no
+// findSlug). A findSlug place's own "Nearby" section already exists there and gets this same card
+// appended into its existing list instead, rather than a second "Nearby" heading stacked under it.
+function standaloneNearbySectionHtml(lat, lon) {
+  const card = nearbyWithinWalkHtml(lat, lon);
+  return card ? `<h3 class="detail-section-heading">Nearby</h3><ul class="nearest-list related-cards">${card}</ul>` : "";
 }
 
 // Two headed sections -- "Nearby" (live walk-time cards to the nearest tree and, when any are
@@ -1095,10 +1119,15 @@ function relatedCategoryLinksHtml(place) {
   // no such mismatch to fix: /nearby/trees/ already lists everything near wherever the reader
   // actually is, not a single distance this card promised.
   const cowsHref = `/nearby/cows/#${nearbyAnchorRouteValue({ latitude: place.latitude, longitude: place.longitude })}`;
-  const nearbySectionHtml = (nearestTree || nearestCow)
+  // The walk-radius card (nearbyWithinWalkHtml) joins the same "Nearby" list rather than getting
+  // its own heading here -- this place already has one whenever it has coordinates, so there is
+  // always at least this card even when no tree/cow is close enough to show.
+  const walkCardHtml = nearbyWithinWalkHtml(place.latitude, place.longitude);
+  const nearbySectionHtml = (nearestTree || nearestCow || walkCardHtml)
     ? `<h3 class="detail-section-heading">Nearby</h3><ul class="nearest-list related-cards">` +
       (nearestTree ? cardHtml("/nearby/trees/", "tree", "Nearest veteran tree", walkInfoHtml(nearestTree.metres)) : "") +
       (nearestCow ? cardHtml(cowsHref, "cow", "The grazing cattle", walkInfoHtml(nearestCow.metres)) : "") +
+      walkCardHtml +
       `</ul>`
     : "";
 

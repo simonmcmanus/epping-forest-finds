@@ -868,11 +868,17 @@ All selected detail screens with a distance pill (trees, places, cows, and paths
 The figure itself is the real road/path-following distance (and the walk time derived from it), matching the routed line described under "Route Lines" above, whenever that route is available -- not the straight-line/crow-flies distance. `selectedRouteMetres(target)` (js/renderer.js) sums the segment lengths of whatever `selectedRoutePoints(target)` currently returns, so it shares that function's memoization and its same fallback conditions; `updateSelectedDetailFields()` (js/app.js) uses this routed figure when it's available and falls back to the plain straight-line distance otherwise (graph still building, no route found, etc.), so the chip is never blank and never regresses below the previous behaviour. The chip is refreshed both on every GPS fix and the moment the routing graph finishes its lazy background build, so a selection made before the graph is ready still self-corrects from the straight-line figure to the routed one shortly after, without waiting for the next GPS fix.
 
 Any selected point (tree, place, cow) with coordinates also shows an **"Everything within 15 min
-walk"** button in `.detail-top-row`, alongside Open in Maps/Share (`nearbyWithinWalkHtml`,
-js/inspector.js). It reuses the existing Nearby-browsing mechanism rather than inventing a new
-one: tapping it drops the selection, moves the Nearby browse anchor to that exact point
-(`setNearbyAnchor`'s own mechanism -- the same one a tap on open ground or a shared `near=<lat>,
-<lon>` link already use) and sets the walking radius to a fixed 15 minutes
+walk"** card (`nearbyWithinWalkHtml`, js/inspector.js) under a "Nearby" heading, not in
+`.detail-top-row` alongside Open in Maps/Share: it shares the Nearby list's own `.nearest-item`
+card styling (a `<button>`, since it drives a live state change rather than a navigation) instead
+of the unrelated `.detail-map-link` pill those use. A findSlug place's own "Nearby" section
+(`relatedCategoryLinksHtml`, below) already exists and gets this card appended as a third entry,
+after the nearest tree/cow; everything else with coordinates and no such section of its own (every
+tree, every cow, and a non-findSlug landmark) gets a standalone one-card "Nearby" section of its
+own (`standaloneNearbySectionHtml`). It reuses the existing Nearby-browsing mechanism rather than
+inventing a new one: tapping it drops the selection, moves the Nearby browse anchor to that exact
+point (`setNearbyAnchor`'s own mechanism -- the same one a tap on open ground or a shared
+`near=<lat>,<lon>` link already use) and sets the walking radius to a fixed 15 minutes
 (`WALK_RADIUS_BUTTON_MINUTES`, js/app.js) -- a round, recognisable number rather than whatever the
 reader's own radius happened to be set to. Both are applied as one state update and one
 refresh/history push (`focusNearbyWithinWalkMinutes`, js/nav.js), the same way a cluster tap folds
