@@ -909,7 +909,15 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   from `data/business-slugs.json`) rather than resolved here, so a place outside that scope (a
   bus stop, a tree, a historic site) simply has no `findSlug` and shows no link. Also suppressed
   when the page currently on screen already *is* that place's own `/find/` page (landing there
-  selects it automatically, `spec.md` "Routing"), where the link would point at itself.
+  selects it automatically, `spec.md` "Routing") — `fullDetailsLinkHtml()` reads
+  `window.location.pathname` directly rather than taking it as a parameter, so this only works
+  correctly when the URL is already updated to the place being selected *before* the detail view
+  renders. Every selection path (a map tap, a Nearby-list tap, a routed deep link, `openSearchResult`)
+  calls `syncHashFromSelection()` before the matching `show*Details`/`route.show()` call for exactly
+  this reason — `openSearchResult` once did it the other way round, so a findSlug business selected
+  from a search result always showed "Full details" pointing at the very page just reached, and the
+  link did nothing when clicked (the URL had already caught up by then, so `navigateInApp`'s
+  already-there check made it a no-op).
 - Opening hours (when known) and a `tel:`-linked phone number — see `spec-marketing.md` § 6.7,
   "Opening hours and a tappable phone number are not static-page-only".
 - A `findSlug` place also shows a headed **Nearby** section (the nearest tree and, when loaded,

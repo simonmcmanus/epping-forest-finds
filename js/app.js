@@ -7993,8 +7993,16 @@ function openSearchResult(type, key) {
   // Before state.selected changes below -- see startCameraOriginTransition.
   startCameraOriginTransition();
   state.selected = { type, item };
-  route.show(item);
+  // Before route.show(item): every other selection path (a map tap, a Nearby-list tap, a routed
+  // deep link) updates the URL first and renders after, so a findSlug place's own detail view
+  // -- fullDetailsLinkHtml (js/inspector.js) suppresses "Full details" when window.location.pathname
+  // already is that business's own /find/<slug>/ page -- always sees the URL it's about to be
+  // on. This one used to render first and sync the hash after, so a search result for a business
+  // whose own page wasn't already on screen rendered "Full details" pointing at the very page
+  // being selected -- and syncHashFromSelection had already pushed it by the time anyone could
+  // click, so navigateInApp's "already there" check made the click a no-op.
   syncHashFromSelection();
+  route.show(item);
   setInspectorMinimized(true);
   startCompassNavigation();
   if (state.userLocation) {
