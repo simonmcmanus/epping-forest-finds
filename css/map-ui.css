@@ -23,6 +23,16 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
+/* .nearest-item is normally a <button> (the Nearby/Search lists), which carries no default
+   underline/link color to begin with. js/inspector.js's relatedCategoryLinksHtml reuses the same
+   class on a plain <a> for its "nearest tree"/"nearest cow" cards, which browsers underline and
+   tint by default -- reset explicitly so an anchor reads identically to the button it's styled
+   to match, not as an unstyled link that happens to sit in a card. */
+a.nearest-item {
+  text-decoration: none;
+  color: inherit;
+}
+
 .nearest-content {
   display: grid;
   gap: 2px;

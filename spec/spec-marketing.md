@@ -647,6 +647,23 @@ use for the homepage's counts.
   no coordinates, no "Nearby" list of its own, never appearing in anyone
   else's either. `scripts/regenerate-business-slugs.js` now remaps this
   explicitly.
+- **Opening hours, a tappable phone number, and the verification date are
+  not static-page-only — the live view shows the same thing.** Once JS
+  boots and a place is selected (on `/find/<slug>/` itself, or anywhere else
+  in the app), `showLandmarkDetails` (`js/inspector.js`) adds an "Opening
+  hours" row alongside Address/Type/Area/Confidence (gated on
+  `place.openingHours`, same as the static page — never shown when absent);
+  `detailsHtml`'s generic row renderer wraps a `"Phone"` row's value in a
+  `tel:` link rather than leaving it as inert text, matching the static
+  page's own `tel:` link; and `verifiedNoteHtml` renders the identical
+  "Checked against OpenStreetMap on \<date\>" line (`.verified-note`,
+  reusing the `.report-note` muted-caption pattern) via a small
+  `formatVerifiedDate` helper that mirrors
+  `scripts/generate-business-pages.js`'s own formatter byte-for-byte, so the
+  date reads the same whether JS has run or not. `verifiedAt` reaches the
+  live place object the same zero-extra-fetch way `findSlug` already does:
+  `js/loader.js` reads it off the same `business-slugs.json` entry it reads
+  `findSlug` from, via a `businessById` map keyed on the OSM/folklore id.
 - **Landing on `/find/<slug>/` selects that exact business, through the
   app's own ordinary deep-link path — no separate mechanism of its own.**
   `routeValueFromLocation()` (`js/app.js`) resolves the URL to the same
@@ -675,7 +692,14 @@ use for the homepage's counts.
   loaded (`state.cows` empty), rather than showing a distance to nothing.
   Scoped to places with a `findSlug` (the same food/locations groups
   throughout this section) — any other selected place (a tree, a bus stop)
-  has neither version of this content.
+  has neither version of this content. The live version renders as the same
+  components used elsewhere in the inspector rather than bespoke markup: the
+  category/group links reuse the `.detail-map-link` pill (the same class the
+  Open in Maps/Share row already uses), and the nearest tree/cow reuse the
+  `.nearest-item` card the Nearby list itself uses — `a.nearest-item` gets a
+  small `text-decoration: none; color: inherit;` override in
+  `css/map-ui.css` since that class is normally a `<button>`, which has no
+  default link underline to begin with.
 - **Linked everywhere a business is mentioned, not only from its own page**:
   `js/loader.js` fetches `data/business-slugs.json` alongside the other
   datasets and attaches `findSlug` to each matching place; `showLandmarkDetails`

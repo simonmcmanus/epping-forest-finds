@@ -17,6 +17,13 @@ const REPO_ROOT = path.join(__dirname, "..", "..");
 // with a real address so the "Nearby" list and distance copy have something to assert on.
 const EXAMPLE_PUB = businessIndex.entries.find((e) => e.key === "pubs" && e.address && e.lat != null);
 
+// A second example, picked for carrying the three optional fields that are only ever shown when
+// the source data actually has them (spec-marketing.md § 6.7) -- opening hours, a phone number,
+// and a verification date -- so the tests below exercise real content, not placeholders.
+const EXAMPLE_VERIFIED = businessIndex.entries.find(
+  (e) => e.openingHours && e.phone && e.verifiedAt && e.lat != null
+);
+
 test.describe("generated find/nearby pages", () => {
   // Both are build output (gitignored, written by `npm run build`), and CI's e2e job does not
   // build -- generate them the way the build does, so these specs test the current generators
@@ -49,6 +56,16 @@ test.describe("generated find/nearby pages", () => {
       // Up-links to its own category pages, not a dead end.
       expect(html).toContain('href="/nearby/pubs/"');
       expect(html).toContain('href="/nearby/food/"');
+    });
+
+    test("a business page's optional fields render server-side when the source data has them: opening hours, a tel: phone link, and a verification date", async ({ request }) => {
+      const response = await request.get(`/find/${EXAMPLE_VERIFIED.slug}/`);
+      expect(response.ok()).toBe(true);
+      const html = await response.text();
+
+      expect(html).toContain(`Opening hours: ${EXAMPLE_VERIFIED.openingHours}`);
+      expect(html).toContain(`href="tel:${EXAMPLE_VERIFIED.phone}"`);
+      expect(html).toMatch(/class="verified-note">Checked against OpenStreetMap on \d+ \w+ \d{4}\./);
     });
 
     test("/nearby/events/ and /find/events/ both render real event content, distinct from each other", async ({ request }) => {
@@ -90,6 +107,26 @@ test.describe("generated find/nearby pages", () => {
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
       await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
       await expect(page.locator(`#inspectorBody a[href="/find/${EXAMPLE_PUB.slug}/"]`)).toHaveCount(0);
+    });
+
+    test("the live inspector shows the same opening hours, phone tel: link and verification date as the static page", async ({ page }) => {
+      await gotoAndWaitForMap(page, `/find/${EXAMPLE_VERIFIED.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
+
+      const body = page.locator("#inspectorBody");
+      await expect(body).toContainText(EXAMPLE_VERIFIED.openingHours);
+      await expect(body.locator(`a[href="tel:${EXAMPLE_VERIFIED.phone}"]`)).toHaveCount(1);
+      await expect(body.locator(".verified-note")).toContainText("Checked against OpenStreetMap on");
+    });
+
+    test("the live inspector links to the business's own category/group and the nearest tree", async ({ page }) => {
+      await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
+
+      const body = page.locator("#inspectorBody");
+      await expect(body.locator('a.detail-map-link[href="/nearby/pubs/"]')).toHaveCount(1);
+      await expect(body.locator('a.detail-map-link[href="/nearby/food/"]')).toHaveCount(1);
+      await expect(body.locator('a.nearest-item[href="/nearby/trees/"]')).toHaveCount(1);
     });
 
     test("/find/<slug>/ boots without JS errors", async ({ page }) => {

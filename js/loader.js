@@ -242,7 +242,10 @@ async function loadMapData() {
     ...layerPromises,
   ]);
 
-  const findSlugById = new Map((businessSlugsData.entries || []).map((entry) => [entry.id, entry.slug]));
+  // verifiedAt rides along on the same entries as findSlug -- it's already in this payload
+  // (scripts/regenerate-business-slugs.js reads data/verification.json once at index-build time),
+  // so no second fetch is needed to show "Checked against OpenStreetMap on <date>" live.
+  const businessById = new Map((businessSlugsData.entries || []).map((entry) => [entry.id, entry]));
 
   const layerFeatureCount = resolvedLayers.reduce((sum, layer) => {
     return sum + (layer.data.features ? layer.data.features.length : 0);
@@ -262,13 +265,15 @@ async function loadMapData() {
         latitude,
         longitude,
         point: projectLonLat(longitude, latitude),
-        findSlug: findSlugById.get(feature.properties.id) || null,
+        findSlug: businessById.get(feature.properties.id)?.slug || null,
+        verifiedAt: businessById.get(feature.properties.id)?.verifiedAt || null,
       };
     });
 
   const folkloreLandmarks = normalizeFolkloreLocations(folkloreData).map((place) => ({
     ...place,
-    findSlug: findSlugById.get(place.id) || null,
+    findSlug: businessById.get(place.id)?.slug || null,
+    verifiedAt: businessById.get(place.id)?.verifiedAt || null,
   }));
   const eventLandmarks = normalizeEventLocations(eventsData);
   state.landmarks = [...osmLandmarks, ...folkloreLandmarks, ...eventLandmarks];

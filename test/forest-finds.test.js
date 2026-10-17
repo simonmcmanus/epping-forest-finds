@@ -449,6 +449,8 @@ globalThis.__forestFindsTest = {
   nearestTreeTo,
   nearestCowTo,
   relatedCategoryLinksHtml,
+  verifiedNoteHtml,
+  detailsHtml,
   filterKindIconSlug,
   PLACE_FILTER_KEYS,
   PLACE_FILTER_PRIORITY,
@@ -10358,9 +10360,11 @@ test("relatedCategoryLinksHtml links up to category/group and down to the neares
   app.state.cows.push({ latitude: 51.66, longitude: 0.06, id: "c1" }); // ~1.3km away
 
   const html = app.relatedCategoryLinksHtml(pub);
-  assert.match(html, /Part of <a href="\/nearby\/pubs\/">Pubs &amp; bars<\/a> in <a href="\/nearby\/food\/">Food<\/a>\./);
-  assert.match(html, /<a href="\/nearby\/trees\/">[^<]+ to the nearest veteran tree<\/a>/);
-  assert.match(html, /<a href="\/nearby\/cows\/">[^<]+ to the cows<\/a>/);
+  assert.match(html, /<a class="detail-map-link" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars<\/a>/);
+  assert.match(html, /<a class="detail-map-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/">[\s\S]*?Nearest veteran tree[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/">[\s\S]*?The grazing cattle[\s\S]*?<\/a>/);
+  assert.match(html, /walk-chip/, "the nearby cards carry a real walk-time chip, not bare text");
 });
 
 test("relatedCategoryLinksHtml omits the cows link when no cow positions are currently loaded", () => {
@@ -10377,6 +10381,25 @@ test("relatedCategoryLinksHtml is empty for a place with no /find/ page of its o
   resetData(app);
   const busStop = { findSlug: null, latitude: 51.65, longitude: 0.05, category: "bus_stop" };
   assert.equal(app.relatedCategoryLinksHtml(busStop), "");
+});
+
+test("verifiedNoteHtml shows the OpenStreetMap check date exactly as the static /find/ page phrases it", () => {
+  const html = app.verifiedNoteHtml({ verifiedAt: "2026-10-16" });
+  assert.equal(html, '<p class="verified-note">Checked against OpenStreetMap on 16 October 2026.</p>');
+});
+
+test("verifiedNoteHtml is empty when a place has no verification date", () => {
+  assert.equal(app.verifiedNoteHtml({ verifiedAt: null }), "");
+});
+
+test("detailsHtml links a Phone row as a tel: link rather than inert text", () => {
+  const html = app.detailsHtml([["Phone", "01234 567890"]]);
+  assert.match(html, /<dd><a href="tel:01234 567890">01234 567890<\/a><\/dd>/);
+});
+
+test("detailsHtml renders Opening hours as plain text like any other detail row", () => {
+  const html = app.detailsHtml([["Opening hours", "Mo-Su 09:00-17:00"]]);
+  assert.match(html, /<dt>Opening hours<\/dt><dd>Mo-Su 09:00-17:00<\/dd>/);
 });
 
 runRegisteredTests().catch((error) => {

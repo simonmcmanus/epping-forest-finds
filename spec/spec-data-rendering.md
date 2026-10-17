@@ -891,6 +891,11 @@ The figure itself is the real road/path-following distance (and the walk time de
   bus stop, a tree, a historic site) simply has no `findSlug` and shows no link. Also suppressed
   when the page currently on screen already *is* that place's own `/find/` page (landing there
   selects it automatically, `spec.md` "Routing"), where the link would point at itself.
+- Opening hours (when known), a `tel:`-linked phone number, and a "Checked against OpenStreetMap
+  on \<date\>" note (when a verification date exists) — see `spec-marketing.md` § 6.7, "Opening
+  hours, a tappable phone number, and the verification date are not static-page-only".
+- A `findSlug` place also shows its category/group and nearest-tree/nearest-cow links below its
+  details — see `spec-marketing.md` § 6.7, "Related-content links, both server-rendered and live".
 
 #### Cow Details
 

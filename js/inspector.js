@@ -394,6 +394,7 @@ function showLandmarkDetails(place, distance) {
         ["Type", place.type],
         ["Area", place.area],
         ["Confidence", place.confidence],
+        ["Opening hours", place.openingHours],
         ["Website", place.website],
         ["Phone", place.phone],
       ];
@@ -404,8 +405,9 @@ function showLandmarkDetails(place, distance) {
   const topRow = (distancePill || mapsLink || shareBtn || fullDetailsLink) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}${fullDetailsLink}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
+  const verifiedHtml = isEvent ? "" : verifiedNoteHtml(place);
   const relatedLinksHtml = relatedCategoryLinksHtml(place);
-  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
+  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + verifiedHtml + relatedLinksHtml + issueHtml;
   transitionInspectorBody(landmarkHtml, "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
     loadTransportDepartures(place);
@@ -1044,31 +1046,61 @@ function shareLocationHtml() {
   return `<button class="detail-map-link" type="button" data-action="share-location">Share link</button>`;
 }
 
-// "Part of <subfilter> in <group>", plus live walk-time links to the nearest tree and (when any
-// are currently loaded) the cows. Food/locations places only (findSlug) -- the same scope the
-// static /find/<slug>/ page's own "Nearby"/"Part of" content already covers before JS boots; this
-// is that content's live continuation once the business is actually selected on screen, using the
+// Category chips plus live walk-time cards to the nearest tree and (when any are currently
+// loaded) the cows. Food/locations places only (findSlug) -- the same scope the static
+// /find/<slug>/ page's own "Nearby"/"Part of" content already covers before JS boots; this is
+// that content's live continuation once the business is actually selected on screen, using the
 // app's own real nearest-neighbour distance (nearestTreeTo/nearestCowTo, js/app.js) rather than a
 // second approximation of "how far" the static page had no way to compute at build time.
+//
+// Mirrors scripts/generate-business-pages.js's formatVerifiedDate so the live view reads
+// identically to the static /find/<slug>/ page's own "Checked against OpenStreetMap on <date>" line.
+function formatVerifiedDate(isoDate) {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return isoDate;
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+function verifiedNoteHtml(place) {
+  if (!place.verifiedAt) return "";
+  return `<p class="verified-note">Checked against OpenStreetMap on ${escapeHtml(formatVerifiedDate(place.verifiedAt))}.</p>`;
+}
+
+// Styled from the same components the rest of the inspector already uses, not bespoke markup:
+// .detail-map-link (the Open in Maps/Share pill row) for the category chips, and .nearest-item
+// (the Nearby list's own card) for the tree/cow rows -- plain <a> elements carrying that class
+// rather than the <button data-overview-type> it's usually paired with, which is safe (every
+// handler keyed to that class also requires the data-overview-type attribute in its own selector,
+// per js/nav.js) and gets the same hover lift and arrow-key list navigation for free.
 function relatedCategoryLinksHtml(place) {
   if (!place.findSlug || place.latitude == null) return "";
   const subfilterKey = placePrimaryFilterKey(place);
   const subfilter = subfilterKey ? FILTER_SUBFILTERS_BY_KEY.get(subfilterKey) : null;
-  const categoryLine = subfilter
-    ? `<p>Part of <a href="/nearby/${subfilter.key.replace(/_/g, "-")}/">${escapeHtml(subfilter.label)}</a> in <a href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${escapeHtml(subfilter.groupLabel)}</a>.</p>`
+  const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : null;
+  const categoryChipsHtml = subfilter && group
+    ? `<div class="detail-top-row related-chips">` +
+      `<a class="detail-map-link" href="/nearby/${subfilter.key.replace(/_/g, "-")}/">${appIconHtml(subfilter.icon)}${escapeHtml(subfilter.label)}</a>` +
+      `<a class="detail-map-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>` +
+      `</div>`
     : "";
+
+  const nearbyCardHtml = (href, icon, name, metres) =>
+    `<li><a class="nearest-item" href="${href}">` +
+    `<span class="nearest-icon" aria-hidden="true">${appIconHtml(icon)}</span>` +
+    `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div>` +
+    `<div class="nearest-footer"><span class="nearest-meta">${walkInfoHtml(metres)}</span></div></div>` +
+    `</a></li>`;
 
   const nearestTree = nearestTreeTo(place.latitude, place.longitude);
-  const treeLine = nearestTree
-    ? `<p><a href="/nearby/trees/">${escapeHtml(formatWalkTime(nearestTree.metres))} to the nearest veteran tree</a></p>`
-    : "";
-
   const nearestCow = state.cows.length ? nearestCowTo(place.latitude, place.longitude) : null;
-  const cowLine = nearestCow
-    ? `<p><a href="/nearby/cows/">${escapeHtml(formatWalkTime(nearestCow.metres))} to the cows</a></p>`
+  const nearbyCardsHtml = (nearestTree || nearestCow)
+    ? `<ul class="nearest-list related-cards">` +
+      (nearestTree ? nearbyCardHtml("/nearby/trees/", "tree", "Nearest veteran tree", nearestTree.metres) : "") +
+      (nearestCow ? nearbyCardHtml("/nearby/cows/", "cow", "The grazing cattle", nearestCow.metres) : "") +
+      `</ul>`
     : "";
 
-  return categoryLine + treeLine + cowLine;
+  return categoryChipsHtml + nearbyCardsHtml;
 }
 
 // A link to this place's own crawlable /find/<slug>/ page, when it has one (findSlug is set at
@@ -1129,6 +1161,11 @@ function detailsHtml(rows) {
       let display;
       try { display = new URL(value).hostname.replace(/^www\./, ""); } catch (_) { display = value; }
       ddContent = `<a href="${escapeHtml(value)}" target="_blank" rel="noreferrer">${escapeHtml(display)}</a>`;
+    } else if (label === "Phone" && typeof value === "string" && value.trim()) {
+      // A tel: link is the one piece of contact detail worth a direct tap on a phone --
+      // the static /find/<slug>/ page already does this (scripts/generate-business-pages.js);
+      // this brings the live detail view to the same place rather than leaving it as inert text.
+      ddContent = `<a href="tel:${escapeHtml(value)}">${escapeHtml(shown)}</a>`;
     } else {
       ddContent = escapeHtml(shown);
     }
