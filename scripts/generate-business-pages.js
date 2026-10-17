@@ -22,7 +22,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { loadAppRules } = require("./report/map-inventory.js");
-const { escapeHtml, replaceOnce } = require("./lib/html-template.js");
+const { escapeHtml, replaceOnce, showConsentBannerByDefault } = require("./lib/html-template.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITE_NAME = "Epping Forest Finds";
@@ -211,7 +211,11 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     "</head>"
   );
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
-  return html;
+  // Unlike every other /find/<slug>/ page, /find/events/ itself is excluded from
+  // isLandingPageArrival() (js/app.js -- "events" is the one /find/ path that isn't a business
+  // of its own), so it never shows the combined consent banner live and must keep app.html's own
+  // hidden default, not get this treatment.
+  return showConsentBannerByDefault(html);
 }
 
 function renderEventsIndexPage(appHtml, events) {

@@ -5,7 +5,11 @@
 
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
-const { generate: generateCategoryPages, loadWaterFeatures } = require("../../scripts/generate-find-pages.js");
+const {
+  generate: generateCategoryPages,
+  loadWaterFeatures,
+  nearestWithinWalkingRadius,
+} = require("../../scripts/generate-find-pages.js");
 const { generate: generateBusinessPages } = require("../../scripts/generate-business-pages.js");
 const { loadAppRules } = require("../../scripts/report/map-inventory.js");
 const { escapeHtml } = require("../../scripts/lib/html-template.js");
@@ -16,13 +20,20 @@ const REPO_ROOT = path.join(__dirname, "..", "..");
 
 // A real, data-driven example rather than a hardcoded name that could close or be renamed --
 // the nearest the e2e suite comes to a fixture for the 1,500+ generated business pages. Picked
-// with a real address so the "Nearby" list and distance copy have something to assert on.
-const EXAMPLE_PUB = businessIndex.entries.find((e) => e.key === "pubs" && e.address && e.lat != null);
+// with a real address so the "Nearby" list and distance copy have something to assert on, and
+// picked nearest-first (same ranking generate-find-pages.js itself uses) so it's guaranteed to
+// actually appear in /nearby/pubs/'s now walking-radius-filtered static list below -- an
+// arbitrary pub could be outside Epping Forest's walkable radius of High Beach entirely.
+const EXAMPLE_PUB = nearestWithinWalkingRadius(
+  businessIndex.entries.filter((e) => e.key === "pubs" && e.address),
+  (e) => ({ latitude: e.lat, longitude: e.lon })
+)[0].item;
 
 // trees/ponds_streams/nature are outside the business index above (spec-marketing.md § 6.6's
 // "trees/water get a different kind of list" carve-out) -- a real named water feature instead,
-// the same way EXAMPLE_PUB is a real business, not a hardcoded name.
-const EXAMPLE_WATER = loadWaterFeatures(loadAppRules(), REPO_ROOT)[0];
+// the same way EXAMPLE_PUB is a real business, not a hardcoded name. Nearest-first for the same
+// reason as EXAMPLE_PUB above -- the water list is now walking-radius-filtered too.
+const EXAMPLE_WATER = nearestWithinWalkingRadius(loadWaterFeatures(loadAppRules(), REPO_ROOT), (w) => w)[0].item;
 
 // A second example, picked for carrying the optional fields that are only ever shown when the
 // source data actually has them (spec-marketing.md § 6.7) -- opening hours and a phone number --

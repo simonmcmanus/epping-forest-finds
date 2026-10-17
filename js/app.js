@@ -1310,6 +1310,17 @@ async function boot() {
     els.loadingOverlay.hidden = false;
   }
 
+  // Generated /nearby/<slug> and /find/<slug> pages (scripts/generate-find-pages.js /
+  // generate-business-pages.js) start #consentBanner un-hidden by default -- they're always a
+  // landing-page arrival, so this reserves the banner's layout space from first paint for the
+  // common case (a first-time visitor, consent still undecided) instead of inserting it after
+  // boot and visibly pushing everything below it down the screen. Every other case must
+  // explicitly hide it again here, synchronously, before anything else runs: showCombinedConsentBanner()
+  // below only ever un-hides it, it never corrects a wrongly-pre-shown one. The condition is
+  // computed once and reused by that call below so the two can never drift apart.
+  const showsCombinedConsentBanner = Boolean(navigator.geolocation) && isLandingPageArrival() && cookieConsentIsUndecided();
+  if (els.consentBanner && !showsCombinedConsentBanner) els.consentBanner.hidden = true;
+
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();
   setLoadStep("cows", "loading");
@@ -1343,7 +1354,7 @@ async function boot() {
       locationPromise = onboardResult.locationPromise;
       locationAlreadyAsked = true;
     }
-  } else if (navigator.geolocation && isLandingPageArrival() && cookieConsentIsUndecided()) {
+  } else if (showsCombinedConsentBanner) {
     // A landing-page arrival (/nearby/<slug>, or a first-touch ?show= link) whose cookie
     // consent is still undecided would otherwise show the standalone cookie banner, then fire
     // the browser's own location prompt silently, and then -- once that resolves -- a third,

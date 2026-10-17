@@ -14,6 +14,7 @@ const {
   slugFor,
   loadWaterFeatures,
   loadTreeSpeciesBreakdown,
+  nearestWithinWalkingRadius,
 } = require("../scripts/generate-find-pages.js");
 const { loadAppRules } = require("../scripts/report/map-inventory.js");
 
@@ -255,10 +256,13 @@ test("loadTreeSpeciesBreakdown returns an empty breakdown when there is no tree 
   assert.deepEqual(loadTreeSpeciesBreakdown(dir), { notable: [], otherCount: 0 });
 });
 
+// Well within LANDING_PAGE_WALKING_RADIUS_METRES (2500m) of DEFAULT_LOCATION (51.667591, 0.037454).
+const NEAR_DEFAULT_LOCATION = { latitude: 51.668, longitude: 0.038 };
+
 test("renderPage prints a species breakdown on /nearby/trees/ and a linked water list on /nearby/ponds-streams/ and /nearby/nature/, but neither on an ordinary business-scope page", () => {
   const enrichment = {
     treeSpecies: { notable: [{ name: "Common Beech", count: 13122 }], otherCount: 4 },
-    waterFeatures: [{ name: "Aldersbrook", key: "way/1" }],
+    waterFeatures: [{ name: "Aldersbrook", key: "way/1", ...NEAR_DEFAULT_LOCATION }],
   };
   const treesPage = { key: "trees", slug: "trees", label: "Trees", title: "trees", count: 24906, groupLabel: "Nature", groupSlug: "nature", siblings: [] };
   const treesHtml = renderPage(treesPage, APP_HTML, enrichment);
@@ -268,8 +272,11 @@ test("renderPage prints a species breakdown on /nearby/trees/ and a linked water
   const waterPage = { key: "ponds_streams", slug: "ponds-streams", label: "Ponds & streams", title: "ponds and streams", count: 111, groupLabel: "Nature", groupSlug: "nature", siblings: [] };
   const waterHtml = renderPage(waterPage, APP_HTML, enrichment);
   // The same .nearest-item card the live Nearby list renders (css/map-ui.css), not a bare <ul> --
-  // see nearestItemCardHtml's own comment for why.
-  assert.match(waterHtml, /<a class="nearest-item" href="\/nearby\/ponds-streams\/#water=way%2F1"><span class="nearest-icon">.*?<\/span><div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Aldersbrook<\/span><\/div><\/div><\/a>/);
+  // see nearestItemCardHtml's own comment for why -- including its distance/walk-time footer,
+  // since a water page's single fixture item is well within the walking radius.
+  assert.match(waterHtml, /class="nearest-item" href="\/nearby\/ponds-streams\/#water=way%2F1"/);
+  assert.match(waterHtml, /<span class="nearest-name">Aldersbrook<\/span>/);
+  assert.match(waterHtml, /<span class="walk-chip">\d+ m · < 1 min<\/span>/);
   assert.ok(!waterHtml.includes("By species:"), "the water page gets no species breakdown of its own");
 
   const [pubs] = collectPages(FAKE_RULES, FAKE_INVENTORY);
@@ -280,10 +287,24 @@ test("renderPage prints a species breakdown on /nearby/trees/ and a linked water
 test("renderPage's nature group page carries both the tree species breakdown and the water list", () => {
   const enrichment = {
     treeSpecies: { notable: [{ name: "Common Beech", count: 13122 }], otherCount: 0 },
-    waterFeatures: [{ name: "Aldersbrook", key: "way/1" }],
+    waterFeatures: [{ name: "Aldersbrook", key: "way/1", ...NEAR_DEFAULT_LOCATION }],
   };
   const naturePage = { key: "nature", slug: "nature", label: "Nature", title: "trees and water features", count: 25017, isGroup: true, members: [] };
   const html = renderPage(naturePage, APP_HTML, enrichment);
   assert.match(html, /By species:/);
   assert.match(html, /Named ponds/);
+});
+
+test("nearestWithinWalkingRadius keeps only items within the walking radius, nearest first, and falls back to the nearest 3 overall when none are within it", () => {
+  const items = [
+    { name: "Near", ...NEAR_DEFAULT_LOCATION },
+    { name: "Mid", latitude: 51.69, longitude: 0.06 }, // a few km out -- outside the radius
+    { name: "Far", latitude: 52.0, longitude: 0.5 }, // tens of km out -- outside the radius
+  ];
+  const within = nearestWithinWalkingRadius(items, (i) => i);
+  assert.deepEqual(within.map((r) => r.item.name), ["Near"], "only the one fixture inside the walking radius");
+
+  const allFar = items.slice(1);
+  const fallback = nearestWithinWalkingRadius(allFar, (i) => i);
+  assert.deepEqual(fallback.map((r) => r.item.name), ["Mid", "Far"], "nothing within radius -- falls back to nearest overall, not an empty list");
 });

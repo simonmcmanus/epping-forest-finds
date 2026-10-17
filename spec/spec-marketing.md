@@ -581,20 +581,38 @@ branches.
   the business index actually covering the key, not a second hand-maintained
   list.
 - **Every such list reuses the live Nearby list's own `.nearest-item` card**
-  (`nearestItemCardHtml`, `scripts/generate-find-pages.js` — icon, name, no
-  distance/walk-time footer since there is no origin to measure one from at
-  build time), not a bare `<ul>` styled only by the browser's own defaults.
-  Before this, a reader — or a crawler — saw a plain, unstyled blue-link list
-  that then visibly reflowed into cards the instant `js/app.js` replaced it
-  with the live Nearby list; the static page now already looks like the
-  screen it's showing. The per-item icon is `filterKindEmoji(key)`
-  (`js/categories.js`, now also exposed by `loadAppRules()` —
-  `scripts/report/map-inventory.js`), read off each business's own
-  `key`/`groupKey` (a group page mixes several subfilters, so this is never
-  a single icon guessed from the page itself). `.nearest-item` is already
-  used this way for a plain `<a>` elsewhere (`relatedCategoryLinksHtml`,
-  `js/inspector.js`'s "nearest tree"/"nearest cow" cards), so this is the
-  same established pattern, not a new one.
+  (`nearestItemCardHtml`, `scripts/generate-find-pages.js`), not a bare `<ul>`
+  styled only by the browser's own defaults. Before this, a reader — or a
+  crawler — saw a plain, unstyled blue-link list that then visibly reflowed
+  into cards the instant `js/app.js` replaced it with the live Nearby list;
+  the static page now already looks like the screen it's showing. The
+  per-item icon is `filterKindEmoji(key)` (`js/categories.js`, now also
+  exposed by `loadAppRules()` — `scripts/report/map-inventory.js`), read off
+  each business's own `key`/`groupKey` (a group page mixes several
+  subfilters, so this is never a single icon guessed from the page itself).
+  `.nearest-item` is already used this way for a plain `<a>` elsewhere
+  (`relatedCategoryLinksHtml`, `js/inspector.js`'s "nearest tree"/"nearest
+  cow" cards), so this is the same established pattern, not a new one.
+- **The list itself is distance-sorted and walking-radius-filtered, matching
+  what the live Nearby list shows for a visitor with no real location fix**
+  (`nearestWithinWalkingRadius`, `scripts/generate-find-pages.js`), rather
+  than every matching place in dataset order. A build has no visitor to
+  measure a real distance from, so it measures from the same
+  `DEFAULT_LOCATION` (High Beach) stand-in `revealNoRealLocation()`
+  (`js/app.js`) centres the live map on, within the same
+  `LANDING_PAGE_WALKING_DISTANCE_MINUTES` (30 min) radius a landing-page
+  arrival widens to live — falling back to the nearest 3 overall when
+  nothing falls inside that radius, so the list is never empty. Each card
+  gets the matching `.nearest-footer`/`.walk-chip` distance-and-walk-time
+  label (same `formatDistance`/walk-time formulas as the live Nearby list,
+  replicated here since this script cannot load `js/app.js` into its `vm`
+  sandbox — see `loadAppRules()`, `scripts/report/map-inventory.js`), and the
+  list is prefixed with the same "Showing things near High Beach — you
+  haven't shared your location" source note the live view shows for a
+  default-location visitor. Before this, a crawler or no-JS visitor saw every
+  shop or pub in the dataset in build order, while JS replaced it moments
+  later with a short, nearest-first list scoped to a 30-minute walk — the
+  two renders showed genuinely different content, not just a different look.
 - **The static page also carries the same breadcrumb chip row the live Nearby
   list shows at the very top of a `/nearby/<slug>/` landing** — a chip up to
   the category's own group, and an "Everything nearby" chip back to the

@@ -33,11 +33,28 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { buildInventory, loadAppRules } = require("./report/map-inventory.js");
-const { escapeHtml, replaceOnce } = require("./lib/html-template.js");
-const { listBusinessesForFilterKey, loadEvents } = require("./generate-business-pages.js");
+const { escapeHtml, replaceOnce, showConsentBannerByDefault } = require("./lib/html-template.js");
+const { listBusinessesForFilterKey, loadEvents, haversineMetres } = require("./generate-business-pages.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITE_NAME = "Epping Forest Finds";
+
+// The same stand-in origin and radius revealNoRealLocation()/applyDefaultLocation() (js/app.js)
+// use live whenever a visitor hasn't shared their own location -- the common case for a reader
+// landing on one of these pages cold. Without this, the static list showed every matching place
+// in the whole forest (dataset order), while the live Nearby list a reader saw moments later,
+// once JS booted, showed only the ~handful within a 30-minute walk of High Beach, nearest first
+// -- a reader (or a crawler) saw what looked like two different, disagreeing lists for the same
+// page. DEFAULT_LOCATION/LANDING_PAGE_WALKING_DISTANCE_MINUTES are duplicated here (not
+// imported: js/app.js can't be loaded into loadAppRules()'s vm sandbox the way js/categories.js/
+// js/normalize.js are -- it references `document` at module-evaluation time) rather than
+// recomputed differently, so a future change to either constant needs updating in both places.
+const DEFAULT_LOCATION = { latitude: 51.667591, longitude: 0.037454 };
+// haversineMetres (scripts/generate-business-pages.js) reads .lat/.lon, not .latitude/.longitude
+// -- DEFAULT_LOCATION keeps js/app.js's own naming above since it's a direct copy of that
+// constant, so this is the one spot that bridges the two.
+const DEFAULT_LOCATION_LAT_LON = { lat: DEFAULT_LOCATION.latitude, lon: DEFAULT_LOCATION.longitude };
+const LANDING_PAGE_WALKING_RADIUS_METRES = 30 * (5000 / 60); // walkingDistanceToMetres(30), js/app.js
 // Category pages live under /nearby/ (the screen they pre-filter), never /find/ (reserved for
 // individual businesses and points of interest, not yet built).
 const CATEGORY_DIR_NAME = "nearby";
@@ -81,7 +98,7 @@ function loadWaterFeatures(rules, siteRoot) {
   // off it, so the result behaves like an ordinary array everywhere downstream (a cross-realm
   // one looks and prints identically but fails a strict structural comparison, e.g. in tests).
   return [...rules.extractWaterFeatures(data.features || [])]
-    .map((water) => ({ name: water.name, key: rules.waterHashKey(water) }))
+    .map((water) => ({ name: water.name, key: rules.waterHashKey(water), latitude: water.latitude, longitude: water.longitude }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -128,26 +145,74 @@ function loadTreeSpeciesBreakdown(siteRoot, minCount = 5) {
   };
 }
 
+// formatDistance (js/app.js) and the walk-time half of walkInfoHtml (js/inspector.js),
+// reproduced rather than imported for the same reason DEFAULT_LOCATION above is: those files
+// can't be loaded into loadAppRules()'s vm sandbox. Formulas must stay in sync by hand.
+function formatDistanceLabel(metres) {
+  if (!Number.isFinite(metres)) return "";
+  if (metres < 1000) return `${Math.round(metres)} m`;
+  const km = metres / 1000;
+  return `${km.toFixed(km < 10 ? 1 : 0)} km`;
+}
+
+function walkTimeLabel(metres) {
+  const minutes = metres / (5000 / 60);
+  if (minutes < 1) return "< 1 min";
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const hours = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
+}
+
+// Every matching item, filtered to LANDING_PAGE_WALKING_RADIUS_METRES of DEFAULT_LOCATION and
+// sorted nearest-first -- the same set and order the live Nearby list shows a reader who hasn't
+// shared their own location (overviewItemsForActiveFilter, js/app.js). A category with nothing
+// that close (a rare subfilter, or a tight radius) falls back to the nearest 3 overall instead of
+// an empty list, matching that same live function's own per-filter fallback.
+function nearestWithinWalkingRadius(items, getLatLon) {
+  const withDistance = items
+    .map((item) => {
+      const { latitude, longitude } = getLatLon(item);
+      return { item, metres: haversineMetres(DEFAULT_LOCATION_LAT_LON, { lat: latitude, lon: longitude }) };
+    })
+    .filter(({ metres }) => Number.isFinite(metres))
+    .sort((a, b) => a.metres - b.metres);
+  const withinRadius = withDistance.filter(({ metres }) => metres <= LANDING_PAGE_WALKING_RADIUS_METRES);
+  return withinRadius.length ? withinRadius : withDistance.slice(0, 3);
+}
+
 // The same card the live Nearby list renders for every place (.nearest-item/.nearest-icon/
-// .nearest-content/.nearest-header/.nearest-name, css/map-ui.css -- already reused for a plain
-// <a> by relatedCategoryLinksHtml in js/inspector.js), not a bare <ul> styled only by the
-// browser's own defaults. Without this, a reader -- or a crawler -- saw a plain blue-link list
-// that then visibly reflowed into cards the instant JS replaced it with the live Nearby list;
-// now the static page already looks like the screen it's showing. No distance/walk-time footer:
-// there is no origin to measure one from at build time.
-function nearestItemCardHtml(href, iconHtml, name) {
-  return `<a class="nearest-item" href="${escapeHtml(href)}"><span class="nearest-icon">${iconHtml || ""}</span><div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div></div></a>`;
+// .nearest-content/.nearest-header/.nearest-name/.nearest-footer/.nearest-meta, css/map-ui.css
+// -- .nearest-item itself already reused for a plain <a> by relatedCategoryLinksHtml in
+// js/inspector.js), not a bare <ul> styled only by the browser's own defaults. Without this, a
+// reader -- or a crawler -- saw a plain blue-link list that then visibly reflowed into cards the
+// instant JS replaced it with the live Nearby list; now the static page already looks like the
+// screen it's showing. metres is optional -- omitted entirely (no footer) rather than shown as
+// 0/blank when a caller has no distance to give (the tree-species breakdown has none).
+function nearestItemCardHtml(href, iconHtml, name, metres) {
+  const footer = Number.isFinite(metres)
+    ? `<div class="nearest-footer"><span class="nearest-meta"><span class="walk-chip">${formatDistanceLabel(metres)} · ${walkTimeLabel(metres)}</span></span></div>`
+    : "";
+  return `<a class="nearest-item" href="${escapeHtml(href)}"><span class="nearest-icon">${iconHtml || ""}</span><div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div>${footer}</div></a>`;
 }
 
 function nearestListHtml(cards) {
   return cards.length ? `<div class="nearest-list">${cards.join("")}</div>` : "";
 }
 
+// Exactly the live copy/markup (class="source-note") applyDefaultLocation()'s High Beach
+// stand-in shows above the Nearby list whenever state.userLocation.isDefault is true
+// (overviewNearestHtml, js/app.js) -- true for every reader of a static page who hasn't shared
+// their location yet, which is every reader of a static page, there being no way to know their
+// real one at build time.
+const DEFAULT_LOCATION_SOURCE_NOTE = '<p class="source-note">Showing things near High Beach — you haven\'t shared your location.</p>';
+
 function waterListHtml(waterFeatures, rules) {
   if (!waterFeatures.length) return "";
   const icon = rules.filterKindEmoji("ponds_streams");
-  return `<p>Named ponds, lakes and streams:</p>${nearestListHtml(waterFeatures.map((w) =>
-    nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(w.key)}`, icon, w.name)
+  const nearest = nearestWithinWalkingRadius(waterFeatures, (w) => w);
+  return `<p>Named ponds, lakes and streams:</p>${DEFAULT_LOCATION_SOURCE_NOTE}${nearestListHtml(nearest.map(({ item: w, metres }) =>
+    nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(w.key)}`, icon, w.name, metres)
   ))}`;
 }
 
@@ -328,15 +393,20 @@ function renderPage(page, appHtml, enrichment = {}) {
   // What a crawler, or a visitor, sees before js/app.js boots and replaces #inspectorBody with
   // the live Nearby list (transitionInspectorBody, js/inspector.js) -- real, specific, crawlable
   // text and links, in the exact spot the app's own "nothing selected yet" message lives today.
-  // Every individual business/location in this category, listed and linked to its own
-  // /find/<slug>/ page -- real, crawlable without JS, not just a count. Subfilters outside the
-  // confirmed /find/ scope (transport, history, nature, stories) have no entries in the business
-  // index, so this is naturally empty for them and the page falls back to the plain summary
-  // sentence it always had.
+  // Every individual business/location in this category within a 30-minute walk of High Beach,
+  // nearest first -- the same set and order the live Nearby list shows (nearestWithinWalkingRadius
+  // above), not every matching business in the whole forest in dataset order: a reader (or a
+  // crawler) comparing the static page against the live one a moment later, once JS boots, must
+  // see the same list, not two disagreeing ones. Subfilters outside the confirmed /find/ scope
+  // (transport, history, nature, stories) have no entries in the business index, so this is
+  // naturally empty for them and the page falls back to the plain summary sentence it always had.
   const businesses = listBusinessesForFilterKey(page.key);
-  const businessListHtml = nearestListHtml(businesses.map((b) =>
-    nearestItemCardHtml(`/find/${b.slug}/`, rules.filterKindEmoji(b.key), b.name)
-  ));
+  const nearestBusinesses = nearestWithinWalkingRadius(businesses, (b) => ({ latitude: b.lat, longitude: b.lon }));
+  const businessListHtml = businesses.length
+    ? DEFAULT_LOCATION_SOURCE_NOTE + nearestListHtml(nearestBusinesses.map(({ item: b, metres }) =>
+        nearestItemCardHtml(`/find/${b.slug}/`, rules.filterKindEmoji(b.key), b.name, metres)
+      ))
+    : "";
 
   // trees/ponds_streams/nature are outside the /find/ business scope above (listBusinessesForFilterKey
   // returns nothing for them) but aren't left with just the summary sentence either -- a named
@@ -387,7 +457,7 @@ function renderPage(page, appHtml, enrichment = {}) {
     "</head>"
   );
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
-  return html;
+  return showConsentBannerByDefault(html);
 }
 
 /**
@@ -441,7 +511,7 @@ function renderEventsPage(appHtml, events, rules = loadAppRules()) {
   html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
   html = replaceOnce(html, "</head>", `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`, "</head>");
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
-  return html;
+  return showConsentBannerByDefault(html);
 }
 
 /**
@@ -481,7 +551,7 @@ function renderCowsPage(appHtml, rules = loadAppRules()) {
   html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
   html = replaceOnce(html, "</head>", `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`, "</head>");
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
-  return html;
+  return showConsentBannerByDefault(html);
 }
 
 function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInventory(siteRoot)) {
@@ -535,6 +605,7 @@ module.exports = {
   buildTitleIndex,
   loadWaterFeatures,
   loadTreeSpeciesBreakdown,
+  nearestWithinWalkingRadius,
   CATEGORY_DIR_NAME,
 };
 
