@@ -530,10 +530,16 @@ branches.
   second, separately-computed guess (a group page's count is its members'
   counts summed). This also means the same two exclusions apply: `cows`
   (live-tracked, no fixed count) and the whole `events` group (time-bound,
-  not a static map fact) get no category page — nor, since it has nothing
-  left to describe once `cows` drops out of it, does a group page for
-  `events`, or for any other group `GROUP_TITLES` (`scripts/generate-find-pages.js`)
-  has no hand-picked description phrase for.
+  not a static map fact) never flow through this inventory-driven path, and
+  no group page is generated for `events` or for any other group
+  `GROUP_TITLES` (`scripts/generate-find-pages.js`) has no hand-picked
+  description phrase for. `cows` and `events` do each still get their own
+  page (`/nearby/cows/`, `/nearby/events/`) — `renderCowsPage`/`renderEventsPage`
+  generate them directly in `generate()`, outside `collectPages`, since both
+  are real filter keys `filterKeysFromFindPath` (`js/app.js`) already
+  resolves like any other subfilter slug; their content is honest about
+  having no fixed count/list to show rather than one manufactured to look
+  like a normal category page's.
 - **Output**: `nearby/<slug>/index.html`, gitignored like `sitemap.xml` and
   `reports/index.html` — regenerated fresh on every build, never committed.
   Sharing a path prefix with the Nearby, Filters and Search screens needs
@@ -647,14 +653,29 @@ use for the homepage's counts.
   `place=<hashKey>` value a `#place=<key>` hash already would (via
   `findPlaceByFindSlug`, a reverse lookup over the loaded landmarks), so
   `applySelectionFromHash()` — the same boot step that opens a tree or place
-  named by any other deep link — selects and shows it, nearest trees and
-  everything else included, computed by the app's existing code rather than
-  a second, build-time-only approximation of it. (An earlier version of this
-  page embedded its own coordinates for a dedicated `applyFindPageOrigin()`
-  step to anchor the Nearby screen; once this selection path existed that
-  anchor was always immediately overwritten by the selection itself
-  — `showRoutedSelection` clears `state.nearbyAnchor` — so it was removed as
-  dead weight.) The no-JS fallback is the server-rendered content itself.
+  named by any other deep link — selects and shows it. (An earlier version
+  of this page embedded its own coordinates for a dedicated
+  `applyFindPageOrigin()` step to anchor the Nearby screen; once this
+  selection path existed that anchor was always immediately overwritten by
+  the selection itself — `showRoutedSelection` clears `state.nearbyAnchor`
+  — so it was removed as dead weight.) The no-JS fallback is the
+  server-rendered content itself.
+- **Related-content links, both server-rendered and live.** The static
+  page's own "Part of `<subfilter>` in `<group>`" and "See also veteran
+  trees and grazing cattle near Epping Forest" (`scripts/generate-business-pages.js`)
+  are real links even with no JS, but carry no distance for the trees/cattle
+  (a build-time figure would be wrong for live-tracked cattle positions by
+  the time anyone reads it). Once JS boots and the business is selected,
+  `relatedCategoryLinksHtml()` (`js/inspector.js`) renders the live
+  continuation of the same content with real distances —
+  `nearestTreeTo`/`nearestCowTo` (`js/app.js`, the same nearest-neighbour
+  code the Nearby screen itself uses) and `formatWalkTime` turn "See also
+  grazing cattle" into "12 mins walk to the cows", linking to `/nearby/cows/`.
+  The cows line is omitted entirely when no cow positions are currently
+  loaded (`state.cows` empty), rather than showing a distance to nothing.
+  Scoped to places with a `findSlug` (the same food/locations groups
+  throughout this section) — any other selected place (a tree, a bus stop)
+  has neither version of this content.
 - **Linked everywhere a business is mentioned, not only from its own page**:
   `js/loader.js` fetches `data/business-slugs.json` alongside the other
   datasets and attaches `findSlug` to each matching place; `showLandmarkDetails`

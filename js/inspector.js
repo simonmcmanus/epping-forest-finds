@@ -404,7 +404,8 @@ function showLandmarkDetails(place, distance) {
   const topRow = (distancePill || mapsLink || shareBtn || fullDetailsLink) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}${fullDetailsLink}</div>` : "";
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
-  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + issueHtml;
+  const relatedLinksHtml = relatedCategoryLinksHtml(place);
+  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
   transitionInspectorBody(landmarkHtml, "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
     loadTransportDepartures(place);
@@ -1041,6 +1042,33 @@ function shareLocationHtml() {
   if (typeof navigator === "undefined") return "";
   if (!("share" in navigator) && !("clipboard" in navigator)) return "";
   return `<button class="detail-map-link" type="button" data-action="share-location">Share link</button>`;
+}
+
+// "Part of <subfilter> in <group>", plus live walk-time links to the nearest tree and (when any
+// are currently loaded) the cows. Food/locations places only (findSlug) -- the same scope the
+// static /find/<slug>/ page's own "Nearby"/"Part of" content already covers before JS boots; this
+// is that content's live continuation once the business is actually selected on screen, using the
+// app's own real nearest-neighbour distance (nearestTreeTo/nearestCowTo, js/app.js) rather than a
+// second approximation of "how far" the static page had no way to compute at build time.
+function relatedCategoryLinksHtml(place) {
+  if (!place.findSlug || place.latitude == null) return "";
+  const subfilterKey = placePrimaryFilterKey(place);
+  const subfilter = subfilterKey ? FILTER_SUBFILTERS_BY_KEY.get(subfilterKey) : null;
+  const categoryLine = subfilter
+    ? `<p>Part of <a href="/nearby/${subfilter.key.replace(/_/g, "-")}/">${escapeHtml(subfilter.label)}</a> in <a href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${escapeHtml(subfilter.groupLabel)}</a>.</p>`
+    : "";
+
+  const nearestTree = nearestTreeTo(place.latitude, place.longitude);
+  const treeLine = nearestTree
+    ? `<p><a href="/nearby/trees/">${escapeHtml(formatWalkTime(nearestTree.metres))} to the nearest veteran tree</a></p>`
+    : "";
+
+  const nearestCow = state.cows.length ? nearestCowTo(place.latitude, place.longitude) : null;
+  const cowLine = nearestCow
+    ? `<p><a href="/nearby/cows/">${escapeHtml(formatWalkTime(nearestCow.metres))} to the cows</a></p>`
+    : "";
+
+  return categoryLine + treeLine + cowLine;
 }
 
 // A link to this place's own crawlable /find/<slug>/ page, when it has one (findSlug is set at

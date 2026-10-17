@@ -445,6 +445,10 @@ globalThis.__forestFindsTest = {
   placeIconSlug,
   placeLabelFilterKey,
   resolvePlaceKind,
+  FILTER_SUBFILTERS_BY_KEY,
+  nearestTreeTo,
+  nearestCowTo,
+  relatedCategoryLinksHtml,
   filterKindIconSlug,
   PLACE_FILTER_KEYS,
   PLACE_FILTER_PRIORITY,
@@ -10345,6 +10349,34 @@ test("routeValueFromLocation never treats /find/events/ as a place lookup", () =
     app.location.pathname = originalPathname;
     app.location.hash = originalHash;
   }
+});
+
+test("relatedCategoryLinksHtml links up to category/group and down to the nearest tree and cow, with real live distances", () => {
+  resetData(app);
+  const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
+  app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" }); // ~65m away
+  app.state.cows.push({ latitude: 51.66, longitude: 0.06, id: "c1" }); // ~1.3km away
+
+  const html = app.relatedCategoryLinksHtml(pub);
+  assert.match(html, /Part of <a href="\/nearby\/pubs\/">Pubs &amp; bars<\/a> in <a href="\/nearby\/food\/">Food<\/a>\./);
+  assert.match(html, /<a href="\/nearby\/trees\/">[^<]+ to the nearest veteran tree<\/a>/);
+  assert.match(html, /<a href="\/nearby\/cows\/">[^<]+ to the cows<\/a>/);
+});
+
+test("relatedCategoryLinksHtml omits the cows link when no cow positions are currently loaded", () => {
+  resetData(app);
+  const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
+  app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" });
+
+  const html = app.relatedCategoryLinksHtml(pub);
+  assert.match(html, /nearby\/trees\//);
+  assert.ok(!html.includes("nearby/cows/"), "no cow data loaded -- no cows link to show");
+});
+
+test("relatedCategoryLinksHtml is empty for a place with no /find/ page of its own", () => {
+  resetData(app);
+  const busStop = { findSlug: null, latitude: 51.65, longitude: 0.05, category: "bus_stop" };
+  assert.equal(app.relatedCategoryLinksHtml(busStop), "");
 });
 
 runRegisteredTests().catch((error) => {

@@ -288,6 +288,44 @@ function renderEventsPage(appHtml, events) {
   return html;
 }
 
+/**
+ * /nearby/cows/ -- the other category excluded from inventory.groups (COW_KEY, map-inventory.js):
+ * live-tracked from GPS collars via the Nofence API, not a fixed dataset, so there is no count to
+ * quote and no list to build at build time the way events' own dates can be. "cows" is still a
+ * real filter key (ALL_OVERVIEW_FILTER_KEYS) that filterKeysFromFindPath already resolves like
+ * any other subfilter slug, so -- same reasoning as /nearby/events/ above -- the only missing
+ * piece was this page ever existing. Exists mainly so other pages (a selected business's own
+ * "X min walk to the cows" link, js/inspector.js) have a real destination rather than a 404; its
+ * own content is honest about having nothing to enumerate, not padded to look like it does.
+ */
+function renderCowsPage(appHtml) {
+  const canonical = `${SITE_ORIGIN}/nearby/cows/`;
+  const titleTag = `Grazing Cattle in Epping Forest | ${SITE_NAME}`;
+  const description = "Epping Forest's conservation-grazing cattle, tracked live by GPS collar and shown on the map wherever they currently are.";
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Grazing Cattle in Epping Forest",
+    description,
+    url: canonical,
+    isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${SITE_ORIGIN}/` },
+  };
+
+  const seoContent =
+    `<p>${escapeHtml(description)} Positions refresh periodically while online; offline, the map shows the last saved positions, which may be out of date.</p>`;
+
+  let html = appHtml;
+  html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
+  html = replaceOnce(html, APP_DESCRIPTION_META, `<meta name="description" content="${escapeHtml(description)}">`, "meta description");
+  html = replaceOnce(html, APP_CANONICAL, `<link rel="canonical" href="${canonical}">`, "canonical link");
+  html = replaceOnce(html, APP_OG_TITLE, `<meta property="og:title" content="Grazing Cattle in Epping Forest">`, "og:title");
+  html = replaceOnce(html, APP_OG_DESCRIPTION, `<meta property="og:description" content="${escapeHtml(description)}">`, "og:description");
+  html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
+  html = replaceOnce(html, "</head>", `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`, "</head>");
+  html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
+  return html;
+}
+
 function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInventory(siteRoot)) {
   const rules = loadAppRules();
   const pages = collectPages(rules, inventory);
@@ -303,6 +341,10 @@ function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInvent
   const eventsDir = path.join(categoryDir, "events");
   fs.mkdirSync(eventsDir, { recursive: true });
   fs.writeFileSync(path.join(eventsDir, "index.html"), renderEventsPage(appHtml, loadEvents(siteRoot)), "utf8");
+
+  const cowsDir = path.join(categoryDir, "cows");
+  fs.mkdirSync(cowsDir, { recursive: true });
+  fs.writeFileSync(path.join(cowsDir, "index.html"), renderCowsPage(appHtml), "utf8");
 
   return pages;
 }
@@ -324,6 +366,7 @@ module.exports = {
   collectPages,
   renderPage,
   renderEventsPage,
+  renderCowsPage,
   generate,
   listFindSlugs,
   slugFor,

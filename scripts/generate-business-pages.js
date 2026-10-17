@@ -179,9 +179,14 @@ function renderBusinessPage(entry, appHtml, rules, index) {
         .join("")}</ul>`
     : "";
 
+  // No walk-time here -- cattle move, so a build-time distance would be wrong by the time anyone
+  // reads it. The live page (js/inspector.js's relatedCategoryLinksHtml) upgrades this same link
+  // with a real, freshly-computed "X min walk to the cows" once JS boots and the live GPS
+  // positions are loaded; this is the honest no-JS version of it.
+  const seeAlso = `See also <a href="/nearby/trees/">veteran trees</a> and <a href="/nearby/cows/">grazing cattle</a> near Epping Forest.`;
   const upLinks = subfilter && group
-    ? `<p>Part of <a href="/nearby/${escapeHtml(subfilterSlug)}/">${escapeHtml(subfilter.label)}</a> in <a href="/nearby/${escapeHtml(groupSlug)}/">${escapeHtml(group.label)}</a>. See also <a href="/nearby/trees/">veteran trees near Epping Forest</a>.</p>`
-    : `<p>See also <a href="/nearby/trees/">veteran trees near Epping Forest</a>.</p>`;
+    ? `<p>Part of <a href="/nearby/${escapeHtml(subfilterSlug)}/">${escapeHtml(subfilter.label)}</a> in <a href="/nearby/${escapeHtml(groupSlug)}/">${escapeHtml(group.label)}</a>. ${seeAlso}</p>`
+    : `<p>${seeAlso}</p>`;
 
   const seoContent =
     `<p>${escapeHtml(description)}</p>` +

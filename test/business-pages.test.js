@@ -73,13 +73,14 @@ test("renderBusinessPage lists real nearby businesses by distance, linking to th
   assert.ok(!html.includes('href="/find/far-away-shop/"'), "a 5km-away place is outside the nearby radius");
 });
 
-test("renderBusinessPage links up to its subfilter and group category pages, and to /nearby/trees/", () => {
+test("renderBusinessPage links up to its subfilter and group category pages, and to /nearby/trees/ and /nearby/cows/", () => {
   const rules = loadAppRules();
   const html = renderBusinessPage(FAKE_INDEX[0], APP_HTML, rules, FAKE_INDEX);
 
   assert.match(html, /href="\/nearby\/pubs\/"/);
   assert.match(html, /href="\/nearby\/food\/"/);
   assert.match(html, /href="\/nearby\/trees\/"/);
+  assert.match(html, /href="\/nearby\/cows\/"/);
 });
 
 test("renderBusinessPage shows opening hours, a folklore summary and a verification date when present, and omits them when absent", () => {
