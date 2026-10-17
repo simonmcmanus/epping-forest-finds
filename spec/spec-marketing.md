@@ -545,16 +545,24 @@ branches.
   anchor, that one line would also swallow every `/nearby/<slug>/` category
   page nested under the same prefix, silently undoing the entire point of
   generating them.
-- **Offline fallback**: `isAppNavigation()` (`sw.js`) recognises `/nearby/<slug>/`
-  and `/find/<slug>/` (any single-segment path under either prefix) as app
-  navigations, alongside the app's fixed screens, so a navigation to one of
-  them offline falls back to the cached `./app.html` shell instead of the
-  browser's own network-error page. The real app still boots and works
-  offline; it just lands unfiltered rather than pre-filtered to that one
-  category or business, since there is no way to know which page was wanted
-  without a network fetch of the actual page. With ~1,500 business pages
-  alone, precaching each individually was never the right trade-off —
-  falling back to the one shell every one of them is templated off is.
+- **Offline fallback, without inflating the app cache.** `isAppNavigation()`
+  (`sw.js`) recognises `/nearby/<slug>/` and `/find/<slug>/` (any single-
+  segment path under either prefix) as app navigations, alongside the app's
+  fixed screens, so a navigation to one of them never falls through to the
+  browser's own network-error page. But unlike the five fixed screens (which
+  share one `./app.html` cache entry because they're genuinely byte-identical
+  content), none of these ~1,500+ generated pages are ever written into that
+  shared slot — each has its own distinct title, JSON-LD and
+  `find-page-origin` script, so caching any one of them there would make that
+  slot's content, and consequently the next offline visitor's anchored
+  location, depend on whichever page was last loaded. They're fetched
+  network-first instead (so an online visitor always gets that exact page's
+  real content) and only fall back to the generic shared shell when offline —
+  the real app still boots and works, just unfiltered rather than
+  pre-filtered to that one category/business, which is the honest trade-off
+  available without precaching 1,500 individual pages. The app's working set
+  stays the JSON data plus the one shared shell either way; none of this
+  shows up as extra cache weight.
 - **Also not yet done** (tracked separately): per-page content (the specific
   category or business's own title/body) itself has no offline case —
   the fallback above is the generic app shell, not that page's own HTML.

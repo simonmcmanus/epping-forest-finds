@@ -5461,6 +5461,56 @@ test("service worker falls back to the cached app shell offline for /nearby/<slu
   }
 });
 
+test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own HTML into the shared app-shell cache slot", async () => {
+  // Each generated page has its own distinct title/JSON-LD/initial body -- caching any single one
+  // of them under the one "./app.html" key the five stable screens share would make that slot's
+  // content depend on whichever page a visitor last loaded, corrupting every other page's offline
+  // fallback (and, worse, its embedded find-page-origin script would anchor the live Nearby screen
+  // to the wrong business). Executes the real fetch handler against a fake navigate event and a
+  // cache spy, rather than inspecting the source, so a regression here would actually fail this.
+  const root = path.join(__dirname, "..");
+  let fetchHandler = null;
+  const cachePuts = [];
+  const context = {
+    self: {
+      addEventListener: (type, handler) => { if (type === "fetch") fetchHandler = handler; },
+      skipWaiting: () => {},
+      clients: { claim: () => {} },
+      registration: {},
+      location: { origin: "http://localhost:8080" },
+    },
+    importScripts: () => {},
+    caches: {
+      open: async () => ({ put: async (key) => cachePuts.push(key) }),
+      match: async () => ({ __cached: true }),
+      keys: async () => [],
+    },
+    fetch: async () => ({ ok: true, clone: () => ({}) }),
+    console,
+    URL,
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "data-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "sw.js"), "utf8"), context, { filename: "sw.js" });
+
+  async function fireNavigate(pathname) {
+    cachePuts.length = 0;
+    let responded = null;
+    fetchHandler({
+      request: { url: `http://localhost:8080${pathname}`, method: "GET", mode: "navigate" },
+      respondWith: (p) => { responded = p; },
+    });
+    await responded;
+    await new Promise((resolve) => setTimeout(resolve, 20)); // let the detached cache.put chain settle
+    return [...cachePuts];
+  }
+
+  assert.deepEqual(await fireNavigate("/nearby"), ["./app.html"], "a stable screen refreshes the shared shell");
+  assert.deepEqual(await fireNavigate("/find/the-forresters/"), [], "a business page must never overwrite it");
+  assert.deepEqual(await fireNavigate("/nearby/pubs/"), [], "a category page must never overwrite it either");
+});
+
 test("service worker app shell holds app.html and not the marketing homepage", () => {
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   const shell = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
