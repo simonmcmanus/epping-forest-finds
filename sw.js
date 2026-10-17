@@ -212,8 +212,31 @@ const DATA_CACHE_OPPORTUNISTIC = [
 // Anything else -- the homepage, the reports, the terms page -- is a network page the app
 // cache must not answer for.
 const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback"]);
-function isAppNavigation(pathname) {
+// Every one of these five (plus app.html itself) returns byte-identical content -- they're the
+// same static file, reached by different client-side routes layered on top of it -- so caching
+// "whatever was last fetched" under the one shared "./app.html" key (see the navigate branch in
+// the fetch handler below) is always correct for them.
+function isStableAppShellPath(pathname) {
   return APP_SCREEN_PATHS.has(pathname) || pathname === "/app.html" || pathname.endsWith("/app.html");
+}
+
+// /nearby/<slug>/ (scripts/generate-find-pages.js -- ~29 category pages) and /find/<slug>/
+// (scripts/generate-business-pages.js -- ~1,500 business/location pages, plus /find/events/)
+// are a different case: each one returns its OWN distinct HTML (a different <title>, JSON-LD and
+// initial inspector body), templated off app.html at build time but not identical to it or to
+// each other. Writing any single one of them into the shared "./app.html" cache slot the way the
+// stable paths above do would make that slot's content depend on whichever of these 1,500+ pages
+// a visitor last happened to load -- the next offline navigation to a *different* one of them
+// would then see that wrong page's title and JSON-LD. So these are never written to that cache
+// slot; they're read from it only as a last-resort offline fallback (see the navigate
+// branch below), keeping it exactly as generic as it already is for the five stable paths above.
+const FIND_PAGE_PATTERN = /^\/(nearby|find)\/[a-z0-9-]+\/?$/;
+function isGeneratedPageNavigation(pathname) {
+  return FIND_PAGE_PATTERN.test(pathname);
+}
+
+function isAppNavigation(pathname) {
+  return isStableAppShellPath(pathname) || isGeneratedPageNavigation(pathname);
 }
 
 function isAppCodePath(pathname) {
@@ -489,6 +512,16 @@ self.addEventListener("fetch", (event) => {
   // invisible to every returning visitor. See spec/spec-alpha-access.md.
   if (event.request.mode === "navigate") {
     if (!isAppNavigation(requestUrl.pathname)) return;
+
+    // A /nearby/<slug>/ or /find/<slug>/ page's own HTML is never written into the shared
+    // "./app.html" cache slot (see isGeneratedPageNavigation's comment above) -- it's fetched
+    // network-first instead, so an online visitor always gets that page's real, specific content
+    // rather than whatever happened to be cached, and only falls back to the generic shell if the
+    // network truly isn't available.
+    if (isGeneratedPageNavigation(requestUrl.pathname)) {
+      event.respondWith(fetch(event.request).catch(() => caches.match("./app.html")));
+      return;
+    }
 
     const fromNetwork = fetch(event.request).then((response) => {
       if (response && response.ok) {

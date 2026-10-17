@@ -40,7 +40,7 @@ jobs:
             ];
             const htmlLink = (path) => `<a href="${previewUrl}${path}">${path}</a>`;
             const icon = (path) => `<img src="${previewUrl}/${path}" width="18" height="18" alt="">`;
-            const routeIcon = (value) => value.startsWith("data/") ? icon(value) : value;
+            const routeIcon = (value) => value && value.startsWith("data/") ? icon(value) : (value || "");
             const categoryCell = ([slug, categoryIcon, subcategories]) =>
               `<td>${icon(categoryIcon)} ${htmlLink(`/nearby/${slug}`)}<br>${subcategories.map(([subSlug, subIcon]) => `${icon(`data/icons/${subIcon}.png`)} ${htmlLink(`/nearby/${subSlug}`)}`).join("<br>")}</td>`;
             const categoryLinks = `<table>${categoryGroups.filter((_, index) => index % 3 === 0).map((left, rowIndex) => {
@@ -53,17 +53,66 @@ jobs:
               ["/settings", "data/icons/settings.png"], ["/feedback", "data/icons/feedback.png"],
               ["/admin", "data/icons/settings.png"], ["/reports/", "📄"],
               ["/terms.html", "📄"], ["/app", "↪️"],
+              ["/find/events/", "📅"],
             ];
+            // Paired two-per-row; .length % 2 === 0 isn't guaranteed (routes grows one at a time),
+            // so the trailing odd item gets an empty second cell rather than throwing on a missing pair.
             const routeLinks = `<table>${routes.filter((_, index) => index % 2 === 0).map((left, pairIndex) => {
               const right = routes[pairIndex * 2 + 1];
-              return `<tr><td>${routeIcon(left[1])} ${htmlLink(left[0])}</td><td>${routeIcon(right[1])} ${htmlLink(right[0])}</td></tr>`;
+              return `<tr><td>${routeIcon(left[1])} ${htmlLink(left[0])}</td><td>${right ? `${routeIcon(right[1])} ${htmlLink(right[0])}` : ""}</td></tr>`;
             }).join("")}</table>`;
+
+            // One real example /find/<slug>/ page per business subfilter -- individual business/
+            // location pages (scripts/generate-business-pages.js, spec-marketing.md section 6.7)
+            // are data-driven, not a fixed enumerable set like the ~28 category pages above, so
+            // this can't be a hand-written list the way categoryGroups is: a hardcoded slug would
+            // eventually point at a place that's closed or been renamed. Instead it reads the
+            // actual committed data/business-slugs.json at this preview's own commit and picks one
+            // entry per subfilter, so the links are always real for whatever is being previewed.
+            let businessLinks = "";
+            try {
+              const { data: file } = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: "data/business-slugs.json",
+                ref: sha,
+              });
+              const index = JSON.parse(Buffer.from(file.content, "base64").toString("utf8"));
+              const exampleSubfilterKeys = ["pubs", "restaurants", "cafes", "shops", "churches", "education", "medicine", "campsites"];
+              // Prefer a real OSM/manual place over a folklore-sourced blue plaque as the example --
+              // both are valid entries, but a plaque is a confusing "example medical site" when an
+              // actual one exists (sorted first alphabetically either way, so this stays deterministic).
+              const examples = exampleSubfilterKeys
+                .map((key) => {
+                  const matches = index.entries.filter((entry) => entry.key === key).sort((a, b) => a.slug.localeCompare(b.slug));
+                  return matches.find((entry) => !String(entry.id).startsWith("folklore-")) || matches[0];
+                })
+                .filter(Boolean);
+              if (examples.length) {
+                const exampleCell = (entry) => `<td>${htmlLink(`/find/${entry.slug}/`)}<br><sub>${entry.name}</sub></td>`;
+                const exampleRows = examples.filter((_, index) => index % 4 === 0).map((left, rowIndex) => {
+                  const row = examples.slice(rowIndex * 4, rowIndex * 4 + 4);
+                  return `<tr>${row.map(exampleCell).join("")}${"<td></td>".repeat(4 - row.length)}</tr>`;
+                }).join("");
+                businessLinks = [
+                  "",
+                  `<details><summary>Example business/location pages (${index.entries.length} total -- one per type shown here)</summary>`,
+                  "",
+                  `<table>${exampleRows}</table>`,
+                  "</details>",
+                ].join("\n");
+              }
+            } catch (error) {
+              core.warning(`Could not read data/business-slugs.json at ${sha} for example /find/ links: ${error.message}`);
+            }
+
             const links = [
               "### Deploy preview",
               "",
               routeLinks,
               "",
               categoryLinks,
+              businessLinks,
             ].join("\n");
             const marker = /<!-- preview-links:start -->[\s\S]*?<!-- preview-links:end -->/;
 

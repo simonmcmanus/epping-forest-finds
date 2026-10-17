@@ -33,6 +33,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { buildInventory, loadAppRules } = require("./report/map-inventory.js");
+const { escapeHtml, replaceOnce } = require("./lib/html-template.js");
+const { listBusinessesForFilterKey, loadEvents } = require("./generate-business-pages.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITE_NAME = "Epping Forest Finds";
@@ -64,6 +66,19 @@ function slugFor(key) {
   return key.replace(/_/g, "-");
 }
 
+// The same "See also veteran trees and grazing cattle near Epping Forest" up-link every
+// /find/<slug>/ business page already carries (scripts/generate-business-pages.js), so a
+// category/subcategory page gives a crawler or a visitor the same onward path -- these pages
+// previously cross-linked only sideways (siblings) and up (group), never out to trees/cows,
+// which sit outside every group but "nature" and so never appeared as a sibling anywhere else.
+// Self-link avoided only for /nearby/trees/ itself; every other page (including the "nature"
+// group page, whose own crossLinks cover trees but never cows -- cows has no fixed count and is
+// excluded from map-inventory.js's inventory.groups) gets both links.
+function natureSeeAlsoHtml(omitTreesLink = false) {
+  const treesLink = omitTreesLink ? "" : `<a href="/nearby/trees/">veteran trees</a> and `;
+  return `<p>See also ${treesLink}<a href="/nearby/cows/">grazing cattle</a> near Epping Forest.</p>`;
+}
+
 // A compact, generic phrase for each top-level group's own page (e.g. /nearby/food/) -- group
 // labels alone ("Food", "Transport") don't read as a sentence fragment the way each subfilter's
 // hand-picked title does ("pubs and bars"), so these are the group-level equivalent. "events" is
@@ -86,27 +101,6 @@ function buildTitleIndex(rules) {
     for (const subfilter of group.subfilters) titles.set(subfilter.key, subfilter.title);
   }
   return titles;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-/** Replaces the one occurrence of `needle` in `html`, throwing if app.html no longer has it. */
-function replaceOnce(html, needle, replacement, label) {
-  const count = html.split(needle).length - 1;
-  if (count !== 1) {
-    throw new Error(
-      `[generate-find-pages] expected exactly one "${label}" in app.html, found ${count} -- ` +
-        "app.html changed in a way this generator's template no longer matches."
-    );
-  }
-  return html.replace(needle, replacement);
 }
 
 // app.html's CSS/JS/icon references are relative ("css/base.css"), which resolves one level
@@ -175,7 +169,14 @@ function renderPage(page, appHtml) {
   // uses, STATIC_PAGES in generate-sitemap.js) -- the canonical/OG/JSON-LD url must be the one
   // actually served, not the one that redirects to it.
   const canonical = `${SITE_ORIGIN}/nearby/${page.slug}/`;
-  const titleTag = `${page.label} in Epping Forest | ${SITE_NAME}`;
+  // The count leads a subfilter's title ("129 Pubs & Bars...") -- a plural noun reads naturally
+  // with a number in front, and it's the most concrete, searched-for fact the page has to offer.
+  // A group label ("Food", "History") isn't grammatically a plural noun, so its count sits after
+  // instead ("Food in Epping Forest -- 1,359 places"). Either way the title states the page's own
+  // real content rather than a generic phrase repeated across every category page.
+  const titleTag = page.isGroup
+    ? `${page.label} in Epping Forest — ${page.count.toLocaleString("en-GB")} places | ${SITE_NAME}`
+    : `${page.count.toLocaleString("en-GB")} ${page.label} in Epping Forest | ${SITE_NAME}`;
   const description = `Find all ${page.count} ${page.title} in Epping Forest, mapped and ready to walk to.`;
   const jsonLd = {
     "@context": "https://schema.org",
@@ -196,10 +197,24 @@ function renderPage(page, appHtml) {
   // What a crawler, or a visitor, sees before js/app.js boots and replaces #inspectorBody with
   // the live Nearby list (transitionInspectorBody, js/inspector.js) -- real, specific, crawlable
   // text and links, in the exact spot the app's own "nothing selected yet" message lives today.
+  // Every individual business/location in this category, listed and linked to its own
+  // /find/<slug>/ page -- real, crawlable without JS, not just a count. Subfilters outside the
+  // confirmed /find/ scope (transport, history, nature, stories) have no entries in the business
+  // index, so this is naturally empty for them and the page falls back to the plain summary
+  // sentence it always had.
+  const businesses = listBusinessesForFilterKey(page.key);
+  const businessListHtml = businesses.length
+    ? `<ul class="category-listing">${businesses
+        .map((b) => `<li><a href="/find/${escapeHtml(b.slug)}/">${escapeHtml(b.name)}</a></li>`)
+        .join("")}</ul>`
+    : "";
+
   const seoContent = `<p>Find all ${page.count} ${escapeHtml(page.title)} in Epping Forest, mapped and ready to walk to. Enable location to see how far each one is and get walking directions.</p>` +
+    businessListHtml +
     (page.isGroup
       ? (crossLinks ? `<p>Browse by type: ${crossLinks}.</p>` : "")
-      : (crossLinks ? `<p>More in <a href="/nearby/${escapeHtml(page.groupSlug)}/">${escapeHtml(page.groupLabel)}</a>: ${crossLinks}.</p>` : ""));
+      : (crossLinks ? `<p>More in <a href="/nearby/${escapeHtml(page.groupSlug)}/">${escapeHtml(page.groupLabel)}</a>: ${crossLinks}.</p>` : "")) +
+    natureSeeAlsoHtml(page.key === "trees");
 
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
@@ -235,6 +250,98 @@ function renderPage(page, appHtml) {
   return html;
 }
 
+/**
+ * /nearby/events/ -- the one category page map-inventory.js's buildInventory() deliberately
+ * excludes from `inventory.groups` (time-bound, not a static map fact; see that file's own
+ * comment), so it can't flow through collectPages/renderPage like every other category: there is
+ * no "count that's a fact about the forest" the way "130 pubs" is. It still belongs under
+ * /nearby/ rather than only at /find/events/ (scripts/generate-business-pages.js) though --
+ * "events" is a real filter key (ALL_OVERVIEW_FILTER_KEYS, js/categories.js) and
+ * filterKeysFromFindPath (js/app.js) already resolves /nearby/events to it like any other
+ * subfilter slug, pre-filtering the live map the same way /nearby/pubs does; the only missing
+ * piece was this static page ever existing on disk.
+ *
+ * Content is deliberately brief and distinct from /find/events/'s fuller listing (title/date only
+ * here, full description and source link there) rather than a second copy of the same text --
+ * this page's job is the live, pre-filtered map; /find/events/ is the crawlable reference.
+ */
+function renderEventsPage(appHtml, events) {
+  const canonical = `${SITE_ORIGIN}/nearby/events/`;
+  const titleTag = `${events.length} Events in Epping Forest | ${SITE_NAME}`;
+  const description = `${events.length} upcoming and recent events in and around Epping Forest, shown live on the map.`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Events in Epping Forest",
+    description,
+    url: canonical,
+    isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${SITE_ORIGIN}/` },
+    mainEntity: { "@type": "ItemList", numberOfItems: events.length },
+  };
+
+  const eventListHtml = events.length
+    ? `<ul>${events
+        .map((e) => `<li>${escapeHtml(e.title)}${e.date ? ` (${escapeHtml(e.date)})` : ""}</li>`)
+        .join("")}</ul>`
+    : "";
+
+  const seoContent =
+    `<p>${escapeHtml(description)} Enable location to see how far away each one is and get walking directions.</p>` +
+    eventListHtml +
+    `<p>See the <a href="/find/events/">full events list</a> with descriptions and source links.</p>` +
+    natureSeeAlsoHtml();
+
+  let html = appHtml;
+  html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
+  html = replaceOnce(html, APP_DESCRIPTION_META, `<meta name="description" content="${escapeHtml(description)}">`, "meta description");
+  html = replaceOnce(html, APP_CANONICAL, `<link rel="canonical" href="${canonical}">`, "canonical link");
+  html = replaceOnce(html, APP_OG_TITLE, `<meta property="og:title" content="Events in Epping Forest">`, "og:title");
+  html = replaceOnce(html, APP_OG_DESCRIPTION, `<meta property="og:description" content="${escapeHtml(description)}">`, "og:description");
+  html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
+  html = replaceOnce(html, "</head>", `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`, "</head>");
+  html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
+  return html;
+}
+
+/**
+ * /nearby/cows/ -- the other category excluded from inventory.groups (COW_KEY, map-inventory.js):
+ * live-tracked from GPS collars via the Nofence API, not a fixed dataset, so there is no count to
+ * quote and no list to build at build time the way events' own dates can be. "cows" is still a
+ * real filter key (ALL_OVERVIEW_FILTER_KEYS) that filterKeysFromFindPath already resolves like
+ * any other subfilter slug, so -- same reasoning as /nearby/events/ above -- the only missing
+ * piece was this page ever existing. Exists mainly so other pages (a selected business's own
+ * "X min walk to the cows" link, js/inspector.js) have a real destination rather than a 404; its
+ * own content is honest about having nothing to enumerate, not padded to look like it does.
+ */
+function renderCowsPage(appHtml) {
+  const canonical = `${SITE_ORIGIN}/nearby/cows/`;
+  const titleTag = `Grazing Cattle in Epping Forest | ${SITE_NAME}`;
+  const description = "Epping Forest's conservation-grazing cattle, tracked live by GPS collar and shown on the map wherever they currently are.";
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Grazing Cattle in Epping Forest",
+    description,
+    url: canonical,
+    isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${SITE_ORIGIN}/` },
+  };
+
+  const seoContent =
+    `<p>${escapeHtml(description)} Positions refresh periodically while online; offline, the map shows the last saved positions, which may be out of date.</p>` +
+    `<p>See also <a href="/nearby/trees/">veteran trees</a> near Epping Forest.</p>`;
+
+  let html = appHtml;
+  html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
+  html = replaceOnce(html, APP_DESCRIPTION_META, `<meta name="description" content="${escapeHtml(description)}">`, "meta description");
+  html = replaceOnce(html, APP_CANONICAL, `<link rel="canonical" href="${canonical}">`, "canonical link");
+  html = replaceOnce(html, APP_OG_TITLE, `<meta property="og:title" content="Grazing Cattle in Epping Forest">`, "og:title");
+  html = replaceOnce(html, APP_OG_DESCRIPTION, `<meta property="og:description" content="${escapeHtml(description)}">`, "og:description");
+  html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
+  html = replaceOnce(html, "</head>", `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`, "</head>");
+  html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
+  return html;
+}
+
 function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInventory(siteRoot)) {
   const rules = loadAppRules();
   const pages = collectPages(rules, inventory);
@@ -246,6 +353,15 @@ function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInvent
     fs.mkdirSync(pageDir, { recursive: true });
     fs.writeFileSync(path.join(pageDir, "index.html"), renderPage(page, appHtml), "utf8");
   }
+
+  const eventsDir = path.join(categoryDir, "events");
+  fs.mkdirSync(eventsDir, { recursive: true });
+  fs.writeFileSync(path.join(eventsDir, "index.html"), renderEventsPage(appHtml, loadEvents(siteRoot)), "utf8");
+
+  const cowsDir = path.join(categoryDir, "cows");
+  fs.mkdirSync(cowsDir, { recursive: true });
+  fs.writeFileSync(path.join(cowsDir, "index.html"), renderCowsPage(appHtml), "utf8");
+
   return pages;
 }
 
@@ -265,6 +381,8 @@ function listFindSlugs(siteRoot) {
 module.exports = {
   collectPages,
   renderPage,
+  renderEventsPage,
+  renderCowsPage,
   generate,
   listFindSlugs,
   slugFor,

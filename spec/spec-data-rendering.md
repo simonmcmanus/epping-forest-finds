@@ -867,6 +867,25 @@ All selected detail screens with a distance pill (trees, places, cows, and paths
 
 The figure itself is the real road/path-following distance (and the walk time derived from it), matching the routed line described under "Route Lines" above, whenever that route is available -- not the straight-line/crow-flies distance. `selectedRouteMetres(target)` (js/renderer.js) sums the segment lengths of whatever `selectedRoutePoints(target)` currently returns, so it shares that function's memoization and its same fallback conditions; `updateSelectedDetailFields()` (js/app.js) uses this routed figure when it's available and falls back to the plain straight-line distance otherwise (graph still building, no route found, etc.), so the chip is never blank and never regresses below the previous behaviour. The chip is refreshed both on every GPS fix and the moment the routing graph finishes its lazy background build, so a selection made before the graph is ready still self-corrects from the straight-line figure to the routed one shortly after, without waiting for the next GPS fix.
 
+Any selected point (tree, place, cow) with coordinates also shows an **"Everything within 15 min
+walk"** card (`nearbyWithinWalkHtml`, js/inspector.js) under a "Nearby" heading, not in
+`.detail-top-row` alongside Open in Maps/Share: it shares the Nearby list's own `.nearest-item`
+card styling (a `<button>`, since it drives a live state change rather than a navigation) instead
+of the unrelated `.detail-map-link` pill those use. A findSlug place's own "Nearby" section
+(`relatedCategoryLinksHtml`, below) already exists and gets this card appended as a third entry,
+after the nearest tree/cow; everything else with coordinates and no such section of its own (every
+tree, every cow, and a non-findSlug landmark) gets a standalone one-card "Nearby" section of its
+own (`standaloneNearbySectionHtml`). It reuses the existing Nearby-browsing mechanism rather than
+inventing a new one: tapping it drops the selection, moves the Nearby browse anchor to that exact
+point (`setNearbyAnchor`'s own mechanism -- the same one a tap on open ground or a shared
+`near=<lat>,<lon>` link already use) and sets the walking radius to a fixed 15 minutes
+(`WALK_RADIUS_BUTTON_MINUTES`, js/app.js) -- a round, recognisable number rather than whatever the
+reader's own radius happened to be set to. Both are applied as one state update and one
+refresh/history push (`focusNearbyWithinWalkMinutes`, js/nav.js), the same way a cluster tap folds
+an anchor move and a radius change together, rather than calling `setNearbyAnchor` and
+`applyWalkingRadiusChange` in turn and refreshing twice. The real GPS fix (`state.userLocation`)
+is never moved by this -- only the browse anchor, exactly as any other anchor move works.
+
 #### Tree Details
 
 - **Tag number** (physical forest tag) is shown as the **first** always-visible field, before Estimated age and Common name. This is the number printed on the physical tag nailed to the tree, making it easy to confirm you're looking at the right record without extra taps.
@@ -884,6 +903,33 @@ The figure itself is the real road/path-following distance (and the walk time de
 - Live distance + walking time
 - Bus stop selections append live departures when online; the departures block also shows a bus-stop direction summary (`Buses towards …`) using TfL stop metadata when available, otherwise a deduplicated summary of upcoming destination names for that stop only.
 - The direction is only ever a place a bus is heading for, or wording such as `northbound`/`via …` from the stop's own flag. A compass bearing is never used: TfL's `bearing`, `CompassPoint` and similar metadata (`225`, `NE`, `north-east`) are discarded rather than shown, because a bearing tells a rider nothing they can act on. A stop with no usable direction shows no direction line, and its Nearby entry keeps its plain name.
+- A place that has its own crawlable `/find/<slug>/` page (`spec-marketing.md` § 6.7 — the food
+  and locations groups) shows a **"Full details"** link in `.detail-top-row` alongside Open in
+  Maps/Share, linking to that page. `findSlug` is attached per place at load time (`js/loader.js`,
+  from `data/business-slugs.json`) rather than resolved here, so a place outside that scope (a
+  bus stop, a tree, a historic site) simply has no `findSlug` and shows no link. Also suppressed
+  when the page currently on screen already *is* that place's own `/find/` page (landing there
+  selects it automatically, `spec.md` "Routing") — `fullDetailsLinkHtml()` reads
+  `window.location.pathname` directly rather than taking it as a parameter, so this only works
+  correctly when the URL is already updated to the place being selected *before* the detail view
+  renders. Every selection path (a map tap, a Nearby-list tap, a routed deep link, `openSearchResult`)
+  calls `syncHashFromSelection()` before the matching `show*Details`/`route.show()` call for exactly
+  this reason — `openSearchResult` once did it the other way round, so a findSlug business selected
+  from a search result always showed "Full details" pointing at the very page just reached, and the
+  link did nothing when clicked (the URL had already caught up by then, so `navigateInApp`'s
+  already-there check made it a no-op).
+- Opening hours (when known) and a `tel:`-linked phone number — see `spec-marketing.md` § 6.7,
+  "Opening hours and a tappable phone number are not static-page-only".
+- A `findSlug` place also shows a headed **Nearby** section (the nearest tree and, when loaded,
+  the cows) and a headed **Related** section (its own category/group), both rendered as the same
+  `.nearest-item` card — see `spec-marketing.md` § 6.7, "Related-content links, both
+  server-rendered and live, as two headed sections". Neither section names a data source for its
+  distances (computed entirely from this site's own data, not fetched from anywhere). The
+  nearest-tree and nearest-cow links both carry this place's own position via `/nearby/trees/`'s
+  and `/nearby/cows/`'s own `near=<lat>,<lon>` anchor route, and every in-app link rendered into
+  the inspector — these included — is a real SPA transition rather than a full page reload — see
+  `spec-marketing.md` § 6.7, "The trees and cows links both carry the selected place's own
+  position" and "Every in-app link rendered into the inspector is a real SPA transition".
 
 #### Cow Details
 

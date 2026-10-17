@@ -28,6 +28,10 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#locationGate")).toBeHidden();
     });
 
+    test("the High Beach stand-in notice is not shown with a real fix", async ({ page }) => {
+      await expect(page.locator("#inspectorBody")).not.toContainText("Showing things near High Beach");
+    });
+
     test("distance info appears as an always-visible combined distance and walk chip after a GPS fix", async ({ page }) => {
       // Navigate to a tree via URL hash (tree search toggle is hidden on desktop viewports)
       await page.goto("/nearby#tree=11383");
@@ -135,13 +139,19 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
     });
 
+    test("the list says it is showing High Beach because no location was shared, for as long as the stand-in is active", async ({ page }) => {
+      await expect(page.locator("#inspectorBody .source-note")).toContainText(
+        "Showing things near High Beach — you haven't shared your location."
+      );
+    });
+
     test("the walking radius defaults to 30 minutes, not the ordinary 5, since the anchor isn't tied to anywhere real", async ({ page }) => {
       const minutes = await page.evaluate(() => state.walkingDistanceMinutes);
       expect(minutes).toBe(30);
     });
 
-    test("the locate button stays visible, and the \"You\" dot is never drawn for the stand-in", async ({ page }) => {
-      await expect(page.locator("#locateButton")).toBeVisible();
+    test("there is no duplicate location button, and the \"You\" dot is never drawn for the stand-in", async ({ page }) => {
+      await expect(page.locator("#locateButton")).toHaveCount(0);
       const drewYouDot = await page.evaluate(() => {
         let arcCount = 0;
         const ctx = {

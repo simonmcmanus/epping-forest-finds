@@ -126,6 +126,30 @@ async function loadMapData() {
       return { trees: [], historicalNamedTreeEnrichment: null };
     });
 
+  // Trees are the largest download by a wide margin. Keep that work in flight, but do not
+  // make places (and their deep links) wait for every tree chunk to arrive. The map's other
+  // layers below are sufficient to open and use a places-only view; when trees finish they
+  // join the already interactive map without moving the user's camera.
+  treePromise.then((treeData) => {
+    state.trees = treeData.trees
+      .filter((tree) => tree.location && tree.location.wgs84)
+      .map((tree) => ({
+        ...tree,
+        latitude: Number(tree.location.wgs84.latitude),
+        longitude: Number(tree.location.wgs84.longitude),
+        point: projectLonLat(Number(tree.location.wgs84.longitude), Number(tree.location.wgs84.latitude)),
+      }))
+      .filter((tree) => Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)
+        && !(tree.latitude === 0 && tree.longitude === 0));
+    state.namedTreeStoriesByName = buildNamedTreeStoryIndex(treeData.historicalNamedTreeEnrichment);
+
+    if (state.dataLoaded) {
+      state.bounds = calculateBounds();
+      if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) selectOverview();
+      requestDraw();
+    }
+  });
+
   const landmarkPromise = Promise.all(
     LANDMARK_URLS.map(url =>
       fetch(url)
@@ -147,6 +171,14 @@ async function loadMapData() {
       return r.json();
     })
     .catch(() => ({ locations: [] }));
+
+  // Maps a place's OSM/folklore id to its own /find/<slug>/ page (data/business-slugs.json,
+  // scripts/regenerate-business-slugs.js) -- the same slugs that page itself was built with, so
+  // the inspector's "Full details" link (showLandmarkDetails, js/inspector.js) can never point
+  // somewhere that generator didn't also build. Missing or unreachable just means no link.
+  const businessSlugsPromise = fetch(BUSINESS_SLUGS_URL)
+    .then((r) => (r.ok ? r.json() : { entries: [] }))
+    .catch(() => ({ entries: [] }));
 
   const eventsPromise = fetch(EVENTS_URL)
     .then(async (r) => {
@@ -199,16 +231,21 @@ async function loadMapData() {
       .catch(() => ({ ...layer, data: { type: "FeatureCollection", features: [] } }))
   );
 
-  const [treeData, landmarkData, folkloreData, eventsData, pathsData, roadsData, environmentData, ...resolvedLayers] = await Promise.all([
-    treePromise,
+  const [landmarkData, folkloreData, eventsData, pathsData, roadsData, environmentData, businessSlugsData, ...resolvedLayers] = await Promise.all([
     landmarkPromise,
     folklorePromise,
     eventsPromise,
     pathsPromise,
     roadsPromise,
     environmentPromise,
+    businessSlugsPromise,
     ...layerPromises,
   ]);
+
+  // verifiedAt rides along on the same entries as findSlug -- it's already in this payload
+  // (scripts/regenerate-business-slugs.js reads data/verification.json once at index-build time),
+  // so no second fetch is needed to show "Checked against OpenStreetMap on <date>" live.
+  const businessById = new Map((businessSlugsData.entries || []).map((entry) => [entry.id, entry]));
 
   const layerFeatureCount = resolvedLayers.reduce((sum, layer) => {
     return sum + (layer.data.features ? layer.data.features.length : 0);
@@ -216,24 +253,6 @@ async function loadMapData() {
   setLoadStep("forest", "done", layerFeatureCount);
 
   state.layers = resolvedLayers;
-
-  // A handful of Veteran Tree Register records carry no survey position at all
-  // (location.wgs84.latitude/longitude both null). Number(null) is 0, so mapping them
-  // straight through put those trees on Null Island -- a real entry in state.trees that
-  // every nearest/within-radius scan then had to measure against. Drop them: a tree with no
-  // coordinate cannot be shown on the map or walked to, so it has nothing to contribute.
-  state.trees = treeData.trees
-    .filter((tree) => tree.location && tree.location.wgs84)
-    .map((tree) => ({
-      ...tree,
-      latitude: Number(tree.location.wgs84.latitude),
-      longitude: Number(tree.location.wgs84.longitude),
-      point: projectLonLat(Number(tree.location.wgs84.longitude), Number(tree.location.wgs84.latitude)),
-    }))
-    .filter((tree) => Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)
-      && !(tree.latitude === 0 && tree.longitude === 0));
-
-  state.namedTreeStoriesByName = buildNamedTreeStoryIndex(treeData.historicalNamedTreeEnrichment);
 
   const osmLandmarks = (landmarkData.features || [])
     .filter((feature) => feature.geometry && feature.geometry.type === "Point")
@@ -246,10 +265,16 @@ async function loadMapData() {
         latitude,
         longitude,
         point: projectLonLat(longitude, latitude),
+        findSlug: businessById.get(feature.properties.id)?.slug || null,
+        verifiedAt: businessById.get(feature.properties.id)?.verifiedAt || null,
       };
     });
 
-  const folkloreLandmarks = normalizeFolkloreLocations(folkloreData);
+  const folkloreLandmarks = normalizeFolkloreLocations(folkloreData).map((place) => ({
+    ...place,
+    findSlug: businessById.get(place.id)?.slug || null,
+    verifiedAt: businessById.get(place.id)?.verifiedAt || null,
+  }));
   const eventLandmarks = normalizeEventLocations(eventsData);
   state.landmarks = [...osmLandmarks, ...folkloreLandmarks, ...eventLandmarks];
   setLoadStep("places", "done", state.landmarks.length);
@@ -272,6 +297,8 @@ async function loadMapData() {
 
   state.environmentFeatures = (environmentData.features || []).filter((feature) => feature && feature.geometry && feature.properties);
   state.waterFeatures = extractWaterFeatures(environmentData.features || []);
+
+  return { treePromise };
 }
 
 function loadBuildingsIfNeeded() {

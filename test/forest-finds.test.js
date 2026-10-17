@@ -249,6 +249,8 @@ globalThis.__forestFindsTest = {
   formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
+  categoryLandingLinksHtml,
+  navigateInApp,
   overviewHeadingText,
   normalizeSearchText,
   searchQueryTokens,
@@ -299,12 +301,12 @@ globalThis.__forestFindsTest = {
   applySearchQueryFromQuery,
   applyRadiusFromQuery,
   DEFAULT_WALKING_DISTANCE_MINUTES,
+  WALK_RADIUS_BUTTON_MINUTES,
   LANDING_PAGE_WALKING_DISTANCE_MINUTES,
   DEFAULT_LOCATION,
   DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
   applyDefaultLocation,
   hasRealLocation,
-  updateLocateButtonVisibility,
   setLocationGateVisible,
   ROUTE_PATHS,
   NEARBY_PATH,
@@ -435,6 +437,7 @@ globalThis.__forestFindsTest = {
   nearbyOrigin,
   setNearbyAnchor,
   clearNearbyAnchor,
+  focusNearbyWithinWalkMinutes,
   roadNavTarget,
   selectedCompassTarget,
   showRoadDetails,
@@ -447,6 +450,13 @@ globalThis.__forestFindsTest = {
   placeIconSlug,
   placeLabelFilterKey,
   resolvePlaceKind,
+  FILTER_SUBFILTERS_BY_KEY,
+  nearestTreeTo,
+  nearestCowTo,
+  relatedCategoryLinksHtml,
+  detailsHtml,
+  nearbyWithinWalkHtml,
+  standaloneNearbySectionHtml,
   filterKindIconSlug,
   PLACE_FILTER_KEYS,
   PLACE_FILTER_PRIORITY,
@@ -1704,6 +1714,52 @@ test("the Nearby nav button leaves a filter the reader deliberately chose alone"
   assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "a real chip tap is never mistaken for a page's own ephemeral lens");
 });
 
+test("navigating in-app from a selection straight to a /nearby/<slug> page lands on that page's own category, not the reader's stored filters", () => {
+  resetData(app);
+  resetRouter(app);
+  app.localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["trees", "cows", "events"], expandedGroups: [] }));
+  // A selection (any type) makes currentScreenRoute() non-empty, so navigateInApp's own
+  // urlMatchesCurrentScreen check doesn't short-circuit before applyRoute()/goToInitialView()
+  // run -- the same shape as clicking a business page's own "Food" related link.
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  app.location.pathname = "/find/the-forresters/";
+  app.location.hash = "";
+
+  app.navigateInApp("/nearby/food/");
+
+  assert.equal(app.location.pathname, "/nearby/food/");
+  assert.deepEqual(
+    Array.from(app.state.overviewFilters).sort(),
+    ["cafes", "pubs", "restaurants", "shops"],
+    "lands pre-filtered to Food's own subfilters -- goToInitialView's own restore (fired in the same pass, since the route value is \"\" both before and after a selection) must not revert this"
+  );
+  app.location.pathname = "/";
+  app.location.hash = "";
+});
+
+test("navigating in-app from a selection straight to bare /nearby restores the reader's stored filters", () => {
+  resetData(app);
+  resetRouter(app);
+  app.localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["cafes"], expandedGroups: [] }));
+  // The precondition this exercises: currently showing /nearby/food/'s own ephemeral category
+  // (exactly what a real arrival there -- applyShowFilterFromQuery -- would have left behind).
+  app.setOverviewFilters(["pubs", "restaurants", "cafes", "shops"], { persist: false });
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  app.location.pathname = "/nearby/food/";
+  app.location.hash = "";
+
+  app.navigateInApp("/nearby");
+
+  assert.equal(app.location.pathname, "/nearby");
+  assert.deepEqual(
+    Array.from(app.state.overviewFilters),
+    ["cafes"],
+    "the \"Everything nearby\" link's own target (bare /nearby) is not itself a landing page, so applyShowFilterFromQuery must put the reader's own filters back -- its own route value (\"\") never changes between the /nearby/food/ page and bare /nearby, so goToInitialView's restore never runs on its own"
+  );
+  app.location.pathname = "/";
+  app.location.hash = "";
+});
+
 test("a ?q=<text> query param restores the search box's text on arrival at /search", () => {
   resetData(app);
   app.state.searchQuery = "";
@@ -1874,6 +1930,88 @@ test("isLandingPageArrival recognises a /nearby/<slug> path or a first-touch ?sh
 
   app.location.pathname = "/";
   app.location.search = "";
+});
+
+test("isLandingPageArrival also recognises a /find/<slug>/ business page as a landing-page arrival, but not /find/events/", () => {
+  app.location.pathname = "/find/the-forresters/";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), true, "a business's own /find/ page is a landing page, same as /nearby/<slug>");
+
+  app.location.pathname = "/find/the-forresters";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), true, "without the trailing slash too");
+
+  app.location.pathname = "/find/events/";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), false, "events has no single business of its own to land on, same carve-out routeValueFromLocation makes");
+
+  app.location.pathname = "/";
+  app.location.search = "";
+});
+
+test("categoryLandingLinksHtml links a subfilter page up to its group and back to the full Nearby list", () => {
+  app.location.pathname = "/nearby/pubs/";
+  const html = app.categoryLandingLinksHtml();
+  assert.match(html, /<a class="detail-map-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
+  assert.match(html, /<a class="detail-map-link" href="\/nearby">[\s\S]*?Everything nearby<\/a>/);
+  app.location.pathname = "/";
+});
+
+test("categoryLandingLinksHtml links a group page only back to the full Nearby list, with no group above it", () => {
+  app.location.pathname = "/nearby/food/";
+  const html = app.categoryLandingLinksHtml();
+  assert.ok(!html.includes("Food</a>"), "the food group page does not link to itself");
+  assert.match(html, /<a class="detail-map-link" href="\/nearby">[\s\S]*?Everything nearby<\/a>/);
+  app.location.pathname = "/";
+});
+
+test("categoryLandingLinksHtml is empty on the plain Nearby screen and on /nearby/filter or /nearby/search", () => {
+  for (const pathname of ["/nearby", "/nearby/filter", "/nearby/search", "/"]) {
+    app.location.pathname = pathname;
+    assert.equal(app.categoryLandingLinksHtml(), "", `expected no breadcrumb on ${pathname}`);
+  }
+});
+
+test("overviewNearestHtml carries the same category breadcrumb through every return path, including empty-list states", () => {
+  resetData(app);
+  // Set directly rather than through setOverviewFilters(), whose own selectOverview()/
+  // syncHashFromSelection() side effects would otherwise correct this test's manually-set
+  // pathname back to the plain /nearby the current (empty) selection/anchor actually describes --
+  // the real boot sequence never hits that, since routerBooting suppresses it until boot finishes.
+  app.state.overviewFilters = ["pubs"];
+  app.location.pathname = "/nearby/pubs/";
+  app.state.userLocation = null;
+  assert.match(app.overviewNearestHtml(), /href="\/nearby\/food\/"/, "no-location branch still shows the breadcrumb");
+
+  app.state.userLocation = makePoint(app, 51.9, 0.9); // far from any fixture data -- empty list
+  assert.match(app.overviewNearestHtml(), /href="\/nearby\/food\/"/, "empty-result branch still shows the breadcrumb");
+
+  app.location.pathname = "/";
+});
+
+test("navigateInApp pushes a real history entry and applies the new route, instead of leaving it to the browser's own navigation", () => {
+  resetData(app);
+  app.location.pathname = "/find/the-forresters/";
+  app.location.hash = "";
+
+  app.navigateInApp("/nearby/cows/#near=51.650000%2C0.050000");
+
+  assert.equal(app.location.pathname, "/nearby/cows/");
+  assert.equal(app.location.hash, "#near=51.650000%2C0.050000");
+  assert.equal(app.state.nearbyAnchor.latitude, 51.65, "the hash's position was actually applied, not just left in the URL");
+  assert.equal(app.state.nearbyAnchor.longitude, 0.05);
+
+  app.location.pathname = "/";
+  app.location.hash = "";
+});
+
+test("navigateInApp does nothing when the target is already the current URL", () => {
+  app.location.pathname = "/nearby/pubs/";
+  app.location.hash = "";
+  const depthBefore = app.history.length;
+  app.navigateInApp("/nearby/pubs/");
+  assert.equal(app.history.length, depthBefore, "no new history entry for a no-op navigation");
+  app.location.pathname = "/";
 });
 
 test("arriving at a /nearby/<slug> page pre-filters Nearby to that category, taking priority over any ?show= param", () => {
@@ -2071,33 +2209,31 @@ test("applyDefaultLocation widens the plain 5-minute default radius to 30 minute
   assert.equal(app.state.walkingDistanceMinutes, app.LANDING_PAGE_WALKING_DISTANCE_MINUTES, "already-30 from the landing-page default is left alone too");
 });
 
-test("updateLocateButtonVisibility keeps the locate button visible for the default location, hides it only once a real fix lands", () => {
+test("the Nearby list says it is showing High Beach while the stand-in is active, and says nothing once a real fix replaces it", () => {
   resetData(app);
-  app.state.userLocation = null;
-  // The sandbox's navigator stub has no geolocation by default (matching a real browser that
-  // lacks the API); give it one here so the button's visibility turns on hasRealLocation()
-  // rather than being hidden by that outer check regardless.
-  const previousGeolocation = app.navigator.geolocation;
-  app.navigator.geolocation = {};
-  // syncInspectorToolsVisibility's getComputedStyle call is a real-browser-only path this
-  // sandbox doesn't stub; hidden inspectorTools short-circuits it before that's reached, same
-  // as it does whenever the inspector itself is closed.
-  app.els.inspectorTools.hidden = true;
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push({ id: "t1", commonName: "Nearby tree", ...makePoint(app, 0.0005, 0) });
 
-  try {
-    app.updateLocateButtonVisibility();
-    assert.equal(app.els.locateButton.hidden, false, "no fix yet: offer the button");
+  // Built directly with the isDefault flag (same as the "hasRealLocation" test above) rather
+  // than via applyDefaultLocation(), which would centre on DEFAULT_LOCATION's real-world
+  // coordinates -- far outside this fixture tree's synthetic (0,0)-based test coordinates.
+  app.state.userLocation = { ...makePoint(app, 0, 0), isDefault: true };
+  assert.match(
+    app.overviewNearestHtml(),
+    /Showing things near High Beach — you haven't shared your location\./,
+    "explains why the list is centred on High Beach, not just the one-time dismissible gate"
+  );
 
-    app.applyDefaultLocation();
-    app.updateLocateButtonVisibility();
-    assert.equal(app.els.locateButton.hidden, false, "the High Beach stand-in is not a reason to hide the button -- a real fix is still worth asking for");
+  app.state.userLocation = makePoint(app, 0, 0);
+  assert.doesNotMatch(
+    app.overviewNearestHtml(),
+    /Showing things near High Beach/,
+    "a real fix needs no explanation for where the list is centred"
+  );
+});
 
-    app.state.userLocation = makePoint(app, 51.6, 0.03);
-    app.updateLocateButtonVisibility();
-    assert.equal(app.els.locateButton.hidden, true, "a real fix hides it as before");
-  } finally {
-    app.navigator.geolocation = previousGeolocation;
-  }
+test("the inspector has no standalone location button", () => {
+  assert.equal(app.els.locateButton, undefined, "location permission is requested from the focused gate, not a second Nearby control");
 });
 
 test("setLocationGateVisible shows its dismiss button only when told the prompt is dismissible", () => {
@@ -4430,6 +4566,25 @@ test("choosing a search result opens the location the same way a map tap does", 
   assert.match(app.location.hash, /place=/, "and the selection is linkable like any other");
 });
 
+test("choosing a findSlug business from search updates the URL before rendering, so Full details is correctly suppressed", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  app.state.landmarks.push({ id: "pub-2", name: "The Forresters", category: "pub", categoryTags: ["pub"], findSlug: "the-forresters", ...makePoint(app, 0.0025, 0) });
+  app.openSearchScreen();
+
+  const [result] = app.searchMapFeatures("the forresters");
+  app.openSearchResult(result.type, result.key);
+
+  // openSearchResult used to render the detail view (which decides whether to show "Full
+  // details" by comparing window.location.pathname against this place's own /find/<slug>/ page)
+  // before updating the URL -- so the pathname it checked was still the previous screen's, and
+  // the link always showed even when the reader had just selected this exact business. Clicking
+  // it did nothing either, since by the time of the click the URL had already caught up.
+  assert.equal(app.location.pathname, "/find/the-forresters/", "the URL is updated as part of selecting the result");
+  assert.ok(!app.els.inspectorBody.innerHTML.includes("Full details"), "already on this business's own page, so no dead-end link to it");
+});
+
 test("a road can be navigated to from search, which the nearby list cannot offer", () => {
   resetSearchData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -5462,6 +5617,87 @@ test("service worker answers app navigations only, so the homepage is not served
     /if \(!isAppNavigation\(requestUrl\.pathname\)\) return;/,
     "the navigate branch must bail out for non-app navigations"
   );
+});
+
+test("service worker falls back to the cached app shell offline for /nearby/<slug>/ and /find/<slug>/ pages, never a network error", () => {
+  // Executes the real sw.js (not a regex match on its source) so a logic error in the pattern --
+  // wrong anchor, missing the trailing-slash variant, an inverted condition -- fails this test
+  // rather than shipping. These ~1,500+29 generated pages (scripts/generate-business-pages.js,
+  // scripts/generate-find-pages.js) are templated off the same app.html as /nearby itself, so
+  // offline they fall back to that same cached shell instead of the browser's own offline error
+  // page -- see isAppNavigation's own comment in sw.js for why a generic fallback is the right
+  // trade-off here rather than precaching every one of them.
+  const root = path.join(__dirname, "..");
+  const context = {
+    self: { addEventListener: () => {}, skipWaiting: () => {}, clients: { claim: () => {} }, registration: {} },
+    importScripts: () => {},
+    caches: { open: async () => ({}), match: async () => null, keys: async () => [] },
+    fetch: async () => ({ ok: false }),
+    console,
+    URL,
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "data-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "sw.js"), "utf8"), context, { filename: "sw.js" });
+
+  const isAppNavigation = (pathname) => vm.runInContext(`isAppNavigation(${JSON.stringify(pathname)})`, context);
+
+  for (const pathname of ["/nearby/pubs/", "/nearby/pubs", "/nearby/food/", "/nearby/events/", "/find/the-forresters/", "/find/events/", "/find/costa-e4/"]) {
+    assert.equal(isAppNavigation(pathname), true, `${pathname} should fall back to the cached app shell`);
+  }
+  for (const pathname of ["/", "/reports/", "/terms.html", "/find/pubs/nested", "/nearby/pubs/nested"]) {
+    assert.equal(isAppNavigation(pathname), false, `${pathname} must stay off the app cache`);
+  }
+});
+
+test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own HTML into the shared app-shell cache slot", async () => {
+  // Each generated page has its own distinct title/JSON-LD/initial body -- caching any single one
+  // of them under the one "./app.html" key the five stable screens share would make that slot's
+  // content depend on whichever page a visitor last loaded, corrupting every other page's offline
+  // fallback. Executes the real fetch handler against a fake navigate event and a cache spy,
+  // rather than inspecting the source, so a regression here would actually fail this.
+  const root = path.join(__dirname, "..");
+  let fetchHandler = null;
+  const cachePuts = [];
+  const context = {
+    self: {
+      addEventListener: (type, handler) => { if (type === "fetch") fetchHandler = handler; },
+      skipWaiting: () => {},
+      clients: { claim: () => {} },
+      registration: {},
+      location: { origin: "http://localhost:8080" },
+    },
+    importScripts: () => {},
+    caches: {
+      open: async () => ({ put: async (key) => cachePuts.push(key) }),
+      match: async () => ({ __cached: true }),
+      keys: async () => [],
+    },
+    fetch: async () => ({ ok: true, clone: () => ({}) }),
+    console,
+    URL,
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "data-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "sw.js"), "utf8"), context, { filename: "sw.js" });
+
+  async function fireNavigate(pathname) {
+    cachePuts.length = 0;
+    let responded = null;
+    fetchHandler({
+      request: { url: `http://localhost:8080${pathname}`, method: "GET", mode: "navigate" },
+      respondWith: (p) => { responded = p; },
+    });
+    await responded;
+    await new Promise((resolve) => setTimeout(resolve, 20)); // let the detached cache.put chain settle
+    return [...cachePuts];
+  }
+
+  assert.deepEqual(await fireNavigate("/nearby"), ["./app.html"], "a stable screen refreshes the shared shell");
+  assert.deepEqual(await fireNavigate("/find/the-forresters/"), [], "a business page must never overwrite it");
+  assert.deepEqual(await fireNavigate("/nearby/pubs/"), [], "a category page must never overwrite it either");
 });
 
 test("service worker app shell holds app.html and not the marketing homepage", () => {
@@ -8707,6 +8943,39 @@ test("tapping open ground while a group is expanded returns to nearby mode ancho
   assert.equal(app.els.inspectorTitle.textContent, "Nearby");
 });
 
+test("focusNearbyWithinWalkMinutes drops any open selection and browses that exact spot at the fixed radius", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const tree = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6505, 0.05) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+  app.state.walkingDistanceMinutes = app.DEFAULT_WALKING_DISTANCE_MINUTES;
+
+  const spot = { latitude: 51.66, longitude: 0.06 };
+  app.focusNearbyWithinWalkMinutes(spot.latitude, spot.longitude, app.WALK_RADIUS_BUTTON_MINUTES);
+
+  assert.equal(app.state.selected, null, "the selection is dropped for the Nearby list");
+  assert.equal(app.state.nearbyAnchor.latitude, spot.latitude, "browsing is anchored on the button's own spot, not the selection or GPS fix");
+  assert.equal(app.state.nearbyAnchor.longitude, spot.longitude);
+  assert.equal(app.state.walkingDistanceMinutes, 15, "the radius is the fixed 15-minute button value");
+  assert.equal(app.state.userLocation.latitude, 51.65, "the real GPS fix is never moved");
+});
+
+test("nearbyWithinWalkHtml renders a Nearby-list-styled card carrying the exact coordinates it should browse, and is empty without coordinates", () => {
+  const html = app.nearbyWithinWalkHtml(51.65, 0.05);
+  assert.match(html, /<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">/);
+  assert.ok(html.includes("Everything within 15 min walk"));
+  assert.ok(!html.includes("detail-map-link"), "shares the Nearby list's own card styling, not the unrelated pill");
+  assert.equal(app.nearbyWithinWalkHtml(null, null), "", "no card when there are no coordinates to browse from");
+});
+
+test("standaloneNearbySectionHtml wraps the walk-radius card in its own headed Nearby section, and is empty without coordinates", () => {
+  const html = app.standaloneNearbySectionHtml(51.65, 0.05);
+  assert.ok(html.includes('<h3 class="detail-section-heading">Nearby</h3>'));
+  assert.ok(html.includes("Everything within 15 min walk"));
+  assert.equal(app.standaloneNearbySectionHtml(null, null), "", "no section when there are no coordinates to browse from");
+});
+
 test("tapping a cluster shows exactly that cluster's own members, not every tree the walking-radius floor also reaches", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.64, 0.04);
@@ -10228,6 +10497,138 @@ test("a live event outside the walking radius or behind a disabled Events filter
   app.state.overviewFilters = ["trees"]; // Events explicitly not among the active filters
   app.checkEventProximityAlert(0, 0, now);
   assert.equal(app.els.eventNearbyBanner.hidden, true, "Events filter turned off -- no alert");
+});
+
+test("urlPartsForRouteValue routes a selected place to its own /find/<slug>/ page when it has one", () => {
+  resetData(app);
+  const pub = { id: "node/1", name: "The Forresters", latitude: 51.65, longitude: 0.05, findSlug: "the-forresters" };
+  app.state.landmarks.push(pub);
+
+  const parts = app.urlPartsForRouteValue(`place=${app.placeHashKey(pub)}`);
+  assert.equal(parts.pathname, "/find/the-forresters/");
+  assert.equal(parts.hash, "");
+});
+
+test("urlPartsForRouteValue leaves a place with no /find/ page on the existing #place=<key> form", () => {
+  resetData(app);
+  const busStop = { id: "node/2", name: "Some Bus Stop", latitude: 51.65, longitude: 0.05, findSlug: null };
+  app.state.landmarks.push(busStop);
+
+  const key = app.placeHashKey(busStop);
+  const parts = app.urlPartsForRouteValue(`place=${key}`);
+  assert.equal(parts.pathname, app.NEARBY_PATH);
+  assert.equal(parts.hash, `#place=${key}`);
+});
+
+test("routeValueFromLocation resolves a /find/<slug>/ URL back to the same place's #place=<key> value", () => {
+  resetData(app);
+  const pub = { id: "node/1", name: "The Forresters", latitude: 51.65, longitude: 0.05, findSlug: "the-forresters" };
+  app.state.landmarks.push(pub);
+  const originalPathname = app.location.pathname;
+  const originalHash = app.location.hash;
+  try {
+    app.location.pathname = "/find/the-forresters/";
+    app.location.hash = "";
+    // routeParam (js/app.js) builds this the same way currentScreenRoute() already does for an
+    // ordinary landmark selection -- via URLSearchParams, so ":" and "/" in the id-based hash key
+    // come back percent-encoded. Built the same way here rather than hand-typed, so this test
+    // doesn't itself assume a particular encoding.
+    const expectedParams = new URLSearchParams();
+    expectedParams.set("place", app.placeHashKey(pub));
+    assert.equal(app.routeValueFromLocation(), expectedParams.toString());
+  } finally {
+    app.location.pathname = originalPathname;
+    app.location.hash = originalHash;
+  }
+});
+
+test("routeValueFromLocation on an unresolvable /find/<slug>/ URL (closed business, stale link) falls back to no selection rather than throwing", () => {
+  resetData(app);
+  const originalPathname = app.location.pathname;
+  const originalHash = app.location.hash;
+  try {
+    app.location.pathname = "/find/nothing-here/";
+    app.location.hash = "";
+    assert.equal(app.routeValueFromLocation(), "");
+  } finally {
+    app.location.pathname = originalPathname;
+    app.location.hash = originalHash;
+  }
+});
+
+test("routeValueFromLocation never treats /find/events/ as a place lookup", () => {
+  resetData(app);
+  const originalPathname = app.location.pathname;
+  const originalHash = app.location.hash;
+  try {
+    app.location.pathname = "/find/events/";
+    app.location.hash = "";
+    assert.equal(app.routeValueFromLocation(), "");
+  } finally {
+    app.location.pathname = originalPathname;
+    app.location.hash = originalHash;
+  }
+});
+
+test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, the walk-radius card, real live distances) and a headed Related section (category/group), both as the same card style", () => {
+  resetData(app);
+  const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
+  app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" }); // ~65m away
+  app.state.cows.push({ latitude: 51.66, longitude: 0.06, id: "c1" }); // ~1.3km away
+
+  const html = app.relatedCategoryLinksHtml(pub);
+  // Section order and headings: Nearby first, then Related -- both plain <h3 class="detail-section-heading">.
+  const nearbyHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Nearby</h3>');
+  const relatedHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Related</h3>');
+  assert.ok(nearbyHeadingIndex >= 0 && relatedHeadingIndex > nearbyHeadingIndex, "Nearby heading comes before Related");
+
+  // Both the tree and cows links carry this pub's own position via the target page's existing
+  // "near=<lat>,<lon>" anchor route, so landing there re-centres on the pub rather than the
+  // reader's own GPS fix.
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000">[\s\S]*?Nearest veteran tree[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?The grazing cattle[\s\S]*?<\/a>/);
+  assert.match(html, /walk-chip/, "the nearby cards carry a real walk-time chip, not bare text");
+
+  // The walk-radius card lives in this same Nearby section, as a <button> sharing the .nearest-item
+  // card shape, between where it comes out of the Nearby heading and before Related begins.
+  const walkCardIndex = html.indexOf('data-action="walk-radius"');
+  assert.ok(walkCardIndex > nearbyHeadingIndex && walkCardIndex < relatedHeadingIndex, "walk-radius card sits inside the Nearby section");
+  assert.match(html, /<button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">[\s\S]*?Everything within 15 min walk[\s\S]*?<\/button>/);
+
+  // Category/group links are the same .nearest-item card as Nearby, not a different pill style.
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/food\/">[\s\S]*?Food[\s\S]*?<\/a>/);
+  assert.ok(!html.includes("detail-map-link"), "related links no longer use the pill style -- same card as Nearby");
+
+  // No mention of the data's source attached to these distances -- they're computed live, not
+  // fetched from anywhere that would need crediting.
+  assert.ok(!html.includes("OpenStreetMap"));
+});
+
+test("relatedCategoryLinksHtml omits the cows link when no cow positions are currently loaded", () => {
+  resetData(app);
+  const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
+  app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" });
+
+  const html = app.relatedCategoryLinksHtml(pub);
+  assert.match(html, /nearby\/trees\//);
+  assert.ok(!html.includes("nearby/cows/"), "no cow data loaded -- no cows link to show");
+});
+
+test("relatedCategoryLinksHtml is empty for a place with no /find/ page of its own", () => {
+  resetData(app);
+  const busStop = { findSlug: null, latitude: 51.65, longitude: 0.05, category: "bus_stop" };
+  assert.equal(app.relatedCategoryLinksHtml(busStop), "");
+});
+
+test("detailsHtml links a Phone row as a tel: link rather than inert text", () => {
+  const html = app.detailsHtml([["Phone", "01234 567890"]]);
+  assert.match(html, /<dd><a href="tel:01234 567890">01234 567890<\/a><\/dd>/);
+});
+
+test("detailsHtml renders Opening hours as plain text like any other detail row", () => {
+  const html = app.detailsHtml([["Opening hours", "Mo-Su 09:00-17:00"]]);
+  assert.match(html, /<dt>Opening hours<\/dt><dd>Mo-Su 09:00-17:00<\/dd>/);
 });
 
 runRegisteredTests().catch((error) => {

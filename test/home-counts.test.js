@@ -67,7 +67,7 @@ test("the grouped homepage inventory matches the app's map inventory", () => {
       assert.strictEqual(items.length, subfilter.count, `${subfilter.label} lists every counted record`);
       assert.ok(items.every(item => typeof item.name === "string" && item.name.trim() && typeof item.detail === "string"));
       const label = subfilter.label.replace(/&/g, "&amp;").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      assert.match(block[1], new RegExp(`<dt><img[^>]*>${label}</dt><dd>${formatCount(subfilter.count)}</dd>`));
+      assert.match(block[1], new RegExp(`<dt><a href="/nearby/${subfilter.key.replace(/_/g, "-")}/"><img[^>]*>${label}</a></dt><dd>${formatCount(subfilter.count)}</dd>`));
     }
   }
   assert.match(html, new RegExp(`data-inventory-always[\\s\\S]*?<strong>${formatCount(inventory.alwaysShown.count)}</strong>`));
@@ -86,7 +86,7 @@ test("the count sync corrects a homepage that has drifted", () => {
   const counts = readCounts(ROOT);
   const inventory = require("../scripts/report/map-inventory.js").buildInventory(ROOT);
   const stale = readHomepage().replace(
-    /(<dt><img[^>]*>Shops<\/dt><dd>)[\d,]+(<\/dd>)/,
+    /(<dt><a href="\/nearby\/shops\/"><img[^>]*>Shops<\/a><\/dt><dd>)[\d,]+(<\/dd>)/,
     "$1123$2"
   );
 
@@ -94,7 +94,7 @@ test("the count sync corrects a homepage that has drifted", () => {
   const fixed = updateHomepage(stale, counts, inventory);
   const shops = inventory.groups.find(group => group.key === "food").subfilters.find(item => item.key === "shops");
   assert.ok(
-    new RegExp(`<dt><img[^>]*>Shops</dt><dd>${formatCount(shops.count)}</dd>`).test(fixed),
+    new RegExp(`<dt><a href="/nearby/shops/"><img[^>]*>Shops</a></dt><dd>${formatCount(shops.count)}</dd>`).test(fixed),
     "sync-homepage-counts.js should put the real shop count back"
   );
   assert.ok(!fixed.includes(">123<"), "the stale number should be gone");
