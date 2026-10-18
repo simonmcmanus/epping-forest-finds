@@ -533,7 +533,7 @@ def render_newsletter_signup():
     <img src="/assets/home/ledger.png" alt="" width="80" height="80" loading="lazy">
     <div><h2 class="section-title">A little closer to the forest</h2>
     <p>Local discoveries, things to do and updates for your next visit. You do not need the app to enjoy the Ledger.</p>
-    <p>Join the mailing list for weekly Ledger updates once the site launches, plus news of early app access.</p>
+    <p>Sign up for launch news, to take part as an early tester, and for weekly Ledger updates when they launch.</p>
     <a class="app-link" href="{SITE_BASE}/#signup">Keep me in the loop →</a></div>
   </section>'''
 
