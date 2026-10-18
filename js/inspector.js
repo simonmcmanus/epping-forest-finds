@@ -399,19 +399,30 @@ function showLandmarkDetails(place, distance) {
         ["Website", place.website],
         ["Phone", place.phone],
       ];
-  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
+  // The walking pill starts in its loading form and resolves into the ready chip once its figure is
+  // worked out (updateSelectedDetailFields, js/app.js), so it always has a slot that does not move the
+  // actions beside it. The resolve waits a short minimum so the loading form reads as loading.
+  // Without a shared location there is no walking distance to work out, so the slot stays empty.
+  const distancePill = `<span data-live-field="distance">${hasRealLocation() ? walkChipPendingHtml() : ""}</span>`;
+  if (hasRealLocation()) {
+    setTimeout(() => {
+      if (state.selected && state.selected.item === place) updateSelectedDetailFields();
+    }, WALK_CHIP_MIN_LOADING_MS);
+  }
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
   const fullDetailsLink = fullDetailsLinkHtml(place.findSlug);
-  const topRow = (distancePill || mapsLink || shareBtn || fullDetailsLink) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}${fullDetailsLink}</div>` : "";
+  const actionsHtml = `<span class="detail-top-actions">${mapsLink}${shareBtn}${fullDetailsLink}</span>`;
+  const topRow = `<div class="detail-top-row">${distancePill}${actionsHtml}</div>`;
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const ledgerHtml = ledgerMentionHtml(place);
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
   // Every location with coordinates gets the same Nearest and Related sections (nearbySectionsHtml),
   // keyed to whichever category the place belongs to for its Related links.
-  const relatedLinksHtml = nearbySectionsHtml({ latitude: place.latitude, longitude: place.longitude, name: place.name, subfilterKey: placePrimaryFilterKey(place) });
-  const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
-  transitionInspectorBody(landmarkHtml, "forward");
+  const relatedLinksHtml = nearbySectionsHtml({ latitude: place.latitude, longitude: place.longitude, name: place.name, subfilterKey: placePrimaryFilterKey(place), findSlug: place.findSlug });
+  const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
+  // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
+  transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
     loadTransportDepartures(place);
   }
@@ -633,6 +644,7 @@ function showNearbyLocatingState() {
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
+  if (findLandingAwaitingPlace()) return;
   // A landing's server-rendered list already shows the High Beach default it would otherwise
   // rebuild here (default location, no real fix yet), so keep it. Every early caller -- boot's own
   // reveal, the tree chunks arriving after data has loaded -- would otherwise clear it and repaint
@@ -872,8 +884,9 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
   }
 
   // Apply chrome updates
-  els.inspectorBack.hidden = !showBack;
-  if (els.inspectorTitleSection) els.inspectorTitleSection.classList.toggle("has-back", Boolean(showBack));
+  // Back lives in the nav bar and is always rendered, so it is disabled rather than hidden: showing
+  // or dimming it never moves the title or the tabs.
+  els.inspectorBack.disabled = !showBack;
   els.inspectorTitleEmoji.hidden = !emoji;
   if (emoji && emoji.includes("<")) {
     els.inspectorTitleEmoji.innerHTML = emoji;
@@ -1087,7 +1100,14 @@ function walkTimeStr(distance) {
 function walkInfoHtml(distance) {
   if (distance == null || !Number.isFinite(distance)) return "";
   const walkTime = walkTimeStr(distance).replace(/~/g, "");
-  return `<span class="walk-chip">${formatDistance(distance)} · ${walkTime} ${appIconHtml("walking", "app-icon walk-icon")}</span>`;
+  return `<span class="walk-chip walk-chip--ready"><span class="walk-chip-values">${formatDistance(distance)} · ${walkTime}</span> ${appIconHtml("walking", "app-icon walk-icon")}</span>`;
+}
+
+// The loading form of the walking pill: a spinner beside the walker, shown until the walking figure
+// is worked out. It expands into the ready chip (walkInfoHtml) once there is a figure to show.
+const WALK_CHIP_MIN_LOADING_MS = 450;
+function walkChipPendingHtml() {
+  return `<span class="walk-chip walk-chip--pending" role="status" aria-label="Working out walking time"><span class="walk-chip-spinner" aria-hidden="true"></span>${appIconHtml("walking", "app-icon walk-icon")}</span>`;
 }
 
 function walkInfoExpandableHtml(distance) {
@@ -1213,7 +1233,33 @@ function nearbyCountCopy(noun, { within, beyond }, placeName) {
 // "Related" section; without one there is no Related section, only Nearest. Every location gets the
 // same Nearest cards (the reader's own filters, or the defaults), so a tree is no longer a dead end
 // offering only "Everything".
-function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = null }) {
+// The places within 1 km (straight line) of a /find/ business, as links to their own pages, so the
+// live panel lists the same neighbours the static page does (generate-business-pages.js). Only
+// places with a findSlug qualify, and the business itself is left out.
+const NEARBY_PLACES_RADIUS_METRES = 1000;
+const NEARBY_PLACES_MAX = 6;
+function nearbyPlacesSectionHtml(latitude, longitude, findSlug) {
+  const places = state.landmarks
+    .filter((place) => place.findSlug && place.findSlug !== findSlug && place.latitude != null && place.longitude != null)
+    .map((place) => ({ place, metres: distanceMetres(latitude, longitude, place.latitude, place.longitude) }))
+    .filter(({ metres }) => metres <= NEARBY_PLACES_RADIUS_METRES)
+    .sort((a, b) => a.metres - b.metres)
+    .slice(0, NEARBY_PLACES_MAX);
+  if (!places.length) return "";
+  const cards = places
+    .map(({ place, metres }) => {
+      const subfilter = FILTER_SUBFILTERS_BY_KEY.get(placePrimaryFilterKey(place));
+      const icon = subfilter ? appIconHtml(subfilter.icon) : "";
+      return `<li><a class="nearest-item nearby-link" href="/find/${escapeHtml(place.findSlug)}/">` +
+        `<span class="nearest-icon" aria-hidden="true">${icon}</span>` +
+        `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(place.name || "Local place")}</span></div>` +
+        `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(formatDistance(Math.round(metres)))} away</span></div></div></a></li>`;
+    })
+    .join("");
+  return `<h3 class="detail-section-heading">Places close by</h3><ul class="nearest-list related-cards">${cards}</ul>`;
+}
+
+function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = null, findSlug = null }) {
   if (latitude == null || longitude == null) return "";
   const placeName = name || "this spot";
 
@@ -1274,7 +1320,8 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
       `</ul>`
     : "";
 
-  return nearestSectionHtml + relatedSectionHtml;
+  const placesHtml = findSlug ? nearbyPlacesSectionHtml(latitude, longitude, findSlug) : "";
+  return nearestSectionHtml + relatedSectionHtml + placesHtml;
 }
 
 // A link to this place's own crawlable /find/<slug>/ page, when it has one (findSlug is set at
@@ -1325,7 +1372,9 @@ async function shareCurrentLocation() {
   }
 }
 
-function detailsHtml(rows) {
+// `labels: false` drops each field name, for a table whose values say what they are on their own
+// (a place's address and website, js/inspector.js showLandmarkDetails).
+function detailsHtml(rows, { labels = true } = {}) {
   const visibleRows = rows.filter(([, value]) => value !== null && value !== undefined && value !== "");
   return `<dl>${visibleRows.map(([label, value, liveKey]) => {
     const shown = displayValue(value);
@@ -1343,6 +1392,7 @@ function detailsHtml(rows) {
     } else {
       ddContent = escapeHtml(shown);
     }
+    if (!labels) return `<div class="row row--value-only"><dd${liveAttr}>${ddContent}</dd></div>`;
     return `<div class="row"><dt>${escapeHtml(label)}</dt><dd${liveAttr}>${ddContent}</dd></div>`;
   }).join("")}</dl>`;
 }

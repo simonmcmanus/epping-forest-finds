@@ -180,6 +180,7 @@
            changed the instant boot() ran -- a static page should already look like the screen
            it's showing, not like a different, not-yet-decided one. -->
       <nav class="inspector-actions" aria-label="Main navigation">
+        <button id="inspectorBack" class="nav-back" type="button" aria-label="Back" disabled><svg class="app-icon nav-icon" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14 4 7 11 14 18"/></svg></button>
         <a id="nearbyToggle" href="/nearby" class="close nearby-toggle screen-active" aria-label="Nearby" aria-current="page"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span class="nav-label">Nearby</span></a>
         <a id="searchToggle" href="/nearby/search" class="close search-screen-toggle" aria-label="Search" aria-current="false"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg><span class="nav-label">Search</span></a>
         <a id="reportToggle" href="/feedback" class="close report-toggle" aria-label="Feedback" aria-current="false"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3Z"/></svg><span class="nav-label">Feedback</span></a>
@@ -236,7 +237,6 @@
         <div class="inspector-scroll">
           <div class="inspector-screen">
             <div class="inspector-title-section">
-              <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back" hidden><svg class="app-icon nav-icon" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14 4 7 11 14 18"/></svg></button>
               <span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>
               <div class="inspector-title-copy">
                 <h2 id="inspectorTitle">Epping Forest Finds</h2>

@@ -1928,6 +1928,9 @@ function goToInitialView(updateHash = true) {
   // retrace) never runs inside that depth, so this never suppresses a genuine "leave" there.
   const arrivingAtLandingPage = routeApplyDepth > 0 && filterKeysFromFindPath(window.location.pathname).length > 0;
   if (state.overviewFiltersEphemeral && !arrivingAtLandingPage) setOverviewFilters(loadStoredOverviewFilters());
+  // The Nearby button always shows the real list. A landing's server-rendered list is kept only
+  // while the reader is still on that landing (selectOverview's own check), so clear it here.
+  _serverRenderedNearbyList = false;
   selectOverview(true);
   setInspectorMinimized(false);
   const refitOverview = () => {

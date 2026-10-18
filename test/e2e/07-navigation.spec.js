@@ -173,7 +173,7 @@ test.describe("URL navigation", () => {
       // skipped by Tab -- whenever a place is selected.
       await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       await page.locator("body").evaluate((el) => el.focus());
-      const order = ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle", "inspectorBack"];
+      const order = ["inspectorBack", "nearbyToggle", "searchToggle", "reportToggle", "settingsToggle"];
       for (const id of order) {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();

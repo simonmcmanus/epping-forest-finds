@@ -687,7 +687,8 @@ branches.
   using the same list and cap as the live screen, under the heading
   "Nearby" and the type line "Nearest selected filters within 30 min walk
   of High Beach". The page also carries the location and cookie banner
-  (`#consentBanner`, shown by default as on a landing page), the Filters
+  (`#consentBanner`, hidden in the static markup and shown only by boot, for a first-time landing
+  visitor, so a returning visitor never sees it flash on and off), the Filters
   button with its live count, and `data-server-rendered-nearby` on
   `#inspectorBody`. Boot keeps that list on screen, without rebuilding it,
   until a real location fix arrives, and only while the filters are still
@@ -866,11 +867,14 @@ use for the homepage's counts.
   instead of the business, since `boot()` awaits the wizard's own dismissal
   before reaching the selection step above.
 - **Related-content links, both server-rendered and live, as two headed
-  sections.** The static page's own "Part of `<subfilter>` in `<group>`"
-  and "See also veteran trees and grazing cattle near Epping Forest"
-  (`scripts/generate-business-pages.js`) are real links even with no JS,
-  but carry no distance for the trees/cattle (a build-time figure would be
-  wrong for live-tracked cattle positions by the time anyone reads it).
+  sections.** The static page (`scripts/generate-business-pages.js`) renders
+  the same inspector panel the live page does, with the same classes: header
+  (name, category, category icon), the icon-only "Open in Maps" and Share buttons the live top
+  row uses (Share is inert until JS boots; the walking-time pill also appears only with JS), detail rows, and
+  `Nearby` / `Related` `<h3 class="detail-section-heading">` sections of
+  `.nearest-item` cards. Its cards are real links even with no JS, but carry
+  no distance for the trees/cattle (a build-time figure would be wrong for
+  live-tracked cattle positions by the time anyone reads it).
   Once JS boots and the business is selected, `relatedCategoryLinksHtml()`
   (`js/inspector.js`) renders the live continuation as two
   `<h3 class="detail-section-heading">`-headed lists — **Nearby** (the

@@ -18,27 +18,6 @@
   transition: max-height 0s, height 0s;
 }
 
-@keyframes inspector-slide-in-right {
-  from { transform: translateX(calc(100% + 28px)); opacity: 0; }
-  to { transform: none; opacity: 1; }
-}
-
-@keyframes inspector-slide-in-up {
-  from { transform: translateY(calc(100% + 24px)); opacity: 0; }
-  to { transform: none; opacity: 1; }
-}
-
-.inspector.entering {
-  animation: inspector-slide-in-right 0.52s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
-}
-
-@media (max-width: 760px),
-(orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
-  .inspector.entering {
-    animation-name: inspector-slide-in-up;
-  }
-}
-
 /* The Nearby list's own "requesting your location" state (showNearbyLocatingState, js/inspector.js):
    replaces the list while a reader's location request is pending. The ring reuses step-spin from
    css/loading.css, the same turn the boot checklist's loading step uses. */
@@ -107,12 +86,6 @@
 }
 
 .inspector.minimized .inspector-body {
-  display: none;
-}
-
-/* Collapsed to the title pill, there's nowhere for Back to lead that isn't already one tap
-   (expand) away, so it's hidden rather than left dangling above the collapsed content. */
-.inspector.minimized .inspector-back {
   display: none;
 }
 
@@ -250,7 +223,9 @@
   right: 14px;
   width: min(390px, calc(100vw - 28px));
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* A thin first cell for Back (.nav-back), reserved even while it is disabled, so the four tabs
+     never move when it becomes available. */
+  grid-template-columns: minmax(0, 0.5fr) repeat(4, minmax(0, 1fr));
   gap: 2px;
   padding: 6px;
   background: var(--panel);
@@ -316,12 +291,6 @@
   padding: 16px 60px 12px 16px;
 }
 
-/* Back sits to the left of the emoji/title, in the same row, rather than on a header row of
-   its own above it -- the button's own inset replaces the section's left padding. */
-.inspector-title-section.has-back {
-  padding-left: 12px;
-}
-
 .inspector-title-copy {
   min-width: 0;
   flex: 1 1 auto;
@@ -343,6 +312,23 @@
 
 .title-compass-arrow[hidden] {
   display: none;
+}
+
+/* While the first location fix is out, the arrow turns in place: there is no bearing to point at yet.
+   Once there is one, updateCompassOverlay (js/app.js) spins it into place. */
+.title-compass-arrow--searching {
+  animation: title-compass-search 1s linear infinite;
+}
+
+@keyframes title-compass-search {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-compass-arrow--searching {
+    animation: none;
+    opacity: 0.5;
+  }
 }
 
 /* Inline Filters entry point, next to the Nearby/Filters heading -- shares the title section's
@@ -390,23 +376,28 @@
   display: none;
 }
 
-.inspector-back {
-  position: static;
-  width: calc(44px * var(--icon-scale));
-  height: calc(44px * var(--icon-scale));
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: #fff;
+/* Back, the first cell of the main nav bar (.inspector-actions). Always rendered, so showing or
+   dimming it never moves the title or the tabs. Disabled (dimmed, inert) when there is no earlier
+   screen to return to. */
+.inspector-actions > .nav-back {
+  /* Half the width of a tab: the shared nav button rule's 44px minimum would otherwise force the
+     cell back to full width and wrap the tabs onto a new line. */
+  min-width: 0;
+  min-height: 0;
+  height: calc(60px * var(--icon-scale));
+  padding: 0;
+  background: transparent;
   color: var(--ink);
-  display: inline-grid;
-  place-items: center;
-  flex: 0 0 auto;
-  transition: background 120ms ease;
-  z-index: 3;
+  transition: opacity 120ms ease, background 120ms ease;
 }
 
-.inspector-back:hover {
-  background: #f5f5f0;
+.inspector-actions > .nav-back:hover:not(:disabled) {
+  background: rgba(36, 56, 47, 0.06);
+}
+
+.inspector-actions > .nav-back:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .inspector-title-emoji {
@@ -538,9 +529,9 @@ button.settings-toggle.has-update::after {
   flex: 0 0 auto;
 }
 
-.inspector-back .nav-icon {
-  width: calc(30px * var(--icon-scale));
-  height: calc(30px * var(--icon-scale));
+.inspector-actions > .nav-back .nav-icon {
+  width: calc(22px * var(--icon-scale));
+  height: calc(22px * var(--icon-scale));
 }
 
 /* Search screen. The query field is rendered once when the screen opens and only
@@ -992,6 +983,63 @@ button.settings-toggle.has-update::after {
   height: 18px;
 }
 
+/* Map and share actions sit together at the right of the top row, so the walking pill on the left
+   can grow in (below) without moving them. */
+.detail-top-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* The walking pill, once its figure arrives: it opens out from nothing, and the walker steps in
+   beside the distance. Only on the first figure, so later live updates never replay it. */
+.walk-chip--enter {
+  overflow: hidden;
+  animation: walk-chip-expand 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.walk-chip--enter .walk-chip-values {
+  animation: walk-chip-values-in 380ms ease-out 240ms both;
+}
+
+/* The loading form: a spinner beside the walker, while the walking figure is worked out. */
+.walk-chip--pending {
+  gap: 6px;
+}
+
+.walk-chip-spinner {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(47, 111, 78, 0.25);
+  border-top-color: #1a5236;
+  animation: walk-chip-spin 0.8s linear infinite;
+}
+
+@keyframes walk-chip-expand {
+  from { max-width: 52px; }
+  to { max-width: 260px; }
+}
+
+@keyframes walk-chip-values-in {
+  from { transform: translateX(-14px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes walk-chip-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walk-chip--enter,
+  .walk-chip--enter .walk-chip-values,
+  .walk-chip-spinner {
+    animation: none;
+  }
+}
+
 /* Links that open a Nearby view (categoryLandingLinksHtml's chips, relatedCategoryLinksHtml's
    cards) read as navigation into the map rather than as plain reference text: a forest-green
    border and label, so they are told apart from the neutral pills and the inspector's own actions. */
@@ -1130,6 +1178,11 @@ dl {
   gap: 12px;
   padding: 9px 0;
   border-bottom: 1px solid #edf0eb;
+}
+
+/* A row with no field name (detailsHtml, labels: false) gives its value the whole width. */
+.row--value-only {
+  grid-template-columns: 1fr;
 }
 
 dt {

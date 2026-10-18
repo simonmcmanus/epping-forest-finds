@@ -184,6 +184,10 @@ const STORED_COMPASS_PERMISSION = (() => {
 })();
 // Filter groups, tag functions, and display mappings live in js/categories.js
 
+// True from the moment a location request starts until it answers (setLocationRequestPending). Declared
+// with the other state so boot can read it before the spin/arrow code below has run.
+let locationRequestPending = false;
+
 const state = {
   trees: [],
   landmarks: [],
@@ -744,6 +748,21 @@ function searchStringForPath(pathname) {
   return parts.length ? `?${parts.join("&")}` : "";
 }
 
+// The business a /find/<slug>/ landing names, or null for any other path ("events" is not a place).
+function findLandingSlug() {
+  const match = /^\/find\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
+  return match && match[1] !== "events" ? match[1] : null;
+}
+
+// True while a /find/<slug>/ landing has not yet shown its place: the place is selected only once it
+// is in the loaded landmarks, and the boot reveal and cow data both reach selectOverview() before
+// that. Until then the Nearby list must not paint over the server-rendered panel. Once the data has
+// loaded without the place, the landing has nothing to wait for and falls back to the Nearby list.
+function findLandingAwaitingPlace() {
+  const slug = findLandingSlug();
+  return Boolean(slug) && !state.selected && (!state.dataLoaded || Boolean(findPlaceByFindSlug(slug)));
+}
+
 // The reverse of urlPartsForRouteValue: reconstructs the bare route value currentScreenRoute()
 // and applyRouteToScreen() already speak, from the real URL on screen right now.
 function routeValueFromLocation() {
@@ -984,6 +1003,8 @@ function showRoutedSelection(route, item) {
   state.nearbyAnchor = null;
   state.selected = { type: route.type, item };
   route.show(item);
+  // The direction arrow for the new selection: it spins while a first fix is still out.
+  updateCompassOverlay();
   // Deep-linked selections behave like a map-tap selection: the inspector opens expanded
   // immediately on both mobile and desktop (spec.md "Inspector modes"). Force it open (not
   // just skip minimizing) so arriving at a new linked location while the inspector was
@@ -1195,10 +1216,9 @@ function applyRadiusFromQuery() {
 // applyDefaultLocation(), its no-real-fix one (revealNoRealLocation below), so both get the same
 // polished reveal rather than one of them settling for a plain zoom pulse.
 async function revealMapCenteredOnUser() {
-  // Read before selectOverview() below can clear it: a landing that is still showing its
-  // server-rendered list gets no inspector slide-in, whatever location the reveal ends up with.
-  const keepsServerRenderedList = _serverRenderedNearbyList && !state.selected;
-  selectOverview();
+  // A /find/ landing's place is selected by applySelectionFromHash below, so the Nearby list is not
+  // painted over the server-rendered panel first.
+  if (!findLandingSlug()) selectOverview();
   draw();
 
   // Snap the camera onto the walking-radius circle before the reveal animation -- the same
@@ -1215,8 +1235,9 @@ async function revealMapCenteredOnUser() {
   // Brief pause so the user sees the completed step list.
   await new Promise((resolve) => setTimeout(resolve, 320));
 
-  // Apply the launch URL's own screen after the wait so it overrides the overview snap.
-  applySelectionFromHash();
+  // Apply the launch URL's own screen after the wait so it overrides the overview snap. A /find/
+  // landing the loader has already selected keeps its panel rather than re-rendering the same one.
+  if (!findLandingSlug() || !state.selected) applySelectionFromHash();
 
   // Fade overlay and animate camera to final position simultaneously.
   // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
@@ -1226,9 +1247,6 @@ async function revealMapCenteredOnUser() {
   } else {
     ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
   }
-  // A landing's own list is already on screen, so it is not slid in from the side (that hid it
-  // for the duration of the slide). See keepsServerRenderedList above.
-  if (!keepsServerRenderedList) triggerInspectorEntry();
   // Fades away the pre-reveal veil over the canvas (css/base.css, .map-stage::after) in the
   // same beat as the inspector's own entrance and the camera's animated pan/zoom above, so the
   // whole first reveal reads as one choreographed moment rather than three separate things
@@ -1261,7 +1279,7 @@ async function revealMapCenteredOnUser() {
 async function revealNoRealLocation({ locationAlreadyAsked }) {
   if (!hasRealLocation()) applyDefaultLocation();
 
-  selectOverview();
+  if (!findLandingSlug()) selectOverview();
   // A static index's arrows point north until there is a bearing to rotate them by -- the default
   // origin applyDefaultLocation() just set. Only the arrows change; the list itself stays as drawn.
   if (_staticNearbyIndex) updateOverviewDirectionArrows();
@@ -1422,14 +1440,12 @@ async function boot() {
     els.loadingOverlay.hidden = false;
   }
 
-  // Generated /nearby/<slug> and /find/<slug> pages (scripts/generate-find-pages.js /
-  // generate-business-pages.js) start #consentBanner un-hidden by default -- they're always a
-  // landing-page arrival, so this reserves the banner's layout space from first paint for the
-  // common case (a first-time visitor, consent still undecided) instead of inserting it after
-  // boot and visibly pushing everything below it down the screen. Every other case must
-  // explicitly hide it again here, synchronously, before anything else runs: showCombinedConsentBanner()
-  // below only ever un-hides it, it never corrects a wrongly-pre-shown one. The condition is
-  // computed once and reused by that call below so the two can never drift apart.
+  // The banner starts hidden in every generated page (scripts/generate-find-pages.js /
+  // generate-business-pages.js, and app.html), and only this boot un-hides it. Pre-JS it was shown
+  // by default, so a returning visitor (consent already stored) saw it flash on, get removed by this
+  // boot, and then be replaced by the location invite card. Showing it only once the stored consent
+  // decision is known keeps the first-time banner in place with no flash. The condition is computed
+  // once and reused by showCombinedConsentBanner() below so the two can never drift apart.
   // Bare /nearby's static index shows the same banner pre-JS (renderNearbyIndexPage), so it takes the
   // landing-page path here too -- except on a first visit, where onboarding asks the same questions.
   const onboardsFirst = !hasCompletedOnboarding() && !isLandingPageArrival();
@@ -1488,10 +1504,17 @@ async function boot() {
     // Returning user, or a landing-page revisit with consent already settled: start location
     // request immediately so the browser dialog appears while data loads — no tap needed.
     setLoadStep("location", "loading");
+    setLocationRequestPending(true);
     locationPromise = new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ ok: true, position: pos }),
-        () => resolve({ ok: false }),
+        (pos) => {
+          setLocationRequestPending(false);
+          resolve({ ok: true, position: pos });
+        },
+        () => {
+          setLocationRequestPending(false);
+          resolve({ ok: false });
+        },
         { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 30000 }
       );
     });
@@ -1763,14 +1786,6 @@ function applyDefaultLocation() {
   }
 }
 
-function triggerInspectorEntry() {
-  const el = els.inspector;
-  if (!el) return;
-  el.classList.remove("entering");
-  void el.offsetWidth;
-  el.classList.add("entering");
-  el.addEventListener("animationend", () => el.classList.remove("entering"), { once: true });
-}
 
 // Companion to allEntriesForActiveFilters' no-location list in overviewNearestHtml: without an
 // origin, boot's default framing (fitToBounds, called earlier) is the whole forest boundary --
@@ -1815,8 +1830,10 @@ function locateUser({ initial }) {
   // iOS only runs the compass prompt from a real tap, and the geolocation callback is not one, so ask
   // from this tap before the fix arrives. Non-iOS needs no gesture and is handled in the callback.
   if (!initial && compassPermissionCanBeRequested()) requestCompassPermissionIfNeeded({ fromGesture: true });
+  setLocationRequestPending(true);
   navigator.geolocation.getCurrentPosition(
     (position) => {
+      setLocationRequestPending(false);
       const { latitude, longitude, previousPoint } = applyLocationFix(position);
       setLocationGateVisible(false);
       ensureLocationWatch();
@@ -1850,6 +1867,7 @@ function locateUser({ initial }) {
       requestDraw();
     },
     (error) => {
+      setLocationRequestPending(false);
       // Back to the same default boot() uses when there is no fix: the High Beach list the landing
       // showed before the request, rebuilt now that the loading state has replaced it.
       if (showsLoadingState && !hasRealLocation()) {
@@ -2741,7 +2759,9 @@ function updateFilterUi() {
     // heading -- see app.html) is the way *in* from Nearby, and only shows there. On the Filter
     // screen itself it would just sit in its active state doing nothing when tapped, so it hides
     // in favour of the ordinary #inspectorBack arrow -- the way out, same as any other screen.
-    els.filterToggle.hidden = locationSelected || state.searchScreenOpen || state.filterScreenOpen;
+    // A /find/ landing's place is not selected yet, but it is not the Nearby list either, so the
+    // toggle stays hidden until it is (findLandingAwaitingPlace, js/app.js).
+    els.filterToggle.hidden = locationSelected || findLandingAwaitingPlace() || state.searchScreenOpen || state.filterScreenOpen;
     els.filterToggle.classList.toggle("active", hasActiveFilter);
     els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
     els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
@@ -6886,7 +6906,7 @@ const ROUTE_UNKNOWN_FIT_SLACK = 1.25;
 
 function ensureUserAndSelectionVisible(options = {}) {
   const target = selectedCompassTarget();
-  if (!target || !state.userLocation) return;
+  if (!target) return;
   if (!options.force && els.inspector.classList.contains("minimized")) return;
   // force:true is an app-driven framing (a new selection, the first-load reveal, expanding
   // the inspector) and therefore also the point at which the app takes the camera back.
@@ -6896,6 +6916,26 @@ function ensureUserAndSelectionVisible(options = {}) {
   if (options.force) clearManualCameraOverride();
   else if (manualCameraOverrideActive()) return;
   const shouldAnimate = options.animate !== false;
+
+  // No shared location: there is no origin to fit the selection against, so the view simply centres
+  // on the selected place (no route, no walking distance, no direction arrow).
+  if (!hasRealLocation()) {
+    if (target.point) {
+      // Never open deeper than the forest-wide base: keeping whatever scale the camera had (at boot,
+      // the deepest zoom) left the place alone in an empty, over-zoomed view.
+      // Open at about 1.2 km across the visible map, measured from the place itself: the forest-wide
+      // base is too far out, and the deepest zoom leaves the place alone in an empty view.
+      const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+      const metresPerDegreeLon = 111320 * Math.cos(target.latitude * Math.PI / 180);
+      const origin = projectLonLat(target.longitude, target.latitude);
+      const eastOneKm = projectLonLat(target.longitude + 1000 / metresPerDegreeLon, target.latitude);
+      const worldPerKm = Math.abs(eastOneKm.x - origin.x);
+      state.viewport.scale = focusRect.width / (worldPerKm * 1.2);
+      centerViewportOnPointsKeepScale([target.point], options);
+    }
+    return;
+  }
+  if (!state.userLocation) return;
 
   let pointsToFit = [state.userLocation.point];
 
@@ -7369,10 +7409,30 @@ function findCowByKey(key) {
   return null;
 }
 
+// True from the moment a location request starts until it answers, so the direction arrow can spin
+// while it waits rather than appearing only once a fix lands (setLocationRequestPending).
+function setLocationRequestPending(pending) {
+  locationRequestPending = pending;
+  updateCompassOverlay();
+}
+
 function updateCompassOverlay() {
   const target = selectedCompassTarget();
-  if (!target || !state.userLocation) {
-    if (els.compassArrow) els.compassArrow.hidden = true;
+  const arrow = els.compassArrow;
+  // Waiting for the first fix: the arrow spins in place, with no bearing yet to point at.
+  // The High Beach stand-in is not a real fix, so it gives no bearing either (hasRealLocation).
+  if (target && !hasRealLocation() && locationRequestPending) {
+    state.compassArrowAngle = null;
+    if (arrow) {
+      arrow.hidden = false;
+      arrow.style.transform = "";
+      arrow.classList.add("title-compass-arrow--searching");
+      arrow.setAttribute("aria-label", "Finding your direction");
+    }
+    return;
+  }
+  if (!target || !hasRealLocation()) {
+    if (arrow) arrow.hidden = true;
     state.compassArrowAngle = null;
     return;
   }
@@ -7385,10 +7445,21 @@ function updateCompassOverlay() {
   const title = state.selected.type === "tree"
     ? treeDisplayName(target)
     : placeTitle(target);
-  if (els.compassArrow) {
-    els.compassArrow.hidden = false;
-    els.compassArrow.style.transform = `rotate(${state.compassArrowAngle}deg)`;
-    els.compassArrow.setAttribute("aria-label", `Direction to ${title}, ${detailTypeLabel(distanceFromUser(target))}`);
+  if (arrow) {
+    // The first bearing after the search: spin two full turns and slow into the direction, rather
+    // than snapping straight to it.
+    const settlingIn = arrow.hidden || arrow.classList.contains("title-compass-arrow--searching");
+    arrow.classList.remove("title-compass-arrow--searching");
+    arrow.hidden = false;
+    if (settlingIn) {
+      arrow.style.transition = "none";
+      arrow.style.transform = `rotate(${state.compassArrowAngle + 720}deg)`;
+      void arrow.offsetWidth;
+      arrow.style.transition = "transform 1.6s cubic-bezier(0.2, 0.7, 0.2, 1)";
+      arrow.addEventListener("transitionend", () => { arrow.style.transition = ""; }, { once: true });
+    }
+    arrow.style.transform = `rotate(${state.compassArrowAngle}deg)`;
+    arrow.setAttribute("aria-label", `Direction to ${title}, ${detailTypeLabel(distanceFromUser(target))}`);
   }
 }
 
@@ -8923,7 +8994,15 @@ function updateSelectedDetailFields() {
   const routedMetres = selectedRouteMetres(item);
   const metres = routedMetres != null ? routedMetres : distanceFromUser(item);
   const distancePill = els.inspectorBody && els.inspectorBody.querySelector('[data-live-field="distance"]');
-  if (distancePill) distancePill.innerHTML = walkInfoExpandableHtml(metres);
+  // The first figure replaces the loading chip and opens out into its slot (.walk-chip--enter). Later
+  // updates only swap the numbers, so the chip never replays its entrance.
+  // No shared location: there is no walking figure to show, so the slot stays empty.
+  if (distancePill && !hasRealLocation()) distancePill.innerHTML = "";
+  if (distancePill && hasRealLocation() && Number.isFinite(metres)) {
+    const isFirstFigure = !distancePill.querySelector(".walk-chip--ready");
+    distancePill.innerHTML = walkInfoExpandableHtml(metres);
+    if (isFirstFigure) distancePill.querySelector(".walk-chip--ready")?.classList.add("walk-chip--enter");
+  }
   updateCowTimeAgoField();
 }
 

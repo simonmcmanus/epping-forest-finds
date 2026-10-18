@@ -33,7 +33,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { buildInventory, loadAppRules } = require("./report/map-inventory.js");
-const { escapeHtml, replaceOnce, showConsentBannerByDefault, customizeConsentBannerText } = require("./lib/html-template.js");
+const { escapeHtml, replaceOnce, customizeConsentBannerText } = require("./lib/html-template.js");
 const { listBusinessesForFilterKey, loadEvents, haversineMetres } = require("./generate-business-pages.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
@@ -620,7 +620,7 @@ function renderPage(page, appHtml, enrichment = {}) {
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
   html = inspectorHeadingHtml(html, rules, page.label, typeLine);
   html = customizeConsentBannerText(html, `Enable location to get walking directions and see what's near ${escapeHtml(page.title)}`);
-  return showConsentBannerByDefault(html);
+  return html;
 }
 
 /**
@@ -675,7 +675,7 @@ function renderEventsPage(appHtml, events, rules = loadAppRules()) {
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
   html = inspectorHeadingHtml(html, rules, "Events", "Nearest Events around High Beach");
   html = customizeConsentBannerText(html, "Enable location to get walking directions and see what's near you");
-  return showConsentBannerByDefault(html);
+  return html;
 }
 
 /**
@@ -716,7 +716,7 @@ function renderCowsPage(appHtml, rules = loadAppRules()) {
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
   html = inspectorHeadingHtml(html, rules, "Cows", "Nearest Cows around High Beach");
   html = customizeConsentBannerText(html, "Enable location to get walking directions and see what's near you");
-  return showConsentBannerByDefault(html);
+  return html;
 }
 
 /**
