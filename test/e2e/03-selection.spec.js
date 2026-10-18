@@ -37,7 +37,6 @@ test.describe("Selection and Inspector", () => {
     });
 
     test("snapshot: tree detail view", async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
       await page.waitForTimeout(600);
       // Stop all canvas animations so Playwright's stability check can pass.
       // toHaveScreenshot() requires pixel-identical consecutive RAW screenshots — the mask

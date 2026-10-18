@@ -182,7 +182,8 @@ rendered with thousands separators.
 ## 5. Homepage structure
 
 Copy stays brief: no introductory filler above the inventory or offline steps;
-tree captions give one action each. The signup introduction says “Get launch news, opportunities to take part as an early tester, and weekly Epping Forest Ledger updates when they launch.”
+tree captions give one action each. The signup introduction says “Hear when early
+testing opens, plus weekly Epping Forest Ledger updates once the site launches.”
 FAQ answers match their JSON-LD wording. The veteran-tree card uses the oak-leaf
 brand icon. These edits preserve the signup consent wording and mailing scope.
 
@@ -269,7 +270,7 @@ Sections, in order:
    screens (stacked on mobile). The introduction doubles as the explicit opt-in
    statement above the form; the privacy line sits below. Both use the full card
    content width; only the email-and-button row has a narrower cap. The opt-in
-   statement includes weekly Epping Forest Ledger updates when they launch.
+   statement includes weekly Epping Forest Ledger updates once the site launches.
 6. **No signal? Here’s the plan** — three steps: open it once
    on signal, it downloads, it then works anywhere in the forest. The steps and
    the cattle note share one white shadowed card (like the map inventory), so
@@ -687,8 +688,7 @@ branches.
   using the same list and cap as the live screen, under the heading
   "Nearby" and the type line "Nearest selected filters within 30 min walk
   of High Beach". The page also carries the location and cookie banner
-  (`#consentBanner`, hidden in the static markup and shown only by boot, for a first-time landing
-  visitor, so a returning visitor never sees it flash on and off), the Filters
+  (`#consentBanner`, shown by default as on a landing page), the Filters
   button with its live count, and `data-server-rendered-nearby` on
   `#inspectorBody`. Boot keeps that list on screen, without rebuilding it,
   until a real location fix arrives, and only while the filters are still
@@ -867,14 +867,11 @@ use for the homepage's counts.
   instead of the business, since `boot()` awaits the wizard's own dismissal
   before reaching the selection step above.
 - **Related-content links, both server-rendered and live, as two headed
-  sections.** The static page (`scripts/generate-business-pages.js`) renders
-  the same inspector panel the live page does, with the same classes: header
-  (name, category, category icon), the icon-only "Open in Maps" and Share buttons the live top
-  row uses (Share is inert until JS boots; the walking-time pill also appears only with JS), detail rows, and
-  `Nearby` / `Related` `<h3 class="detail-section-heading">` sections of
-  `.nearest-item` cards. Its cards are real links even with no JS, but carry
-  no distance for the trees/cattle (a build-time figure would be wrong for
-  live-tracked cattle positions by the time anyone reads it).
+  sections.** The static page's own "Part of `<subfilter>` in `<group>`"
+  and "See also veteran trees and grazing cattle near Epping Forest"
+  (`scripts/generate-business-pages.js`) are real links even with no JS,
+  but carry no distance for the trees/cattle (a build-time figure would be
+  wrong for live-tracked cattle positions by the time anyone reads it).
   Once JS boots and the business is selected, `relatedCategoryLinksHtml()`
   (`js/inspector.js`) renders the live continuation as two
   `<h3 class="detail-section-heading">`-headed lists — **Nearby** (the
@@ -1023,16 +1020,16 @@ the site runs in.
 
 | State | CTA | Supporting line |
 | --- | --- | --- |
-| `closed` | Keep me in the loop → sign-up form | "Sign up for launch news, to take part as an early tester, and for weekly Ledger updates when they launch." |
+| `closed` | Keep me in the loop → sign-up form | "Sign up to hear when early testing opens." |
 | `open` | Open the map → `/nearby` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
 links — is written to be true in all three states and does not change.
 
-The app is linked from the site; signup offers launch news and opportunities to take part as an early tester.
+The page must not imply immediate access or invitations already being sent.
 The signup heading is “Be in the know”, the submit button
-is “Email me updates”, and the introduction offers launch news, opportunities to take part as an early tester,
-and weekly Ledger updates when they launch. The consent statement retains
+is “Email me updates”, and the introduction offers news when early testing opens
+and weekly Ledger updates once the site launches. The consent statement retains
 the same mailing scope.
 
 ## 9. Mailing list
@@ -1094,7 +1091,7 @@ which addresses are on the list is an enumeration oracle.
   survives later copy changes.
 - Every message carries a working unsubscribe link from the first one.
 - Consent wording in the form and server-side record must match exactly:
-  “By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds with launch news, opportunities to take part as an early tester, and weekly Epping Forest Ledger updates when they launch.”
+  “By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds when early testing opens, plus weekly Epping Forest Ledger updates once the site launches.”
   Nothing else is sent to this list without fresh consent.
 
 ### 9.4 Privacy policy changes (blocking)
@@ -1200,11 +1197,11 @@ Per the project's completion checklist:
   form with focused inbox guidance in both motion modes; sending blocks duplicate
   requests and failures preserve the form for retry;
   the honeypot rejects silently; the CTA reflects the alpha state.
-- **Screenshot** — **not yet taken.** A baseline captured before the hero image
-  lands would be replaced immediately, and per `spec/agents.md` a baseline must
-  come from a Linux CI runner rather than a developer sandbox. Add one via the
-  `Update Snapshots` action in the same change as the hero image, on the
-  `mobile` project only.
+- **Screenshot** — `test/e2e/31-public-snapshots.spec.js` covers the homepage on
+  desktop and mobile, while `test/e2e/32-public-nojs-snapshots.spec.js` covers
+  its desktop no-JavaScript render. Baselines live in the flat
+  `test/e2e/__screenshots__/` directory and are generated by the Linux CI
+  visual-snapshot job.
 - **Sitemap** — `test/sitemap.test.js` updated for the five screen paths'
   disallow.
 - **Accessibility** — a "Skip to content" link is the first focusable element
