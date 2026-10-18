@@ -229,15 +229,27 @@ function nearestWithinWalkingRadius(items, getLatLon) {
 // instant JS replaced it with the live Nearby list; now the static page already looks like the
 // screen it's showing. metres is optional -- omitted entirely (no footer) rather than shown as
 // 0/blank when a caller has no distance to give.
-function nearestItemCardHtml(href, iconHtml, name, metres) {
-  const footer = Number.isFinite(metres)
-    ? `<div class="nearest-footer"><span class="nearest-meta"><span class="walk-chip">${formatDistanceLabel(metres)} · ${walkTimeLabel(metres)}</span></span></div>`
+// Footer matches renderNearestItemsHtml (js/app.js) part for part -- walk chip with its walking
+// icon, then the type and tree tag, then the direction arrow JS rotates once it knows the bearing
+// -- so the live list replaces these cards without any of them changing shape.
+function nearestItemCardHtml(href, iconHtml, name, metres, { rules, typeLabel = "", tag = null, latitude = null, longitude = null } = {}) {
+  const walkingIcon = rules ? rules.appIconHtml("walking", "app-icon walk-icon") : "";
+  const parts = [
+    Number.isFinite(metres) ? `<span class="walk-chip">${formatDistanceLabel(metres)} · ${walkTimeLabel(metres)}${walkingIcon ? ` ${walkingIcon}` : ""}</span>` : "",
+    escapeHtml(typeLabel),
+    tag ? `#${escapeHtml(tag)}` : "",
+  ].filter(Boolean);
+  const arrow = latitude != null
+    ? `<span class="nearest-arrow" data-item-lat="${latitude}" data-item-lon="${longitude ?? ""}" aria-hidden="true">↑</span>`
+    : "";
+  const footer = parts.length || arrow
+    ? `<div class="nearest-footer"><span class="nearest-meta">${parts.join(" · ")}</span>${arrow}</div>`
     : "";
   return `<a class="nearest-item" href="${escapeHtml(href)}"><span class="nearest-icon">${iconHtml || ""}</span><div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div>${footer}</div></a>`;
 }
 
 function nearestListHtml(cards) {
-  return cards.length ? `<div class="nearest-list">${cards.join("")}</div>` : "";
+  return cards.length ? `<ul class="nearest-list">${cards.map((card) => `<li>${card}</li>`).join("")}</ul>` : "";
 }
 
 // Live's own Nearby list, once a reader lands on a /nearby/trees/, /nearby/ponds-streams/ or
@@ -269,10 +281,14 @@ function natureNearestListHtml(filterKeys, enrichment, rules) {
   const cards = entries.slice(0, NEAREST_ITEMS_COUNT).map(({ type, item, metres }) => {
     if (type === "tree") {
       const icon = rules.treeSpeciesIconHtml(item.commonName, item.latinName) || rules.filterKindEmoji("trees");
-      return nearestItemCardHtml(`/nearby/trees/#tree=${encodeURIComponent(treeHashKey(item))}`, icon, treeDisplayName(item), metres);
+      return nearestItemCardHtml(`/nearby/trees/#tree=${encodeURIComponent(treeHashKey(item))}`, icon, treeDisplayName(item), metres, {
+        rules, typeLabel: "Tree", tag: treeTagLabel(item), latitude: item.latitude, longitude: item.longitude,
+      });
     }
     const icon = rules.filterKindEmoji("ponds_streams");
-    return nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(item.key)}`, icon, item.name, metres);
+    return nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(item.key)}`, icon, item.name, metres, {
+      rules, typeLabel: "Water", latitude: item.latitude, longitude: item.longitude,
+    });
   });
   return nearestListHtml(cards);
 }
@@ -481,7 +497,7 @@ function renderPage(page, appHtml, enrichment = {}) {
   const nearestBusinesses = nearestWithinWalkingRadius(businesses, (b) => ({ latitude: b.lat, longitude: b.lon }));
   const businessListHtml = businesses.length
     ? nearestListHtml(nearestBusinesses.map(({ item: b, metres }) =>
-        nearestItemCardHtml(`/find/${b.slug}/`, rules.filterKindEmoji(b.key), b.name, metres)
+        nearestItemCardHtml(`/find/${b.slug}/`, rules.filterKindEmoji(b.key), b.name, metres, { rules })
       ))
     : "";
 
@@ -695,10 +711,15 @@ function renderCowsPage(appHtml, rules = loadAppRules()) {
  * (High Beach), the no-fix origin, so it matches a visitor who has not shared a location. A visitor
  * with a real fix or saved filters sees a live list that differs from this one.
  *
- * No consent banner: bare /nearby is not a landing-page arrival (isLandingPageArrival, js/app.js),
- * so the banner stays hidden live and must stay hidden here too.
+ * The page also carries the live screen's consent banner (un-hidden, same as a landing page's, so
+ * a visitor sees the location and cookie ask before JS runs), the Filters button with its live
+ * count, and data-server-rendered-nearby on #inspectorBody. That marker is what makes boot keep
+ * this list on screen until a real location fix -- js/inspector.js, serverRenderedNearbyListStillValid
+ * -- so no-JS and JS both show the same list and nothing repaints on load.
  */
 const NEARBY_INDEX_FILE_NAME = "nearby-index.html";
+// DEFAULT_FILTERS (js/app.js): the filter set a first-time visitor's Nearby list is built from.
+const NEARBY_INDEX_FILTERS = ["trees", "cows", "events"];
 
 function renderNearbyIndexPage(appHtml, enrichment) {
   const { trees = [], rules = loadAppRules() } = enrichment;
@@ -729,6 +750,12 @@ function renderNearbyIndexPage(appHtml, enrichment) {
   html = replaceOnce(html, "</head>", `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`, "</head>");
   html = replaceOnce(html, APP_EMPTY_STATE, listHtml, "initial inspector empty-state paragraph");
   html = inspectorHeadingHtml(html, rules, null, typeLine);
+  html = replaceOnce(html, '<div id="inspectorBody" class="inspector-body">', '<div id="inspectorBody" class="inspector-body" data-server-rendered-nearby>', "inspector body marker");
+  html = replaceOnce(html, '<div id="consentBanner" class="consent-banner" role="group" aria-label="Location and cookies" hidden>', '<div id="consentBanner" class="consent-banner" role="group" aria-label="Location and cookies">', "consent banner shown");
+  // Same count the live Filters button shows: groups with at least one subfilter in the default set.
+  const defaultGroupCount = rules.FILTER_GROUPS.filter((group) => group.subfilters.some((sub) => NEARBY_INDEX_FILTERS.includes(sub.key))).length;
+  html = replaceOnce(html, '<button id="filterToggle" class="filter-toggle inspector-filter-toggle" type="button" aria-label="Filters" aria-pressed="false" hidden>', `<button id="filterToggle" class="filter-toggle inspector-filter-toggle active" type="button" aria-label="Filters: ${defaultGroupCount} top-level filters selected" aria-pressed="true">`, "filter toggle shown");
+  html = replaceOnce(html, '<span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span>', `<span id="filterCount" class="filter-count" aria-hidden="true">${defaultGroupCount}</span>`, "filter count");
   return html;
 }
 

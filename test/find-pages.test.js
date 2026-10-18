@@ -269,7 +269,7 @@ test("renderPage's trees/ponds-streams/nature pages show a real nearest-item lis
   const waterHtml = renderPage(waterPage, APP_HTML, enrichment);
   assert.match(waterHtml, /class="nearest-item" href="\/nearby\/ponds-streams\/#water=way%2F1"/);
   assert.match(waterHtml, /<span class="nearest-name">Aldersbrook<\/span>/);
-  assert.match(waterHtml, /<span class="walk-chip">\d+ m · < 1 min<\/span>/);
+  assert.match(waterHtml, /<span class="walk-chip">\d+ m · < 1 min <img class="app-icon walk-icon"[^>]*><\/span>/, "the live walk chip, walking icon included");
   assert.ok(!waterHtml.includes("/nearby/trees/#tree="), "the water-only page never pulls in trees");
 
   // The nature GROUP page mixes trees and water together, exactly like overviewItemsForActiveFilter

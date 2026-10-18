@@ -1234,8 +1234,9 @@ async function revealMapCenteredOnUser() {
   // whole first reveal reads as one choreographed moment rather than three separate things
   // happening to independently finish loading.
   els.mapStage?.classList.add("map-revealed");
-  // The reveal is over, so from here on the list is ordinary live content again.
-  _serverRenderedNearbyList = false;
+  // The reveal is over, so from here on the list is ordinary live content again -- except bare
+  // /nearby's static list, which stays as drawn until a real fix (serverRenderedNearbyListStillValid).
+  _serverRenderedNearbyList = _staticNearbyIndex && serverRenderedNearbyListStillValid();
   hideWithFade(els.loadingOverlay);
 }
 
@@ -1261,6 +1262,9 @@ async function revealNoRealLocation({ locationAlreadyAsked }) {
   if (!hasRealLocation()) applyDefaultLocation();
 
   selectOverview();
+  // A static index's arrows point north until there is a bearing to rotate them by -- the default
+  // origin applyDefaultLocation() just set. Only the arrows change; the list itself stays as drawn.
+  if (_staticNearbyIndex) updateOverviewDirectionArrows();
   draw();
   applySelectionFromHash();
   await revealMapCenteredOnUser();
@@ -1397,7 +1401,8 @@ function showCombinedConsentBanner() {
 async function boot() {
   // A /nearby/<slug>/ landing already shows its server-rendered list (see
   // _serverRenderedNearbyList, js/inspector.js); keep it there until a real fix or the reveal.
-  _serverRenderedNearbyList = isNearbyCategoryLandingPath();
+  _staticNearbyIndex = Boolean(document.querySelector("[data-server-rendered-nearby]"));
+  _serverRenderedNearbyList = isNearbyCategoryLandingPath() || (_staticNearbyIndex && staticNearbyIndexFiltersAreDefault());
   initSelectedIconMotion();
   initRouter();
   initTracker();
@@ -1425,7 +1430,10 @@ async function boot() {
   // explicitly hide it again here, synchronously, before anything else runs: showCombinedConsentBanner()
   // below only ever un-hides it, it never corrects a wrongly-pre-shown one. The condition is
   // computed once and reused by that call below so the two can never drift apart.
-  const showsCombinedConsentBanner = Boolean(navigator.geolocation) && isLandingPageArrival() && cookieConsentIsUndecided();
+  // Bare /nearby's static index shows the same banner pre-JS (renderNearbyIndexPage), so it takes the
+  // landing-page path here too -- except on a first visit, where onboarding asks the same questions.
+  const onboardsFirst = !hasCompletedOnboarding() && !isLandingPageArrival();
+  const showsCombinedConsentBanner = Boolean(navigator.geolocation) && !onboardsFirst && (isLandingPageArrival() || _staticNearbyIndex) && cookieConsentIsUndecided();
   if (els.consentBanner && !showsCombinedConsentBanner) els.consentBanner.hidden = true;
 
   // Start data loading immediately so it runs in parallel with location and onboarding
@@ -1444,7 +1452,7 @@ async function boot() {
   // revealNoRealLocation() below knows not to draw a second prompt for the same question.
   let locationAlreadyAsked = false;
 
-  if (!hasCompletedOnboarding() && !isLandingPageArrival()) {
+  if (onboardsFirst) {
     // First visit to the plain Nearby screen: show onboarding while data loads behind it.
     // A landing-page arrival (/nearby/<slug>, a first-touch ?show= link, or a selection hash)
     // skips this --

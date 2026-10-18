@@ -80,12 +80,13 @@ test.describe("Cookie consent banner", () => {
     await expect(page.locator("#cookieConsentBanner")).toBeHidden();
   });
 
-  test("is shown on the app shell the same way as the homepage", async ({ page }) => {
+  test("on the app shell it is the combined location and cookie banner, the same ask a landing page makes", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await denyGeolocationUnlessGranted(page);
     await page.goto("/nearby");
-    await expect(page.locator("#cookieConsentBanner")).toBeVisible();
+    await expect(page.locator("#consentBanner")).toBeVisible();
+    await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
   });
 
   test("mobile keeps the early-testing notice above the map and out of the Nearby sheet", async ({ page }, testInfo) => {
@@ -128,7 +129,7 @@ test.describe("Cookie consent banner", () => {
     await mockCowApi(page);
     await denyGeolocationUnlessGranted(page);
     await page.goto("/nearby");
-    await page.locator("#cookieConsentBanner [data-action=\"decline\"]").click();
+    await page.locator("#consentBannerDecline").click();
     // The in-app tracker consent key is independent of the cookie-consent banner's choice.
     expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBeNull();
   });
