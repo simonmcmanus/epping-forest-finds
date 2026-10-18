@@ -133,7 +133,7 @@ test.describe("Overview / Nearby screen", () => {
     // not affect it at all -- unlike the sheet's own chrome (header, body), which does hide.
     await page.evaluate(() => setInspectorMinimized(true));
     await expect(page.locator("#inspector")).toHaveClass(/minimized/);
-    const fits = await page.locator(".inspector-actions button").evaluateAll(buttons => buttons.every(button => {
+    const fits = await page.locator(".inspector-actions > a, .inspector-actions > button").evaluateAll(buttons => buttons.every(button => {
       const nav = button.closest(".inspector-actions").getBoundingClientRect();
       const box = button.getBoundingClientRect();
       return box.top >= nav.top && box.bottom <= nav.bottom && box.height >= 44;
@@ -282,7 +282,7 @@ test.describe("Overview / Nearby screen", () => {
   });
 
   test("nav buttons read left to right: nearby, search, feedback, settings", async ({ page }) => {
-    const ids = await page.locator(".inspector-actions button").evaluateAll((els) => els.map((el) => el.id));
+    const ids = await page.locator(".inspector-actions > a, .inspector-actions > button").evaluateAll((els) => els.map((el) => el.id));
     expect(ids).toEqual(["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle"]);
   });
 

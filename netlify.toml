@@ -63,9 +63,12 @@
 # Search nest under /nearby/ -- both only ever change what Nearby shows,
 # never a destination in their own right -- while Settings and Report stay
 # top-level, general app screens with nothing to do with Nearby itself.
+# Bare /nearby is served from a generated static file (scripts/generate-find-pages.js,
+# renderNearbyIndexPage) so a no-JS visitor or crawler sees the real trees list, not app.html's
+# empty-state placeholder. Only this one path is pointed at it; the rest keep rewriting to app.html.
 [[redirects]]
   from = "/nearby"
-  to = "/app.html"
+  to = "/nearby-index.html"
   status = 200
 
 [[redirects]]

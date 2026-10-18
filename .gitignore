@@ -38,6 +38,9 @@ robots.txt
 
 # Generated at build time by scripts/generate-find-pages.js -- never hand-edit
 /nearby/
+# The static bare-/nearby index (renderNearbyIndexPage) -- at the root, not under /nearby/, so it
+# never claims the directory's own clean URL. Served by the /nearby rewrite (netlify.toml, server.js).
+/nearby-index.html
 
 # Generated at build time by scripts/generate-business-pages.js -- never hand-edit. Note
 # data/business-slugs.json is NOT here: that index is committed (scripts/regenerate-business-slugs.js),

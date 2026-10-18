@@ -599,7 +599,8 @@ function setupFilterPanelHandlers() {
   });
 
   if (els.nearbyToggle) {
-    els.nearbyToggle.addEventListener("click", () => {
+    els.nearbyToggle.addEventListener("click", (event) => {
+      event.preventDefault();
       if (els.nearbyToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.nearbyToggle);
         return;
@@ -609,7 +610,8 @@ function setupFilterPanelHandlers() {
   }
 
   if (els.reportToggle) {
-    els.reportToggle.addEventListener("click", () => {
+    els.reportToggle.addEventListener("click", (event) => {
+      event.preventDefault();
       if (els.reportToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.reportToggle);
         return;
@@ -619,7 +621,8 @@ function setupFilterPanelHandlers() {
   }
 
   if (els.settingsToggle) {
-    els.settingsToggle.addEventListener("click", () => {
+    els.settingsToggle.addEventListener("click", (event) => {
+      event.preventDefault();
       if (els.settingsToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.settingsToggle);
         return;
@@ -704,7 +707,8 @@ function handleNearestListArrowKey(event) {
 
 function setupSearchAndNavHandlers() {
   if (els.searchToggle) {
-    els.searchToggle.addEventListener("click", () => {
+    els.searchToggle.addEventListener("click", (event) => {
+      event.preventDefault();
       if (els.searchToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.searchToggle);
         return;
