@@ -608,10 +608,18 @@ function routerBootFinished() {
 
 // Normalises the landing entry so navDepth() has something to count from. history.state
 // survives a reload, so an entry pushed before the reload keeps the depth it had.
+//
+// A fresh load reached by a link from another page of this site (a /nearby/<slug>/ page opened
+// from a sibling page, say) has no state of its own, but the browser's back button does return
+// to that page -- so the arrow must offer it too. Only a same-origin referrer in a tab that has
+// history counts: a link opened in a new tab, or one from elsewhere, has nothing to go back to.
 function initRouter() {
   if (navDepthOf(history.state) !== null) return;
+  const cameFromThisSite = Boolean(document.referrer)
+    && new URL(document.referrer).origin === window.location.origin
+    && history.length > 1;
   history.replaceState(
-    { [NAV_DEPTH_KEY]: 0, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
+    { [NAV_DEPTH_KEY]: cameFromThisSite ? 1 : 0, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
     "",
     `${window.location.pathname}${window.location.search}${window.location.hash}`
   );
@@ -1076,7 +1084,7 @@ function filterKeysFromQuery(search) {
   return raw.split(",").map((key) => key.trim()).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key));
 }
 
-// ?filters=false -- "Everything nearby" links (the Nearby breadcrumb chip, and the walk-radius card
+// ?filters=false -- "All nearby" links (the Nearby category-navigation chip, and the walk-radius card
 // in a place's inspector). Means "ignore my saved filters and show every category", so it is read
 // here as its own override rather than a ?show= list: applyShowFilterFromQuery applies every key
 // ephemerally (persist:false), and the reader's own filters come back on the next plain visit.
@@ -1164,7 +1172,7 @@ function applyShowFilterFromQuery({ render = true } = {}) {
   // Landing on the bare Nearby path with nothing selected (no hash -- a tree/cow/landmark
   // selection without its own /find/ page also lands on NEARBY_PATH, but always carries one,
   // see urlPartsForRouteValue) while still showing a /nearby/<slug> page's own ephemeral category
-  // is the reader explicitly leaving that lens -- the "Everything nearby" breadcrumb chip, or any
+  // is the reader explicitly leaving that lens -- the "All nearby" category-navigation chip, or any
   // other link/back-nav straight to the plain Nearby screen -- so put their own filters back.
   // goToInitialView() (js/nav.js) already does this same restore for the *selection* half of
   // "leaving" (the Nearby nav button, the inspector back arrow), but can't cover this case: the
@@ -3976,6 +3984,47 @@ function landingPageCategoryLabel() {
   return group ? group.label : null;
 }
 
+const DOCUMENT_TITLE_SITE_NAME = "Epping Forest Finds";
+
+// The static SEO pages have their own richer titles in the generated HTML. Once the shared app
+// shell boots, the browser title follows the screen the reader is actually looking at, including
+// SPA transitions where no document navigation occurs. Keep this in app.js rather than deriving
+// it from the visible heading: the heading is deliberately shorter for selected locations and
+// category landings have a meaningful URL label even while their list is still server-rendered.
+function updateDocumentTitle() {
+  let title;
+  const selected = state.selected;
+
+  if (selected) {
+    const item = selected.item || {};
+    if (selected.type === "settings") {
+      title = "Settings";
+    } else if (selected.type === "report") {
+      title = "Feedback";
+    } else {
+      const name = selected.type === "tree"
+        ? treeDisplayName(item)
+        : selected.type === "cow"
+          ? `Cow ${displayValue(item.serialNo)}`
+          : selected.type === "railway"
+            ? (item.properties?.name || item.properties?.ref || "Unnamed railway line")
+            : (item.name || item.ref || item.commonName || "Map location");
+      title = `${name} near Epping Forest`;
+    }
+  } else if (state.filterScreenOpen) {
+    title = "Filters for Epping Forest";
+  } else if (state.searchScreenOpen) {
+    title = "Search Epping Forest Finds";
+  } else {
+    const landingLabel = landingPageCategoryLabel();
+    title = landingLabel ? `Nearby ${landingLabel} in Epping Forest` : "Nearby in Epping Forest";
+  }
+
+  const nextTitle = `${title} | ${DOCUMENT_TITLE_SITE_NAME}`;
+  if (typeof document !== "undefined" && document.title !== nextTitle) document.title = nextTitle;
+  return nextTitle;
+}
+
 // True when the active filter set should be shown in full even without a location fix: either
 // exactly one filter -- a subfilter's own /nearby/<slug> page, or a reader's own deliberate single
 // choice, both reading better as "show me everything in this one category" than a generic
@@ -4056,17 +4105,16 @@ function renderNearestItemsHtml(entries) {
   }).join("");
 }
 
-// "/nearby/<slug>/"'s own up-links -- a chip up to its group, a way back to the full,
-// unfiltered Nearby list, a group page's own down-links to each member subfilter ("Browse by
-// type"), and the "see also veteran trees/grazing cattle" up-links every /find/<slug>/ business
-// page already carries -- reproduced here because the static page's own version of all of this
-// (generate-find-pages.js's topChipsHtml, what a crawler or a no-JS visitor sees) is silently
-// dropped the moment JS boots: selectOverview() replaces that content with this live list, which
-// had no up-links of its own. Shown only on a real /nearby/<slug>/ landing -- the plain /nearby
-// screen, or a reader's own multi-filter choice from the Filters screen, has no single category
-// to breadcrumb up from, so filterKeysFromFindPath's own pathname-only regex (never a reader's
-// live filter selection) is what gates this, same as isLandingPageArrival. A group page's own
-// slug has no group above it, so it gets only the "Everything nearby" link there.
+// "/nearby/<slug>/"'s category navigation -- the current category, a chip up to its group, a
+// way back to the full, unfiltered Nearby list, a group page's own down-links to each member
+// subfilter ("Browse by type"), and the "see also veteran trees/grazing cattle" up-links every
+// /find/<slug>/ business page already carries. It is reproduced here because the static page's
+// own version (generate-find-pages.js's topChipsHtml, what a crawler or a no-JS visitor sees) is
+// silently dropped the moment JS boots: selectOverview() replaces that content with this live
+// list. Shown only on a real /nearby/<slug>/ landing -- the plain /nearby screen, or a reader's
+// own multi-filter choice from the Filters screen, has no single category to navigate from, so
+// filterKeysFromFindPath's own pathname-only regex (never a reader's live filter selection) is
+// what gates this, same as isLandingPageArrival.
 function categoryLandingLinksHtml() {
   const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
   if (!match) return "";
@@ -4074,10 +4122,12 @@ function categoryLandingLinksHtml() {
   const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
   const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : FILTER_GROUPS_BY_KEY.get(key);
   if (!group) return "";
+  const current = subfilter || group;
+  const currentChip = `<a class="detail-map-link nearby-link nearby-link--current" href="/nearby/${key.replace(/_/g, "-")}/" aria-current="page">${appIconHtml(current.icon)}${escapeHtml(current.label)}</a>`;
   const groupChip = subfilter
     ? `<a class="detail-map-link nearby-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
     : "";
-  const allChip = `<a class="detail-map-link nearby-link" href="/nearby?filters=false">${appIconHtml("nearby")}Everything nearby</a>`;
+  const allChip = `<a class="detail-map-link nearby-link" href="/nearby?filters=false">${appIconHtml("nearby")}All nearby</a>`;
 
   // A group page's own members -- cows is excluded the same way the static generator's own
   // page.members already is (live-tracked, no fixed count, no page built through the ordinary
@@ -4090,8 +4140,8 @@ function categoryLandingLinksHtml() {
         .join("")
     : "";
 
-  // Omits trees/cows's own self-link, and omits trees entirely on the nature group page (its
-  // own "Trees" type-chip above already covers it -- see topChipsHtml's matching comment,
+  // Omits a duplicate trees/cows link, and omits trees entirely on the nature group page (its
+  // current/type chip above already covers it -- see topChipsHtml's matching comment,
   // scripts/generate-find-pages.js).
   const treesSubfilter = FILTER_SUBFILTERS_BY_KEY.get("trees");
   const cowsSubfilter = FILTER_SUBFILTERS_BY_KEY.get("cows");
@@ -4103,11 +4153,18 @@ function categoryLandingLinksHtml() {
     ? ""
     : `<a class="detail-map-link nearby-link" href="/nearby/cows/">${appIconHtml(cowsSubfilter.icon)}${escapeHtml(cowsSubfilter.label)}</a>`;
 
-  return `<div class="detail-top-row related-chips">${groupChip}${allChip}${typeChips}${treesChip}${cowsChip}</div>`;
+  return `<nav class="nearby-category-nav" aria-label="Browse nearby categories"><p class="nearby-category-nav-title">Browse nearby categories</p><div class="detail-top-row related-chips">${currentChip}${groupChip}${allChip}${typeChips}${treesChip}${cowsChip}</div></nav>`;
+}
+
+function overviewCategoryContentHtml(content) {
+  const categoryLabel = landingPageCategoryLabel();
+  if (!categoryLabel) return content;
+  const heading = `${categoryLabel} nearby`;
+  return `<section class="nearby-category-results" aria-labelledby="nearbyResultsHeading"><h3 id="nearbyResultsHeading">${escapeHtml(heading)}</h3>${content}</section>`;
 }
 
 function overviewNearestHtml() {
-  const breadcrumbHtml = categoryLandingLinksHtml();
+  const navigationHtml = categoryLandingLinksHtml();
   if (!state.userLocation) {
     // A /nearby/<slug> category page -- a subfilter's own, or a whole group's -- lands here with
     // no location yet (no prompt answered, or declined), as does a reader who has deliberately
@@ -4119,10 +4176,10 @@ function overviewNearestHtml() {
     if (activeFiltersShowFullListWithoutLocation()) {
       const entries = allEntriesForActiveFilters();
       if (entries.length) {
-        return `${breadcrumbHtml}<p class="source-note">Enable location to sort these by distance and get walking directions.</p><ul class="nearest-list">${renderNearestItemsHtml(entries)}</ul>`;
+        return `${navigationHtml}${overviewCategoryContentHtml(`<p class="source-note">Enable location to sort these by distance and get walking directions.</p><ul class="nearest-list">${renderNearestItemsHtml(entries)}</ul>`)}`;
       }
     }
-    return `${breadcrumbHtml}<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`;
+    return `${navigationHtml}${overviewCategoryContentHtml(`<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`)}`;
   }
 
   // The "showing places near where you tapped / use my location" notice is no longer part of
@@ -4153,13 +4210,13 @@ function overviewNearestHtml() {
   const activePointFilters = getActivePointFilterKeys();
   if (!allEntries.length) {
     if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
-      return `${breadcrumbHtml}<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`;
+      return `${navigationHtml}${overviewCategoryContentHtml(`<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`)}`;
     }
     if (activePointFilters.length === 1) {
       const meta = filterMeta(activePointFilters[0]);
-      return `${breadcrumbHtml}<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`;
+      return `${navigationHtml}${overviewCategoryContentHtml(`<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`)}`;
     }
-    return `${breadcrumbHtml}<p class="empty">No nearby places found.</p>`;
+    return `${navigationHtml}${overviewCategoryContentHtml(`<p class="empty">No nearby places found.</p>`)}`;
   }
 
 
@@ -4174,7 +4231,7 @@ function overviewNearestHtml() {
     : `Showing all distances — tap to filter to ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
   const chipLabel = radiusActive ? formatWalkingRadius(state.walkingDistanceMinutes) : "All";
   const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
-  return `${breadcrumbHtml}${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+  return `${navigationHtml}${overviewCategoryContentHtml(`${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`)}`;
 }
 
 // The icon the Nearby list, search results and cluster detail show for a

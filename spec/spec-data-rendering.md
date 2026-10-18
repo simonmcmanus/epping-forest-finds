@@ -469,6 +469,15 @@ invisible control.
 2. **Selected-detail mode** — details for selected tree/landmark/cow/path/road/railway
 3. **Minimized mode** — collapsed header only, click to expand
 
+- **The browser page title follows the live screen.** `updateDocumentTitle()` (`js/app.js`) keeps
+  `document.title` aligned with the app's current content across SPA navigation: a category
+  landing reads `Nearby <Category> in Epping Forest | Epping Forest Finds`, a selected place or
+  other map item reads `<name> near Epping Forest | Epping Forest Finds`, and the plain Nearby,
+  Search, Filters, Feedback and Settings screens use their own Epping Forest-specific titles.
+  It runs for map selections, search results, deep links, back/forward navigation and
+  server-rendered landings once the shared shell boots; generated SEO pages retain their
+  route-specific static `<title>` before JavaScript runs (see spec-marketing.md § 6.6/6.7).
+
 ### Overview Content
 
 - List of nearest items across active filter types
@@ -491,7 +500,7 @@ invisible control.
 - Overview chrome uses generated PNG assets from `data/icons/` for the nearby title, walking-time chip and bus entries; these generated UI icons render at enlarged sizes after tight-cropping.
 - All icon paths are declared in a single `ICON_PATHS` registry in `js/categories.js`. Adding an icon requires one line there; no other file needs editing. Tree species leaf icons use `treeSpeciesIconHtml(commonName, latinName)` for fuzzy name-to-icon matching.
 - The main navigation is a full-width, four-column row in this order: Nearby, Search, Feedback, Settings. Each button has a persistent text label and a simple 24px outline SVG (pin, magnifier, speech bubble, cog). Icons and labels are charcoal (`#263345`); the current screen uses a solid charcoal tile with white content and `aria-current="page"`. Hover uses a neutral grey surface; selected tiles have no drop shadow. Filters is not one of these four — see "Filter Panel" below for its own inline button and badge, next to the Nearby heading instead of this row.
-- Navigation targets are at least 44px wide and 60px tall, sharing the available width even at 320px. Icon size and minimum height follow the existing icon scale. Labels are 0.625rem with -0.2px letter-spacing, sized to fit inside the narrowest (320px) column including the widest label ("Feedback"), so no label bleeds outside its own button. The row stays in normal layout flow; on phones it sits below the resize handle. Back retains its 30px glyph and 44px target on a separate row below navigation when needed. A collapsed inspector hides that Back row and its content while retaining the entire labelled navigation.
+- Navigation targets are at least 44px wide and 60px tall, sharing the available width even at 320px. Icon size and minimum height follow the existing icon scale. Labels are 0.625rem with -0.2px letter-spacing, sized to fit inside the narrowest (320px) column including the widest label ("Feedback"), so no label bleeds outside its own button. The row stays in normal layout flow; on phones it sits below the resize handle. Back retains its 30px glyph and 44px target on a separate row below navigation when needed. Back is enabled whenever the browser's back button would return to a screen of this app (`canGoBackInApp()`, `js/app.js`) or a browse anchor has been moved, on Nearby as on every other screen — so a Nearby-to-Nearby step, such as one `/nearby/<slug>/` landing to another, is undone by Back too. A fresh load reached by a same-site link (same-origin `document.referrer`, with history behind it) counts as that step; a link opened in a new tab or from elsewhere does not. A collapsed inspector hides that Back row and its content while retaining the entire labelled navigation.
 - All `<img>` icons in the inspector panel use `loading="eager" decoding="sync"` so they render immediately on DOM insertion without a visible flash.
 - Count controlled by `nearestItemsCount` dropdown (3/5/10/15/20/25)
 - Filter panel toggle visible in overview mode
@@ -1361,12 +1370,15 @@ The full routing model — the URL for each screen, history entries, back/forwar
   top row (`categoryLandingLinksHtml`, js/app.js) and every related card in a place's Nearest and
   Related sections (`relatedCategoryLinksHtml`, js/inspector.js) carries the `nearby-link` modifier:
   a forest-green border and label (css/inspector.css), so they read as a move into the map rather
-  than a neutral pill. The top row's category icons (the group, "Everything nearby", and the type
-  chips) are drawn at twice the size of the inline icon used in running text (`.related-chips .app-icon`), and those chips get extra padding and height (44px min, 16px sides, 8px icon gap) so the larger icons don't look squashed.
+  than a neutral pill. The top row's category icons (the current category, group, "All nearby",
+  and type chips) are drawn at twice the size of the inline icon used in running text
+  (`.related-chips .app-icon`), and those chips keep a 44px minimum touch target with 14px side
+  padding and a 7px icon gap so the larger icons stay readable without making the navigation feel
+  bloated. The current category uses a filled selected state and `aria-current="page"`.
 - **A `/nearby/<slug>/` landing's whole top pill row (breadcrumb, a group page's own "Browse by
   type" members, and the "see also veteran trees/grazing cattle" pills) is reproduced live by
   `categoryLandingLinksHtml()` (`js/app.js`), folded into `overviewNearestHtml()`'s own
-  `breadcrumbHtml` so every one of that function's return paths carries it for free** — see
+  category-navigation HTML so every one of that function's return paths carries it for free** — see
   `spec-marketing.md` § "Category pages" for the exact chip set and dedupe rules (the nature
   group page's own "Trees" type-chip is the only trees link there; the see-also row never repeats
   it). A tree species breakdown was tried here first and dropped: it made no sense tied to a

@@ -273,7 +273,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 | `/nearby/search?q=<text>` | Search, with the box already filled in and showing that text's results, so a search is shareable the same way a filter set is |
 | `/nearby?radius=<minutes>` | Nearby (or its `/filter`/`/search` sub-paths) with the walking radius already set to that many minutes, instead of the 5-minute default |
 | `/nearby/<slug>?radius=<minutes>` | A category or group page, with the radius set to that many minutes instead of its own 30-minute default (see below) |
-| `/find/<slug>` | The same app, served at its own URL for one individual business/location (`spec-marketing.md` § 6.7) — e.g. `/find/the-forresters`. Not a filtered Nearby view like `/nearby/<slug>`: the page describes one specific place, with its own title, JSON-LD and nearby-places list, server-rendered with no JS required. **Also the address-bar URL a selection navigates to in-app**: selecting a place with a `findSlug` (`urlPartsForRouteValue`, `js/app.js`) pushes `/find/<slug>/` as a real history entry — the same URL a search engine would show for it — rather than `#place=<key>` on whichever screen it was selected from; `routeValueFromLocation` resolves the reverse direction (`findPlaceByFindSlug`) so back/forward re-selects the same place through the ordinary landmark selection route — and the same resolution runs at boot too (`applySelectionFromHash`), so loading `/find/<slug>/` directly (a reload, a shared link, a crawler) selects and shows that exact business immediately, the same way loading `/nearby#tree=<key>` already opens that tree. This is a client-side `history.pushState` on in-app selection, not a page reload: the place's static title/JSON-LD on screen stay whatever the current page's were (same as every other in-app URL change) until a real navigation loads `/find/<slug>/` itself. A place with no `findSlug` (a tree, a bus stop, anything outside the Food/Locations groups) is unaffected and keeps the plain hash form |
+| `/find/<slug>` | The same app, served at its own URL for one individual business/location (`spec-marketing.md` § 6.7) — e.g. `/find/the-forresters`. Not a filtered Nearby view like `/nearby/<slug>`: the page describes one specific place, with its own title, JSON-LD and nearby-places list, server-rendered with no JS required. **Also the address-bar URL a selection navigates to in-app**: selecting a place with a `findSlug` (`urlPartsForRouteValue`, `js/app.js`) pushes `/find/<slug>/` as a real history entry — the same URL a search engine would show for it — rather than `#place=<key>` on whichever screen it was selected from; `routeValueFromLocation` resolves the reverse direction (`findPlaceByFindSlug`) so back/forward re-selects the same place through the ordinary landmark selection route — and the same resolution runs at boot too (`applySelectionFromHash`), so loading `/find/<slug>/` directly (a reload, a shared link, a crawler) selects and shows that exact business immediately, the same way loading `/nearby#tree=<key>` already opens that tree. This is a client-side `history.pushState` on in-app selection, not a page reload: once the app shell boots, `document.title` follows the selected place as `<name> near Epping Forest | Epping Forest Finds`; category landings use `Nearby <category> in Epping Forest | Epping Forest Finds`, and returning to Nearby restores its own title. A place with no `findSlug` (a tree, a bus stop, anything outside the Food/Locations groups) is unaffected in its URL and uses the same dynamic selected-location title |
 | `/find/events` | An index of upcoming/recent events near the forest — the one `/find/` path that lists several things rather than describing one place |
 | `/app` | Bare redirect (301) to `/nearby`, kept working for old links and bookmarks |
 
@@ -323,13 +323,13 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   trail back to Filters is never mistaken for a fresh `/nearby/<slug>` arrival. Without this, the
   ordinary 1-3 filter default state got the no-location full-list/fit treatment above on every
   single back-navigation to Filters with no location granted.
-- **"Everything nearby" ignores the saved filters.** `/nearby?filters=false` (read by
+- **"All nearby" ignores the saved filters.** `/nearby?filters=false` (read by
   `showsEverythingFromQuery()`, js/app.js) applies every category ephemerally (`persist:false`), so
   the reader's own saved filters are untouched and return on the next plain visit. The same
   override is applied by the walk-radius card's own button (`focusNearbyWithinWalkMinutes`, js/nav.js).
 - **Navigating in-app straight from one `/nearby/<slug>` arrival to another never loses the new
   page's own category.** A link out of a selected place's inspector (a business page's own
-  "Related" section, `js/inspector.js`) or a bare `near="" ` link like "Everything nearby"
+  "Related" section, `js/inspector.js`) or a bare `near="" ` link like "All nearby"
   (`js/app.js`'s `categoryLandingLinksHtml()`, which links `/nearby?filters=false`) routes through `navigateInApp()` →
   `applyRouteFromUrl()` → `applyRoute()`, the same path a popstate takes. Both a `/nearby/<slug>`
   arrival (its own route value is `""`, same as the plain Nearby screen's) and a tap on the Nearby
@@ -342,7 +342,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   call) and the current path itself still names a category (`filterKeysFromFindPath`) — true only
   for a fresh landing-page arrival, never for a direct call (the Nearby nav button, the Report
   form's Cancel, the inspector back arrow with no history to retrace), which always runs outside
-  that depth. Landing on the bare `/nearby` path itself (no slug — "Everything nearby"'s own
+  that depth. Landing on the bare `/nearby` path itself (no slug — "All nearby"'s own
   target) is handled the other way round, in `applyShowFilterFromQuery()`: since its own route
   value also never changes from the page being left, `goToInitialView()`'s restore never runs on
   its own, so `applyShowFilterFromQuery()` restores the reader's stored filters itself whenever the
