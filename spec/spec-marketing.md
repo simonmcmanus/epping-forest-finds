@@ -688,7 +688,8 @@ branches.
   using the same list and cap as the live screen, under the heading
   "Nearby" and the type line "Nearest selected filters within 30 min walk
   of High Beach". The page also carries the location and cookie banner
-  (`#consentBanner`, shown by default as on a landing page), the Filters
+  (`#consentBanner`, hidden in the static markup and shown only by boot, for a first-time landing
+  visitor, so a returning visitor never sees it flash on and off), the Filters
   button with its live count, and `data-server-rendered-nearby` on
   `#inspectorBody`. Boot keeps that list on screen, without rebuilding it,
   until a real location fix arrives, and only while the filters are still

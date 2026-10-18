@@ -1434,14 +1434,12 @@ async function boot() {
     els.loadingOverlay.hidden = false;
   }
 
-  // Generated /nearby/<slug> and /find/<slug> pages (scripts/generate-find-pages.js /
-  // generate-business-pages.js) start #consentBanner un-hidden by default -- they're always a
-  // landing-page arrival, so this reserves the banner's layout space from first paint for the
-  // common case (a first-time visitor, consent still undecided) instead of inserting it after
-  // boot and visibly pushing everything below it down the screen. Every other case must
-  // explicitly hide it again here, synchronously, before anything else runs: showCombinedConsentBanner()
-  // below only ever un-hides it, it never corrects a wrongly-pre-shown one. The condition is
-  // computed once and reused by that call below so the two can never drift apart.
+  // The banner starts hidden in every generated page (scripts/generate-find-pages.js /
+  // generate-business-pages.js, and app.html), and only this boot un-hides it. Pre-JS it was shown
+  // by default, so a returning visitor (consent already stored) saw it flash on, get removed by this
+  // boot, and then be replaced by the location invite card. Showing it only once the stored consent
+  // decision is known keeps the first-time banner in place with no flash. The condition is computed
+  // once and reused by showCombinedConsentBanner() below so the two can never drift apart.
   // Bare /nearby's static index shows the same banner pre-JS (renderNearbyIndexPage), so it takes the
   // landing-page path here too -- except on a first visit, where onboarding asks the same questions.
   const onboardsFirst = !hasCompletedOnboarding() && !isLandingPageArrival();
