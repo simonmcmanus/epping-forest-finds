@@ -266,3 +266,42 @@ test.describe("permission revoked mid-session", () => {
     await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
   });
 });
+
+test.describe("Asking for location from an empty Nearby list", () => {
+  test.use({ permissions: ["geolocation"] });
+
+  test("shows a requesting-location state in place of the empty list until the fix arrives", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page);
+    // Hold the location callback so the loading state is on screen long enough to assert.
+    await page.evaluate(() => {
+      window.__locationCallbacks = null;
+      navigator.geolocation.getCurrentPosition = (success, error) => { window.__locationCallbacks = { success, error }; };
+      els.inspectorBody.innerHTML = "";
+      locateUser({ initial: false });
+    });
+    await expect(page.locator("#inspectorBody .nearby-locating")).toBeVisible();
+    await page.evaluate(() => window.__locationCallbacks.success({
+      coords: { latitude: 51.6650, longitude: 0.0450, accuracy: 10 },
+      timestamp: Date.now(),
+    }));
+    await expect(page.locator("#inspectorBody .nearby-locating")).toHaveCount(0);
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+  });
+
+  test("a refused compass does not open the full-screen location gate", async ({ page }) => {
+    await page.addInitScript(() => {
+      // iOS-style compass: permission exists and is refused when asked.
+      window.DeviceOrientationEvent = class {};
+      window.DeviceOrientationEvent.requestPermission = () => Promise.resolve("denied");
+    });
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page);
+    await page.evaluate(() => locateUser({ initial: false }));
+    await expect.poll(() => page.evaluate(() => state.compassPermission)).toBe("denied");
+    await expect(page.locator("#locationGate")).toBeHidden();
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+  });
+});
