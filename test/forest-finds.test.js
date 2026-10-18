@@ -453,7 +453,7 @@ globalThis.__forestFindsTest = {
   FILTER_SUBFILTERS_BY_KEY,
   nearestTreeTo,
   nearestCowTo,
-  relatedCategoryLinksHtml,
+  nearbySectionsHtml,
   detailsHtml,
   nearbyWithinWalkHtml,
   showsEverythingFromQuery,
@@ -462,7 +462,7 @@ globalThis.__forestFindsTest = {
   nearbyCountCopy,
   openInMapsHtml,
   shareLocationHtml,
-  standaloneNearbySectionHtml,
+
   filterKindIconSlug,
   PLACE_FILTER_KEYS,
   PLACE_FILTER_PRIORITY,
@@ -1906,6 +1906,7 @@ test("nearbyCountCopy reads as a plain count from the place, in the reader's own
   assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 11 }, "The Foresters"), "No cows within 30 min walk of The Foresters. 11 further away.");
   assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 0 }, "The Foresters"), "No cows nearby.");
   assert.equal(app.nearbyCountCopy("cows", { within: 1, beyond: 0 }, "The Foresters"), "1 cow within 30 min walk of The Foresters.", "a single match drops the plural");
+  assert.equal(app.nearbyCountCopy("trees", { within: 3032, beyond: 21864 }, "Bald Faced Stag"), "3,032 trees within 30 min walk of Bald Faced Stag. 21,864 further away.", "large counts get thousands separators");
   app.state.walkingDistanceMinutes = saved;
 });
 
@@ -1996,8 +1997,8 @@ test("isLandingPageArrival also recognises a /find/<slug>/ business page as a la
 test("categoryLandingLinksHtml links a subfilter page up to its group and back to the full Nearby list", () => {
   app.location.pathname = "/nearby/pubs/";
   const html = app.categoryLandingLinksHtml();
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\?filters=false">[\s\S]*?Everything nearby<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?Everything nearby<\/a>/);
   app.location.pathname = "/";
 });
 
@@ -2005,7 +2006,7 @@ test("categoryLandingLinksHtml links a group page only back to the full Nearby l
   app.location.pathname = "/nearby/food/";
   const html = app.categoryLandingLinksHtml();
   assert.ok(!html.includes("Food</a>"), "the food group page does not link to itself");
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\?filters=false">[\s\S]*?Everything nearby<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?Everything nearby<\/a>/);
   app.location.pathname = "/";
 });
 
@@ -9099,11 +9100,12 @@ test("nearbyWithinWalkHtml renders a Nearby-list-styled card carrying the exact 
   assert.equal(app.nearbyWithinWalkHtml(null, null), "", "no card when there are no coordinates to browse from");
 });
 
-test("standaloneNearbySectionHtml wraps the walk-radius card in its own headed Nearby section, and is empty without coordinates", () => {
-  const html = app.standaloneNearbySectionHtml(51.65, 0.05);
+test("nearbySectionsHtml gives any point its headed Nearest section with the walk-radius card, and is empty without coordinates", () => {
+  const html = app.nearbySectionsHtml({ latitude: 51.65, longitude: 0.05, name: "Bald Faced Stag" });
   assert.ok(html.includes('<h3 class="detail-section-heading">Nearest</h3>'));
-  assert.ok(html.includes(`within ${app.state.walkingDistanceMinutes} min walk`));
-  assert.equal(app.standaloneNearbySectionHtml(null, null), "", "no section when there are no coordinates to browse from");
+  assert.ok(html.includes(`within ${app.state.walkingDistanceMinutes} min walk of Bald Faced Stag`));
+  assert.ok(!html.includes('detail-section-heading">Related<'), "no Related section without a category to relate to");
+  assert.equal(app.nearbySectionsHtml({ latitude: null, longitude: null }), "", "no section when there are no coordinates to browse from");
 });
 
 test("tapping a cluster shows exactly that cluster's own members, not every tree the walking-radius floor also reaches", () => {
@@ -10700,13 +10702,13 @@ test("routeValueFromLocation never treats /find/events/ as a place lookup", () =
   }
 });
 
-test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, the walk-radius card, real live distances) and a headed Related section (category/group), both as the same card style", () => {
+test("nearbySectionsHtml renders a headed Nearest section (tree/cow, the walk-radius card, real live distances) and a headed Related section (category/group), both as the same card style", () => {
   resetData(app);
   const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
   app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" }); // ~65m away
   app.state.cows.push({ latitude: 51.66, longitude: 0.06, id: "c1" }); // ~1.3km away
 
-  const html = app.relatedCategoryLinksHtml(pub);
+  const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters", subfilterKey: "pubs" });
   // Section order and headings: Nearby first, then Related -- both plain <h3 class="detail-section-heading">.
   const nearbyHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Nearest</h3>');
   const relatedHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Related</h3>');
@@ -10715,19 +10717,19 @@ test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, the wa
   // Both the tree and cows links carry this pub's own position via the target page's existing
   // "near=<lat>,<lon>" anchor route, so landing there re-centres on the pub rather than the
   // reader's own GPS fix.
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
-  assert.match(html, /nearest-meta">(No |\d+ )[^<]*within \d+ min walk of/, "each category card says how many sit within the walking radius");
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
+  assert.match(html, /nearest-meta">(No |[\d,]+ )[^<]*within \d+ min walk of/, "each category card says how many sit within the walking radius");
 
   // The walk-radius card lives in this same Nearby section, as a <button> sharing the .nearest-item
   // card shape, between where it comes out of the Nearby heading and before Related begins.
   const walkCardIndex = html.indexOf('data-action="walk-radius"');
   assert.ok(walkCardIndex > nearbyHeadingIndex && walkCardIndex < relatedHeadingIndex, "walk-radius card sits inside the Nearby section");
-  assert.match(html, /<button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">[\s\S]*?locations within \d+ min walk[\s\S]*?<\/button>/);
+  assert.match(html, /<button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05" data-name="The Forresters">[\s\S]*?locations within \d+ min walk[\s\S]*?<\/button>/);
 
   // Category/group links are the same .nearest-item card as Nearby, not a different pill style.
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/);
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/food\/">[\s\S]*?Food[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/food\/">[\s\S]*?Food[\s\S]*?<\/a>/);
   assert.ok(!html.includes("detail-map-link"), "related links no longer use the pill style -- same card as Nearby");
 
   // No mention of the data's source attached to these distances -- they're computed live, not
@@ -10735,20 +10737,22 @@ test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, the wa
   assert.ok(!html.includes("OpenStreetMap"));
 });
 
-test("relatedCategoryLinksHtml omits the cows link when no cow positions are currently loaded", () => {
+test("nearbySectionsHtml omits the cows link when no cow positions are currently loaded", () => {
   resetData(app);
   const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
   app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" });
 
-  const html = app.relatedCategoryLinksHtml(pub);
+  const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters" });
   assert.match(html, /nearby\/trees\//);
   assert.ok(!html.includes("nearby/cows/"), "no cow data loaded -- no cows link to show");
 });
 
-test("relatedCategoryLinksHtml is empty for a place with no /find/ page of its own", () => {
+test("nearbySectionsHtml gives a place with no /find/ page of its own the same Nearest section, so no location is a dead end", () => {
   resetData(app);
   const busStop = { findSlug: null, latitude: 51.65, longitude: 0.05, category: "bus_stop" };
-  assert.equal(app.relatedCategoryLinksHtml(busStop), "");
+  const html = app.nearbySectionsHtml({ latitude: busStop.latitude, longitude: busStop.longitude, name: "Bus stop" });
+  assert.ok(html.includes('<h3 class="detail-section-heading">Nearest</h3>'));
+  assert.ok(html.includes("Everything"), "the Everything card is there too");
 });
 
 test("detailsHtml links a Phone row as a tel: link rather than inert text", () => {

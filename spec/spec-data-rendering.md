@@ -877,11 +877,12 @@ line reads "N locations within M min walk of <name>", M being the reader's own w
 js/inspector.js), under a "Nearest" heading, not in
 `.detail-top-row` alongside Open in Maps/Share: it shares the Nearby list's own `.nearest-item`
 card styling (a `<button>`, since it drives a live state change rather than a navigation) instead
-of the unrelated `.detail-map-link` pill those use. A findSlug place's own "Nearby" section
-(`relatedCategoryLinksHtml`, below) already exists and gets this card appended as a third entry,
-after the nearest tree/cow; everything else with coordinates and no such section of its own (every
-tree, every cow, and a non-findSlug landmark) gets a standalone one-card "Nearby" section of its
-own (`standaloneNearbySectionHtml`). It reuses the existing Nearby-browsing mechanism rather than
+of the unrelated `.detail-map-link` pill those use. Every selected point with coordinates -- a `/find/`
+business, a veteran tree, a cow, or a landmark with no page of its own -- gets the same headed
+**Nearest** section and, where its category has a subfilter, a headed **Related** section
+(`nearbySectionsHtml`, js/inspector.js), with the walk-radius card as the last Nearest entry. A
+tree's Related section links its own category, a cow's its own, and a business or landmark the
+category its `placePrimaryFilterKey` names. It reuses the existing Nearby-browsing mechanism rather than
 inventing a new one: tapping it drops the selection, moves the Nearby browse anchor to that exact
 point (`setNearbyAnchor`'s own mechanism -- the same one a tap on open ground or a shared
 `near=<lat>,<lon>` link already use), keeps the reader's own walking radius, and shows every category
@@ -930,7 +931,7 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   set, capped at six). Each card's line is a plain count from this place within the reader's walking
   radius: "43 trees within 30 min walk of The Foresters. 20 further away." or, with none close enough,
   "No cows within 30 min walk of The Foresters. 11 further away." (`nearbyCountCopy`,
-  `countNearbyEntries`, js/inspector.js). A cows card is held back until cow positions are loaded,
+  `countNearbyEntries`, js/inspector.js). Counts take thousands separators, and the line wraps inside the card rather than truncating. A cows card is held back until cow positions are loaded,
   rather than reporting a zero. A headed **Related** section (its own category/group, with the same
   counted line for each) follows, both rendered as the same
   `.nearest-item` card — see `spec-marketing.md` § 6.7, "Related-content links, both
@@ -1347,6 +1348,12 @@ The full routing model — the URL for each screen, history entries, back/forwar
 - URL writes are suppressed while a route is being applied and throughout boot (`routeApplyDepth`, `routerBooting`), so the URL never overwrites the entry it is being read from
 - A `/nearby/<slug>` category page (`spec-marketing.md` § "Category pages") IS the app — the generator templates it directly off `app.html` — so the URL path itself names the category (a subfilter's own, or a whole group's) to pre-filter Nearby to. `applyShowFilterFromQuery()`, called once right after data finishes loading in `boot()`, first tries `filterKeysFromFindPath(location.pathname)` (reversing the slug's hyphen back to the filter key's underscore; every member key at once for a group slug) and falls back to the `?show=<filterKey>,<filterKey>` query param only if the path didn't match — a leftover entry point from before category pages became real app instances, kept for any older link still using it. `<slug>` of `filter` or `search` never matches a category (those two are the Filters/Search screens' own paths), so this is a no-op there. Either way it calls the existing `setOverviewFilters(keys, { persist: false, render })` for every key recognised in `ALL_OVERVIEW_FILTER_KEYS`. An unrecognised or absent value changes nothing — this is not a hash route and carries no history entry of its own.
 - **`boot()`'s own call passes `render: false`.** `setOverviewFilters()` normally re-renders the Nearby list immediately (`selectOverview()`), which is correct for a live navigation (`applyRouteFromUrl()`, the back/forward/hand-edited-hash entry point, keeps the default `render: true`) but wrong at boot: `state.userLocation` doesn't exist yet at this point in `boot()` — the location/`applyDefaultLocation()` branch runs afterward — so an immediate render there showed `activeFiltersShowFullListWithoutLocation()`'s dataset-order, unsorted full list (not the nearest-first, radius-filtered one spec-marketing.md § "Category pages" describes), which `revealMapCenteredOnUser()`/`revealNoRealLocation()` then immediately overwrote with the real one moments later — a visible double-render on every `/nearby/<slug>` landing (reported as "the side nav loads, shows, hides, shows again"). `render: false` skips straight to `requestDraw()` and leaves the one render that follows (inside `revealMapCenteredOnUser()`/`revealNoRealLocation()`, once a real or `DEFAULT_LOCATION` origin actually exists) as the only one.
+- **Links that open a nearby view are styled as such.** Every chip in a `/nearby/<slug>/` landing's
+  top row (`categoryLandingLinksHtml`, js/app.js) and every related card in a place's Nearest and
+  Related sections (`relatedCategoryLinksHtml`, js/inspector.js) carries the `nearby-link` modifier:
+  a forest-green border and label (css/inspector.css), so they read as a move into the map rather
+  than a neutral pill. The top row's category icons (the group, "Everything nearby", and the type
+  chips) are drawn at twice the size of the inline icon used in running text (`.related-chips .app-icon`), and those chips get extra padding and height (44px min, 16px sides, 8px icon gap) so the larger icons don't look squashed.
 - **A `/nearby/<slug>/` landing's whole top pill row (breadcrumb, a group page's own "Browse by
   type" members, and the "see also veteran trees/grazing cattle" pills) is reproduced live by
   `categoryLandingLinksHtml()` (`js/app.js`), folded into `overviewNearestHtml()`'s own
