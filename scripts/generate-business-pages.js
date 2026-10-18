@@ -50,7 +50,8 @@ const APP_OG_URL = '<meta property="og:url" content="https://www.eppingforestfin
 const APP_EMPTY_STATE =
   '<p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>';
 
-const APP_INSPECTOR_TITLE = '<h2 id="inspectorTitle">Epping Forest Finds</h2>';
+const APP_INSPECTOR_TOOLS = '<div class="inspector-tools">';
+const APP_INSPECTOR_TITLE ='<h2 id="inspectorTitle">Epping Forest Finds</h2>';
 const APP_INSPECTOR_TYPE = '<p id="inspectorType" class="type"></p>';
 const APP_INSPECTOR_EMOJI = '<span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>';
 
@@ -266,6 +267,9 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`,
     "</head>"
   );
+  // The live place view hides the tools bar (its rule above the title, showLandmarkDetails); the
+  // static panel has to hide it too, or that rule vanishes the moment the live view takes over.
+  html = replaceOnce(html, APP_INSPECTOR_TOOLS, '<div class="inspector-tools" hidden>', "inspector tools bar");
   // The header the live page sets through setInspectorSelectionChrome() and detail views: the
   // business's own name, its category, and its category icon -- not the app's generic title.
   html = replaceOnce(html, APP_INSPECTOR_TITLE, `<h2 id="inspectorTitle">${escapeHtml(entry.name)}</h2>`, "inspector title");

@@ -411,7 +411,8 @@ function showLandmarkDetails(place, distance) {
   // keyed to whichever category the place belongs to for its Related links.
   const relatedLinksHtml = nearbySectionsHtml({ latitude: place.latitude, longitude: place.longitude, name: place.name, subfilterKey: placePrimaryFilterKey(place), findSlug: place.findSlug });
   const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
-  transitionInspectorBody(landmarkHtml, "forward");
+  // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
+  transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
     loadTransportDepartures(place);
   }

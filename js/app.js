@@ -1210,9 +1210,6 @@ function applyRadiusFromQuery() {
 // applyDefaultLocation(), its no-real-fix one (revealNoRealLocation below), so both get the same
 // polished reveal rather than one of them settling for a plain zoom pulse.
 async function revealMapCenteredOnUser() {
-  // Read before selectOverview() below can clear it: a landing that is still showing its
-  // server-rendered list gets no inspector slide-in, whatever location the reveal ends up with.
-  const keepsServerRenderedList = _serverRenderedNearbyList && !state.selected;
   // A /find/ landing's place is selected by applySelectionFromHash below, so the Nearby list is not
   // painted over the server-rendered panel first.
   if (!findLandingSlug()) selectOverview();
@@ -1244,9 +1241,6 @@ async function revealMapCenteredOnUser() {
   } else {
     ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
   }
-  // A landing's own list is already on screen, so it is not slid in from the side (that hid it
-  // for the duration of the slide). See keepsServerRenderedList above.
-  if (!keepsServerRenderedList) triggerInspectorEntry();
   // Fades away the pre-reveal veil over the canvas (css/base.css, .map-stage::after) in the
   // same beat as the inspector's own entrance and the camera's animated pan/zoom above, so the
   // whole first reveal reads as one choreographed moment rather than three separate things
@@ -1781,14 +1775,6 @@ function applyDefaultLocation() {
   }
 }
 
-function triggerInspectorEntry() {
-  const el = els.inspector;
-  if (!el) return;
-  el.classList.remove("entering");
-  void el.offsetWidth;
-  el.classList.add("entering");
-  el.addEventListener("animationend", () => el.classList.remove("entering"), { once: true });
-}
 
 // Companion to allEntriesForActiveFilters' no-location list in overviewNearestHtml: without an
 // origin, boot's default framing (fitToBounds, called earlier) is the whole forest boundary --

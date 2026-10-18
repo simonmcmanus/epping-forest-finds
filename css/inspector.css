@@ -18,27 +18,6 @@
   transition: max-height 0s, height 0s;
 }
 
-@keyframes inspector-slide-in-right {
-  from { transform: translateX(calc(100% + 28px)); opacity: 0; }
-  to { transform: none; opacity: 1; }
-}
-
-@keyframes inspector-slide-in-up {
-  from { transform: translateY(calc(100% + 24px)); opacity: 0; }
-  to { transform: none; opacity: 1; }
-}
-
-.inspector.entering {
-  animation: inspector-slide-in-right 0.52s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
-}
-
-@media (max-width: 760px),
-(orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
-  .inspector.entering {
-    animation-name: inspector-slide-in-up;
-  }
-}
-
 /* The Nearby list's own "requesting your location" state (showNearbyLocatingState, js/inspector.js):
    replaces the list while a reader's location request is pending. The ring reuses step-spin from
    css/loading.css, the same turn the boot checklist's loading step uses. */
