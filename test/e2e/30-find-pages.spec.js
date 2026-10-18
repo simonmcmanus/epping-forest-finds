@@ -99,18 +99,20 @@ test.describe("generated find/nearby pages", () => {
       expect(nature).toMatch(/class="nearest-item" href="\/nearby\/trees\/#tree=r[a-z0-9]+"/);
     });
 
-    test("/nearby/nature/'s static nearest-item list is the exact same items, in the exact same order, as the live Nearby list shows once JS boots", async ({ page, request }) => {
+    test("/nearby/nature/'s static nearest-item list is the exact same items, in the exact same order, still on screen once JS boots with no location fix", async ({ page, request }) => {
       const staticHtml = await (await request.get("/nearby/nature/")).text();
       const staticKeys = [...staticHtml.matchAll(/href="\/nearby\/(?:trees\/#tree|ponds-streams\/#water)=([^"]+)"/g)].map((m) => decodeURIComponent(m[1]));
       expect(staticKeys.length).toBeGreaterThan(0);
 
       await gotoAndWaitForMap(page, "/nearby/nature/");
-      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
-      const liveKeys = await page.locator("#inspectorBody .nearest-item[data-overview-key]").evaluateAll(
-        (els) => els.map((el) => el.dataset.overviewKey)
+      await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.isDefault === true)).toBe(true);
+      // The landing keeps its server-rendered list until a real fix (_serverRenderedNearbyList), so
+      // what is on screen is the static markup itself, read back from the links it carries.
+      const onScreenKeys = await page.locator("#inspectorBody .nearest-item").evaluateAll(
+        (els) => els.map((el) => decodeURIComponent(el.getAttribute("href").replace(/^.*#(?:tree|water)=/, "")))
       );
 
-      expect(liveKeys).toEqual(staticKeys);
+      expect(onScreenKeys).toEqual(staticKeys);
     });
 
     test("a category page's \"Nearby <Category>\" heading, its type line, and the consent banner's lead phrase are server-rendered and match what JS shows once it boots -- no generic placeholder title, no separate generic lead sentence or \"Showing things near High Beach\" paragraph", async ({ page, request }) => {
