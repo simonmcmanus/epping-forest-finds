@@ -168,6 +168,12 @@ async function setup(page, urlPath = "/nearby") {
   await page.evaluate(() => {
     const gate = document.getElementById("locationGate");
     if (gate && !gate.hidden) gate.hidden = true;
+    // Same reason as the gate above -- revealNoRealLocation()'s own "get a more custom
+    // experience" invite (#locationInviteBanner, js/app.js) is non-blocking and sits inline in
+    // the inspector chrome, so leaving it up would add two extra buttons to this suite's keyboard
+    // tab-order baseline on every screen, not just Nearby.
+    const invite = document.getElementById("locationInviteBanner");
+    if (invite && !invite.hidden) invite.hidden = true;
     if (state.userLocation && state.userLocation.isDefault) {
       state.userLocation = null;
       state.walkingDistanceMinutes = DEFAULT_WALKING_DISTANCE_MINUTES;
