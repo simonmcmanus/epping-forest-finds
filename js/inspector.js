@@ -1,7 +1,3 @@
-// "Stop F northbound" already reads as a direction; a destination name ("Walthamstow
-// Central") needs "towards" in front of it. Bare compass points are not a direction the
-// stop is served in, so the transport lookup drops them before they reach here.
-const HAS_DIRECTIONAL_WORDING_REGEX = /bound|towards|via/i;
 const INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS = 180 + 40; // Inspector transition + buffer
 
 // --- Hit detection & map click ---
@@ -1408,6 +1404,8 @@ function normalizeStoryName(value) {
   return String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+// The live title: a bus stop takes its name and direction from the transport lookup once fetched.
+// The title rules themselves are shared with the static generator (placeDisplayTitle, js/places.js).
 function placeTitle(place) {
   const busCacheKey = isBusCategory(place) && typeof transportCacheKey === "function"
     ? transportCacheKey(place, "bus")
@@ -1415,16 +1413,7 @@ function placeTitle(place) {
   const cachedTransport = busCacheKey && state.transportLookupCache
     ? state.transportLookupCache.get(busCacheKey)
     : null;
-  const baseName = cachedTransport?.stopName || place.transportStopName || place.name || place.categoryLabel || "Local place";
-  const rawDirection = cachedTransport?.stopDirection || place.stopDirection;
-  if (!isBusCategory(place) || !rawDirection) return baseName;
-  const direction = String(rawDirection).replace(/\s+/g, " ").trim();
-  if (!direction) return baseName;
-  const directionLabel = HAS_DIRECTIONAL_WORDING_REGEX.test(direction)
-    ? direction
-    : `towards ${direction}`;
-  if (baseName.toLowerCase().includes(directionLabel.toLowerCase())) return baseName;
-  return `${baseName} — ${directionLabel}`;
+  return placeDisplayTitle(place, cachedTransport);
 }
 
 function osmNote() {

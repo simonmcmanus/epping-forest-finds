@@ -412,6 +412,18 @@ generated report links back to the homepage. This is what lifts both.
 
 ### 6.6 Category pages (`/nearby/<slug>`)
 
+**Landmark categories list their places too.** Transport, history, stories,
+locations and parking pages (and any group page with one of those members) list
+their nearest places in the same card as the live Nearby row, not just a summary
+sentence. Each filter's matches are chosen the way the live list chooses them: the
+filter's own matches within a 30-minute walk, or its nearest three when there are
+none; the lists are merged nearest-first and capped to the live display limit. A
+place with its own business page links there; any other links to its category's
+Nearby view with the place selected (`#place=`). Place naming, keys and landmark
+normalisation are shared with the live app through `js/places.js`, so the two
+cannot drift. Bus stops are the one known difference: the live title can use a
+transport lookup fetched at runtime, which a static page does not have.
+
 **Parity is tested, not just intended.** `test/e2e/30-find-pages.spec.js` loads a
 category page with JS disabled, then forces the live Nearby renderer on the same
 page, and asserts the heading, type line, chip row (hrefs, labels, `nearby-link`

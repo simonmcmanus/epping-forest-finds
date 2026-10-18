@@ -257,14 +257,10 @@ async function loadMapData() {
   const osmLandmarks = (landmarkData.features || [])
     .filter((feature) => feature.geometry && feature.geometry.type === "Point")
     .map((feature) => {
-      const longitude = Number(feature.geometry.coordinates[0]);
-      const latitude = Number(feature.geometry.coordinates[1]);
+      const place = landmarkFromOsmFeature(feature, buildOsmCategoryTags);
       return {
-        ...feature.properties,
-        categoryTags: buildOsmCategoryTags(feature.properties),
-        latitude,
-        longitude,
-        point: projectLonLat(longitude, latitude),
+        ...place,
+        point: projectLonLat(place.longitude, place.latitude),
         findSlug: businessById.get(feature.properties.id)?.slug || null,
         verifiedAt: businessById.get(feature.properties.id)?.verifiedAt || null,
       };

@@ -306,6 +306,17 @@ test("a nearest card's footer names its type and carries a direction arrow point
   assert.match(html, /<span class="nearest-arrow" data-item-lat="51\.67" data-item-lon="0\.04" data-current-angle="-?[\d.]+" style="transform: rotate\(-?[\d.]+deg\)" aria-hidden="true">↑<\/span>/);
 });
 
+test("a landmark category lists its own nearest places, each linked to that category's Nearby view with the place selected, as the live row does", () => {
+  const rules = loadAppRules();
+  const feature = { geometry: { type: "Point", coordinates: [0.037454, 51.667591] }, properties: { id: "node/1", name: "Test Car Park", category: "parking" } };
+  const landmarks = [rules.landmarkFromOsmFeature(feature, rules.buildOsmCategoryTags)].map((place) => ({ ...place, findSlug: null }));
+  const parkingPage = { key: "parking", slug: "parking", label: "Car parks", title: "car parks", count: 1, groupLabel: "Transport", groupSlug: "transport", siblings: [] };
+  const html = renderPage(parkingPage, APP_HTML, { landmarks, rules });
+  assert.match(html, /<span class="nearest-name">Test Car Park<\/span>/, "named from the record, as the live title is");
+  assert.match(html, /href="\/nearby\/parking\/#place=id%3Anode%2F1"/, "links to this category's Nearby view with the place selected");
+  assert.match(html, /<span class="nearest-meta">.*Car parks<\/span>/, "footer names the place's own type");
+});
+
 test("nearestWithinWalkingRadius keeps only items within the walking radius, nearest first, and falls back to the nearest 3 overall when none are within it", () => {
   const items = [
     { name: "Near", ...NEAR_DEFAULT_LOCATION },

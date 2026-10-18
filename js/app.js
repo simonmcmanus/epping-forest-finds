@@ -7310,13 +7310,6 @@ function treeDisplayName(tree) {
   return tree.commonName || treeTagLabel(tree) || "Veteran tree";
 }
 
-function placeHashKey(place) {
-  if (place.id !== null && place.id !== undefined && place.id !== "") {
-    return `id:${String(place.id)}`;
-  }
-  return `ll:${Number(place.latitude).toFixed(6)},${Number(place.longitude).toFixed(6)}`;
-}
-
 // Links shared before treeHashKey moved to recordNumber carry the old, unprefixed id/tag-based
 // key. Those are still accepted -- but only once no record-number key has matched, and never for
 // a key that is ambiguous under the old scheme ("0" matched 6,504 trees), which would otherwise

@@ -34,14 +34,14 @@ function loadAppRules() {
   // the whole camera/canvas layer.
   const context = { console, projectLonLat: () => null };
   vm.createContext(context);
-  for (const file of ["js/categories.js", "js/normalize.js"]) {
+  for (const file of ["js/categories.js", "js/normalize.js", "js/places.js"]) {
     vm.runInContext(fs.readFileSync(path.join(APP_ROOT, file), "utf8"), context, { filename: file });
   }
   // `const` declarations inside a vm script stay in the context's lexical
   // scope rather than becoming properties of the context object, so the ones
   // this script needs are read back out with an expression.
   return vm.runInContext(
-    "({ FILTER_GROUPS, placeLabelFilterKey, buildOsmCategoryTags, normalizeFolkloreLocations, extractWaterFeatures, waterHashKey, filterKindEmoji, appIconHtml, treeSpeciesIconHtml })",
+    "({ FILTER_GROUPS, placeLabelFilterKey, matchesPlaceFilter, placeIconSlug, buildOsmCategoryTags, normalizeFolkloreLocations, landmarkFromOsmFeature, placeHashKey, placeDisplayTitle, extractWaterFeatures, waterHashKey, filterKindEmoji, appIconHtml, treeSpeciesIconHtml })",
     context
   );
 }
@@ -167,4 +167,4 @@ if (require.main === module) {
   process.stdout.write(JSON.stringify(inventory, null, pretty ? 2 : 0) + "\n");
 }
 
-module.exports = { buildInventory, loadAppRules };
+module.exports = { buildInventory, loadAppRules, LANDMARK_FILES };

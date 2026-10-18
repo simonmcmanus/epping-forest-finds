@@ -32,9 +32,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { buildInventory, loadAppRules } = require("./report/map-inventory.js");
+const { buildInventory, loadAppRules, LANDMARK_FILES } = require("./report/map-inventory.js");
 const { escapeHtml, replaceOnce, showConsentBannerByDefault, customizeConsentBannerText } = require("./lib/html-template.js");
-const { listBusinessesForFilterKey, loadEvents, haversineMetres } = require("./generate-business-pages.js");
+const { listBusinessesForFilterKey, loadBusinessIndex, loadEvents, haversineMetres } = require("./generate-business-pages.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITE_NAME = "Epping Forest Finds";
@@ -152,6 +152,26 @@ function loadTrees(siteRoot) {
     }
   }
   return trees;
+}
+
+// Every landmark place (OSM points and folklore records), normalised by the same shared helpers the
+// live loader uses (js/places.js via loadAppRules, js/loader.js), each linked to its business page
+// where it has one. Events are not here: they are time-bound and no category page lists them.
+function loadLandmarks(rules, siteRoot) {
+  const byId = new Map(loadBusinessIndex().map((entry) => [entry.id, entry]));
+  const osm = LANDMARK_FILES.flatMap((file) => {
+    const filePath = path.join(siteRoot, file);
+    if (!fs.existsSync(filePath)) return [];
+    const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return (data.features || [])
+      .filter((feature) => feature.geometry && feature.geometry.type === "Point")
+      .map((feature) => rules.landmarkFromOsmFeature(feature, rules.buildOsmCategoryTags));
+  });
+  const folklorePath = path.join(siteRoot, "data", "epping_forest_folklore_locations.json");
+  const folklore = fs.existsSync(folklorePath)
+    ? rules.normalizeFolkloreLocations(JSON.parse(fs.readFileSync(folklorePath, "utf8")))
+    : [];
+  return [...osm, ...folklore].map((place) => ({ ...place, findSlug: byId.get(place.id)?.slug || null }));
 }
 
 // treeHashKey/treeDisplayName/treeTagLabel/normalizeTreeNumber (js/app.js), reproduced rather
@@ -281,33 +301,67 @@ function nearestListHtml(cards) {
 // moment later rather than match it, which is exactly the mismatch this function closes.
 const NEAREST_ITEMS_COUNT = 10; // state.nearestItemsCount, js/app.js
 
-function natureEntriesForFilterKey(filterKey, enrichment) {
+// One filter's own nearest matches -- the per-filter rule overviewItemsForActiveFilter applies live
+// (js/app.js): within the walking radius, or the nearest three when none are. Trees and water read
+// their own datasets; a business key reads the business index; every other key reads the landmark
+// dataset, which is also what the live list reads. Each entry records its filter key so its card
+// can name its own type ("Pubs & bars", "Bus stops") the way the live row does.
+function entriesForFilterKey(filterKey, enrichment) {
+  const { rules, trees = [], waterFeatures = [], landmarks = [] } = enrichment;
   if (filterKey === "trees") {
-    return nearestWithinWalkingRadius(enrichment.trees, (t) => t).map(({ item, metres }) => ({ type: "tree", item, metres }));
+    return nearestWithinWalkingRadius(trees, (t) => t).map(({ item, metres }) => ({ kind: filterKey, type: "tree", item, metres }));
   }
   if (filterKey === "ponds_streams") {
-    return nearestWithinWalkingRadius(enrichment.waterFeatures, (w) => w).map(({ item, metres }) => ({ type: "water", item, metres }));
+    return nearestWithinWalkingRadius(waterFeatures, (w) => w).map(({ item, metres }) => ({ kind: filterKey, type: "water", item, metres }));
   }
-  return [];
+  const businesses = listBusinessesForFilterKey(filterKey);
+  if (businesses.length) {
+    return nearestWithinWalkingRadius(businesses, (b) => ({ latitude: b.lat, longitude: b.lon })).map(({ item, metres }) => ({ kind: filterKey, type: "business", item, metres }));
+  }
+  const places = landmarks.filter((place) => rules.matchesPlaceFilter(place, filterKey));
+  return nearestWithinWalkingRadius(places, (p) => p).map(({ item, metres }) => ({ kind: filterKey, type: "landmark", item, metres }));
 }
 
-function natureNearestListHtml(filterKeys, enrichment, rules) {
-  const entries = filterKeys.flatMap((key) => natureEntriesForFilterKey(key, enrichment));
-  if (!entries.length) return "";
-  entries.sort((a, b) => a.metres - b.metres);
-  const cards = entries.slice(0, NEAREST_ITEMS_COUNT).map(({ type, item, metres }) => {
-    if (type === "tree") {
-      const icon = rules.treeSpeciesIconHtml(item.commonName, item.latinName) || rules.filterKindEmoji("trees");
-      return nearestItemCardHtml(`/nearby/trees/#tree=${encodeURIComponent(treeHashKey(item))}`, icon, treeDisplayName(item), metres, {
-        rules, typeLabel: "Tree", tag: treeTagLabel(item), latitude: item.latitude, longitude: item.longitude,
-      });
-    }
-    const icon = rules.filterKindEmoji("ponds_streams");
-    return nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(item.key)}`, icon, item.name, metres, {
-      rules, typeLabel: subfilterByKey(rules, "ponds_streams")?.label || "Water", latitude: item.latitude, longitude: item.longitude,
+// One list card, whatever it describes. The footer and icon follow renderNearestItemsHtml (js/app.js).
+function entryCardHtml(entry, rules) {
+  const { kind, type, item, metres } = entry;
+  const typeLabel = subfilterByKey(rules, kind)?.label || "";
+  if (type === "tree") {
+    const icon = rules.treeSpeciesIconHtml(item.commonName, item.latinName) || rules.filterKindEmoji("trees");
+    return nearestItemCardHtml(`/nearby/trees/#tree=${encodeURIComponent(treeHashKey(item))}`, icon, treeDisplayName(item), metres, {
+      rules, typeLabel: "Tree", tag: treeTagLabel(item), latitude: item.latitude, longitude: item.longitude,
     });
+  }
+  if (type === "water") {
+    return nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(item.key)}`, rules.filterKindEmoji("ponds_streams"), item.name, metres, {
+      rules, typeLabel, latitude: item.latitude, longitude: item.longitude,
+    });
+  }
+  if (type === "business") {
+    return nearestItemCardHtml(`/find/${item.slug}/`, rules.filterKindEmoji(item.key), item.name, metres, {
+      rules, typeLabel, latitude: item.lat, longitude: item.lon,
+    });
+  }
+  // A landmark with its own business page links there; any other links to this category's own
+  // Nearby view with that place selected (#place=), the same selection the live row makes.
+  const iconSlug = rules.placeIconSlug(item);
+  const icon = (iconSlug && rules.appIconHtml(iconSlug)) || "📍";
+  const href = item.findSlug
+    ? `/find/${item.findSlug}/`
+    : `/nearby/${slugFor(kind)}/#place=${encodeURIComponent(rules.placeHashKey(item))}`;
+  return nearestItemCardHtml(href, icon, rules.placeDisplayTitle(item), metres, {
+    rules, typeLabel, latitude: item.latitude, longitude: item.longitude,
   });
-  return nearestListHtml(cards);
+}
+
+// The nearest list for a set of filter keys, merged and capped the same way the live list is.
+function natureNearestListHtml(filterKeys, enrichment, rules) {
+  const entries = filterKeys
+    .flatMap((key) => entriesForFilterKey(key, { ...enrichment, rules }))
+    .sort((a, b) => a.metres - b.metres);
+  return entries.length
+    ? nearestListHtml(entries.slice(0, NEAREST_ITEMS_COUNT).map((entry) => entryCardHtml(entry, rules)))
+    : "";
 }
 
 // The exact chip row categoryLandingLinksHtml() (js/app.js) renders live at the top of the
@@ -468,10 +522,9 @@ function collectPages(rules, inventory) {
   return pages;
 }
 
-const NATURE_FILTER_KEYS = new Set(["trees", "ponds_streams"]);
 
 function renderPage(page, appHtml, enrichment = {}) {
-  const { waterFeatures = [], trees = [], rules = loadAppRules() } = enrichment;
+  const { rules = loadAppRules() } = enrichment;
   // Trailing slash: Netlify's static hosting serves nearby/<slug>/index.html directly only at
   // /nearby/<slug>/, 301-redirecting the bare path to it (the same convention /reports/ already
   // uses, STATIC_PAGES in generate-sitemap.js) -- the canonical/OG/JSON-LD url must be the one
@@ -506,34 +559,17 @@ function renderPage(page, appHtml, enrichment = {}) {
   // What a crawler, or a visitor, sees before js/app.js boots and replaces #inspectorBody with
   // the live Nearby list (transitionInspectorBody, js/inspector.js) -- real, specific, crawlable
   // text and links, in the exact spot the app's own "nothing selected yet" message lives today.
-  // Every individual business/location in this category within a 30-minute walk of High Beach,
-  // nearest first -- the same set and order the live Nearby list shows (nearestWithinWalkingRadius
-  // above), not every matching business in the whole forest in dataset order: a reader (or a
-  // crawler) comparing the static page against the live one a moment later, once JS boots, must
-  // see the same list, not two disagreeing ones. Subfilters outside the confirmed /find/ scope
-  // (transport, history, nature, stories) have no entries in the business index, so this is
-  // naturally empty for them and the page falls back to the plain summary sentence it always had.
-  const businesses = listBusinessesForFilterKey(page.key);
-  const nearestBusinesses = nearestWithinWalkingRadius(businesses, (b) => ({ latitude: b.lat, longitude: b.lon }));
-  const businessListHtml = businesses.length
-    ? nearestListHtml(nearestBusinesses.slice(0, NEAREST_ITEMS_COUNT).map(({ item: b, metres }) =>
-        nearestItemCardHtml(`/find/${b.slug}/`, rules.filterKindEmoji(b.key), b.name, metres, {
-          rules, typeLabel: page.label, latitude: b.lat, longitude: b.lon,
-        })
-      ))
-    : "";
-
-  // Trees and named water features are outside the /find/ business scope above, but get the
-  // same real nearest-list treatment -- natureNearestListHtml() replicates
-  // overviewItemsForActiveFilter()'s own per-filter radius-or-nearest-3 computation (js/app.js),
-  // so a /nearby/trees/, /nearby/ponds-streams/ or /nearby/nature/ landing shows exactly the
-  // items, order and (on the nature group page) tree-dominated mix the live Nearby list shows a
-  // moment later, not a second, disagreeing guess.
-  const natureFilterKeys = page.isGroup
-    ? page.members.filter((m) => NATURE_FILTER_KEYS.has(m.key)).map((m) => m.key)
-    : (NATURE_FILTER_KEYS.has(page.key) ? [page.key] : []);
-  const enrichedListHtml = natureFilterKeys.length
-    ? natureNearestListHtml(natureFilterKeys, { trees, waterFeatures }, rules)
+  // The same nearest list the live Nearby screen shows for this category: every member filter's
+  // own matches within a 30-minute walk of High Beach (or its nearest three when none are), merged
+  // nearest-first and capped to the live display limit. entriesForFilterKey mirrors the live
+  // per-filter rule, so a crawler or no-JS visitor and a JS visitor a moment later see the same
+  // places in the same order, not two disagreeing lists.
+  const memberKeys = page.isGroup ? page.members.map((m) => m.key) : [page.key];
+  const entries = memberKeys
+    .flatMap((key) => entriesForFilterKey(key, { ...enrichment, rules }))
+    .sort((a, b) => a.metres - b.metres);
+  const listHtml = entries.length
+    ? nearestListHtml(entries.slice(0, NEAREST_ITEMS_COUNT).map((entry) => entryCardHtml(entry, rules)))
     : "";
 
   const group = page.isGroup
@@ -553,7 +589,7 @@ function renderPage(page, appHtml, enrichment = {}) {
   // locations, stories), which would otherwise show nothing but pills and a sibling-links
   // paragraph. "Enable location..." moves out entirely: customizeConsentBannerText below folds
   // it into #consentBanner's own copy instead of repeating it as a second, separate ask.
-  const hasItemizedList = Boolean(businessListHtml || enrichedListHtml);
+  const hasItemizedList = Boolean(listHtml);
   const summarySentence = hasItemizedList
     ? ""
     : `<p>Find all ${page.count} ${escapeHtml(page.title)} in Epping Forest, mapped and ready to walk to.</p>`;
@@ -561,16 +597,9 @@ function renderPage(page, appHtml, enrichment = {}) {
   // "N <Title> within 30 min walk of High Beach" mirrors overviewHeadingText()'s own
   // single-filter phrasing exactly (js/app.js) -- the count is how many are actually within the
   // walking radius, not page.count's whole-forest total, so it only exists where a real
-  // within-radius computation already ran above (businesses, or a single nature filter). A group
-  // page never names a count here, matching that function's own multi-filter branch; a subfilter
-  // page outside both scopes (transport, history, stories -- same carve-out as the itemized list
-  // above) falls back to the no-count phrasing rather than a number this build has no way to
-  // compute correctly.
-  const withinRadiusCount = page.isGroup
-    ? null
-    : businesses.length
-      ? nearestBusinesses.length
-      : (natureFilterKeys.length === 1 ? natureEntriesForFilterKey(natureFilterKeys[0], { trees, waterFeatures }).length : null);
+  // within-radius computation already ran above. A group page never names a count here, matching
+  // that function's own multi-filter branch.
+  const withinRadiusCount = page.isGroup ? null : entries.length;
   const RADIUS_LABEL = "30 min walk"; // formatWalkingRadius(LANDING_PAGE_WALKING_DISTANCE_MINUTES) + " walk", js/nav.js + js/app.js
   const capitalizedTitle = page.title.charAt(0).toUpperCase() + page.title.slice(1);
   const typeLine = page.isGroup
@@ -581,8 +610,7 @@ function renderPage(page, appHtml, enrichment = {}) {
 
   const seoContent = chips +
     summarySentence +
-    businessListHtml +
-    enrichedListHtml +
+    listHtml +
     (page.isGroup
       ? ""
       : (siblingLinks ? `<p>More in <a href="/nearby/${escapeHtml(page.groupSlug)}/">${escapeHtml(page.groupLabel)}</a>: ${siblingLinks}.</p>` : ""));
@@ -791,8 +819,13 @@ function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInvent
   // touches (the tree chunks in particular are the largest files in the whole build, and only
   // change if the source register does -- deterministic from DEFAULT_LOCATION otherwise, so this
   // cost is paid once per build, not per request), and only the trees/ponds_streams/nature pages
-  // (renderPage's own natureFilterKeys) ever use either.
-  const enrichment = { waterFeatures: loadWaterFeatures(rules, siteRoot), trees: loadTrees(siteRoot), rules };
+  // (renderPage's own per-filter lists) ever use either.
+  const enrichment = {
+    waterFeatures: loadWaterFeatures(rules, siteRoot),
+    trees: loadTrees(siteRoot),
+    landmarks: loadLandmarks(rules, siteRoot),
+    rules,
+  };
   for (const page of pages) {
     const pageDir = path.join(categoryDir, page.slug);
     fs.mkdirSync(pageDir, { recursive: true });

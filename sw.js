@@ -32,6 +32,7 @@ const APP_SHELL = [
   "./js/app-cache-version.js",
   "./js/data-cache-version.js",
   "./js/normalize.js",
+  "./js/places.js",
   "./js/loader.js",
   "./js/routing.js",
   "./js/icon-motion.js",
