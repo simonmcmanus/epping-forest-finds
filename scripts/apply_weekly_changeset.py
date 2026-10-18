@@ -125,7 +125,7 @@ PROPERTY_KEYS = [
     "id", "osmType", "osmId", "name", "category", "categoryLabel", "amenity", "shop",
     "highway", "tourism", "historic", "railway", "barrier", "entrance", "heritage",
     "website", "phone", "address", "openingHours", "distanceToForestBoundaryMetres",
-    "distanceLimitFromForestBoundaryMetres",
+    "distanceLimitFromForestBoundaryMetres", "ledgerUrl",
 ]
 
 
@@ -211,6 +211,7 @@ def build_feature(entry, segments, ref_lat_rad):
         "phone": entry.get("phone"),
         "address": entry.get("address"),
         "openingHours": entry.get("openingHours"),
+        "ledgerUrl": entry.get("ledgerUrl"),
         "distanceToForestBoundaryMetres": round(dist, 1),
         "distanceLimitFromForestBoundaryMetres": round(MAX_DISTANCE_FROM_BOUNDARY_METRES, 1),
     })
