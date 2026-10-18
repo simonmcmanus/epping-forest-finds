@@ -258,6 +258,7 @@ test.describe("generated find/nearby pages", () => {
 
       await gotoAndWaitForMap(page, "/nearby/pubs/");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await expect(page).toHaveTitle("Nearby Pubs & bars in Epping Forest | Epping Forest Finds");
       await expect(page.locator("#inspectorTitle")).toHaveText("Nearby Pubs & bars");
       await expect(page.locator("#inspectorType")).toHaveText(staticTypeMatch[1]);
       await expect(page.locator("#inspectorTitleEmoji img.title-icon")).toBeVisible();
@@ -402,6 +403,7 @@ test.describe("generated find/nearby pages", () => {
       const selected = await page.evaluate(() => ({ type: state.selected.type, findSlug: state.selected.item && state.selected.item.findSlug }));
       expect(selected.type).toBe("landmark");
       expect(selected.findSlug).toBe(EXAMPLE_PUB.slug);
+      await expect(page).toHaveTitle(`${EXAMPLE_PUB.name} near Epping Forest | Epping Forest Finds`);
       await expect(page.locator("#inspectorTitle")).toHaveText(EXAMPLE_PUB.name);
     });
 

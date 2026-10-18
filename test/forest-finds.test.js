@@ -253,6 +253,7 @@ globalThis.__forestFindsTest = {
   navigateInApp,
   overviewHeadingText,
   landingPageCategoryLabel,
+  updateDocumentTitle,
   normalizeSearchText,
   searchQueryTokens,
   searchFieldRank,
@@ -2078,12 +2079,14 @@ test("landingPageCategoryLabel names the current /nearby/<slug> landing's own ca
   app.state.overviewFilters = ["pubs"];
   app.selectOverview();
   assert.equal(app.els.inspectorTitle.textContent, "Nearby Pubs & bars");
+  assert.equal(app.documentStub.title, "Nearby Pubs & bars in Epping Forest | Epping Forest Finds");
 
   app.location.pathname = "/nearby/nature/";
   assert.equal(app.landingPageCategoryLabel(), "Nature");
   app.state.overviewFilters = ["trees", "ponds_streams"];
   app.selectOverview();
   assert.equal(app.els.inspectorTitle.textContent, "Nearby Nature");
+  assert.equal(app.documentStub.title, "Nearby Nature in Epping Forest | Epping Forest Finds");
 
   // The plain, unfiltered Nearby screen -- and a reader's own filter choice from the Filters
   // screen, which lands on the same bare /nearby path -- names no single category to head with.
@@ -2091,8 +2094,18 @@ test("landingPageCategoryLabel names the current /nearby/<slug> landing's own ca
   assert.equal(app.landingPageCategoryLabel(), null);
   app.selectOverview();
   assert.equal(app.els.inspectorTitle.textContent, "Nearby");
+  assert.equal(app.documentStub.title, "Nearby in Epping Forest | Epping Forest Finds");
 
   app.location.pathname = "/";
+});
+
+test("updateDocumentTitle names a selected place near Epping Forest", () => {
+  resetData(app);
+  app.state.selected = { type: "landmark", item: { name: "Hillside Tandoori" } };
+  assert.equal(app.updateDocumentTitle(), "Hillside Tandoori near Epping Forest | Epping Forest Finds");
+  assert.equal(app.documentStub.title, "Hillside Tandoori near Epping Forest | Epping Forest Finds");
+  app.state.selected = null;
+  app.updateDocumentTitle();
 });
 
 test("overviewNearestHtml no longer shows a tree species breakdown -- dropped as not making sense for a High Beach stand-in location", () => {

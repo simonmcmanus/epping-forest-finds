@@ -68,7 +68,7 @@ const RESERVED_SLUGS = new Set(["filter", "search"]);
 // template placeholder app.html doesn't otherwise need) so a future edit to app.html that
 // removes one of these breaks the build loudly here, rather than silently generating a page
 // that still carries the generic /app meta tags.
-const APP_TITLE = "<title>Epping Forest Finds — offline map of Epping Forest</title>";
+const APP_TITLE = "<title>Nearby in Epping Forest | Epping Forest Finds</title>";
 const APP_DESCRIPTION_META =
   '<meta name="description" content="A free offline map of Epping Forest. Find veteran trees, pubs, cafés, car parks, toilets, paths and stations near you, see where the forest\'s grazing cattle are, and keep working with no phone signal.">';
 const APP_CANONICAL = '<link rel="canonical" href="https://www.eppingforestfinds.uk/nearby">';
