@@ -664,7 +664,10 @@ function selectOverview(animate = false) {
   // longer centred on the real GPS fix -- showing the back arrow here, same as every other
   // screen, gives that moved view a visible, working way back (navigateBack() retraces the
   // anchor push from pushNearbyAnchorHistory, same as the browser's own back button).
-  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor), captureSnapshot: animate });
+  // The arrow is live whenever the browser back button has an app screen to return to, not only
+  // when a browse anchor was moved: a /nearby/<slug>/ link tapped from another landing is a
+  // Nearby-to-Nearby step with no anchor of its own, and it still has to be undoable here.
+  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor) || canGoBackInApp(), captureSnapshot: animate });
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
   const landingLabel = landingPageCategoryLabel();

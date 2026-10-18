@@ -608,10 +608,18 @@ function routerBootFinished() {
 
 // Normalises the landing entry so navDepth() has something to count from. history.state
 // survives a reload, so an entry pushed before the reload keeps the depth it had.
+//
+// A fresh load reached by a link from another page of this site (a /nearby/<slug>/ page opened
+// from a sibling page, say) has no state of its own, but the browser's back button does return
+// to that page -- so the arrow must offer it too. Only a same-origin referrer in a tab that has
+// history counts: a link opened in a new tab, or one from elsewhere, has nothing to go back to.
 function initRouter() {
   if (navDepthOf(history.state) !== null) return;
+  const cameFromThisSite = Boolean(document.referrer)
+    && new URL(document.referrer).origin === window.location.origin
+    && history.length > 1;
   history.replaceState(
-    { [NAV_DEPTH_KEY]: 0, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
+    { [NAV_DEPTH_KEY]: cameFromThisSite ? 1 : 0, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() },
     "",
     `${window.location.pathname}${window.location.search}${window.location.hash}`
   );
