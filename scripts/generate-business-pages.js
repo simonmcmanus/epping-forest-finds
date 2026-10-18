@@ -50,6 +50,10 @@ const APP_OG_URL = '<meta property="og:url" content="https://www.eppingforestfin
 const APP_EMPTY_STATE =
   '<p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>';
 
+const APP_INSPECTOR_TITLE = '<h2 id="inspectorTitle">Epping Forest Finds</h2>';
+const APP_INSPECTOR_TYPE = '<p id="inspectorType" class="type"></p>';
+const APP_INSPECTOR_EMOJI = '<span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>';
+
 // Singular, natural-language label per subfilter -- "X is a pub", not "X is a pubs".
 const SINGULAR_LABEL = {
   pubs: "pub",
@@ -146,51 +150,99 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     ...(entry.openingHours ? { openingHours: entry.openingHours } : {}),
   };
 
-  const detailRows = [
-    entry.address ? `<li>${escapeHtml(entry.address)}</li>` : "",
-    entry.phone ? `<li><a href="tel:${escapeHtml(entry.phone)}">${escapeHtml(entry.phone)}</a></li>` : "",
-    entry.website ? `<li><a href="${escapeHtml(entry.website)}" rel="noopener">${escapeHtml(entry.website)}</a></li>` : "",
-    entry.openingHours ? `<li>Opening hours: ${escapeHtml(entry.openingHours)}</li>` : "",
+  const singularLabel = singular.charAt(0).toUpperCase() + singular.slice(1);
+  const rulesSubfilter = (key) => {
+    for (const g of rules.FILTER_GROUPS) {
+      const found = g.subfilters.find((s) => s.key === key);
+      if (found) return found;
+    }
+    return null;
+  };
+  const iconFor = (name) => rules.appIconHtml(name);
+
+  // The same rows the live inspector's detailsHtml() renders for a place (js/inspector.js): a
+  // website shows its hostname, a phone number is a tel: link.
+  const websiteLabel = (value) => {
+    try {
+      return new URL(value).hostname.replace(/^www\./, "");
+    } catch (_) {
+      return value;
+    }
+  };
+  const detailValue = (label, value) => {
+    if (label === "Website") return `<a href="${escapeHtml(value)}" target="_blank" rel="noreferrer">${escapeHtml(websiteLabel(value))}</a>`;
+    if (label === "Phone") return `<a href="tel:${escapeHtml(value)}">${escapeHtml(value)}</a>`;
+    return escapeHtml(value);
+  };
+  const detailRowsHtml = [
+    ["Address", entry.address],
+    ["Website", entry.website],
+    ["Phone", entry.phone],
+    ["Opening hours", entry.openingHours],
   ]
-    .filter(Boolean)
+    .filter(([, value]) => value)
+    .map(([label, value]) => `<div class="row"><dt>${escapeHtml(label)}</dt><dd>${detailValue(label, value)}</dd></div>`)
     .join("");
 
   // A folklore-sourced record's own narrative -- genuinely unique text, not computed from the
   // same name/address/category fields every other page already shows. Only ~1% of entries have
   // one, so this is additive, never a gap on the other 99%.
-  const summaryHtml = entry.summary ? `<p>${escapeHtml(entry.summary)}</p>` : "";
+  const summaryHtml = entry.summary ? `<p class="details-description">${escapeHtml(entry.summary)}</p>` : "";
 
-  const nearby = nearestBusinesses(entry, index).filter((n) => n.metres <= 1000);
-  const nearbyHtml = nearby.length
-    ? `<p>Nearby:</p><ul>${nearby
-        .map((n) => `<li><a href="/find/${escapeHtml(n.slug)}/">${escapeHtml(n.name)}</a> (${formatMetres(n.metres)})</li>`)
-        .join("")}</ul>`
-    : "";
-
-  // No walk-time here -- cattle move (and even a tree's isn't worth computing build-time, since
-  // the live page recomputes it anyway), so this is the honest no-JS version of the link. The
-  // live page (js/inspector.js's relatedCategoryLinksHtml) upgrades both links with a real,
-  // freshly-computed walk time once JS boots. Both links still carry this place's own position via
-  // the target page's existing "near=<lat>,<lon>" anchor route (nearbyAnchorRouteValue, js/app.js
-  // -- same format, reproduced here since this runs in Node, not the browser) -- once JS boots on
-  // whichever page a link lands on, it anchors that view to this business's own spot rather than
-  // the reader's GPS fix.
+  // Walk times are not computed here (the reader's position is unknown without JS, and cattle move),
+  // so these cards name each category without a distance. Once JS boots, the live inspector swaps
+  // them for its own walk-time cards (nearbySectionsHtml, js/inspector.js) -- same .nearest-item card
+  // shape and section headings. Each link carries this place's own position through the target
+  // page's existing "near=<lat>,<lon>" anchor route (nearbyAnchorRouteValue, js/app.js -- same format,
+  // reproduced here since this runs in Node, not the browser).
   const anchorHash = entry.lat != null && entry.lon != null
     ? `#near=${entry.lat.toFixed(6)}%2C${entry.lon.toFixed(6)}`
     : "";
-  const treesHref = `/nearby/trees/${anchorHash}`;
-  const cowsHref = `/nearby/cows/${anchorHash}`;
-  const seeAlso = `See also <a href="${treesHref}">veteran trees</a> and <a href="${cowsHref}">grazing cattle</a> near Epping Forest.`;
-  const upLinks = subfilter && group
-    ? `<p>Part of <a href="/nearby/${escapeHtml(subfilterSlug)}/">${escapeHtml(subfilter.label)}</a> in <a href="/nearby/${escapeHtml(groupSlug)}/">${escapeHtml(group.label)}</a>. ${seeAlso}</p>`
-    : `<p>${seeAlso}</p>`;
+  const cardHtml = (href, icon, name, copy) =>
+    `<li><a class="nearest-item nearby-link" href="${escapeHtml(href)}">` +
+    `<span class="nearest-icon" aria-hidden="true">${icon}</span>` +
+    `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div>` +
+    `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(copy)}</span></div></div></a></li>`;
+
+  const treesSub = rulesSubfilter("trees");
+  const cowsSub = rulesSubfilter("cows");
+  const nearestHtml =
+    `<h3 class="detail-section-heading">Nearest</h3><ul class="nearest-list related-cards">` +
+    (treesSub ? cardHtml(`/nearby/trees/${anchorHash}`, iconFor(treesSub.icon), treesSub.label, `Veteran trees near ${entry.name}`) : "") +
+    (cowsSub ? cardHtml(`/nearby/cows/${anchorHash}`, iconFor(cowsSub.icon), cowsSub.label, `Grazing cattle near ${entry.name}`) : "") +
+    cardHtml(`/nearby/${anchorHash}`, iconFor("walking"), "Everything", `Everything within walking distance of ${entry.name}`) +
+    `</ul>`;
+
+  const relatedHtml = subfilter && group
+    ? `<h3 class="detail-section-heading">Related</h3><ul class="nearest-list related-cards">` +
+      cardHtml(`/nearby/${subfilterSlug}/`, iconFor(subfilter.icon), subfilter.label, `Browse ${subfilter.label.toLowerCase()} near Epping Forest`) +
+      cardHtml(`/nearby/${groupSlug}/`, iconFor(group.icon), group.label, `Browse ${group.label.toLowerCase()} near Epping Forest`) +
+      `</ul>`
+    : "";
+
+  const nearby = nearestBusinesses(entry, index).filter((n) => n.metres <= 1000);
+  const nearbyHtml = nearby.length
+    ? `<h3 class="detail-section-heading">Nearby places</h3><ul class="nearest-list related-cards">${nearby
+        .map((n) => {
+          const sub = rulesSubfilter(n.key);
+          return cardHtml(`/find/${n.slug}/`, sub ? iconFor(sub.icon) : "", n.name, `${formatMetres(n.metres)} away`);
+        })
+        .join("")}</ul>`
+    : "";
+
+  const mapsHtml = entry.lat != null && entry.lon != null
+    ? `<a class="detail-map-link detail-map-link--icon" href="https://maps.google.com/?q=${entry.lat.toFixed(6)},${entry.lon.toFixed(6)}" target="_blank" rel="noreferrer" aria-label="Open in Maps" title="Open in Maps"><svg class="detail-map-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></a>`
+    : "";
 
   const seoContent =
-    `<p>${escapeHtml(description)}</p>` +
+    (mapsHtml ? `<div class="detail-top-row">${mapsHtml}</div>` : "") +
+    `<p class="details-description">${escapeHtml(description)}</p>` +
     summaryHtml +
-    (detailRows ? `<ul>${detailRows}</ul>` : "") +
-    nearbyHtml +
-    upLinks;
+    (detailRowsHtml ? `<dl>${detailRowsHtml}</dl>` : "") +
+    nearestHtml +
+    relatedHtml +
+    nearbyHtml;
+  const headerIconHtml = subfilter ? iconFor(subfilter.icon) : "";
 
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
@@ -210,6 +262,13 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`,
     "</head>"
   );
+  // The header the live page sets through setInspectorSelectionChrome() and detail views: the
+  // business's own name, its category, and its category icon -- not the app's generic title.
+  html = replaceOnce(html, APP_INSPECTOR_TITLE, `<h2 id="inspectorTitle">${escapeHtml(entry.name)}</h2>`, "inspector title");
+  html = replaceOnce(html, APP_INSPECTOR_TYPE, `<p id="inspectorType" class="type">${escapeHtml(singularLabel)}</p>`, "inspector type");
+  if (headerIconHtml) {
+    html = replaceOnce(html, APP_INSPECTOR_EMOJI, `<span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true">${headerIconHtml}</span>`, "inspector title emoji");
+  }
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
   // Unlike every other /find/<slug>/ page, /find/events/ itself is excluded from
   // isLandingPageArrival() (js/app.js -- "events" is the one /find/ path that isn't a business
