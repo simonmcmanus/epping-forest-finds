@@ -786,6 +786,12 @@ use for the homepage's counts.
   This swaps the same `app.html` "nothing selected yet" paragraph the
   category pages replace (§6.6) — a `/find/` page is the same templated app
   shell, not a separate static page.
+- **The consent banner names the place too.** The same
+  `customizeConsentBannerText` swap as §6.6 replaces `#consentBanner`'s generic
+  lead phrase with "Enable location to get walking directions and see how far
+  you are from `<name>`", so the server-rendered banner and the live one match.
+  `/find/events/` keeps app.html's default copy: it is excluded from
+  `isLandingPageArrival()` and never shows the combined banner live.
 - **Two more fields, shown only when the source data actually has them —
   never manufactured copy to pad a page out**: raw OSM `opening_hours`
   (~80 of 1,500 entries today), and, for the handful of entries sourced from
