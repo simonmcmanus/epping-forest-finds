@@ -871,8 +871,10 @@ The figure itself is the real road/path-following distance (and the walk time de
 
 The inspector's top row offers **Open in Maps** and **Share link** as icon-only controls (`openInMapsHtml`, `shareLocationHtml`, js/inspector.js): a map-pin and a share glyph, inline SVG, in square 30px buttons with the same 5px corner radius as the walking-distance chip beside them, with `aria-label` and `title` carrying the accessible name, so no visible text is needed. They share the `.detail-map-link--icon` modifier (css/inspector.css).
 
-Any selected point (tree, place, cow) with coordinates also shows an **"Everything within N min
-walk"** card, N being the reader's own walking radius (default when unset) (`nearbyWithinWalkHtml`, js/inspector.js) under a "Nearby" heading, not in
+Any selected point (tree, place, cow) with coordinates also shows an **"Everything"** card whose
+line reads "N locations within M min walk of <name>", M being the reader's own walking radius
+(default when unset) and N the count across every category within it (`nearbyWithinWalkHtml`,
+js/inspector.js), under a "Nearest" heading, not in
 `.detail-top-row` alongside Open in Maps/Share: it shares the Nearby list's own `.nearest-item`
 card styling (a `<button>`, since it drives a live state change rather than a navigation) instead
 of the unrelated `.detail-map-link` pill those use. A findSlug place's own "Nearby" section
@@ -923,9 +925,14 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   already-there check made it a no-op).
 - Opening hours (when known) and a `tel:`-linked phone number — see `spec-marketing.md` § 6.7,
   "Opening hours and a tappable phone number are not static-page-only".
-- A `findSlug` place also shows a headed **Nearby** section (one nearest-match card per category
-  the reader has chosen -- `nearbyCardFilterKeys()`, js/inspector.js -- falling back to trees and
-  cows when none are set, capped at six) and a headed **Related** section (its own category/group), both rendered as the same
+- A `findSlug` place also shows a headed **Nearest** section (one card per category the reader has
+  chosen -- `nearbyCardFilterKeys()`, js/inspector.js -- falling back to trees and cows when none are
+  set, capped at six). Each card's line is a plain count from this place within the reader's walking
+  radius: "43 trees within 30 min walk of The Foresters. 20 further away." or, with none close enough,
+  "No cows within 30 min walk of The Foresters. 11 further away." (`nearbyCountCopy`,
+  `countNearbyEntries`, js/inspector.js). A cows card is held back until cow positions are loaded,
+  rather than reporting a zero. A headed **Related** section (its own category/group, with the same
+  counted line for each) follows, both rendered as the same
   `.nearest-item` card — see `spec-marketing.md` § 6.7, "Related-content links, both
   server-rendered and live, as two headed sections". Neither section names a data source for its
   distances (computed entirely from this site's own data, not fetched from anywhere). The

@@ -286,7 +286,7 @@ test.describe("generated find/nearby pages", () => {
       await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
 
       const body = page.locator("#inspectorBody");
-      await expect(body.locator('h3.detail-section-heading:has-text("Nearby")')).toHaveCount(1);
+      await expect(body.locator('h3.detail-section-heading:has-text("Nearest")')).toHaveCount(1);
       await expect(body.locator('h3.detail-section-heading:has-text("Related")')).toHaveCount(1);
       // Category/group links are the same .nearest-item card as the nearest-tree/cow entries, not
       // a different pill style -- one consistent list under each heading.
@@ -295,12 +295,12 @@ test.describe("generated find/nearby pages", () => {
       // Carries the business's own position via the near= hash (see the dedicated test below),
       // so this is a prefix match rather than an exact href.
       await expect(body.locator('a.nearest-item[href^="/nearby/trees/#near="]')).toHaveCount(1);
-      // "Everything within N min walk" lives in the Nearby section too now, as the same card
+      // "N locations within N min walk" lives in the Nearest section too now, as the same card
       // style -- not the separate top-row pill it used to be.
       const walkCard = body.locator("button.nearest-item[data-action='walk-radius']");
       await expect(walkCard).toHaveCount(1);
-      await expect(walkCard).toContainText(/Everything within \d+ min walk/);
-      const nearbySection = body.locator('h3.detail-section-heading:has-text("Nearby") + ul');
+      await expect(walkCard).toContainText(/\d+ locations within \d+ min walk of/);
+      const nearbySection = body.locator('h3.detail-section-heading:has-text("Nearest") + ul');
       await expect(nearbySection.locator("button.nearest-item[data-action='walk-radius']")).toHaveCount(1);
     });
 

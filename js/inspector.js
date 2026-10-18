@@ -1118,9 +1118,14 @@ function nearbyWithinWalkHtml(lat, lon, name = null) {
   if (lat == null || lon == null) return "";
   const minutes = state.walkingDistanceMinutes;
   const nameAttr = name ? ` data-name="${escapeHtml(name)}"` : "";
+  // The count covers every category, the same set the card browses -- "342 locations within 30 min
+  // walk of The Foresters" -- so the number matches what the Nearby list shows once it is opened.
+  const { within } = countNearbyEntries(Array.from(ALL_OVERVIEW_FILTER_KEYS), Number(lat), Number(lon));
+  const copy = `${within} locations within ${minutes} min walk of ${name || "this spot"}`;
   return `<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}"${nameAttr}>` +
     `<span class="nearest-icon" aria-hidden="true">${appIconHtml("walking")}</span>` +
-    `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Everything within ${minutes} min walk</span></div></div>` +
+    `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Everything</span></div>` +
+    `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(copy)}</span></div></div>` +
     `</button></li>`;
 }
 
@@ -1130,7 +1135,7 @@ function nearbyWithinWalkHtml(lat, lon, name = null) {
 // appended into its existing list instead, rather than a second "Nearby" heading stacked under it.
 function standaloneNearbySectionHtml(lat, lon, name = null) {
   const card = nearbyWithinWalkHtml(lat, lon, name);
-  return card ? `<h3 class="detail-section-heading">Nearby</h3><ul class="nearest-list related-cards">${card}</ul>` : "";
+  return card ? `<h3 class="detail-section-heading">Nearest</h3><ul class="nearest-list related-cards">${card}</ul>` : "";
 }
 
 // Two headed sections -- "Nearby" (live walk-time cards to the nearest tree and, when any are
@@ -1148,11 +1153,47 @@ function standaloneNearbySectionHtml(lat, lon, name = null) {
 // when nothing is set -- the same fallback a first visit and an SEO landing page get.
 const NEARBY_SECTION_DEFAULT_KEYS = ["trees", "cows"];
 const NEARBY_SECTION_MAX_CARDS = 6;
-const NEARBY_CARD_TITLES = { trees: "Nearest veteran tree", cows: "The grazing cattle" };
 function nearbyCardFilterKeys() {
   const active = (state.overviewFilters || []).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key));
   const keys = active.length ? active : NEARBY_SECTION_DEFAULT_KEYS;
   return keys.slice(0, NEARBY_SECTION_MAX_CARDS);
+}
+
+// Counts the entries in the given categories that sit within the reader's walking radius of a
+// point, and how many lie beyond it. An entry matching more than one of the categories (a pub that is
+// also a food place, say) is counted once. Reads the same nearest-entry helpers the Nearby list
+// itself uses (nearestOverviewEntriesForFilter, js/app.js), so the numbers agree with what the list
+// would show if the reader browsed from this spot.
+function countNearbyEntries(filterKeys, latitude, longitude) {
+  const limit = walkingDistanceToMetres(state.walkingDistanceMinutes);
+  const seen = new Set();
+  let within = 0;
+  let beyond = 0;
+  for (const key of filterKeys) {
+    for (const entry of nearestOverviewEntriesForFilter(key, latitude, longitude, Infinity)) {
+      if (seen.has(entry.item)) continue;
+      seen.add(entry.item);
+      if (entry.metres <= limit) within += 1;
+      else beyond += 1;
+    }
+  }
+  return { within, beyond };
+}
+
+// One plain sentence for a category: "43 trees within 30 min walk of The Foresters. 20 further away."
+// or, with none close enough, "No cows within 30 min walk of The Foresters. 11 further away." The
+// noun is the category's own label in lower case; a count of exactly one drops a trailing "s".
+function nearbyCountCopy(noun, { within, beyond }, placeName) {
+  const minutes = state.walkingDistanceMinutes;
+  const where = `within ${minutes} min walk of ${placeName}`;
+  let sentence;
+  if (within === 0) {
+    sentence = beyond === 0 ? `No ${noun} nearby.` : `No ${noun} ${where}.`;
+  } else {
+    const word = within === 1 ? noun.replace(/s$/, "") : noun;
+    sentence = `${within} ${word} ${where}.`;
+  }
+  return beyond ? `${sentence} ${beyond} further away.` : sentence;
 }
 
 function relatedCategoryLinksHtml(place) {
@@ -1160,18 +1201,18 @@ function relatedCategoryLinksHtml(place) {
   const subfilterKey = placePrimaryFilterKey(place);
   const subfilter = subfilterKey ? FILTER_SUBFILTERS_BY_KEY.get(subfilterKey) : null;
   const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : null;
+  const placeName = place.name || "this spot";
 
-  // One shared card shape for both sections -- icon, name and an optional meta line (a walk-time
-  // chip for "Nearby", nothing for "Related", which has no distance of its own to show) -- plain
+  // One shared card shape for both sections -- icon, name and a plain sentence of counts -- plain
   // <a> elements carrying the Nearby list's own .nearest-item class rather than the
   // <button data-overview-type> it's usually paired with, which is safe (every handler keyed to
   // that class also requires the data-overview-type attribute in its own selector, per js/nav.js)
   // and gets the same hover lift and arrow-key list navigation for free.
-  const cardHtml = (href, icon, name, meta) =>
+  const cardHtml = (href, icon, name, copy) =>
     `<li><a class="nearest-item" href="${href}">` +
     `<span class="nearest-icon" aria-hidden="true">${appIconHtml(icon)}</span>` +
     `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div>` +
-    (meta ? `<div class="nearest-footer"><span class="nearest-meta">${meta}</span></div>` : "") +
+    (copy ? `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(copy)}</span></div>` : "") +
     `</div></a></li>`;
 
   // Both links carry this place's own position as the target page's existing "near=<lat>,<lon>"
@@ -1182,23 +1223,22 @@ function relatedCategoryLinksHtml(place) {
   // coming here (how far from *this place*) the moment they arrive.
   const anchorHash = nearbyAnchorRouteValue({ latitude: place.latitude, longitude: place.longitude, label: place.name });
   // One card per category the reader has chosen (state.overviewFilters, or the defaults when none
-  // are set or on an SEO page) -- the nearest match for each, with its walk time. A category with
-  // nothing nearby (no cows loaded, say) simply has no card.
+  // are set or on an SEO page), each saying how many sit within the walking radius of this place.
   const nearestCardsHtml = nearbyCardFilterKeys()
     .map((key) => {
       const sub = FILTER_SUBFILTERS_BY_KEY.get(key);
-      const entry = sub ? nearestOverviewEntryForFilter(key, place.latitude, place.longitude) : null;
-      if (!entry) return "";
-      const name = NEARBY_CARD_TITLES[key] || `Nearest ${sub.label}`;
-      return cardHtml(`/nearby/${key.replace(/_/g, "-")}/#${anchorHash}`, sub.icon, name, walkInfoHtml(entry.metres));
+      // Cow positions arrive asynchronously; until they are loaded "no cows nearby" would be a lie,
+      // so the card waits for them rather than reporting a count of zero.
+      if (!sub || (key === "cows" && !state.cows.length)) return "";
+      const counts = countNearbyEntries([key], place.latitude, place.longitude);
+      return cardHtml(`/nearby/${key.replace(/_/g, "-")}/#${anchorHash}`, sub.icon, sub.label, nearbyCountCopy(sub.label.toLowerCase(), counts, placeName));
     })
     .join("");
-  // The walk-radius card (nearbyWithinWalkHtml) joins the same "Nearby" list rather than getting
-  // its own heading here -- this place already has one whenever it has coordinates, so there is
-  // always at least this card even when no category is close enough to show.
+  // The "Everything" card (nearbyWithinWalkHtml) joins the same list, so there is always at least
+  // this card whenever the place has coordinates.
   const walkCardHtml = nearbyWithinWalkHtml(place.latitude, place.longitude, place.name);
-  const nearbySectionHtml = (nearestCardsHtml || walkCardHtml)
-    ? `<h3 class="detail-section-heading">Nearby</h3><ul class="nearest-list related-cards">` +
+  const nearestSectionHtml = (nearestCardsHtml || walkCardHtml)
+    ? `<h3 class="detail-section-heading">Nearest</h3><ul class="nearest-list related-cards">` +
       nearestCardsHtml +
       walkCardHtml +
       `</ul>`
@@ -1206,12 +1246,22 @@ function relatedCategoryLinksHtml(place) {
 
   const relatedSectionHtml = subfilter && group
     ? `<h3 class="detail-section-heading">Related</h3><ul class="nearest-list related-cards">` +
-      cardHtml(`/nearby/${subfilter.key.replace(/_/g, "-")}/`, subfilter.icon, subfilter.label) +
-      cardHtml(`/nearby/${subfilter.groupKey.replace(/_/g, "-")}/`, group.icon, group.label) +
+      cardHtml(
+        `/nearby/${subfilter.key.replace(/_/g, "-")}/`,
+        subfilter.icon,
+        subfilter.label,
+        nearbyCountCopy(subfilter.label.toLowerCase(), countNearbyEntries([subfilter.key], place.latitude, place.longitude), placeName)
+      ) +
+      cardHtml(
+        `/nearby/${subfilter.groupKey.replace(/_/g, "-")}/`,
+        group.icon,
+        group.label,
+        nearbyCountCopy(group.label.toLowerCase(), countNearbyEntries(group.subfilters.map((s) => s.key), place.latitude, place.longitude), placeName)
+      ) +
       `</ul>`
     : "";
 
-  return nearbySectionHtml + relatedSectionHtml;
+  return nearestSectionHtml + relatedSectionHtml;
 }
 
 // A link to this place's own crawlable /find/<slug>/ page, when it has one (findSlug is set at
