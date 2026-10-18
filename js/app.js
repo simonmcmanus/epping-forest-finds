@@ -4169,6 +4169,13 @@ function bearingForItem(item) {
 }
 
 async function startCompassNavigation() {
+  // A default location is only a map-centering stand-in. Do not ask for compass access, or
+  // show its blocking permission gate, until the visitor has shared a real position. The
+  // no-location view already explains this in its source note and remains fully browseable.
+  if (!hasRealLocation()) {
+    updateCompassOverlay();
+    return;
+  }
   if (!selectedCompassTarget()) {
     updateCompassOverlay();
     return;
