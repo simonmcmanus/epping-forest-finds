@@ -877,11 +877,12 @@ line reads "N locations within M min walk of <name>", M being the reader's own w
 js/inspector.js), under a "Nearest" heading, not in
 `.detail-top-row` alongside Open in Maps/Share: it shares the Nearby list's own `.nearest-item`
 card styling (a `<button>`, since it drives a live state change rather than a navigation) instead
-of the unrelated `.detail-map-link` pill those use. A findSlug place's own "Nearby" section
-(`relatedCategoryLinksHtml`, below) already exists and gets this card appended as a third entry,
-after the nearest tree/cow; everything else with coordinates and no such section of its own (every
-tree, every cow, and a non-findSlug landmark) gets a standalone one-card "Nearby" section of its
-own (`standaloneNearbySectionHtml`). It reuses the existing Nearby-browsing mechanism rather than
+of the unrelated `.detail-map-link` pill those use. Every selected point with coordinates -- a `/find/`
+business, a veteran tree, a cow, or a landmark with no page of its own -- gets the same headed
+**Nearest** section and, where its category has a subfilter, a headed **Related** section
+(`nearbySectionsHtml`, js/inspector.js), with the walk-radius card as the last Nearest entry. A
+tree's Related section links its own category, a cow's its own, and a business or landmark the
+category its `placePrimaryFilterKey` names. It reuses the existing Nearby-browsing mechanism rather than
 inventing a new one: tapping it drops the selection, moves the Nearby browse anchor to that exact
 point (`setNearbyAnchor`'s own mechanism -- the same one a tap on open ground or a shared
 `near=<lat>,<lon>` link already use), keeps the reader's own walking radius, and shows every category

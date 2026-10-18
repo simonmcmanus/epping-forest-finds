@@ -852,7 +852,7 @@ function applyRouteFromUrl() {
   return applyRoute(raw, false);
 }
 
-// A click on a plain <a href="/..."> generated into the inspector (relatedCategoryLinksHtml's
+// A click on a plain <a href="/..."> generated into the inspector (nearbySectionsHtml's
 // category/group chips and nearest-tree/cow cards, fullDetailsLinkHtml) used to fall straight
 // through to the browser's own navigation -- a full page reload that re-downloads and re-boots
 // the whole app shell for content already sitting in memory, rather than the instant SPA
