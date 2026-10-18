@@ -534,9 +534,8 @@ function setupInspectorHandlers() {
           setLocationGateVisible(false);
           updateCompassOverlay();
         } else {
-          // setLocationGateVisible(true) was called by showCompassAccessPrompt inside
-          // requestCompassPermissionIfNeeded, which already re-enabled the button.
-          // Guard in case a code path skipped that call.
+          // A refused compass no longer opens the gate, so the button never needs re-enabling
+          // here -- kept as a guard in case the gate was left disabled by an earlier tap.
           if (els.locationGateButton.disabled) els.locationGateButton.disabled = false;
         }
       }

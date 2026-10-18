@@ -1234,8 +1234,9 @@ async function revealMapCenteredOnUser() {
   // whole first reveal reads as one choreographed moment rather than three separate things
   // happening to independently finish loading.
   els.mapStage?.classList.add("map-revealed");
-  // The reveal is over, so from here on the list is ordinary live content again.
-  _serverRenderedNearbyList = false;
+  // The reveal is over, so from here on the list is ordinary live content again -- except bare
+  // /nearby's static list, which stays as drawn until a real fix (serverRenderedNearbyListStillValid).
+  _serverRenderedNearbyList = _staticNearbyIndex && serverRenderedNearbyListStillValid();
   hideWithFade(els.loadingOverlay);
 }
 
@@ -1261,6 +1262,9 @@ async function revealNoRealLocation({ locationAlreadyAsked }) {
   if (!hasRealLocation()) applyDefaultLocation();
 
   selectOverview();
+  // A static index's arrows point north until there is a bearing to rotate them by -- the default
+  // origin applyDefaultLocation() just set. Only the arrows change; the list itself stays as drawn.
+  if (_staticNearbyIndex) updateOverviewDirectionArrows();
   draw();
   applySelectionFromHash();
   await revealMapCenteredOnUser();
@@ -1397,7 +1401,8 @@ function showCombinedConsentBanner() {
 async function boot() {
   // A /nearby/<slug>/ landing already shows its server-rendered list (see
   // _serverRenderedNearbyList, js/inspector.js); keep it there until a real fix or the reveal.
-  _serverRenderedNearbyList = isNearbyCategoryLandingPath();
+  _staticNearbyIndex = Boolean(document.querySelector("[data-server-rendered-nearby]"));
+  _serverRenderedNearbyList = isNearbyCategoryLandingPath() || (_staticNearbyIndex && staticNearbyIndexFiltersAreDefault());
   initSelectedIconMotion();
   initRouter();
   initTracker();
@@ -1425,7 +1430,10 @@ async function boot() {
   // explicitly hide it again here, synchronously, before anything else runs: showCombinedConsentBanner()
   // below only ever un-hides it, it never corrects a wrongly-pre-shown one. The condition is
   // computed once and reused by that call below so the two can never drift apart.
-  const showsCombinedConsentBanner = Boolean(navigator.geolocation) && isLandingPageArrival() && cookieConsentIsUndecided();
+  // Bare /nearby's static index shows the same banner pre-JS (renderNearbyIndexPage), so it takes the
+  // landing-page path here too -- except on a first visit, where onboarding asks the same questions.
+  const onboardsFirst = !hasCompletedOnboarding() && !isLandingPageArrival();
+  const showsCombinedConsentBanner = Boolean(navigator.geolocation) && !onboardsFirst && (isLandingPageArrival() || _staticNearbyIndex) && cookieConsentIsUndecided();
   if (els.consentBanner && !showsCombinedConsentBanner) els.consentBanner.hidden = true;
 
   // Start data loading immediately so it runs in parallel with location and onboarding
@@ -1444,7 +1452,7 @@ async function boot() {
   // revealNoRealLocation() below knows not to draw a second prompt for the same question.
   let locationAlreadyAsked = false;
 
-  if (!hasCompletedOnboarding() && !isLandingPageArrival()) {
+  if (onboardsFirst) {
     // First visit to the plain Nearby screen: show onboarding while data loads behind it.
     // A landing-page arrival (/nearby/<slug>, a first-touch ?show= link, or a selection hash)
     // skips this --
@@ -1528,12 +1536,8 @@ async function boot() {
         ensureLocationWatch();
 
         // Request compass only if not already handled (e.g. by onboarding).
-        if (state.compassPermission === "unknown") {
-          if (compassPermissionCanBeRequested()) {
-            showCompassAccessPrompt();
-          } else {
-            requestCompassPermissionIfNeeded({ fromGesture: false });
-          }
+        if (state.compassPermission === "unknown" && !compassPermissionCanBeRequested()) {
+          requestCompassPermissionIfNeeded({ fromGesture: false });
         }
 
         // Populate overview list and render map while overlay is still up.
@@ -1800,22 +1804,23 @@ function locateUser({ initial }) {
     return;
   }
 
-  // A reader asking for their location from a /nearby/<slug>/ landing sees the list swap to a
-  // "requesting" state, not a silent change under it. A refusal below puts the defaults back.
+  // A request that can change an empty Nearby list, or a landing's own list, shows a loading state in
+  // its place rather than leaving the list blank or unchanged until the fix arrives. A list already
+  // full of finds stays put. A refusal below restores the list.
   const landingRequest = !initial && isNearbyCategoryLandingPath() && isOverviewScreenActive();
-  if (landingRequest) showNearbyLocatingState();
+  const listIsEmpty = isOverviewScreenActive() && !els.inspectorBody?.querySelector(".nearest-item");
+  const showsLoadingState = landingRequest || listIsEmpty;
+  if (showsLoadingState) showNearbyLocatingState();
   setStatus(initial ? "Finding your location..." : "Getting your location...");
+  // iOS only runs the compass prompt from a real tap, and the geolocation callback is not one, so ask
+  // from this tap before the fix arrives. Non-iOS needs no gesture and is handled in the callback.
+  if (!initial && compassPermissionCanBeRequested()) requestCompassPermissionIfNeeded({ fromGesture: true });
   navigator.geolocation.getCurrentPosition(
     (position) => {
       const { latitude, longitude, previousPoint } = applyLocationFix(position);
       setLocationGateVisible(false);
       ensureLocationWatch();
-      if (compassPermissionCanBeRequested()) {
-        // iOS: requestPermission() must come from a real user-gesture call stack.
-        // The geolocation callback is async and doesn't qualify, so show the gate
-        // and let the user's tap on the button be the actual gesture.
-        if (state.compassPermission !== "granted") showCompassAccessPrompt();
-      } else {
+      if (!compassPermissionCanBeRequested()) {
         // Non-iOS: no user gesture required; auto-grant if not already set.
         requestCompassPermissionIfNeeded({ fromGesture: false });
       }
@@ -1847,8 +1852,8 @@ function locateUser({ initial }) {
     (error) => {
       // Back to the same default boot() uses when there is no fix: the High Beach list the landing
       // showed before the request, rebuilt now that the loading state has replaced it.
-      if (landingRequest && !hasRealLocation()) {
-        applyDefaultLocation();
+      if (showsLoadingState && !hasRealLocation()) {
+        if (landingRequest) applyDefaultLocation();
         selectOverview();
       }
       const denied = error && error.code === 1;
@@ -4230,16 +4235,7 @@ async function startCompassNavigation() {
 
   await requestCompassPermissionIfNeeded();
 
-  if (state.compassPermission !== "granted") {
-    showCompassAccessPrompt();
-  }
-
   updateCompassOverlay();
-}
-
-function showCompassAccessPrompt() {
-  const message = "On iPhone, go to Settings → Safari → Motion & Orientation Access → On, then tap below to enable compass guidance.";
-  setLocationGateVisible(true, message, "Enable compass and location", "Allow compass access");
 }
 
 function compassPermissionCanBeRequested() {
@@ -4271,15 +4267,11 @@ async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
     try {
       localStorage.setItem(COMPASS_PERMISSION_KEY, state.compassPermission);
     } catch {}
-    if (state.compassPermission !== "granted") {
-      showCompassAccessPrompt();
-    }
   } catch {
     state.compassPermission = "denied";
     try {
       localStorage.setItem(COMPASS_PERMISSION_KEY, "denied");
     } catch {}
-    showCompassAccessPrompt();
   }
 }
 

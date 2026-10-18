@@ -687,13 +687,15 @@ branches.
   nearest trees within the 30-minute walk of High Beach, the no-fix origin,
   using the same list and cap as the live screen, under the heading
   "Nearby" and the type line "Nearest selected filters within 30 min walk
-  of High Beach". It has no consent banner, since bare `/nearby` is not a
-  landing-page arrival. Two limits are documented, not fixed: the live
-  default list also holds cows (GPS collars, no build-time source) and
-  events (filtered against the current time), so it reflows once JS boots.
-  And the live list depends on the visitor's own GPS origin and saved
-  filters, not only the no-fix origin, so a returning visitor with their
-  own filters sees a different list after boot.
+  of High Beach". The page also carries the location and cookie banner
+  (`#consentBanner`, shown by default as on a landing page), the Filters
+  button with its live count, and `data-server-rendered-nearby` on
+  `#inspectorBody`. Boot keeps that list on screen, without rebuilding it,
+  until a real location fix arrives, and only while the filters are still
+  the default set, so nothing repaints as JS starts. The banner hides again
+  for a visitor who has already answered the cookie question, and on a
+  first visit the onboarding wizard takes its place. The list is trees
+  only: cows and events join it only once a real fix rebuilds the list.
 - **The static page carries one pill row at the very top of a
   `/nearby/<slug>/` landing, matching `categoryLandingLinksHtml()`
   (`js/app.js`) chip for chip** (`topChipsHtml`, `scripts/generate-find-pages.js`;

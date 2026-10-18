@@ -178,8 +178,8 @@ test.describe("generated find/nearby pages", () => {
       const staticHtml = await (await request.get("/nearby")).text();
       expect(staticHtml).toContain('<h2 id="inspectorTitle">Nearby</h2>');
       expect(staticHtml).toContain("Nearest selected filters within 30 min walk of High Beach");
-      // Bare /nearby is not a landing-page arrival, so the consent banner stays hidden (js/app.js).
-      expect(staticHtml).toContain('id="consentBanner" class="consent-banner" role="group" aria-label="Location and cookies" hidden>');
+      // The location and cookie ask is part of the static page, not added once JS boots.
+      expect(staticHtml).toContain('id="consentBanner" class="consent-banner" role="group" aria-label="Location and cookies">');
       const staticKeys = [...staticHtml.matchAll(/href="\/nearby\/trees\/#tree=([^"]+)"/g)].map((m) => decodeURIComponent(m[1]));
       expect(staticKeys.length).toBeGreaterThan(0);
 
@@ -200,6 +200,33 @@ test.describe("generated find/nearby pages", () => {
         staticKeys.length
       );
       expect(staticKeys).toEqual(liveKeys);
+    });
+
+    test("bare /nearby shows the location and cookie ask, the Filters button and the tree list with JavaScript disabled", async ({ browser, baseURL }) => {
+      const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+      const page = await context.newPage();
+      await page.goto("/nearby");
+      await expect(page.locator("#consentBanner")).toContainText("Allow location & cookies");
+      await expect(page.locator("#filterToggle")).toBeVisible();
+      await expect(page.locator("#filterCount")).toHaveText("2");
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      await context.close();
+    });
+
+    test("bare /nearby's list is never swapped for the empty placeholder while JavaScript boots", async ({ page }) => {
+      await skipOnboarding(page);
+      // Any frame where the inspector shows the "Use your location to list..." placeholder is the
+      // flicker the static index exists to prevent, so record it from the first mutation onward.
+      await page.addInitScript(() => {
+        window.__sawNearbyPlaceholder = false;
+        new MutationObserver(() => {
+          if (document.querySelector("#inspectorBody .empty")) window.__sawNearbyPlaceholder = true;
+        }).observe(document, { subtree: true, childList: true });
+      });
+      await gotoAndWaitForMap(page, "/nearby");
+      await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.isDefault === true)).toBe(true);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      expect(await page.evaluate(() => window.__sawNearbyPlaceholder)).toBe(false);
     });
 
     test("the top-level nav is real links that work with JavaScript disabled", async ({ browser, baseURL }) => {

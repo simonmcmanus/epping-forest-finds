@@ -605,6 +605,22 @@ let _overviewListKey;
 // one on screen. Set by boot() and cleared by the first reveal that finishes (revealMapCenteredOnUser),
 // or by showNearbyLocatingState() once the reader asks for their location.
 let _serverRenderedNearbyList = false;
+// True on bare /nearby's generated index (scripts/generate-find-pages.js, renderNearbyIndexPage),
+// whose list is built for the default filters from the no-fix High Beach origin only.
+let _staticNearbyIndex = false;
+
+// The static index is only a valid stand-in for the default filter set (DEFAULT_FILTERS, js/app.js).
+function staticNearbyIndexFiltersAreDefault() {
+  const current = sanitizeOverviewFilters(state.overviewFilters);
+  return current.length === DEFAULT_FILTERS.length && DEFAULT_FILTERS.every((key) => current.includes(key));
+}
+
+// Whether the server-rendered list may stay on screen: no real location fix yet, and for bare
+// /nearby the filters still match the ones it was built for. Anything else rebuilds the live list.
+function serverRenderedNearbyListStillValid() {
+  if (!_serverRenderedNearbyList || hasRealLocation()) return false;
+  return !_staticNearbyIndex || staticNearbyIndexFiltersAreDefault();
+}
 
 // Replaces the list with a "requesting your location" state while a reader's own location request
 // is pending (locateUser, js/app.js). Deliberately not routed through transitionInspectorBody: that
@@ -621,7 +637,7 @@ function selectOverview(animate = false) {
   // rebuild here (default location, no real fix yet), so keep it. Every early caller -- boot's own
   // reveal, the tree chunks arriving after data has loaded -- would otherwise clear it and repaint
   // the same list, which read as a flicker. Once a real fix lands, the list is rebuilt for real.
-  if (_serverRenderedNearbyList && !hasRealLocation()) return;
+  if (serverRenderedNearbyListStillValid()) return;
   _serverRenderedNearbyList = false;
   // The reorder animation is for a live update to the list already on screen (GPS/heading
   // moving an item, a filter changing which ones show) -- captured positions only mean
