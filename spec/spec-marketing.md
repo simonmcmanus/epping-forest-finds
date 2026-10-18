@@ -664,7 +664,17 @@ branches.
     looks like a stray data artifact rather than a real name (contains
     `=`, seen on a handful of single-occurrence rows) is dropped, not
     hand-excluded by name. No deep link — there is nothing for a species
-    row to select.
+    row to select. The grouping/counting itself (`treeSpeciesBreakdown()`,
+    `js/categories.js`) is shared with the live app, not duplicated here:
+    `loadTreeSpeciesBreakdown()` in this generator just reads the on-disk
+    chunked dataset into the same shape and calls it (via `loadAppRules()`,
+    `js/categories.js` having no DOM dependency), and `overviewNearestHtml()`
+    (`js/app.js`) calls the exact same function against the live
+    `state.trees` to show the identical breakdown above the live, interactive
+    nearby-tree list on a `/nearby/trees/` or `/nearby/nature/` landing —
+    added there rather than replacing that list, since the live map can still
+    let a reader tap through to an individual nearby tree, unlike a static
+    build.
   - Both are computed once per build (`generate()`), not once per page, since
     the tree chunks in particular are the largest files the whole build
     reads.

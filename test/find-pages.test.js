@@ -246,14 +246,14 @@ test("loadTreeSpeciesBreakdown groups case-insensitively, drops artifact rows, a
   });
   writeJson(path.join(dir, "data", "trees", "chunk-b.json"), { trees: [{ commonName: "english Oak" }] });
 
-  const result = loadTreeSpeciesBreakdown(dir, 5);
+  const result = loadTreeSpeciesBreakdown(loadAppRules(), dir, 5);
   assert.deepEqual(result.notable, [{ name: "English Oak", count: 8 }], "6 + 1 + 1 case-insensitive duplicates, majority casing wins the label");
   assert.equal(result.otherCount, 1, "just the single Holly -- the artifact row and the nameless tree are excluded entirely, not counted as other");
 });
 
 test("loadTreeSpeciesBreakdown returns an empty breakdown when there is no tree index to read", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "find-pages-trees-empty-"));
-  assert.deepEqual(loadTreeSpeciesBreakdown(dir), { notable: [], otherCount: 0 });
+  assert.deepEqual(loadTreeSpeciesBreakdown(loadAppRules(), dir), { notable: [], otherCount: 0 });
 });
 
 // Well within LANDING_PAGE_WALKING_RADIUS_METRES (2500m) of DEFAULT_LOCATION (51.667591, 0.037454).

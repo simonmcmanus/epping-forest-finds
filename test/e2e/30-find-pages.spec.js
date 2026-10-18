@@ -140,6 +140,17 @@ test.describe("generated find/nearby pages", () => {
   });
 
   test.describe("the live app", () => {
+    test("/nearby/trees/ shows the same species breakdown once JS boots, above the live nearby-tree list rather than instead of it", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/trees/");
+      const body = page.locator("#inspectorBody");
+      await expect.poll(() => page.evaluate(() => state.trees.length > 0)).toBe(true);
+      await expect(body).toContainText("By species:");
+      // Still above the live cluster-based list, not a replacement of it -- the map can still be
+      // browsed by tapping a nearby tree, which the static page's own breakdown-only page never
+      // could offer a reader or a crawler.
+      await expect(body.locator(".nearest-list, .nearest-item")).not.toHaveCount(0);
+    });
+
     test("/nearby/events/ boots pre-filtered to Events, the same way every other /nearby/<slug> page does", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/events/");
       await expect.poll(() => page.evaluate(() => isSubfilterActive("events"))).toBe(true);

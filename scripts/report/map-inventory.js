@@ -41,7 +41,7 @@ function loadAppRules() {
   // scope rather than becoming properties of the context object, so the ones
   // this script needs are read back out with an expression.
   return vm.runInContext(
-    "({ FILTER_GROUPS, placeLabelFilterKey, buildOsmCategoryTags, normalizeFolkloreLocations, extractWaterFeatures, waterHashKey, filterKindEmoji, appIconHtml })",
+    "({ FILTER_GROUPS, placeLabelFilterKey, buildOsmCategoryTags, normalizeFolkloreLocations, extractWaterFeatures, waterHashKey, filterKindEmoji, appIconHtml, treeSpeciesBreakdown })",
     context
   );
 }

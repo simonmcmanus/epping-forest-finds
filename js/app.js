@@ -3979,8 +3979,33 @@ function categoryLandingLinksHtml() {
   return `<div class="detail-top-row related-chips">${groupChip}${allChip}</div>`;
 }
 
+// Mirrors generate-find-pages.js's own showTrees condition (page.key === "trees" ||
+// "nature") exactly, off the same URL-path regex categoryLandingLinksHtml() above already uses,
+// so a /nearby/trees/ or /nearby/nature/ landing shows the same species breakdown a crawler or
+// no-JS visitor already saw -- added above, not instead of, the live cluster-based nearby-tree
+// list below it: unlike a static build, the live map can still let a reader tap through to an
+// individual nearby tree, so there is no reason to give that up for a content match. Reuses
+// treeSpeciesBreakdown() (js/categories.js) against the live state.trees -- the exact function
+// the generator's own loadTreeSpeciesBreakdown() calls (via loadAppRules()) against the same
+// on-disk dataset, so the two can never compute a different count.
+function liveTreeSpeciesBreakdownHtml() {
+  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
+  const key = match ? match[1].replace(/-/g, "_") : null;
+  if (key !== "trees" && key !== "nature") return "";
+  if (!state.trees.length) return "";
+  const breakdown = treeSpeciesBreakdown(state.trees);
+  if (!breakdown.notable.length) return "";
+  const rows = breakdown.notable
+    .map((s) => `<li>${escapeHtml(s.name)} — ${s.count.toLocaleString("en-GB")}</li>`)
+    .join("");
+  const otherRow = breakdown.otherCount > 0
+    ? `<li>Other species — ${breakdown.otherCount.toLocaleString("en-GB")}</li>`
+    : "";
+  return `<p>By species:</p><ul class="category-listing">${rows}${otherRow}</ul>`;
+}
+
 function overviewNearestHtml() {
-  const breadcrumbHtml = categoryLandingLinksHtml();
+  const breadcrumbHtml = categoryLandingLinksHtml() + liveTreeSpeciesBreakdownHtml();
   if (!state.userLocation) {
     // A /nearby/<slug> category page -- a subfilter's own, or a whole group's -- lands here with
     // no location yet (no prompt answered, or declined), as does a reader who has deliberately

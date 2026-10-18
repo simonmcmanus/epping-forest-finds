@@ -1987,6 +1987,32 @@ test("overviewNearestHtml carries the same category breadcrumb through every ret
   app.location.pathname = "/";
 });
 
+test("overviewNearestHtml shows the same species breakdown as the static /nearby/trees/ and /nearby/nature/ pages, above the live tree list rather than instead of it", () => {
+  resetData(app);
+  app.state.trees = [
+    { commonName: "English Oak" }, { commonName: "English Oak" }, { commonName: "English Oak" },
+    { commonName: "English Oak" }, { commonName: "English Oak" },
+    { commonName: "Holly" }, // below the default minCount of 5 -- folds into "Other species"
+  ];
+  app.state.overviewFilters = ["trees"];
+  app.location.pathname = "/nearby/trees/";
+  app.state.userLocation = null;
+
+  const html = app.overviewNearestHtml();
+  assert.match(html, /<p>By species:<\/p>/);
+  assert.match(html, /<li>English Oak — 5<\/li>/);
+  assert.match(html, /<li>Other species — 1<\/li>/);
+  // Added above the live list, not instead of it -- the map can still be browsed by tapping a
+  // nearby tree, which a static build (no map, no map-click handler) never could.
+  assert.ok(html.indexOf("By species") < html.indexOf("empty") || !html.includes("empty"), "breakdown comes first");
+
+  // A plain subfilter page the breakdown is not meant for gets none of this.
+  app.location.pathname = "/nearby/pubs/";
+  assert.ok(!app.overviewNearestHtml().includes("By species"), "only the trees/nature landing pages get the breakdown");
+
+  app.location.pathname = "/";
+});
+
 test("navigateInApp pushes a real history entry and applies the new route, instead of leaving it to the browser's own navigation", () => {
   resetData(app);
   app.location.pathname = "/find/the-forresters/";

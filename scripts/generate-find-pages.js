@@ -112,37 +112,27 @@ function loadWaterFeatures(rules, siteRoot) {
 // cased duplicates, e.g. "English oak" alongside "English Oak") and anything whose own name
 // looks like a stray data artifact rather than a species (contains "=", seen on a few
 // single-occurrence rows -- e.g. "beech = 13,*") is dropped rather than hand-excluded by name.
-function loadTreeSpeciesBreakdown(siteRoot, minCount = 5) {
+// The grouping/counting itself is treeSpeciesBreakdown() (js/categories.js, exposed by
+// loadAppRules() -- it has no DOM dependency so it loads into this script's vm sandbox), the same
+// function the live Nearby view now calls on state.trees -- this just reads the on-disk chunked
+// dataset into the same shape (an array of records carrying commonName) that function expects.
+function loadTreeSpeciesBreakdown(rules, siteRoot, minCount = 5) {
   const indexPath = path.join(siteRoot, "data", "trees", "index.json");
   if (!fs.existsSync(indexPath)) return { notable: [], otherCount: 0 };
   const index = JSON.parse(fs.readFileSync(indexPath, "utf8"));
-  const groups = new Map(); // lowercased name -> { total, variants: Map<rawName, count> }
+  const trees = [];
   for (const chunk of index.chunks || []) {
     const chunkPath = path.join(siteRoot, chunk.url);
     if (!fs.existsSync(chunkPath)) continue;
     const chunkData = JSON.parse(fs.readFileSync(chunkPath, "utf8"));
-    for (const tree of chunkData.trees || []) {
-      const raw = tree.commonName && String(tree.commonName).trim();
-      if (!raw || raw.includes("=")) continue;
-      const key = raw.toLowerCase();
-      const group = groups.get(key) || { total: 0, variants: new Map() };
-      group.total += 1;
-      group.variants.set(raw, (group.variants.get(raw) || 0) + 1);
-      groups.set(key, group);
-    }
+    trees.push(...(chunkData.trees || []));
   }
-  const entries = [...groups.values()]
-    .map((group) => ({
-      // The most common casing of this species' name wins the display label, rather than
-      // whichever one happened to be seen first.
-      name: [...group.variants.entries()].sort((a, b) => b[1] - a[1])[0][0],
-      count: group.total,
-    }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  return {
-    notable: entries.filter((e) => e.count >= minCount),
-    otherCount: entries.filter((e) => e.count < minCount).reduce((sum, e) => sum + e.count, 0),
-  };
+  // rules.treeSpeciesBreakdown runs inside loadAppRules()'s vm sandbox, so the object/arrays it
+  // returns are built from that sandbox's own Object/Array constructors -- structurally identical
+  // but a different realm, which fails assert.deepStrictEqual's prototype check even though they
+  // print the same (see loadWaterFeatures' own [...] spread below for the same fix).
+  const result = rules.treeSpeciesBreakdown(trees, minCount);
+  return { notable: [...result.notable].map((entry) => ({ ...entry })), otherCount: result.otherCount };
 }
 
 // formatDistance (js/app.js) and the walk-time half of walkInfoHtml (js/inspector.js),
@@ -563,7 +553,7 @@ function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInvent
   // Loaded once up front, not per page: both read a dataset no other part of this generator
   // touches (the tree chunks in particular are the largest files in the whole build), and only
   // the trees/ponds_streams/nature pages (renderPage's showTrees/showWater) ever use them.
-  const enrichment = { waterFeatures: loadWaterFeatures(rules, siteRoot), treeSpecies: loadTreeSpeciesBreakdown(siteRoot), rules };
+  const enrichment = { waterFeatures: loadWaterFeatures(rules, siteRoot), treeSpecies: loadTreeSpeciesBreakdown(rules, siteRoot), rules };
   for (const page of pages) {
     const pageDir = path.join(categoryDir, page.slug);
     fs.mkdirSync(pageDir, { recursive: true });
