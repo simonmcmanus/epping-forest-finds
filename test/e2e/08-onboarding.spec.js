@@ -72,6 +72,12 @@ test.describe("Onboarding", () => {
       await expect(page.locator("#onboardingOverlay")).toBeHidden();
     });
 
+    test("onboarding is skipped on a first visit that selects a location via a hash", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby#tree=r17338");
+      await expect(page.locator("#onboardingOverlay")).toBeHidden();
+      await expect(page.locator("#inspector")).toContainText("English Oak");
+    });
+
     test("skipping onboarding here does not mark onboarding as completed, so plain Nearby still shows it next", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
       await expect(page.locator("#onboardingOverlay")).toBeHidden();
