@@ -223,7 +223,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Get to know the old trees/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
-    await expect(page.locator(".hero + .ledger + .signup + .counts + .pillars + #find-trees")).toHaveCount(1);
+    await expect(page.locator(".hero + .ledger + .counts + .signup + .pillars + #find-trees")).toHaveCount(1);
     for (const card of await page.locator(".pillars article").all()) {
       await expect(card).toHaveCSS("border-radius", "14px");
       await expect(card).not.toHaveCSS("box-shadow", "none");
@@ -354,11 +354,11 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("#signup input[type=checkbox]")).toHaveCount(0);
   });
 
-  test("highlights the Ledger and signup before the map details", async ({ page }) => {
+  test("highlights the Ledger then map inventory before signup", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates when they launch");
     await expect(page.locator("#signupConsent")).toContainText("weekly Epping Forest Ledger updates when they launch");
-    await expect(page.locator(".hero + .ledger + .signup + .counts")).toHaveCount(1);
+    await expect(page.locator(".hero + .ledger + .counts + .signup")).toHaveCount(1);
     await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.png");
     await expect(page.locator(".ledger .card-icon")).toHaveAttribute("src", "assets/home/ledger.png");
     await expect(page.locator(".tag-copy .card-icon")).toHaveAttribute("src", "assets/home/tree-tag.png");
