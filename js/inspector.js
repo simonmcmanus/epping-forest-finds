@@ -409,7 +409,7 @@ function showLandmarkDetails(place, distance) {
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
   // Every location with coordinates gets the same Nearest and Related sections (nearbySectionsHtml),
   // keyed to whichever category the place belongs to for its Related links.
-  const relatedLinksHtml = nearbySectionsHtml({ latitude: place.latitude, longitude: place.longitude, name: place.name, subfilterKey: placePrimaryFilterKey(place) });
+  const relatedLinksHtml = nearbySectionsHtml({ latitude: place.latitude, longitude: place.longitude, name: place.name, subfilterKey: placePrimaryFilterKey(place), findSlug: place.findSlug });
   const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
   transitionInspectorBody(landmarkHtml, "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
@@ -1211,7 +1211,33 @@ function nearbyCountCopy(noun, { within, beyond }, placeName) {
 // "Related" section; without one there is no Related section, only Nearest. Every location gets the
 // same Nearest cards (the reader's own filters, or the defaults), so a tree is no longer a dead end
 // offering only "Everything".
-function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = null }) {
+// The places within 1 km (straight line) of a /find/ business, as links to their own pages, so the
+// live panel lists the same neighbours the static page does (generate-business-pages.js). Only
+// places with a findSlug qualify, and the business itself is left out.
+const NEARBY_PLACES_RADIUS_METRES = 1000;
+const NEARBY_PLACES_MAX = 6;
+function nearbyPlacesSectionHtml(latitude, longitude, findSlug) {
+  const places = state.landmarks
+    .filter((place) => place.findSlug && place.findSlug !== findSlug && place.latitude != null && place.longitude != null)
+    .map((place) => ({ place, metres: distanceMetres(latitude, longitude, place.latitude, place.longitude) }))
+    .filter(({ metres }) => metres <= NEARBY_PLACES_RADIUS_METRES)
+    .sort((a, b) => a.metres - b.metres)
+    .slice(0, NEARBY_PLACES_MAX);
+  if (!places.length) return "";
+  const cards = places
+    .map(({ place, metres }) => {
+      const subfilter = FILTER_SUBFILTERS_BY_KEY.get(placePrimaryFilterKey(place));
+      const icon = subfilter ? appIconHtml(subfilter.icon) : "";
+      return `<li><a class="nearest-item nearby-link" href="/find/${escapeHtml(place.findSlug)}/">` +
+        `<span class="nearest-icon" aria-hidden="true">${icon}</span>` +
+        `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(place.name || "Local place")}</span></div>` +
+        `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(formatDistance(Math.round(metres)))} away</span></div></div></a></li>`;
+    })
+    .join("");
+  return `<h3 class="detail-section-heading">Places close by</h3><ul class="nearest-list related-cards">${cards}</ul>`;
+}
+
+function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = null, findSlug = null }) {
   if (latitude == null || longitude == null) return "";
   const placeName = name || "this spot";
 
@@ -1272,7 +1298,8 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
       `</ul>`
     : "";
 
-  return nearestSectionHtml + relatedSectionHtml;
+  const placesHtml = findSlug ? nearbyPlacesSectionHtml(latitude, longitude, findSlug) : "";
+  return nearestSectionHtml + relatedSectionHtml + placesHtml;
 }
 
 // A link to this place's own crawlable /find/<slug>/ page, when it has one (findSlug is set at

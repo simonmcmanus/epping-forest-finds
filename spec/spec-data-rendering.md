@@ -935,7 +935,10 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   rather than reporting a zero. A headed **Related** section (its own category/group, with the same
   counted line for each) follows, both rendered as the same
   `.nearest-item` card — see `spec-marketing.md` § 6.7, "Related-content links, both
-  server-rendered and live, as two headed sections". Neither section names a data source for its
+  server-rendered and live, as two headed sections". A `/find/` business also gets a headed
+  **Places close by** section (`nearbyPlacesSectionHtml`, js/inspector.js): up to six other
+  places with their own `/find/<slug>/` page within 1 km straight-line, nearest first, each a
+  `.nearest-item` link with its distance. Neither section names a data source for its
   distances (computed entirely from this site's own data, not fetched from anywhere). The
   nearest-tree and nearest-cow links both carry this place's own position via `/nearby/trees/`'s
   and `/nearby/cows/`'s own `near=<lat>,<lon>` anchor route, and every in-app link rendered into
