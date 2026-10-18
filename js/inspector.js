@@ -810,6 +810,8 @@ function applyScreenTransition(direction, onDone) {
 }
 
 function transitionInspectorBody(newHtml, direction, onDone) {
+  // Replacing the initial Nearby content invalidates its server-rendered stand-in.
+  _serverRenderedNearbyList = false;
   els.inspectorBody.innerHTML = newHtml;
   applyScreenTransition(direction, onDone);
 }
