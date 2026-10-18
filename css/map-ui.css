@@ -111,15 +111,17 @@ a.nearest-item {
   gap: 12px;
 }
 
+/* Wraps rather than truncating: a count sentence ("10 ponds & streams within 30 min walk of
+   Onestop...") is information the reader needs in full, and a short distance chip still sits on
+   one line because it never reaches the card's edge. */
 .nearest-meta {
   flex: 1;
   font-size: 0.82rem;
   font-weight: 600;
+  line-height: 1.35;
   color: #6b7b71;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .nearest-arrow {

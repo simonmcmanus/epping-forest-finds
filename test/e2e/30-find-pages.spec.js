@@ -299,7 +299,7 @@ test.describe("generated find/nearby pages", () => {
       // style -- not the separate top-row pill it used to be.
       const walkCard = body.locator("button.nearest-item[data-action='walk-radius']");
       await expect(walkCard).toHaveCount(1);
-      await expect(walkCard).toContainText(/\d+ locations within \d+ min walk of/);
+      await expect(walkCard).toContainText(/[\d,]+ locations within \d+ min walk of/);
       const nearbySection = body.locator('h3.detail-section-heading:has-text("Nearest") + ul');
       await expect(nearbySection.locator("button.nearest-item[data-action='walk-radius']")).toHaveCount(1);
     });

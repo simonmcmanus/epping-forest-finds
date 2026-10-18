@@ -1906,6 +1906,7 @@ test("nearbyCountCopy reads as a plain count from the place, in the reader's own
   assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 11 }, "The Foresters"), "No cows within 30 min walk of The Foresters. 11 further away.");
   assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 0 }, "The Foresters"), "No cows nearby.");
   assert.equal(app.nearbyCountCopy("cows", { within: 1, beyond: 0 }, "The Foresters"), "1 cow within 30 min walk of The Foresters.", "a single match drops the plural");
+  assert.equal(app.nearbyCountCopy("trees", { within: 3032, beyond: 21864 }, "Bald Faced Stag"), "3,032 trees within 30 min walk of Bald Faced Stag. 21,864 further away.", "large counts get thousands separators");
   app.state.walkingDistanceMinutes = saved;
 });
 
@@ -10717,7 +10718,7 @@ test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, the wa
   // reader's own GPS fix.
   assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
   assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
-  assert.match(html, /nearest-meta">(No |\d+ )[^<]*within \d+ min walk of/, "each category card says how many sit within the walking radius");
+  assert.match(html, /nearest-meta">(No |[\d,]+ )[^<]*within \d+ min walk of/, "each category card says how many sit within the walking radius");
 
   // The walk-radius card lives in this same Nearby section, as a <button> sharing the .nearest-item
   // card shape, between where it comes out of the Nearby heading and before Related begins.

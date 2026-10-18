@@ -930,7 +930,7 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   set, capped at six). Each card's line is a plain count from this place within the reader's walking
   radius: "43 trees within 30 min walk of The Foresters. 20 further away." or, with none close enough,
   "No cows within 30 min walk of The Foresters. 11 further away." (`nearbyCountCopy`,
-  `countNearbyEntries`, js/inspector.js). A cows card is held back until cow positions are loaded,
+  `countNearbyEntries`, js/inspector.js). Counts take thousands separators, and the line wraps inside the card rather than truncating. A cows card is held back until cow positions are loaded,
   rather than reporting a zero. A headed **Related** section (its own category/group, with the same
   counted line for each) follows, both rendered as the same
   `.nearest-item` card — see `spec-marketing.md` § 6.7, "Related-content links, both
