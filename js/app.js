@@ -4046,9 +4046,9 @@ function categoryLandingLinksHtml() {
   const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : FILTER_GROUPS_BY_KEY.get(key);
   if (!group) return "";
   const groupChip = subfilter
-    ? `<a class="detail-map-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
+    ? `<a class="detail-map-link nearby-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
     : "";
-  const allChip = `<a class="detail-map-link" href="/nearby?filters=false">${appIconHtml("nearby")}Everything nearby</a>`;
+  const allChip = `<a class="detail-map-link nearby-link" href="/nearby?filters=false">${appIconHtml("nearby")}Everything nearby</a>`;
 
   // A group page's own members -- cows is excluded the same way the static generator's own
   // page.members already is (live-tracked, no fixed count, no page built through the ordinary
@@ -4057,7 +4057,7 @@ function categoryLandingLinksHtml() {
   const typeChips = !subfilter
     ? group.subfilters
         .filter((s) => s.key !== "cows")
-        .map((s) => `<a class="detail-map-link" href="/nearby/${s.key.replace(/_/g, "-")}/">${appIconHtml(s.icon)}${escapeHtml(s.label)}</a>`)
+        .map((s) => `<a class="detail-map-link nearby-link" href="/nearby/${s.key.replace(/_/g, "-")}/">${appIconHtml(s.icon)}${escapeHtml(s.label)}</a>`)
         .join("")
     : "";
 
@@ -4069,10 +4069,10 @@ function categoryLandingLinksHtml() {
   const treesAlreadyLinked = key === "trees" || (!subfilter && group.key === "nature");
   const treesChip = treesAlreadyLinked || !treesSubfilter
     ? ""
-    : `<a class="detail-map-link" href="/nearby/trees/">${appIconHtml(treesSubfilter.icon)}${escapeHtml(treesSubfilter.label)}</a>`;
+    : `<a class="detail-map-link nearby-link" href="/nearby/trees/">${appIconHtml(treesSubfilter.icon)}${escapeHtml(treesSubfilter.label)}</a>`;
   const cowsChip = key === "cows" || !cowsSubfilter
     ? ""
-    : `<a class="detail-map-link" href="/nearby/cows/">${appIconHtml(cowsSubfilter.icon)}${escapeHtml(cowsSubfilter.label)}</a>`;
+    : `<a class="detail-map-link nearby-link" href="/nearby/cows/">${appIconHtml(cowsSubfilter.icon)}${escapeHtml(cowsSubfilter.label)}</a>`;
 
   return `<div class="detail-top-row related-chips">${groupChip}${allChip}${typeChips}${treesChip}${cowsChip}</div>`;
 }

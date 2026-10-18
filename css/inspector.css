@@ -986,6 +986,29 @@ button.settings-toggle.has-update::after {
   height: 18px;
 }
 
+/* Links that open a Nearby view (categoryLandingLinksHtml's chips, relatedCategoryLinksHtml's
+   cards) read as navigation into the map rather than as plain reference text: a forest-green
+   border and label, so they are told apart from the neutral pills and the inspector's own actions. */
+.detail-map-link.nearby-link {
+  border-color: var(--forest);
+  color: var(--tree);
+}
+
+.detail-map-link.nearby-link:hover {
+  background: #eef6f0;
+}
+
+.nearest-item.nearby-link .nearest-name {
+  color: var(--tree);
+}
+
+/* The category breadcrumb chips at the top of a /nearby/<slug> page (Food, Everything nearby,
+   Trees, Cows) carry icons twice the size of the inline app-icon used in running text. */
+.related-chips .app-icon {
+  width: 2em;
+  height: 2em;
+}
+
 .verified-note {
   margin: 10px 0 0;
   color: var(--muted);
