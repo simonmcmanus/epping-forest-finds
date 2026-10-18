@@ -644,6 +644,7 @@ function showNearbyLocatingState() {
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
+  if (typeof updateDocumentTitle === "function") updateDocumentTitle();
   if (findLandingAwaitingPlace()) return;
   // A landing's server-rendered list already shows the High Beach default it would otherwise
   // rebuild here (default location, no real fix yet), so keep it. Every early caller -- boot's own
@@ -664,7 +665,10 @@ function selectOverview(animate = false) {
   // longer centred on the real GPS fix -- showing the back arrow here, same as every other
   // screen, gives that moved view a visible, working way back (navigateBack() retraces the
   // anchor push from pushNearbyAnchorHistory, same as the browser's own back button).
-  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor), captureSnapshot: animate });
+  // The arrow is live whenever the browser back button has an app screen to return to, not only
+  // when a browse anchor was moved: a /nearby/<slug>/ link tapped from another landing is a
+  // Nearby-to-Nearby step with no anchor of its own, and it still has to be undoable here.
+  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor) || canGoBackInApp(), captureSnapshot: animate });
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
   const landingLabel = landingPageCategoryLabel();
@@ -825,6 +829,7 @@ function transitionInspectorBody(newHtml, direction, onDone) {
   // Replacing the initial Nearby content invalidates its server-rendered stand-in.
   _serverRenderedNearbyList = false;
   els.inspectorBody.innerHTML = newHtml;
+  if (typeof updateDocumentTitle === "function") updateDocumentTitle();
   applyScreenTransition(direction, onDone);
 }
 

@@ -121,6 +121,9 @@ test.describe("generated find/nearby pages", () => {
       // browser-default-styled <ul> that then visibly restyled itself the instant JS booted.
       expect(html).toContain('class="nearest-list"');
       expect(html).toContain(`class="nearest-item" href="/find/${EXAMPLE_PUB.slug}/"`);
+      expect(html).toContain('Browse nearby categories');
+      expect(html).toContain('class="detail-map-link nearby-link nearby-link--current" href="/nearby/pubs/" aria-current="page"');
+      expect(html).toContain('<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby</h3>');
       // Every category/subcategory page links onward to veteran trees and grazing cattle as
       // pills in the top chip row, the same up-link every /find/<slug>/ business page already
       // carries.
@@ -128,9 +131,9 @@ test.describe("generated find/nearby pages", () => {
       expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
     });
 
-    test("the trees category page links onward to the cows pill but never links to itself", async ({ request }) => {
+    test("the trees category page marks its current pill and links onward to cows", async ({ request }) => {
       const html = await (await request.get("/nearby/trees/")).text();
-      expect(html).not.toContain('href="/nearby/trees/"');
+      expect(html).toContain('class="detail-map-link nearby-link nearby-link--current" href="/nearby/trees/" aria-current="page"');
       expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
     });
 
@@ -248,6 +251,7 @@ test.describe("generated find/nearby pages", () => {
       expect(staticHtml).not.toMatch(/<p>Find all [\d,]+ pubs/);
       expect(staticHtml).not.toContain("Showing things near High Beach");
       expect(staticHtml).toContain('<h2 id="inspectorTitle">Nearby Pubs &amp; bars</h2>');
+      expect(staticHtml).toContain('<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby</h3>');
       expect(staticHtml).toMatch(/<img class="app-icon title-icon" src="data\/icons\/nearby\.png"/);
       const staticTypeMatch = staticHtml.match(/<p id="inspectorType" class="type">([^<]*)<\/p>/);
       expect(staticTypeMatch).not.toBeNull();
@@ -258,6 +262,7 @@ test.describe("generated find/nearby pages", () => {
 
       await gotoAndWaitForMap(page, "/nearby/pubs/");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await expect(page).toHaveTitle("Nearby Pubs & bars in Epping Forest | Epping Forest Finds");
       await expect(page.locator("#inspectorTitle")).toHaveText("Nearby Pubs & bars");
       await expect(page.locator("#inspectorType")).toHaveText(staticTypeMatch[1]);
       await expect(page.locator("#inspectorTitleEmoji img.title-icon")).toBeVisible();
@@ -402,6 +407,7 @@ test.describe("generated find/nearby pages", () => {
       const selected = await page.evaluate(() => ({ type: state.selected.type, findSlug: state.selected.item && state.selected.item.findSlug }));
       expect(selected.type).toBe("landmark");
       expect(selected.findSlug).toBe(EXAMPLE_PUB.slug);
+      await expect(page).toHaveTitle(`${EXAMPLE_PUB.name} near Epping Forest | Epping Forest Finds`);
       await expect(page.locator("#inspectorTitle")).toHaveText(EXAMPLE_PUB.name);
     });
 
@@ -540,7 +546,7 @@ test.describe("generated find/nearby pages", () => {
       expect(html).toContain('href="/nearby/food/"');
     });
 
-    test("once JS boots, /nearby/pubs/ still links up to /nearby/food/ and back to the full Nearby list", async ({ page }) => {
+    test("once JS boots, /nearby/pubs/ still labels the category navigation and links up to the full Nearby list", async ({ page }) => {
       // The live Nearby overview (selectOverview/overviewNearestHtml) replaces the static page's
       // whole #inspectorBody the moment JS boots -- it had no breadcrumb of its own, so these
       // links silently vanished the instant a real visitor's browser finished loading the page.
@@ -550,6 +556,9 @@ test.describe("generated find/nearby pages", () => {
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
 
       const body = page.locator("#inspectorBody");
+      await expect(body.getByText("Browse nearby categories")).toBeVisible();
+      await expect(body.locator('a[aria-current="page"][href="/nearby/pubs/"]')).toHaveCount(1);
+      await expect(body.getByRole("heading", { name: "Pubs & bars nearby" })).toBeVisible();
       await expect(body.locator('a.detail-map-link[href="/nearby/food/"]')).toHaveCount(1);
       await expect(body.locator('a.detail-map-link[href="/nearby?filters=false"]')).toHaveCount(1);
 
@@ -560,10 +569,11 @@ test.describe("generated find/nearby pages", () => {
       expect(markerSurvived).toBe("still-here");
     });
 
-    test("the /nearby/trees/ page's own breadcrumb has no group chip above it, and /nearby/cows/'s only ever has the full-list link", async ({ page }) => {
+    test("the /nearby/trees/ page marks its current category, and /nearby/cows/ does the same", async ({ page }) => {
       await skipOnboarding(page);
       await gotoAndWaitForMap(page, "/nearby/trees/");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await expect(page.locator('#inspectorBody a[aria-current="page"][href="/nearby/trees/"]')).toHaveCount(1);
       await expect(page.locator('#inspectorBody a.detail-map-link[href="/nearby?filters=false"]')).toHaveCount(1);
     });
   });

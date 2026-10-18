@@ -85,18 +85,18 @@ jobs:
 
   visual-snapshots:
     # The "snapshot: ..." tests only (see the `e2e` job above for everything else), as their
-    # own check so a pixel-diff shows up as "Visual snapshots (mobile)" rather than muddying
+    # own check so a pixel-diff shows up as "Visual snapshots (desktop + mobile)" rather than muddying
     # "E2E tests" -- the two have very different reliability characteristics and a failure in
-    # one says nothing about the other. Only the mobile project ever takes a screenshot (every
-    # toHaveScreenshot() spec is guarded by test.skip(testInfo.project.name !== 'mobile')), so
-    # there is nothing to run for desktop.
+    # one says nothing about the other. The public surfaces have desktop and mobile baselines;
+    # the existing app snapshots remain mobile-only except for the tree detail view, which now
+    # runs on both projects.
     #
     # --retries=1, unlike the e2e job's retries:0: canvas screenshot diffs here have repeatedly
     # proven non-deterministic on an otherwise-unchanged commit (see spec/agents.md), where the
     # e2e job's functional assertions have not. A retry absorbs that known noise instead of
     # requiring a human to notice and re-run CI by hand; a genuine visual regression still fails
     # twice and stays red.
-    name: Visual snapshots (mobile)
+    name: Visual snapshots (desktop + mobile)
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
@@ -118,13 +118,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Run visual snapshot tests
-        id: e2e
+      - name: Run visual snapshot tests (mobile)
+        id: mobile
         # continue-on-error so the commit step always runs even when baselines are missing.
         # Playwright's "missing" mode writes new baselines but still exits non-zero --
         # the explicit fail step below re-surfaces any genuine failures.
         run: >
           npx playwright test --project=mobile --grep "snapshot:"
+          --update-snapshots=missing --retries=1
+        continue-on-error: true
+      - name: Run visual snapshot tests (desktop)
+        id: desktop
+        run: >
+          npx playwright test --project=desktop --grep "snapshot:"
           --update-snapshots=missing --retries=1
         continue-on-error: true
       - name: Commit new snapshot baselines
@@ -158,9 +164,9 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report-visual-mobile
+          name: playwright-report-visual
           path: playwright-report/
           retention-days: 14
       - name: Fail if visual snapshot tests had failures
-        if: steps.e2e.outcome == 'failure'
+        if: steps.mobile.outcome == 'failure' || steps.desktop.outcome == 'failure'
         run: exit 1

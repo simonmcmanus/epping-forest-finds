@@ -339,6 +339,21 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator("#inspectorBack")).toBeDisabled();
     });
 
+    test("the back arrow is live on a plain Nearby screen once a step behind it, and returns to the previous page", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      await expect(page.locator("#inspectorBack")).toBeDisabled();
+
+      // A link tapped from one Nearby page to another is a Nearby-to-Nearby step with no browse
+      // anchor, so the arrow has to offer the way back rather than staying disabled.
+      await page.evaluate(() => navigateInApp("/nearby/nature/"));
+      await expect(page).toHaveURL(/\/nearby\/nature\//);
+      await expect(page.locator("#inspectorBack")).toBeEnabled();
+
+      await page.click("#inspectorBack");
+      await expect(page).toHaveURL(/\/nearby(\?|#|$|\/$)/);
+    });
+
     test("tapping open map ground while a tree is selected returns to nearby, focused on that spot", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
