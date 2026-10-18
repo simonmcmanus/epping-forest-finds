@@ -1205,7 +1205,7 @@ The location gate (`#locationGate`) must work fully offline:
 
 - **`css/tracking.css` is in `APP_SHELL`** — it styles `.privacy-note`, the one-line disclosure shown next to every "Enable location" button (the location gate and the onboarding location step). Losing it offline leaves the note unstyled but does not block the button.
 - **Location gate button gives immediate visual feedback** — the button is disabled as soon as it is tapped (preventing confusion from the geolocation or compass-permission async wait). `setLocationGateVisible(true, ...)` always re-enables the button so it is interactive again whenever the gate re-appears with a new message (error, compass prompt, etc.).
-- **Compass permission (iOS)** — `DeviceOrientationEvent.requestPermission()` is a device API that does not require internet. On failure or denial, `showCompassAccessPrompt()` re-shows the gate; the button is re-enabled by `setLocationGateVisible`.
+- **Compass permission (iOS)** — `DeviceOrientationEvent.requestPermission()` is a device API that does not require internet. On failure or denial, `showCompassAccessPrompt()` re-shows the gate; the button is re-enabled by `setLocationGateVisible`. Compass navigation is not requested while the map is using the default High Beach stand-in: visitors without a real location fix can browse the map and see the existing no-location notice without a blocking compass prompt. Navigation controls become active after a real location is shared.
 - **Geolocation** — GPS works without internet. The `locateUser` callback (success or error) triggers `setLocationGateVisible` which re-enables the gate button.
 
 ---
