@@ -550,6 +550,16 @@ test.describe("Map interaction", () => {
       });
     });
 
+    test("a selected veteran tree gets the same Nearest section a business gets, and a Related link to its own category", async ({ page }) => {
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
+      const body = page.locator("#inspectorBody");
+      await expect(body.locator('h3.detail-section-heading:has-text("Nearest")')).toHaveCount(1);
+      await expect(body.locator('h3.detail-section-heading:has-text("Related")')).toHaveCount(1);
+      await expect(body.locator('a.nearest-item[href^="/nearby/trees/"]').first()).toBeVisible();
+      await expect(body.locator("button.nearest-item[data-action='walk-radius']")).toHaveCount(1);
+    });
+
     test("a /nearby?filters=false link shows every category, ignoring the reader's saved filters", async ({ page }) => {
       await setup(page, "/nearby?filters=false");
       await expect.poll(() => page.evaluate(() => state.overviewFilters.includes("pubs") && state.overviewFilters.includes("national_rail"))).toBe(true);
