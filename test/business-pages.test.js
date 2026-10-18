@@ -116,8 +116,8 @@ test("renderBusinessPage's no-JS panel uses the live inspector's own classes, he
   assert.match(html, /<h2 id="inspectorTitle">The Forresters<\/h2>/);
   assert.match(html, /<p id="inspectorType" class="type">Pub<\/p>/);
   assert.match(html, /<span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true"><img class="app-icon"/);
-  assert.match(html, /<div class="detail-top-row"><a class="detail-map-link detail-map-link--icon"/);
-  assert.match(html, /<h3 class="detail-section-heading">Nearest<\/h3><ul class="nearest-list related-cards">/);
+  assert.match(html, /<div class="detail-top-row"><a class="detail-map-link" href="https:\/\/maps\.google\.com[^"]*"[^>]*>Open in Maps<\/a>/);
+  assert.match(html, /<h3 class="detail-section-heading">Nearby<\/h3><ul class="nearest-list related-cards">/);
   assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/trees\/#near=/);
   assert.match(html, /<h3 class="detail-section-heading">Related<\/h3>/);
   assert.ok(!html.includes("Epping Forest Finds</h2>"), "the generic app title is replaced on the business page");

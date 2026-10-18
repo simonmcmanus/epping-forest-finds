@@ -202,27 +202,30 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     `<li><a class="nearest-item nearby-link" href="${escapeHtml(href)}">` +
     `<span class="nearest-icon" aria-hidden="true">${icon}</span>` +
     `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div>` +
-    `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(copy)}</span></div></div></a></li>`;
+    (copy ? `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(copy)}</span></div>` : "") +
+    `</div></a></li>`;
 
+  // Names only, as the live cards read once they are walk-timed: the static page has no walk time or
+  // count to add, so no footer sentence either.
   const treesSub = rulesSubfilter("trees");
   const cowsSub = rulesSubfilter("cows");
   const nearestHtml =
-    `<h3 class="detail-section-heading">Nearest</h3><ul class="nearest-list related-cards">` +
-    (treesSub ? cardHtml(`/nearby/trees/${anchorHash}`, iconFor(treesSub.icon), treesSub.label, `Veteran trees near ${entry.name}`) : "") +
-    (cowsSub ? cardHtml(`/nearby/cows/${anchorHash}`, iconFor(cowsSub.icon), cowsSub.label, `Grazing cattle near ${entry.name}`) : "") +
-    cardHtml(`/nearby/${anchorHash}`, iconFor("walking"), "Everything", `Everything within walking distance of ${entry.name}`) +
+    `<h3 class="detail-section-heading">Nearby</h3><ul class="nearest-list related-cards">` +
+    (treesSub ? cardHtml(`/nearby/trees/${anchorHash}`, iconFor(treesSub.icon), "Nearest veteran tree", "") : "") +
+    (cowsSub ? cardHtml(`/nearby/cows/${anchorHash}`, iconFor(cowsSub.icon), "The grazing cattle", "") : "") +
+    cardHtml(`/nearby/${anchorHash}`, iconFor("walking"), "Everything nearby", "") +
     `</ul>`;
 
   const relatedHtml = subfilter && group
     ? `<h3 class="detail-section-heading">Related</h3><ul class="nearest-list related-cards">` +
-      cardHtml(`/nearby/${subfilterSlug}/`, iconFor(subfilter.icon), subfilter.label, `Browse ${subfilter.label.toLowerCase()} near Epping Forest`) +
-      cardHtml(`/nearby/${groupSlug}/`, iconFor(group.icon), group.label, `Browse ${group.label.toLowerCase()} near Epping Forest`) +
+      cardHtml(`/nearby/${subfilterSlug}/`, iconFor(subfilter.icon), subfilter.label, "") +
+      cardHtml(`/nearby/${groupSlug}/`, iconFor(group.icon), group.label, "") +
       `</ul>`
     : "";
 
   const nearby = nearestBusinesses(entry, index).filter((n) => n.metres <= 1000);
   const nearbyHtml = nearby.length
-    ? `<h3 class="detail-section-heading">Nearby places</h3><ul class="nearest-list related-cards">${nearby
+    ? `<h3 class="detail-section-heading">Places close by</h3><ul class="nearest-list related-cards">${nearby
         .map((n) => {
           const sub = rulesSubfilter(n.key);
           return cardHtml(`/find/${n.slug}/`, sub ? iconFor(sub.icon) : "", n.name, `${formatMetres(n.metres)} away`);
@@ -231,12 +234,13 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     : "";
 
   const mapsHtml = entry.lat != null && entry.lon != null
-    ? `<a class="detail-map-link detail-map-link--icon" href="https://maps.google.com/?q=${entry.lat.toFixed(6)},${entry.lon.toFixed(6)}" target="_blank" rel="noreferrer" aria-label="Open in Maps" title="Open in Maps"><svg class="detail-map-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></a>`
+    ? `<a class="detail-map-link" href="https://maps.google.com/?q=${entry.lat.toFixed(6)},${entry.lon.toFixed(6)}" target="_blank" rel="noreferrer">Open in Maps</a>`
     : "";
 
+  // The live panel shows no intro paragraph: the description sits in the page's meta tags, and the
+  // visible body is the place's own details and its sections.
   const seoContent =
     (mapsHtml ? `<div class="detail-top-row">${mapsHtml}</div>` : "") +
-    `<p class="details-description">${escapeHtml(description)}</p>` +
     summaryHtml +
     (detailRowsHtml ? `<dl>${detailRowsHtml}</dl>` : "") +
     nearestHtml +
