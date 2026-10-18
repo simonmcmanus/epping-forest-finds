@@ -332,13 +332,16 @@ test.describe("generated find/nearby pages", () => {
         latitude: Number(state.selected.item.latitude.toFixed(6)),
         longitude: Number(state.selected.item.longitude.toFixed(6)),
       }));
+      const placeName = await page.evaluate(() => state.selected.item.name);
       const treesLink = page.locator('#inspectorBody a.nearest-item[href^="/nearby/trees/"]');
       await expect(treesLink).toHaveCount(1);
       const href = await treesLink.getAttribute("href");
-      expect(href).toBe(`/nearby/trees/#near=${placeCoords.latitude}%2C${placeCoords.longitude}`);
+      // The place's name rides along as label=, so the target can say whose spot it is showing.
+      const expectedHash = new URLSearchParams({ near: `${placeCoords.latitude},${placeCoords.longitude}`, label: placeName }).toString();
+      expect(href).toBe(`/nearby/trees/#${expectedHash}`);
 
       await treesLink.click();
-      await expect(page).toHaveURL(new RegExp(`/nearby/trees/#near=${placeCoords.latitude}%2C${placeCoords.longitude}$`));
+      await expect(page).toHaveURL(new RegExp(`/nearby/trees/#near=${placeCoords.latitude}%2C${placeCoords.longitude}`));
       const anchor = await page.evaluate(() => ({
         latitude: state.nearbyAnchor && Number(state.nearbyAnchor.latitude.toFixed(6)),
         longitude: state.nearbyAnchor && Number(state.nearbyAnchor.longitude.toFixed(6)),
@@ -356,13 +359,16 @@ test.describe("generated find/nearby pages", () => {
         latitude: Number(state.selected.item.latitude.toFixed(6)),
         longitude: Number(state.selected.item.longitude.toFixed(6)),
       }));
+      const placeName = await page.evaluate(() => state.selected.item.name);
       const cowsLink = page.locator('#inspectorBody a.nearest-item[href^="/nearby/cows/"]');
       await expect(cowsLink).toHaveCount(1);
       const href = await cowsLink.getAttribute("href");
-      expect(href).toBe(`/nearby/cows/#near=${placeCoords.latitude}%2C${placeCoords.longitude}`);
+      // The place's name rides along as label=, so the target can say whose spot it is showing.
+      const expectedHash = new URLSearchParams({ near: `${placeCoords.latitude},${placeCoords.longitude}`, label: placeName }).toString();
+      expect(href).toBe(`/nearby/cows/#${expectedHash}`);
 
       await cowsLink.click();
-      await expect(page).toHaveURL(new RegExp(`/nearby/cows/#near=${placeCoords.latitude}%2C${placeCoords.longitude}$`));
+      await expect(page).toHaveURL(new RegExp(`/nearby/cows/#near=${placeCoords.latitude}%2C${placeCoords.longitude}`));
       const anchor = await page.evaluate(() => ({
         latitude: state.nearbyAnchor && Number(state.nearbyAnchor.latitude.toFixed(6)),
         longitude: state.nearbyAnchor && Number(state.nearbyAnchor.longitude.toFixed(6)),
