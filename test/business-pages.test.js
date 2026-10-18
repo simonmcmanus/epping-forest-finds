@@ -116,7 +116,7 @@ test("renderBusinessPage's no-JS panel uses the live inspector's own classes, he
   assert.match(html, /<h2 id="inspectorTitle">The Forresters<\/h2>/);
   assert.match(html, /<p id="inspectorType" class="type">Pub<\/p>/);
   assert.match(html, /<span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true"><img class="app-icon"/);
-  assert.match(html, /<div class="detail-top-row"><a class="detail-map-link detail-map-link--icon" href="https:\/\/maps\.google\.com[^"]*"[^>]*aria-label="Open in Maps"/);
+  assert.match(html, /<div class="detail-top-row"><span class="detail-top-actions"><a class="detail-map-link detail-map-link--icon" href="https:\/\/maps\.google\.com[^"]*"[^>]*aria-label="Open in Maps"/);
   assert.match(html, /<button class="detail-map-link detail-map-link--icon" type="button" data-action="share-location" aria-label="Share link"/);
   assert.match(html, /<h3 class="detail-section-heading">Nearby<\/h3><ul class="nearest-list related-cards">/);
   assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/trees\/#near=/);

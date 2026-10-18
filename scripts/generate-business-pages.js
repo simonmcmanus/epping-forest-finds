@@ -247,7 +247,7 @@ function renderBusinessPage(entry, appHtml, rules, index) {
   const seoContent =
     // The live top row's Share button needs JS, so on first render it is inert until the live panel
     // boots. The walking-time pill needs the reader's own position, so it appears only with JS too.
-    (mapsHtml ? `<div class="detail-top-row">${mapsHtml}<button class="detail-map-link detail-map-link--icon" type="button" data-action="share-location" aria-label="Share link" title="Share link">${SHARE_ICON_SVG}</button></div>` : "") +
+    (mapsHtml ? `<div class="detail-top-row"><span class="detail-top-actions">${mapsHtml}<button class="detail-map-link detail-map-link--icon" type="button" data-action="share-location" aria-label="Share link" title="Share link">${SHARE_ICON_SVG}</button></span></div>` : "") +
     summaryHtml +
     (detailRowsHtml ? `<dl>${detailRowsHtml}</dl>` : "") +
     nearestHtml +

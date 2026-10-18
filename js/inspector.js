@@ -399,11 +399,14 @@ function showLandmarkDetails(place, distance) {
         ["Website", place.website],
         ["Phone", place.phone],
       ];
-  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
+  // Always present, even before a distance is known, so the walking pill can grow into its own slot
+  // once the location arrives (updateSelectedDetailFields, js/app.js) without moving the actions beside it.
+  const distancePill = `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>`;
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
   const fullDetailsLink = fullDetailsLinkHtml(place.findSlug);
-  const topRow = (distancePill || mapsLink || shareBtn || fullDetailsLink) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}${fullDetailsLink}</div>` : "";
+  const actionsHtml = `<span class="detail-top-actions">${mapsLink}${shareBtn}${fullDetailsLink}</span>`;
+  const topRow = `<div class="detail-top-row">${distancePill}${actionsHtml}</div>`;
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const ledgerHtml = ledgerMentionHtml(place);
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";

@@ -963,6 +963,7 @@ Tapping a street on the map opens the same navigation view a highlighted locatio
 bare records list:
 
 - Road type, name, reference, highway tag
+- The top row's Open in Maps and Share buttons sit as one group at the right (`.detail-top-actions`, `margin-left: auto`), and the walking pill has its own slot on the left, always present (`data-live-field="distance"`, even before a fix). When the first walking figure arrives it opens out from nothing and the walker steps in (`.walk-chip--enter`, `css/inspector.css`); later updates do not replay it, and reduced-motion users get none of it. The actions never move when the pill renders.
 - Live distance + walking time chip (`.detail-top-row`, the same `data-live-field="distance"`
   element the other navigable selections use)
 - A street has no single position of its own, so `selectedCompassTarget()` (js/app.js) resolves

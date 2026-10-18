@@ -966,6 +966,43 @@ button.settings-toggle.has-update::after {
   height: 18px;
 }
 
+/* Map and share actions sit together at the right of the top row, so the walking pill on the left
+   can grow in (below) without moving them. */
+.detail-top-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* The walking pill, once its figure arrives: it opens out from nothing, and the walker steps in
+   beside the distance. Only on the first figure, so later live updates never replay it. */
+.walk-chip--enter {
+  overflow: hidden;
+  animation: walk-chip-expand 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.walk-chip--enter .walk-icon {
+  animation: walk-chip-stride 600ms ease-out 180ms both;
+}
+
+@keyframes walk-chip-expand {
+  from { max-width: 0; padding-left: 0; padding-right: 0; opacity: 0; }
+  to { max-width: 260px; opacity: 1; }
+}
+
+@keyframes walk-chip-stride {
+  from { transform: translateX(-10px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walk-chip--enter,
+  .walk-chip--enter .walk-icon {
+    animation: none;
+  }
+}
+
 /* Links that open a Nearby view (categoryLandingLinksHtml's chips, relatedCategoryLinksHtml's
    cards) read as navigation into the map rather than as plain reference text: a forest-green
    border and label, so they are told apart from the neutral pills and the inspector's own actions. */

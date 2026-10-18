@@ -8929,7 +8929,12 @@ function updateSelectedDetailFields() {
   const routedMetres = selectedRouteMetres(item);
   const metres = routedMetres != null ? routedMetres : distanceFromUser(item);
   const distancePill = els.inspectorBody && els.inspectorBody.querySelector('[data-live-field="distance"]');
-  if (distancePill) distancePill.innerHTML = walkInfoExpandableHtml(metres);
+  if (distancePill) {
+    // The first walking figure grows into its slot rather than appearing all at once.
+    const isFirstFigure = !distancePill.querySelector(".walk-chip");
+    distancePill.innerHTML = walkInfoExpandableHtml(metres);
+    if (isFirstFigure) distancePill.querySelector(".walk-chip")?.classList.add("walk-chip--enter");
+  }
   updateCowTimeAgoField();
 }
 
