@@ -785,7 +785,7 @@ function setupSearchAndNavHandlers() {
       const lat = Number(walkRadiusBtn.dataset.lat);
       const lon = Number(walkRadiusBtn.dataset.lon);
       if (Number.isFinite(lat) && Number.isFinite(lon)) {
-        focusNearbyWithinWalkMinutes(lat, lon, WALK_RADIUS_BUTTON_MINUTES);
+        focusNearbyWithinWalkMinutes(lat, lon, state.walkingDistanceMinutes, walkRadiusBtn.dataset.name || null);
       }
       return;
     }
@@ -959,9 +959,9 @@ function syncSettingsWalkSlider() {
 // *origin* rather than the camera (startNearbyOriginTransition, index.html), which keeps the
 // walking-radius circle still on screen and moves the map behind it -- so the camera itself is
 // re-derived per frame from the interpolated origin and must not also be animated here.
-function setNearbyAnchor(latitude, longitude, point) {
+function setNearbyAnchor(latitude, longitude, point, label = null) {
   startNearbyOriginTransition(nearbyRenderOriginPoint());
-  state.nearbyAnchor = { latitude, longitude, point };
+  state.nearbyAnchor = { latitude, longitude, point, label };
   // Same reasoning as applyWalkingRadiusChange: moving the browse point is the user choosing
   // what the camera should be looking at.
   state.outOfRadiusRevealFilters = [];
@@ -974,13 +974,17 @@ function setNearbyAnchor(latitude, longitude, point) {
 // change into one state update and one refresh/history push, the same way
 // focusNearbyOnClusterGroup folds an anchor move and a radius change together for a cluster tap,
 // rather than calling each of those two functions in turn and refreshing twice.
-function focusNearbyWithinWalkMinutes(latitude, longitude, minutes) {
+function focusNearbyWithinWalkMinutes(latitude, longitude, minutes, label = null) {
   state.selected = null;
   setInspectorMinimized(false);
   startNearbyOriginTransition(nearbyRenderOriginPoint());
-  state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude) };
+  state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude), label };
   state.walkingDistanceMinutes = minutes;
   state.outOfRadiusRevealFilters = [];
+  // "Everything" means every category, not the reader's saved filter set -- same override the
+  // /nearby?filters=false link gets (applyShowFilterFromQuery, js/app.js). Ephemeral, so the
+  // saved filters come back as soon as the reader leaves this view.
+  setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render: false });
   exitClusterExpansion({ restoreRadius: false });
   refreshNearbyRadiusView({ animate: false });
   pushNearbyAnchorHistory();
@@ -995,7 +999,7 @@ function focusNearbyWithinWalkMinutes(latitude, longitude, minutes) {
 function applyNearbyAnchorFromRoute(anchor) {
   state.selected = null;
   setInspectorMinimized(false);
-  setNearbyAnchor(anchor.latitude, anchor.longitude, projectLonLat(anchor.longitude, anchor.latitude));
+  setNearbyAnchor(anchor.latitude, anchor.longitude, projectLonLat(anchor.longitude, anchor.latitude), anchor.label || null);
 }
 
 // The counterpart to pushNearbyAnchorHistory (js/app.js), run on every popstate before the URL
@@ -1206,6 +1210,14 @@ function updateNearbyAnchorBar() {
   const bar = els.nearbyAnchorBar;
   if (!bar) return;
   bar.hidden = !(state.nearbyAnchor && !hasRealSelection());
+  // Names the spot when the browse point came from a place (its own inspector's walk card or a
+  // related link), so the reader sees whose neighbourhood they are looking at; a bare map tap
+  // keeps the generic wording.
+  const text = bar.querySelector(".nearby-anchor-bar-text");
+  if (text) {
+    const label = state.nearbyAnchor && state.nearbyAnchor.label;
+    text.textContent = label ? `Showing places near ${label}` : "Showing places near where you tapped";
+  }
 }
 
 // The Nearby view's "nearest area" is the walking-radius ring drawn around nearbyOrigin().

@@ -1,6 +1,19 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, tapCanvasPoint, FIXTURE_TREE } = require("./helpers");
+const { setup, tapCanvasPoint, FIXTURE_TREE, skipOnboarding, mockCowApi, denyGeolocationUnlessGranted } = require("./helpers");
+
+// Lands on a linked Nearby URL and waits until the app has booted AND applied the link's own
+// browse anchor, rather than trusting setup()'s overlay check: on a direct #near= load the
+// overlay can read as hidden before app.js has defined `state`, so setup()'s first evaluate hit
+// "state is not defined" on CI's 2-vCPU runners. Use /nearby, not a /nearby/<slug>/ page: those
+// are gitignored build output that only 30-find-pages generates, so a cold load 404s here.
+async function gotoLinkedNearby(page, path) {
+  await skipOnboarding(page);
+  await mockCowApi(page);
+  await denyGeolocationUnlessGranted(page);
+  await page.goto(path);
+  await page.waitForFunction(() => typeof state !== "undefined" && state.nearbyAnchor != null, null, { timeout: 30_000 });
+}
 
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -496,13 +509,14 @@ test.describe("Map interaction", () => {
       expect(anchor, "the browse anchor is cleared once a real selection is made").toBeNull();
     });
 
-    test("a selected place's \"Everything within 15 min walk\" button drops the selection and browses the Nearby list from its own spot at a 15-minute radius", async ({ page }) => {
+    test("a selected place's \"Everything within N min walk\" button drops the selection and browses the Nearby list from its own spot at the reader's own walking radius, showing every category", async ({ page }) => {
       await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
       const treeCoords = await page.evaluate(() => ({
         latitude: state.selected.item.latitude,
         longitude: state.selected.item.longitude,
       }));
+      const radiusBefore = await page.evaluate(() => state.walkingDistanceMinutes);
 
       await page.locator("#inspectorBody [data-action='walk-radius']").click();
 
@@ -514,7 +528,31 @@ test.describe("Map interaction", () => {
       }));
       expect(after.anchorLatitude).toBeCloseTo(treeCoords.latitude, 6);
       expect(after.anchorLongitude).toBeCloseTo(treeCoords.longitude, 6);
-      expect(after.minutes).toBe(15);
+      expect(after.minutes).toBe(radiusBefore);
+      const everything = await page.evaluate(() => state.overviewFilters.includes("pubs") && state.overviewFilters.includes("national_rail"));
+      expect(everything, "Everything ignores the saved filters").toBe(true);
+    });
+
+    test("a related link to a place's nearby view opens on that place's spot, not the reader's own location, and names it", async ({ page }) => {
+      await gotoLinkedNearby(page, "/nearby#near=51.650000,0.050000&label=The%20Foresters");
+      await expect.poll(() => page.evaluate(() => state.nearbyAnchor && state.nearbyAnchor.latitude)).toBeCloseTo(51.65, 5);
+      await expect(page.locator(".nearby-anchor-bar-text")).toHaveText("Showing places near The Foresters");
+    });
+
+    test.describe("with a real GPS fix elsewhere", () => {
+      test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+      test("a related link keeps its place's spot rather than the reader's own location, and names it", async ({ page }) => {
+        await gotoLinkedNearby(page, "/nearby#near=51.650000,0.050000&label=The%20Foresters");
+        await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.latitude)).toBeCloseTo(51.665, 3);
+        await expect.poll(() => page.evaluate(() => state.nearbyAnchor && state.nearbyAnchor.latitude)).toBeCloseTo(51.65, 5);
+        await expect(page.locator(".nearby-anchor-bar-text")).toHaveText("Showing places near The Foresters");
+      });
+    });
+
+    test("a /nearby?filters=false link shows every category, ignoring the reader's saved filters", async ({ page }) => {
+      await setup(page, "/nearby?filters=false");
+      await expect.poll(() => page.evaluate(() => state.overviewFilters.includes("pubs") && state.overviewFilters.includes("national_rail"))).toBe(true);
     });
   });
 

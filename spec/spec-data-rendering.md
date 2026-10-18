@@ -775,7 +775,9 @@ moving the real GPS fix:
   GPS fix instead left the ring centred on the browsed spot while the matches inside it came
   from wherever the user was actually standing.
 - **Returning to the real location:** while a browse anchor is set, `#nearbyAnchorBar` shows a
-  "Showing places near where you tapped" notice with a **Use my location**
+  "Showing places near where you tapped" notice (or "Showing places near <place name>" when the
+  browse point came from a place's own inspector, carried as the anchor's `label`, which also rides
+  along in a related link's `near=` route as `label=`) with a **Use my location**
   (`data-action="reset-nearby-anchor"`) button that clears `state.nearbyAnchor`
   (`clearNearbyAnchor`) and re-renders/re-fits back to the real GPS fix. The bar is an inset
   card in the brand greens that fades in when a browse anchor is set (no animation under
@@ -869,8 +871,8 @@ The figure itself is the real road/path-following distance (and the walk time de
 
 The inspector's top row offers **Open in Maps** and **Share link** as icon-only controls (`openInMapsHtml`, `shareLocationHtml`, js/inspector.js): a map-pin and a share glyph, inline SVG, in square 30px buttons with the same 5px corner radius as the walking-distance chip beside them, with `aria-label` and `title` carrying the accessible name, so no visible text is needed. They share the `.detail-map-link--icon` modifier (css/inspector.css).
 
-Any selected point (tree, place, cow) with coordinates also shows an **"Everything within 15 min
-walk"** card (`nearbyWithinWalkHtml`, js/inspector.js) under a "Nearby" heading, not in
+Any selected point (tree, place, cow) with coordinates also shows an **"Everything within N min
+walk"** card, N being the reader's own walking radius (default when unset) (`nearbyWithinWalkHtml`, js/inspector.js) under a "Nearby" heading, not in
 `.detail-top-row` alongside Open in Maps/Share: it shares the Nearby list's own `.nearest-item`
 card styling (a `<button>`, since it drives a live state change rather than a navigation) instead
 of the unrelated `.detail-map-link` pill those use. A findSlug place's own "Nearby" section
@@ -880,10 +882,9 @@ tree, every cow, and a non-findSlug landmark) gets a standalone one-card "Nearby
 own (`standaloneNearbySectionHtml`). It reuses the existing Nearby-browsing mechanism rather than
 inventing a new one: tapping it drops the selection, moves the Nearby browse anchor to that exact
 point (`setNearbyAnchor`'s own mechanism -- the same one a tap on open ground or a shared
-`near=<lat>,<lon>` link already use) and sets the walking radius to a fixed 15 minutes
-(`WALK_RADIUS_BUTTON_MINUTES`, js/app.js) -- a round, recognisable number rather than whatever the
-reader's own radius happened to be set to. Both are applied as one state update and one
-refresh/history push (`focusNearbyWithinWalkMinutes`, js/nav.js), the same way a cluster tap folds
+`near=<lat>,<lon>` link already use), keeps the reader's own walking radius, and shows every category
+rather than the saved filter set (the same override `/nearby?filters=false` gives, below). All are
+applied as one state update and one refresh/history push (`focusNearbyWithinWalkMinutes`, js/nav.js), the same way a cluster tap folds
 an anchor move and a radius change together, rather than calling `setNearbyAnchor` and
 `applyWalkingRadiusChange` in turn and refreshing twice. The real GPS fix (`state.userLocation`)
 is never moved by this -- only the browse anchor, exactly as any other anchor move works.
@@ -922,8 +923,9 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   already-there check made it a no-op).
 - Opening hours (when known) and a `tel:`-linked phone number — see `spec-marketing.md` § 6.7,
   "Opening hours and a tappable phone number are not static-page-only".
-- A `findSlug` place also shows a headed **Nearby** section (the nearest tree and, when loaded,
-  the cows) and a headed **Related** section (its own category/group), both rendered as the same
+- A `findSlug` place also shows a headed **Nearby** section (one nearest-match card per category
+  the reader has chosen -- `nearbyCardFilterKeys()`, js/inspector.js -- falling back to trees and
+  cows when none are set, capped at six) and a headed **Related** section (its own category/group), both rendered as the same
   `.nearest-item` card — see `spec-marketing.md` § 6.7, "Related-content links, both
   server-rendered and live, as two headed sections". Neither section names a data source for its
   distances (computed entirely from this site's own data, not fetched from anywhere). The
