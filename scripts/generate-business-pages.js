@@ -241,7 +241,10 @@ function renderBusinessPage(entry, appHtml, rules, index) {
   // The live panel shows no intro paragraph: the description sits in the page's meta tags, and the
   // visible body is the place's own details and its sections.
   const seoContent =
-    (mapsHtml ? `<div class="detail-top-row">${mapsHtml}</div>` : "") +
+    // The live top row's Share link is a button that needs JS, so on first render it is only the same
+    // pill; it works once the live panel boots. The walking-time pill needs the reader's own position,
+    // so it appears only with JS too.
+    (mapsHtml ? `<div class="detail-top-row">${mapsHtml}<button class="detail-map-link" type="button" data-action="share-location">Share link</button></div>` : "") +
     summaryHtml +
     (detailRowsHtml ? `<dl>${detailRowsHtml}</dl>` : "") +
     nearestHtml +
