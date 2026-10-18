@@ -6916,7 +6916,12 @@ function ensureUserAndSelectionVisible(options = {}) {
   // No shared location: there is no origin to fit the selection against, so the view simply centres
   // on the selected place (no route, no walking distance, no direction arrow).
   if (!hasRealLocation()) {
-    if (target.point) centerViewportOnPointsKeepScale([target.point], options);
+    if (target.point) {
+      // Never open deeper than the forest-wide base: keeping whatever scale the camera had (at boot,
+      // the deepest zoom) left the place alone in an empty, over-zoomed view.
+      if (state.baseFitScale > 0 && state.viewport.scale > state.baseFitScale) state.viewport.scale = state.baseFitScale;
+      centerViewportOnPointsKeepScale([target.point], options);
+    }
     return;
   }
   if (!state.userLocation) return;
