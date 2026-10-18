@@ -11,12 +11,15 @@ test.describe("Loading experience", () => {
   test("shows the loading overlay at startup before interactive data arrives", async ({ page }) => {
     // Places are part of the interactive bootstrap. Trees deliberately are not: they continue
     // loading after the map is usable, so delaying them must not keep this overlay visible.
+    let releasePlaces;
+    const placesReleased = new Promise((resolve) => { releasePlaces = resolve; });
     await page.route("**/data/local-landmarks-food.geojson", async (route) => {
-      await new Promise((r) => setTimeout(r, 1_500));
+      await placesReleased;
       await route.continue();
     });
     await page.goto("/nearby");
     await expect(page.locator("#loadingOverlay")).toBeVisible();
+    releasePlaces();
   });
 
   test("overlay shows a version badge element", async ({ page }) => {
@@ -61,8 +64,11 @@ test.describe("Loading experience", () => {
   });
 
   test("opens Filters and its pubs option while tree chunks are still downloading", async ({ page }) => {
+    // Hold the tree chunks until the assertions below have run, rather than for a fixed time.
+    let releaseTrees;
+    const treesReleased = new Promise((resolve) => { releaseTrees = resolve; });
     await page.route("**/data/trees/chunk-*.json", async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 8_000));
+      await treesReleased;
       await route.continue();
     });
     await page.goto("/app#filters");
@@ -71,6 +77,7 @@ test.describe("Loading experience", () => {
     await expect(page.locator("#inspectorTitle")).toHaveText("Filters");
     await expect(page.locator("#inspectorBody")).toContainText("Pubs & bars");
     await expect(page.locator('[data-load-step="trees"]')).toHaveClass(/loading/);
+    releaseTrees();
   });
 
   test("cows step completes with fixture data count", async ({ page }) => {
