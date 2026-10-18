@@ -1082,8 +1082,11 @@ function isNearbyCategoryLandingPath() {
 // routeValueFromLocation's own findMatch makes) and falls through to the ordinary first-run check.
 function isLandingPageArrival() {
   const findMatch = /^\/find\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const hasSelectionHash = SELECTION_ROUTES.some((route) => hashParams.has(route.param));
   return filterKeysFromFindPath(window.location.pathname).length > 0
     || filterKeysFromQuery(window.location.search).length > 0
+    || hasSelectionHash
     || (findMatch != null && findMatch[1] !== "events");
 }
 
@@ -1443,7 +1446,8 @@ async function boot() {
 
   if (!hasCompletedOnboarding() && !isLandingPageArrival()) {
     // First visit to the plain Nearby screen: show onboarding while data loads behind it.
-    // A landing-page arrival (/nearby/<slug>, or a first-touch ?show= link) skips this --
+    // A landing-page arrival (/nearby/<slug>, a first-touch ?show= link, or a selection hash)
+    // skips this --
     // see isLandingPageArrival() -- and is treated like a returning visit below instead, so
     // the setup wizard is saved for whenever this reader first reaches plain Nearby itself.
     // The location request is fired from within the onboarding tap handler so the
