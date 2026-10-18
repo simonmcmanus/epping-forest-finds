@@ -189,6 +189,48 @@ test.describe("generated find/nearby pages", () => {
       await expect(body.locator('a.detail-map-link[href="/nearby/ponds-streams/"]')).toHaveCount(1);
     });
 
+    test("/nearby/pubs/ never slides its server-rendered list in from the side while booting without a location fix", async ({ page }) => {
+      // Recorded from before any script runs, so a slide-in during boot cannot be missed. The
+      // entrance is the `entering` class triggerInspectorEntry() (js/app.js) puts on #inspector.
+      await page.addInitScript(() => {
+        window.__inspectorEntrances = 0;
+        new MutationObserver((records) => {
+          for (const record of records) {
+            if (record.target.id === "inspector" && record.target.classList.contains("entering")) window.__inspectorEntrances += 1;
+          }
+        }).observe(document, { subtree: true, attributes: true, attributeFilter: ["class"] });
+      });
+      await gotoAndWaitForMap(page, "/nearby/pubs/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.isDefault === true)).toBe(true);
+      expect(await page.evaluate(() => window.__inspectorEntrances)).toBe(0);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+    });
+
+    test("asking for location from a /nearby/<slug>/ landing replaces the list with a requesting state", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/pubs/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      // A request that never answers, so the requesting state stays on screen to be asserted.
+      await page.evaluate(() => {
+        navigator.geolocation.getCurrentPosition = () => {};
+        locateUser({ initial: false });
+      });
+      await expect(page.locator("#inspectorBody .nearby-locating")).toContainText("Requesting your location");
+      await expect(page.locator("#inspectorBody .nearest-item")).toHaveCount(0);
+    });
+
+    test("refusing location on a /nearby/<slug>/ landing restores the default High Beach list", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/pubs/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await page.evaluate(() => {
+        navigator.geolocation.getCurrentPosition = (_ok, error) => error({ code: 1, message: "User denied" });
+        locateUser({ initial: false });
+      });
+      await expect(page.locator("#inspectorBody .nearby-locating")).toHaveCount(0);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      expect(await page.evaluate(() => state.userLocation && state.userLocation.isDefault === true)).toBe(true);
+    });
+
     test("/nearby/events/ boots pre-filtered to Events, the same way every other /nearby/<slug> page does", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/events/");
       await expect.poll(() => page.evaluate(() => isSubfilterActive("events"))).toBe(true);

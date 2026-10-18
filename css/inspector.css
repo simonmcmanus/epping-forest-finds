@@ -39,6 +39,38 @@
   }
 }
 
+/* The Nearby list's own "requesting your location" state (showNearbyLocatingState, js/inspector.js):
+   replaces the list while a reader's location request is pending. The ring reuses step-spin from
+   css/loading.css, the same turn the boot checklist's loading step uses. */
+.nearby-locating {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 16px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.nearby-locating p {
+  margin: 0;
+}
+
+.nearby-locating-spinner {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(47, 111, 78, 0.18);
+  border-top-color: rgba(47, 111, 78, 0.9);
+  animation: step-spin 1.1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nearby-locating-spinner {
+    animation-duration: 3.3s;
+  }
+}
+
 .inspector-drag-handle {
   display: none;
   position: absolute;
