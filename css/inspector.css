@@ -1056,18 +1056,54 @@ button.settings-toggle.has-update::after {
   color: var(--tree);
 }
 
-/* The category breadcrumb chips at the top of a /nearby/<slug> page (Food, Everything nearby,
-   Trees, Cows) carry icons twice the size of the inline app-icon used in running text. */
+/* The category navigation chips at the top of a /nearby/<slug> page carry icons twice the size
+   of the inline app-icon used in running text. */
 .related-chips .app-icon {
   width: 2em;
   height: 2em;
 }
 
-/* Room for those larger icons: taller chips with more padding and a gap, so they don't look squashed. */
+/* Room for those larger icons without making the navigation feel heavier than the results below. */
 .related-chips .detail-map-link {
   min-height: 44px;
-  padding: 6px 16px;
-  gap: 8px;
+  padding: 4px 14px;
+  gap: 7px;
+}
+
+.nearby-category-nav {
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.nearby-category-nav-title {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.nearby-category-nav .detail-top-row {
+  margin-bottom: 0;
+}
+
+.detail-map-link.nearby-link--current {
+  border-color: var(--tree);
+  background: var(--tree);
+  color: #fff;
+}
+
+.detail-map-link.nearby-link--current:hover {
+  background: #245d3e;
+  border-color: #245d3e;
+}
+
+.nearby-category-results h3 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: 1.08rem;
+  line-height: 1.2;
 }
 
 .verified-note {

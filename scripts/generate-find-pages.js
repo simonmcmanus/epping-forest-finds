@@ -310,21 +310,13 @@ function natureNearestListHtml(filterKeys, enrichment, rules) {
   return nearestListHtml(cards);
 }
 
-// The exact chip row categoryLandingLinksHtml() (js/app.js) renders live at the top of the
-// Nearby list on a real /nearby/<slug>/ landing -- a chip up to the category's own group, and a
-// way back to the full, unfiltered list, plus (for a group page) a down-link to each member
-// subfilter ("Browse by type") and the same "see also veteran trees/grazing cattle" up-links
-// every /find/<slug>/ business page already carries (scripts/generate-business-pages.js) -- all
-// in the one row, all before any other content, all pills rather than a paragraph of inline
-// links: these used to sit as plain text at the *bottom* of the page (two separate sentences),
-// which both read fine as prose but, once live, silently vanished the moment
-// selectOverview() replaced this whole body with the real Nearby list -- exactly the "looks like
-// a different page" gap this chip row already existed to close for the breadcrumb half.
-// Promoted to the top and reshaped as chips, matching categoryLandingLinksHtml()'s own live
-// version (js/app.js) chip for chip, in the same order, with the same dedupe (the nature group
-// page's own "Trees" pill already covers trees, so its "see also" pill never repeats it).
-// Same classes (.detail-top-row.related-chips/.detail-map-link, css/inspector.css) and icons
-// (rules.appIconHtml) either side.
+// The exact category navigation categoryLandingLinksHtml() (js/app.js) renders live at the top
+// of the Nearby list on a real /nearby/<slug>/ landing -- the current category, a chip up to the
+// category's own group, a way back to the full, unfiltered list, plus (for a group page) a
+// down-link to each member subfilter ("Browse by type") and the same "see also veteran
+// trees/grazing cattle" up-links every /find/<slug>/ business page already carries
+// (scripts/generate-business-pages.js). It stays labelled and grouped above the actual results
+// so a no-JS visitor sees the same hierarchy as the live app. Same classes and icons either side.
 function subfilterByKey(rules, key) {
   for (const group of rules.FILTER_GROUPS) {
     const found = group.subfilters.find((s) => s.key === key);
@@ -336,13 +328,21 @@ function subfilterByKey(rules, key) {
 // The same class and markup categoryLandingLinksHtml (js/app.js) gives every chip live, so the
 // forest-green "navigate into the map" styling (css/inspector.css, .detail-map-link.nearby-link)
 // shows on the static page too, not only after JS boots.
-function chipHtml(rules, href, icon, label) {
-  return `<a class="detail-map-link nearby-link" href="${href}">${rules.appIconHtml(icon)}${escapeHtml(label)}</a>`;
+function chipHtml(rules, href, icon, label, { current = false } = {}) {
+  return `<a class="detail-map-link nearby-link${current ? " nearby-link--current" : ""}" href="${href}"${current ? ' aria-current="page"' : ""}>${rules.appIconHtml(icon)}${escapeHtml(label)}</a>`;
 }
 
-function breadcrumbChipsHtml(rules, group) {
+function breadcrumbChipsHtml(rules, group, currentKey) {
+  const currentSubfilter = currentKey ? subfilterByKey(rules, currentKey) : null;
+  const currentGroup = currentSubfilter
+    ? null
+    : rules.FILTER_GROUPS.find((candidate) => candidate.key === currentKey) || null;
+  const current = currentSubfilter || currentGroup;
+  const currentChip = current
+    ? chipHtml(rules, `/nearby/${slugFor(current.key)}/`, current.icon, current.label, { current: true })
+    : "";
   const groupChip = group ? chipHtml(rules, `/nearby/${slugFor(group.key)}/`, group.icon, group.label) : "";
-  return groupChip + chipHtml(rules, "/nearby?filters=false", "nearby", "Everything nearby");
+  return currentChip + groupChip + chipHtml(rules, "/nearby?filters=false", "nearby", "All nearby");
 }
 
 // A group page's own members ("Browse by type") -- cows is excluded the same way collectPages'
@@ -356,8 +356,8 @@ function typeChipsHtml(members, rules) {
     .join("");
 }
 
-// omitTrees/omitCows avoid a self-link (this page's own /nearby/trees//cows/) or a duplicate of
-// a pill the page already shows elsewhere (the nature group page's own "Trees" type-chip above).
+// omitTrees/omitCows avoid a duplicate of a pill the page already shows elsewhere (the nature
+// group page's own "Trees" type-chip above, alongside its current category chip).
 function seeAlsoChipsHtml(rules, { omitTrees = false, omitCows = false } = {}) {
   const trees = subfilterByKey(rules, "trees");
   const cows = subfilterByKey(rules, "cows");
@@ -366,14 +366,18 @@ function seeAlsoChipsHtml(rules, { omitTrees = false, omitCows = false } = {}) {
   return treesChip + cowsChip;
 }
 
-// Assembles every pill a page gets, in the live version's own order (breadcrumb, then type,
-// then see-also), as the one chip row -- renderPage/renderEventsPage/renderCowsPage each pass
-// their own group/members/omit combination rather than duplicating this wrapping div three times.
-function topChipsHtml(rules, { group = null, members = null, omitTrees = false, omitCows = false } = {}) {
-  const breadcrumb = breadcrumbChipsHtml(rules, group);
+// Assembles every navigation chip a page gets in the live version's own order, wrapped in the
+// same labelled navigation region as categoryLandingLinksHtml() rather than looking like the
+// first few result cards.
+function topChipsHtml(rules, { currentKey = null, group = null, members = null, omitTrees = false, omitCows = false } = {}) {
+  const breadcrumb = breadcrumbChipsHtml(rules, group, currentKey);
   const typeChips = members ? typeChipsHtml(members, rules) : "";
   const seeAlso = seeAlsoChipsHtml(rules, { omitTrees, omitCows });
-  return `<div class="detail-top-row related-chips">${breadcrumb}${typeChips}${seeAlso}</div>`;
+  return `<nav class="nearby-category-nav" aria-label="Browse nearby categories"><p class="nearby-category-nav-title">Browse nearby categories</p><div class="detail-top-row related-chips">${breadcrumb}${typeChips}${seeAlso}</div></nav>`;
+}
+
+function categoryResultsHtml(label, content) {
+  return `<section class="nearby-category-results" aria-labelledby="nearbyResultsHeading"><h3 id="nearbyResultsHeading">${escapeHtml(label)} nearby</h3>${content}</section>`;
 }
 
 // Same lookup live code's FILTER_SUBFILTERS_BY_KEY does (js/categories.js), rebuilt here since
@@ -542,6 +546,7 @@ function renderPage(page, appHtml, enrichment = {}) {
   // The nature group's own "Trees" type-chip already covers trees -- the see-also row's own
   // trees pill would otherwise repeat it right next to it in the same row.
   const chips = topChipsHtml(rules, {
+    currentKey: page.key,
     group,
     members: page.isGroup ? page.members : null,
     omitTrees: page.key === "trees" || (page.isGroup && page.members.some((m) => m.key === "trees")),
@@ -579,13 +584,13 @@ function renderPage(page, appHtml, enrichment = {}) {
         ? `${withinRadiusCount} ${capitalizedTitle} within ${RADIUS_LABEL} of High Beach`
         : `Nearest ${capitalizedTitle} around High Beach`);
 
-  const seoContent = chips +
+  const seoContent = chips + categoryResultsHtml(page.label,
     summarySentence +
     businessListHtml +
     enrichedListHtml +
     (page.isGroup
       ? ""
-      : (siblingLinks ? `<p>More in <a href="/nearby/${escapeHtml(page.groupSlug)}/">${escapeHtml(page.groupLabel)}</a>: ${siblingLinks}.</p>` : ""));
+      : (siblingLinks ? `<p>More in <a href="/nearby/${escapeHtml(page.groupSlug)}/">${escapeHtml(page.groupLabel)}</a>: ${siblingLinks}.</p>` : "")));
 
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
@@ -659,10 +664,10 @@ function renderEventsPage(appHtml, events, rules = loadAppRules()) {
     : "";
 
   const seoContent =
-    topChipsHtml(rules, { group: groupContainingSubfilter(rules, "events") }) +
-    `<p>${escapeHtml(description)}</p>` +
-    eventListHtml +
-    `<p>See the <a href="/find/events/">full events list</a> with descriptions and source links.</p>`;
+    topChipsHtml(rules, { currentKey: "events", group: groupContainingSubfilter(rules, "events") }) +
+    categoryResultsHtml("Events", `<p>${escapeHtml(description)}</p>` +
+      eventListHtml +
+      `<p>See the <a href="/find/events/">full events list</a> with descriptions and source links.</p>`);
 
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
@@ -702,8 +707,8 @@ function renderCowsPage(appHtml, rules = loadAppRules()) {
   };
 
   const seoContent =
-    topChipsHtml(rules, { group: groupContainingSubfilter(rules, "cows"), omitCows: true }) +
-    `<p>${escapeHtml(description)} Positions refresh periodically while online; offline, the map shows the last saved positions, which may be out of date.</p>`;
+    topChipsHtml(rules, { currentKey: "cows", group: groupContainingSubfilter(rules, "cows"), omitCows: true }) +
+    categoryResultsHtml("Cows", `<p>${escapeHtml(description)} Positions refresh periodically while online; offline, the map shows the last saved positions, which may be out of date.</p>`);
 
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");

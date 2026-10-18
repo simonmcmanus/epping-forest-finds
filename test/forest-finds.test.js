@@ -1760,7 +1760,7 @@ test("navigating in-app from a selection straight to bare /nearby restores the r
   assert.deepEqual(
     Array.from(app.state.overviewFilters),
     ["cafes"],
-    "the \"Everything nearby\" link's own target (bare /nearby) is not itself a landing page, so applyShowFilterFromQuery must put the reader's own filters back -- its own route value (\"\") never changes between the /nearby/food/ page and bare /nearby, so goToInitialView's restore never runs on its own"
+    "the \"All nearby\" link's own target (bare /nearby) is not itself a landing page, so applyShowFilterFromQuery must put the reader's own filters back -- its own route value (\"\") never changes between the /nearby/food/ page and bare /nearby, so goToInitialView's restore never runs on its own"
   );
   app.location.pathname = "/";
   app.location.hash = "";
@@ -1994,19 +1994,22 @@ test("isLandingPageArrival also recognises a /find/<slug>/ business page as a la
   app.location.search = "";
 });
 
-test("categoryLandingLinksHtml links a subfilter page up to its group and back to the full Nearby list", () => {
+test("categoryLandingLinksHtml labels the category navigation and marks the current subfilter", () => {
   app.location.pathname = "/nearby/pubs/";
   const html = app.categoryLandingLinksHtml();
+  assert.match(html, /<nav class="nearby-category-nav" aria-label="Browse nearby categories">/);
+  assert.match(html, /Browse nearby categories/);
+  assert.match(html, /class="detail-map-link nearby-link nearby-link--current" href="\/nearby\/pubs\/" aria-current="page"[\s\S]*?Pubs &amp; bars<\/a>/);
   assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?Everything nearby<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?All nearby<\/a>/);
   app.location.pathname = "/";
 });
 
-test("categoryLandingLinksHtml links a group page only back to the full Nearby list, with no group above it", () => {
+test("categoryLandingLinksHtml marks a group page's current category and links back to the full Nearby list", () => {
   app.location.pathname = "/nearby/food/";
   const html = app.categoryLandingLinksHtml();
-  assert.ok(!html.includes("Food</a>"), "the food group page does not link to itself");
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?Everything nearby<\/a>/);
+  assert.match(html, /class="detail-map-link nearby-link nearby-link--current" href="\/nearby\/food\/" aria-current="page"[\s\S]*?Food<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?All nearby<\/a>/);
   app.location.pathname = "/";
 });
 
@@ -2017,7 +2020,7 @@ test("categoryLandingLinksHtml is empty on the plain Nearby screen and on /nearb
   }
 });
 
-test("overviewNearestHtml carries the same category breadcrumb through every return path, including empty-list states", () => {
+test("overviewNearestHtml carries the labelled category navigation and results heading through every return path", () => {
   resetData(app);
   // Set directly rather than through setOverviewFilters(), whose own selectOverview()/
   // syncHashFromSelection() side effects would otherwise correct this test's manually-set
@@ -2026,10 +2029,11 @@ test("overviewNearestHtml carries the same category breadcrumb through every ret
   app.state.overviewFilters = ["pubs"];
   app.location.pathname = "/nearby/pubs/";
   app.state.userLocation = null;
-  assert.match(app.overviewNearestHtml(), /href="\/nearby\/food\/"/, "no-location branch still shows the breadcrumb");
+  assert.match(app.overviewNearestHtml(), /Browse nearby categories/, "no-location branch still shows the navigation label");
+  assert.match(app.overviewNearestHtml(), /<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby<\/h3>/, "no-location branch names the results");
 
   app.state.userLocation = makePoint(app, 51.9, 0.9); // far from any fixture data -- empty list
-  assert.match(app.overviewNearestHtml(), /href="\/nearby\/food\/"/, "empty-result branch still shows the breadcrumb");
+  assert.match(app.overviewNearestHtml(), /<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby<\/h3>/, "empty-result branch names the results");
 
   app.location.pathname = "/";
 });
@@ -2047,7 +2051,7 @@ test("categoryLandingLinksHtml adds a pill per member on a group page (\"Browse 
   app.location.pathname = "/";
 });
 
-test("categoryLandingLinksHtml adds \"see also\" trees/cows pills to every landing page, omitting a self-link and never doubling up with the nature group's own type pill", () => {
+test("categoryLandingLinksHtml adds \"see also\" trees/cows pills to every landing page, marking the current page and never doubling up with the nature group's own type pill", () => {
   app.location.pathname = "/nearby/pubs/";
   const pubsHtml = app.categoryLandingLinksHtml();
   assert.match(pubsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
@@ -2055,13 +2059,13 @@ test("categoryLandingLinksHtml adds \"see also\" trees/cows pills to every landi
 
   app.location.pathname = "/nearby/trees/";
   const treesHtml = app.categoryLandingLinksHtml();
-  assert.ok(!treesHtml.includes('href="/nearby/trees/"'), "the trees page never links to itself");
+  assert.match(treesHtml, /nearby-link--current[^>]*href="\/nearby\/trees\/"|href="\/nearby\/trees\/"[^>]*nearby-link--current/, "the trees page marks itself as current");
   assert.match(treesHtml, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
 
   app.location.pathname = "/nearby/cows/";
   const cowsHtml = app.categoryLandingLinksHtml();
   assert.match(cowsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
-  assert.ok(!cowsHtml.includes('href="/nearby/cows/"'), "nor does the cows page link to itself");
+  assert.match(cowsHtml, /nearby-link--current[^>]*href="\/nearby\/cows\/"|href="\/nearby\/cows\/"[^>]*nearby-link--current/, "the cows page marks itself as current");
 
   app.location.pathname = "/nearby/nature/";
   const natureHtml = app.categoryLandingLinksHtml();
