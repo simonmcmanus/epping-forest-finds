@@ -49,7 +49,8 @@ test.describe("Overview / Nearby screen", () => {
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
       await expect.poll(async () => page.locator(".inspector-actions").evaluate(nav => {
-        const buttons = [...nav.querySelectorAll("button")];
+        // The nav items are real links (app.html), not buttons.
+        const buttons = [...nav.querySelectorAll("a")];
         const navBox = nav.getBoundingClientRect();
         // The nav bar is its own card now (see app.html), not part of #inspector -- above the
         // panel on desktop, below it (pinned to the bottom of the screen) on mobile. Either way
