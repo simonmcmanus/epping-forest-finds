@@ -168,11 +168,14 @@ describing it — a reviewer should be able to see the result without pulling th
   a substitute: it's pixel-exact to the unchanged parts of the page too, so it rarely shows the
   change on its own. Take a fresh screenshot for the PR body even when a baseline also changed.
 - **Changed baselines get their diffs in the PR description.** When a PR changes any
-  `toHaveScreenshot()` baseline, list every changed snapshot by name in the PR body and show its
-  before and after image, so a reviewer sees exactly what moved. Take the images from the CI
-  `Visual snapshots (mobile)` artifact (its diff and actual/expected PNGs) or from a local render of
-  the same view. Regenerate baselines only through the **Update Snapshots** workflow once the
-  change is approved, never by hand.
+  `toHaveScreenshot()` baseline, list every changed snapshot by name and embed its before and after
+  images (`![before](...)`, `![after](...)`), each linked to the file at the commit it came from
+  (`https://raw.githubusercontent.com/<owner>/<repo>/<sha>/test/e2e/__screenshots__/<name>.png`), so
+  no separate hosting is needed. Regenerate baselines only through the **Update Snapshots** workflow
+  once the change is approved, never by hand.
+- **The preview link stays in the PR description.** Keep the Netlify block between
+  `<!-- preview-links:start -->` and `<!-- preview-links:end -->`. When a description is rewritten,
+  copy that block back verbatim, or the reviewer loses the deploy preview.
 
 ### If the suite is already red when you arrive
 
@@ -210,3 +213,12 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
 - No logic in `app.html`: it is markup and `<script src>` tags only. Boot and wiring live in `js/app.js`.
 - UX quality bar: this should feel like a polished, professional product.
 - Optimise for token efficiency: short, precise edits over large rewrites.
+
+## Pull requests (every agent, every PR)
+
+Every pull request, whichever agent opens it, follows `.github/pull_request_template.md` and these rules:
+
+- **Visual changes:** when a PR changes any `toHaveScreenshot()` baseline, list each changed snapshot by name in the PR body and embed its before and after images as Markdown images (`![before](...)`, `![after](...)`). Link each image to the file at the commit it came from, for example `https://raw.githubusercontent.com/<owner>/<repo>/<sha>/test/e2e/__screenshots__/<name>.png`, so the images need no separate hosting. Take them from the CI `Visual snapshots (mobile)` artifact or from the committed baselines before and after the change.
+- **Baselines:** regenerate only through the **Update Snapshots** workflow, on the PR branch, once the change is approved. Never regenerate them by hand.
+- **Preview link:** keep the Netlify block between `<!-- preview-links:start -->` and `<!-- preview-links:end -->` in the PR body. When you rewrite a description, copy that block back verbatim. Netlify fills it in once the deploy preview is ready.
+- **Spec and tests:** follow the Spec Synchronisation and Testing sections above.
