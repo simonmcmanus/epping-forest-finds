@@ -1,6 +1,18 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, tapCanvasPoint, FIXTURE_TREE } = require("./helpers");
+const { setup, tapCanvasPoint, FIXTURE_TREE, skipOnboarding, mockCowApi, denyGeolocationUnlessGranted } = require("./helpers");
+
+// Lands on a linked Nearby URL and waits until the app has booted AND applied the link's own
+// browse anchor, rather than trusting setup()'s overlay check: on a direct /nearby/<slug>/#near=
+// load the overlay can read as hidden before app.js has defined `state`, so setup()'s first
+// evaluate hit "state is not defined" on CI's 2-vCPU runners.
+async function gotoLinkedNearby(page, path) {
+  await skipOnboarding(page);
+  await mockCowApi(page);
+  await denyGeolocationUnlessGranted(page);
+  await page.goto(path);
+  await page.waitForFunction(() => typeof state !== "undefined" && state.nearbyAnchor != null, null, { timeout: 30_000 });
+}
 
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -521,7 +533,7 @@ test.describe("Map interaction", () => {
     });
 
     test("a related link to a place's nearby view opens on that place's spot, not the reader's own location, and names it", async ({ page }) => {
-      await setup(page, "/nearby/trees/#near=51.650000,0.050000&label=The%20Foresters");
+      await gotoLinkedNearby(page, "/nearby/trees/#near=51.650000,0.050000&label=The%20Foresters");
       await expect.poll(() => page.evaluate(() => state.nearbyAnchor && state.nearbyAnchor.latitude)).toBeCloseTo(51.65, 5);
       await expect(page.locator(".nearby-anchor-bar-text")).toHaveText("Showing places near The Foresters");
     });
@@ -530,7 +542,7 @@ test.describe("Map interaction", () => {
       test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
 
       test("a related link keeps its place's spot rather than the reader's own location, and names it", async ({ page }) => {
-        await setup(page, "/nearby/trees/#near=51.650000,0.050000&label=The%20Foresters");
+        await gotoLinkedNearby(page, "/nearby/trees/#near=51.650000,0.050000&label=The%20Foresters");
         await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.latitude)).toBeCloseTo(51.665, 3);
         await expect.poll(() => page.evaluate(() => state.nearbyAnchor && state.nearbyAnchor.latitude)).toBeCloseTo(51.65, 5);
         await expect(page.locator(".nearby-anchor-bar-text")).toHaveText("Showing places near The Foresters");
