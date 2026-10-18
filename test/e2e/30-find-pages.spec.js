@@ -113,6 +113,29 @@ test.describe("generated find/nearby pages", () => {
       expect(liveKeys).toEqual(staticKeys);
     });
 
+    test("a category page's \"Nearby <Category>\" heading, its type line, and the consent banner's lead phrase are server-rendered and match what JS shows once it boots -- no generic placeholder title, no separate generic lead sentence or \"Showing things near High Beach\" paragraph", async ({ page, request }) => {
+      const staticHtml = await (await request.get("/nearby/pubs/")).text();
+      expect(staticHtml).not.toContain(">Epping Forest Finds</h2>");
+      // The generic lead sentence survives only in the SEO <meta name="description">, not as a
+      // second, redundant paragraph in the visible body -- pubs already has a real itemized list.
+      expect(staticHtml).not.toMatch(/<p>Find all [\d,]+ pubs/);
+      expect(staticHtml).not.toContain("Showing things near High Beach");
+      expect(staticHtml).toContain('<h2 id="inspectorTitle">Nearby Pubs &amp; bars</h2>');
+      expect(staticHtml).toMatch(/<img class="app-icon title-icon" src="data\/icons\/nearby\.png"/);
+      const staticTypeMatch = staticHtml.match(/<p id="inspectorType" class="type">([^<]*)<\/p>/);
+      expect(staticTypeMatch).not.toBeNull();
+      expect(staticTypeMatch[1]).toMatch(/^\d+ Pubs and bars within 30 min walk of High Beach$/);
+      expect(staticHtml).toContain(
+        "Enable location to get walking directions and see what's near pubs and bars and help us understand how people use this site."
+      );
+
+      await gotoAndWaitForMap(page, "/nearby/pubs/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await expect(page.locator("#inspectorTitle")).toHaveText("Nearby Pubs & bars");
+      await expect(page.locator("#inspectorType")).toHaveText(staticTypeMatch[1]);
+      await expect(page.locator("#inspectorTitleEmoji img.title-icon")).toBeVisible();
+    });
+
     test("a business page's real content is server-rendered: unique title, LocalBusiness JSON-LD, address and a real nearby list", async ({ request }) => {
       const response = await request.get(`/find/${EXAMPLE_PUB.slug}/`);
       expect(response.ok()).toBe(true);

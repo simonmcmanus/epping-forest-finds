@@ -46,4 +46,26 @@ function showConsentBannerByDefault(html) {
   );
 }
 
-module.exports = { escapeHtml, replaceOnce, showConsentBannerByDefault };
+// app.html's own default copy inside #consentBanner's .consent-banner-copy -- generic, since the
+// shared app shell has no page of its own to be specific about.
+const APP_CONSENT_BANNER_TEXT =
+  '<p>Shows nearby finds and their distance from you, and understands how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>';
+
+// Swaps that generic copy for a page-specific lead phrase (e.g. "Enable location to get walking
+// directions and see what's near pubs and bars") on a generated /nearby/<slug>/ or /find/<slug>/
+// page -- the cookie-consent half of the sentence stays the same either way, since enabling the
+// one banner covers both regardless of which page asked. Reported directly: the body's own
+// separate "Enable location to..." sentence not only repeated what this banner already asks, but
+// read as generic boilerplate once the real content (a real nearby list, or a real business) sat
+// right below it -- merging the two into the one ask on screen, where it already lives, removes
+// the repeat rather than trying to keep both in sync.
+function customizeConsentBannerText(html, leadPhrase) {
+  return replaceOnce(
+    html,
+    APP_CONSENT_BANNER_TEXT,
+    `<p>${leadPhrase} and help us understand how people use this site. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>`,
+    "consent banner default copy"
+  );
+}
+
+module.exports = { escapeHtml, replaceOnce, showConsentBannerByDefault, customizeConsentBannerText };

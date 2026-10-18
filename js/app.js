@@ -3876,16 +3876,34 @@ function overviewHeadingText() {
   // own position -- only reachable with showAllOutsideRadius on, since radiusLabel otherwise
   // always names the radius instead, but worth getting right for that case too.
   const aroundOrigin = state.userLocation.isDefault ? "around High Beach" : "around you";
+  // Folds in the same "measuring from High Beach, not you" fact the list itself used to carry as
+  // its own separate <p class="source-note"> paragraph (overviewNearestHtml below) -- said once,
+  // here, in the one line every Nearby screen already shows, rather than twice.
+  const radiusOrigin = state.userLocation.isDefault ? " of High Beach" : "";
   // A single category (the common case on a /nearby/<slug> page) gets its count named too --
   // "5 Pubs and bars within 5 min walk" says at a glance whether the radius is worth widening,
   // which "Pubs and bars within 5 min walk" alone left the reader to count for themselves.
   return singleFilterTitle
     ? (radiusLabel
-        ? `${overviewItemsForActiveFilter().length} ${singleFilterTitle} within ${radiusLabel}`
+        ? `${overviewItemsForActiveFilter().length} ${singleFilterTitle} within ${radiusLabel}${radiusOrigin}`
         : `Nearest ${singleFilterTitle} ${aroundOrigin}`)
     : state.overviewFilters.length > 0
-      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : `Nearest selected filters ${aroundOrigin}`)
-      : (radiusLabel ? `Nearest within ${radiusLabel}` : `Nearest ${aroundOrigin}`);
+      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}${radiusOrigin}` : `Nearest selected filters ${aroundOrigin}`)
+      : (radiusLabel ? `Nearest within ${radiusLabel}${radiusOrigin}` : `Nearest ${aroundOrigin}`);
+}
+
+// The category label a /nearby/<slug>/ landing page's own heading names ("Nearby Nature",
+// "Nearby Pubs & bars") in place of the generic "Nearby" the plain screen, or a reader's own
+// filter choice, keeps -- same URL-path match categoryLandingLinksHtml() uses, so the two can
+// never name a different category.
+function landingPageCategoryLabel() {
+  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
+  if (!match) return null;
+  const key = match[1].replace(/-/g, "_");
+  const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
+  if (subfilter) return subfilter.label;
+  const group = FILTER_GROUPS_BY_KEY.get(key);
+  return group ? group.label : null;
 }
 
 // True when the active filter set should be shown in full even without a location fix: either
@@ -4041,13 +4059,11 @@ function overviewNearestHtml() {
   // this list -- it is the persistent #nearbyAnchorBar in the inspector chrome, so it stays
   // reachable from Filters/Settings/Report too (updateNearbyAnchorBar, js/nav.js).
 
-  // applyDefaultLocation()'s High Beach stand-in -- unlike the dismissible invite gate
-  // (revealNoRealLocation), which the reader can tap away and never see again this session,
-  // this sits with the list itself for as long as the stand-in is what it's actually measuring
-  // from, so "why is this centred on High Beach?" has an answer on screen the whole time.
-  const defaultLocationNotice = state.userLocation.isDefault
-    ? `<p class="source-note">Showing things near High Beach — you haven't shared your location.</p>`
-    : "";
+  // applyDefaultLocation()'s High Beach stand-in used to get its own "why is this centred on
+  // High Beach?" notice here, separate from the heading. It's folded into overviewHeadingText()'s
+  // own "within 30 min walk of High Beach" instead now -- the type line under the Nearby heading
+  // already answers that, for as long as the stand-in is what the list is actually measuring
+  // from, without a second sentence saying the same thing underneath it.
 
   // Set by the pinch-to-resize gesture (updateNearbyRadiusPinch, js/nav.js) while the user
   // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
@@ -4088,7 +4104,7 @@ function overviewNearestHtml() {
     : `Showing all distances — tap to filter to ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
   const chipLabel = radiusActive ? formatWalkingRadius(state.walkingDistanceMinutes) : "All";
   const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
-  return `${breadcrumbHtml}${defaultLocationNotice}${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+  return `${breadcrumbHtml}${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
 }
 
 // The icon the Nearby list, search results and cluster detail show for a

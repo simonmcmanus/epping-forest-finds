@@ -606,13 +606,45 @@ branches.
   gets the matching `.nearest-footer`/`.walk-chip` distance-and-walk-time
   label (same `formatDistance`/walk-time formulas as the live Nearby list,
   replicated here since this script cannot load `js/app.js` into its `vm`
-  sandbox — see `loadAppRules()`, `scripts/report/map-inventory.js`), and the
-  list is prefixed with the same "Showing things near High Beach — you
-  haven't shared your location" source note the live view shows for a
-  default-location visitor. Before this, a crawler or no-JS visitor saw every
-  shop or pub in the dataset in build order, while JS replaced it moments
-  later with a short, nearest-first list scoped to a 30-minute walk — the
-  two renders showed genuinely different content, not just a different look.
+  sandbox — see `loadAppRules()`, `scripts/report/map-inventory.js`). Before
+  this, a crawler or no-JS visitor saw every shop or pub in the dataset in
+  build order, while JS replaced it moments later with a short, nearest-first
+  list scoped to a 30-minute walk — the two renders showed genuinely
+  different content, not just a different look.
+- **The page's own heading names its real category, not a generic
+  placeholder, and the "measuring from High Beach" note is folded into its
+  type line rather than a separate sentence in the list body.**
+  `inspectorHeadingHtml` (`scripts/generate-find-pages.js`) templates
+  `#inspectorTitleEmoji`/`#inspectorTitle`/`#inspectorType` — the exact same
+  three elements `selectOverview()` (`js/inspector.js`) sets live — to read
+  "Nearby `<Category>`" (e.g. "Nearby Pubs & bars") with the generic "nearby"
+  pin icon, instead of app.html's own pre-boot placeholder ("Epping Forest
+  Finds", no icon, no type line). `landingPageCategoryLabel()` (`js/app.js`)
+  resolves the live heading the same way from the current `/nearby/<slug>/`
+  path, so the two never show a different heading moments apart. The type
+  line itself is "`<count>` `<Category>` within 30 min walk of High Beach"
+  where a real within-radius count exists at build time (a business list, or
+  a single nature filter) and falls back to the honest no-count "Nearest
+  `<Category>` around High Beach" where it doesn't (transport, history,
+  stories) — mirroring `overviewHeadingText()`'s (`js/app.js`) own branches,
+  which append the same "of High Beach"/"around High Beach" suffix only
+  while `state.userLocation.isDefault`.
+- **The generic "Find all `<count>` `<title>` in Epping Forest, mapped and
+  ready to walk to" lead sentence is dropped from the visible body wherever a
+  real itemized list already demonstrates the page's content** (businesses,
+  or trees/water) — it read as boilerplate filler sitting right above a real
+  list. It survives only in the SEO `<meta name="description">`, and as the
+  visible body text for the categories with no itemized list of their own
+  (transport, history, locations, stories), which would otherwise show
+  nothing but pills and a sibling-links paragraph.
+- **The separate "Enable location to see how far away..." sentence is gone,
+  folded into `#consentBanner`'s own copy instead of repeating the same ask
+  twice on the page.** `customizeConsentBannerText` (`scripts/lib/html-template.js`)
+  replaces the banner's generic lead phrase with one naming the page's own
+  category (e.g. "Enable location to get walking directions and see what's
+  near pubs and bars") — the cookie-consent half of the sentence, and the
+  banner's accept/decline buttons, stay the same either way, since enabling
+  the one banner covers both regardless of which page asked.
 - **The static page carries one pill row at the very top of a
   `/nearby/<slug>/` landing, matching `categoryLandingLinksHtml()`
   (`js/app.js`) chip for chip** (`topChipsHtml`, `scripts/generate-find-pages.js`;

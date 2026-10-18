@@ -33,7 +33,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { buildInventory, loadAppRules } = require("./report/map-inventory.js");
-const { escapeHtml, replaceOnce, showConsentBannerByDefault } = require("./lib/html-template.js");
+const { escapeHtml, replaceOnce, showConsentBannerByDefault, customizeConsentBannerText } = require("./lib/html-template.js");
 const { listBusinessesForFilterKey, loadEvents, haversineMetres } = require("./generate-business-pages.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
@@ -78,9 +78,34 @@ const APP_OG_DESCRIPTION =
 const APP_OG_URL = '<meta property="og:url" content="https://www.eppingforestfinds.uk/nearby">';
 const APP_EMPTY_STATE =
   '<p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>';
+const APP_INSPECTOR_TITLE_EMOJI_HIDDEN =
+  '<span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>';
+const APP_INSPECTOR_TITLE = '<h2 id="inspectorTitle">Epping Forest Finds</h2>';
+const APP_INSPECTOR_TYPE = '<p id="inspectorType" class="type"></p>';
 
 function slugFor(key) {
   return key.replace(/_/g, "-");
+}
+
+// Templates the same "Nearby <heading>" + type-line pair selectOverview()/overviewHeadingText()
+// (js/inspector.js, js/app.js) render live into #inspectorTitleEmoji/#inspectorTitle/#inspectorType
+// -- app.html's own default there is the generic "Epping Forest Finds" placeholder with no icon
+// and no type line, which a no-JS visitor (or a crawler) saw until JS replaced it a moment later.
+// `heading` is the page-specific half of the title ("Nature", "Pubs & bars") -- null for the
+// plain, unfiltered screen, which this generator never builds a page for, so always passed here.
+// `typeLine` mirrors overviewHeadingText()'s own default-location phrasing (DEFAULT_LOCATION is
+// always the origin at build time), already folding in the "measuring from High Beach, not you"
+// fact that used to be its own separate sentence further down the page.
+function inspectorHeadingHtml(html, rules, heading, typeLine) {
+  html = replaceOnce(
+    html,
+    APP_INSPECTOR_TITLE_EMOJI_HIDDEN,
+    APP_INSPECTOR_TITLE_EMOJI_HIDDEN.replace(" hidden></span>", `>${rules.appIconHtml("nearby", "app-icon title-icon")}</span>`),
+    "inspector title icon default-hidden state"
+  );
+  html = replaceOnce(html, APP_INSPECTOR_TITLE, `<h2 id="inspectorTitle">Nearby ${escapeHtml(heading)}</h2>`, "inspector title placeholder");
+  html = replaceOnce(html, APP_INSPECTOR_TYPE, `<p id="inspectorType" class="type">${escapeHtml(typeLine)}</p>`, "inspector type placeholder");
+  return html;
 }
 
 // Every named water feature (ponds, streams, lakes), alphabetical -- the same classification
@@ -214,13 +239,6 @@ function nearestListHtml(cards) {
   return cards.length ? `<div class="nearest-list">${cards.join("")}</div>` : "";
 }
 
-// Exactly the live copy/markup (class="source-note") applyDefaultLocation()'s High Beach
-// stand-in shows above the Nearby list whenever state.userLocation.isDefault is true
-// (overviewNearestHtml, js/app.js) -- true for every reader of a static page who hasn't shared
-// their location yet, which is every reader of a static page, there being no way to know their
-// real one at build time.
-const DEFAULT_LOCATION_SOURCE_NOTE = '<p class="source-note">Showing things near High Beach — you haven\'t shared your location.</p>';
-
 // Live's own Nearby list, once a reader lands on a /nearby/trees/, /nearby/ponds-streams/ or
 // /nearby/nature/ page, isn't a business list or a species breakdown -- it's
 // overviewItemsForActiveFilter() (js/app.js) computing each active filter's own nearest matches
@@ -255,7 +273,7 @@ function natureNearestListHtml(filterKeys, enrichment, rules) {
     const icon = rules.filterKindEmoji("ponds_streams");
     return nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(item.key)}`, icon, item.name, metres);
   });
-  return DEFAULT_LOCATION_SOURCE_NOTE + nearestListHtml(cards);
+  return nearestListHtml(cards);
 }
 
 // The exact chip row categoryLandingLinksHtml() (js/app.js) renders live at the top of the
@@ -461,7 +479,7 @@ function renderPage(page, appHtml, enrichment = {}) {
   const businesses = listBusinessesForFilterKey(page.key);
   const nearestBusinesses = nearestWithinWalkingRadius(businesses, (b) => ({ latitude: b.lat, longitude: b.lon }));
   const businessListHtml = businesses.length
-    ? DEFAULT_LOCATION_SOURCE_NOTE + nearestListHtml(nearestBusinesses.map(({ item: b, metres }) =>
+    ? nearestListHtml(nearestBusinesses.map(({ item: b, metres }) =>
         nearestItemCardHtml(`/find/${b.slug}/`, rules.filterKindEmoji(b.key), b.name, metres)
       ))
     : "";
@@ -490,8 +508,40 @@ function renderPage(page, appHtml, enrichment = {}) {
     omitTrees: page.key === "trees" || (page.isGroup && page.members.some((m) => m.key === "trees")),
   });
 
+  // A generic "Find all N <title> in Epping Forest, mapped and ready to walk to" lead sentence
+  // read as boilerplate filler once a real list (business, tree or water) already sat right
+  // below it -- dropped there; kept only for the categories with neither (transport, history,
+  // locations, stories), which would otherwise show nothing but pills and a sibling-links
+  // paragraph. "Enable location..." moves out entirely: customizeConsentBannerText below folds
+  // it into #consentBanner's own copy instead of repeating it as a second, separate ask.
+  const hasItemizedList = Boolean(businessListHtml || enrichedListHtml);
+  const summarySentence = hasItemizedList
+    ? ""
+    : `<p>Find all ${page.count} ${escapeHtml(page.title)} in Epping Forest, mapped and ready to walk to.</p>`;
+
+  // "N <Title> within 30 min walk of High Beach" mirrors overviewHeadingText()'s own
+  // single-filter phrasing exactly (js/app.js) -- the count is how many are actually within the
+  // walking radius, not page.count's whole-forest total, so it only exists where a real
+  // within-radius computation already ran above (businesses, or a single nature filter). A group
+  // page never names a count here, matching that function's own multi-filter branch; a subfilter
+  // page outside both scopes (transport, history, stories -- same carve-out as the itemized list
+  // above) falls back to the no-count phrasing rather than a number this build has no way to
+  // compute correctly.
+  const withinRadiusCount = page.isGroup
+    ? null
+    : businesses.length
+      ? nearestBusinesses.length
+      : (natureFilterKeys.length === 1 ? natureEntriesForFilterKey(natureFilterKeys[0], { trees, waterFeatures }).length : null);
+  const RADIUS_LABEL = "30 min walk"; // formatWalkingRadius(LANDING_PAGE_WALKING_DISTANCE_MINUTES) + " walk", js/nav.js + js/app.js
+  const capitalizedTitle = page.title.charAt(0).toUpperCase() + page.title.slice(1);
+  const typeLine = page.isGroup
+    ? `Nearest selected filters within ${RADIUS_LABEL} of High Beach`
+    : (withinRadiusCount != null
+        ? `${withinRadiusCount} ${capitalizedTitle} within ${RADIUS_LABEL} of High Beach`
+        : `Nearest ${capitalizedTitle} around High Beach`);
+
   const seoContent = chips +
-    `<p>Find all ${page.count} ${escapeHtml(page.title)} in Epping Forest, mapped and ready to walk to. Enable location to see how far each one is and get walking directions.</p>` +
+    summarySentence +
     businessListHtml +
     enrichedListHtml +
     (page.isGroup
@@ -529,6 +579,8 @@ function renderPage(page, appHtml, enrichment = {}) {
     "</head>"
   );
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
+  html = inspectorHeadingHtml(html, rules, page.label, typeLine);
+  html = customizeConsentBannerText(html, `Enable location to get walking directions and see what's near ${escapeHtml(page.title)}`);
   return showConsentBannerByDefault(html);
 }
 
@@ -569,7 +621,7 @@ function renderEventsPage(appHtml, events, rules = loadAppRules()) {
 
   const seoContent =
     topChipsHtml(rules, { group: groupContainingSubfilter(rules, "events") }) +
-    `<p>${escapeHtml(description)} Enable location to see how far away each one is and get walking directions.</p>` +
+    `<p>${escapeHtml(description)}</p>` +
     eventListHtml +
     `<p>See the <a href="/find/events/">full events list</a> with descriptions and source links.</p>`;
 
@@ -582,6 +634,8 @@ function renderEventsPage(appHtml, events, rules = loadAppRules()) {
   html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
   html = replaceOnce(html, "</head>", `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`, "</head>");
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
+  html = inspectorHeadingHtml(html, rules, "Events", "Nearest Events around High Beach");
+  html = customizeConsentBannerText(html, "Enable location to get walking directions and see what's near you");
   return showConsentBannerByDefault(html);
 }
 
@@ -621,6 +675,8 @@ function renderCowsPage(appHtml, rules = loadAppRules()) {
   html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
   html = replaceOnce(html, "</head>", `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`, "</head>");
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
+  html = inspectorHeadingHtml(html, rules, "Cows", "Nearest Cows around High Beach");
+  html = customizeConsentBannerText(html, "Enable location to get walking directions and see what's near you");
   return showConsentBannerByDefault(html);
 }
 
