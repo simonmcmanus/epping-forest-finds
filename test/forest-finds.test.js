@@ -459,6 +459,7 @@ globalThis.__forestFindsTest = {
   showsEverythingFromQuery,
   nearbyAnchorRouteValue,
   nearbyCardFilterKeys,
+  nearbyCountCopy,
   openInMapsHtml,
   shareLocationHtml,
   standaloneNearbySectionHtml,
@@ -1896,6 +1897,16 @@ test("filterKeysFromFindPath reads a subfilter's category straight from a /nearb
   assert.deepEqual(Array.from(app.filterKeysFromFindPath("/nearby/not-a-real-filter")), [], "an unrecognised slug is not a filter key");
   assert.deepEqual(Array.from(app.filterKeysFromFindPath("/app")), [], "a non-/nearby/ path never matches");
   assert.deepEqual(Array.from(app.filterKeysFromFindPath("")), []);
+});
+
+test("nearbyCountCopy reads as a plain count from the place, in the reader's own walking radius", () => {
+  const saved = app.state.walkingDistanceMinutes;
+  app.state.walkingDistanceMinutes = 30;
+  assert.equal(app.nearbyCountCopy("trees", { within: 43, beyond: 20 }, "The Foresters"), "43 trees within 30 min walk of The Foresters. 20 further away.");
+  assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 11 }, "The Foresters"), "No cows within 30 min walk of The Foresters. 11 further away.");
+  assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 0 }, "The Foresters"), "No cows nearby.");
+  assert.equal(app.nearbyCountCopy("cows", { within: 1, beyond: 0 }, "The Foresters"), "1 cow within 30 min walk of The Foresters.", "a single match drops the plural");
+  app.state.walkingDistanceMinutes = saved;
 });
 
 test("nearbyCardFilterKeys follows the reader's filters, falling back to trees and cows when none are set", () => {
@@ -9083,15 +9094,15 @@ test("openInMapsHtml is an icon-only control with an accessible name", () => {
 test("nearbyWithinWalkHtml renders a Nearby-list-styled card carrying the exact coordinates it should browse, and is empty without coordinates", () => {
   const html = app.nearbyWithinWalkHtml(51.65, 0.05);
   assert.match(html, /<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">/);
-  assert.ok(html.includes(`Everything within ${app.state.walkingDistanceMinutes} min walk`), "labelled with the reader's own walking radius, not a fixed 15");
+  assert.ok(html.includes(`within ${app.state.walkingDistanceMinutes} min walk`), "copy names the reader's own walking radius, not a fixed 15");
   assert.ok(!html.includes("detail-map-link"), "shares the Nearby list's own card styling, not the unrelated pill");
   assert.equal(app.nearbyWithinWalkHtml(null, null), "", "no card when there are no coordinates to browse from");
 });
 
 test("standaloneNearbySectionHtml wraps the walk-radius card in its own headed Nearby section, and is empty without coordinates", () => {
   const html = app.standaloneNearbySectionHtml(51.65, 0.05);
-  assert.ok(html.includes('<h3 class="detail-section-heading">Nearby</h3>'));
-  assert.ok(html.includes(`Everything within ${app.state.walkingDistanceMinutes} min walk`));
+  assert.ok(html.includes('<h3 class="detail-section-heading">Nearest</h3>'));
+  assert.ok(html.includes(`within ${app.state.walkingDistanceMinutes} min walk`));
   assert.equal(app.standaloneNearbySectionHtml(null, null), "", "no section when there are no coordinates to browse from");
 });
 
@@ -10697,22 +10708,22 @@ test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, the wa
 
   const html = app.relatedCategoryLinksHtml(pub);
   // Section order and headings: Nearby first, then Related -- both plain <h3 class="detail-section-heading">.
-  const nearbyHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Nearby</h3>');
+  const nearbyHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Nearest</h3>');
   const relatedHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Related</h3>');
-  assert.ok(nearbyHeadingIndex >= 0 && relatedHeadingIndex > nearbyHeadingIndex, "Nearby heading comes before Related");
+  assert.ok(nearbyHeadingIndex >= 0 && relatedHeadingIndex > nearbyHeadingIndex, "Nearest heading comes before Related");
 
   // Both the tree and cows links carry this pub's own position via the target page's existing
   // "near=<lat>,<lon>" anchor route, so landing there re-centres on the pub rather than the
   // reader's own GPS fix.
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?Nearest veteran tree[\s\S]*?<\/a>/);
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?The grazing cattle[\s\S]*?<\/a>/);
-  assert.match(html, /walk-chip/, "the nearby cards carry a real walk-time chip, not bare text");
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
+  assert.match(html, /nearest-meta">(No |\d+ )[^<]*within \d+ min walk of/, "each category card says how many sit within the walking radius");
 
   // The walk-radius card lives in this same Nearby section, as a <button> sharing the .nearest-item
   // card shape, between where it comes out of the Nearby heading and before Related begins.
   const walkCardIndex = html.indexOf('data-action="walk-radius"');
   assert.ok(walkCardIndex > nearbyHeadingIndex && walkCardIndex < relatedHeadingIndex, "walk-radius card sits inside the Nearby section");
-  assert.match(html, /<button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">[\s\S]*?Everything within \d+ min walk[\s\S]*?<\/button>/);
+  assert.match(html, /<button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">[\s\S]*?locations within \d+ min walk[\s\S]*?<\/button>/);
 
   // Category/group links are the same .nearest-item card as Nearby, not a different pill style.
   assert.match(html, /<a class="nearest-item" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/);
