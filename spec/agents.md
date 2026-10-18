@@ -107,7 +107,7 @@ Before finishing any implementation task:
 ### CI is the verdict, and the PR is how you get it
 
 **Open the PR as soon as the work is pushed, and let its `E2E tests` shards and `Visual
-snapshots (desktop + mobile)` be the one full run of the suite.** CI only fires on `pull_request` (plus a
+snapshots (mobile)` be the one full run of the suite.** CI only fires on `pull_request` (plus a
 push to `main` and a manual dispatch), so a branch pushed without a PR gets no checks at all —
 and reaching for `workflow_dispatch` to fix that just means two runs of the same suite on the
 same SHA. Open the PR instead.
@@ -133,7 +133,7 @@ So, before a PR is done — every time, no exceptions:
    on each `E2E tests (<project>, shard <n>)` job and on `Visual snapshots (desktop + mobile)`. Read the
    `N failed / N passed` line and the failure list under it.
 2. **Every `E2E tests` shard must be green.** Not "green apart from the environmental ones" —
-   green. A red visual snapshot job is a separate, narrower signal (see below) — it never
+   green. A red `Visual snapshots (desktop + mobile)` is a separate, narrower signal (see below) — it never
    excuses a red `E2E tests` shard, and a red `E2E tests` shard is never explained away as "just
    a snapshot issue".
 3. **Never call a failure pre-existing on the basis of a local run.** Establish it CI-to-CI:
@@ -143,14 +143,14 @@ So, before a PR is done — every time, no exceptions:
 4. **Never write "passes locally" as evidence in a commit message, PR body, or hand-off.** State
    what CI said: the run URL, the pass/fail counts, and — if anything is still red — exactly
    which tests and why they are not yours, with the merge-base run that proves it.
-5. **A red visual snapshot job is a pixel diff, not a functional regression — but it still
+5. **A red `Visual snapshots (desktop + mobile)` is a pixel diff, not a functional regression — but it still
    needs a decision, not a shrug.** It already retried once on CI before failing. Open the
    artifact's diff image: a real visual change (yours, or a data change landing where the diff
    is) means regenerate the baseline (**Update Snapshots** workflow); anything else matches the
    known canvas flakiness above and justifies re-running just that job.
 
 If a wait is unavoidable, wait: each `E2E tests` shard takes a few minutes less than the old
-single-project run; the visual snapshot job is a handful of tests and finishes quickly, but
+single-project run; `Visual snapshots (desktop + mobile)` is a handful of tests and finishes quickly, but
 CI's queueing and setup time still applies. Reporting a task finished before its CI run exists is
 reporting a guess. Two consecutive PRs were once handed over as done on the strength of a
 green-ish local run while their CI job was red the whole time.
@@ -167,6 +167,15 @@ describing it — a reviewer should be able to see the result without pulling th
 - A committed Playwright baseline (`test/e2e/__screenshots__/`) is a CI regression artifact, not
   a substitute: it's pixel-exact to the unchanged parts of the page too, so it rarely shows the
   change on its own. Take a fresh screenshot for the PR body even when a baseline also changed.
+- **Changed baselines get their diffs in the PR description.** When a PR changes any
+  `toHaveScreenshot()` baseline, list every changed snapshot by name and embed its before and after
+  images (`![before](...)`, `![after](...)`), each linked to the file at the commit it came from
+  (`https://raw.githubusercontent.com/<owner>/<repo>/<sha>/test/e2e/__screenshots__/<name>.png`), so
+  no separate hosting is needed. Regenerate baselines only through the **Update Snapshots** workflow
+  once the change is approved, never by hand.
+- **The preview link stays in the PR description.** Keep the Netlify block between
+  `<!-- preview-links:start -->` and `<!-- preview-links:end -->`. When a description is rewritten,
+  copy that block back verbatim, or the reviewer loses the deploy preview.
 
 ### If the suite is already red when you arrive
 
@@ -194,7 +203,7 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
 4. Create a commit with a good concise description summarising the change.
 5. Push and open the PR with screenshots of the change in its description (see "Screenshots in
    every PR" above), then confirm every `E2E tests (<project>, shard <n>)` job is **green on
-   your branch**, and triage the visual snapshot job if it's red — per "CI is the verdict"
+   your branch**, and triage `Visual snapshots (desktop + mobile)` if it's red — per "CI is the verdict"
    above. That PR run is the full sweep; do not also run the suite locally or dispatch CI by
    hand. The task is not finished until `E2E tests` is green, and the report says what CI said.
 
@@ -204,3 +213,12 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
 - No logic in `app.html`: it is markup and `<script src>` tags only. Boot and wiring live in `js/app.js`.
 - UX quality bar: this should feel like a polished, professional product.
 - Optimise for token efficiency: short, precise edits over large rewrites.
+
+## Pull requests (every agent, every PR)
+
+Every pull request, whichever agent opens it, follows `.github/pull_request_template.md` and these rules:
+
+- **Visual changes:** when a PR changes any `toHaveScreenshot()` baseline, list each changed snapshot by name in the PR body and embed its before and after images as Markdown images (`![before](...)`, `![after](...)`). Link each image to the file at the commit it came from, for example `https://raw.githubusercontent.com/<owner>/<repo>/<sha>/test/e2e/__screenshots__/<name>.png`, so the images need no separate hosting. Take them from the CI `Visual snapshots (desktop + mobile)` artifact or from the committed baselines before and after the change.
+- **Baselines:** regenerate only through the **Update Snapshots** workflow, on the PR branch, once the change is approved. Never regenerate them by hand.
+- **Preview link:** keep the Netlify block between `<!-- preview-links:start -->` and `<!-- preview-links:end -->` in the PR body. When you rewrite a description, copy that block back verbatim. Netlify fills it in once the deploy preview is ready.
+- **Spec and tests:** follow the Spec Synchronisation and Testing sections above.
