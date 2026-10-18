@@ -1910,10 +1910,10 @@ test("nearbyCountCopy reads as a plain count from the place, in the reader's own
   app.state.walkingDistanceMinutes = saved;
 });
 
-test("nearbyCardFilterKeys follows the reader's filters, falling back to trees and cows when none are set", () => {
+test("nearbyCardFilterKeys follows the reader's filters, falling back to the default categories when none are set", () => {
   const saved = app.state.overviewFilters;
   app.state.overviewFilters = [];
-  assert.deepEqual(Array.from(app.nearbyCardFilterKeys()), ["trees", "cows"], "no filters chosen: the defaults");
+  assert.deepEqual(Array.from(app.nearbyCardFilterKeys()), ["trees", "cows", "pubs"], "no filters chosen: the defaults");
   app.state.overviewFilters = ["pubs", "bus"];
   assert.deepEqual(Array.from(app.nearbyCardFilterKeys()), ["pubs", "bus"], "the reader's own filters, not trees and cows");
   app.state.overviewFilters = ["pubs", "not_a_real_filter", "cafes"];
@@ -10482,7 +10482,8 @@ test("the admin login field has a programmatic label, not just a placeholder", (
 test("Events is a default-on category, like Trees and Cows", () => {
   assert.ok(app.DEFAULT_FILTERS.includes("events"));
   const onboardingSrc = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
-  assert.match(onboardingSrc, /new Set\(\["trees", "cows", "events"\]\)/);
+  assert.ok(app.DEFAULT_FILTERS.includes("pubs"));
+  assert.match(onboardingSrc, /new Set\(\["trees", "cows", "pubs", "events"\]\)/);
 });
 
 test("normalizeEventLocations keeps upcoming (within a week) and live events, and drops past or too-far-ahead ones", () => {

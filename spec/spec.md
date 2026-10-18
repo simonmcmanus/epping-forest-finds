@@ -117,9 +117,9 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
 Events (fairs, guided walks, markets — anything at a fixed location with a start/end time) are
 sourced from `data/events.json` and merged into `state.landmarks` exactly like folklore
 locations, so they get clustering, search, filtering, routing and the inspector's place-detail
-view for free rather than a parallel code path. **Events is a default-on filter category**, like
-Trees and Cows, shown as its own top-level group (not a subfilter of something else) with the
-calendar icon.
+view for free rather than a parallel code path. **Pubs, Trees, Cows and Events are default-on
+filter categories**, shown as their own top-level groups (not subfilters of something else), with
+the pub, nature, cow and calendar icons.
 
 - **Past events are never loaded into the app.** `scripts/prune_past_events.js` drops expired
   events from the committed `data/events.json` itself, so a client never downloads bytes for

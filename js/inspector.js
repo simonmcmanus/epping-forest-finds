@@ -1138,9 +1138,9 @@ function nearbyWithinWalkHtml(lat, lon, name = null) {
 // second approximation of "how far" the static page had no way to compute at build time -- no
 // external source to credit for it, so neither section names one.
 // The categories a place's Nearby section shows a nearest-match card for: the reader's own active
-// filters, capped so a long selection doesn't bury the section, or the defaults (trees and cows)
+// filters, capped so a long selection doesn't bury the section, or the defaults (trees, cows and pubs)
 // when nothing is set -- the same fallback a first visit and an SEO landing page get.
-const NEARBY_SECTION_DEFAULT_KEYS = ["trees", "cows"];
+const NEARBY_SECTION_DEFAULT_KEYS = ["trees", "cows", "pubs"];
 const NEARBY_SECTION_MAX_CARDS = 6;
 function nearbyCardFilterKeys() {
   const active = (state.overviewFilters || []).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key));
