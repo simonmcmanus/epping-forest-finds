@@ -165,6 +165,16 @@ test.describe("Location and GPS — happy path", () => {
       expect(drewYouDot).toBe(false);
     });
 
+    test("a no-location location page keeps the map visible without opening the compass gate", async ({ page }) => {
+      await page.goto("/nearby#tree=11383");
+      await page.waitForFunction(() => document.getElementById("loadingOverlay")?.hidden === true, { timeout: 30_000 });
+
+      await expect(page.locator("#locationGate")).toBeVisible();
+      await expect(page.locator("#locationGateTitle")).toContainText("Get a more custom experience");
+      await expect(page.locator("#mapCanvas")).toBeVisible();
+      await expect(page.locator("#locationGateTitle")).not.toContainText("Allow compass access");
+    });
+
     test("a landing-page arrival (/nearby/<slug>, simulated here via ?show=) with no real fix is centred on High Beach too, sorted by distance rather than an unsorted full category list", async ({ page }) => {
       // scripts/generate-find-pages.js's static /nearby/<slug>/ pages aren't built for this test
       // server (they're a production/Netlify-build concern, gitignored locally) -- a ?show= link
