@@ -167,6 +167,12 @@ describing it — a reviewer should be able to see the result without pulling th
 - A committed Playwright baseline (`test/e2e/__screenshots__/`) is a CI regression artifact, not
   a substitute: it's pixel-exact to the unchanged parts of the page too, so it rarely shows the
   change on its own. Take a fresh screenshot for the PR body even when a baseline also changed.
+- **Changed baselines get their diffs in the PR description.** When a PR changes any
+  `toHaveScreenshot()` baseline, list every changed snapshot by name in the PR body and show its
+  before and after image, so a reviewer sees exactly what moved. Take the images from the CI
+  `Visual snapshots (mobile)` artifact (its diff and actual/expected PNGs) or from a local render of
+  the same view. Regenerate baselines only through the **Update Snapshots** workflow once the
+  change is approved, never by hand.
 
 ### If the suite is already red when you arrive
 
