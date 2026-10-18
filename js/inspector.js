@@ -1232,7 +1232,7 @@ function nearbyCountCopy(noun, { within, beyond }, placeName) {
   return beyond ? `${sentence} ${formatCount(beyond)} further away.` : sentence;
 }
 
-// The Nearest and Related sections for any selected point with coordinates -- a /find/ business,
+// The Places close by, Nearest and Related sections for any selected point with coordinates -- a /find/ business,
 // a tree, a cow, or a landmark with no page of its own. `subfilterKey` names the category the point
 // belongs to (its own subfilter, e.g. "trees" for a veteran tree), which decides the headed
 // "Related" section; without one there is no Related section, only Nearest. Every location gets the
@@ -1326,7 +1326,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
     : "";
 
   const placesHtml = findSlug ? nearbyPlacesSectionHtml(latitude, longitude, findSlug) : "";
-  return nearestSectionHtml + relatedSectionHtml + placesHtml;
+  return placesHtml + nearestSectionHtml + relatedSectionHtml;
 }
 
 // A link to this place's own crawlable /find/<slug>/ page, when it has one (findSlug is set at

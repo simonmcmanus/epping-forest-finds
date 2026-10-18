@@ -250,9 +250,9 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     (mapsHtml ? `<div class="detail-top-row"><span class="detail-top-actions">${mapsHtml}<button class="detail-map-link detail-map-link--icon" type="button" data-action="share-location" aria-label="Share link" title="Share link">${SHARE_ICON_SVG}</button></span></div>` : "") +
     summaryHtml +
     (detailRowsHtml ? `<dl>${detailRowsHtml}</dl>` : "") +
+    nearbyHtml +
     nearestHtml +
-    relatedHtml +
-    nearbyHtml;
+    relatedHtml;
   const headerIconHtml = subfilter ? iconFor(subfilter.icon) : "";
 
   let html = appHtml;
