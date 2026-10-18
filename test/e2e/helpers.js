@@ -176,6 +176,9 @@ async function setup(page, urlPath = "/nearby") {
     if (invite && !invite.hidden) invite.hidden = true;
     if (state.userLocation && state.userLocation.isDefault) {
       state.userLocation = null;
+      // This fixture removes the default location entirely, so its static
+      // High Beach list must not stand in for the no-location empty state.
+      _serverRenderedNearbyList = false;
       state.walkingDistanceMinutes = DEFAULT_WALKING_DISTANCE_MINUTES;
       // Only reset to the overview when the test actually asked for the bare /nearby screen --
       // boot() already routed a URL like /nearby#tree=... or /settings to its own screen, and

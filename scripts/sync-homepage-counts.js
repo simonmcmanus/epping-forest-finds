@@ -70,6 +70,10 @@ function updateHomepage(html, counts, inventory = buildInventory(ROOT)) {
     for (const subfilter of group.subfilters) {
       const label = escapeRegExp(subfilter.label).replace(/&/, "&amp;");
       out = out.replace(
+        new RegExp(`(<div data-inventory-key="${subfilter.key}")(?: hidden)?(?=>)`),
+        `$1${subfilter.count === 0 ? " hidden" : ""}`
+      );
+      out = out.replace(
         new RegExp(`<div(?: data-inventory-key="[^"]*")?>(<dt>(?:<a href="[^"]*">)?(?:<img[^>]*>)?${label}(?:</a>)?</dt>)`),
         `<div data-inventory-key="${subfilter.key}">$1`
       );

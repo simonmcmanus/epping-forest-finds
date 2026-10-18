@@ -182,8 +182,7 @@ rendered with thousands separators.
 ## 5. Homepage structure
 
 Copy stays brief: no introductory filler above the inventory or offline steps;
-tree captions give one action each. The signup introduction says “Hear when early
-testing opens, plus weekly Epping Forest Ledger updates once the site launches.”
+tree captions give one action each. The signup introduction says “Get launch news, opportunities to take part as an early tester, and weekly Epping Forest Ledger updates when they launch.”
 FAQ answers match their JSON-LD wording. The veteran-tree card uses the oak-leaf
 brand icon. These edits preserve the signup consent wording and mailing scope.
 
@@ -270,7 +269,7 @@ Sections, in order:
    screens (stacked on mobile). The introduction doubles as the explicit opt-in
    statement above the form; the privacy line sits below. Both use the full card
    content width; only the email-and-button row has a narrower cap. The opt-in
-   statement includes weekly Epping Forest Ledger updates once the site launches.
+   statement includes weekly Epping Forest Ledger updates when they launch.
 6. **No signal? Here’s the plan** — three steps: open it once
    on signal, it downloads, it then works anywhere in the forest. The steps and
    the cattle note share one white shadowed card (like the map inventory), so
@@ -1024,16 +1023,16 @@ the site runs in.
 
 | State | CTA | Supporting line |
 | --- | --- | --- |
-| `closed` | Keep me in the loop → sign-up form | "Sign up to hear when early testing opens." |
+| `closed` | Keep me in the loop → sign-up form | "Sign up for launch news, to take part as an early tester, and for weekly Ledger updates when they launch." |
 | `open` | Open the map → `/nearby` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
 links — is written to be true in all three states and does not change.
 
-The page must not imply immediate access or invitations already being sent.
+The app is linked from the site; signup offers launch news and opportunities to take part as an early tester.
 The signup heading is “Be in the know”, the submit button
-is “Email me updates”, and the introduction offers news when early testing opens
-and weekly Ledger updates once the site launches. The consent statement retains
+is “Email me updates”, and the introduction offers launch news, opportunities to take part as an early tester,
+and weekly Ledger updates when they launch. The consent statement retains
 the same mailing scope.
 
 ## 9. Mailing list
@@ -1095,7 +1094,7 @@ which addresses are on the list is an enumeration oracle.
   survives later copy changes.
 - Every message carries a working unsubscribe link from the first one.
 - Consent wording in the form and server-side record must match exactly:
-  “By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds when early testing opens, plus weekly Epping Forest Ledger updates once the site launches.”
+  “By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds with launch news, opportunities to take part as an early tester, and weekly Epping Forest Ledger updates when they launch.”
   Nothing else is sent to this list without fresh consent.
 
 ### 9.4 Privacy policy changes (blocking)

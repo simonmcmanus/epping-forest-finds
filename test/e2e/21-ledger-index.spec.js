@@ -65,7 +65,7 @@ test("published editions lead with a summary and map and offer updates without n
   await expect(page.locator(".masthead .banner")).toContainText("Four food and drink places to discover this week");
   await expect(page.locator("body")).not.toContainText(/pending review|proposed for the map|quick review/i);
   await expect(page.locator("#newsletter a")).toHaveAttribute("href", "https://www.eppingforestfinds.uk/#signup");
-  await expect(page.locator("#newsletter")).toContainText("once the site launches");
+  await expect(page.locator("#newsletter")).toContainText("weekly Ledger updates when they launch");
   await expect(page.locator("#app")).toContainText("early access");
   await expect(page.locator("#inventory")).toHaveCount(0);
   await expect(page.locator(".masthead .stat-strip .stat")).toHaveCount(6);
