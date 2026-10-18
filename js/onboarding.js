@@ -169,7 +169,9 @@ function showOnboarding() {
             navigator.geolocation.getCurrentPosition(
               (pos) => res({ ok: true, position: pos }),
               () => res({ ok: false }),
-              { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+              // Shared with boot()'s own automatic request (js/app.js) so a cold outdoor fix gets
+              // the same room to land before this is treated as a failure.
+              { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 30000 }
             );
           });
         }
