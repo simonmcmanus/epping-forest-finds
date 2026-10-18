@@ -604,9 +604,28 @@ function showWaterDetails(water, distance) {
 // --- Overview screen ---
 
 let _overviewListKey;
+// True while a /nearby/<slug>/ landing's own server-rendered list (generate-find-pages.js) is the
+// one on screen. Set by boot() and cleared by the first reveal that finishes (revealMapCenteredOnUser),
+// or by showNearbyLocatingState() once the reader asks for their location.
+let _serverRenderedNearbyList = false;
+
+// Replaces the list with a "requesting your location" state while a reader's own location request
+// is pending (locateUser, js/app.js). Deliberately not routed through transitionInspectorBody: that
+// slides the whole body in, and this is a state change inside a list that is already on screen.
+function showNearbyLocatingState() {
+  _serverRenderedNearbyList = false;
+  _overviewListKey = undefined;
+  els.inspectorBody.innerHTML = `<div class="nearby-locating" role="status" aria-live="polite"><span class="nearby-locating-spinner" aria-hidden="true"></span><p>Requesting your location…</p></div>`;
+}
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
+  // A landing's server-rendered list already shows the High Beach default it would otherwise
+  // rebuild here (default location, no real fix yet), so keep it. Every early caller -- boot's own
+  // reveal, the tree chunks arriving after data has loaded -- would otherwise clear it and repaint
+  // the same list, which read as a flicker. Once a real fix lands, the list is rebuilt for real.
+  if (_serverRenderedNearbyList && !hasRealLocation()) return;
+  _serverRenderedNearbyList = false;
   // The reorder animation is for a live update to the list already on screen (GPS/heading
   // moving an item, a filter changing which ones show) -- captured positions only mean
   // something when compared against the same screen's own previous layout. animate=true means

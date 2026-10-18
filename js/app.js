@@ -1053,6 +1053,13 @@ function filterKeysFromQuery(search) {
   return raw.split(",").map((key) => key.trim()).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key));
 }
 
+// True on a /nearby/<slug>/ category page (a subfilter's own, or a whole group's) -- the landing
+// whose Nearby list generate-find-pages.js server-renders, and so the one that keeps it on screen
+// until the reader's own location resolves (_serverRenderedNearbyList, js/inspector.js).
+function isNearbyCategoryLandingPath() {
+  return filterKeysFromFindPath(window.location.pathname).length > 0;
+}
+
 // True when this load's own URL already names a landing-page pre-filter -- a /nearby/<slug>
 // page's own path, a first-touch ?show= link, or a /find/<slug>/ business page's own path --
 // read straight off the URL rather than off state.overviewFilters/overviewFiltersEphemeral
@@ -1171,6 +1178,9 @@ function applyRadiusFromQuery() {
 // applyDefaultLocation(), its no-real-fix one (revealNoRealLocation below), so both get the same
 // polished reveal rather than one of them settling for a plain zoom pulse.
 async function revealMapCenteredOnUser() {
+  // Read before selectOverview() below can clear it: a landing that is still showing its
+  // server-rendered list gets no inspector slide-in, whatever location the reveal ends up with.
+  const keepsServerRenderedList = _serverRenderedNearbyList && !state.selected;
   selectOverview();
   draw();
 
@@ -1199,12 +1209,16 @@ async function revealMapCenteredOnUser() {
   } else {
     ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
   }
-  triggerInspectorEntry();
+  // A landing's own list is already on screen, so it is not slid in from the side (that hid it
+  // for the duration of the slide). See keepsServerRenderedList above.
+  if (!keepsServerRenderedList) triggerInspectorEntry();
   // Fades away the pre-reveal veil over the canvas (css/base.css, .map-stage::after) in the
   // same beat as the inspector's own entrance and the camera's animated pan/zoom above, so the
   // whole first reveal reads as one choreographed moment rather than three separate things
   // happening to independently finish loading.
   els.mapStage?.classList.add("map-revealed");
+  // The reveal is over, so from here on the list is ordinary live content again.
+  _serverRenderedNearbyList = false;
   hideWithFade(els.loadingOverlay);
 }
 
@@ -1364,6 +1378,9 @@ function showCombinedConsentBanner() {
 }
 
 async function boot() {
+  // A /nearby/<slug>/ landing already shows its server-rendered list (see
+  // _serverRenderedNearbyList, js/inspector.js); keep it there until a real fix or the reveal.
+  _serverRenderedNearbyList = isNearbyCategoryLandingPath();
   initSelectedIconMotion();
   initRouter();
   initTracker();
@@ -1765,6 +1782,10 @@ function locateUser({ initial }) {
     return;
   }
 
+  // A reader asking for their location from a /nearby/<slug>/ landing sees the list swap to a
+  // "requesting" state, not a silent change under it. A refusal below puts the defaults back.
+  const landingRequest = !initial && isNearbyCategoryLandingPath() && isOverviewScreenActive();
+  if (landingRequest) showNearbyLocatingState();
   setStatus(initial ? "Finding your location..." : "Getting your location...");
   navigator.geolocation.getCurrentPosition(
     (position) => {
@@ -1806,6 +1827,12 @@ function locateUser({ initial }) {
       requestDraw();
     },
     (error) => {
+      // Back to the same default boot() uses when there is no fix: the High Beach list the landing
+      // showed before the request, rebuilt now that the loading state has replaced it.
+      if (landingRequest && !hasRealLocation()) {
+        applyDefaultLocation();
+        selectOverview();
+      }
       const denied = error && error.code === 1;
       if (denied) {
         const gateMessage = "Location permission was blocked. Use the browser site settings to allow location for this page, then tap Enable location again.";

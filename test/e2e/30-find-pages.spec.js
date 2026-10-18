@@ -99,18 +99,20 @@ test.describe("generated find/nearby pages", () => {
       expect(nature).toMatch(/class="nearest-item" href="\/nearby\/trees\/#tree=r[a-z0-9]+"/);
     });
 
-    test("/nearby/nature/'s static nearest-item list is the exact same items, in the exact same order, as the live Nearby list shows once JS boots", async ({ page, request }) => {
+    test("/nearby/nature/'s static nearest-item list is the exact same items, in the exact same order, still on screen once JS boots with no location fix", async ({ page, request }) => {
       const staticHtml = await (await request.get("/nearby/nature/")).text();
       const staticKeys = [...staticHtml.matchAll(/href="\/nearby\/(?:trees\/#tree|ponds-streams\/#water)=([^"]+)"/g)].map((m) => decodeURIComponent(m[1]));
       expect(staticKeys.length).toBeGreaterThan(0);
 
       await gotoAndWaitForMap(page, "/nearby/nature/");
-      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
-      const liveKeys = await page.locator("#inspectorBody .nearest-item[data-overview-key]").evaluateAll(
-        (els) => els.map((el) => el.dataset.overviewKey)
+      await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.isDefault === true)).toBe(true);
+      // The landing keeps its server-rendered list until a real fix (_serverRenderedNearbyList), so
+      // what is on screen is the static markup itself, read back from the links it carries.
+      const onScreenKeys = await page.locator("#inspectorBody .nearest-item").evaluateAll(
+        (els) => els.map((el) => decodeURIComponent(el.getAttribute("href").replace(/^.*#(?:tree|water)=/, "")))
       );
 
-      expect(liveKeys).toEqual(staticKeys);
+      expect(onScreenKeys).toEqual(staticKeys);
     });
 
     test("a category page's \"Nearby <Category>\" heading, its type line, and the consent banner's lead phrase are server-rendered and match what JS shows once it boots -- no generic placeholder title, no separate generic lead sentence or \"Showing things near High Beach\" paragraph", async ({ page, request }) => {
@@ -187,6 +189,48 @@ test.describe("generated find/nearby pages", () => {
       await expect(body).not.toContainText("Named ponds, lakes and streams:");
       await expect(body.locator('a.detail-map-link[href="/nearby/trees/"]')).toHaveCount(1);
       await expect(body.locator('a.detail-map-link[href="/nearby/ponds-streams/"]')).toHaveCount(1);
+    });
+
+    test("/nearby/pubs/ never slides its server-rendered list in from the side while booting without a location fix", async ({ page }) => {
+      // Recorded from before any script runs, so a slide-in during boot cannot be missed. The
+      // entrance is the `entering` class triggerInspectorEntry() (js/app.js) puts on #inspector.
+      await page.addInitScript(() => {
+        window.__inspectorEntrances = 0;
+        new MutationObserver((records) => {
+          for (const record of records) {
+            if (record.target.id === "inspector" && record.target.classList.contains("entering")) window.__inspectorEntrances += 1;
+          }
+        }).observe(document, { subtree: true, attributes: true, attributeFilter: ["class"] });
+      });
+      await gotoAndWaitForMap(page, "/nearby/pubs/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.isDefault === true)).toBe(true);
+      expect(await page.evaluate(() => window.__inspectorEntrances)).toBe(0);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+    });
+
+    test("asking for location from a /nearby/<slug>/ landing replaces the list with a requesting state", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/pubs/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      // A request that never answers, so the requesting state stays on screen to be asserted.
+      await page.evaluate(() => {
+        navigator.geolocation.getCurrentPosition = () => {};
+        locateUser({ initial: false });
+      });
+      await expect(page.locator("#inspectorBody .nearby-locating")).toContainText("Requesting your location");
+      await expect(page.locator("#inspectorBody .nearest-item")).toHaveCount(0);
+    });
+
+    test("refusing location on a /nearby/<slug>/ landing restores the default High Beach list", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/pubs/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await page.evaluate(() => {
+        navigator.geolocation.getCurrentPosition = (_ok, error) => error({ code: 1, message: "User denied" });
+        locateUser({ initial: false });
+      });
+      await expect(page.locator("#inspectorBody .nearby-locating")).toHaveCount(0);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      expect(await page.evaluate(() => state.userLocation && state.userLocation.isDefault === true)).toBe(true);
     });
 
     test("/nearby/events/ boots pre-filtered to Events, the same way every other /nearby/<slug> page does", async ({ page }) => {
