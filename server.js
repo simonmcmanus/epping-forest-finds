@@ -244,10 +244,21 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Mirrors the five screen-path -> app.html rewrites in netlify.toml. The alpha gate is NOT
+  // Mirrors the screen-path -> app.html rewrites in netlify.toml (bare /nearby is handled above). The alpha gate is NOT
   // mirrored: it is a Netlify edge function, so local dev and the e2e suite always reach the
   // app. See spec/spec-alpha-access.md section 3.4.
-  if (["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback"].includes(url.pathname)) {
+  // Bare /nearby mirrors netlify.toml's rewrite to the generated static index, falling back to
+  // app.html until `npm run build` has written it.
+  if (url.pathname === "/nearby") {
+    const indexFile = path.join(ROOT, "nearby-index.html");
+    const file = fs.existsSync(indexFile) ? indexFile : path.join(ROOT, "app.html");
+    if (!fs.existsSync(file)) { send(res, 404, "App not found"); return; }
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    fs.createReadStream(file).pipe(res);
+    return;
+  }
+
+  if (["/nearby/search", "/nearby/filter", "/settings", "/feedback"].includes(url.pathname)) {
     const appFile = path.join(ROOT, "app.html");
     if (!fs.existsSync(appFile)) { send(res, 404, "App not found"); return; }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });

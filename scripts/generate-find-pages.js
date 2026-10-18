@@ -103,7 +103,8 @@ function inspectorHeadingHtml(html, rules, heading, typeLine) {
     APP_INSPECTOR_TITLE_EMOJI_HIDDEN.replace(" hidden></span>", `>${rules.appIconHtml("nearby", "app-icon title-icon")}</span>`),
     "inspector title icon default-hidden state"
   );
-  html = replaceOnce(html, APP_INSPECTOR_TITLE, `<h2 id="inspectorTitle">Nearby ${escapeHtml(heading)}</h2>`, "inspector title placeholder");
+  // An empty heading is the plain bare-/nearby case, whose live title is just "Nearby" (selectOverview, js/inspector.js).
+  html = replaceOnce(html, APP_INSPECTOR_TITLE, `<h2 id="inspectorTitle">${heading ? `Nearby ${escapeHtml(heading)}` : "Nearby"}</h2>`, "inspector title placeholder");
   html = replaceOnce(html, APP_INSPECTOR_TYPE, `<p id="inspectorType" class="type">${escapeHtml(typeLine)}</p>`, "inspector type placeholder");
   return html;
 }
@@ -680,6 +681,57 @@ function renderCowsPage(appHtml, rules = loadAppRules()) {
   return showConsentBannerByDefault(html);
 }
 
+/**
+ * Bare /nearby -- the plain Nearby screen, DEFAULT_FILTERS (js/app.js: trees, cows, events) for a
+ * first-time visitor. Written to its own root file rather than nearby/index.html so Netlify's
+ * clean-URL resolution cannot 301 /nearby to /nearby/ and serve this file directly, which would
+ * bypass the alpha-gate edge function on /nearby (netlify.toml). Routed to it by /nearby alone.
+ *
+ * Only the trees part of the default list is static. Cows are live-only (GPS collars via the
+ * Nofence API, no build-time source), and the live fallback adds the nearest cows whenever none
+ * sit within the radius, so the live list always reflows once JS boots. Events are filtered
+ * against the current time (normalizeEventLocations, js/normalize.js), so a build-time list would
+ * go stale between deploys; /nearby/events/ covers them. The list is measured from DEFAULT_LOCATION
+ * (High Beach), the no-fix origin, so it matches a visitor who has not shared a location. A visitor
+ * with a real fix or saved filters sees a live list that differs from this one.
+ *
+ * No consent banner: bare /nearby is not a landing-page arrival (isLandingPageArrival, js/app.js),
+ * so the banner stays hidden live and must stay hidden here too.
+ */
+const NEARBY_INDEX_FILE_NAME = "nearby-index.html";
+
+function renderNearbyIndexPage(appHtml, enrichment) {
+  const { trees = [], rules = loadAppRules() } = enrichment;
+  const canonical = `${SITE_ORIGIN}/nearby`;
+  const titleTag = `Nearby in Epping Forest | ${SITE_NAME}`;
+  const description = "Veteran trees within a 30-minute walk of High Beach in Epping Forest, mapped offline. Enable location to measure from where you are.";
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Nearby in Epping Forest",
+    description,
+    url: canonical,
+    isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${SITE_ORIGIN}/` },
+  };
+  // Same list the live Nearby screen shows for trees, with the same radius-or-nearest-3 fallback
+  // and 10-item cap (natureNearestListHtml, shared with the category pages).
+  const listHtml = natureNearestListHtml(["trees"], { trees, waterFeatures: [] }, rules);
+  // Matches overviewHeadingText()'s multi-filter branch for the default origin (js/app.js).
+  const typeLine = "Nearest selected filters within 30 min walk of High Beach";
+
+  let html = appHtml;
+  html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
+  html = replaceOnce(html, APP_DESCRIPTION_META, `<meta name="description" content="${escapeHtml(description)}">`, "meta description");
+  html = replaceOnce(html, APP_CANONICAL, `<link rel="canonical" href="${canonical}">`, "canonical link");
+  html = replaceOnce(html, APP_OG_TITLE, `<meta property="og:title" content="Nearby in Epping Forest">`, "og:title");
+  html = replaceOnce(html, APP_OG_DESCRIPTION, `<meta property="og:description" content="${escapeHtml(description)}">`, "og:description");
+  html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
+  html = replaceOnce(html, "</head>", `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`, "</head>");
+  html = replaceOnce(html, APP_EMPTY_STATE, listHtml, "initial inspector empty-state paragraph");
+  html = inspectorHeadingHtml(html, rules, null, typeLine);
+  return html;
+}
+
 function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInventory(siteRoot)) {
   const rules = loadAppRules();
   const pages = collectPages(rules, inventory);
@@ -706,6 +758,8 @@ function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInvent
   fs.mkdirSync(cowsDir, { recursive: true });
   fs.writeFileSync(path.join(cowsDir, "index.html"), renderCowsPage(appHtml, rules), "utf8");
 
+  fs.writeFileSync(path.join(siteRoot, NEARBY_INDEX_FILE_NAME), renderNearbyIndexPage(appHtml, enrichment), "utf8");
+
   return pages;
 }
 
@@ -727,6 +781,7 @@ module.exports = {
   renderPage,
   renderEventsPage,
   renderCowsPage,
+  renderNearbyIndexPage,
   generate,
   listFindSlugs,
   slugFor,

@@ -261,7 +261,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 
 | URL | Screen |
 | --- | --- |
-| `/nearby` | Nearby — the app's home screen and entry point |
+| `/nearby` | Nearby — the app's home screen and entry point; served from a generated static index with the real tree list, so crawlers and no-JS visitors get content (see spec-marketing.md § 6.6) |
 | `/nearby/search` | Search — carries the typed text as a live `?q=<text>` query string (see below) |
 | `/nearby/filter` | Filters — carries the active set as a live `?show=<key>,<key>` query string (see below) |
 | `/settings` | Settings |

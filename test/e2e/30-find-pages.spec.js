@@ -115,6 +115,34 @@ test.describe("generated find/nearby pages", () => {
       expect(onScreenKeys).toEqual(staticKeys);
     });
 
+    test("bare /nearby's server-rendered tree list is the same nearest trees the live Nearby screen computes for a no-fix visit, in the same order", async ({ page, request }) => {
+      const staticHtml = await (await request.get("/nearby")).text();
+      expect(staticHtml).toContain('<h2 id="inspectorTitle">Nearby</h2>');
+      expect(staticHtml).toContain("Nearest selected filters within 30 min walk of High Beach");
+      // Bare /nearby is not a landing-page arrival, so the consent banner stays hidden (js/app.js).
+      expect(staticHtml).toContain('id="consentBanner" class="consent-banner" role="group" aria-label="Location and cookies" hidden>');
+      const staticKeys = [...staticHtml.matchAll(/href="\/nearby\/trees\/#tree=([^"]+)"/g)].map((m) => decodeURIComponent(m[1]));
+      expect(staticKeys.length).toBeGreaterThan(0);
+
+      // Cows and events are not in the static list (cows are live-only, events are time-bound --
+      // renderNearbyIndexPage, scripts/generate-find-pages.js), so the live list reflows once it
+      // boots. The comparison is against the live tree entries alone, uncapped by the 10-item
+      // cap that the visible list shares with cows, so it is the same trees, not the same screen.
+      // Bare /nearby is not a landing-page arrival (isLandingPageArrival, js/app.js), so a fresh
+      // profile's boot waits on the onboarding wizard -- skip it, as the /find/ tests do.
+      await skipOnboarding(page);
+      await gotoAndWaitForMap(page, "/nearby");
+      await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.isDefault === true)).toBe(true);
+      const liveKeys = await page.evaluate(
+        (count) => overviewItemsForActiveFilter()
+          .filter((entry) => entry.kind === "tree")
+          .slice(0, count)
+          .map((entry) => treeHashKey(entry.item)),
+        staticKeys.length
+      );
+      expect(staticKeys).toEqual(liveKeys);
+    });
+
     test("a category page's \"Nearby <Category>\" heading, its type line, and the consent banner's lead phrase are server-rendered and match what JS shows once it boots -- no generic placeholder title, no separate generic lead sentence or \"Showing things near High Beach\" paragraph", async ({ page, request }) => {
       const staticHtml = await (await request.get("/nearby/pubs/")).text();
       expect(staticHtml).not.toContain(">Epping Forest Finds</h2>");
