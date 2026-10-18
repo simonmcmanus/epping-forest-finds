@@ -280,9 +280,9 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#reportToggle")).toBeVisible();
   });
 
-  test("nav buttons read left to right: nearby, search, feedback, settings", async ({ page }) => {
+  test("nav buttons read left to right: back, nearby, search, feedback, settings", async ({ page }) => {
     const ids = await page.locator(".inspector-actions > a, .inspector-actions > button").evaluateAll((els) => els.map((el) => el.id));
-    expect(ids).toEqual(["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle"]);
+    expect(ids).toEqual(["inspectorBack", "nearbyToggle", "searchToggle", "reportToggle", "settingsToggle"]);
   });
 
   test("snapshot: overview state", async ({ page }, testInfo) => {
