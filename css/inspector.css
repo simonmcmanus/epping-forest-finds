@@ -105,12 +105,24 @@
   border-radius: 12px;
   background: linear-gradient(120deg, rgba(47, 111, 78, 0.13), rgba(85, 167, 160, 0.1));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  animation: nearby-anchor-bar-in 220ms ease-out both;
+  animation: nearby-anchor-bar-in 380ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
+/* The space opens first (height and margin grow from nothing), then the card settles in. Animating
+   the box itself, rather than only its opacity, stops the sheet content below it from jumping down
+   in one step when the bar is un-hidden. The margin and border end values are left to the
+   underlying rules, so the mobile margin-top in the media query above still applies. */
 @keyframes nearby-anchor-bar-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    max-height: 0;
+    margin-top: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+  }
+  60% { opacity: 1; }
+  to { max-height: 160px; }
 }
 
 .nearby-anchor-bar[hidden] {
