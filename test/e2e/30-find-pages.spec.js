@@ -102,6 +102,12 @@ test.describe("generated find/nearby pages", () => {
       await expect.poll(() => page.evaluate(() => isSubfilterActive("events"))).toBe(true);
     });
 
+    test("a category landing URL stays put while its filtered Nearby list refreshes", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/pubs/");
+      await expect.poll(() => page.evaluate(() => isSubfilterActive("pubs"))).toBe(true);
+      await expect.poll(() => page.evaluate(() => window.location.pathname + window.location.search)).toBe("/nearby/pubs/");
+    });
+
     test("/find/<slug>/ boots the real app with that exact business already selected and shown", async ({ page }) => {
       // routeValueFromLocation (js/app.js) resolves /find/<slug>/ to the same place through the
       // ordinary "landmark" selection route applySelectionFromHash already applies at boot for
