@@ -412,6 +412,30 @@ generated report links back to the homepage. This is what lifts both.
 
 ### 6.6 Category pages (`/nearby/<slug>`)
 
+**Governing principle: progressive enhancement, with the static and live
+renders matching as closely as possible.** Every one of these pages must work
+and read as real, specific content with no JS at all — a crawler or a
+no-JS/slow-JS visitor gets the genuine thing, not a shell waiting to be
+filled in — and the moment JS boots and replaces it, as little as possible
+should visibly change. Concretely, that means: the static render reuses the
+exact live markup/CSS classes (`.nearest-item`, `.detail-top-row`,
+`#inspectorTitle`/`#inspectorType`/`#inspectorTitleEmoji`, the consent
+banner's own copy) rather than inventing a differently-styled stand-in that
+then visibly restyles itself; any list is built with the *same* data,
+ordering, and distance/radius computation the live code uses (reproduced in
+the generator since it cannot load `js/app.js` into its own `vm` sandbox —
+see `loadAppRules()`, `scripts/report/map-inventory.js`) rather than a
+different fallback ordering; and any one-time explanation (e.g. "measuring
+from High Beach") is written once, into whichever element both renders
+share, rather than duplicated as a second sentence that can drift out of
+sync or that live has to delete and redraw. Each of these pieces earned an
+e2e test asserting the static and live DOM/text literally match (see "the
+live app" tests below and in `test/e2e/30-find-pages.spec.js`) — that
+byte-for-byte comparison, not just "both look plausible", is what this
+principle is checked against, and is the bar a new static page (e.g. a
+future `/nearby/filter`-adjacent or location-style landing page) should be
+built to from the start, not retrofitted onto afterwards.
+
 One crawlable page per POI filter subfilter — "Pubs & bars in Epping
 Forest", "Historic sites in Epping Forest" — plus one per top-level filter
 *group* — "Food in Epping Forest", "Transport in Epping Forest" — pre-

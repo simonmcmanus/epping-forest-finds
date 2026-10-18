@@ -140,9 +140,9 @@ test.describe("Location and GPS — happy path", () => {
     });
 
     test("the list says it is showing High Beach because no location was shared, for as long as the stand-in is active", async ({ page }) => {
-      await expect(page.locator("#inspectorBody .source-note")).toContainText(
-        "Showing things near High Beach — you haven't shared your location."
-      );
+      // Folded into the Nearby heading's own type line (overviewHeadingText(), js/app.js) rather
+      // than a separate sentence at the top of the list body -- see spec.md "No real location fix".
+      await expect(page.locator("#inspectorType")).toContainText("of High Beach");
     });
 
     test("the walking radius defaults to 30 minutes, not the ordinary 5, since the anchor isn't tied to anywhere real", async ({ page }) => {
@@ -166,13 +166,14 @@ test.describe("Location and GPS — happy path", () => {
     });
 
     test("a no-location location page keeps the map visible without opening the compass gate", async ({ page }) => {
+      // startCompassNavigation() (js/app.js) bails out before showing #locationGate's blocking
+      // compass-permission prompt while hasRealLocation() is false -- a default-location stand-in
+      // is not a real fix to navigate from. The map and Nearby list behind it stay usable either way.
       await page.goto("/nearby#tree=11383");
       await page.waitForFunction(() => document.getElementById("loadingOverlay")?.hidden === true, { timeout: 30_000 });
 
-      await expect(page.locator("#locationGate")).toBeVisible();
-      await expect(page.locator("#locationGateTitle")).toContainText("Get a more custom experience");
+      await expect(page.locator("#locationGate")).toBeHidden();
       await expect(page.locator("#mapCanvas")).toBeVisible();
-      await expect(page.locator("#locationGateTitle")).not.toContainText("Allow compass access");
     });
 
     test("a landing-page arrival (/nearby/<slug>, simulated here via ?show=) with no real fix is centred on High Beach too, sorted by distance rather than an unsorted full category list", async ({ page }) => {
