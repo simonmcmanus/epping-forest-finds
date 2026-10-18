@@ -869,8 +869,8 @@ use for the homepage's counts.
 - **Related-content links, both server-rendered and live, as two headed
   sections.** The static page (`scripts/generate-business-pages.js`) renders
   the same inspector panel the live page does, with the same classes: header
-  (name, category, category icon), an "Open in Maps" link and a Share link button
-  (inert until JS boots; the walking-time pill also appears only with JS), detail rows, and
+  (name, category, category icon), the icon-only "Open in Maps" and Share buttons the live top
+  row uses (Share is inert until JS boots; the walking-time pill also appears only with JS), detail rows, and
   `Nearby` / `Related` `<h3 class="detail-section-heading">` sections of
   `.nearest-item` cards. Its cards are real links even with no JS, but carry
   no distance for the trees/cattle (a build-time figure would be wrong for

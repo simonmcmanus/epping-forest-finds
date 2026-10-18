@@ -50,7 +50,11 @@ const APP_OG_URL = '<meta property="og:url" content="https://www.eppingforestfin
 const APP_EMPTY_STATE =
   '<p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>';
 
-const APP_INSPECTOR_TOOLS = '<div class="inspector-tools">';
+// The same glyphs the live inspector's top row uses (SHARE_ICON_SVG, MAP_PIN_ICON_SVG, js/inspector.js),
+// so the first render and the live render draw identical icon buttons.
+const SHARE_ICON_SVG = '<svg class="detail-map-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12M8 7l4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const MAP_PIN_ICON_SVG = '<svg class="detail-map-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+const APP_INSPECTOR_TOOLS ='<div class="inspector-tools">';
 const APP_INSPECTOR_TITLE ='<h2 id="inspectorTitle">Epping Forest Finds</h2>';
 const APP_INSPECTOR_TYPE = '<p id="inspectorType" class="type"></p>';
 const APP_INSPECTOR_EMOJI = '<span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>';
@@ -235,16 +239,15 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     : "";
 
   const mapsHtml = entry.lat != null && entry.lon != null
-    ? `<a class="detail-map-link" href="https://maps.google.com/?q=${entry.lat.toFixed(6)},${entry.lon.toFixed(6)}" target="_blank" rel="noreferrer">Open in Maps</a>`
+    ? `<a class="detail-map-link detail-map-link--icon" href="https://maps.google.com/?q=${entry.lat.toFixed(6)},${entry.lon.toFixed(6)}" target="_blank" rel="noreferrer" aria-label="Open in Maps" title="Open in Maps">${MAP_PIN_ICON_SVG}</a>`
     : "";
 
   // The live panel shows no intro paragraph: the description sits in the page's meta tags, and the
   // visible body is the place's own details and its sections.
   const seoContent =
-    // The live top row's Share link is a button that needs JS, so on first render it is only the same
-    // pill; it works once the live panel boots. The walking-time pill needs the reader's own position,
-    // so it appears only with JS too.
-    (mapsHtml ? `<div class="detail-top-row">${mapsHtml}<button class="detail-map-link" type="button" data-action="share-location">Share link</button></div>` : "") +
+    // The live top row's Share button needs JS, so on first render it is inert until the live panel
+    // boots. The walking-time pill needs the reader's own position, so it appears only with JS too.
+    (mapsHtml ? `<div class="detail-top-row">${mapsHtml}<button class="detail-map-link detail-map-link--icon" type="button" data-action="share-location" aria-label="Share link" title="Share link">${SHARE_ICON_SVG}</button></div>` : "") +
     summaryHtml +
     (detailRowsHtml ? `<dl>${detailRowsHtml}</dl>` : "") +
     nearestHtml +
