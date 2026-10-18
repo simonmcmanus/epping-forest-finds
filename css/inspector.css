@@ -982,23 +982,43 @@ button.settings-toggle.has-update::after {
   animation: walk-chip-expand 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
-.walk-chip--enter .walk-icon {
-  animation: walk-chip-stride 600ms ease-out 180ms both;
+.walk-chip--enter .walk-chip-values {
+  animation: walk-chip-values-in 380ms ease-out 240ms both;
+}
+
+/* The loading form: a spinner beside the walker, while the walking figure is worked out. */
+.walk-chip--pending {
+  gap: 6px;
+}
+
+.walk-chip-spinner {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(47, 111, 78, 0.25);
+  border-top-color: #1a5236;
+  animation: walk-chip-spin 0.8s linear infinite;
 }
 
 @keyframes walk-chip-expand {
-  from { max-width: 0; padding-left: 0; padding-right: 0; opacity: 0; }
-  to { max-width: 260px; opacity: 1; }
+  from { max-width: 52px; }
+  to { max-width: 260px; }
 }
 
-@keyframes walk-chip-stride {
-  from { transform: translateX(-10px); opacity: 0; }
+@keyframes walk-chip-values-in {
+  from { transform: translateX(-14px); opacity: 0; }
   to { transform: none; opacity: 1; }
+}
+
+@keyframes walk-chip-spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .walk-chip--enter,
-  .walk-chip--enter .walk-icon {
+  .walk-chip--enter .walk-chip-values,
+  .walk-chip-spinner {
     animation: none;
   }
 }

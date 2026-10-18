@@ -8929,11 +8929,12 @@ function updateSelectedDetailFields() {
   const routedMetres = selectedRouteMetres(item);
   const metres = routedMetres != null ? routedMetres : distanceFromUser(item);
   const distancePill = els.inspectorBody && els.inspectorBody.querySelector('[data-live-field="distance"]');
-  if (distancePill) {
-    // The first walking figure grows into its slot rather than appearing all at once.
-    const isFirstFigure = !distancePill.querySelector(".walk-chip");
+  // The first figure replaces the loading chip and opens out into its slot (.walk-chip--enter). Later
+  // updates only swap the numbers, so the chip never replays its entrance.
+  if (distancePill && Number.isFinite(metres)) {
+    const isFirstFigure = !distancePill.querySelector(".walk-chip--ready");
     distancePill.innerHTML = walkInfoExpandableHtml(metres);
-    if (isFirstFigure) distancePill.querySelector(".walk-chip")?.classList.add("walk-chip--enter");
+    if (isFirstFigure) distancePill.querySelector(".walk-chip--ready")?.classList.add("walk-chip--enter");
   }
   updateCowTimeAgoField();
 }

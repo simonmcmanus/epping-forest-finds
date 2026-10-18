@@ -399,9 +399,13 @@ function showLandmarkDetails(place, distance) {
         ["Website", place.website],
         ["Phone", place.phone],
       ];
-  // Always present, even before a distance is known, so the walking pill can grow into its own slot
-  // once the location arrives (updateSelectedDetailFields, js/app.js) without moving the actions beside it.
-  const distancePill = `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>`;
+  // The walking pill starts in its loading form and resolves into the ready chip once its figure is
+  // worked out (updateSelectedDetailFields, js/app.js), so it always has a slot that does not move the
+  // actions beside it. The resolve waits a short minimum so the loading form reads as loading.
+  const distancePill = `<span data-live-field="distance">${walkChipPendingHtml()}</span>`;
+  setTimeout(() => {
+    if (state.selected && state.selected.item === place) updateSelectedDetailFields();
+  }, WALK_CHIP_MIN_LOADING_MS);
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
   const fullDetailsLink = fullDetailsLinkHtml(place.findSlug);
@@ -1091,7 +1095,14 @@ function walkTimeStr(distance) {
 function walkInfoHtml(distance) {
   if (distance == null || !Number.isFinite(distance)) return "";
   const walkTime = walkTimeStr(distance).replace(/~/g, "");
-  return `<span class="walk-chip">${formatDistance(distance)} · ${walkTime} ${appIconHtml("walking", "app-icon walk-icon")}</span>`;
+  return `<span class="walk-chip walk-chip--ready"><span class="walk-chip-values">${formatDistance(distance)} · ${walkTime}</span> ${appIconHtml("walking", "app-icon walk-icon")}</span>`;
+}
+
+// The loading form of the walking pill: a spinner beside the walker, shown until the walking figure
+// is worked out. It expands into the ready chip (walkInfoHtml) once there is a figure to show.
+const WALK_CHIP_MIN_LOADING_MS = 450;
+function walkChipPendingHtml() {
+  return `<span class="walk-chip walk-chip--pending" role="status" aria-label="Working out walking time"><span class="walk-chip-spinner" aria-hidden="true"></span>${appIconHtml("walking", "app-icon walk-icon")}</span>`;
 }
 
 function walkInfoExpandableHtml(distance) {
