@@ -31,12 +31,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Regenerate all snapshot baselines
-        id: e2e
-        # Mobile only: every toHaveScreenshot() spec is skipped on desktop (see
-        # test.skip(testInfo.project.name !== 'mobile') in each one), so running desktop here
-        # only pays its setup and test time for zero screenshots.
-        run: npx playwright test --project=mobile --update-snapshots=all
+      - name: Regenerate mobile snapshot baselines
+        id: mobile
+        run: npx playwright test --project=mobile --grep "snapshot:" --update-snapshots=all
+        continue-on-error: true
+      - name: Regenerate desktop snapshot baselines
+        id: desktop
+        run: npx playwright test --project=desktop --grep "snapshot:" --update-snapshots=all
         continue-on-error: true
       - name: Commit updated baselines
         # See the matching comments in ci.yml's visual-snapshots job: no [skip ci] (a regenerated
@@ -54,5 +55,5 @@ jobs:
             git push origin HEAD:${{ github.event.inputs.branch }}
           fi
       - name: Fail if any test had a non-screenshot failure
-        if: steps.e2e.outcome == 'failure'
+        if: steps.mobile.outcome == 'failure' || steps.desktop.outcome == 'failure'
         run: exit 1

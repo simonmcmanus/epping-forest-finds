@@ -506,6 +506,10 @@ beside an "Open the Epping Forest map →" button, then the homepage footer. It
 is light only, like the homepage, and fits a 390px phone without sideways
 scrolling.
 
+`test/e2e/31-public-snapshots.spec.js` visually covers the archive index and a
+published edition on desktop and mobile. `test/e2e/32-public-nojs-snapshots.spec.js`
+adds desktop no-JavaScript baselines for both server-rendered surfaces.
+
 ## Inventory utilities
 
 The newsletter shows a compact statistics strip; its food/shop total is read
