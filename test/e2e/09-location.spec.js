@@ -63,55 +63,55 @@ test.describe("Location and GPS — happy path", () => {
       await mockCowApi(page);
     });
 
-    test("location gate is shown after geolocation is denied or times out", async ({ page }) => {
+    test("the location invite banner is shown after geolocation is denied or times out, not a blocking gate", async ({ page }) => {
       await gotoAndWaitForMap(page);
-      // The location gate should become visible once the error/timeout path runs
-      await expect(page.locator("#locationGate")).toBeVisible();
+      // A returning visit with no real fix falls back to DEFAULT_LOCATION (see "No real
+      // location fix" in spec.md), so what invites a real fix here is the same non-blocking,
+      // dismissible banner showCombinedConsentBanner() uses for its own ask — never the opaque,
+      // full-screen #locationGate modal the hard-stop prompts elsewhere on this page use. The map
+      // and list behind it are already usable, so there is nothing to block.
+      await expect(page.locator("#locationInviteBanner")).toBeVisible();
+      await expect(page.locator("#locationGate")).toBeHidden();
+      await expect(page.locator("#locationInviteButton")).toBeEnabled();
     });
 
-    test("location gate button re-enables after the gate re-appears", async ({ page }) => {
+    test("the invite is not a modal — it has no dialog role and does not trap focus", async ({ page }) => {
       await gotoAndWaitForMap(page);
-      await expect(page.locator("#locationGateButton")).toBeEnabled();
+      const banner = page.locator("#locationInviteBanner");
+      await expect(banner).not.toHaveAttribute("role", "dialog");
+      await expect(banner).not.toHaveAttribute("aria-modal", "true");
+      // Focus is never forced onto it — the reader can keep using the map/list behind it.
+      const focusedId = await page.evaluate(() => document.activeElement?.id || null);
+      expect(focusedId).not.toBe("locationInviteButton");
     });
 
-    test("location gate is a labelled, keyboard-focus-trapped dialog", async ({ page }) => {
+    test("the invite is dismissible, and the map behind it is already usable centred on High Beach", async ({ page }) => {
       await gotoAndWaitForMap(page);
-      const gate = page.locator("#locationGate");
-      await expect(gate).toHaveAttribute("role", "dialog");
-      await expect(gate).toHaveAttribute("aria-modal", "true");
-      await expect(gate).toHaveAttribute("aria-labelledby", "locationGateTitle");
-
-      // Opening the gate should have moved focus into it, onto its first control.
-      await expect(page.locator("#locationGateButton")).toBeFocused();
-
-      // A returning visit with no real fix now falls back to DEFAULT_LOCATION, so this gate
-      // is the dismissible invite (see "No real location fix" in spec.md) — Tab visits its
-      // "Maybe later" button next, then the privacy note's policy link...
-      await page.keyboard.press("Tab");
-      await expect(page.locator("#locationGateDismiss")).toBeFocused();
-      await page.keyboard.press("Tab");
-      await expect(gate.locator(".privacy-note a")).toBeFocused();
-
-      // ...and a further Tab cycles back to the first button rather than escaping to the map
-      // behind it.
-      await page.keyboard.press("Tab");
-      await expect(page.locator("#locationGateButton")).toBeFocused();
-    });
-
-    test("the gate is dismissible, and the map behind it is already usable centred on High Beach", async ({ page }) => {
-      await gotoAndWaitForMap(page);
-      const gate = page.locator("#locationGate");
-      const dismiss = page.locator("#locationGateDismiss");
+      const banner = page.locator("#locationInviteBanner");
+      const dismiss = page.locator("#locationInviteDismiss");
       await expect(dismiss).toBeVisible();
 
       await dismiss.click();
-      await expect(gate).toBeHidden();
+      await expect(banner).toBeHidden();
 
       // Dismissing the invite never granted location — DEFAULT_LOCATION's stand-in is still
       // what the map and Nearby list are centred on, not a real fix.
       const isDefault = await page.evaluate(() => Boolean(state.userLocation && state.userLocation.isDefault));
       expect(isDefault).toBe(true);
       await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
+    });
+
+    test("tapping the invite's own button requests a real fix, the same way the combined consent banner's does", async ({ page }) => {
+      await gotoAndWaitForMap(page);
+      await page.evaluate(() => {
+        navigator.geolocation.getCurrentPosition = (success) => success({
+          coords: { latitude: 51.6650, longitude: 0.0450, accuracy: 10 },
+          timestamp: Date.now(),
+        });
+      });
+      await page.locator("#locationInviteButton").click();
+      await expect.poll(() => page.evaluate(() => Boolean(state.userLocation && !state.userLocation.isDefault))).toBe(true);
+      await expect(page.locator("#locationInviteBanner")).toBeHidden();
     });
   });
 
@@ -214,10 +214,10 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#mapCanvas")).toBeVisible();
     });
 
-    test("and the gate offers a retry rather than leaving the reader stuck", async ({ page }) => {
+    test("and the invite banner offers a retry rather than leaving the reader stuck", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby", { timeout: 45_000 });
-      await expect(page.locator("#locationGate")).toBeVisible();
-      await expect(page.locator("#locationGateButton")).toBeEnabled();
+      await expect(page.locator("#locationInviteBanner")).toBeVisible();
+      await expect(page.locator("#locationInviteButton")).toBeEnabled();
     });
   });
 });

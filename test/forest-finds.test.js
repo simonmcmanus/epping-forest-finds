@@ -2240,8 +2240,8 @@ test("setLocationGateVisible shows its dismiss button only when told the prompt 
   localApp.setLocationGateVisible(true, "Permission was blocked.", "Enable location");
   assert.equal(localApp.els.locationGateDismiss.hidden, true, "a hard-stop prompt offers no way to brush it off");
 
-  localApp.setLocationGateVisible(true, "Share your location for more.", "Enable location", "Get a more custom experience", { dismissible: true });
-  assert.equal(localApp.els.locationGateDismiss.hidden, false, "an invite-only prompt, shown once the map already has a usable default, can be dismissed");
+  localApp.setLocationGateVisible(true, "Compass access was blocked.", "Allow compass access", "Compass unavailable", { dismissible: true });
+  assert.equal(localApp.els.locationGateDismiss.hidden, false, "a dismissible call shows the way to brush it off");
 
   localApp.setLocationGateVisible(true, "Permission was blocked again.", "Enable location");
   assert.equal(localApp.els.locationGateDismiss.hidden, true, "a later hard-stop call hides it again rather than leaking the previous call's flag");

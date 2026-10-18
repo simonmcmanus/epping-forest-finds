@@ -213,6 +213,21 @@
             <button id="consentBannerAccept" class="button" type="button">Enable location &amp; cookies</button>
           </div>
         </div>
+        <!-- The dismissible "get a more custom experience" invite shown after a boot with no real
+             location fix (revealNoRealLocation, js/app.js). Non-blocking, same inline treatment as
+             #consentBanner above -- not the opaque, full-screen #locationGate modal the hard-stop
+             prompts elsewhere on this page use, which this invite used to reuse too even though it
+             was never a hard stop: the map and list behind it were already usable the whole time. -->
+        <div id="locationInviteBanner" class="consent-banner" role="group" aria-label="Location access" hidden>
+          <div class="consent-banner-copy">
+            <strong id="locationInviteTitle">Get a more custom experience</strong>
+            <p id="locationInviteMessage"></p>
+          </div>
+          <div class="consent-banner-actions">
+            <button id="locationInviteDismiss" class="onboarding-skip-btn" type="button">Maybe later</button>
+            <button id="locationInviteButton" class="button" type="button">Enable location</button>
+          </div>
+        </div>
         <div class="inspector-tools">
           <div class="search-shell">
             <button id="installButton" class="button install" type="button">Install</button>

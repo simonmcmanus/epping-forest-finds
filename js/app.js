@@ -418,6 +418,11 @@ const els = {
   consentBanner: document.getElementById("consentBanner"),
   consentBannerAccept: document.getElementById("consentBannerAccept"),
   consentBannerDecline: document.getElementById("consentBannerDecline"),
+  locationInviteBanner: document.getElementById("locationInviteBanner"),
+  locationInviteTitle: document.getElementById("locationInviteTitle"),
+  locationInviteMessage: document.getElementById("locationInviteMessage"),
+  locationInviteButton: document.getElementById("locationInviteButton"),
+  locationInviteDismiss: document.getElementById("locationInviteDismiss"),
   distanceWarning: document.getElementById("distanceWarning"),
   distanceWarningMessage: document.getElementById("distanceWarningMessage"),
   distanceWarningButton: document.getElementById("distanceWarningButton"),
@@ -1182,11 +1187,11 @@ async function revealMapCenteredOnUser() {
 // reveal a real fix gets (revealMapCenteredOnUser) -- a landing page already defaults its radius
 // to 30 minutes (LANDING_PAGE_WALKING_DISTANCE_MINUTES, applyRadiusFromQuery), so this just gives
 // it an origin to actually measure that radius from instead of listing the whole category
-// unsorted. A dismissible gate invites a real fix for the exact same view centred on the user --
-// skipped only when this boot already asked through one of the other two prompts (onboarding's
-// own location step, or showCombinedConsentBanner's landing-page equivalent) and failed, so
-// hitting Skip/Maybe later there (or getting denied, or just ignoring the banner) doesn't draw
-// two prompts in a row.
+// unsorted. A dismissible, non-blocking invite (showLocationInviteBanner) nudges toward a real
+// fix for the exact same view centred on the user -- skipped only when this boot already asked
+// through one of the other two prompts (onboarding's own location step, or
+// showCombinedConsentBanner's landing-page equivalent) and failed, so hitting Skip/Maybe later
+// there (or getting denied, or just ignoring the banner) doesn't draw two prompts in a row.
 //
 // hasRealLocation() guards applyDefaultLocation() because this path and a real fix can now
 // genuinely race: showCombinedConsentBanner()'s own tap fires locateUser() independently of
@@ -1203,12 +1208,53 @@ async function revealNoRealLocation({ locationAlreadyAsked }) {
   await revealMapCenteredOnUser();
 
   if (locationAlreadyAsked) return;
-  const title = "Get a more custom experience";
-  const buttonLabel = "Enable location";
   const message = navigator.geolocation
     ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
     : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.";
-  setLocationGateVisible(true, message, buttonLabel, title, { dismissible: true });
+  showLocationInviteBanner(message);
+}
+
+// Non-blocking "get a more custom experience" nudge shown after revealNoRealLocation() -- the
+// map and Nearby list behind it are already usable, so unlike #locationGate's hard-stop prompts
+// elsewhere on this page (permission required to continue, compass access), this was never a
+// reason to cover the whole screen. Same inline, dismissible treatment as
+// showCombinedConsentBanner()'s own banner, in the same inspector-chrome slot (never shown at
+// the same time -- locationAlreadyAsked above is exactly what keeps them from overlapping).
+function showLocationInviteBanner(message) {
+  const banner = els.locationInviteBanner;
+  if (!banner) return;
+
+  if (els.locationInviteMessage) els.locationInviteMessage.textContent = message;
+
+  function hideBanner() {
+    banner.classList.add("fading-out");
+    banner.addEventListener("transitionend", () => {
+      banner.hidden = true;
+      banner.classList.remove("fading-out");
+    }, { once: true });
+  }
+
+  function cleanup() {
+    els.locationInviteButton?.removeEventListener("click", onAccept);
+    els.locationInviteDismiss?.removeEventListener("click", onDecline);
+  }
+
+  function onAccept() {
+    cleanup();
+    hideBanner();
+    locateUser({ initial: false });
+  }
+
+  function onDecline() {
+    cleanup();
+    hideBanner();
+  }
+
+  els.locationInviteButton?.addEventListener("click", onAccept);
+  els.locationInviteDismiss?.addEventListener("click", onDecline);
+
+  banner.classList.remove("fading-out");
+  banner.hidden = false;
 }
 
 // Read directly rather than through window.ForestFindsCookieConsent.get(): js/app.js's own
