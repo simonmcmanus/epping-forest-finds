@@ -1352,7 +1352,7 @@ The full routing model — the URL for each screen, history entries, back/forwar
   Related sections (`relatedCategoryLinksHtml`, js/inspector.js) carries the `nearby-link` modifier:
   a forest-green border and label (css/inspector.css), so they read as a move into the map rather
   than a neutral pill. The top row's category icons (the group, "Everything nearby", and the type
-  chips) are drawn at twice the size of the inline icon used in running text (`.related-chips .app-icon`).
+  chips) are drawn at twice the size of the inline icon used in running text (`.related-chips .app-icon`), and those chips get extra padding and height (44px min, 16px sides, 8px icon gap) so the larger icons don't look squashed.
 - **A `/nearby/<slug>/` landing's whole top pill row (breadcrumb, a group page's own "Browse by
   type" members, and the "see also veteran trees/grazing cattle" pills) is reproduced live by
   `categoryLandingLinksHtml()` (`js/app.js`), folded into `overviewNearestHtml()`'s own

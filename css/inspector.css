@@ -1009,6 +1009,13 @@ button.settings-toggle.has-update::after {
   height: 2em;
 }
 
+/* Room for those larger icons: taller chips with more padding and a gap, so they don't look squashed. */
+.related-chips .detail-map-link {
+  min-height: 44px;
+  padding: 6px 16px;
+  gap: 8px;
+}
+
 .verified-note {
   margin: 10px 0 0;
   color: var(--muted);
