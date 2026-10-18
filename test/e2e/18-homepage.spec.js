@@ -346,7 +346,7 @@ test.describe("the marketing homepage", () => {
   test("invites early testers to sign up and offers weekly ledger updates", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Keep me in the loop", exact: true }).click();
-    await expect(page.locator(".cta-note")).toContainText("early testing opens");
+    await expect(page.locator(".cta-note")).toContainText("currently in early testing");
     await expect(page.locator(".signup-intro")).toContainText("early testing opens");
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates");
     await expect(page.getByRole("button", { name: "Email me updates" })).toBeVisible();
