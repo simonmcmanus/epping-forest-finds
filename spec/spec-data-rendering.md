@@ -775,7 +775,9 @@ moving the real GPS fix:
   GPS fix instead left the ring centred on the browsed spot while the matches inside it came
   from wherever the user was actually standing.
 - **Returning to the real location:** while a browse anchor is set, `#nearbyAnchorBar` shows a
-  "Showing places near where you tapped" notice with a **Use my location**
+  "Showing places near where you tapped" notice (or "Showing places near <place name>" when the
+  browse point came from a place's own inspector, carried as the anchor's `label`, which also rides
+  along in a related link's `near=` route as `label=`) with a **Use my location**
   (`data-action="reset-nearby-anchor"`) button that clears `state.nearbyAnchor`
   (`clearNearbyAnchor`) and re-renders/re-fits back to the real GPS fix. The bar is an inset
   card in the brand greens that fades in when a browse anchor is set (no animation under
@@ -919,8 +921,9 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   already-there check made it a no-op).
 - Opening hours (when known) and a `tel:`-linked phone number — see `spec-marketing.md` § 6.7,
   "Opening hours and a tappable phone number are not static-page-only".
-- A `findSlug` place also shows a headed **Nearby** section (the nearest tree and, when loaded,
-  the cows) and a headed **Related** section (its own category/group), both rendered as the same
+- A `findSlug` place also shows a headed **Nearby** section (one nearest-match card per category
+  the reader has chosen -- `nearbyCardFilterKeys()`, js/inspector.js -- falling back to trees and
+  cows when none are set, capped at six) and a headed **Related** section (its own category/group), both rendered as the same
   `.nearest-item` card — see `spec-marketing.md` § 6.7, "Related-content links, both
   server-rendered and live, as two headed sections". Neither section names a data source for its
   distances (computed entirely from this site's own data, not fetched from anywhere). The
