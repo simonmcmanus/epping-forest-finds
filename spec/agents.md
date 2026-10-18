@@ -167,6 +167,15 @@ describing it — a reviewer should be able to see the result without pulling th
 - A committed Playwright baseline (`test/e2e/__screenshots__/`) is a CI regression artifact, not
   a substitute: it's pixel-exact to the unchanged parts of the page too, so it rarely shows the
   change on its own. Take a fresh screenshot for the PR body even when a baseline also changed.
+- **Changed baselines get their diffs in the PR description.** When a PR changes any
+  `toHaveScreenshot()` baseline, list every changed snapshot by name and embed its before and after
+  images (`![before](...)`, `![after](...)`), each linked to the file at the commit it came from
+  (`https://raw.githubusercontent.com/<owner>/<repo>/<sha>/test/e2e/__screenshots__/<name>.png`), so
+  no separate hosting is needed. Regenerate baselines only through the **Update Snapshots** workflow
+  once the change is approved, never by hand.
+- **The preview link stays in the PR description.** Keep the Netlify block between
+  `<!-- preview-links:start -->` and `<!-- preview-links:end -->`. When a description is rewritten,
+  copy that block back verbatim, or the reviewer loses the deploy preview.
 
 ### If the suite is already red when you arrive
 
