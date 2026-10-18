@@ -2745,7 +2745,9 @@ function updateFilterUi() {
     // heading -- see app.html) is the way *in* from Nearby, and only shows there. On the Filter
     // screen itself it would just sit in its active state doing nothing when tapped, so it hides
     // in favour of the ordinary #inspectorBack arrow -- the way out, same as any other screen.
-    els.filterToggle.hidden = locationSelected || state.searchScreenOpen || state.filterScreenOpen;
+    // A /find/ landing's place is not selected yet, but it is not the Nearby list either, so the
+    // toggle stays hidden until it is (findLandingAwaitingPlace, js/app.js).
+    els.filterToggle.hidden = locationSelected || findLandingAwaitingPlace() || state.searchScreenOpen || state.filterScreenOpen;
     els.filterToggle.classList.toggle("active", hasActiveFilter);
     els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
     els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");

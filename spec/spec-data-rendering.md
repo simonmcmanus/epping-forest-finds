@@ -941,7 +941,7 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   `.nearest-item` link with its distance. A `/find/<slug>/` landing keeps its server-rendered
   panel on screen until its own place is selected: `selectOverview()` does not paint the Nearby
   list over it while the place is still loading (`findLandingAwaitingPlace`, js/app.js), and the
-  loader applies the place's selection as soon as its landmark arrives. Neither section names a data source for its
+  loader applies the place's selection as soon as its landmark arrives. Its Filters toggle stays hidden through that wait. Neither section names a data source for its
   distances (computed entirely from this site's own data, not fetched from anywhere). The
   nearest-tree and nearest-cow links both carry this place's own position via `/nearby/trees/`'s
   and `/nearby/cows/`'s own `near=<lat>,<lon>` anchor route, and every in-app link rendered into
