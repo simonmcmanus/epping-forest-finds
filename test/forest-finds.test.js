@@ -457,6 +457,8 @@ globalThis.__forestFindsTest = {
   relatedCategoryLinksHtml,
   detailsHtml,
   nearbyWithinWalkHtml,
+  openInMapsHtml,
+  shareLocationHtml,
   standaloneNearbySectionHtml,
   filterKindIconSlug,
   PLACE_FILTER_KEYS,
@@ -9037,6 +9039,14 @@ test("focusNearbyWithinWalkMinutes drops any open selection and browses that exa
   assert.equal(app.state.nearbyAnchor.longitude, spot.longitude);
   assert.equal(app.state.walkingDistanceMinutes, 15, "the radius is the fixed 15-minute button value");
   assert.equal(app.state.userLocation.latitude, 51.65, "the real GPS fix is never moved");
+});
+
+test("openInMapsHtml is an icon-only control with an accessible name", () => {
+  const maps = app.openInMapsHtml(51.65, 0.05, "Test");
+  assert.match(maps, /class="detail-map-link detail-map-link--icon"[^>]*aria-label="Open in Maps"/);
+  assert.match(maps, /<svg /, "the glyph is inline SVG");
+  assert.ok(!/>Open in Maps</.test(maps), "no visible text label");
+  assert.equal(app.openInMapsHtml(null, null, "Test"), "", "no link without coordinates");
 });
 
 test("nearbyWithinWalkHtml renders a Nearby-list-styled card carrying the exact coordinates it should browse, and is empty without coordinates", () => {

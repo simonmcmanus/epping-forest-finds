@@ -972,6 +972,19 @@ button.settings-toggle.has-update::after {
   background: #f5f5f0;
 }
 
+/* Icon-only variant of the pill (openInMapsHtml, shareLocationHtml): a round, square-ish control
+   with the glyph centred, the same border and surface as its text siblings. */
+.detail-map-link--icon {
+  justify-content: center;
+  width: 30px;
+  padding: 0;
+}
+
+.detail-map-icon-glyph {
+  width: 18px;
+  height: 18px;
+}
+
 .verified-note {
   margin: 10px 0 0;
   color: var(--muted);
