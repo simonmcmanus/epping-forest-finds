@@ -628,7 +628,10 @@ function serverRenderedNearbyListStillValid() {
 function showNearbyLocatingState() {
   _serverRenderedNearbyList = false;
   _overviewListKey = undefined;
-  els.inspectorBody.innerHTML = `<div class="nearby-locating" role="status" aria-live="polite"><span class="nearby-locating-spinner" aria-hidden="true"></span><p>Requesting your location…</p></div>`;
+  els.inspectorBody.innerHTML = `<div class="nearby-locating" role="status" aria-live="polite" aria-label="Finding your position">` +
+    `<div class="nearby-locating-compass" aria-hidden="true"><span class="nearby-locating-needle"></span></div>` +
+    `<div class="nearby-locating-trail" aria-hidden="true"><span></span><span></span><span></span></div>` +
+    `<p>Finding your position…</p></div>`;
 }
 
 function selectOverview(animate = false) {

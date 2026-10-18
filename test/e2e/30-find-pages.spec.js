@@ -358,7 +358,7 @@ test.describe("generated find/nearby pages", () => {
         navigator.geolocation.getCurrentPosition = () => {};
         locateUser({ initial: false });
       });
-      await expect(page.locator("#inspectorBody .nearby-locating")).toContainText("Requesting your location");
+      await expect(page.locator("#inspectorBody .nearby-locating")).toContainText("Finding your position");
       await expect(page.locator("#inspectorBody .nearest-item")).toHaveCount(0);
     });
 

@@ -1808,8 +1808,9 @@ function locateUser({ initial }) {
   // its place rather than leaving the list blank or unchanged until the fix arrives. A list already
   // full of finds stays put. A refusal below restores the list.
   const landingRequest = !initial && isNearbyCategoryLandingPath() && isOverviewScreenActive();
-  const listIsEmpty = isOverviewScreenActive() && !els.inspectorBody?.querySelector(".nearest-item");
-  const showsLoadingState = landingRequest || listIsEmpty;
+  // Any request with the Nearby list on screen clears it, so the High Beach default is not left
+  // standing while the fix is pending.
+  const showsLoadingState = landingRequest || isOverviewScreenActive();
   if (showsLoadingState) showNearbyLocatingState();
   setStatus(initial ? "Finding your location..." : "Getting your location...");
   // iOS only runs the compass prompt from a real tap, and the geolocation callback is not one, so ask
