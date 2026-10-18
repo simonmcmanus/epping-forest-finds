@@ -792,7 +792,10 @@ moving the real GPS fix:
   card in the brand greens. When a browse anchor is set it animates in: the space above the
   sheet content opens first (~560ms, height and margins grow from nothing), then just before it
   finishes the card fades in with a slight scale pop, so the content below does not jump down in
-  one step (no animation under `prefers-reduced-motion`). Its button is a pill-shaped primary button with a locate icon (38px
+  one step. When the anchor clears it plays the same animation in reverse: the card fades and
+  shrinks away (~380ms), then the space collapses (~560ms, starting before the card finishes), and
+  `hidden` is set only once that ends (`hideNearbyAnchorBar`, `js/nav.js`). No animation under
+  `prefers-reduced-motion`; the bar hides at once. Its button is a pill-shaped primary button with a locate icon (38px
   tap target; the icon is dropped below 360px wide), and an amber badge before the text mirrors
   the browse-anchor marker on the map. On the mobile sheet it starts below the drag handle. The bar lives in the
   inspector *chrome* (between the header and the tools row), not in the Nearby list's HTML, so
