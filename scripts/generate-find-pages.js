@@ -300,7 +300,9 @@ function natureNearestListHtml(filterKeys, enrichment, rules) {
     if (type === "tree") {
       const icon = rules.treeSpeciesIconHtml(item.commonName, item.latinName) || rules.filterKindEmoji("trees");
       return nearestItemCardHtml(`/nearby/trees/#tree=${encodeURIComponent(treeHashKey(item))}`, icon, treeDisplayName(item), metres, {
-        typeLabel: subfilterByKey(rules, "trees")?.label || "Tree",
+        // The live row labels a tree "Tree" (its entry kind is "tree", which has no chip of its own),
+        // not the "Trees" chip label -- renderNearestItemsHtml, js/app.js.
+        typeLabel: "Tree",
         walkIcon,
         treeTag: treeTagLabel(item),
         lat: item.latitude,

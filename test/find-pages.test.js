@@ -302,7 +302,7 @@ test("a nearest card's footer names its type and carries a direction arrow point
   const { natureNearestListHtml } = require("../scripts/generate-find-pages.js");
   const tree = treeFixture({ recordNumber: 1, commonName: "English Oak", tagNumber: "42", latitude: 51.67, longitude: 0.04 });
   const html = natureNearestListHtml(["trees"], { trees: [tree], waterFeatures: [] }, loadAppRules());
-  assert.match(html, /<span class="nearest-meta"><span class="walk-chip">[^<]+ · [^<]+ <img class="app-icon walk-icon"[^>]*><\/span> · Trees · #42<\/span>/, "walk chip with its walking icon, then the type label and tag");
+  assert.match(html, /<span class="nearest-meta"><span class="walk-chip">[^<]+ · [^<]+ <img class="app-icon walk-icon"[^>]*><\/span> · Tree · #42<\/span>/, "walk chip with its walking icon, then the type label and tag");
   assert.match(html, /<span class="nearest-arrow" data-item-lat="51\.67" data-item-lon="0\.04" data-current-angle="-?[\d.]+" style="transform: rotate\(-?[\d.]+deg\)" aria-hidden="true">↑<\/span>/);
 });
 
