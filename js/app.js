@@ -993,6 +993,33 @@ function showRoutedSelection(route, item) {
   requestDraw();
 }
 
+// A first, "cold" enableHighAccuracy fix routinely takes longer than a few seconds,
+// and tree canopy -- this app's whole subject -- slows GPS lock further still. A
+// short request timeout here does not fail safe: getCurrentPosition's error
+// callback looks identical whether the user denied permission or simply hadn't
+// gotten a fix yet by the deadline, so a too-short bound reliably shows someone
+// whose location *is* available the same High Beach stand-in and "Get a more
+// custom experience" invite (revealNoRealLocation) a denial would -- on every
+// visit, not a one-off flake. 20s gives a cold outdoor fix room to land before
+// treating it as a failure. Declared above boot() -- not just above its first use
+// below -- since boot() is called synchronously a few lines down, and a const
+// declared later in the script is still in its temporal dead zone at that point.
+const BOOT_GEOLOCATION_TIMEOUT_MS = 20000;
+
+// The Geolocation API's own `timeout` option does not start counting until the
+// permission decision has been made. A prompt left unanswered on the screen, or an
+// OS location service that stalls, therefore means getCurrentPosition never calls
+// back at all -- neither the success nor the error handler. Boot awaits that
+// request before revealing the map, so without a bound of our own the map sits
+// behind the loading screen for ever.
+//
+// Falling back to { ok: false } takes the same path a genuine failure takes: the
+// map opens uncentred and the location gate offers a retry. The bound sits just
+// above BOOT_GEOLOCATION_TIMEOUT_MS, so it only ever bites when the browser is not
+// honouring that timeout -- someone who has already granted location is answered
+// long before this fires.
+const BOOT_LOCATION_TIMEOUT_MS = BOOT_GEOLOCATION_TIMEOUT_MS + 2000;
+
 boot();
 
 // A /nearby/<slug> category page IS the app (scripts/generate-find-pages.js templates it off
@@ -1422,7 +1449,7 @@ async function boot() {
       navigator.geolocation.getCurrentPosition(
         (pos) => resolve({ ok: true, position: pos }),
         () => resolve({ ok: false }),
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 30000 }
       );
     });
   }
@@ -1723,20 +1750,6 @@ function fitMapToSingleFilterIfNoLocation(options = {}) {
   fitToPoints(points, false, options);
   return true;
 }
-
-// The Geolocation API's own `timeout` option does not start counting until the
-// permission decision has been made. A prompt left unanswered on the screen, or an
-// OS location service that stalls, therefore means getCurrentPosition never calls
-// back at all -- neither the success nor the error handler. Boot awaits that
-// request before revealing the map, so without a bound of our own the map sits
-// behind the loading screen for ever.
-//
-// Falling back to { ok: false } takes the same path a genuine failure takes: the
-// map opens uncentred and the location gate offers a retry. The bound sits just
-// above the 8s the request itself asks for, so it only ever bites when the browser
-// is not honouring that timeout -- someone who has already granted location is
-// answered long before this fires.
-const BOOT_LOCATION_TIMEOUT_MS = 10000;
 
 function withBootLocationTimeout(locationPromise) {
   return Promise.race([
