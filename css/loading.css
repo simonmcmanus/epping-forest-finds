@@ -20,6 +20,57 @@
   pointer-events: none;
 }
 
+/* Non-blocking variant -- an ordinary browser tab (see isInstalledAppContext(), js/app.js), which
+   is every /nearby/<slug> and /find/<slug> SEO landing page and every other plain visit that
+   isn't an installed/native app launch. Same element, same setLoadStep()-driven progress wiring,
+   but rendered as a thin top-edge progress bar rather than a full-screen card over a dimmed
+   backdrop: the brand line, intro copy and step checklist stay in the DOM (so they keep working
+   exactly as before for anything that reads them, e.g. the artwork test in test/e2e/01-loading.spec.js)
+   but are moved off-screen rather than removed, since this variant has no room to show them and
+   the map and the page's own static content need to stay fully visible and interactive the whole
+   time it's up. Fixed to the viewport, not .map-stage, and docked to the very top edge -- the one
+   strip of screen nothing else (nav bar, inspector, legend, banners) ever occupies, on every
+   layout this app has, including the mobile bottom-sheet inspector. */
+.loading-overlay.inline {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  align-items: flex-start;
+  background: none;
+  backdrop-filter: none;
+  padding: 0;
+  pointer-events: none;
+}
+
+.loading-overlay.inline .loading-card {
+  width: 100%;
+  max-width: none;
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.loading-overlay.inline .loading-brand,
+.loading-overlay.inline .loading-intro,
+.loading-overlay.inline .loading-steps {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+}
+
+.loading-overlay.inline .loading-progress {
+  height: 3px;
+  margin: 0;
+  border-radius: 0;
+  background: rgba(47, 111, 78, 0.18);
+}
+
+.loading-overlay.inline .loading-progress-bar {
+  border-radius: 0;
+}
+
 .location-gate {
   position: absolute;
   inset: 0;

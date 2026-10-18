@@ -58,7 +58,12 @@
       <canvas id="mapCanvas" aria-label="Interactive map of veteran trees and local landmarks"></canvas>
       <canvas id="overlayCanvas" aria-hidden="true"></canvas>
 
-      <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data">
+      <!-- Starts hidden so a no-JS visitor or a crawler sees the server-rendered content in
+           #inspectorBody immediately, with nothing covering it (spec-marketing.md §6.6/6.7) --
+           boot() (js/app.js) un-hides this only once JS actually runs, and even then only as a
+           full-screen blocking modal in an installed/native app context; an ordinary browser tab
+           gets the same element styled as a non-blocking top progress bar instead. -->
+      <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data" hidden>
         <div class="loading-card">
           <div class="loading-brand"><img class="loading-logo" src="data/icons/trees/logo.png" alt=""> Epping Forest Finds</div>
           <p class="loading-intro">Preparing your offline map — this is a one-time download. Once ready, the map works anywhere in the forest, even without phone signal.</p>
@@ -168,11 +173,17 @@
            of the inspector sheet's own open/minimized/keyboard-avoiding state. Sits before the
            aside in markup so Tab still reaches it immediately after the skip link (see
            spec-data-rendering.md, "The nav row is always reachable"). -->
+      <!-- Nearby starts already marked .screen-active/aria-current="page", the same state
+           setNavScreenActive(els.nearbyToggle) (js/app.js) would set on boot anyway, since
+           Nearby is always the screen a fresh load lands on. Without this, a no-JS visitor (or
+           the moment before JS runs) saw a flat, unhighlighted nav row that then visibly
+           changed the instant boot() ran -- a static page should already look like the screen
+           it's showing, not like a different, not-yet-decided one. -->
       <nav class="inspector-actions" aria-label="Main navigation">
-        <button id="nearbyToggle" class="close nearby-toggle" type="button" aria-label="Nearby"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span class="nav-label">Nearby</span></button>
-        <button id="searchToggle" class="close search-screen-toggle" type="button" aria-label="Search"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg><span class="nav-label">Search</span></button>
-        <button id="reportToggle" class="close report-toggle" type="button" aria-label="Feedback"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3Z"/></svg><span class="nav-label">Feedback</span></button>
-        <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 2-.5 3-2 1-2.8-1-2 3.5L4 10.5v3L1.7 15.5l2 3.5 2.8-1 2 1 .5 3h6l.5-3 2-1 2.8 1 2-3.5-2.3-2v-3l2.3-2-2-3.5-2.8 1-2-1L15 2Z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label">Settings</span></button>
+        <button id="nearbyToggle" class="close nearby-toggle screen-active" type="button" aria-label="Nearby" aria-current="page"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span class="nav-label">Nearby</span></button>
+        <button id="searchToggle" class="close search-screen-toggle" type="button" aria-label="Search" aria-current="false"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg><span class="nav-label">Search</span></button>
+        <button id="reportToggle" class="close report-toggle" type="button" aria-label="Feedback" aria-current="false"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3Z"/></svg><span class="nav-label">Feedback</span></button>
+        <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings" aria-current="false"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 2-.5 3-2 1-2.8-1-2 3.5L4 10.5v3L1.7 15.5l2 3.5 2.8-1 2 1 .5 3h6l.5-3 2-1 2.8 1 2-3.5-2.3-2v-3l2.3-2-2-3.5-2.8 1-2-1L15 2Z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label">Settings</span></button>
       </nav>
 
       <aside id="inspector" class="inspector" aria-live="polite">
@@ -200,6 +211,21 @@
           <div class="consent-banner-actions">
             <button id="consentBannerDecline" class="onboarding-skip-btn" type="button">Maybe later</button>
             <button id="consentBannerAccept" class="button" type="button">Enable location &amp; cookies</button>
+          </div>
+        </div>
+        <!-- The dismissible "get a more custom experience" invite shown after a boot with no real
+             location fix (revealNoRealLocation, js/app.js). Non-blocking, same inline treatment as
+             #consentBanner above -- not the opaque, full-screen #locationGate modal the hard-stop
+             prompts elsewhere on this page use, which this invite used to reuse too even though it
+             was never a hard stop: the map and list behind it were already usable the whole time. -->
+        <div id="locationInviteBanner" class="consent-banner" role="group" aria-label="Location access" hidden>
+          <div class="consent-banner-copy">
+            <strong id="locationInviteTitle">Get a more custom experience</strong>
+            <p id="locationInviteMessage"></p>
+          </div>
+          <div class="consent-banner-actions">
+            <button id="locationInviteDismiss" class="onboarding-skip-btn" type="button">Maybe later</button>
+            <button id="locationInviteButton" class="button" type="button">Enable location</button>
           </div>
         </div>
         <div class="inspector-tools">

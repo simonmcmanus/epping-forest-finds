@@ -623,7 +623,8 @@ function selectOverview(animate = false) {
   setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor), captureSnapshot: animate });
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
-  els.inspectorTitle.textContent = "Nearby";
+  const landingLabel = landingPageCategoryLabel();
+  els.inspectorTitle.textContent = landingLabel ? `Nearby ${landingLabel}` : "Nearby";
   const nearestSummary = overviewNearestHtml();
   els.inspectorType.textContent = overviewHeadingText();
   const listKey = nearestSummary.replace(/<span class="walk-time">[^<]*<\/span>/, "");

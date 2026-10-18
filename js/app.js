@@ -418,6 +418,11 @@ const els = {
   consentBanner: document.getElementById("consentBanner"),
   consentBannerAccept: document.getElementById("consentBannerAccept"),
   consentBannerDecline: document.getElementById("consentBannerDecline"),
+  locationInviteBanner: document.getElementById("locationInviteBanner"),
+  locationInviteTitle: document.getElementById("locationInviteTitle"),
+  locationInviteMessage: document.getElementById("locationInviteMessage"),
+  locationInviteButton: document.getElementById("locationInviteButton"),
+  locationInviteDismiss: document.getElementById("locationInviteDismiss"),
   distanceWarning: document.getElementById("distanceWarning"),
   distanceWarningMessage: document.getElementById("distanceWarningMessage"),
   distanceWarningButton: document.getElementById("distanceWarningButton"),
@@ -1065,10 +1070,34 @@ function isLandingPageArrival() {
     || (findMatch != null && findMatch[1] !== "events");
 }
 
-function applyShowFilterFromQuery() {
+// True once this load is a dedicated app launch rather than an ordinary browser tab -- an
+// installed home-screen PWA (display-mode: standalone, or iOS's older navigator.standalone) or
+// a Capacitor native wrapper (spec-native.md; js/native.js doesn't exist yet, so this checks
+// window.Capacitor directly rather than depending on it). Only this context gets the full-screen
+// #loadingOverlay boot() has always shown: a deliberate app open, usually served from the service
+// worker's own caches, where a branded step-by-step wait reads as a splash screen rather than
+// something hiding content the visitor already has. Every ordinary browser tab -- including
+// every /nearby/<slug> and /find/<slug> SEO landing page -- never shows it: #loadingOverlay
+// starts `hidden` in app.html, so a no-JS visitor or a crawler sees the server-rendered content
+// immediately (spec-marketing.md §6.6/6.7), and boot() below only ever shows a thin, non-blocking
+// top progress bar (the same element, styled via the "inline" class in css/loading.css) while
+// the same data loads behind the map and static content, which stay visible and interactive the
+// whole time.
+function isInstalledAppContext() {
+  try {
+    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+  } catch {
+    // matchMedia missing or the query unsupported -- fall through to the other checks.
+  }
+  if (window.navigator && window.navigator.standalone === true) return true;
+  if (window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform()) return true;
+  return false;
+}
+
+function applyShowFilterFromQuery({ render = true } = {}) {
   const fromPath = filterKeysFromFindPath(window.location.pathname);
   if (fromPath.length) {
-    setOverviewFilters(fromPath, { persist: false });
+    setOverviewFilters(fromPath, { persist: false, render });
     return;
   }
   // /nearby/filter's own ?show= (searchStringForPath) is a live mirror of whatever is already
@@ -1084,7 +1113,7 @@ function applyShowFilterFromQuery() {
   if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS] && routeApplyDepth > 0) return;
   const fromQuery = filterKeysFromQuery(window.location.search);
   if (fromQuery.length) {
-    setOverviewFilters(fromQuery, { persist: false });
+    setOverviewFilters(fromQuery, { persist: false, render });
     return;
   }
   // Landing on the bare Nearby path with nothing selected (no hash -- a tree/cow/landmark
@@ -1098,7 +1127,7 @@ function applyShowFilterFromQuery() {
   // urlMatchesCurrentScreen() reads it as no change and applyRouteFromUrl() returns before
   // applyRoute()/goToInitialView() ever run.
   if (window.location.pathname === NEARBY_PATH && !window.location.hash && state.overviewFiltersEphemeral) {
-    setOverviewFilters(loadStoredOverviewFilters());
+    setOverviewFilters(loadStoredOverviewFilters(), { render });
   }
 }
 
@@ -1171,6 +1200,11 @@ async function revealMapCenteredOnUser() {
     ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
   }
   triggerInspectorEntry();
+  // Fades away the pre-reveal veil over the canvas (css/base.css, .map-stage::after) in the
+  // same beat as the inspector's own entrance and the camera's animated pan/zoom above, so the
+  // whole first reveal reads as one choreographed moment rather than three separate things
+  // happening to independently finish loading.
+  els.mapStage?.classList.add("map-revealed");
   hideWithFade(els.loadingOverlay);
 }
 
@@ -1180,13 +1214,20 @@ async function revealMapCenteredOnUser() {
 // reveal a real fix gets (revealMapCenteredOnUser) -- a landing page already defaults its radius
 // to 30 minutes (LANDING_PAGE_WALKING_DISTANCE_MINUTES, applyRadiusFromQuery), so this just gives
 // it an origin to actually measure that radius from instead of listing the whole category
-// unsorted. A dismissible gate invites a real fix for the exact same view centred on the user --
-// skipped only when this boot already asked through one of the other two prompts (onboarding's
-// own location step, or showCombinedConsentBanner's landing-page equivalent) and failed, so
-// hitting Skip/Maybe later there (or getting denied, or just ignoring the banner) doesn't draw
-// two prompts in a row.
+// unsorted. A dismissible, non-blocking invite (showLocationInviteBanner) nudges toward a real
+// fix for the exact same view centred on the user -- skipped only when this boot already asked
+// through one of the other two prompts (onboarding's own location step, or
+// showCombinedConsentBanner's landing-page equivalent) and failed, so hitting Skip/Maybe later
+// there (or getting denied, or just ignoring the banner) doesn't draw two prompts in a row.
+//
+// hasRealLocation() guards applyDefaultLocation() because this path and a real fix can now
+// genuinely race: showCombinedConsentBanner()'s own tap fires locateUser() independently of
+// boot(), and the non-blocking loading bar (see isInstalledAppContext()) no longer holds up
+// clicks on that banner the way the old full-screen overlay incidentally did, so a fast tap can
+// land a real fix before boot() reaches this fallback. Without the guard, that real fix was
+// overwritten back to the High Beach stand-in the moment boot() got here.
 async function revealNoRealLocation({ locationAlreadyAsked }) {
-  applyDefaultLocation();
+  if (!hasRealLocation()) applyDefaultLocation();
 
   selectOverview();
   draw();
@@ -1194,12 +1235,53 @@ async function revealNoRealLocation({ locationAlreadyAsked }) {
   await revealMapCenteredOnUser();
 
   if (locationAlreadyAsked) return;
-  const title = "Get a more custom experience";
-  const buttonLabel = "Enable location";
   const message = navigator.geolocation
     ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
     : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.";
-  setLocationGateVisible(true, message, buttonLabel, title, { dismissible: true });
+  showLocationInviteBanner(message);
+}
+
+// Non-blocking "get a more custom experience" nudge shown after revealNoRealLocation() -- the
+// map and Nearby list behind it are already usable, so unlike #locationGate's hard-stop prompts
+// elsewhere on this page (permission required to continue, compass access), this was never a
+// reason to cover the whole screen. Same inline, dismissible treatment as
+// showCombinedConsentBanner()'s own banner, in the same inspector-chrome slot (never shown at
+// the same time -- locationAlreadyAsked above is exactly what keeps them from overlapping).
+function showLocationInviteBanner(message) {
+  const banner = els.locationInviteBanner;
+  if (!banner) return;
+
+  if (els.locationInviteMessage) els.locationInviteMessage.textContent = message;
+
+  function hideBanner() {
+    banner.classList.add("fading-out");
+    banner.addEventListener("transitionend", () => {
+      banner.hidden = true;
+      banner.classList.remove("fading-out");
+    }, { once: true });
+  }
+
+  function cleanup() {
+    els.locationInviteButton?.removeEventListener("click", onAccept);
+    els.locationInviteDismiss?.removeEventListener("click", onDecline);
+  }
+
+  function onAccept() {
+    cleanup();
+    hideBanner();
+    locateUser({ initial: false });
+  }
+
+  function onDecline() {
+    cleanup();
+    hideBanner();
+  }
+
+  els.locationInviteButton?.addEventListener("click", onAccept);
+  els.locationInviteDismiss?.addEventListener("click", onDecline);
+
+  banner.classList.remove("fading-out");
+  banner.hidden = false;
 }
 
 // Read directly rather than through window.ForestFindsCookieConsent.get(): js/app.js's own
@@ -1291,6 +1373,27 @@ async function boot() {
   resizeCanvas();
   draw();
 
+  // See isInstalledAppContext() above: an installed/native launch gets the full blocking
+  // loading modal exactly as before; an ordinary browser tab gets the same element styled as a
+  // non-blocking top progress bar instead (css/loading.css ".loading-overlay.inline"), with the
+  // map and the page's own static content visible underneath from the very first paint.
+  const blockingLoad = isInstalledAppContext();
+  if (els.loadingOverlay) {
+    els.loadingOverlay.classList.toggle("inline", !blockingLoad);
+    els.loadingOverlay.hidden = false;
+  }
+
+  // Generated /nearby/<slug> and /find/<slug> pages (scripts/generate-find-pages.js /
+  // generate-business-pages.js) start #consentBanner un-hidden by default -- they're always a
+  // landing-page arrival, so this reserves the banner's layout space from first paint for the
+  // common case (a first-time visitor, consent still undecided) instead of inserting it after
+  // boot and visibly pushing everything below it down the screen. Every other case must
+  // explicitly hide it again here, synchronously, before anything else runs: showCombinedConsentBanner()
+  // below only ever un-hides it, it never corrects a wrongly-pre-shown one. The condition is
+  // computed once and reused by that call below so the two can never drift apart.
+  const showsCombinedConsentBanner = Boolean(navigator.geolocation) && isLandingPageArrival() && cookieConsentIsUndecided();
+  if (els.consentBanner && !showsCombinedConsentBanner) els.consentBanner.hidden = true;
+
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();
   setLoadStep("cows", "loading");
@@ -1324,7 +1427,7 @@ async function boot() {
       locationPromise = onboardResult.locationPromise;
       locationAlreadyAsked = true;
     }
-  } else if (navigator.geolocation && isLandingPageArrival() && cookieConsentIsUndecided()) {
+  } else if (showsCombinedConsentBanner) {
     // A landing-page arrival (/nearby/<slug>, or a first-touch ?show= link) whose cookie
     // consent is still undecided would otherwise show the standalone cookie banner, then fire
     // the browser's own location prompt silently, and then -- once that resolves -- a third,
@@ -1369,7 +1472,11 @@ async function boot() {
     scheduleCowRefresh();
     fitToBounds();
     state.dataLoaded = true;
-    applyShowFilterFromQuery();
+    // render:false -- state.userLocation isn't set yet (the location/default-location branch
+    // below hasn't run), so selectOverview() would render the no-location dataset-order list and
+    // get thrown away the instant revealMapCenteredOnUser()/revealNoRealLocation() render the
+    // real one moments later. See setOverviewFilters' own comment.
+    applyShowFilterFromQuery({ render: false });
     applySearchQueryFromQuery();
     applyRadiusFromQuery();
 
@@ -2450,7 +2557,7 @@ function loadStoredOverviewFilters() {
 // -- landing on one of those names what that page shows, not a preference the reader chose, so
 // it must not overwrite their own saved filters (saveFilterState) for every later visit to
 // /nearby. An actual chip tap, on that page or anywhere else, always persists as before.
-function setOverviewFilters(nextFilters, { persist = true } = {}) {
+function setOverviewFilters(nextFilters, { persist = true, render = true } = {}) {
   const previousFilters = state.overviewFilters;
   state.overviewFilters = sanitizeOverviewFilters(nextFilters);
   // Marks the current filters as a page's own lens rather than the reader's choice, so
@@ -2464,6 +2571,18 @@ function setOverviewFilters(nextFilters, { persist = true } = {}) {
   if (persist) saveFilterState();
   updateFilterUi();
   syncLiveQueryStringForScreen();
+  // render:false -- boot()'s own call, before state.userLocation exists -- skips the render
+  // this would otherwise force here: without it, selectOverview() ran once against no location
+  // (activeFiltersShowFullListWithoutLocation()'s dataset-order full list) and then again
+  // moments later once applyDefaultLocation()/applyLocationFix() actually resolved, replacing the
+  // static server-rendered list with that unsorted one and then immediately replacing it again --
+  // a visible double-flicker on every /nearby/<slug> landing. boot() always calls selectOverview()
+  // itself right after, with the real state already in place, so the render here would just be
+  // thrown away.
+  if (!render) {
+    requestDraw();
+    return;
+  }
   if (isOverviewScreenActive() && !state.filterScreenOpen) {
     selectOverview();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
@@ -3757,16 +3876,34 @@ function overviewHeadingText() {
   // own position -- only reachable with showAllOutsideRadius on, since radiusLabel otherwise
   // always names the radius instead, but worth getting right for that case too.
   const aroundOrigin = state.userLocation.isDefault ? "around High Beach" : "around you";
+  // Folds in the same "measuring from High Beach, not you" fact the list itself used to carry as
+  // its own separate <p class="source-note"> paragraph (overviewNearestHtml below) -- said once,
+  // here, in the one line every Nearby screen already shows, rather than twice.
+  const radiusOrigin = state.userLocation.isDefault ? " of High Beach" : "";
   // A single category (the common case on a /nearby/<slug> page) gets its count named too --
   // "5 Pubs and bars within 5 min walk" says at a glance whether the radius is worth widening,
   // which "Pubs and bars within 5 min walk" alone left the reader to count for themselves.
   return singleFilterTitle
     ? (radiusLabel
-        ? `${overviewItemsForActiveFilter().length} ${singleFilterTitle} within ${radiusLabel}`
+        ? `${overviewItemsForActiveFilter().length} ${singleFilterTitle} within ${radiusLabel}${radiusOrigin}`
         : `Nearest ${singleFilterTitle} ${aroundOrigin}`)
     : state.overviewFilters.length > 0
-      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}` : `Nearest selected filters ${aroundOrigin}`)
-      : (radiusLabel ? `Nearest within ${radiusLabel}` : `Nearest ${aroundOrigin}`);
+      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}${radiusOrigin}` : `Nearest selected filters ${aroundOrigin}`)
+      : (radiusLabel ? `Nearest within ${radiusLabel}${radiusOrigin}` : `Nearest ${aroundOrigin}`);
+}
+
+// The category label a /nearby/<slug>/ landing page's own heading names ("Nearby Nature",
+// "Nearby Pubs & bars") in place of the generic "Nearby" the plain screen, or a reader's own
+// filter choice, keeps -- same URL-path match categoryLandingLinksHtml() uses, so the two can
+// never name a different category.
+function landingPageCategoryLabel() {
+  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
+  if (!match) return null;
+  const key = match[1].replace(/-/g, "_");
+  const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
+  if (subfilter) return subfilter.label;
+  const group = FILTER_GROUPS_BY_KEY.get(key);
+  return group ? group.label : null;
 }
 
 // True when the active filter set should be shown in full even without a location fix: either
@@ -3849,16 +3986,17 @@ function renderNearestItemsHtml(entries) {
   }).join("");
 }
 
-// "/nearby/<slug>/"'s own up-links -- a chip up to its group, and a way back to the full,
-// unfiltered Nearby list -- reproduced here because the static page's own version of this
-// (generate-find-pages.js's crossLinks/natureSeeAlsoHtml, what a crawler or a no-JS visitor
-// sees) is silently dropped the moment JS boots: selectOverview() replaces that content with
-// this live list, which had no up-links of its own. Shown only on a real /nearby/<slug>/
-// landing -- the plain /nearby screen, or a reader's own multi-filter choice from the Filters
-// screen, has no single category to breadcrumb up from, so filterKeysFromFindPath's own
-// pathname-only regex (never a reader's live filter selection) is what gates this, same as
-// isLandingPageArrival. A group page's own slug has no group above it, so it gets only the
-// "Everything nearby" link.
+// "/nearby/<slug>/"'s own up-links -- a chip up to its group, a way back to the full,
+// unfiltered Nearby list, a group page's own down-links to each member subfilter ("Browse by
+// type"), and the "see also veteran trees/grazing cattle" up-links every /find/<slug>/ business
+// page already carries -- reproduced here because the static page's own version of all of this
+// (generate-find-pages.js's topChipsHtml, what a crawler or a no-JS visitor sees) is silently
+// dropped the moment JS boots: selectOverview() replaces that content with this live list, which
+// had no up-links of its own. Shown only on a real /nearby/<slug>/ landing -- the plain /nearby
+// screen, or a reader's own multi-filter choice from the Filters screen, has no single category
+// to breadcrumb up from, so filterKeysFromFindPath's own pathname-only regex (never a reader's
+// live filter selection) is what gates this, same as isLandingPageArrival. A group page's own
+// slug has no group above it, so it gets only the "Everything nearby" link there.
 function categoryLandingLinksHtml() {
   const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
   if (!match) return "";
@@ -3870,7 +4008,32 @@ function categoryLandingLinksHtml() {
     ? `<a class="detail-map-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
     : "";
   const allChip = `<a class="detail-map-link" href="/nearby">${appIconHtml("nearby")}Everything nearby</a>`;
-  return `<div class="detail-top-row related-chips">${groupChip}${allChip}</div>`;
+
+  // A group page's own members -- cows is excluded the same way the static generator's own
+  // page.members already is (live-tracked, no fixed count, no page built through the ordinary
+  // inventory-driven path -- COW_KEY, scripts/report/map-inventory.js), so this never shows a
+  // 4th pill the static page's own generated set doesn't have.
+  const typeChips = !subfilter
+    ? group.subfilters
+        .filter((s) => s.key !== "cows")
+        .map((s) => `<a class="detail-map-link" href="/nearby/${s.key.replace(/_/g, "-")}/">${appIconHtml(s.icon)}${escapeHtml(s.label)}</a>`)
+        .join("")
+    : "";
+
+  // Omits trees/cows's own self-link, and omits trees entirely on the nature group page (its
+  // own "Trees" type-chip above already covers it -- see topChipsHtml's matching comment,
+  // scripts/generate-find-pages.js).
+  const treesSubfilter = FILTER_SUBFILTERS_BY_KEY.get("trees");
+  const cowsSubfilter = FILTER_SUBFILTERS_BY_KEY.get("cows");
+  const treesAlreadyLinked = key === "trees" || (!subfilter && group.key === "nature");
+  const treesChip = treesAlreadyLinked || !treesSubfilter
+    ? ""
+    : `<a class="detail-map-link" href="/nearby/trees/">${appIconHtml(treesSubfilter.icon)}${escapeHtml(treesSubfilter.label)}</a>`;
+  const cowsChip = key === "cows" || !cowsSubfilter
+    ? ""
+    : `<a class="detail-map-link" href="/nearby/cows/">${appIconHtml(cowsSubfilter.icon)}${escapeHtml(cowsSubfilter.label)}</a>`;
+
+  return `<div class="detail-top-row related-chips">${groupChip}${allChip}${typeChips}${treesChip}${cowsChip}</div>`;
 }
 
 function overviewNearestHtml() {
@@ -3896,13 +4059,11 @@ function overviewNearestHtml() {
   // this list -- it is the persistent #nearbyAnchorBar in the inspector chrome, so it stays
   // reachable from Filters/Settings/Report too (updateNearbyAnchorBar, js/nav.js).
 
-  // applyDefaultLocation()'s High Beach stand-in -- unlike the dismissible invite gate
-  // (revealNoRealLocation), which the reader can tap away and never see again this session,
-  // this sits with the list itself for as long as the stand-in is what it's actually measuring
-  // from, so "why is this centred on High Beach?" has an answer on screen the whole time.
-  const defaultLocationNotice = state.userLocation.isDefault
-    ? `<p class="source-note">Showing things near High Beach — you haven't shared your location.</p>`
-    : "";
+  // applyDefaultLocation()'s High Beach stand-in used to get its own "why is this centred on
+  // High Beach?" notice here, separate from the heading. It's folded into overviewHeadingText()'s
+  // own "within 30 min walk of High Beach" instead now -- the type line under the Nearby heading
+  // already answers that, for as long as the stand-in is what the list is actually measuring
+  // from, without a second sentence saying the same thing underneath it.
 
   // Set by the pinch-to-resize gesture (updateNearbyRadiusPinch, js/nav.js) while the user
   // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
@@ -3943,7 +4104,7 @@ function overviewNearestHtml() {
     : `Showing all distances — tap to filter to ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
   const chipLabel = radiusActive ? formatWalkingRadius(state.walkingDistanceMinutes) : "All";
   const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
-  return `${breadcrumbHtml}${defaultLocationNotice}${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
+  return `${breadcrumbHtml}${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`;
 }
 
 // The icon the Nearby list, search results and cluster detail show for a
@@ -4008,6 +4169,13 @@ function bearingForItem(item) {
 }
 
 async function startCompassNavigation() {
+  // A default location is only a map-centering stand-in. Do not ask for compass access, or
+  // show its blocking permission gate, until the visitor has shared a real position. The
+  // no-location view already explains this in its source note and remains fully browseable.
+  if (!hasRealLocation()) {
+    updateCompassOverlay();
+    return;
+  }
   if (!selectedCompassTarget()) {
     updateCompassOverlay();
     return;
