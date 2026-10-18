@@ -96,10 +96,8 @@ test.describe("Overview / Nearby screen", () => {
       await expect(icon).toBeVisible();
       await expect.poll(async () => icon.evaluate(el => {
         const iconStyle = getComputedStyle(el);
-        const backStyle = getComputedStyle(document.getElementById("inspectorBack"));
-        return { width: iconStyle.width, height: iconStyle.height,
-          backWidth: backStyle.width, backHeight: backStyle.height };
-      })).toEqual({ width: "44px", height: "44px", backWidth: "44px", backHeight: "44px" });
+        return { width: iconStyle.width, height: iconStyle.height };
+      })).toEqual({ width: "44px", height: "44px" });
     }
   });
 
@@ -325,7 +323,7 @@ test.describe("Overview / Nearby screen", () => {
     test("the inspector back arrow appears once the Nearby view is moved, and undoes the move", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
-      await expect(page.locator("#inspectorBack")).toBeHidden();
+      await expect(page.locator("#inspectorBack")).toBeDisabled();
 
       const originalAnchor = await page.evaluate(() => {
         const origin = nearbyOrigin();
@@ -338,7 +336,7 @@ test.describe("Overview / Nearby screen", () => {
 
       await page.click("#inspectorBack");
       await expect.poll(() => page.evaluate(() => state.nearbyAnchor)).toBeNull();
-      await expect(page.locator("#inspectorBack")).toBeHidden();
+      await expect(page.locator("#inspectorBack")).toBeDisabled();
     });
 
     test("tapping open map ground while a tree is selected returns to nearby, focused on that spot", async ({ page }) => {

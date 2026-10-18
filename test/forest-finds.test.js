@@ -2511,7 +2511,8 @@ test("navigation has labelled outline glyphs that inherit the selected colour", 
   const nav = html.match(/<nav class="inspector-actions"[\s\S]*?<\/nav>/)[0];
   // Filters is reached inline from the Nearby heading, not a fifth nav-bar tab -- see
   // spec-data-rendering.md, "Filters is reached from Nearby, not a nav peer".
-  assert.equal((nav.match(/stroke="currentColor"/g) || []).length, 4);
+  // Four labelled tabs, plus the thin Back cell's own chevron (labelled by aria-label, not a tab).
+  assert.equal((nav.match(/stroke="currentColor"/g) || []).length, 5);
   assert.equal((nav.match(/class="nav-label"/g) || []).length, 4);
   assert.ok(!nav.includes("<img"), "navigation must not retain fixed-colour PNG icons");
 });

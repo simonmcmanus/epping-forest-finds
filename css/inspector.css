@@ -89,12 +89,6 @@
   display: none;
 }
 
-/* Collapsed to the title pill, there's nowhere for Back to lead that isn't already one tap
-   (expand) away, so it's hidden rather than left dangling above the collapsed content. */
-.inspector.minimized .inspector-back {
-  display: none;
-}
-
 /* The persistent way back from a browsed spot (#nearbyAnchorBar, app.html). Sits in the
    inspector chrome between the header and the tools row so it survives the body swaps that
    Filters/Settings/Report do, and is hidden with the rest of the chrome when minimized. */
@@ -229,7 +223,9 @@
   right: 14px;
   width: min(390px, calc(100vw - 28px));
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* A thin first cell for Back (.nav-back), reserved even while it is disabled, so the four tabs
+     never move when it becomes available. */
+  grid-template-columns: minmax(0, 0.5fr) repeat(4, minmax(0, 1fr));
   gap: 2px;
   padding: 6px;
   background: var(--panel);
@@ -293,12 +289,6 @@
   /* Right padding reserves room for the absolutely-positioned #compassArrow/#filterToggle
      corner -- sized to the larger of the two (filterToggle, a 44px circle at right:12px). */
   padding: 16px 60px 12px 16px;
-}
-
-/* Back sits to the left of the emoji/title, in the same row, rather than on a header row of
-   its own above it -- the button's own inset replaces the section's left padding. */
-.inspector-title-section.has-back {
-  padding-left: 12px;
 }
 
 .inspector-title-copy {
@@ -369,23 +359,25 @@
   display: none;
 }
 
-.inspector-back {
-  position: static;
-  width: calc(44px * var(--icon-scale));
-  height: calc(44px * var(--icon-scale));
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: #fff;
+/* Back, the first cell of the main nav bar (.inspector-actions). Always rendered, so showing or
+   dimming it never moves the title or the tabs. Disabled (dimmed, inert) when there is no earlier
+   screen to return to. */
+.inspector-actions > .nav-back {
+  min-height: 0;
+  height: calc(60px * var(--icon-scale));
+  padding: 0;
+  background: transparent;
   color: var(--ink);
-  display: inline-grid;
-  place-items: center;
-  flex: 0 0 auto;
-  transition: background 120ms ease;
-  z-index: 3;
+  transition: opacity 120ms ease, background 120ms ease;
 }
 
-.inspector-back:hover {
-  background: #f5f5f0;
+.inspector-actions > .nav-back:hover:not(:disabled) {
+  background: rgba(36, 56, 47, 0.06);
+}
+
+.inspector-actions > .nav-back:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .inspector-title-emoji {
@@ -517,9 +509,9 @@ button.settings-toggle.has-update::after {
   flex: 0 0 auto;
 }
 
-.inspector-back .nav-icon {
-  width: calc(30px * var(--icon-scale));
-  height: calc(30px * var(--icon-scale));
+.inspector-actions > .nav-back .nav-icon {
+  width: calc(22px * var(--icon-scale));
+  height: calc(22px * var(--icon-scale));
 }
 
 /* Search screen. The query field is rendered once when the screen opens and only

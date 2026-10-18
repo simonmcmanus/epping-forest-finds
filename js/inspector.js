@@ -872,8 +872,9 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
   }
 
   // Apply chrome updates
-  els.inspectorBack.hidden = !showBack;
-  if (els.inspectorTitleSection) els.inspectorTitleSection.classList.toggle("has-back", Boolean(showBack));
+  // Back lives in the nav bar and is always rendered, so it is disabled rather than hidden: showing
+  // or dimming it never moves the title or the tabs.
+  els.inspectorBack.disabled = !showBack;
   els.inspectorTitleEmoji.hidden = !emoji;
   if (emoji && emoji.includes("<")) {
     els.inspectorTitleEmoji.innerHTML = emoji;
