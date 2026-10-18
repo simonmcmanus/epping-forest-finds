@@ -124,6 +124,8 @@ test("renderPage replaces the app's initial empty-state message with real, crawl
   const html = renderPage(pubs, APP_HTML);
 
   assert.ok(!html.includes("All veteran trees are shown"), "the generic placeholder text is gone");
+  assert.match(html, /Browse nearby categories/);
+  assert.match(html, /<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby<\/h3>/);
   assert.match(html, /Find all 42 pubs and bars in Epping Forest/);
   assert.match(html, /href="\/nearby\/cafes\/"/, "a sibling cross-link uses the trailing slash Netlify serves directly");
   assert.match(html, /More in <a href="\/nearby\/food\/">Food<\/a>/, "and links back up to its own group page");
@@ -154,10 +156,10 @@ test("renderPage links out to veteran trees and grazing cattle as pills in the t
   assert.match(topRow, /<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
 });
 
-test("renderPage's own trees pill omits a self-link when the page itself is /nearby/trees/, and never doubles up with the nature group's own type pill", () => {
+test("renderPage's own trees pill marks the current page and never doubles up with the nature group's own type pill", () => {
   const treesPage = { key: "trees", slug: "trees", label: "Trees", title: "trees", count: 24906, groupLabel: "Nature", groupSlug: "nature", siblings: [] };
   const html = renderPage(treesPage, APP_HTML);
-  assert.ok(!html.includes('href="/nearby/trees/">'), "the trees page never links to itself, not even as a pill");
+  assert.match(html, /nearby-link--current[^>]*href="\/nearby\/trees\/"|href="\/nearby\/trees\/"[^>]*nearby-link--current/, "the trees page marks itself as current");
   assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
 
   const naturePage = { key: "nature", slug: "nature", label: "Nature", title: "trees and water features", count: 25017, isGroup: true, members: [{ key: "trees", slug: "trees", label: "Trees" }, { key: "ponds_streams", slug: "ponds-streams", label: "Ponds & streams" }] };
@@ -186,7 +188,7 @@ test("renderCowsPage has no fixed count (live-tracked data) but is a real, linka
   assert.match(html, /GPS collar/);
   assert.ok(!html.includes('"numberOfItems"'), "no fixed count to quote for live-tracked positions");
   assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/, "links onward to trees");
-  assert.ok(!html.includes('href="/nearby/cows/"'), "but never to itself, not even as a pill");
+  assert.match(html, /nearby-link--current[^>]*href="\/nearby\/cows\/"|href="\/nearby\/cows\/"[^>]*nearby-link--current/, "the cows page marks itself as current");
 });
 
 test("generate writes one index.html per page under nearby/<slug>/, and listFindSlugs finds them back", () => {

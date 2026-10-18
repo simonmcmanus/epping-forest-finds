@@ -1370,12 +1370,15 @@ The full routing model — the URL for each screen, history entries, back/forwar
   top row (`categoryLandingLinksHtml`, js/app.js) and every related card in a place's Nearest and
   Related sections (`relatedCategoryLinksHtml`, js/inspector.js) carries the `nearby-link` modifier:
   a forest-green border and label (css/inspector.css), so they read as a move into the map rather
-  than a neutral pill. The top row's category icons (the group, "Everything nearby", and the type
-  chips) are drawn at twice the size of the inline icon used in running text (`.related-chips .app-icon`), and those chips get extra padding and height (44px min, 16px sides, 8px icon gap) so the larger icons don't look squashed.
+  than a neutral pill. The top row's category icons (the current category, group, "All nearby",
+  and type chips) are drawn at twice the size of the inline icon used in running text
+  (`.related-chips .app-icon`), and those chips keep a 44px minimum touch target with 14px side
+  padding and a 7px icon gap so the larger icons stay readable without making the navigation feel
+  bloated. The current category uses a filled selected state and `aria-current="page"`.
 - **A `/nearby/<slug>/` landing's whole top pill row (breadcrumb, a group page's own "Browse by
   type" members, and the "see also veteran trees/grazing cattle" pills) is reproduced live by
   `categoryLandingLinksHtml()` (`js/app.js`), folded into `overviewNearestHtml()`'s own
-  `breadcrumbHtml` so every one of that function's return paths carries it for free** — see
+  category-navigation HTML so every one of that function's return paths carries it for free** — see
   `spec-marketing.md` § "Category pages" for the exact chip set and dedupe rules (the nature
   group page's own "Trees" type-chip is the only trees link there; the see-also row never repeats
   it). A tree species breakdown was tried here first and dropped: it made no sense tied to a
