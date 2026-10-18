@@ -999,6 +999,8 @@ function showRoutedSelection(route, item) {
   state.nearbyAnchor = null;
   state.selected = { type: route.type, item };
   route.show(item);
+  // The direction arrow for the new selection: it spins while a first fix is still out.
+  updateCompassOverlay();
   // Deep-linked selections behave like a map-tap selection: the inspector opens expanded
   // immediately on both mobile and desktop (spec.md "Inspector modes"). Force it open (not
   // just skip minimizing) so arriving at a new linked location while the inspector was
@@ -1498,10 +1500,17 @@ async function boot() {
     // Returning user, or a landing-page revisit with consent already settled: start location
     // request immediately so the browser dialog appears while data loads — no tap needed.
     setLoadStep("location", "loading");
+    setLocationRequestPending(true);
     locationPromise = new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ ok: true, position: pos }),
-        () => resolve({ ok: false }),
+        (pos) => {
+          setLocationRequestPending(false);
+          resolve({ ok: true, position: pos });
+        },
+        () => {
+          setLocationRequestPending(false);
+          resolve({ ok: false });
+        },
         { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 30000 }
       );
     });
@@ -1817,8 +1826,10 @@ function locateUser({ initial }) {
   // iOS only runs the compass prompt from a real tap, and the geolocation callback is not one, so ask
   // from this tap before the fix arrives. Non-iOS needs no gesture and is handled in the callback.
   if (!initial && compassPermissionCanBeRequested()) requestCompassPermissionIfNeeded({ fromGesture: true });
+  setLocationRequestPending(true);
   navigator.geolocation.getCurrentPosition(
     (position) => {
+      setLocationRequestPending(false);
       const { latitude, longitude, previousPoint } = applyLocationFix(position);
       setLocationGateVisible(false);
       ensureLocationWatch();
@@ -1852,6 +1863,7 @@ function locateUser({ initial }) {
       requestDraw();
     },
     (error) => {
+      setLocationRequestPending(false);
       // Back to the same default boot() uses when there is no fix: the High Beach list the landing
       // showed before the request, rebuilt now that the loading state has replaced it.
       if (showsLoadingState && !hasRealLocation()) {
@@ -7373,10 +7385,31 @@ function findCowByKey(key) {
   return null;
 }
 
+// True from the moment a location request starts until it answers, so the direction arrow can spin
+// while it waits rather than appearing only once a fix lands (setLocationRequestPending).
+let locationRequestPending = false;
+function setLocationRequestPending(pending) {
+  locationRequestPending = pending;
+  updateCompassOverlay();
+}
+
 function updateCompassOverlay() {
   const target = selectedCompassTarget();
-  if (!target || !state.userLocation) {
-    if (els.compassArrow) els.compassArrow.hidden = true;
+  const arrow = els.compassArrow;
+  // Waiting for the first fix: the arrow spins in place, with no bearing yet to point at.
+  // The High Beach stand-in is not a real fix, so it gives no bearing either (hasRealLocation).
+  if (target && !hasRealLocation() && locationRequestPending) {
+    state.compassArrowAngle = null;
+    if (arrow) {
+      arrow.hidden = false;
+      arrow.style.transform = "";
+      arrow.classList.add("title-compass-arrow--searching");
+      arrow.setAttribute("aria-label", "Finding your direction");
+    }
+    return;
+  }
+  if (!target || !hasRealLocation()) {
+    if (arrow) arrow.hidden = true;
     state.compassArrowAngle = null;
     return;
   }
@@ -7389,10 +7422,21 @@ function updateCompassOverlay() {
   const title = state.selected.type === "tree"
     ? treeDisplayName(target)
     : placeTitle(target);
-  if (els.compassArrow) {
-    els.compassArrow.hidden = false;
-    els.compassArrow.style.transform = `rotate(${state.compassArrowAngle}deg)`;
-    els.compassArrow.setAttribute("aria-label", `Direction to ${title}, ${detailTypeLabel(distanceFromUser(target))}`);
+  if (arrow) {
+    // The first bearing after the search: spin two full turns and slow into the direction, rather
+    // than snapping straight to it.
+    const settlingIn = arrow.hidden || arrow.classList.contains("title-compass-arrow--searching");
+    arrow.classList.remove("title-compass-arrow--searching");
+    arrow.hidden = false;
+    if (settlingIn) {
+      arrow.style.transition = "none";
+      arrow.style.transform = `rotate(${state.compassArrowAngle + 720}deg)`;
+      void arrow.offsetWidth;
+      arrow.style.transition = "transform 1.6s cubic-bezier(0.2, 0.7, 0.2, 1)";
+      arrow.addEventListener("transitionend", () => { arrow.style.transition = ""; }, { once: true });
+    }
+    arrow.style.transform = `rotate(${state.compassArrowAngle}deg)`;
+    arrow.setAttribute("aria-label", `Direction to ${title}, ${detailTypeLabel(distanceFromUser(target))}`);
   }
 }
 

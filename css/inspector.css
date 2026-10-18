@@ -314,6 +314,23 @@
   display: none;
 }
 
+/* While the first location fix is out, the arrow turns in place: there is no bearing to point at yet.
+   Once there is one, updateCompassOverlay (js/app.js) spins it into place. */
+.title-compass-arrow--searching {
+  animation: title-compass-search 1s linear infinite;
+}
+
+@keyframes title-compass-search {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-compass-arrow--searching {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
 /* Inline Filters entry point, next to the Nearby/Filters heading -- shares the title section's
    reserved top-right corner with #compassArrow (the two never show together), so it costs no
    extra vertical space over the old fifth nav tab. */
