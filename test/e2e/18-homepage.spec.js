@@ -53,8 +53,24 @@ test.describe("the marketing homepage", () => {
         await expect(page.locator(`[data-inventory-key="${subfilter.key}"] dt > a`)).toHaveAttribute("href", `/nearby/${subfilter.key.replace(/_/g, "-")}/`);
       }
     }
+    await page.locator('[data-inventory-group="food"] summary').click();
     await expect(page.getByRole("link", { name: "Pubs & bars" })).toHaveAttribute("href", "/nearby/pubs/");
     await expect(page.locator(".inventory-toggle, .inventory-items")).toHaveCount(0);
+  });
+
+  test("expands categories without JavaScript and hides empty categories", async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    try {
+      await page.goto("/");
+      const stories = page.locator('[data-inventory-group="stories"]');
+      await expect(stories.locator('a[href="/nearby/legends/"]')).toBeHidden();
+      await stories.locator("summary").focus();
+      await page.keyboard.press("Enter");
+      await expect(stories.locator('a[href="/nearby/legends/"]')).toBeVisible();
+      await expect(stories.locator('[data-inventory-key="literature"]')).toBeHidden();
+      await expect(page.locator(".hero .cta-note")).toContainText("currently in early testing");
+    } finally { await context.close(); }
   });
 
   test.skip("keeps category rows compact and marks the open list with a chevron and background", async ({ page }) => {
@@ -207,7 +223,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Get to know the old trees/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
-    await expect(page.locator(".hero + .counts + .pillars + #find-trees")).toHaveCount(1);
+    await expect(page.locator(".hero + .ledger + .signup + .counts + .pillars + #find-trees")).toHaveCount(1);
     for (const card of await page.locator(".pillars article").all()) {
       await expect(card).toHaveCSS("border-radius", "14px");
       await expect(card).not.toHaveCSS("box-shadow", "none");
@@ -248,9 +264,10 @@ test.describe("the marketing homepage", () => {
     );
     await expect(page.locator(".inventory-group h3 img")).toHaveCount(6);
     await expect(page.locator(".inventory-group dt img")).toHaveCount(22);
+    for (const summary of await page.locator(".inventory-details summary").all()) await summary.click();
     const iconAlignment = await page.locator(".inventory-group").evaluateAll(groups => groups.map(group => {
       const parent = group.querySelector("h3 img").getBoundingClientRect();
-      return [...group.querySelectorAll("dt img")].every(icon => {
+      return [...group.querySelectorAll("[data-inventory-key]:not([hidden]) dt img")].every(icon => {
         const child = icon.getBoundingClientRect();
         return Math.abs(parent.x + parent.width / 2 - child.x - child.width / 2) < 1;
       });
@@ -337,11 +354,11 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("#signup input[type=checkbox]")).toHaveCount(0);
   });
 
-  test("highlights signup before the practical questions and ends on the Ledger", async ({ page }) => {
+  test("highlights the Ledger and signup before the map details", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates once the site launches");
     await expect(page.locator("#signupConsent")).toContainText("weekly Epping Forest Ledger updates once the site launches");
-    await expect(page.locator(".signup + .offline-how + .faq + .ledger")).toHaveCount(1);
+    await expect(page.locator(".hero + .ledger + .signup + .counts")).toHaveCount(1);
     await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.png");
     await expect(page.locator(".ledger .card-icon")).toHaveAttribute("src", "assets/home/ledger.png");
     await expect(page.locator(".tag-copy .card-icon")).toHaveAttribute("src", "assets/home/tree-tag.png");
@@ -360,11 +377,11 @@ test.describe("the marketing homepage", () => {
       };
     }));
     expect(iconAlignment).toEqual([
-      { besideTitle: true, centredOnTitle: true, flushWithEyebrow: null },
-      { besideTitle: true, centredOnTitle: true, flushWithEyebrow: true }
+      { besideTitle: true, centredOnTitle: true, flushWithEyebrow: true },
+      { besideTitle: true, centredOnTitle: true, flushWithEyebrow: null }
     ]);
     await expect(page.locator(".ledger").getByRole("link", { name: "Read the latest edition →" })).toHaveCSS("background-color", "rgb(46, 107, 68)");
-    await expect(page.locator("main > section:last-child")).toHaveClass(/\bledger\b/);
+    await expect(page.locator("main > section:last-child")).toHaveClass(/\bfaq\b/);
     await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
     await expect(page.locator(".site-foot")).not.toContainText("Map data ©");
     await expect(page.locator(".offline-note")).toContainText("Cattle locations offline");
@@ -560,6 +577,8 @@ test.describe("the marketing homepage", () => {
       <section id="road"><div class="card"><h3>Water mains replacement</h3><span class="status-label">Ongoing</span><p class="addr">Loughton</p><p>Plan ahead for road works.</p></div></section>
       <section id="event"><div class="card"><h3>Apple Day</h3><span class="status-label">Saturday 18 October</span><p class="addr">Copped Hall</p><p>A family day out.</p></div></section>
     ` }));
+    const requests = [];
+    page.on("request", request => { if (request.url().includes("/reports/")) requests.push(request.url()); });
     await page.goto("/");
 
     const preview = page.locator("#ledgerLatest");
@@ -574,6 +593,11 @@ test.describe("the marketing homepage", () => {
     await expect(preview).not.toContainText("A family day out.");
     await expect(page.locator("#latestLedgerLink")).toHaveAttribute("href", "/reports/epping-forest-ledger-2026-10-11.html");
     await expect(page.locator(".ledger-archive-link")).toHaveAttribute("href", "/reports/");
+    await expect(page.locator(".hero-ledger-link")).toHaveAttribute("href", "/reports/epping-forest-ledger-2026-10-11.html");
+    for (const [title, section] of [["The Belgian Brewer", "businesses"], ["Water mains replacement", "road"], ["Apple Day", "event"]]) {
+      await expect(preview.getByRole("link", { name: title })).toHaveAttribute("href", `/reports/epping-forest-ledger-2026-10-11.html#${section}`);
+    }
+    expect(requests).toHaveLength(2);
   });
 
   for (const reducedMotion of ["reduce", "no-preference"]) {

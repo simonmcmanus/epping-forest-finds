@@ -117,8 +117,9 @@
         <!-- Alpha call to action. One swappable element: at launch this becomes
              a link to /nearby, the app's entry point. Nothing else on the page changes. -->
         <div class="cta">
+          <a class="cta-btn hero-ledger-link" href="/reports/">Read the latest Ledger →</a>
           <a class="cta-btn" href="#signup"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3a5 5 0 0 0-5 5v3.2c0 .7-.24 1.38-.68 1.93L4.6 15.4A1 1 0 0 0 5.4 17h13.2a1 1 0 0 0 .8-1.6l-1.72-2.27A3.2 3.2 0 0 1 17 11.2V8a5 5 0 0 0-5-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Keep me in the loop</a>
-          <p class="cta-note">Sign up to hear when early testing opens.</p>
+          <p class="cta-note">The map is currently in early testing. Sign up to hear when testing opens to more people.</p>
         </div>
       </div>
       <figure class="hero-photo">
@@ -130,34 +131,101 @@
       </figure>
     </section>
 
+    <section class="ledger" aria-labelledby="ledger-heading">
+      <p class="eyebrow">Round the forest · Every week</p>
+      <div class="card-head">
+        <img class="card-icon" src="assets/home/ledger.png" width="44" height="44" alt="">
+        <h2 id="ledger-heading">The Epping Forest Ledger</h2>
+      </div>
+      <p>
+        Local discoveries, road closures, events and cattle updates — a weekly round-up from around Epping Forest.
+      </p>
+      <div class="ledger-latest" id="ledgerLatest" aria-live="polite">
+        <p class="ledger-latest-label">Latest field notes</p>
+        <p class="ledger-latest-summary">The newest edition’s local stories appear here when available.</p>
+      </div>
+      <div class="ledger-actions">
+        <a class="cta-btn" id="latestLedgerLink" href="/reports/"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3.5h9l3.5 3.5V20a1 1 0 0 1-1 1H6a1 1 0 0 1 1-1V4.5a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12h6M9 15.5h6M9 8.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Read the latest edition →</a>
+        <a class="ledger-archive-link" href="/reports/">All editions</a>
+      </div>
+    </section>
+
+    <section class="signup" id="signup">
+      <div id="signupStage">
+        <div id="signupEntry">
+          <div class="card-head">
+            <img class="card-icon" src="assets/home/mail.png" width="44" height="44" alt="">
+            <h2>Be in the know</h2>
+          </div>
+          <p class="signup-intro" id="signupConsent">By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds when early testing opens, plus weekly Epping Forest Ledger updates once the site launches.</p>
+
+          <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
+            <label class="field-label" for="email">Email address</label>
+            <div class="signup-row">
+              <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+              <button class="cta-btn" type="submit" aria-describedby="signupConsent"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 11 20 4l-4.5 16-4-6-6-3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11.5 14 20 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Email me updates</button>
+            </div>
+
+            <!-- Honeypot: hidden from people, irresistible to bots. -->
+            <div class="hp" aria-hidden="true">
+              <label for="website">Website</label>
+              <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+            </div>
+
+            <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
+            <p class="form-small">
+              We'll only use your address for this. Unsubscribe from any message.
+              See the <a href="/terms.html">privacy notice</a>.
+            </p>
+          </form>
+        </div>
+        <div class="signup-confirmation" id="signupConfirmation" hidden>
+          <div class="inbox-emblem" aria-hidden="true">
+            <img src="assets/home/mail.png" width="72" height="72" alt="">
+            <span class="inbox-step-badge">2</span>
+          </div>
+          <div class="inbox-copy">
+            <div class="inbox-kicker">
+              <p class="inbox-step">Step 2 of 2</p>
+              <span class="inbox-reminder"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Don’t forget</span>
+            </div>
+            <h2 id="confirmationHeading" tabindex="-1" aria-describedby="confirmationInstructions">Confirm your email to finish</h2>
+            <p id="confirmationInstructions">Check your inbox for an email from <strong>Epping Forest Finds</strong>. Open it and click <strong>“Confirm my email”</strong> to complete your sign-up.</p>
+            <p class="inbox-help">Can’t see it? Check your spam or junk folder.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="counts">
       <h2>What's on the map</h2>
+      <p class="counts-intro">Explore the categories, or expand each one to see the places and features included.</p>
       <div class="map-inventory">
         <div class="inventory-total"><img src="assets/home/map-icons/all-finds.png" width="44" height="44" alt=""><strong>31,810</strong><span>places and features</span></div>
         <div class="inventory-groups">
           <section class="inventory-group" data-inventory-group="nature">
             <h3><a href="/nearby/nature/"><span><img src="assets/home/map-icons/nature.png" alt="">Nature</span><strong>25,017</strong></a></h3>
-            <dl><div data-inventory-key="trees"><dt><a href="/nearby/trees/"><img src="assets/home/map-icons/tree.png" alt="">Trees</a></dt><dd>24,906</dd></div><div data-inventory-key="ponds_streams"><dt><a href="/nearby/ponds-streams/"><img src="assets/home/map-icons/ponds.png" alt="">Ponds &amp; streams</a></dt><dd>111</dd></div></dl>
+            <details class="inventory-details"><summary>Show nature categories</summary><dl><div data-inventory-key="trees"><dt><a href="/nearby/trees/"><img src="assets/home/map-icons/tree.png" alt="">Trees</a></dt><dd>24,906</dd></div><div data-inventory-key="ponds_streams"><dt><a href="/nearby/ponds-streams/"><img src="assets/home/map-icons/ponds.png" alt="">Ponds &amp; streams</a></dt><dd>111</dd></div></dl></details>
           </section>
           <section class="inventory-group" data-inventory-group="food">
             <h3><a href="/nearby/food/"><span><img src="assets/home/map-icons/food.png" alt="">Food</span><strong>1,358</strong></a></h3>
-            <dl><div data-inventory-key="pubs"><dt><a href="/nearby/pubs/"><img src="assets/home/map-icons/beer.png" alt="">Pubs &amp; bars</a></dt><dd>130</dd></div><div data-inventory-key="restaurants"><dt><a href="/nearby/restaurants/"><img src="assets/home/map-icons/restaurant.png" alt="">Restaurants</a></dt><dd>575</dd></div><div data-inventory-key="cafes"><dt><a href="/nearby/cafes/"><img src="assets/home/map-icons/cafe.png" alt="">Cafés</a></dt><dd>203</dd></div><div data-inventory-key="shops"><dt><a href="/nearby/shops/"><img src="assets/home/map-icons/shop.png" alt="">Shops</a></dt><dd>450</dd></div></dl>
+            <details class="inventory-details"><summary>Show food categories</summary><dl><div data-inventory-key="pubs"><dt><a href="/nearby/pubs/"><img src="assets/home/map-icons/beer.png" alt="">Pubs &amp; bars</a></dt><dd>130</dd></div><div data-inventory-key="restaurants"><dt><a href="/nearby/restaurants/"><img src="assets/home/map-icons/restaurant.png" alt="">Restaurants</a></dt><dd>575</dd></div><div data-inventory-key="cafes"><dt><a href="/nearby/cafes/"><img src="assets/home/map-icons/cafe.png" alt="">Cafés</a></dt><dd>203</dd></div><div data-inventory-key="shops"><dt><a href="/nearby/shops/"><img src="assets/home/map-icons/shop.png" alt="">Shops</a></dt><dd>450</dd></div></dl></details>
           </section>
           <section class="inventory-group" data-inventory-group="transport">
             <h3><a href="/nearby/transport/"><span><img src="assets/home/map-icons/bus.png" alt="">Transport</span><strong>1,864</strong></a></h3>
-            <dl><div data-inventory-key="bus"><dt><a href="/nearby/bus/"><img src="assets/home/map-icons/bus.png" alt="">Bus stops</a></dt><dd>1,069</dd></div><div data-inventory-key="underground"><dt><a href="/nearby/underground/"><img src="assets/home/map-icons/underground.png" alt="">Underground</a></dt><dd>14</dd></div><div data-inventory-key="national_rail"><dt><a href="/nearby/national-rail/"><img src="assets/home/map-icons/national-rail.png" alt="">National Rail</a></dt><dd>14</dd></div><div data-inventory-key="parking"><dt><a href="/nearby/parking/"><img src="assets/home/map-icons/parking.png" alt="">Car parks</a></dt><dd>767</dd></div></dl>
+            <details class="inventory-details"><summary>Show transport categories</summary><dl><div data-inventory-key="bus"><dt><a href="/nearby/bus/"><img src="assets/home/map-icons/bus.png" alt="">Bus stops</a></dt><dd>1,069</dd></div><div data-inventory-key="underground"><dt><a href="/nearby/underground/"><img src="assets/home/map-icons/underground.png" alt="">Underground</a></dt><dd>14</dd></div><div data-inventory-key="national_rail"><dt><a href="/nearby/national-rail/"><img src="assets/home/map-icons/national-rail.png" alt="">National Rail</a></dt><dd>14</dd></div><div data-inventory-key="parking"><dt><a href="/nearby/parking/"><img src="assets/home/map-icons/parking.png" alt="">Car parks</a></dt><dd>767</dd></div></dl></details>
           </section>
           <section class="inventory-group" data-inventory-group="history">
             <h3><a href="/nearby/history/"><span><img src="assets/home/map-icons/history.png" alt="">History</span><strong>182</strong></a></h3>
-            <dl><div data-inventory-key="historic"><dt><a href="/nearby/historic/"><img src="assets/home/map-icons/historic.png" alt="">Historic sites</a></dt><dd>39</dd></div><div data-inventory-key="plaques"><dt><a href="/nearby/plaques/"><img src="assets/home/map-icons/plaques.png" alt="">Plaques</a></dt><dd>65</dd></div><div data-inventory-key="monuments"><dt><a href="/nearby/monuments/"><img src="assets/home/map-icons/monument.png" alt="">Monuments</a></dt><dd>66</dd></div><div data-inventory-key="ww2"><dt><a href="/nearby/ww2/"><img src="assets/home/map-icons/historic.png" alt="">WWII sites</a></dt><dd>12</dd></div></dl>
+            <details class="inventory-details"><summary>Show history categories</summary><dl><div data-inventory-key="historic"><dt><a href="/nearby/historic/"><img src="assets/home/map-icons/historic.png" alt="">Historic sites</a></dt><dd>39</dd></div><div data-inventory-key="plaques"><dt><a href="/nearby/plaques/"><img src="assets/home/map-icons/plaques.png" alt="">Plaques</a></dt><dd>65</dd></div><div data-inventory-key="monuments"><dt><a href="/nearby/monuments/"><img src="assets/home/map-icons/monument.png" alt="">Monuments</a></dt><dd>66</dd></div><div data-inventory-key="ww2"><dt><a href="/nearby/ww2/"><img src="assets/home/map-icons/historic.png" alt="">WWII sites</a></dt><dd>12</dd></div></dl></details>
           </section>
           <section class="inventory-group" data-inventory-group="locations">
             <h3><a href="/nearby/locations/"><span><img src="assets/home/map-icons/pin.png" alt="">Locations</span><strong>140</strong></a></h3>
-            <dl><div data-inventory-key="churches"><dt><a href="/nearby/churches/"><img src="assets/home/map-icons/church.png" alt="">Churches</a></dt><dd>120</dd></div><div data-inventory-key="education"><dt><a href="/nearby/education/"><img src="assets/home/map-icons/education.png" alt="">Education</a></dt><dd>3</dd></div><div data-inventory-key="medicine"><dt><a href="/nearby/medicine/"><img src="assets/home/map-icons/medicine.png" alt="">Medical sites</a></dt><dd>0</dd></div><div data-inventory-key="campsites"><dt><a href="/nearby/campsites/"><img src="assets/home/map-icons/campsite.png" alt="">Campsites</a></dt><dd>17</dd></div></dl>
+            <details class="inventory-details"><summary>Show locations categories</summary><dl><div data-inventory-key="churches"><dt><a href="/nearby/churches/"><img src="assets/home/map-icons/church.png" alt="">Churches</a></dt><dd>120</dd></div><div data-inventory-key="education"><dt><a href="/nearby/education/"><img src="assets/home/map-icons/education.png" alt="">Education</a></dt><dd>3</dd></div><div data-inventory-key="medicine" hidden><dt><a href="/nearby/medicine/"><img src="assets/home/map-icons/medicine.png" alt="">Medical sites</a></dt><dd>0</dd></div><div data-inventory-key="campsites"><dt><a href="/nearby/campsites/"><img src="assets/home/map-icons/campsite.png" alt="">Campsites</a></dt><dd>17</dd></div></dl></details>
           </section>
           <section class="inventory-group" data-inventory-group="stories">
             <h3><a href="/nearby/stories/"><span><img src="assets/home/map-icons/legends.png" alt="">Stories</span><strong>42</strong></a></h3>
-            <dl><div data-inventory-key="legends"><dt><a href="/nearby/legends/"><img src="assets/home/map-icons/legends.png" alt="">Legends</a></dt><dd>33</dd></div><div data-inventory-key="literature"><dt><a href="/nearby/literature/"><img src="assets/home/map-icons/literature.png" alt="">Literature</a></dt><dd>0</dd></div><div data-inventory-key="film_tv"><dt><a href="/nearby/film-tv/"><img src="assets/home/map-icons/film.png" alt="">Film &amp; TV</a></dt><dd>8</dd></div><div data-inventory-key="art"><dt><a href="/nearby/art/"><img src="assets/home/map-icons/art.png" alt="">Art</a></dt><dd>1</dd></div></dl>
+            <details class="inventory-details"><summary>Show stories categories</summary><dl><div data-inventory-key="legends"><dt><a href="/nearby/legends/"><img src="assets/home/map-icons/legends.png" alt="">Legends</a></dt><dd>33</dd></div><div data-inventory-key="literature" hidden><dt><a href="/nearby/literature/"><img src="assets/home/map-icons/literature.png" alt="">Literature</a></dt><dd>0</dd></div><div data-inventory-key="film_tv"><dt><a href="/nearby/film-tv/"><img src="assets/home/map-icons/film.png" alt="">Film &amp; TV</a></dt><dd>8</dd></div><div data-inventory-key="art"><dt><a href="/nearby/art/"><img src="assets/home/map-icons/art.png" alt="">Art</a></dt><dd>1</dd></div></dl></details>
           </section>
         </div>
         <div class="inventory-always" data-inventory-always>
@@ -215,53 +283,6 @@
       </div>
     </section>
 
-    <section class="signup" id="signup">
-      <div id="signupStage">
-        <div id="signupEntry">
-          <div class="card-head">
-            <img class="card-icon" src="assets/home/mail.png" width="44" height="44" alt="">
-            <h2>Be in the know</h2>
-          </div>
-          <p class="signup-intro" id="signupConsent">By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds when early testing opens, plus weekly Epping Forest Ledger updates once the site launches.</p>
-
-          <form id="signupForm" class="signup-form" method="post" action="/api/subscribe" novalidate>
-            <label class="field-label" for="email">Email address</label>
-            <div class="signup-row">
-              <input class="field" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
-              <button class="cta-btn" type="submit" aria-describedby="signupConsent"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 11 20 4l-4.5 16-4-6-6-3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M11.5 14 20 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Email me updates</button>
-            </div>
-
-            <!-- Honeypot: hidden from people, irresistible to bots. -->
-            <div class="hp" aria-hidden="true">
-              <label for="website">Website</label>
-              <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
-            </div>
-
-            <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
-            <p class="form-small">
-              We'll only use your address for this. Unsubscribe from any message.
-              See the <a href="/terms.html">privacy notice</a>.
-            </p>
-          </form>
-        </div>
-        <div class="signup-confirmation" id="signupConfirmation" hidden>
-          <div class="inbox-emblem" aria-hidden="true">
-            <img src="assets/home/mail.png" width="72" height="72" alt="">
-            <span class="inbox-step-badge">2</span>
-          </div>
-          <div class="inbox-copy">
-            <div class="inbox-kicker">
-              <p class="inbox-step">Step 2 of 2</p>
-              <span class="inbox-reminder"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Don’t forget</span>
-            </div>
-            <h2 id="confirmationHeading" tabindex="-1" aria-describedby="confirmationInstructions">Confirm your email to finish</h2>
-            <p id="confirmationInstructions">Check your inbox for an email from <strong>Epping Forest Finds</strong>. Open it and click <strong>“Confirm my email”</strong> to complete your sign-up.</p>
-            <p class="inbox-help">Can’t see it? Check your spam or junk folder.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <section class="how offline-how" aria-labelledby="offline-heading">
       <div class="card-head">
         <img class="card-icon" src="assets/home/offline.png" width="44" height="44" alt="">
@@ -310,25 +331,6 @@
           <dd>Epping Forest and nearby pubs, stations and facilities within walking distance.</dd>
         </div>
       </dl>
-    </section>
-
-    <section class="ledger" aria-labelledby="ledger-heading">
-      <p class="eyebrow">Round the forest · Every week</p>
-      <div class="card-head">
-        <img class="card-icon" src="assets/home/ledger.png" width="44" height="44" alt="">
-        <h2 id="ledger-heading">The Epping Forest Ledger</h2>
-      </div>
-      <p>
-        Weekly field notes on the forest’s trees, cattle and changing seasons.
-      </p>
-      <div class="ledger-latest" id="ledgerLatest" aria-live="polite">
-        <p class="ledger-latest-label">Latest field notes</p>
-        <p class="ledger-latest-summary">The newest edition’s local stories appear here when available.</p>
-      </div>
-      <div class="ledger-actions">
-        <a class="cta-btn" id="latestLedgerLink" href="/reports/"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3.5h9l3.5 3.5V20a1 1 0 0 1-1 1H6a1 1 0 0 1 1-1V4.5a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12h6M9 15.5h6M9 8.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Read the latest edition →</a>
-        <a class="ledger-archive-link" href="/reports/">All editions</a>
-      </div>
     </section>
 
   </main>

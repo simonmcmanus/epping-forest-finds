@@ -24,7 +24,10 @@
     category.className = "ledger-story-type";
     category.textContent = label;
     var title = document.createElement("h3");
-    title.textContent = card.querySelector("h3").textContent.trim();
+    var link = document.createElement("a");
+    link.href = latestLink.pathname + section;
+    link.textContent = card.querySelector("h3").textContent.trim();
+    title.appendChild(link);
     var meta = document.createElement("p");
     meta.className = "ledger-story-meta";
     var status = card.querySelector(".status-label");
@@ -64,100 +67,8 @@
       var editionUrl = new URL(edition.getAttribute("href"), window.location.origin + "/reports/").pathname;
       var date = edition.querySelector(".report-name");
       latestLink.href = editionUrl;
-      return fetch(editionUrl).then(function (response) {
-        if (!response.ok) throw new Error("Latest edition unavailable");
-        return response.text();
-      }).then(function (reportSource) {
-        return { date: date && date.textContent.trim(), report: new DOMParser().parseFromString(reportSource, "text/html") };
-      });
-    })
-    .then(function (latest) {
-      var report = latest.report;
-      var stories = document.createElement("ul");
-      stories.className = "ledger-stories";
-      addStory(stories, report, "#businesses", "find", "Local find");
-      addStory(stories, report, "#road", "access", "Plan your visit");
-      addStory(stories, report, "#event", "events", "Coming up");
-      if (!stories.children.length) throw new Error("No preview stories");
-      preview.replaceChildren();
-      var label = document.createElement("p");
-      label.className = "ledger-latest-label";
-      label.textContent = "Latest field notes";
-      var date = document.createElement("strong");
-      date.className = "ledger-latest-date";
-      date.textContent = latest.date || "This week";
-      var summary = homepageSummary(report);
-      if (summary) {
-        var introduction = document.createElement("p");
-        introduction.className = "ledger-latest-summary";
-        introduction.textContent = summary;
-        preview.append(label, date, introduction, stories);
-      } else preview.append(label, date, stories);
-    })
-    .catch(function () {
-      preview.hidden = true;
-    });
-})();
-
-// The editions index is generated with every report build. Read its first row,
-// then its report, so this static homepage can show the newest Ledger without
-// duplicating editorial facts that would go stale between weekly runs.
-(function () {
-  "use strict";
-
-  var preview = document.getElementById("ledgerLatest");
-  var latestLink = document.getElementById("latestLedgerLink");
-  if (!preview || !latestLink || !window.fetch || !window.DOMParser) return;
-
-  function addStory(list, report, section, type, label) {
-    var card = report.querySelector(section + " .card");
-    if (!card) return;
-    var item = document.createElement("li");
-    item.className = "ledger-story ledger-story--" + type;
-    var category = document.createElement("span");
-    category.className = "ledger-story-type";
-    category.textContent = label;
-    var title = document.createElement("h3");
-    title.textContent = card.querySelector("h3").textContent.trim();
-    var meta = document.createElement("p");
-    meta.className = "ledger-story-meta";
-    var status = card.querySelector(".status-label");
-    if (status) {
-      var date = document.createElement("span");
-      date.className = "ledger-story-status";
-      date.textContent = status.textContent.trim();
-      meta.appendChild(date);
-    }
-    var place = card.querySelector(".addr");
-    if (place) {
-      var location = document.createElement("span");
-      location.textContent = place.textContent.trim();
-      meta.appendChild(location);
-    }
-    item.append(category, title, meta);
-    list.appendChild(item);
-  }
-
-  function homepageSummary(report) {
-    var banner = report.querySelector(".banner");
-    if (!banner) return "";
-    var update = banner.textContent.trim()
-      .replace(/\s*No event updates are included this week beyond the listings below\.\s*/i, " ");
-    return "This week’s Ledger: " + update + " Read the full edition for the complete round-up.";
-  }
-
-  fetch("/reports/")
-    .then(function (response) {
-      if (!response.ok) throw new Error("Ledger index unavailable");
-      return response.text();
-    })
-    .then(function (source) {
-      var index = new DOMParser().parseFromString(source, "text/html");
-      var edition = index.querySelector(".report-link");
-      if (!edition) throw new Error("No editions published");
-      var editionUrl = new URL(edition.getAttribute("href"), window.location.origin + "/reports/").pathname;
-      var date = edition.querySelector(".report-name");
-      latestLink.href = editionUrl;
+      var heroLink = document.querySelector(".hero-ledger-link");
+      if (heroLink) heroLink.href = editionUrl;
       return fetch(editionUrl).then(function (response) {
         if (!response.ok) throw new Error("Latest edition unavailable");
         return response.text();
