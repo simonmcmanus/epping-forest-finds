@@ -459,6 +459,8 @@
   background: #deeadc;
 }
 
+a.report-toggle,
+a.search-screen-toggle,
 button.report-toggle,
 button.search-screen-toggle {
   width: calc(36px * var(--icon-scale));
@@ -469,6 +471,7 @@ button.search-screen-toggle {
   place-items: center;
 }
 
+a.settings-toggle,
 button.settings-toggle {
   width: calc(36px * var(--icon-scale));
   min-width: calc(36px * var(--icon-scale));
@@ -479,6 +482,7 @@ button.settings-toggle {
   position: relative;
 }
 
+a.settings-toggle.has-update::after,
 button.settings-toggle.has-update::after {
   content: '';
   position: absolute;
@@ -491,7 +495,9 @@ button.settings-toggle.has-update::after {
   border: 1.5px solid #fff;
 }
 
-.inspector-actions > button {
+.inspector-actions > :is(button, a) {
+  box-sizing: border-box;
+  text-decoration: none;
   width: 100%;
   min-width: 44px;
   min-height: calc(60px * var(--icon-scale));
@@ -510,11 +516,11 @@ button.settings-toggle.has-update::after {
   box-shadow: none;
 }
 
-.inspector-actions > button:hover {
+.inspector-actions > :is(button, a):hover {
   background: #eef0f3;
 }
 
-.inspector-actions > button.screen-active {
+.inspector-actions > :is(button, a).screen-active {
   background: var(--gold-tint);
   color: var(--gold-ink);
 }

@@ -1297,6 +1297,7 @@ already documented for Nearby/Search result rows under Overview Content and Seco
   wherever it last was, which is the skip link's position from this same boot-time call, so the
   very next Tab reaches the nav row directly rather than restarting the whole document from the
   top.
+- **The nav row works without JS.** The four tabs are `<a href>` links (`/nearby`, `/nearby/search`, `/feedback`, `/settings`) rather than buttons; `js/nav.js` calls `preventDefault()` on click and switches screens in place, so with JS off or not yet booted a tap navigates to the matching route.
 - **The nav row is always reachable.** `#nearbyToggle`/`#searchToggle`/`#reportToggle`/
   `#settingsToggle` live in their own `<nav class="inspector-actions">`, a sibling
   of `#inspector` in `app.html` rather than nested inside it, placed immediately before the aside

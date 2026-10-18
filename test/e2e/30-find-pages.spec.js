@@ -143,6 +143,17 @@ test.describe("generated find/nearby pages", () => {
       expect(staticKeys).toEqual(liveKeys);
     });
 
+    test("the top-level nav is real links that work with JavaScript disabled", async ({ browser, baseURL }) => {
+      const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+      const page = await context.newPage();
+      await page.goto("/nearby");
+      const hrefs = await page.locator("nav.inspector-actions > a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
+      expect(hrefs).toEqual(["/nearby", "/nearby/search", "/feedback", "/settings"]);
+      await page.locator("#settingsToggle").click();
+      await expect(page).toHaveURL(/\/settings$/);
+      await context.close();
+    });
+
     test("a category page's \"Nearby <Category>\" heading, its type line, and the consent banner's lead phrase are server-rendered and match what JS shows once it boots -- no generic placeholder title, no separate generic lead sentence or \"Showing things near High Beach\" paragraph", async ({ page, request }) => {
       const staticHtml = await (await request.get("/nearby/pubs/")).text();
       expect(staticHtml).not.toContain(">Epping Forest Finds</h2>");
