@@ -152,6 +152,22 @@ test.describe("generated find/nearby pages", () => {
       expect(html).toContain('href="/nearby/food/"');
     });
 
+    test("a business page's consent banner names that place in its lead phrase, server-rendered and still on screen once JS boots -- not the generic app-wide copy", async ({ page, request }) => {
+      const staticHtml = await (await request.get(`/find/${EXAMPLE_PUB.slug}/`)).text();
+      expect(staticHtml).toContain(
+        `<p>Enable location to get walking directions and see how far you are from ${escapeHtml(EXAMPLE_PUB.name)} and help us understand how people use this site.`
+      );
+      expect(staticHtml).not.toContain("Shows nearby finds and their distance from you");
+
+      // Unlike /find/events/, a business page is a landing-page arrival (isLandingPageArrival,
+      // js/app.js), so the combined banner shows live with this same server-rendered copy.
+      await skipOnboarding(page);
+      await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
+      await expect(page.locator("#consentBanner .consent-banner-copy")).toContainText(
+        `Enable location to get walking directions and see how far you are from ${EXAMPLE_PUB.name}`
+      );
+    });
+
     test("a business page's optional fields render server-side when the source data has them: opening hours and a tel: phone link", async ({ request }) => {
       const response = await request.get(`/find/${EXAMPLE_WITH_HOURS.slug}/`);
       expect(response.ok()).toBe(true);

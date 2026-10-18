@@ -22,7 +22,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { loadAppRules } = require("./report/map-inventory.js");
-const { escapeHtml, replaceOnce, showConsentBannerByDefault } = require("./lib/html-template.js");
+const { escapeHtml, replaceOnce, showConsentBannerByDefault, customizeConsentBannerText } = require("./lib/html-template.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITE_NAME = "Epping Forest Finds";
@@ -215,6 +215,7 @@ function renderBusinessPage(entry, appHtml, rules, index) {
   // isLandingPageArrival() (js/app.js -- "events" is the one /find/ path that isn't a business
   // of its own), so it never shows the combined consent banner live and must keep app.html's own
   // hidden default, not get this treatment.
+  html = customizeConsentBannerText(html, `Enable location to get walking directions and see how far you are from ${escapeHtml(entry.name)}`);
   return showConsentBannerByDefault(html);
 }
 
