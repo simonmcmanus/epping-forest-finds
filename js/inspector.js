@@ -660,7 +660,12 @@ function selectOverview(animate = false) {
     hydrateOverviewBusStopDirections();
     animateNearestItemReorder(previousNearestPositions);
   });
-  syncHashFromSelection();
+  // A category landing path is already the user's navigation target.  Nearby is re-rendered
+  // by location/radius updates after boot, but those incidental renders must not canonicalise
+  // /nearby/<slug>/ to /nearby?radius=30 and lose the category lens from the address bar.
+  // goToInitialView() still calls syncHashFromSelection() after this function when the reader
+  // explicitly navigates back to ordinary Nearby.
+  if (!filterKeysFromFindPath(window.location.pathname).length) syncHashFromSelection();
 }
 
 function nearestItemDomKey(node) {
@@ -1079,16 +1084,23 @@ function detailTypeLabel(distance) {
   return `🚶 ${walkTimeStr(distance)} · ${formatDistance(distance)}`;
 }
 
+// Icon-only actions for the inspector's top row. Inline SVG rather than a registry icon
+// (spec-icons.md) -- these are two generic UI glyphs, not map categories, so they have no
+// generated PNG to live in data/icons/. Decorative inside the control: the accessible name is
+// the aria-label on the control itself, and the title gives sighted pointer users the same words.
+const SHARE_ICON_SVG = '<svg class="detail-map-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12M8 7l4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const MAP_PIN_ICON_SVG = '<svg class="detail-map-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+
 function openInMapsHtml(lat, lon, name) {
   if (lat == null || lon == null || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return "";
   const url = `https://maps.google.com/?q=${Number(lat).toFixed(6)},${Number(lon).toFixed(6)}`;
-  return `<a class="detail-map-link" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Open in Maps</a>`;
+  return `<a class="detail-map-link detail-map-link--icon" href="${escapeHtml(url)}" target="_blank" rel="noreferrer" aria-label="Open in Maps" title="Open in Maps">${MAP_PIN_ICON_SVG}</a>`;
 }
 
 function shareLocationHtml() {
   if (typeof navigator === "undefined") return "";
   if (!("share" in navigator) && !("clipboard" in navigator)) return "";
-  return `<button class="detail-map-link" type="button" data-action="share-location">Share link</button>`;
+  return `<button class="detail-map-link detail-map-link--icon" type="button" data-action="share-location" aria-label="Share link" title="Share link">${SHARE_ICON_SVG}</button>`;
 }
 
 // One tap to browse everything within a fixed 15-minute walk of exactly this spot -- reuses the

@@ -972,6 +972,20 @@ button.settings-toggle.has-update::after {
   background: #f5f5f0;
 }
 
+/* Icon-only variant (openInMapsHtml, shareLocationHtml): a square control with the glyph centred
+   and the same 5px corner radius as the .walk-chip it sits beside. */
+.detail-map-link--icon {
+  justify-content: center;
+  width: 30px;
+  padding: 0;
+  border-radius: 5px;
+}
+
+.detail-map-icon-glyph {
+  width: 18px;
+  height: 18px;
+}
+
 .verified-note {
   margin: 10px 0 0;
   color: var(--muted);

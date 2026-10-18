@@ -302,6 +302,10 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   enough near here to be worth a visit". An explicit `?radius=` always wins, the same as it does
   everywhere else. Applied the same way on every arrival at the path, boot or popstate alike,
   matching the filters' own "arrival sets the lens" treatment just below.
+- **A category landing URL remains the URL while Nearby refreshes.** Location, radius and
+  other live updates may re-render the filtered list, but must not replace `/nearby/<slug>/`
+  with the generic `/nearby?radius=30` URL unless the reader explicitly navigates to ordinary
+  Nearby; the category path and the list it names stay in sync.
 - **A `/nearby/<slug>` page's single category never becomes the reader's own default.**
   `setOverviewFilters` takes a `persist: false` option, used only when the filter set comes from
   the URL itself (a `/nearby/<slug>` path or a `?show=` link) rather than a chip the reader tapped
