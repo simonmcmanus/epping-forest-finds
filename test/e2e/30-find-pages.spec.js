@@ -298,7 +298,8 @@ test.describe("generated find/nearby pages", () => {
       expect(response.ok()).toBe(true);
       const html = await response.text();
 
-      expect(html).toContain(`Opening hours: ${EXAMPLE_WITH_HOURS.openingHours}`);
+      // The detail rows carry no field name: the value says what it is (detailsHtml, labels: false).
+      expect(html).toContain(`<dd>${EXAMPLE_WITH_HOURS.openingHours}</dd>`);
       expect(html).toContain(`href="tel:${EXAMPLE_WITH_HOURS.phone}"`);
       // Distances (the Nearby list, the trees/cows links) are computed from the site's own data,
       // not fetched from OpenStreetMap, so nothing on the page credits it as a source for them.
