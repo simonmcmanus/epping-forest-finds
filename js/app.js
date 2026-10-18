@@ -184,6 +184,10 @@ const STORED_COMPASS_PERMISSION = (() => {
 })();
 // Filter groups, tag functions, and display mappings live in js/categories.js
 
+// True from the moment a location request starts until it answers (setLocationRequestPending). Declared
+// with the other state so boot can read it before the spin/arrow code below has run.
+let locationRequestPending = false;
+
 const state = {
   trees: [],
   landmarks: [],
@@ -6919,7 +6923,14 @@ function ensureUserAndSelectionVisible(options = {}) {
     if (target.point) {
       // Never open deeper than the forest-wide base: keeping whatever scale the camera had (at boot,
       // the deepest zoom) left the place alone in an empty, over-zoomed view.
-      if (state.baseFitScale > 0 && state.viewport.scale > state.baseFitScale) state.viewport.scale = state.baseFitScale;
+      // Open at about 1.2 km across the visible map, measured from the place itself: the forest-wide
+      // base is too far out, and the deepest zoom leaves the place alone in an empty view.
+      const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+      const metresPerDegreeLon = 111320 * Math.cos(target.latitude * Math.PI / 180);
+      const origin = projectLonLat(target.longitude, target.latitude);
+      const eastOneKm = projectLonLat(target.longitude + 1000 / metresPerDegreeLon, target.latitude);
+      const worldPerKm = Math.abs(eastOneKm.x - origin.x);
+      state.viewport.scale = focusRect.width / (worldPerKm * 1.2);
       centerViewportOnPointsKeepScale([target.point], options);
     }
     return;
@@ -7400,7 +7411,6 @@ function findCowByKey(key) {
 
 // True from the moment a location request starts until it answers, so the direction arrow can spin
 // while it waits rather than appearing only once a fix lands (setLocationRequestPending).
-let locationRequestPending = false;
 function setLocationRequestPending(pending) {
   locationRequestPending = pending;
   updateCompassOverlay();
