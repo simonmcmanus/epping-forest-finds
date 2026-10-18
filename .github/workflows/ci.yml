@@ -68,6 +68,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Build pages before browser tests
+        run: npm run build
       - name: Run E2E tests
         run: >
           npx playwright test --project=${{ matrix.project }}
