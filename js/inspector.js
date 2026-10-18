@@ -1104,9 +1104,10 @@ function shareLocationHtml() {
 // override the way relatedCategoryLinksHtml's own cards do.
 function nearbyWithinWalkHtml(lat, lon) {
   if (lat == null || lon == null) return "";
+  const minutes = state.walkingDistanceMinutes;
   return `<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}">` +
     `<span class="nearest-icon" aria-hidden="true">${appIconHtml("walking")}</span>` +
-    `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Everything within 15 min walk</span></div></div>` +
+    `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Everything within ${minutes} min walk</span></div></div>` +
     `</button></li>`;
 }
 

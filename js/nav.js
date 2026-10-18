@@ -785,7 +785,7 @@ function setupSearchAndNavHandlers() {
       const lat = Number(walkRadiusBtn.dataset.lat);
       const lon = Number(walkRadiusBtn.dataset.lon);
       if (Number.isFinite(lat) && Number.isFinite(lon)) {
-        focusNearbyWithinWalkMinutes(lat, lon, WALK_RADIUS_BUTTON_MINUTES);
+        focusNearbyWithinWalkMinutes(lat, lon, state.walkingDistanceMinutes);
       }
       return;
     }
@@ -981,6 +981,10 @@ function focusNearbyWithinWalkMinutes(latitude, longitude, minutes) {
   state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude) };
   state.walkingDistanceMinutes = minutes;
   state.outOfRadiusRevealFilters = [];
+  // "Everything" means every category, not the reader's saved filter set -- same override the
+  // /nearby?filters=false link gets (applyShowFilterFromQuery, js/app.js). Ephemeral, so the
+  // saved filters come back as soon as the reader leaves this view.
+  setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render: false });
   exitClusterExpansion({ restoreRadius: false });
   refreshNearbyRadiusView({ animate: false });
   pushNearbyAnchorHistory();

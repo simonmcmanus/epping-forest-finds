@@ -496,13 +496,14 @@ test.describe("Map interaction", () => {
       expect(anchor, "the browse anchor is cleared once a real selection is made").toBeNull();
     });
 
-    test("a selected place's \"Everything within 15 min walk\" button drops the selection and browses the Nearby list from its own spot at a 15-minute radius", async ({ page }) => {
+    test("a selected place's \"Everything within N min walk\" button drops the selection and browses the Nearby list from its own spot at the reader's own walking radius, showing every category", async ({ page }) => {
       await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
       const treeCoords = await page.evaluate(() => ({
         latitude: state.selected.item.latitude,
         longitude: state.selected.item.longitude,
       }));
+      const radiusBefore = await page.evaluate(() => state.walkingDistanceMinutes);
 
       await page.locator("#inspectorBody [data-action='walk-radius']").click();
 
@@ -514,7 +515,14 @@ test.describe("Map interaction", () => {
       }));
       expect(after.anchorLatitude).toBeCloseTo(treeCoords.latitude, 6);
       expect(after.anchorLongitude).toBeCloseTo(treeCoords.longitude, 6);
-      expect(after.minutes).toBe(15);
+      expect(after.minutes).toBe(radiusBefore);
+      const everything = await page.evaluate(() => state.overviewFilters.includes("pubs") && state.overviewFilters.includes("national_rail"));
+      expect(everything, "Everything ignores the saved filters").toBe(true);
+    });
+
+    test("a /nearby?filters=false link shows every category, ignoring the reader's saved filters", async ({ page }) => {
+      await setup(page, "/nearby?filters=false");
+      await expect.poll(() => page.evaluate(() => state.overviewFilters.includes("pubs") && state.overviewFilters.includes("national_rail"))).toBe(true);
     });
   });
 

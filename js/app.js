@@ -34,10 +34,6 @@ const DEFAULT_FILTERS = ["trees", "cows", "events"];
 // The radius state starts at and the URL (searchStringForPath) omits -- matching state's own
 // walkingDistanceMinutes: 5 below, so a plain /nearby stays plain for the common case.
 const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
-// The fixed radius behind a selected place's "Everything within 15 min walk" button
-// (nearbyWithinWalkHtml, js/inspector.js; focusNearbyWithinWalkMinutes, js/nav.js) -- a round,
-// recognisable number rather than reusing whatever radius the reader last had the slider set to.
-const WALK_RADIUS_BUTTON_MINUTES = 15;
 // A /nearby/<slug> landing page (a category's own, or a whole group's) is judged on its own --
 // "is there enough near here to be worth a visit" -- which the ordinary 5-minute default can
 // easily come up empty within for a single category. 30 gives it a fair showing without the
@@ -1053,6 +1049,14 @@ function filterKeysFromQuery(search) {
   return raw.split(",").map((key) => key.trim()).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key));
 }
 
+// ?filters=false -- "Everything nearby" links (the Nearby breadcrumb chip, and the walk-radius card
+// in a place's inspector). Means "ignore my saved filters and show every category", so it is read
+// here as its own override rather than a ?show= list: applyShowFilterFromQuery applies every key
+// ephemerally (persist:false), and the reader's own filters come back on the next plain visit.
+function showsEverythingFromQuery(search) {
+  return new URLSearchParams(search).get("filters") === "false";
+}
+
 // True on a /nearby/<slug>/ category page (a subfilter's own, or a whole group's) -- the landing
 // whose Nearby list generate-find-pages.js server-renders, and so the one that keeps it on screen
 // until the reader's own location resolves (_serverRenderedNearbyList, js/inspector.js).
@@ -1102,6 +1106,10 @@ function isInstalledAppContext() {
 }
 
 function applyShowFilterFromQuery({ render = true } = {}) {
+  if (showsEverythingFromQuery(window.location.search)) {
+    setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render });
+    return;
+  }
   const fromPath = filterKeysFromFindPath(window.location.pathname);
   if (fromPath.length) {
     setOverviewFilters(fromPath, { persist: false, render });
@@ -4034,7 +4042,7 @@ function categoryLandingLinksHtml() {
   const groupChip = subfilter
     ? `<a class="detail-map-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
     : "";
-  const allChip = `<a class="detail-map-link" href="/nearby">${appIconHtml("nearby")}Everything nearby</a>`;
+  const allChip = `<a class="detail-map-link" href="/nearby?filters=false">${appIconHtml("nearby")}Everything nearby</a>`;
 
   // A group page's own members -- cows is excluded the same way the static generator's own
   // page.members already is (live-tracked, no fixed count, no page built through the ordinary

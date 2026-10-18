@@ -319,10 +319,14 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   trail back to Filters is never mistaken for a fresh `/nearby/<slug>` arrival. Without this, the
   ordinary 1-3 filter default state got the no-location full-list/fit treatment above on every
   single back-navigation to Filters with no location granted.
+- **"Everything nearby" ignores the saved filters.** `/nearby?filters=false` (read by
+  `showsEverythingFromQuery()`, js/app.js) applies every category ephemerally (`persist:false`), so
+  the reader's own saved filters are untouched and return on the next plain visit. The same
+  override is applied by the walk-radius card's own button (`focusNearbyWithinWalkMinutes`, js/nav.js).
 - **Navigating in-app straight from one `/nearby/<slug>` arrival to another never loses the new
   page's own category.** A link out of a selected place's inspector (a business page's own
   "Related" section, `js/inspector.js`) or a bare `near="" ` link like "Everything nearby"
-  (`js/app.js`'s `categoryLandingLinksHtml()`) routes through `navigateInApp()` →
+  (`js/app.js`'s `categoryLandingLinksHtml()`, which links `/nearby?filters=false`) routes through `navigateInApp()` →
   `applyRouteFromUrl()` → `applyRoute()`, the same path a popstate takes. Both a `/nearby/<slug>`
   arrival (its own route value is `""`, same as the plain Nearby screen's) and a tap on the Nearby
   nav button land in `goToInitialView()`, whose own ephemeral-filter restore (above) would

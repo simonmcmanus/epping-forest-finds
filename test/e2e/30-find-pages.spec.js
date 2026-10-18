@@ -289,11 +289,11 @@ test.describe("generated find/nearby pages", () => {
       // Carries the business's own position via the near= hash (see the dedicated test below),
       // so this is a prefix match rather than an exact href.
       await expect(body.locator('a.nearest-item[href^="/nearby/trees/#near="]')).toHaveCount(1);
-      // "Everything within 15 min walk" lives in the Nearby section too now, as the same card
+      // "Everything within N min walk" lives in the Nearby section too now, as the same card
       // style -- not the separate top-row pill it used to be.
       const walkCard = body.locator("button.nearest-item[data-action='walk-radius']");
       await expect(walkCard).toHaveCount(1);
-      await expect(walkCard).toContainText("Everything within 15 min walk");
+      await expect(walkCard).toContainText(/Everything within \d+ min walk/);
       const nearbySection = body.locator('h3.detail-section-heading:has-text("Nearby") + ul');
       await expect(nearbySection.locator("button.nearest-item[data-action='walk-radius']")).toHaveCount(1);
     });
