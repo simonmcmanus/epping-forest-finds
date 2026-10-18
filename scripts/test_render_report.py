@@ -453,7 +453,7 @@ class RenderReportEndToEndTests(unittest.TestCase):
             for width in (480, 768, 960, 1280, 1600):
                 self.assertIn(f'/assets/home/epping-longhorns-{width}.webp {width}w', html)
             self.assertIn('fetchpriority="high"', rr.render_hero_photo())
-            self.assertIn('once the site launches', html)
+            self.assertIn('Sign up for launch news, to take part as an early tester, and for weekly Ledger updates when they launch.', html)
 
     def test_jargon_in_finding_body_blocks_render(self):
         with tempfile.TemporaryDirectory() as tmp:
