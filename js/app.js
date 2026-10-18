@@ -744,6 +744,21 @@ function searchStringForPath(pathname) {
   return parts.length ? `?${parts.join("&")}` : "";
 }
 
+// The business a /find/<slug>/ landing names, or null for any other path ("events" is not a place).
+function findLandingSlug() {
+  const match = /^\/find\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
+  return match && match[1] !== "events" ? match[1] : null;
+}
+
+// True while a /find/<slug>/ landing has not yet shown its place: the place is selected only once it
+// is in the loaded landmarks, and the boot reveal and cow data both reach selectOverview() before
+// that. Until then the Nearby list must not paint over the server-rendered panel. Once the data has
+// loaded without the place, the landing has nothing to wait for and falls back to the Nearby list.
+function findLandingAwaitingPlace() {
+  const slug = findLandingSlug();
+  return Boolean(slug) && !state.selected && (!state.dataLoaded || Boolean(findPlaceByFindSlug(slug)));
+}
+
 // The reverse of urlPartsForRouteValue: reconstructs the bare route value currentScreenRoute()
 // and applyRouteToScreen() already speak, from the real URL on screen right now.
 function routeValueFromLocation() {
@@ -1198,7 +1213,9 @@ async function revealMapCenteredOnUser() {
   // Read before selectOverview() below can clear it: a landing that is still showing its
   // server-rendered list gets no inspector slide-in, whatever location the reveal ends up with.
   const keepsServerRenderedList = _serverRenderedNearbyList && !state.selected;
-  selectOverview();
+  // A /find/ landing's place is selected by applySelectionFromHash below, so the Nearby list is not
+  // painted over the server-rendered panel first.
+  if (!findLandingSlug()) selectOverview();
   draw();
 
   // Snap the camera onto the walking-radius circle before the reveal animation -- the same
@@ -1215,8 +1232,9 @@ async function revealMapCenteredOnUser() {
   // Brief pause so the user sees the completed step list.
   await new Promise((resolve) => setTimeout(resolve, 320));
 
-  // Apply the launch URL's own screen after the wait so it overrides the overview snap.
-  applySelectionFromHash();
+  // Apply the launch URL's own screen after the wait so it overrides the overview snap. A /find/
+  // landing the loader has already selected keeps its panel rather than re-rendering the same one.
+  if (!findLandingSlug() || !state.selected) applySelectionFromHash();
 
   // Fade overlay and animate camera to final position simultaneously.
   // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
@@ -1261,7 +1279,7 @@ async function revealMapCenteredOnUser() {
 async function revealNoRealLocation({ locationAlreadyAsked }) {
   if (!hasRealLocation()) applyDefaultLocation();
 
-  selectOverview();
+  if (!findLandingSlug()) selectOverview();
   // A static index's arrows point north until there is a bearing to rotate them by -- the default
   // origin applyDefaultLocation() just set. Only the arrows change; the list itself stays as drawn.
   if (_staticNearbyIndex) updateOverviewDirectionArrows();

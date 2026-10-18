@@ -145,7 +145,12 @@ async function loadMapData() {
 
     if (state.dataLoaded) {
       state.bounds = calculateBounds();
-      if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) selectOverview();
+      // A /find/ landing's place is resolvable now that the data is in: select it rather than
+      // replacing the server-rendered panel with the Nearby list.
+      if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) {
+        if (findLandingSlug()) applySelectionFromHash(false);
+        else selectOverview();
+      }
       requestDraw();
     }
   });

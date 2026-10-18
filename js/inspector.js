@@ -633,6 +633,7 @@ function showNearbyLocatingState() {
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
+  if (findLandingAwaitingPlace()) return;
   // A landing's server-rendered list already shows the High Beach default it would otherwise
   // rebuild here (default location, no real fix yet), so keep it. Every early caller -- boot's own
   // reveal, the tree chunks arriving after data has loaded -- would otherwise clear it and repaint

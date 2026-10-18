@@ -938,7 +938,10 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   server-rendered and live, as two headed sections". A `/find/` business also gets a headed
   **Places close by** section (`nearbyPlacesSectionHtml`, js/inspector.js): up to six other
   places with their own `/find/<slug>/` page within 1 km straight-line, nearest first, each a
-  `.nearest-item` link with its distance. Neither section names a data source for its
+  `.nearest-item` link with its distance. A `/find/<slug>/` landing keeps its server-rendered
+  panel on screen until its own place is selected: `selectOverview()` does not paint the Nearby
+  list over it while the place is still loading (`findLandingAwaitingPlace`, js/app.js), and the
+  loader applies the place's selection as soon as its landmark arrives. Neither section names a data source for its
   distances (computed entirely from this site's own data, not fetched from anywhere). The
   nearest-tree and nearest-cow links both carry this place's own position via `/nearby/trees/`'s
   and `/nearby/cows/`'s own `near=<lat>,<lon>` anchor route, and every in-app link rendered into
