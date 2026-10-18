@@ -99,14 +99,14 @@ test("renderBusinessPage's trees and cows links fall back to a plain /nearby/<sl
 test("renderBusinessPage shows opening hours and a folklore summary when present, and omits them when absent", () => {
   const rules = loadAppRules();
   const withExtras = renderBusinessPage(FAKE_INDEX[0], APP_HTML, rules, FAKE_INDEX);
-  assert.match(withExtras, /<dt>Opening hours<\/dt><dd>Mo-Su 11:00-23:00<\/dd>/);
+  assert.match(withExtras, /<div class="row row--value-only"><dd>Mo-Su 11:00-23:00<\/dd><\/div>/);
   assert.match(withExtras, /A folklore note about this pub\./);
   // Distances (the Nearby list, the trees/cows links) are computed from the site's own data, not
   // fetched from OpenStreetMap, so nothing on the page credits it as a source for them.
   assert.ok(!withExtras.includes("OpenStreetMap"));
 
   const withoutExtras = renderBusinessPage(FAKE_INDEX[1], APP_HTML, rules, FAKE_INDEX);
-  assert.ok(!withoutExtras.includes("<dt>Opening hours</dt>"));
+  assert.ok(!withoutExtras.includes("Mo-Su 11:00-23:00"));
 });
 
 test("renderBusinessPage's no-JS panel uses the live inspector's own classes, header and section headings", () => {

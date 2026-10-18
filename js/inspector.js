@@ -417,7 +417,7 @@ function showLandmarkDetails(place, distance) {
   // Every location with coordinates gets the same Nearest and Related sections (nearbySectionsHtml),
   // keyed to whichever category the place belongs to for its Related links.
   const relatedLinksHtml = nearbySectionsHtml({ latitude: place.latitude, longitude: place.longitude, name: place.name, subfilterKey: placePrimaryFilterKey(place), findSlug: place.findSlug });
-  const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
+  const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
   // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
   transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
@@ -1367,7 +1367,9 @@ async function shareCurrentLocation() {
   }
 }
 
-function detailsHtml(rows) {
+// `labels: false` drops each field name, for a table whose values say what they are on their own
+// (a place's address and website, js/inspector.js showLandmarkDetails).
+function detailsHtml(rows, { labels = true } = {}) {
   const visibleRows = rows.filter(([, value]) => value !== null && value !== undefined && value !== "");
   return `<dl>${visibleRows.map(([label, value, liveKey]) => {
     const shown = displayValue(value);
@@ -1385,6 +1387,7 @@ function detailsHtml(rows) {
     } else {
       ddContent = escapeHtml(shown);
     }
+    if (!labels) return `<div class="row row--value-only"><dd${liveAttr}>${ddContent}</dd></div>`;
     return `<div class="row"><dt>${escapeHtml(label)}</dt><dd${liveAttr}>${ddContent}</dd></div>`;
   }).join("")}</dl>`;
 }

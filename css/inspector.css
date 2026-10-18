@@ -1163,6 +1163,11 @@ dl {
   border-bottom: 1px solid #edf0eb;
 }
 
+/* A row with no field name (detailsHtml, labels: false) gives its value the whole width. */
+.row--value-only {
+  grid-template-columns: 1fr;
+}
+
 dt {
   color: var(--muted);
   font-weight: 800;

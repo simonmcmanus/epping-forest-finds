@@ -963,6 +963,7 @@ Tapping a street on the map opens the same navigation view a highlighted locatio
 bare records list:
 
 - Road type, name, reference, highway tag
+- A place's detail table (address, website, phone, opening hours) shows the values without field names on the left, since the values say what they are (`detailsHtml(rows, { labels: false })`, `.row--value-only`, js/inspector.js). Event details keep their labels. The static `/find/<slug>/` panel matches it.
 - The top row's Open in Maps and Share buttons sit as one group at the right (`.detail-top-actions`, `margin-left: auto`), and the walking pill has its own slot on the left (`data-live-field="distance"`). It starts as a loading chip (`.walk-chip--pending`: a spinner beside the walker). Once its figure is worked out (at least 450 ms after the place opens) it expands to its full width and the values slide in from the left (`.walk-chip--ready.walk-chip--enter`, `css/inspector.css`). Later updates swap the numbers without replaying that, and reduced-motion users get no animation. The actions never move when the pill renders.
 - Live distance + walking time chip (`.detail-top-row`, the same `data-live-field="distance"`
   element the other navigable selections use)

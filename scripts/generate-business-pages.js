@@ -186,7 +186,7 @@ function renderBusinessPage(entry, appHtml, rules, index) {
     ["Opening hours", entry.openingHours],
   ]
     .filter(([, value]) => value)
-    .map(([label, value]) => `<div class="row"><dt>${escapeHtml(label)}</dt><dd>${detailValue(label, value)}</dd></div>`)
+    .map(([label, value]) => `<div class="row row--value-only"><dd>${detailValue(label, value)}</dd></div>`)
     .join("");
 
   // A folklore-sourced record's own narrative -- genuinely unique text, not computed from the
