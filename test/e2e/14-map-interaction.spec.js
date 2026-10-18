@@ -520,6 +520,23 @@ test.describe("Map interaction", () => {
       expect(everything, "Everything ignores the saved filters").toBe(true);
     });
 
+    test("a related link to a place's nearby view opens on that place's spot, not the reader's own location, and names it", async ({ page }) => {
+      await setup(page, "/nearby/trees/#near=51.650000,0.050000&label=The%20Foresters");
+      await expect.poll(() => page.evaluate(() => state.nearbyAnchor && state.nearbyAnchor.latitude)).toBeCloseTo(51.65, 5);
+      await expect(page.locator(".nearby-anchor-bar-text")).toHaveText("Showing places near The Foresters");
+    });
+
+    test.describe("with a real GPS fix elsewhere", () => {
+      test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+      test("a related link keeps its place's spot rather than the reader's own location, and names it", async ({ page }) => {
+        await setup(page, "/nearby/trees/#near=51.650000,0.050000&label=The%20Foresters");
+        await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.latitude)).toBeCloseTo(51.665, 3);
+        await expect.poll(() => page.evaluate(() => state.nearbyAnchor && state.nearbyAnchor.latitude)).toBeCloseTo(51.65, 5);
+        await expect(page.locator(".nearby-anchor-bar-text")).toHaveText("Showing places near The Foresters");
+      });
+    });
+
     test("a /nearby?filters=false link shows every category, ignoring the reader's saved filters", async ({ page }) => {
       await setup(page, "/nearby?filters=false");
       await expect.poll(() => page.evaluate(() => state.overviewFilters.includes("pubs") && state.overviewFilters.includes("national_rail"))).toBe(true);

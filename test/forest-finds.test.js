@@ -457,6 +457,8 @@ globalThis.__forestFindsTest = {
   detailsHtml,
   nearbyWithinWalkHtml,
   showsEverythingFromQuery,
+  nearbyAnchorRouteValue,
+  nearbyCardFilterKeys,
   standaloneNearbySectionHtml,
   filterKindIconSlug,
   PLACE_FILTER_KEYS,
@@ -1892,6 +1894,26 @@ test("filterKeysFromFindPath reads a subfilter's category straight from a /nearb
   assert.deepEqual(Array.from(app.filterKeysFromFindPath("/nearby/not-a-real-filter")), [], "an unrecognised slug is not a filter key");
   assert.deepEqual(Array.from(app.filterKeysFromFindPath("/app")), [], "a non-/nearby/ path never matches");
   assert.deepEqual(Array.from(app.filterKeysFromFindPath("")), []);
+});
+
+test("nearbyCardFilterKeys follows the reader's filters, falling back to trees and cows when none are set", () => {
+  const saved = app.state.overviewFilters;
+  app.state.overviewFilters = [];
+  assert.deepEqual(Array.from(app.nearbyCardFilterKeys()), ["trees", "cows"], "no filters chosen: the defaults");
+  app.state.overviewFilters = ["pubs", "bus"];
+  assert.deepEqual(Array.from(app.nearbyCardFilterKeys()), ["pubs", "bus"], "the reader's own filters, not trees and cows");
+  app.state.overviewFilters = ["pubs", "not_a_real_filter", "cafes"];
+  assert.deepEqual(Array.from(app.nearbyCardFilterKeys()), ["pubs", "cafes"], "an unknown key is dropped");
+  app.state.overviewFilters = Array.from({ length: 9 }, (_, i) => ["pubs", "cafes", "shops", "bus", "national_rail", "trees", "cows", "parking", "ponds_streams"][i]);
+  assert.equal(app.nearbyCardFilterKeys().length, 6, "a long selection is capped so the section stays readable");
+  app.state.overviewFilters = saved;
+});
+
+test("nearbyAnchorRouteValue carries the place name as a label, and omits it for a bare map tap", () => {
+  assert.equal(app.nearbyAnchorRouteValue({ latitude: 51.65, longitude: 0.05 }), "near=51.650000%2C0.050000");
+  const named = new URLSearchParams(app.nearbyAnchorRouteValue({ latitude: 51.65, longitude: 0.05, label: "The Foresters" }));
+  assert.equal(named.get("near"), "51.650000,0.050000");
+  assert.equal(named.get("label"), "The Foresters", "the label is what the bar names the spot by");
 });
 
 test("showsEverythingFromQuery is true only for ?filters=false, so Everything links ignore the saved filters", () => {
@@ -10672,7 +10694,7 @@ test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, the wa
   // Both the tree and cows links carry this pub's own position via the target page's existing
   // "near=<lat>,<lon>" anchor route, so landing there re-centres on the pub rather than the
   // reader's own GPS fix.
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000">[\s\S]*?Nearest veteran tree[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?Nearest veteran tree[\s\S]*?<\/a>/);
   assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?The grazing cattle[\s\S]*?<\/a>/);
   assert.match(html, /walk-chip/, "the nearby cards carry a real walk-time chip, not bare text");
 

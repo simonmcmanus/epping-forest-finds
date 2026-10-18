@@ -510,12 +510,18 @@ function nearbyAnchorSnapshot() {
 // state.selected item, where this never does -- "browse around here", not "look at this one
 // thing" -- so it gets its own narrower value/parse pair rather than a find/show pair.
 const NEARBY_ANCHOR_PARAM = "near";
+const NEARBY_ANCHOR_LABEL_PARAM = "label";
 
 // Same toFixed(6) precision placeHashKey's own "ll:" fallback already uses for a place with no
 // id -- plenty for this app's pin-level accuracy, and short enough not to make the address bar
 // unwieldy.
+// The optional place name (anchor.label) rides along as its own "label=" parameter, so a link out
+// of a place's inspector reads "Showing places near <name>" when it lands, not just the coordinates.
 function nearbyAnchorRouteValue(anchor) {
-  return routeParam(NEARBY_ANCHOR_PARAM, `${anchor.latitude.toFixed(6)},${anchor.longitude.toFixed(6)}`);
+  const params = new URLSearchParams();
+  params.set(NEARBY_ANCHOR_PARAM, `${anchor.latitude.toFixed(6)},${anchor.longitude.toFixed(6)}`);
+  if (anchor.label) params.set(NEARBY_ANCHOR_LABEL_PARAM, anchor.label);
+  return params.toString();
 }
 
 // nearbyAnchorRouteValue's reverse. Rejects anything that isn't exactly two finite numbers --
@@ -956,7 +962,7 @@ function applyRouteToScreen(raw, announceMissing) {
   if (params.has(NEARBY_ANCHOR_PARAM)) {
     const anchor = parseNearbyAnchorParam(params.get(NEARBY_ANCHOR_PARAM));
     if (anchor) {
-      applyNearbyAnchorFromRoute(anchor);
+      applyNearbyAnchorFromRoute({ ...anchor, label: params.get(NEARBY_ANCHOR_LABEL_PARAM) || null });
       return true;
     }
   }
