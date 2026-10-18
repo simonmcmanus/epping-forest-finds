@@ -1336,18 +1336,20 @@ The full routing model — the URL for each screen, history entries, back/forwar
 - URL writes are suppressed while a route is being applied and throughout boot (`routeApplyDepth`, `routerBooting`), so the URL never overwrites the entry it is being read from
 - A `/nearby/<slug>` category page (`spec-marketing.md` § "Category pages") IS the app — the generator templates it directly off `app.html` — so the URL path itself names the category (a subfilter's own, or a whole group's) to pre-filter Nearby to. `applyShowFilterFromQuery()`, called once right after data finishes loading in `boot()`, first tries `filterKeysFromFindPath(location.pathname)` (reversing the slug's hyphen back to the filter key's underscore; every member key at once for a group slug) and falls back to the `?show=<filterKey>,<filterKey>` query param only if the path didn't match — a leftover entry point from before category pages became real app instances, kept for any older link still using it. `<slug>` of `filter` or `search` never matches a category (those two are the Filters/Search screens' own paths), so this is a no-op there. Either way it calls the existing `setOverviewFilters(keys, { persist: false, render })` for every key recognised in `ALL_OVERVIEW_FILTER_KEYS`. An unrecognised or absent value changes nothing — this is not a hash route and carries no history entry of its own.
 - **`boot()`'s own call passes `render: false`.** `setOverviewFilters()` normally re-renders the Nearby list immediately (`selectOverview()`), which is correct for a live navigation (`applyRouteFromUrl()`, the back/forward/hand-edited-hash entry point, keeps the default `render: true`) but wrong at boot: `state.userLocation` doesn't exist yet at this point in `boot()` — the location/`applyDefaultLocation()` branch runs afterward — so an immediate render there showed `activeFiltersShowFullListWithoutLocation()`'s dataset-order, unsorted full list (not the nearest-first, radius-filtered one spec-marketing.md § "Category pages" describes), which `revealMapCenteredOnUser()`/`revealNoRealLocation()` then immediately overwrote with the real one moments later — a visible double-render on every `/nearby/<slug>` landing (reported as "the side nav loads, shows, hides, shows again"). `render: false` skips straight to `requestDraw()` and leaves the one render that follows (inside `revealMapCenteredOnUser()`/`revealNoRealLocation()`, once a real or `DEFAULT_LOCATION` origin actually exists) as the only one.
-- **A `/nearby/trees/` or `/nearby/nature/` landing also gets the tree species breakdown
-  `spec-marketing.md`'s static page shows, prepended above the live list rather than replacing
-  it.** `liveTreeSpeciesBreakdownHtml()` (`js/app.js`, folded into `overviewNearestHtml()`'s own
-  `breadcrumbHtml`, so every one of that function's return paths carries it for free) matches the
-  URL path the same way `categoryLandingLinksHtml()` does, and calls `treeSpeciesBreakdown()`
-  (`js/categories.js`) against the live `state.trees` — the exact function the static generator's
-  own `loadTreeSpeciesBreakdown()` calls (via `loadAppRules()`) against the on-disk dataset, so the
-  two can never compute a different count. Empty (no markup at all) until `state.trees` has
-  anything in it — trees are the largest, slowest-streaming dataset (`js/loader.js`), so an early
-  render can genuinely have nothing to show yet; `loader.js`'s own `selectOverview()` call once
-  tree chunks finish re-renders it in, the same single legitimate update every other Nearby count
-  already gets as that dataset streams in.
+- **A `/nearby/<slug>/` landing's whole top pill row (breadcrumb, a group page's own "Browse by
+  type" members, and the "see also veteran trees/grazing cattle" pills) is reproduced live by
+  `categoryLandingLinksHtml()` (`js/app.js`), folded into `overviewNearestHtml()`'s own
+  `breadcrumbHtml` so every one of that function's return paths carries it for free** — see
+  `spec-marketing.md` § "Category pages" for the exact chip set and dedupe rules (the nature
+  group page's own "Trees" type-chip is the only trees link there; the see-also row never repeats
+  it). A tree species breakdown was tried here first and dropped: it made no sense tied to a
+  stand-in location nobody is actually standing at, and (unlike the pill row) nothing about it
+  matched what the live Nearby list actually showed for `/nearby/trees/`/`/nearby/nature/` either
+  way — the live list there is real nearest individual trees (and, on the nature group page,
+  water too), not a species count. What actually closes that mismatch is the static generator
+  computing the *same* nearest-item list the live Nearby list does (`natureNearestListHtml`,
+  `scripts/generate-find-pages.js` — see `spec-marketing.md` § "Category pages"), not new live
+  code: the live view already produced the real list on its own.
 
 ---
 

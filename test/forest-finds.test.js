@@ -1989,28 +1989,53 @@ test("overviewNearestHtml carries the same category breadcrumb through every ret
   app.location.pathname = "/";
 });
 
-test("overviewNearestHtml shows the same species breakdown as the static /nearby/trees/ and /nearby/nature/ pages, above the live tree list rather than instead of it", () => {
+test("categoryLandingLinksHtml adds a pill per member on a group page (\"Browse by type\"), excluding cows from that row -- it still gets its own \"see also\" pill, matching the static generator's own page.members set", () => {
+  app.location.pathname = "/nearby/nature/";
+  const html = app.categoryLandingLinksHtml();
+  assert.match(html, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
+  assert.match(html, /href="\/nearby\/ponds-streams\/"[\s\S]*?Ponds/);
+  // Cows is live-tracked with no fixed count, so it never gets a page through the ordinary
+  // inventory-driven category path (COW_KEY, scripts/report/map-inventory.js) and so is never one
+  // of the group's own "members" -- but it still appears once, via the see-also row below, not
+  // the type row.
+  assert.match(html, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+  app.location.pathname = "/";
+});
+
+test("categoryLandingLinksHtml adds \"see also\" trees/cows pills to every landing page, omitting a self-link and never doubling up with the nature group's own type pill", () => {
+  app.location.pathname = "/nearby/pubs/";
+  const pubsHtml = app.categoryLandingLinksHtml();
+  assert.match(pubsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
+  assert.match(pubsHtml, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+
+  app.location.pathname = "/nearby/trees/";
+  const treesHtml = app.categoryLandingLinksHtml();
+  assert.ok(!treesHtml.includes('href="/nearby/trees/"'), "the trees page never links to itself");
+  assert.match(treesHtml, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+
+  app.location.pathname = "/nearby/cows/";
+  const cowsHtml = app.categoryLandingLinksHtml();
+  assert.match(cowsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
+  assert.ok(!cowsHtml.includes('href="/nearby/cows/"'), "nor does the cows page link to itself");
+
+  app.location.pathname = "/nearby/nature/";
+  const natureHtml = app.categoryLandingLinksHtml();
+  assert.equal((natureHtml.match(/href="\/nearby\/trees\/"/g) || []).length, 1, "the nature group's own \"Trees\" type pill is the only trees link -- the see-also row doesn't repeat it");
+
+  app.location.pathname = "/";
+});
+
+test("overviewNearestHtml no longer shows a tree species breakdown -- dropped as not making sense for a High Beach stand-in location", () => {
   resetData(app);
   app.state.trees = [
     { commonName: "English Oak" }, { commonName: "English Oak" }, { commonName: "English Oak" },
     { commonName: "English Oak" }, { commonName: "English Oak" },
-    { commonName: "Holly" }, // below the default minCount of 5 -- folds into "Other species"
   ];
   app.state.overviewFilters = ["trees"];
   app.location.pathname = "/nearby/trees/";
   app.state.userLocation = null;
 
-  const html = app.overviewNearestHtml();
-  assert.match(html, /<p>By species:<\/p>/);
-  assert.match(html, /<li>English Oak — 5<\/li>/);
-  assert.match(html, /<li>Other species — 1<\/li>/);
-  // Added above the live list, not instead of it -- the map can still be browsed by tapping a
-  // nearby tree, which a static build (no map, no map-click handler) never could.
-  assert.ok(html.indexOf("By species") < html.indexOf("empty") || !html.includes("empty"), "breakdown comes first");
-
-  // A plain subfilter page the breakdown is not meant for gets none of this.
-  app.location.pathname = "/nearby/pubs/";
-  assert.ok(!app.overviewNearestHtml().includes("By species"), "only the trees/nature landing pages get the breakdown");
+  assert.ok(!app.overviewNearestHtml().includes("By species"));
 
   app.location.pathname = "/";
 });

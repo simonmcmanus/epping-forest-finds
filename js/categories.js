@@ -521,42 +521,6 @@ function treeSpeciesIconHtml(commonName, latinName, className = "app-icon tree-s
   return src ? `<img class="${className}" src="${src}" alt="" loading="eager" decoding="sync">` : "";
 }
 
-// Shared by the live Nearby view (js/app.js, trees/nature overview) and the static
-// /nearby/trees//nature generator (scripts/generate-find-pages.js, via loadAppRules() --
-// js/categories.js has no DOM dependency so it loads into that script's vm sandbox) so both
-// report the exact same species counts from the same ~24,900 individually anonymous Veteran Tree
-// Register records -- an itemized per-tree list would be thousands of near-identical rows
-// ("Common Beech", "Common Beech", ...), so this is the genuinely useful, genuinely distinct fact
-// instead. `trees` is an array of records carrying `commonName`; a species with fewer than
-// `minCount` records folds into a trailing "Other species" count rather than each getting its own
-// row. `commonName` is matched case-insensitively (the register has a handful of inconsistently
-// cased duplicates, e.g. "English oak" alongside "English Oak" -- the most common casing wins the
-// display label), and any record whose name looks like a stray data artifact rather than a real
-// one (contains "=", seen on a handful of single-occurrence rows) is dropped, not hand-excluded by
-// name.
-function treeSpeciesBreakdown(trees, minCount = 5) {
-  const groups = new Map(); // lowercased name -> { total, variants: Map<rawName, count> }
-  for (const tree of trees) {
-    const raw = tree.commonName && String(tree.commonName).trim();
-    if (!raw || raw.includes("=")) continue;
-    const key = raw.toLowerCase();
-    const group = groups.get(key) || { total: 0, variants: new Map() };
-    group.total += 1;
-    group.variants.set(raw, (group.variants.get(raw) || 0) + 1);
-    groups.set(key, group);
-  }
-  const entries = [...groups.values()]
-    .map((group) => ({
-      name: [...group.variants.entries()].sort((a, b) => b[1] - a[1])[0][0],
-      count: group.total,
-    }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  return {
-    notable: entries.filter((e) => e.count >= minCount),
-    otherCount: entries.filter((e) => e.count < minCount).reduce((sum, e) => sum + e.count, 0),
-  };
-}
-
 function filterKindColor(kind) {
   switch (kind) {
     case "tree": return "rgba(47, 111, 78, 0.85)";

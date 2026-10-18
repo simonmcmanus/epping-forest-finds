@@ -3968,16 +3968,17 @@ function renderNearestItemsHtml(entries) {
   }).join("");
 }
 
-// "/nearby/<slug>/"'s own up-links -- a chip up to its group, and a way back to the full,
-// unfiltered Nearby list -- reproduced here because the static page's own version of this
-// (generate-find-pages.js's crossLinks/natureSeeAlsoHtml, what a crawler or a no-JS visitor
-// sees) is silently dropped the moment JS boots: selectOverview() replaces that content with
-// this live list, which had no up-links of its own. Shown only on a real /nearby/<slug>/
-// landing -- the plain /nearby screen, or a reader's own multi-filter choice from the Filters
-// screen, has no single category to breadcrumb up from, so filterKeysFromFindPath's own
-// pathname-only regex (never a reader's live filter selection) is what gates this, same as
-// isLandingPageArrival. A group page's own slug has no group above it, so it gets only the
-// "Everything nearby" link.
+// "/nearby/<slug>/"'s own up-links -- a chip up to its group, a way back to the full,
+// unfiltered Nearby list, a group page's own down-links to each member subfilter ("Browse by
+// type"), and the "see also veteran trees/grazing cattle" up-links every /find/<slug>/ business
+// page already carries -- reproduced here because the static page's own version of all of this
+// (generate-find-pages.js's topChipsHtml, what a crawler or a no-JS visitor sees) is silently
+// dropped the moment JS boots: selectOverview() replaces that content with this live list, which
+// had no up-links of its own. Shown only on a real /nearby/<slug>/ landing -- the plain /nearby
+// screen, or a reader's own multi-filter choice from the Filters screen, has no single category
+// to breadcrumb up from, so filterKeysFromFindPath's own pathname-only regex (never a reader's
+// live filter selection) is what gates this, same as isLandingPageArrival. A group page's own
+// slug has no group above it, so it gets only the "Everything nearby" link there.
 function categoryLandingLinksHtml() {
   const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
   if (!match) return "";
@@ -3989,36 +3990,36 @@ function categoryLandingLinksHtml() {
     ? `<a class="detail-map-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
     : "";
   const allChip = `<a class="detail-map-link" href="/nearby">${appIconHtml("nearby")}Everything nearby</a>`;
-  return `<div class="detail-top-row related-chips">${groupChip}${allChip}</div>`;
-}
 
-// Mirrors generate-find-pages.js's own showTrees condition (page.key === "trees" ||
-// "nature") exactly, off the same URL-path regex categoryLandingLinksHtml() above already uses,
-// so a /nearby/trees/ or /nearby/nature/ landing shows the same species breakdown a crawler or
-// no-JS visitor already saw -- added above, not instead of, the live cluster-based nearby-tree
-// list below it: unlike a static build, the live map can still let a reader tap through to an
-// individual nearby tree, so there is no reason to give that up for a content match. Reuses
-// treeSpeciesBreakdown() (js/categories.js) against the live state.trees -- the exact function
-// the generator's own loadTreeSpeciesBreakdown() calls (via loadAppRules()) against the same
-// on-disk dataset, so the two can never compute a different count.
-function liveTreeSpeciesBreakdownHtml() {
-  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
-  const key = match ? match[1].replace(/-/g, "_") : null;
-  if (key !== "trees" && key !== "nature") return "";
-  if (!state.trees.length) return "";
-  const breakdown = treeSpeciesBreakdown(state.trees);
-  if (!breakdown.notable.length) return "";
-  const rows = breakdown.notable
-    .map((s) => `<li>${escapeHtml(s.name)} — ${s.count.toLocaleString("en-GB")}</li>`)
-    .join("");
-  const otherRow = breakdown.otherCount > 0
-    ? `<li>Other species — ${breakdown.otherCount.toLocaleString("en-GB")}</li>`
+  // A group page's own members -- cows is excluded the same way the static generator's own
+  // page.members already is (live-tracked, no fixed count, no page built through the ordinary
+  // inventory-driven path -- COW_KEY, scripts/report/map-inventory.js), so this never shows a
+  // 4th pill the static page's own generated set doesn't have.
+  const typeChips = !subfilter
+    ? group.subfilters
+        .filter((s) => s.key !== "cows")
+        .map((s) => `<a class="detail-map-link" href="/nearby/${s.key.replace(/_/g, "-")}/">${appIconHtml(s.icon)}${escapeHtml(s.label)}</a>`)
+        .join("")
     : "";
-  return `<p>By species:</p><ul class="category-listing">${rows}${otherRow}</ul>`;
+
+  // Omits trees/cows's own self-link, and omits trees entirely on the nature group page (its
+  // own "Trees" type-chip above already covers it -- see topChipsHtml's matching comment,
+  // scripts/generate-find-pages.js).
+  const treesSubfilter = FILTER_SUBFILTERS_BY_KEY.get("trees");
+  const cowsSubfilter = FILTER_SUBFILTERS_BY_KEY.get("cows");
+  const treesAlreadyLinked = key === "trees" || (!subfilter && group.key === "nature");
+  const treesChip = treesAlreadyLinked || !treesSubfilter
+    ? ""
+    : `<a class="detail-map-link" href="/nearby/trees/">${appIconHtml(treesSubfilter.icon)}${escapeHtml(treesSubfilter.label)}</a>`;
+  const cowsChip = key === "cows" || !cowsSubfilter
+    ? ""
+    : `<a class="detail-map-link" href="/nearby/cows/">${appIconHtml(cowsSubfilter.icon)}${escapeHtml(cowsSubfilter.label)}</a>`;
+
+  return `<div class="detail-top-row related-chips">${groupChip}${allChip}${typeChips}${treesChip}${cowsChip}</div>`;
 }
 
 function overviewNearestHtml() {
-  const breadcrumbHtml = categoryLandingLinksHtml() + liveTreeSpeciesBreakdownHtml();
+  const breadcrumbHtml = categoryLandingLinksHtml();
   if (!state.userLocation) {
     // A /nearby/<slug> category page -- a subfilter's own, or a whole group's -- lands here with
     // no location yet (no prompt answered, or declined), as does a reader who has deliberately

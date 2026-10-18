@@ -62,39 +62,55 @@ test.describe("generated find/nearby pages", () => {
       // browser-default-styled <ul> that then visibly restyled itself the instant JS booted.
       expect(html).toContain('class="nearest-list"');
       expect(html).toContain(`class="nearest-item" href="/find/${EXAMPLE_PUB.slug}/"`);
-      // Every category/subcategory page links onward to veteran trees and grazing cattle, the
-      // same up-link every /find/<slug>/ business page already carries.
-      expect(html).toContain('href="/nearby/trees/">veteran trees</a>');
-      expect(html).toContain('href="/nearby/cows/">grazing cattle</a>');
+      // Every category/subcategory page links onward to veteran trees and grazing cattle as
+      // pills in the top chip row, the same up-link every /find/<slug>/ business page already
+      // carries.
+      expect(html).toMatch(/<a class="detail-map-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
+      expect(html).toMatch(/<a class="detail-map-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
     });
 
-    test("the trees category page links onward to the cows page but never links to itself", async ({ request }) => {
+    test("the trees category page links onward to the cows pill but never links to itself", async ({ request }) => {
       const html = await (await request.get("/nearby/trees/")).text();
-      expect(html).not.toContain('href="/nearby/trees/">veteran trees</a>');
-      expect(html).toContain('href="/nearby/cows/">grazing cattle</a>');
+      expect(html).not.toContain('href="/nearby/trees/"');
+      expect(html).toMatch(/<a class="detail-map-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
     });
 
-    test("/nearby/trees/ and /nearby/ponds-streams/ server-render real content in place of trees/water's own plain summary sentence", async ({ request }) => {
+    test("/nearby/trees/ server-renders a real nearest-tree list (no species breakdown -- dropped as not meaningful for a High Beach stand-in), and /nearby/ponds-streams/ still gets a real water list", async ({ request }) => {
       const trees = await (await request.get("/nearby/trees/")).text();
-      // Trees are ~24,900 individually anonymous records with no name of their own, so this is a
-      // species breakdown (real counts), not an itemized list of thousands of identical rows.
-      expect(trees).toContain("By species:");
-      expect(trees).toMatch(/<li>[^<]+ — [\d,]+<\/li>/);
+      expect(trees).not.toContain("By species:");
+      // The same .nearest-item card every other category's business list uses, each linking to
+      // the app's own #tree= deep link (same mechanism as #water=/#place=) since a veteran tree
+      // has no /find/<slug>/ page of its own to link to.
+      expect(trees).toMatch(/class="nearest-item" href="\/nearby\/trees\/#tree=r[a-z0-9]+"/);
 
       const water = await (await request.get("/nearby/ponds-streams/")).text();
-      // Named water features are individually distinct, so these get a real .nearest-item card
-      // list (the same card the live Nearby list renders), each linking to the app's existing
-      // #water= deep link (same mechanism as #tree=/#place=).
-      expect(water).toContain("Named ponds, lakes and streams:");
       expect(water).toContain(
         `class="nearest-item" href="/nearby/ponds-streams/#water=${encodeURIComponent(EXAMPLE_WATER.key)}"`
       );
       expect(water).toContain(`<span class="nearest-name">${escapeHtml(EXAMPLE_WATER.name)}</span>`);
 
-      // The combined "nature" group page carries both.
+      // The combined "nature" group page gets no species breakdown either, and merges trees and
+      // water into the one real nearest-item list (natureNearestListHtml, scripts/generate-find-pages.js) --
+      // the same per-filter radius-or-nearest-3 computation overviewItemsForActiveFilter()
+      // (js/app.js) does live, so it reads as mostly trees here too, matching what JS shows a
+      // moment later rather than disagreeing with it.
       const nature = await (await request.get("/nearby/nature/")).text();
-      expect(nature).toContain("By species:");
-      expect(nature).toContain("Named ponds, lakes and streams:");
+      expect(nature).not.toContain("By species:");
+      expect(nature).toMatch(/class="nearest-item" href="\/nearby\/trees\/#tree=r[a-z0-9]+"/);
+    });
+
+    test("/nearby/nature/'s static nearest-item list is the exact same items, in the exact same order, as the live Nearby list shows once JS boots", async ({ page, request }) => {
+      const staticHtml = await (await request.get("/nearby/nature/")).text();
+      const staticKeys = [...staticHtml.matchAll(/href="\/nearby\/(?:trees\/#tree|ponds-streams\/#water)=([^"]+)"/g)].map((m) => decodeURIComponent(m[1]));
+      expect(staticKeys.length).toBeGreaterThan(0);
+
+      await gotoAndWaitForMap(page, "/nearby/nature/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      const liveKeys = await page.locator("#inspectorBody .nearest-item[data-overview-key]").evaluateAll(
+        (els) => els.map((el) => el.dataset.overviewKey)
+      );
+
+      expect(liveKeys).toEqual(staticKeys);
     });
 
     test("a business page's real content is server-rendered: unique title, LocalBusiness JSON-LD, address and a real nearby list", async ({ request }) => {
@@ -140,15 +156,14 @@ test.describe("generated find/nearby pages", () => {
   });
 
   test.describe("the live app", () => {
-    test("/nearby/trees/ shows the same species breakdown once JS boots, above the live nearby-tree list rather than instead of it", async ({ page }) => {
-      await gotoAndWaitForMap(page, "/nearby/trees/");
+    test("/nearby/nature/ keeps the same \"Browse by type\"/\"see also\" pills once JS boots, with no species breakdown or water-only list on either render", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/nature/");
       const body = page.locator("#inspectorBody");
-      await expect.poll(() => page.evaluate(() => state.trees.length > 0)).toBe(true);
-      await expect(body).toContainText("By species:");
-      // Still above the live cluster-based list, not a replacement of it -- the map can still be
-      // browsed by tapping a nearby tree, which the static page's own breakdown-only page never
-      // could offer a reader or a crawler.
-      await expect(body.locator(".nearest-list, .nearest-item")).not.toHaveCount(0);
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await expect(body).not.toContainText("By species:");
+      await expect(body).not.toContainText("Named ponds, lakes and streams:");
+      await expect(body.locator('a.detail-map-link[href="/nearby/trees/"]')).toHaveCount(1);
+      await expect(body.locator('a.detail-map-link[href="/nearby/ponds-streams/"]')).toHaveCount(1);
     });
 
     test("/nearby/events/ boots pre-filtered to Events, the same way every other /nearby/<slug> page does", async ({ page }) => {

@@ -102,37 +102,61 @@ function loadWaterFeatures(rules, siteRoot) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// Trees are the opposite case: ~24,900 individually anonymous records (no name, no page of
-// their own -- see spec-marketing.md §6.7's scope carve-out), so an itemized list would be
-// thousands of near-identical lines ("Common Beech", "Common Beech", ...), which is worse
-// thin/duplicate content than the summary sentence this replaces, not better. A species
-// breakdown is the genuinely useful, genuinely distinct fact instead: real counts, computed
-// from the same chunked dataset js/loader.js streams into the live map, not a second guess.
-// commonName is matched case-insensitively (the source register has a handful of inconsistently
-// cased duplicates, e.g. "English oak" alongside "English Oak") and anything whose own name
-// looks like a stray data artifact rather than a species (contains "=", seen on a few
-// single-occurrence rows -- e.g. "beech = 13,*") is dropped rather than hand-excluded by name.
-// The grouping/counting itself is treeSpeciesBreakdown() (js/categories.js, exposed by
-// loadAppRules() -- it has no DOM dependency so it loads into this script's vm sandbox), the same
-// function the live Nearby view now calls on state.trees -- this just reads the on-disk chunked
-// dataset into the same shape (an array of records carrying commonName) that function expects.
-function loadTreeSpeciesBreakdown(rules, siteRoot, minCount = 5) {
+// Every veteran tree with a real position, in the same shape js/loader.js normalizes
+// state.trees into (tree.location.wgs84.{latitude,longitude} flattened onto the record, the
+// (0,0)-placeholder rows dropped) -- read directly from the on-disk chunked dataset rather than
+// through that normalization step, which lives in a file that can't load into loadAppRules()'s
+// vm sandbox (it references `document` at module-evaluation time).
+function loadTrees(siteRoot) {
   const indexPath = path.join(siteRoot, "data", "trees", "index.json");
-  if (!fs.existsSync(indexPath)) return { notable: [], otherCount: 0 };
+  if (!fs.existsSync(indexPath)) return [];
   const index = JSON.parse(fs.readFileSync(indexPath, "utf8"));
   const trees = [];
   for (const chunk of index.chunks || []) {
     const chunkPath = path.join(siteRoot, chunk.url);
     if (!fs.existsSync(chunkPath)) continue;
     const chunkData = JSON.parse(fs.readFileSync(chunkPath, "utf8"));
-    trees.push(...(chunkData.trees || []));
+    for (const tree of chunkData.trees || []) {
+      if (!tree.location || !tree.location.wgs84) continue;
+      const latitude = Number(tree.location.wgs84.latitude);
+      const longitude = Number(tree.location.wgs84.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) continue;
+      if (latitude === 0 && longitude === 0) continue;
+      trees.push({ ...tree, latitude, longitude });
+    }
   }
-  // rules.treeSpeciesBreakdown runs inside loadAppRules()'s vm sandbox, so the object/arrays it
-  // returns are built from that sandbox's own Object/Array constructors -- structurally identical
-  // but a different realm, which fails assert.deepStrictEqual's prototype check even though they
-  // print the same (see loadWaterFeatures' own [...] spread below for the same fix).
-  const result = rules.treeSpeciesBreakdown(trees, minCount);
-  return { notable: [...result.notable].map((entry) => ({ ...entry })), otherCount: result.otherCount };
+  return trees;
+}
+
+// treeHashKey/treeDisplayName/treeTagLabel/normalizeTreeNumber (js/app.js), reproduced rather
+// than imported for the same reason DEFAULT_LOCATION above is. Formulas must stay in sync by
+// hand.
+function normalizeTreeNumber(value) {
+  return String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+const TREE_RECORD_KEY_PREFIX = "r";
+function treeHashKey(tree) {
+  if (!tree) return "";
+  const recordNumber = tree.recordNumber;
+  if (recordNumber !== null && recordNumber !== undefined && recordNumber !== "") {
+    return TREE_RECORD_KEY_PREFIX + normalizeTreeNumber(recordNumber);
+  }
+  if (Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)) {
+    const axis = (value) => (value < 0 ? "n" : "p") + Math.round(Math.abs(value) * 1e6);
+    return `ll${axis(tree.latitude)}${axis(tree.longitude)}`;
+  }
+  return normalizeTreeNumber(tree.id ?? tree.tagNumber ?? "");
+}
+function treeTagLabel(tree) {
+  const tag = tree && (tree.tagNumber ?? tree.nationalDatabaseTagNumber);
+  if (tag === null || tag === undefined) return null;
+  const text = String(tag).trim();
+  if (!text || Number(text) === 0) return null;
+  return text;
+}
+function treeDisplayName(tree) {
+  if (!tree) return "Unknown tree";
+  return tree.commonName || treeTagLabel(tree) || "Veteran tree";
 }
 
 // formatDistance (js/app.js) and the walk-time half of walkInfoHtml (js/inspector.js),
@@ -178,7 +202,7 @@ function nearestWithinWalkingRadius(items, getLatLon) {
 // reader -- or a crawler -- saw a plain blue-link list that then visibly reflowed into cards the
 // instant JS replaced it with the live Nearby list; now the static page already looks like the
 // screen it's showing. metres is optional -- omitted entirely (no footer) rather than shown as
-// 0/blank when a caller has no distance to give (the tree-species breakdown has none).
+// 0/blank when a caller has no distance to give.
 function nearestItemCardHtml(href, iconHtml, name, metres) {
   const footer = Number.isFinite(metres)
     ? `<div class="nearest-footer"><span class="nearest-meta"><span class="walk-chip">${formatDistanceLabel(metres)} · ${walkTimeLabel(metres)}</span></span></div>`
@@ -197,39 +221,104 @@ function nearestListHtml(cards) {
 // real one at build time.
 const DEFAULT_LOCATION_SOURCE_NOTE = '<p class="source-note">Showing things near High Beach — you haven\'t shared your location.</p>';
 
-function waterListHtml(waterFeatures, rules) {
-  if (!waterFeatures.length) return "";
-  const icon = rules.filterKindEmoji("ponds_streams");
-  const nearest = nearestWithinWalkingRadius(waterFeatures, (w) => w);
-  return `<p>Named ponds, lakes and streams:</p>${DEFAULT_LOCATION_SOURCE_NOTE}${nearestListHtml(nearest.map(({ item: w, metres }) =>
-    nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(w.key)}`, icon, w.name, metres)
-  ))}`;
+// Live's own Nearby list, once a reader lands on a /nearby/trees/, /nearby/ponds-streams/ or
+// /nearby/nature/ page, isn't a business list or a species breakdown -- it's
+// overviewItemsForActiveFilter() (js/app.js) computing each active filter's own nearest matches
+// *independently* (nearestWithinWalkingRadius per type below mirrors that function's own
+// per-filter "within radius, or the nearest 3 if none are" fallback), concatenating them, sorting
+// the combined set by real distance, and capping the display to state.nearestItemsCount (10).
+// Trees vastly outnumber the ~100 named water features within any given radius, so on
+// /nearby/nature/ that merged, capped list reads as "mostly trees" live -- showing a water-only
+// list (or a tree species breakdown) here instead would disagree with what JS actually shows a
+// moment later rather than match it, which is exactly the mismatch this function closes.
+const NEAREST_ITEMS_COUNT = 10; // state.nearestItemsCount, js/app.js
+
+function natureEntriesForFilterKey(filterKey, enrichment) {
+  if (filterKey === "trees") {
+    return nearestWithinWalkingRadius(enrichment.trees, (t) => t).map(({ item, metres }) => ({ type: "tree", item, metres }));
+  }
+  if (filterKey === "ponds_streams") {
+    return nearestWithinWalkingRadius(enrichment.waterFeatures, (w) => w).map(({ item, metres }) => ({ type: "water", item, metres }));
+  }
+  return [];
+}
+
+function natureNearestListHtml(filterKeys, enrichment, rules) {
+  const entries = filterKeys.flatMap((key) => natureEntriesForFilterKey(key, enrichment));
+  if (!entries.length) return "";
+  entries.sort((a, b) => a.metres - b.metres);
+  const cards = entries.slice(0, NEAREST_ITEMS_COUNT).map(({ type, item, metres }) => {
+    if (type === "tree") {
+      const icon = rules.treeSpeciesIconHtml(item.commonName, item.latinName) || rules.filterKindEmoji("trees");
+      return nearestItemCardHtml(`/nearby/trees/#tree=${encodeURIComponent(treeHashKey(item))}`, icon, treeDisplayName(item), metres);
+    }
+    const icon = rules.filterKindEmoji("ponds_streams");
+    return nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(item.key)}`, icon, item.name, metres);
+  });
+  return DEFAULT_LOCATION_SOURCE_NOTE + nearestListHtml(cards);
 }
 
 // The exact chip row categoryLandingLinksHtml() (js/app.js) renders live at the top of the
 // Nearby list on a real /nearby/<slug>/ landing -- a chip up to the category's own group, and a
-// way back to the full, unfiltered list. That function's own comment explains why it exists
-// separately from this page's static crossLinks paragraph below: selectOverview() replaces this
-// whole body with the live list the moment JS boots, dropping crossLinks's sibling/up-link text
-// entirely, so without this a reader (or a crawler) never saw this breadcrumb row at all until
-// JS had already swapped it in -- the exact "looks like a different page" gap crossLinks itself
-// doesn't cover, since it links sideways/down, not up to "everything". Same classes
-// (.detail-top-row.related-chips/.detail-map-link, css/inspector.css), same icons
-// (rules.appIconHtml, via the group's own FILTER_GROUPS icon and the fixed "nearby" one), same
-// position (first, before any other content) as the live version.
-function breadcrumbChipsHtml(rules, group) {
-  const groupChip = group
-    ? `<a class="detail-map-link" href="/nearby/${slugFor(group.key)}/">${rules.appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
-    : "";
-  const allChip = `<a class="detail-map-link" href="/nearby">${rules.appIconHtml("nearby")}Everything nearby</a>`;
-  return `<div class="detail-top-row related-chips">${groupChip}${allChip}</div>`;
+// way back to the full, unfiltered list, plus (for a group page) a down-link to each member
+// subfilter ("Browse by type") and the same "see also veteran trees/grazing cattle" up-links
+// every /find/<slug>/ business page already carries (scripts/generate-business-pages.js) -- all
+// in the one row, all before any other content, all pills rather than a paragraph of inline
+// links: these used to sit as plain text at the *bottom* of the page (two separate sentences),
+// which both read fine as prose but, once live, silently vanished the moment
+// selectOverview() replaced this whole body with the real Nearby list -- exactly the "looks like
+// a different page" gap this chip row already existed to close for the breadcrumb half.
+// Promoted to the top and reshaped as chips, matching categoryLandingLinksHtml()'s own live
+// version (js/app.js) chip for chip, in the same order, with the same dedupe (the nature group
+// page's own "Trees" pill already covers trees, so its "see also" pill never repeats it).
+// Same classes (.detail-top-row.related-chips/.detail-map-link, css/inspector.css) and icons
+// (rules.appIconHtml) either side.
+function subfilterByKey(rules, key) {
+  for (const group of rules.FILTER_GROUPS) {
+    const found = group.subfilters.find((s) => s.key === key);
+    if (found) return found;
+  }
+  return null;
 }
 
-function categoryLandingChipsHtml(page, rules) {
-  const group = page.isGroup
-    ? null
-    : rules.FILTER_GROUPS.find((g) => g.key === page.groupSlug.replace(/-/g, "_"));
-  return breadcrumbChipsHtml(rules, group);
+function chipHtml(rules, href, icon, label) {
+  return `<a class="detail-map-link" href="${href}">${rules.appIconHtml(icon)}${escapeHtml(label)}</a>`;
+}
+
+function breadcrumbChipsHtml(rules, group) {
+  const groupChip = group ? chipHtml(rules, `/nearby/${slugFor(group.key)}/`, group.icon, group.label) : "";
+  return groupChip + chipHtml(rules, "/nearby", "nearby", "Everything nearby");
+}
+
+// A group page's own members ("Browse by type") -- cows is excluded the same way collectPages'
+// own page.members already is (live-tracked, no fixed count, no page built through the ordinary
+// inventory-driven path -- COW_KEY, scripts/report/map-inventory.js), so this never shows a 4th
+// pill the group's own generated page set doesn't actually have.
+function typeChipsHtml(members, rules) {
+  return members
+    .filter((m) => m.key !== "cows")
+    .map((m) => chipHtml(rules, `/nearby/${m.slug}/`, subfilterByKey(rules, m.key)?.icon, m.label))
+    .join("");
+}
+
+// omitTrees/omitCows avoid a self-link (this page's own /nearby/trees//cows/) or a duplicate of
+// a pill the page already shows elsewhere (the nature group page's own "Trees" type-chip above).
+function seeAlsoChipsHtml(rules, { omitTrees = false, omitCows = false } = {}) {
+  const trees = subfilterByKey(rules, "trees");
+  const cows = subfilterByKey(rules, "cows");
+  const treesChip = omitTrees || !trees ? "" : chipHtml(rules, "/nearby/trees/", trees.icon, trees.label);
+  const cowsChip = omitCows || !cows ? "" : chipHtml(rules, "/nearby/cows/", cows.icon, cows.label);
+  return treesChip + cowsChip;
+}
+
+// Assembles every pill a page gets, in the live version's own order (breadcrumb, then type,
+// then see-also), as the one chip row -- renderPage/renderEventsPage/renderCowsPage each pass
+// their own group/members/omit combination rather than duplicating this wrapping div three times.
+function topChipsHtml(rules, { group = null, members = null, omitTrees = false, omitCows = false } = {}) {
+  const breadcrumb = breadcrumbChipsHtml(rules, group);
+  const typeChips = members ? typeChipsHtml(members, rules) : "";
+  const seeAlso = seeAlsoChipsHtml(rules, { omitTrees, omitCows });
+  return `<div class="detail-top-row related-chips">${breadcrumb}${typeChips}${seeAlso}</div>`;
 }
 
 // Same lookup live code's FILTER_SUBFILTERS_BY_KEY does (js/categories.js), rebuilt here since
@@ -238,30 +327,6 @@ function categoryLandingChipsHtml(page, rules) {
 // and so have no page.groupSlug of their own to read.
 function groupContainingSubfilter(rules, subfilterKey) {
   return rules.FILTER_GROUPS.find((g) => g.subfilters.some((s) => s.key === subfilterKey)) || null;
-}
-
-function treeSpeciesHtml(treeSpecies) {
-  if (!treeSpecies || !treeSpecies.notable.length) return "";
-  const rows = treeSpecies.notable
-    .map((s) => `<li>${escapeHtml(s.name)} — ${s.count.toLocaleString("en-GB")}</li>`)
-    .join("");
-  const otherRow = treeSpecies.otherCount > 0
-    ? `<li>Other species — ${treeSpecies.otherCount.toLocaleString("en-GB")}</li>`
-    : "";
-  return `<p>By species:</p><ul class="category-listing">${rows}${otherRow}</ul>`;
-}
-
-// The same "See also veteran trees and grazing cattle near Epping Forest" up-link every
-// /find/<slug>/ business page already carries (scripts/generate-business-pages.js), so a
-// category/subcategory page gives a crawler or a visitor the same onward path -- these pages
-// previously cross-linked only sideways (siblings) and up (group), never out to trees/cows,
-// which sit outside every group but "nature" and so never appeared as a sibling anywhere else.
-// Self-link avoided only for /nearby/trees/ itself; every other page (including the "nature"
-// group page, whose own crossLinks cover trees but never cows -- cows has no fixed count and is
-// excluded from map-inventory.js's inventory.groups) gets both links.
-function natureSeeAlsoHtml(omitTreesLink = false) {
-  const treesLink = omitTreesLink ? "" : `<a href="/nearby/trees/">veteran trees</a> and `;
-  return `<p>See also ${treesLink}<a href="/nearby/cows/">grazing cattle</a> near Epping Forest.</p>`;
 }
 
 // A compact, generic phrase for each top-level group's own page (e.g. /nearby/food/) -- group
@@ -348,8 +413,10 @@ function collectPages(rules, inventory) {
   return pages;
 }
 
+const NATURE_FILTER_KEYS = new Set(["trees", "ponds_streams"]);
+
 function renderPage(page, appHtml, enrichment = {}) {
-  const { waterFeatures = [], treeSpecies = null, rules = loadAppRules() } = enrichment;
+  const { waterFeatures = [], trees = [], rules = loadAppRules() } = enrichment;
   // Trailing slash: Netlify's static hosting serves nearby/<slug>/index.html directly only at
   // /nearby/<slug>/, 301-redirecting the bare path to it (the same convention /reports/ already
   // uses, STATIC_PAGES in generate-sitemap.js) -- the canonical/OG/JSON-LD url must be the one
@@ -374,11 +441,12 @@ function renderPage(page, appHtml, enrichment = {}) {
     mainEntity: { "@type": "ItemList", numberOfItems: page.count },
   };
 
-  // A group page (e.g. /nearby/food/) cross-links down into its own member subfilters; a
-  // subfilter page cross-links sideways to its siblings and up to its own group page.
-  const crossLinks = (page.isGroup ? page.members : page.siblings)
-    .map((s) => `<a href="/nearby/${escapeHtml(s.slug)}/">${escapeHtml(s.label)}</a>`)
-    .join(", ");
+  // A subfilter page cross-links sideways to its siblings and up to its own group page -- a
+  // group page's own down-links to its members are part of the top pill row instead (typeChipsHtml,
+  // via topChipsHtml below).
+  const siblingLinks = page.isGroup
+    ? ""
+    : page.siblings.map((s) => `<a href="/nearby/${escapeHtml(s.slug)}/">${escapeHtml(s.label)}</a>`).join(", ");
 
   // What a crawler, or a visitor, sees before js/app.js boots and replaces #inspectorBody with
   // the live Nearby list (transitionInspectorBody, js/inspector.js) -- real, specific, crawlable
@@ -398,23 +466,37 @@ function renderPage(page, appHtml, enrichment = {}) {
       ))
     : "";
 
-  // trees/ponds_streams/nature are outside the /find/ business scope above (listBusinessesForFilterKey
-  // returns nothing for them) but aren't left with just the summary sentence either -- a named
-  // water feature is as real and distinct as a business, and a tree species breakdown is the
-  // genuinely useful fact in place of ~24,900 anonymous, near-identical list rows. See
-  // loadWaterFeatures/loadTreeSpeciesBreakdown above for why each gets a different shape.
-  const showWater = page.key === "ponds_streams" || page.key === "nature";
-  const showTrees = page.key === "trees" || page.key === "nature";
-  const enrichedListHtml = (showTrees ? treeSpeciesHtml(treeSpecies) : "") + (showWater ? waterListHtml(waterFeatures, rules) : "");
+  // Trees and named water features are outside the /find/ business scope above, but get the
+  // same real nearest-list treatment -- natureNearestListHtml() replicates
+  // overviewItemsForActiveFilter()'s own per-filter radius-or-nearest-3 computation (js/app.js),
+  // so a /nearby/trees/, /nearby/ponds-streams/ or /nearby/nature/ landing shows exactly the
+  // items, order and (on the nature group page) tree-dominated mix the live Nearby list shows a
+  // moment later, not a second, disagreeing guess.
+  const natureFilterKeys = page.isGroup
+    ? page.members.filter((m) => NATURE_FILTER_KEYS.has(m.key)).map((m) => m.key)
+    : (NATURE_FILTER_KEYS.has(page.key) ? [page.key] : []);
+  const enrichedListHtml = natureFilterKeys.length
+    ? natureNearestListHtml(natureFilterKeys, { trees, waterFeatures }, rules)
+    : "";
 
-  const seoContent = categoryLandingChipsHtml(page, rules) +
+  const group = page.isGroup
+    ? null
+    : rules.FILTER_GROUPS.find((g) => g.key === page.groupSlug.replace(/-/g, "_"));
+  // The nature group's own "Trees" type-chip already covers trees -- the see-also row's own
+  // trees pill would otherwise repeat it right next to it in the same row.
+  const chips = topChipsHtml(rules, {
+    group,
+    members: page.isGroup ? page.members : null,
+    omitTrees: page.key === "trees" || (page.isGroup && page.members.some((m) => m.key === "trees")),
+  });
+
+  const seoContent = chips +
     `<p>Find all ${page.count} ${escapeHtml(page.title)} in Epping Forest, mapped and ready to walk to. Enable location to see how far each one is and get walking directions.</p>` +
     businessListHtml +
     enrichedListHtml +
     (page.isGroup
-      ? (crossLinks ? `<p>Browse by type: ${crossLinks}.</p>` : "")
-      : (crossLinks ? `<p>More in <a href="/nearby/${escapeHtml(page.groupSlug)}/">${escapeHtml(page.groupLabel)}</a>: ${crossLinks}.</p>` : "")) +
-    natureSeeAlsoHtml(page.key === "trees");
+      ? ""
+      : (siblingLinks ? `<p>More in <a href="/nearby/${escapeHtml(page.groupSlug)}/">${escapeHtml(page.groupLabel)}</a>: ${siblingLinks}.</p>` : ""));
 
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
@@ -486,11 +568,10 @@ function renderEventsPage(appHtml, events, rules = loadAppRules()) {
     : "";
 
   const seoContent =
-    breadcrumbChipsHtml(rules, groupContainingSubfilter(rules, "events")) +
+    topChipsHtml(rules, { group: groupContainingSubfilter(rules, "events") }) +
     `<p>${escapeHtml(description)} Enable location to see how far away each one is and get walking directions.</p>` +
     eventListHtml +
-    `<p>See the <a href="/find/events/">full events list</a> with descriptions and source links.</p>` +
-    natureSeeAlsoHtml();
+    `<p>See the <a href="/find/events/">full events list</a> with descriptions and source links.</p>`;
 
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
@@ -528,9 +609,8 @@ function renderCowsPage(appHtml, rules = loadAppRules()) {
   };
 
   const seoContent =
-    breadcrumbChipsHtml(rules, groupContainingSubfilter(rules, "cows")) +
-    `<p>${escapeHtml(description)} Positions refresh periodically while online; offline, the map shows the last saved positions, which may be out of date.</p>` +
-    `<p>See also <a href="/nearby/trees/">veteran trees</a> near Epping Forest.</p>`;
+    topChipsHtml(rules, { group: groupContainingSubfilter(rules, "cows"), omitCows: true }) +
+    `<p>${escapeHtml(description)} Positions refresh periodically while online; offline, the map shows the last saved positions, which may be out of date.</p>`;
 
   let html = appHtml;
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
@@ -551,9 +631,11 @@ function generate(siteRoot = path.join(__dirname, ".."), inventory = buildInvent
   const categoryDir = path.join(siteRoot, CATEGORY_DIR_NAME);
   fs.mkdirSync(categoryDir, { recursive: true });
   // Loaded once up front, not per page: both read a dataset no other part of this generator
-  // touches (the tree chunks in particular are the largest files in the whole build), and only
-  // the trees/ponds_streams/nature pages (renderPage's showTrees/showWater) ever use them.
-  const enrichment = { waterFeatures: loadWaterFeatures(rules, siteRoot), treeSpecies: loadTreeSpeciesBreakdown(rules, siteRoot), rules };
+  // touches (the tree chunks in particular are the largest files in the whole build, and only
+  // change if the source register does -- deterministic from DEFAULT_LOCATION otherwise, so this
+  // cost is paid once per build, not per request), and only the trees/ponds_streams/nature pages
+  // (renderPage's own natureFilterKeys) ever use either.
+  const enrichment = { waterFeatures: loadWaterFeatures(rules, siteRoot), trees: loadTrees(siteRoot), rules };
   for (const page of pages) {
     const pageDir = path.join(categoryDir, page.slug);
     fs.mkdirSync(pageDir, { recursive: true });
@@ -594,7 +676,8 @@ module.exports = {
   slugFor,
   buildTitleIndex,
   loadWaterFeatures,
-  loadTreeSpeciesBreakdown,
+  loadTrees,
+  natureNearestListHtml,
   nearestWithinWalkingRadius,
   CATEGORY_DIR_NAME,
 };

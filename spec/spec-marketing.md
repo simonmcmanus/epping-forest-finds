@@ -613,87 +613,72 @@ branches.
   shop or pub in the dataset in build order, while JS replaced it moments
   later with a short, nearest-first list scoped to a 30-minute walk — the
   two renders showed genuinely different content, not just a different look.
-- **The static page also carries the same breadcrumb chip row the live Nearby
-  list shows at the very top of a `/nearby/<slug>/` landing** — a chip up to
-  the category's own group, and an "Everything nearby" chip back to the
-  unfiltered list (`breadcrumbChipsHtml`/`categoryLandingChipsHtml`,
-  `scripts/generate-find-pages.js`), reusing the exact classes and icons
-  `categoryLandingLinksHtml()` (`js/app.js`) renders live
-  (`.detail-top-row.related-chips`/`.detail-map-link`, `css/inspector.css`;
-  icons via `appIconHtml`, now also exposed by `loadAppRules()`). That live
-  function's own comment already explained why it exists separately from
-  this page's sibling/up-link `crossLinks` paragraph below — `selectOverview()`
-  drops that paragraph entirely the moment JS boots — but until now nothing
-  reproduced it statically, so a reader (or a crawler) never saw this
-  breadcrumb at all until JS had already swapped it in: another "looks like a
-  different page" gap, reported directly against `/nearby/shops/`. `/nearby/cows/`
-  and `/nearby/events/` (rendered outside `collectPages`/`renderPage`, so with
-  no `page.groupSlug` of their own) get it too, via `groupContainingSubfilter()`
-  — the same group lookup `FILTER_SUBFILTERS_BY_KEY` does live. `/nearby/events/`'s
-  chip points back to itself (its own subfilter and group share the "events"
-  key) — a pre-existing quirk of the live version this faithfully reproduces
-  rather than silently "fixing" only on the static side, which would be a new
-  mismatch, not a smaller one.
-- **`trees`, `ponds_streams` and the `nature` group get their own kind of
-  real list instead** (`loadWaterFeatures`/`loadTreeSpeciesBreakdown`,
-  `scripts/generate-find-pages.js`), because neither is a good fit for the
-  `/find/` list above:
-  - **Named water features** (ponds, lakes, streams — ~111 of them) are as
-    individually distinct as a business, so `/nearby/ponds-streams/` (and
-    `/nearby/nature/`) gets the same `.nearest-item` card treatment, one per
-    feature, alphabetical, via the same `extractWaterFeatures` classification
-    the live app and the weekly report already use (now also exposing
-    `waterHashKey`, `scripts/report/map-inventory.js`'s `loadAppRules()`) —
-    never a second, separately-computed list. Each links to
-    `/nearby/ponds-streams/#water=<hashKey>`, the app's own existing
-    `water=` deep-link route (same mechanism as `#tree=`/`#place=`), so
-    clicking one — static page or not — selects that exact feature live.
-  - **Trees are the opposite case**: ~24,900 individually anonymous Veteran
-    Tree Register records with no name and no page of their own (§6.7's
-    scope carve-out). An itemized list would be thousands of near-identical
-    lines ("Common Beech", "Common Beech", ...) — worse thin/duplicate
-    content than the plain summary sentence it would replace, not better. A
-    **species breakdown** is the genuinely useful, genuinely distinct fact
-    instead: real counts per species (name, count), computed from the same
-    chunked dataset `js/loader.js` streams into the live map — species with
-    fewer than 5 records fold into a trailing "Other species" row rather
-    than each getting its own line. `commonName` is matched
-    case-insensitively (the register has a handful of inconsistently cased
-    duplicates, e.g. "English oak" alongside "English Oak" — the most
-    common casing wins the display label) and any record whose "species"
-    looks like a stray data artifact rather than a real name (contains
-    `=`, seen on a handful of single-occurrence rows) is dropped, not
-    hand-excluded by name. No deep link — there is nothing for a species
-    row to select. The grouping/counting itself (`treeSpeciesBreakdown()`,
-    `js/categories.js`) is shared with the live app, not duplicated here:
-    `loadTreeSpeciesBreakdown()` in this generator just reads the on-disk
-    chunked dataset into the same shape and calls it (via `loadAppRules()`,
-    `js/categories.js` having no DOM dependency), and `overviewNearestHtml()`
-    (`js/app.js`) calls the exact same function against the live
-    `state.trees` to show the identical breakdown above the live, interactive
-    nearby-tree list on a `/nearby/trees/` or `/nearby/nature/` landing —
-    added there rather than replacing that list, since the live map can still
-    let a reader tap through to an individual nearby tree, unlike a static
-    build.
-  - Both are computed once per build (`generate()`), not once per page, since
-    the tree chunks in particular are the largest files the whole build
-    reads.
+- **The static page carries one pill row at the very top of a
+  `/nearby/<slug>/` landing, matching `categoryLandingLinksHtml()`
+  (`js/app.js`) chip for chip** (`topChipsHtml`, `scripts/generate-find-pages.js`;
+  `.detail-top-row.related-chips`/`.detail-map-link`, `css/inspector.css`;
+  icons via `appIconHtml`/`treeSpeciesIconHtml`, both exposed by
+  `loadAppRules()`). In order: a chip up to the category's own group; an
+  "Everything nearby" chip back to the unfiltered list; on a **group** page
+  only, a down-link pill per member subfilter ("Browse by type" — e.g.
+  `/nearby/nature/` gets "Trees" and "Ponds & streams", excluding cows, which
+  is live-tracked with no fixed count and so never one of a group's own
+  `page.members`, `COW_KEY`, `scripts/report/map-inventory.js`); and a
+  "see also" pill each for veteran trees and grazing cattle, omitting a
+  self-link (`/nearby/trees/` never gets its own trees pill, `/nearby/cows/`
+  never its own cows pill) and never repeating a pill the type-chip row
+  already shows (the nature group page's own "Trees" pill is the only trees
+  link there — the see-also row doesn't add a second one next to it).
+  `selectOverview()` replaces the rest of this body with the live list the
+  moment JS boots, but had no up-links of its own until `categoryLandingLinksHtml()`
+  grew this same logic — without it, a reader (or a crawler) saw this whole
+  row until JS swapped it in and then never again. `/nearby/cows/` and
+  `/nearby/events/` (rendered outside `collectPages`/`renderPage`, so with no
+  `page.groupSlug` of their own) get the breadcrumb half too, via
+  `groupContainingSubfilter()` — the same group lookup `FILTER_SUBFILTERS_BY_KEY`
+  does live. `/nearby/events/`'s chip points back to itself (its own
+  subfilter and group share the "events" key) — a pre-existing quirk of the
+  live version this faithfully reproduces rather than silently "fixing" only
+  on the static side, which would be a new mismatch, not a smaller one. This
+  used to be two separate plain-text sentences at the *bottom* of the page
+  ("Browse by type: ..." and "See also veteran trees and grazing cattle near
+  Epping Forest.") — reshaped into pills and promoted to the top so they
+  survive `selectOverview()` instead of vanishing with the rest of the body.
+- **`trees` and `ponds_streams` get a real nearest-item list exactly like a
+  business does — including on the `nature` group page, where it's the
+  *same* list, not two separate ones** (`natureNearestListHtml`,
+  `scripts/generate-find-pages.js`). This replicates
+  `overviewItemsForActiveFilter()`'s own per-filter computation (`js/app.js`):
+  each active filter key (trees, water, or both on the nature group page) is
+  scanned independently for matches within the walking radius, falling back
+  to its own nearest 3 if it has none — the same `nearestWithinWalkingRadius`
+  every business-scope list above already uses, called once per filter — and
+  the results are concatenated and re-sorted by real distance before capping
+  the display to 10 (`state.nearestItemsCount`, `js/app.js`). Trees
+  (~24,900 individually anonymous Veteran Tree Register records) vastly
+  outnumber the ~100 named water features within any given radius, so the
+  nature group page's own merged list reads as "mostly trees" both here and
+  live — matching what JS shows a moment later instead of disagreeing with
+  it, which a water-only list (or a tree species breakdown, tried and
+  dropped: see below) would. A tree has no name and no `/find/<slug>/` page
+  of its own (§6.7's scope carve-out), so each card links to
+  `/nearby/trees/#tree=<hashKey>` instead — the app's own existing `tree=`
+  deep-link route (same mechanism as `#water=`/`#place=`), so clicking one —
+  static page or not — selects that exact tree live. `treeHashKey`/
+  `treeDisplayName`/`treeTagLabel` (`js/app.js`) are reproduced in the
+  generator (`loadTrees` reads the on-disk chunked dataset into the same
+  shape `js/loader.js` normalizes `state.trees` into) for the same reason
+  `DEFAULT_LOCATION` above is: that file can't load into `loadAppRules()`'s
+  `vm` sandbox. **A tree species breakdown ("By species: Common Beech —
+  13,122...") was tried first and dropped**: real and useful on its own, but
+  it made no sense as something tied to a High Beach stand-in nobody is
+  actually standing at, and didn't match what the live list showed either
+  way — the nearest-item list above is what actually satisfies "the same
+  content, live or not."
 - **Every category/subcategory page also links onward to veteran trees and
-  grazing cattle** — `natureSeeAlsoHtml()` (`scripts/generate-find-pages.js`)
-  appends the same "See also veteran trees and grazing cattle near Epping
-  Forest" up-link every `/find/<slug>/` business page already carries
-  (§6.7), on every subfilter page, every group page, `/nearby/events/` and
-  `/nearby/cows/`. Previously these pages cross-linked only sideways to
-  sibling subfilters and up to their own group, so (say) `/nearby/pubs/` had
-  no path to either — cows in particular is excluded from every group's own
-  member list (`map-inventory.js`'s live-tracked exclusion), so no category
-  page ever linked to it before. `/nearby/trees/` omits the self-link
-  (`omitTreesLink`) rather than linking to itself; `/nearby/cows/` carries
-  only the trees half of the same link for the same reason. This static
-  version's sibling-cross-link and group up-link (`crossLinks`/"More in
-  `<group>`") are also reproduced for the live view that replaces this whole
-  body the moment JS boots — see §6.7, "Category/subcategory pages keep
-  their own up-links once JS boots".
+  grazing cattle, as pills in the top chip row above, not a bottom
+  sentence** — see the top-pill-row bullet above for exactly how the
+  trees/cows "see also" pills are built and when each is omitted.
 - **Title tags state the page's own real content, not a repeated generic
   phrase.** A subfilter page's title leads with its count (`"129 Pubs & Bars
   in Epping Forest | Epping Forest Finds"` — a plural noun reads naturally
@@ -855,22 +840,24 @@ use for the homepage's counts.
   `applyRouteFromUrl()` — the same entry point the back/forward buttons and
   a hand-edited hash already use — so an intercepted link behaves exactly
   like landing on that URL any other way, just without the reload.
-- **Category/subcategory pages keep their own up-links once JS boots.** The
-  static page's "More in `<group>`: `<siblings>`" and "See also veteran
-  trees and grazing cattle" (§6.6) are real links with no JS, but
-  `selectOverview()` replaces that whole static body with the live,
-  interactive Nearby list the moment JS boots — which had no breadcrumb of
-  its own, so a real visitor's browser silently dropped them the instant it
-  finished loading the page. `categoryLandingLinksHtml()` (`js/app.js`)
-  reproduces the "up" half live: on a real `/nearby/<slug>/` landing (gated
-  on the URL's own path, same regex `filterKeysFromFindPath`/
-  `isLandingPageArrival` use — never a reader's own multi-filter choice from
-  the Filters screen, which has no single category to breadcrumb up from), a
-  subfilter page gets a `.detail-map-link` chip up to its group plus one
-  back to the full, unfiltered Nearby list; a group page (no group above it)
-  gets only the latter. Prepended to every one of `overviewNearestHtml`'s
-  return paths, the empty-list ones included, so it survives exactly the
-  states that most need a way out of a now-empty category list.
+- **Category/subcategory pages keep their own pill row once JS boots.** The
+  static page's whole top chip row (§6.6 — breadcrumb, a group page's own
+  "Browse by type" members, and the "see also veteran trees/grazing cattle"
+  pills) is real markup with no JS, but `selectOverview()` replaces that
+  whole static body with the live, interactive Nearby list the moment JS
+  boots — which had no chip row of its own, so a real visitor's browser
+  silently dropped it the instant the page finished loading. `categoryLandingLinksHtml()`
+  (`js/app.js`) reproduces all of it live, chip for chip, gated on the URL's
+  own path (same regex `filterKeysFromFindPath`/`isLandingPageArrival` use —
+  never a reader's own multi-filter choice from the Filters screen, which has
+  no single category to breadcrumb up from) and prepended to every one of
+  `overviewNearestHtml`'s return paths, the empty-list ones included, so it
+  survives exactly the states that most need a way out of a now-empty
+  category list. A subfilter page's sideways "More in `<group>`:
+  `<siblings>`" link is the one piece that stays a plain-text paragraph at
+  the bottom rather than a pill — it isn't reproduced live, the same gap
+  this whole bullet used to describe for everything else before the pill
+  row existed.
 - **Linked everywhere a business is mentioned, not only from its own page**:
   `js/loader.js` fetches `data/business-slugs.json` alongside the other
   datasets and attaches `findSlug` to each matching place; `showLandmarkDetails`
