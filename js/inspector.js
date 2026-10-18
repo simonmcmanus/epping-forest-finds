@@ -660,7 +660,12 @@ function selectOverview(animate = false) {
     hydrateOverviewBusStopDirections();
     animateNearestItemReorder(previousNearestPositions);
   });
-  syncHashFromSelection();
+  // A category landing path is already the user's navigation target.  Nearby is re-rendered
+  // by location/radius updates after boot, but those incidental renders must not canonicalise
+  // /nearby/<slug>/ to /nearby?radius=30 and lose the category lens from the address bar.
+  // goToInitialView() still calls syncHashFromSelection() after this function when the reader
+  // explicitly navigates back to ordinary Nearby.
+  if (!filterKeysFromFindPath(window.location.pathname).length) syncHashFromSelection();
 }
 
 function nearestItemDomKey(node) {
