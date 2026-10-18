@@ -402,10 +402,13 @@ function showLandmarkDetails(place, distance) {
   // The walking pill starts in its loading form and resolves into the ready chip once its figure is
   // worked out (updateSelectedDetailFields, js/app.js), so it always has a slot that does not move the
   // actions beside it. The resolve waits a short minimum so the loading form reads as loading.
-  const distancePill = `<span data-live-field="distance">${walkChipPendingHtml()}</span>`;
-  setTimeout(() => {
-    if (state.selected && state.selected.item === place) updateSelectedDetailFields();
-  }, WALK_CHIP_MIN_LOADING_MS);
+  // Without a shared location there is no walking distance to work out, so the slot stays empty.
+  const distancePill = `<span data-live-field="distance">${hasRealLocation() ? walkChipPendingHtml() : ""}</span>`;
+  if (hasRealLocation()) {
+    setTimeout(() => {
+      if (state.selected && state.selected.item === place) updateSelectedDetailFields();
+    }, WALK_CHIP_MIN_LOADING_MS);
+  }
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
   const fullDetailsLink = fullDetailsLinkHtml(place.findSlug);

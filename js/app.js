@@ -6902,7 +6902,7 @@ const ROUTE_UNKNOWN_FIT_SLACK = 1.25;
 
 function ensureUserAndSelectionVisible(options = {}) {
   const target = selectedCompassTarget();
-  if (!target || !state.userLocation) return;
+  if (!target) return;
   if (!options.force && els.inspector.classList.contains("minimized")) return;
   // force:true is an app-driven framing (a new selection, the first-load reveal, expanding
   // the inspector) and therefore also the point at which the app takes the camera back.
@@ -6912,6 +6912,14 @@ function ensureUserAndSelectionVisible(options = {}) {
   if (options.force) clearManualCameraOverride();
   else if (manualCameraOverrideActive()) return;
   const shouldAnimate = options.animate !== false;
+
+  // No shared location: there is no origin to fit the selection against, so the view simply centres
+  // on the selected place (no route, no walking distance, no direction arrow).
+  if (!hasRealLocation()) {
+    if (target.point) centerViewportOnPointsKeepScale([target.point], options);
+    return;
+  }
+  if (!state.userLocation) return;
 
   let pointsToFit = [state.userLocation.point];
 
@@ -8973,7 +8981,9 @@ function updateSelectedDetailFields() {
   const distancePill = els.inspectorBody && els.inspectorBody.querySelector('[data-live-field="distance"]');
   // The first figure replaces the loading chip and opens out into its slot (.walk-chip--enter). Later
   // updates only swap the numbers, so the chip never replays its entrance.
-  if (distancePill && Number.isFinite(metres)) {
+  // No shared location: there is no walking figure to show, so the slot stays empty.
+  if (distancePill && !hasRealLocation()) distancePill.innerHTML = "";
+  if (distancePill && hasRealLocation() && Number.isFinite(metres)) {
     const isFirstFigure = !distancePill.querySelector(".walk-chip--ready");
     distancePill.innerHTML = walkInfoExpandableHtml(metres);
     if (isFirstFigure) distancePill.querySelector(".walk-chip--ready")?.classList.add("walk-chip--enter");
