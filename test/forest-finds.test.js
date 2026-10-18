@@ -252,6 +252,7 @@ globalThis.__forestFindsTest = {
   categoryLandingLinksHtml,
   navigateInApp,
   overviewHeadingText,
+  landingPageCategoryLabel,
   normalizeSearchText,
   searchQueryTokens,
   searchFieldRank,
@@ -1989,6 +1990,82 @@ test("overviewNearestHtml carries the same category breadcrumb through every ret
   app.location.pathname = "/";
 });
 
+test("categoryLandingLinksHtml adds a pill per member on a group page (\"Browse by type\"), excluding cows from that row -- it still gets its own \"see also\" pill, matching the static generator's own page.members set", () => {
+  app.location.pathname = "/nearby/nature/";
+  const html = app.categoryLandingLinksHtml();
+  assert.match(html, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
+  assert.match(html, /href="\/nearby\/ponds-streams\/"[\s\S]*?Ponds/);
+  // Cows is live-tracked with no fixed count, so it never gets a page through the ordinary
+  // inventory-driven category path (COW_KEY, scripts/report/map-inventory.js) and so is never one
+  // of the group's own "members" -- but it still appears once, via the see-also row below, not
+  // the type row.
+  assert.match(html, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+  app.location.pathname = "/";
+});
+
+test("categoryLandingLinksHtml adds \"see also\" trees/cows pills to every landing page, omitting a self-link and never doubling up with the nature group's own type pill", () => {
+  app.location.pathname = "/nearby/pubs/";
+  const pubsHtml = app.categoryLandingLinksHtml();
+  assert.match(pubsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
+  assert.match(pubsHtml, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+
+  app.location.pathname = "/nearby/trees/";
+  const treesHtml = app.categoryLandingLinksHtml();
+  assert.ok(!treesHtml.includes('href="/nearby/trees/"'), "the trees page never links to itself");
+  assert.match(treesHtml, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+
+  app.location.pathname = "/nearby/cows/";
+  const cowsHtml = app.categoryLandingLinksHtml();
+  assert.match(cowsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
+  assert.ok(!cowsHtml.includes('href="/nearby/cows/"'), "nor does the cows page link to itself");
+
+  app.location.pathname = "/nearby/nature/";
+  const natureHtml = app.categoryLandingLinksHtml();
+  assert.equal((natureHtml.match(/href="\/nearby\/trees\/"/g) || []).length, 1, "the nature group's own \"Trees\" type pill is the only trees link -- the see-also row doesn't repeat it");
+
+  app.location.pathname = "/";
+});
+
+test("landingPageCategoryLabel names the current /nearby/<slug> landing's own category, and selectOverview() uses it to head the screen \"Nearby <Category>\" instead of the generic \"Nearby\"", () => {
+  resetData(app);
+
+  app.location.pathname = "/nearby/pubs/";
+  assert.equal(app.landingPageCategoryLabel(), "Pubs & bars");
+  app.state.overviewFilters = ["pubs"];
+  app.selectOverview();
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby Pubs & bars");
+
+  app.location.pathname = "/nearby/nature/";
+  assert.equal(app.landingPageCategoryLabel(), "Nature");
+  app.state.overviewFilters = ["trees", "ponds_streams"];
+  app.selectOverview();
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby Nature");
+
+  // The plain, unfiltered Nearby screen -- and a reader's own filter choice from the Filters
+  // screen, which lands on the same bare /nearby path -- names no single category to head with.
+  app.location.pathname = "/nearby";
+  assert.equal(app.landingPageCategoryLabel(), null);
+  app.selectOverview();
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby");
+
+  app.location.pathname = "/";
+});
+
+test("overviewNearestHtml no longer shows a tree species breakdown -- dropped as not making sense for a High Beach stand-in location", () => {
+  resetData(app);
+  app.state.trees = [
+    { commonName: "English Oak" }, { commonName: "English Oak" }, { commonName: "English Oak" },
+    { commonName: "English Oak" }, { commonName: "English Oak" },
+  ];
+  app.state.overviewFilters = ["trees"];
+  app.location.pathname = "/nearby/trees/";
+  app.state.userLocation = null;
+
+  assert.ok(!app.overviewNearestHtml().includes("By species"));
+
+  app.location.pathname = "/";
+});
+
 test("navigateInApp pushes a real history entry and applies the new route, instead of leaving it to the browser's own navigation", () => {
   resetData(app);
   app.location.pathname = "/find/the-forresters/";
@@ -2209,7 +2286,7 @@ test("applyDefaultLocation widens the plain 5-minute default radius to 30 minute
   assert.equal(app.state.walkingDistanceMinutes, app.LANDING_PAGE_WALKING_DISTANCE_MINUTES, "already-30 from the landing-page default is left alone too");
 });
 
-test("the Nearby list says it is showing High Beach while the stand-in is active, and says nothing once a real fix replaces it", () => {
+test("the Nearby heading's own type line says it is measuring from High Beach while the stand-in is active, and says nothing once a real fix replaces it", () => {
   resetData(app);
   app.state.overviewFilters = ["trees"];
   app.state.trees.push({ id: "t1", commonName: "Nearby tree", ...makePoint(app, 0.0005, 0) });
@@ -2219,15 +2296,16 @@ test("the Nearby list says it is showing High Beach while the stand-in is active
   // coordinates -- far outside this fixture tree's synthetic (0,0)-based test coordinates.
   app.state.userLocation = { ...makePoint(app, 0, 0), isDefault: true };
   assert.match(
-    app.overviewNearestHtml(),
-    /Showing things near High Beach — you haven't shared your location\./,
-    "explains why the list is centred on High Beach, not just the one-time dismissible gate"
+    app.overviewHeadingText(),
+    /of High Beach$/,
+    "explains why the list is centred on High Beach, not just the one-time dismissible gate -- folded into the type line, not a separate sentence in the list body"
   );
+  assert.doesNotMatch(app.overviewNearestHtml(), /Showing things near High Beach/, "no longer a separate sentence in the list body");
 
   app.state.userLocation = makePoint(app, 0, 0);
   assert.doesNotMatch(
-    app.overviewNearestHtml(),
-    /Showing things near High Beach/,
+    app.overviewHeadingText(),
+    /High Beach/,
     "a real fix needs no explanation for where the list is centred"
   );
 });
@@ -2242,8 +2320,8 @@ test("setLocationGateVisible shows its dismiss button only when told the prompt 
   localApp.setLocationGateVisible(true, "Permission was blocked.", "Enable location");
   assert.equal(localApp.els.locationGateDismiss.hidden, true, "a hard-stop prompt offers no way to brush it off");
 
-  localApp.setLocationGateVisible(true, "Share your location for more.", "Enable location", "Get a more custom experience", { dismissible: true });
-  assert.equal(localApp.els.locationGateDismiss.hidden, false, "an invite-only prompt, shown once the map already has a usable default, can be dismissed");
+  localApp.setLocationGateVisible(true, "Compass access was blocked.", "Allow compass access", "Compass unavailable", { dismissible: true });
+  assert.equal(localApp.els.locationGateDismiss.hidden, false, "a dismissible call shows the way to brush it off");
 
   localApp.setLocationGateVisible(true, "Permission was blocked again.", "Enable location");
   assert.equal(localApp.els.locationGateDismiss.hidden, true, "a later hard-stop call hides it again rather than leaking the previous call's flag");

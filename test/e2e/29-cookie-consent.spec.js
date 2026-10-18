@@ -37,12 +37,12 @@ test.describe("Cookie consent banner", () => {
     await expect(banner.locator("..")).toHaveAttribute("id", "earlyTestingNoticeSlot");
     await expect(banner).toHaveCSS("position", "static");
 
-    // A no-location visit can receive the app's separate location invite. It is asynchronous,
-    // so CI may instead reach the completed no-location state without showing that prompt.
-    // Clear it when present before exercising the notice's own control.
+    // A no-location visit can receive the app's separate, non-blocking location invite banner.
+    // It is asynchronous, so CI may instead reach the completed no-location state without
+    // showing that prompt. Clear it when present before exercising the notice's own control.
     await expect(page.locator("#loadingOverlay")).toBeHidden({ timeout: 30_000 });
-    const locationGateDismiss = page.locator("#locationGateDismiss");
-    if (await locationGateDismiss.isVisible()) await locationGateDismiss.click();
+    const locationInviteDismiss = page.locator("#locationInviteDismiss");
+    if (await locationInviteDismiss.isVisible()) await locationInviteDismiss.click();
     await banner.getByRole("button", { name: "Dismiss early testing notice" }).evaluate(button => button.click());
     await expect(banner).toBeHidden();
   });
@@ -212,10 +212,10 @@ test.describe("Cookie consent banner", () => {
       await page.locator("#consentBannerDecline").click();
       await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-cookie-consent"))).toBe("denied");
       await expect(banner).toBeHidden();
-      // revealNoRealLocation's own separate "get a more custom experience" invite is suppressed
-      // here (locationAlreadyAsked), same as a declined onboarding location step -- this banner
-      // was already the one ask, so nothing else should draw in its place.
-      await expect(page.locator("#locationGate")).toBeHidden();
+      // revealNoRealLocation's own separate "get a more custom experience" invite banner is
+      // suppressed here (locationAlreadyAsked), same as a declined onboarding location step --
+      // this banner was already the one ask, so nothing else should draw in its place.
+      await expect(page.locator("#locationInviteBanner")).toBeHidden();
       await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
     });
 

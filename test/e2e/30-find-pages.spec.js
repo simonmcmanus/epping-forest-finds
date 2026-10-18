@@ -5,8 +5,14 @@
 
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
-const { generate: generateCategoryPages } = require("../../scripts/generate-find-pages.js");
+const {
+  generate: generateCategoryPages,
+  loadWaterFeatures,
+  nearestWithinWalkingRadius,
+} = require("../../scripts/generate-find-pages.js");
 const { generate: generateBusinessPages } = require("../../scripts/generate-business-pages.js");
+const { loadAppRules } = require("../../scripts/report/map-inventory.js");
+const { escapeHtml } = require("../../scripts/lib/html-template.js");
 const businessIndex = require("../../data/business-slugs.json");
 const { gotoAndWaitForMap, skipOnboarding, setup } = require("./helpers");
 
@@ -14,8 +20,20 @@ const REPO_ROOT = path.join(__dirname, "..", "..");
 
 // A real, data-driven example rather than a hardcoded name that could close or be renamed --
 // the nearest the e2e suite comes to a fixture for the 1,500+ generated business pages. Picked
-// with a real address so the "Nearby" list and distance copy have something to assert on.
-const EXAMPLE_PUB = businessIndex.entries.find((e) => e.key === "pubs" && e.address && e.lat != null);
+// with a real address so the "Nearby" list and distance copy have something to assert on, and
+// picked nearest-first (same ranking generate-find-pages.js itself uses) so it's guaranteed to
+// actually appear in /nearby/pubs/'s now walking-radius-filtered static list below -- an
+// arbitrary pub could be outside Epping Forest's walkable radius of High Beach entirely.
+const EXAMPLE_PUB = nearestWithinWalkingRadius(
+  businessIndex.entries.filter((e) => e.key === "pubs" && e.address),
+  (e) => ({ latitude: e.lat, longitude: e.lon })
+)[0].item;
+
+// trees/ponds_streams/nature are outside the business index above (spec-marketing.md § 6.6's
+// "trees/water get a different kind of list" carve-out) -- a real named water feature instead,
+// the same way EXAMPLE_PUB is a real business, not a hardcoded name. Nearest-first for the same
+// reason as EXAMPLE_PUB above -- the water list is now walking-radius-filtered too.
+const EXAMPLE_WATER = nearestWithinWalkingRadius(loadWaterFeatures(loadAppRules(), REPO_ROOT), (w) => w)[0].item;
 
 // A second example, picked for carrying the optional fields that are only ever shown when the
 // source data actually has them (spec-marketing.md § 6.7) -- opening hours and a phone number --
@@ -40,18 +58,82 @@ test.describe("generated find/nearby pages", () => {
       const html = await response.text();
 
       expect(html).toMatch(/<title>\d[\d,]* Pubs &amp; [Bb]ars in Epping Forest \| Epping Forest Finds<\/title>/);
-      expect(html).toContain('class="category-listing"');
-      expect(html).toContain(`href="/find/${EXAMPLE_PUB.slug}/"`);
-      // Every category/subcategory page links onward to veteran trees and grazing cattle, the
-      // same up-link every /find/<slug>/ business page already carries.
-      expect(html).toContain('href="/nearby/trees/">veteran trees</a>');
-      expect(html).toContain('href="/nearby/cows/">grazing cattle</a>');
+      // The same .nearest-item card the live Nearby list renders (css/map-ui.css), not a plain
+      // browser-default-styled <ul> that then visibly restyled itself the instant JS booted.
+      expect(html).toContain('class="nearest-list"');
+      expect(html).toContain(`class="nearest-item" href="/find/${EXAMPLE_PUB.slug}/"`);
+      // Every category/subcategory page links onward to veteran trees and grazing cattle as
+      // pills in the top chip row, the same up-link every /find/<slug>/ business page already
+      // carries.
+      expect(html).toMatch(/<a class="detail-map-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
+      expect(html).toMatch(/<a class="detail-map-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
     });
 
-    test("the trees category page links onward to the cows page but never links to itself", async ({ request }) => {
+    test("the trees category page links onward to the cows pill but never links to itself", async ({ request }) => {
       const html = await (await request.get("/nearby/trees/")).text();
-      expect(html).not.toContain('href="/nearby/trees/">veteran trees</a>');
-      expect(html).toContain('href="/nearby/cows/">grazing cattle</a>');
+      expect(html).not.toContain('href="/nearby/trees/"');
+      expect(html).toMatch(/<a class="detail-map-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+    });
+
+    test("/nearby/trees/ server-renders a real nearest-tree list (no species breakdown -- dropped as not meaningful for a High Beach stand-in), and /nearby/ponds-streams/ still gets a real water list", async ({ request }) => {
+      const trees = await (await request.get("/nearby/trees/")).text();
+      expect(trees).not.toContain("By species:");
+      // The same .nearest-item card every other category's business list uses, each linking to
+      // the app's own #tree= deep link (same mechanism as #water=/#place=) since a veteran tree
+      // has no /find/<slug>/ page of its own to link to.
+      expect(trees).toMatch(/class="nearest-item" href="\/nearby\/trees\/#tree=r[a-z0-9]+"/);
+
+      const water = await (await request.get("/nearby/ponds-streams/")).text();
+      expect(water).toContain(
+        `class="nearest-item" href="/nearby/ponds-streams/#water=${encodeURIComponent(EXAMPLE_WATER.key)}"`
+      );
+      expect(water).toContain(`<span class="nearest-name">${escapeHtml(EXAMPLE_WATER.name)}</span>`);
+
+      // The combined "nature" group page gets no species breakdown either, and merges trees and
+      // water into the one real nearest-item list (natureNearestListHtml, scripts/generate-find-pages.js) --
+      // the same per-filter radius-or-nearest-3 computation overviewItemsForActiveFilter()
+      // (js/app.js) does live, so it reads as mostly trees here too, matching what JS shows a
+      // moment later rather than disagreeing with it.
+      const nature = await (await request.get("/nearby/nature/")).text();
+      expect(nature).not.toContain("By species:");
+      expect(nature).toMatch(/class="nearest-item" href="\/nearby\/trees\/#tree=r[a-z0-9]+"/);
+    });
+
+    test("/nearby/nature/'s static nearest-item list is the exact same items, in the exact same order, as the live Nearby list shows once JS boots", async ({ page, request }) => {
+      const staticHtml = await (await request.get("/nearby/nature/")).text();
+      const staticKeys = [...staticHtml.matchAll(/href="\/nearby\/(?:trees\/#tree|ponds-streams\/#water)=([^"]+)"/g)].map((m) => decodeURIComponent(m[1]));
+      expect(staticKeys.length).toBeGreaterThan(0);
+
+      await gotoAndWaitForMap(page, "/nearby/nature/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      const liveKeys = await page.locator("#inspectorBody .nearest-item[data-overview-key]").evaluateAll(
+        (els) => els.map((el) => el.dataset.overviewKey)
+      );
+
+      expect(liveKeys).toEqual(staticKeys);
+    });
+
+    test("a category page's \"Nearby <Category>\" heading, its type line, and the consent banner's lead phrase are server-rendered and match what JS shows once it boots -- no generic placeholder title, no separate generic lead sentence or \"Showing things near High Beach\" paragraph", async ({ page, request }) => {
+      const staticHtml = await (await request.get("/nearby/pubs/")).text();
+      expect(staticHtml).not.toContain(">Epping Forest Finds</h2>");
+      // The generic lead sentence survives only in the SEO <meta name="description">, not as a
+      // second, redundant paragraph in the visible body -- pubs already has a real itemized list.
+      expect(staticHtml).not.toMatch(/<p>Find all [\d,]+ pubs/);
+      expect(staticHtml).not.toContain("Showing things near High Beach");
+      expect(staticHtml).toContain('<h2 id="inspectorTitle">Nearby Pubs &amp; bars</h2>');
+      expect(staticHtml).toMatch(/<img class="app-icon title-icon" src="data\/icons\/nearby\.png"/);
+      const staticTypeMatch = staticHtml.match(/<p id="inspectorType" class="type">([^<]*)<\/p>/);
+      expect(staticTypeMatch).not.toBeNull();
+      expect(staticTypeMatch[1]).toMatch(/^\d+ Pubs and bars within 30 min walk of High Beach$/);
+      expect(staticHtml).toContain(
+        "Enable location to get walking directions and see what's near pubs and bars and help us understand how people use this site."
+      );
+
+      await gotoAndWaitForMap(page, "/nearby/pubs/");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await expect(page.locator("#inspectorTitle")).toHaveText("Nearby Pubs & bars");
+      await expect(page.locator("#inspectorType")).toHaveText(staticTypeMatch[1]);
+      await expect(page.locator("#inspectorTitleEmoji img.title-icon")).toBeVisible();
     });
 
     test("a business page's real content is server-rendered: unique title, LocalBusiness JSON-LD, address and a real nearby list", async ({ request }) => {
@@ -97,6 +179,16 @@ test.describe("generated find/nearby pages", () => {
   });
 
   test.describe("the live app", () => {
+    test("/nearby/nature/ keeps the same \"Browse by type\"/\"see also\" pills once JS boots, with no species breakdown or water-only list on either render", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/nature/");
+      const body = page.locator("#inspectorBody");
+      await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
+      await expect(body).not.toContainText("By species:");
+      await expect(body).not.toContainText("Named ponds, lakes and streams:");
+      await expect(body.locator('a.detail-map-link[href="/nearby/trees/"]')).toHaveCount(1);
+      await expect(body.locator('a.detail-map-link[href="/nearby/ponds-streams/"]')).toHaveCount(1);
+    });
+
     test("/nearby/events/ boots pre-filtered to Events, the same way every other /nearby/<slug> page does", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/events/");
       await expect.poll(() => page.evaluate(() => isSubfilterActive("events"))).toBe(true);
@@ -232,6 +324,15 @@ test.describe("generated find/nearby pages", () => {
         longitude: state.nearbyAnchor && Number(state.nearbyAnchor.longitude.toFixed(6)),
       }));
       expect(anchor).toEqual(placeCoords);
+    });
+
+    test("a water feature's link on /nearby/ponds-streams/ selects that exact feature live, through the app's own #water= deep link -- no separate mechanism of its own", async ({ page }) => {
+      await gotoAndWaitForMap(page, `/nearby/ponds-streams/#water=${encodeURIComponent(EXAMPLE_WATER.key)}`);
+      await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
+      const selected = await page.evaluate(() => ({ type: state.selected.type, name: state.selected.item && state.selected.item.name }));
+      expect(selected.type).toBe("water");
+      expect(selected.name).toBe(EXAMPLE_WATER.name);
+      await expect(page.locator("#inspectorTitle")).toHaveText(EXAMPLE_WATER.name);
     });
   });
 
